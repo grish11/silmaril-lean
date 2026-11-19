@@ -436,6 +436,52 @@ recorded `correspondence.json` bytes, compiler profile and function. A wrong off
 the statement or the relation it proves; proving a statement about the chosen offsets does not
 validate the extractor. Facts are shown as "extracted", never as checked.
 
+### Compact signed-int view
+
+For `add3` and `max2`, choose **Compact C (signed int)** in the source selector. This is a
+separate projection of the exact typed Ail, not an intermediate input to Core elaboration.
+`Exact text` shows the canonical `compact-c-i32-v1` S-expression. Download the source-origin
+sidecar from the stage card: its IDs are zero-based preorder occurrences in the compact tree.
+The sidecar stores the Ail location and, on a `let`, the name of the new slot. Parameters
+occupy the initial slots. These coordinates are not C lines, DWARF offsets or Core program
+points; the explorer disables primary fragment links for both compact displays.
+
+The compact tree represents an unqualified LP64 signed-`int` leaf function: nonnegative
+decimal `int` literals, reads from initialized slots, checked addition, signed `>`, and
+initialized locals before a return or a terminal `if`. It refuses other statements and types,
+including uninitialized locals, assignments, loops, calls and pointers. There is no memory,
+aliasing, global state or I/O in the model. The function checks argument count, signed range
+and slot scope; signed addition overflow stops with UB, including in initialization.
+Evaluation reads left to right without side effects. Only the chosen branch runs.
+
+The stage badge checks equality of the **projection** and binds both exact byte streams.
+`ExprProjection.eval_eq` relates the independent evaluator to C0 on the original Ail expression:
+with sufficient fuel and a related slot state, results and stops agree, and successful
+evaluation leaves the C0 environment unchanged. `add3_agrees` and `max2_agrees` check the
+compact and C0 returns, exact Cerberus elaboration, and forced Core return on the named
+canonical inputs. These closed examples are not a statement-level or whole-program Core
+simulation. C text → Ail remains a compiled frontend evaluation, not a parser theorem.
+
+```sh
+lake build Silmaril.Compiler.C.Compact.Codec
+for item in straight branch; do
+  dir=examples/compiles-to/$item
+  lake env lean --run tools/compiler-explorer/compact_fixture.lean \
+    "$dir/typed-ail.sexp" "$dir/compact.sexp" "$dir/compact-origins.sexp"
+done
+python3 -I tools/compiler-explorer/fixtures.py manifests
+make compiler-explorer-check
+```
+
+`node tools/compiler-explorer/compact_sizes.mjs` counts expanded wire lists, semantic
+constructor occurrences, and exact and formatted UTF-8 bytes. For `add3`, exact Ail/Core
+files are 6,101/21,231 bytes and compact tree + origins are 99 + 735 bytes. For `max2` they
+are 4,024/17,927 and 85 + 573 bytes. This removes repeated metadata and narrows scope;
+it does not measure shared heap objects or compress the full Ail or Core AST. For a loop
+baseline, run `compact_baseline.lean` on `examples/compiles-to/loop/loop.c` and pass the output
+directory to `compact_sizes.mjs`. `compact_fixture.lean bench <typed-ail.sexp> <calls>` compares
+warm evaluator calls with checked equal returns, not parser, elaborator or native build times.
+
 ## More general problems, and negative results
 
 **C ⇒ C translations** (`Silmaril.Project.Shapes.CompilesTo.Translate`).

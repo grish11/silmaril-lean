@@ -26,6 +26,9 @@ modules=(
   Silmaril.Proofs.Compiler.Explorer.Text
   Silmaril.Compiler.Explorer.Text.Thms
   CompilesToExamples.Explorer.TypeError
+  Silmaril.Proofs.Compiler.C.Compact
+  CompilesToExamples.Explorer.Compact.Checks
+  CompilesToExamples.Explorer.Compact.Core
 )
 jobs=$(nproc)
 if (( jobs > 6 )); then jobs=6; fi
