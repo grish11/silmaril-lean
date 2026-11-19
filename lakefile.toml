@@ -97,7 +97,7 @@ globs = [
   "Silmaril.Proofs.Games.+", "Silmaril.Proofs.Sim.+", "Silmaril.Proofs.Logic.+", "Silmaril.Raw.Logic.+", "Silmaril.Proofs.Problems.+",
   "Silmaril.Proofs.Process.+", "Silmaril.Proofs.Project.+", "Silmaril.Proofs.ProofFormats.+", "Silmaril.Proofs.SSA.+",
   "Silmaril.Proofs.Wasm.Abstract.+", "Silmaril.Proofs.Wasm.Acceptor.+", "Silmaril.Proofs.Wasm.Auto.+", "Silmaril.Proofs.Wasm.Auto2.+",
-  "Silmaril.Proofs.Wasm.Behaviour.+", "Silmaril.Proofs.Wasm.Binaryen.+",
+  "Silmaril.Proofs.Wasm.Behaviour.+", "Silmaril.Proofs.Wasm.Binary.+", "Silmaril.Proofs.Wasm.Binaryen.+",
   "Silmaril.Proofs.Wasm.Examples.+", "Silmaril.Proofs.Wasm.Execution.+",
   "Silmaril.Proofs.Wasm.FX.+", "Silmaril.Proofs.Wasm.FnInst.+",
   "Silmaril.Proofs.Wasm.Game.+", "Silmaril.Proofs.Wasm.Interp.+", "Silmaril.Proofs.Wasm.Logic.+",

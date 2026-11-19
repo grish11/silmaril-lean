@@ -19,6 +19,11 @@ REF = "Silmaril.Wasm.Binary.Core.decode?"
 FAST = "Silmaril.Wasm.Perf.CoreDecode.decodeF"
 READERS = {"reference": REF, "fast": FAST}
 HEADER = b"\0asm\x01\x00\x00\x00"
+PINNED = {
+    "empty-check": "54c4c74e6990f39b6cd1a5c7c1af7eae3a4dd6a725acd2eb7de2c21b1b0ce9ce",
+    "ex-start": "bb4323bdfa85244147d28a9211f05540cd4bbce4c08c10820c70ebcb565ab259",
+    "lrat": "2a7e04b514053262880547d1baf5d92fdfabddef6a4af2fce8bb7f1a08e1f2fc",
+}
 
 
 def uleb(value):
@@ -193,11 +198,131 @@ def runtime_cases(out, selected, args):
                     csv_file.flush()
 
 
+def frame_layout(blob):
+    if blob[:8] != HEADER:
+        raise ValueError("fixture does not begin with a Core header")
+    offset = 8
+    frames = []
+    while offset < len(blob):
+        index = blob[offset]
+        offset += 1
+        width = 0
+        for shift in range(0, 32, 7):
+            byte = blob[offset]
+            offset += 1
+            width += (byte & 127) << shift
+            if byte < 128:
+                break
+        else:
+            raise ValueError("fixture has overlong section size")
+        if width >= 2**32 or offset + width > len(blob):
+            raise ValueError("fixture has out-of-range section size")
+        frames.append(f"({index}, {width})")
+        offset += width
+    return "[" + ", ".join(frames) + "]"
+
+
+def framing_cases(out, selected, args):
+    build, env = build_kernel_harness(out, args)
+    subprocess.run(["lake", "build", "--wfail", "+Silmaril.Wasm.Binary.Packed.Thms"],
+                   cwd=ROOT, check=True)
+    with (out / "framing.csv").open("w") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["case", "run", "phase", "wall_s", "peak_rss_kib", "exit", "agreement_ns"])
+        for case, binary, _ in selected:
+            directory = binary.parent
+            defs = directory / "FramingInput.lean"
+            defs.write_text('module\nimport Quote\n\nkbytes_def source from_file "source.wasm"\n')
+            olean = build / "FramingInput.olean"
+            source = directory / "MeasureFrames.lean"
+            layout = frame_layout(binary.read_bytes())
+            finish = binary.stat().st_size
+            statement = (f"scanFramesSpec.run cursor.spec =\n"
+                         f"  .ok ({layout}, {{ cursor.spec with pos := {finish} }})")
+            header = ("module\nimport Quote\npublic import FramingInput\n"
+                      "public import Silmaril.Wasm.Binary.Packed.Thms\n\n"
+                      "open Silmaril.Wasm.Binary.Packed\n"
+                      "@[expose] public noncomputable def cursor : Cursor := ⟨source, source.wf_true, 0⟩\n")
+            phases = {
+                "import": "",
+                "reference": f"wasm_bench_refl framed : {statement}\n",
+                "packed": (
+                    "wasm_bench_refl packedFramed : scanFrames.run cursor =\n"
+                    f"  .ok ({layout}, {{ cursor with pos := {finish} }})\n"
+                    f"theorem framed : {statement} :=\n"
+                    f"  scanFramesSpec_of_ok cursor {layout} {finish} packedFramed\n"
+                ),
+            }
+            result = sample(directory, "framing-construct",
+                            lean_command(args, defs, f"--root={directory}", "-o", str(olean)), args.seconds, env)
+            writer.writerow([case, 1, "construct", *result[1:]])
+            for repeat in range(1, args.runs + 1):
+                if result[3]:
+                    break
+                for phase, body in phases.items():
+                    source.write_text(header + body)
+                    result_phase = sample(directory, f"{repeat}-framing-{phase}",
+                                          lean_command(args, source), args.seconds, env)
+                    writer.writerow([case, repeat, phase, *result_phase[1:]])
+                    csv_file.flush()
+
+
+def passive_cases(out, selected, args):
+    build, env = build_kernel_harness(out, args)
+    subprocess.run(["lake", "build", "--wfail", "+Silmaril.Wasm.Binary.Packed.Passive.Thms"],
+                   cwd=ROOT, check=True)
+    with (out / "passive.csv").open("w") as csv_file:
+        writer = csv.writer(csv_file)
+        writer.writerow(["case", "run", "phase", "wall_s", "peak_rss_kib", "exit", "agreement_ns"])
+        for case, binary, _ in selected:
+            directory = binary.parent
+            width = int(case.removeprefix("data-").removesuffix("k")) * 1024
+            start = binary.stat().st_size - width
+            mode_end = start - len(uleb(width))
+            (directory / "passive.bin").write_bytes(binary.read_bytes()[start:])
+            defs = directory / "PassiveInput.lean"
+            defs.write_text('module\npublic import Quote\npublic import Silmaril.Wasm.Binary.Packed.Passive.Thms\n'
+                            'open Silmaril.Wasm.Binary.Packed\n'
+                            'wasm_bench_defs source expected from "source.wasm"\n'
+                            'kbytes_def payload from_file "passive.bin"\n'
+                            f'@[expose] public def plan : PassivePlan := ⟨{mode_end - 2}, {mode_end - 1}, '
+                            f'{mode_end}, {start}⟩\n')
+            olean = build / "PassiveInput.olean"
+            source = directory / "MeasurePassive.lean"
+            statement = f"{REF} source.toByteArray = some expected"
+            phases = {
+                "import": "",
+                "reference": f"wasm_bench_agreement agreed {REF} source expected\n",
+                "fast": (f"wasm_bench_agreement fastAgreed {FAST} source expected\n"
+                         f"theorem agreed : {statement} := WasmKernelBench.reference_agrees _ _ fastAgreed\n"),
+                "packed": (
+                    "wasm_bench_refl spanOK : (source.slice plan.payloadStart payload.len).sameBytes 4096 payload = true\n"
+                    "theorem verified : plan.Verified source source.wf_true payload where\n"
+                    "  sectionPresent := by decide +kernel\n  countFits := by decide +kernel\n"
+                    "  consumesInput := rfl\n  header := rfl\n  id := rfl\n  size := rfl\n  count := rfl\n"
+                    "  mode := rfl\n  length := rfl\n  payloadMatches := spanOK\n"
+                    f"theorem agreed : {statement} := verified.sound payload.wf_true\n"
+                ),
+            }
+            result = sample(directory, "passive-construct",
+                            lean_command(args, defs, f"--root={directory}", "-o", str(olean)), args.seconds, env)
+            writer.writerow([case, 1, "construct", *result[1:]])
+            for repeat in range(1, args.runs + 1):
+                if result[3]:
+                    break
+                for phase, body in phases.items():
+                    source.write_text("module\npublic import PassiveInput\n\n" + body)
+                    result_phase = sample(directory, f"{repeat}-passive-{phase}",
+                                          lean_command(args, source), args.seconds, env)
+                    writer.writerow([case, repeat, phase, *result_phase[1:]])
+                    csv_file.flush()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path)
     parser.add_argument("--cases", nargs="+")
-    parser.add_argument("--mode", choices=("kernel", "native", "window", "both"), default="both")
+    parser.add_argument("--mode", choices=("kernel", "native", "window", "framing", "passive", "both"), default="both")
     parser.add_argument("--seconds", type=int, default=30)
     parser.add_argument("--memory", type=int, default=4096, help="Lean allocator limit in MiB")
     parser.add_argument("--stack", type=int, default=65536, help="Lean worker stack in KiB")
@@ -208,13 +333,16 @@ def main():
     selected = []
     manifest = {}
     for case, source, data in fixtures():
-        if args.cases and case not in args.cases:
+        if (args.cases and case not in args.cases) or (args.mode == "passive" and not data):
             continue
         directory = output / case
         directory.mkdir(exist_ok=True)
         binary = directory / "source.wasm"
         binary.write_bytes(source)
-        manifest[case] = {"bytes": len(source), "sha256": hashlib.sha256(source).hexdigest()}
+        digest = hashlib.sha256(source).hexdigest()
+        if case in PINNED and PINNED[case] != digest:
+            parser.error(f"{case}: fixture hash changed ({digest})")
+        manifest[case] = {"bytes": len(source), "sha256": digest}
         selected.append((case, binary, data))
     if not selected or (args.cases and set(args.cases) != set(manifest)):
         parser.error("unknown fixture name")
@@ -225,6 +353,10 @@ def main():
         runtime_cases(output, selected, args)
     if args.mode == "window":
         window_cases(output, selected, args)
+    if args.mode == "framing":
+        framing_cases(output, selected, args)
+    if args.mode == "passive":
+        passive_cases(output, selected, args)
 
 
 if __name__ == "__main__":
