@@ -15,7 +15,8 @@ exit. Success still requires the original168/420 count summaries.
 
 The ordinary Lean driver/import/object/toolchain dependencies belong to Lake.
 The bootstrap C file is an actual `input_file` in `moreLinkObjs`, so Lake tracks
-its content as a link input and compiles it during the normal link invocation.
+its content as a link input and compiles it during the normal link invocation,
+retaining the experiment's C warning, optimization and hardening flags.
 The planner/validator, runner, sampler and focused tests are additional named
 Lake input dependencies; edits also select these targets through `make scope`.
 Identical generated objects can remain reusable after a validator-only edit:

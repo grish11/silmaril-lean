@@ -148,7 +148,7 @@ name = "driver"
 root = "Driver"
 needs = ["planner"]
 moreLinkObjs = ["bootstrap"]
-moreLinkArgs = ["-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_fixture_Driver", "-Wl,--wrap=main"]
+moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_fixture_Driver", "-Wl,--wrap=main"]
 [[input_file]]
 name = "bootstrap"
 path = "Bootstrap.c"

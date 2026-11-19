@@ -682,7 +682,7 @@ supportInterpreter = true
 # Lake hashes these inputs; driver/import/toolchain facets remain ordinary Lake dependencies.
 needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler", "corpusReplayNativeTests", "corpusReplayMemoryTests"]
 moreLinkObjs = ["corpusReplayBootstrap"]
-moreLinkArgs = ["-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_tests_cerberus_CjsonArrayItemContext", "-Wl,--wrap=main"]
+moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_tests_cerberus_CjsonArrayItemContext", "-Wl,--wrap=main"]
 
 [[lean_exe]]
 name = "ci_corpus_cjson_array_item_machine"
@@ -691,7 +691,7 @@ supportInterpreter = true
 # Lake hashes these inputs; driver/import/toolchain facets remain ordinary Lake dependencies.
 needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler", "corpusReplayNativeTests", "corpusReplayMemoryTests"]
 moreLinkObjs = ["corpusReplayBootstrap"]
-moreLinkArgs = ["-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_tests_cerberus_CjsonArrayItemMachine", "-Wl,--wrap=main"]
+moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_tests_cerberus_CjsonArrayItemMachine", "-Wl,--wrap=main"]
 
 # Both the runtime validator and bootstrap/planner participate in Lake scope/invalidation.
 [[input_file]]
@@ -733,7 +733,7 @@ srcDir = "build/corpus-replay-audit"
 supportInterpreter = true
 needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler"]
 moreLinkObjs = ["corpusReplayBootstrap"]
-moreLinkArgs = ["-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_ReplayAuditCore", "-Wl,--wrap=main"]
+moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_ReplayAuditCore", "-Wl,--wrap=main"]
 
 [[lean_exe]]
 name = "ci_corpus_replay_audit_machine"
@@ -742,7 +742,7 @@ srcDir = "build/corpus-replay-audit"
 supportInterpreter = true
 needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler"]
 moreLinkObjs = ["corpusReplayBootstrap"]
-moreLinkArgs = ["-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_ReplayAuditMachine", "-Wl,--wrap=main"]
+moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_ReplayAuditMachine", "-Wl,--wrap=main"]
 
 # The worked example of the System V translation-validation shapes (docs/projects/sysv-tv.md):
 # it reads the records and the registry under `silmaril/` and the objects it registers.
