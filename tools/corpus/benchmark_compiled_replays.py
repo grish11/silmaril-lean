@@ -121,10 +121,14 @@ def main():
             negative_entries = sum(l.startswith("NEG ") for l in lines)
             if negative_entries != (3 if kind == "core" else 0):
                 raise SystemExit(f"{kind}: incomplete negative transcript")
+            forged_pairs=sum(l.endswith("|forgeries=none:none") for l in lines)
+            if kind == "core" and forged_pairs != cases:
+                raise SystemExit("core: incomplete or non-rejected forged-provenance observations")
             if cases != DRIVERS[kind][2]:
                 raise SystemExit(f"{kind}: incomplete observation transcript")
             summary["drivers"][kind]["observations"] = {
                 "cases": cases, "negative_entries": sum(l.startswith("NEG ") for l in lines),
+                "forged_projection_values": 2*forged_pairs,
                 "transcript_bytes": a.stat().st_size, "sha256": digest(a),
                 "interpretation": "all fields checked by the unchanged driver, not arbitrary continuation or full-record semantic adequacy"}
             save()
