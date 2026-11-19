@@ -60,7 +60,11 @@ if os.environ.get('PHASE_TEST_BLOCK')=='1': time.sleep(30)
             for pid in json.loads((root / (name + ".json")).read_text()):
                 while True:
                     stat = Path(f"/proc/{pid}/stat")
-                    if not stat.exists() or stat.read_text().rpartition(")")[2].split()[0] == "Z":
+                    try:
+                        state = stat.read_text().rpartition(")")[2].split()[0]
+                    except (FileNotFoundError, ProcessLookupError):
+                        break
+                    if state == "Z":
                         break
                     if time.monotonic() > deadline:
                         self.fail(f"phase descendant {pid} survived")
