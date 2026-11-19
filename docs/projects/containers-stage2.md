@@ -113,6 +113,9 @@ unsupported-message outcomes must be explicit. Reuse `Servers.WasiHttp`'s
 `wasiServerB_refines`, `linkServer_refines`, `link_sat_of`, `runs_refines`, `runs_link` and
 `mem_linkServer` when relating component strategies and hosts to the server side.
 
+`Cli.stdioView` accumulates input/output/error chunks and observes terminal exit status,
+without claiming unchanged files. `stdioView_exit_matches` prevents a wrong final exit from
+satisfying an exit specification. Views use `Check.ObsPrefix`, including terminal stops.
 `Cli.Realizes` supplies admitted component plays for **every finite source observation**, with
 at most one CLI invocation and the same existing `Seen`. It contains no desired CLI spec.
 `Cli.of_wasi` then applies the existing `Wasi.Cli.CliSat` guarantee. Existing
