@@ -53,7 +53,11 @@ eight total slots, reducing allocations or running serially on smaller container
 Both phase results must succeed. Failure, timeout or a termination signal cancels
 the peer, kills command groups before reaping them, and waits for cleanup. Logs
 include phase boundaries, CPU time and sampled aggregate container memory (including
-file cache). This scheduling changes no test, theorem check or timing exemption.
+file cache). A separate process-tree RSS sample covers only this check's descendants;
+the coordinator cancels both phases above 16 GiB (conservatively counting shared
+pages in each process). The hosted worker can also hold other sessions, so its
+container memory is not presented as this check's own usage. This scheduling changes
+no test, theorem check or timing exemption.
 The timing check waits for all selected correctness jobs. It includes their
 setup, cache transfer, tests and publication, plus waits after the attempt
 starts. Time Lake spends compiling modules the run had to build does not count:

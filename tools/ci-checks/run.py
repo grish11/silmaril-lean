@@ -56,6 +56,27 @@ def reap_adopted():
             time.sleep(0.02)
 
 
+def process_tree_rss():
+    """Conservative aggregate RSS of this coordinator and its descendants."""
+    rows = {}
+    for path in Path("/proc").iterdir():
+        if not path.name.isdecimal():
+            continue
+        try:
+            fields = (path / "stat").read_text().rpartition(")")[2].split()
+            rows[int(path.name)] = (int(fields[1]), int(fields[21]) * os.sysconf("SC_PAGE_SIZE"))
+        except (OSError, IndexError, ValueError):
+            continue
+    if os.getpid() not in rows:
+        raise RuntimeError("cannot measure check process memory")
+    descendants = {os.getpid()}
+    while True:
+        more = {pid for pid, (parent, _) in rows.items() if parent in descendants} - descendants
+        if not more:
+            return sum(rows[pid][1] for pid in descendants)
+        descendants.update(more)
+
+
 def run_phases(jobs, *, overlap=True, timeout=1200, runner=None):
     runner = runner or runtime.Runner(timeout=timeout)
     results = []
@@ -99,9 +120,19 @@ def main():
     jobs = [(name, [args.make, "-j1", "check-" + name, *common]) for name in ["runtime", "features"]]
     # This is actual aggregate container usage (including file cache), not a sum
     # of process RSS values that counts shared imported pages more than once.
-    samples, stopped = [], threading.Event()
+    samples, process_samples, monitor_errors = [], [], []
+    stopped = threading.Event()
     def sample():
         while not stopped.is_set():
+            try:
+                rss = process_tree_rss()
+                process_samples.append(rss)
+                if rss > 16 * 1024**3:
+                    monitor_errors.append("check process tree exceeded 16 GiB aggregate RSS")
+                    runner.cancelled.set()
+            except RuntimeError as error:
+                monitor_errors.append(str(error))
+                runner.cancelled.set()
             try:
                 samples.append(int(Path("/sys/fs/cgroup/memory.current").read_text()))
             except OSError:
@@ -125,10 +156,12 @@ def main():
                 if not path.exists() or path.read_bytes() != data:
                     path.write_bytes(data)
                     print("CHECK_RESTORED_INPUT " + str(path), flush=True)
-    failed = any(row.get("error") or row["exit"] != 0 for row in results)
+    failed = bool(monitor_errors) or any(row.get("error") or row["exit"] != 0 for row in results)
     print("CHECK_PHASES " + json.dumps({"seconds": round(time.monotonic() - started, 3),
           "cpu_seconds": round(sum(row.get("cpu_seconds", 0) for row in results), 3),
-          "peak_container_memory_bytes": max(samples, default=None), "failed": failed}), flush=True)
+          "peak_container_memory_bytes": max(samples, default=None),
+          "peak_process_tree_rss_bytes": max(process_samples, default=None),
+          "resource_errors": monitor_errors, "failed": failed}), flush=True)
     return 130 if runner.cancelled.is_set() else int(failed)
 
 
