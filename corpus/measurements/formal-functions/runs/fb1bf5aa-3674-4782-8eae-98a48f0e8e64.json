@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "run_id": "fb1bf5aa-3674-4782-8eae-98a48f0e8e64",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T06:29:44.411892+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "mimalloc-actual-global-getters",
+  "repository": {
+    "commit": "5af6be8a883d34c9297e0cdb5abb760d7faaba5e",
+    "dirty": true,
+    "diff_sha256": "17306240102d206ee2cf606d7de8d9c9bf3c9056697172557084fffbb7cbdb63"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Context/Defs.lean",
+      "sha256": "e142b76ef38156a7c09d560f4a509a647681aa3b6992ce6f4d6315683cb8c1b0"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Defs.lean",
+      "sha256": "e4906106aa554e83744ea31ec9628907b862c5e3de12230dfb6d1c8501650f2a"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/manifest.json",
+      "sha256": "e7ff4ccd979682c5aa36366f8f85493d5d0dfda450f7a8b36bd81305a097e2cb"
+    }
+  ],
+  "wall_seconds": 4.321426627997425,
+  "exit_code": 0,
+  "user_cpu_seconds": 3.49,
+  "system_cpu_seconds": 20.91,
+  "peak_rss_kib": 1266544,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

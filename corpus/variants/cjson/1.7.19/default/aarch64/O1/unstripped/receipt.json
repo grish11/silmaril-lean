@@ -1,0 +1,79 @@
+{
+  "package": "cjson",
+  "version": "1.7.19",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O1 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+  "ldflags": "-shared",
+  "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+  "build_commands": [
+    "aarch64-linux-gnu-gcc -O1 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD -c cJSON.c -o cJSON.o",
+    "aarch64-linux-gnu-gcc -shared -Wl,-soname,libcjson.so.1 -o libcjson.so.1 cJSON.o -lm",
+    "ln -sf libcjson.so.1 libcjson.so",
+    "aarch64-linux-gnu-gcc -O1 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD -c cJSON_Utils.c -o cJSON_Utils.o",
+    "aarch64-linux-gnu-gcc -shared -Wl,-soname,libcjson_utils.so.1 -o libcjson_utils.so.1 cJSON_Utils.o -L. -lcjson"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/cjson",
+  "inputs": [
+    {
+      "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+      "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libcjson.so.1",
+      "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/unstripped/libcjson.so.1",
+      "size": 74992,
+      "sha256": "47ec851baa31c2e02558c201bec263d06856d3387366abc8e14dd6f02cba5b64",
+      "elf_machine": "AArch64",
+      "func_symbols": 99,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libcjson_utils.so.1",
+      "path": "corpus/variants/cjson/1.7.19/default/aarch64/O1/unstripped/libcjson_utils.so.1",
+      "size": 72704,
+      "sha256": "40d4b6f4096f77f0d9a250a20bd2afa34f8e9a116e5d1c7d75e5e557796b6813",
+      "elf_machine": "AArch64",
+      "func_symbols": 34,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu cjson_test (upstream test.c linked against libcjson.so.1): exit status",
+      "result": "pass: 0"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu cjson_test output: 47 lines, sha256 3b5c2dfae1639d493cdccbd1d16b30e31aa03eae9d4b38776016a9f518252757",
+      "result": "Version: 1.7.19 { \t\"name\":\t\"Jack (\\\"Bee\\\") Nimble\", \t\"format\":\t{ \t\t\"type\":\t\"rect\", \t\t\"width\":\t1920, \t\t\"height\":\t1080, \t\t\"interlace\":\tfalse, "
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu utils_smoke (local/utils_smoke.c against libcjson_utils.so.1 + libcjson.so.1)",
+      "result": "pass: 0 4 ok"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu utils_smoke output",
+      "result": "ok GetPointer /tags/1: y ok GeneratePatches (cJSON sorts keys first): [{\"op\":\"add\",\"path\":\"/m\",\"value\":2},{\"op\":\"remove\",\"path\":\"/n\"},{\"op\":\"replace\",\"path\":\"/tags/1\",\"value\":\"z\"}] ok ApplyPatches rc=0 equal=1 ok MergePatch (RFC 7386 example): {\"a\":\"z\",\"c\":{\"d\":\"e\"}} cJSON_Version 1.7.19"
+    }
+  ],
+  "variant": {
+    "optimization": "O1",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "c2edca9b-61cd-4778-a656-ef4d2caffa52",
+    "target": "aarch64-linux-gnu"
+  }
+}

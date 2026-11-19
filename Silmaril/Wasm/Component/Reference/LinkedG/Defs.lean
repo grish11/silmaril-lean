@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Component.Reference.LinkedSessionIR.Defs
+public import Silmaril.Wasm.Component.Reference.LinkedSessionDiv.Defs
 
 /-!
 # Linking with an abstract exporter, and chains of linked modules: definitions
@@ -19,7 +20,10 @@ An exporter is
   `Step P s r s'` for one call (a round `r` at the untyped interface `sigU`: the export index
   and payload, and the IR answer, `none` for a trap). Steps thread the state across returned
   **and** trapped calls, as `Linked2.ExpRunT` does for `Simple`;
-* `ExpSpec.Run`: sessions, steps one after another.
+* `ExpSpec.Run`: sessions, steps one after another;
+* a divergence specification `DivStep P s q`: from state `s`, the call `q` (at `sigU`) never
+  answers. `LinkedGDiv` states its laws (`ExpSpec.AdeqD` on the IR side, R7 `RefData.Div` on the
+  reference machine).
 
 `ExpSpec.Adeq P e` (a `Prop`) is what the finite `Linked2` proofs use about the exporter on the
 IR side: it imports nothing, its sessions from `init` are plays of `comp.denU (impSem P)`
@@ -29,7 +33,8 @@ export index in range and values of the export's parameter types) is a session f
 
 * `Simple.expSpec c I`: a simple component at its core instance `I`; the IR component is
   `(SimpleI.ofSimple c).toComp` (as in `Linked2.toComp`), the state A's Core store, a step a
-  returned call (`RetAt`) or a trapped call (`TrapAt`) of one export (`Simple.ExpStep`).
+  returned call (`RetAt`) or a trapped call (`TrapAt`) of one export (`Simple.ExpStep`), a
+  diverging call one whose lowered Core activation runs forever host-free (`DivAt`).
 
 ## Linking an abstract exporter with an importer
 
@@ -40,12 +45,21 @@ IR component in place of `(SimpleI.ofSimple l.exp).toComp`; `LinkedG.ExpRun`, `S
 `Linked2.sessMoves` with the exporter's step in place of `RetAt`/`TrapAt`.
 `Linked2.toG l Ie := ⟨Simple.expSpec l.exp Ie, l.imp, l.wire⟩` is the instance.
 
+**Rounds that never answer** (`Linked2.RoundDiv` over the interface): `LinkedG.DivRound` (the
+start of a round, well formed by `DivRound.Ok`), and `LinkedG.RoundDiv`: after the round's prefix,
+whose import calls are an `ExpRun` of the exporter, (i) the importer diverges host-free
+(`Linked2.DivB`), (ii) it calls out on arguments that lift and the wired export's call diverges by
+the exporter's `DivStep` (`LinkedG.DivA`), or (iii) chatter (`LinkedG.Chatter`: infinitely many
+import calls answered by the exporter's steps). `LinkedG.sessDivs`: a `SessSpec` session from the
+importer's instance store and the exporter's initial state, then a round that never answers.
+
 ## A linked component as an exporter, and chains
 
 `LinkedG.toExp g Ii`: the linked component at the importer's core instance `Ii` as an
 exporter. Its IR component is `g.toComp`, its state the importer's Core store with the
-exporter's state, and a step one round of the linked session (`SessRound`, a play of `Ii` and
-an `ExpRun` of the exporter). Its session relation is the linked `SessSpec`.
+exporter's state, a step one round of the linked session (`SessRound`, a play of `Ii` and
+an `ExpRun` of the exporter), and a diverging call a `RoundDiv`. Its session relation is the
+linked `SessSpec`.
 
 `LinkedN := ⟨base : Simple, links : List (SimpleI × List Nat)⟩`: a chain in which each
 importer imports from the component built so far (`LinkedN.toComp`, by `linkComp`).
@@ -90,6 +104,8 @@ structure ExpSpec where
   init : St
   /-- One call: from state `s`, the round `r`, to state `s'`. -/
   Step : Profile → St → URound → St → Prop
+  /-- One call that never answers: from state `s`, the question `q` diverges. -/
+  DivStep : Profile → St → sigU.Op → Prop
 
 namespace ExpSpec
 
@@ -135,6 +151,8 @@ abbrev Simple.expSpec (c : Simple) (I : ScalarInstance) : ExpSpec where
   St := Store Nat
   init := I.store
   Step P := Simple.ExpStep c I P
+  DivStep P s q := ∃ (j : Fin c.exports.length) (vs : List IVal), q = (j.val, .vals vs) ∧
+    DivAt P I c.exports[j] vs s
 
 /-! ## Linking an abstract exporter with an importer -/
 
@@ -256,6 +274,86 @@ def sessMoves (g : LinkedG) :
       sessMoves g cs os
   | _, _ => []
 
+/-! ### Rounds that never answer -/
+
+/-- **The start of a round that does not answer** (`Linked2.DivRound`): export `j` of the
+importer on `vs`, the core question `f` of the importer's instance, the core import calls `cs`
+made so far (with their answers), and the component import calls `dss` they correspond to. -/
+structure DivRound (g : LinkedG) (Ii : ScalarInstance) where
+  /-- The export of the importer (and of the linked component). -/
+  j : Fin g.imp.exports.length
+  /-- The IR arguments. -/
+  vs : List IVal
+  /-- The core question of the importer's instance. -/
+  f : Ii.F.Op
+  /-- The core import calls so far, with their answers. -/
+  cs : List (Σ e : Ii.E.Op, Ii.E.Ar e)
+  /-- The component import calls of each core import call. -/
+  dss : List (List (Σ _ : (sigN g.imp.imports.length).Op, Option Payload))
+
+namespace DivRound
+
+variable {g : LinkedG} {Ii : ScalarInstance} (d : DivRound g Ii)
+
+/-- The round is well formed, as `SessRound.Ok`. -/
+def Ok : Prop :=
+  ∃ xs : List Flat, checkLower g.imp.exports[d.j].ty.params d.vs = some xs ∧
+    d.f.1.val = g.imp.exports[d.j].core ∧ d.f.2.1 = xs.map Silmaril.Wasm.SingleThreaded.ofFlat ∧
+    List.Forall₂ (ImpRel g.imp Ii) d.cs d.dss
+
+/-- The play of the importer's core instance so far: the question and the import calls. -/
+def instMoves : List (Silmaril.Games.Move Ii.E Ii.F) :=
+  .inr (.ask d.f) :: callMoves d.cs
+
+end DivRound
+
+/-- **(ii) The exporter's served call diverges** (`Linked2.DivA` with the exporter's `DivStep`):
+from the running export call `f` at `(s, t)`, the importer calls out (core import `e`), the
+arguments lift at the import's type to `ws`, and the call of the wired export `w` on `ws`
+diverges from the exporter's state `π`. -/
+def DivA (P : Profile) (g : LinkedG) (Ii : ScalarInstance) (f : Ii.F.Op) (s : Store Nat)
+    (t : Silmaril.Wasm.SingleThreaded.Thread) (π : g.exp.St) : Prop :=
+  ∃ (e : Ii.E.Op) (s' : Store Nat) (t' : Silmaril.Wasm.SingleThreaded.Thread) (nm : String)
+    (ft : FuncTy) (ws : List IVal) (w : Fin g.exp.comp.exports.length),
+    Ii.Path P (.running f s t) [.inl (.ask e)] (.waiting f s' t' e) ∧
+    g.imp.imports[e.1.val]? = some (nm, ft) ∧
+    liftArgs ft.params (e.2.1.filterMap Silmaril.Wasm.SingleThreaded.toFlat?) = some ws ∧
+    g.wire[e.1.val]? = some w.val ∧ g.exp.DivStep P π (w.val, .vals ws)
+
+/-- **(iii) Chatter** (`Linked2.Chatter`): from the running export call `f` at `(s, t)`, the
+importer makes infinitely many core import calls `c 0, c 1, …`, each related to component import
+calls `ds k` (`ImpRel`) answered by the exporter's specification, from its state `π` on
+(`ExpRun`). -/
+def Chatter (P : Profile) (g : LinkedG) (Ii : ScalarInstance) (f : Ii.F.Op) (s : Store Nat)
+    (t : Silmaril.Wasm.SingleThreaded.Thread) (π : g.exp.St) : Prop :=
+  ∃ (q : ℕ → Ii.HState) (c : ℕ → Σ e : Ii.E.Op, Ii.E.Ar e)
+    (ds : ℕ → List (Σ _ : (sigN g.imp.imports.length).Op, Option Payload))
+    (st : ℕ → g.exp.St),
+    q 0 = .running f s t ∧ st 0 = π ∧
+    ∀ k, Ii.Path P (q k) (callMoves [c k]) (q (k + 1)) ∧ ImpRel g.imp Ii (c k) (ds k) ∧
+      ExpRun P g (st k) (ds k) (st (k + 1))
+
+/-- **A round that never answers** (`Linked2.RoundDiv`): from the importer's store `u` and the
+exporter's state `π`, the call of export `j` on `vs` starts a well-formed round whose import calls
+so far are answered by the exporter, and then diverges: (i) the importer diverges host-free
+(`Linked2.DivB`), (ii) the exporter's served call diverges (`DivA`), or (iii) chatter. -/
+def RoundDiv (P : Profile) (g : LinkedG) (Ii : ScalarInstance) (u : Store Nat) (π : g.exp.St)
+    (j : Fin g.imp.exports.length) (vs : List IVal) : Prop :=
+  ∃ (d : DivRound g Ii) (s : Store Nat) (t : Silmaril.Wasm.SingleThreaded.Thread)
+    (π₁ : g.exp.St),
+    d.j = j ∧ d.vs = vs ∧ d.Ok ∧ Ii.Path P (.idle u) d.instMoves (.running d.f s t) ∧
+    ExpRun P g π d.dss.flatten π₁ ∧
+    (Linked2.DivB P s t ∨ DivA P g Ii d.f s t π₁ ∨ Chatter P g Ii d.f s t π₁)
+
+/-- **The diverging session calls of the specification** (`Linked2.sessDivs`): the outcomes
+`outs` of a specification session of `calls` from the importer's store `Ii.store` and the
+exporter's initial state, after which the call of export `j` on `vs` diverges. -/
+def sessDivs (P : Profile) (g : LinkedG) (Ii : ScalarInstance)
+    (calls : List (Fin g.imp.exports.length × List IVal)) (j : Fin g.imp.exports.length)
+    (vs : List IVal) : Set (List (Option (List IVal))) :=
+  {outs | ∃ (u : Store Nat) (π : g.exp.St), SessSpec P g Ii Ii.store g.exp.init calls outs u π ∧
+    RoundDiv P g Ii u π j vs}
+
 /-- **A linked component as an exporter**, at the importer's core instance `Ii`: a step is one
 round of the linked session. -/
 abbrev toExp (g : LinkedG) (Ii : ScalarInstance) : ExpSpec where
@@ -265,6 +363,8 @@ abbrev toExp (g : LinkedG) (Ii : ScalarInstance) : ExpSpec where
   init := (Ii.store, g.exp.init)
   Step P s r s' := ∃ d : SessRound g Ii, d.Ok ∧ Ii.Path P (.idle s.1) d.instMoves (.idle s'.1) ∧
     ExpRun P g s.2 d.dss.flatten s'.2 ∧ r = d.toU
+  DivStep P s q := ∃ (j : Fin g.imp.exports.length) (vs : List IVal), q = (j.val, .vals vs) ∧
+    RoundDiv P g Ii s.1 s.2 j vs
 
 end LinkedG
 

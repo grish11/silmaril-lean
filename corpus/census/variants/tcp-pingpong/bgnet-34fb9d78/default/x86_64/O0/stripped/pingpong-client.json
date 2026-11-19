@@ -1,0 +1,236 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "arch": "x86_64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_deregisterTMCloneTable",
+      "_ITM_registerTMCloneTable",
+      "__cxa_finalize@GLIBC_2.2.5",
+      "__gmon_start__",
+      "__libc_start_main@GLIBC_2.34",
+      "atoi@GLIBC_2.2.5",
+      "close@GLIBC_2.2.5",
+      "connect@GLIBC_2.2.5",
+      "exit@GLIBC_2.2.5",
+      "fprintf@GLIBC_2.2.5",
+      "freeaddrinfo@GLIBC_2.2.5",
+      "fwrite@GLIBC_2.2.5",
+      "gai_strerror@GLIBC_2.2.5",
+      "getaddrinfo@GLIBC_2.2.5",
+      "memset@GLIBC_2.2.5",
+      "perror@GLIBC_2.2.5",
+      "printf@GLIBC_2.2.5",
+      "recv@GLIBC_2.2.5",
+      "send@GLIBC_2.2.5",
+      "socket@GLIBC_2.2.5",
+      "strcmp@GLIBC_2.2.5"
+    ],
+    "interpreter": [
+      "/lib64/ld-linux-x86-64.so.2"
+    ],
+    "needed": [
+      "libc.so.6"
+    ],
+    "rpath": [],
+    "runpath": [],
+    "soname": [],
+    "version_information": "\nVersion symbols section '.gnu.version' contains 24 entries:\n Addr: 0x0000000000000724  Offset: 0x00000724  Link: 5 (.dynsym)\n  000:   0 (*local*)       2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   3 (GLIBC_2.34) \n  004:   1 (*global*)      2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  008:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  00c:   1 (*global*)      2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  010:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   1 (*global*)      2 (GLIBC_2.2.5)\n  014:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n\nVersion needs section '.gnu.version_r' contains 1 entry:\n Addr: 0x0000000000000758  Offset: 0x00000758  Link: 6 (.dynstr)\n  000000: Version: 1  File: libc.so.6  Cnt: 2\n  0x0010:   Name: GLIBC_2.34  Flags: none  Version: 3\n  0x0020:   Name: GLIBC_2.2.5  Flags: none  Version: 2\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.property\n  Owner                Data size \tDescription\n  GNU                  0x00000010\tNT_GNU_PROPERTY_TYPE_0\t      Properties: x86 ISA needed: x86-64-baseline\n\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: 7170b53232c436bb77dedde15cbfd92bbea978ef\n\nDisplaying notes found in: .note.ABI-tag\n  Owner                Data size \tDescription\n  GNU                  0x00000010\tNT_GNU_ABI_TAG (ABI version tag)\t    OS: Linux, ABI: 3.2.0\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 4096,
+      "decoded_bytes": 23,
+      "mnemonics": {
+        "add": 1,
+        "call": 1,
+        "je": 1,
+        "mov": 1,
+        "ret": 1,
+        "sub": 1,
+        "test": 1
+      },
+      "name": ".init",
+      "size": 23,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4128,
+      "decoded_bytes": 288,
+      "mnemonics": {
+        "jmp": 35,
+        "nopl": 1,
+        "push": 18
+      },
+      "name": ".plt",
+      "size": 288,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4416,
+      "decoded_bytes": 8,
+      "mnemonics": {
+        "jmp": 1,
+        "xchg": 1
+      },
+      "name": ".plt.got",
+      "size": 8,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4432,
+      "decoded_bytes": 1338,
+      "mnemonics": {
+        "add": 6,
+        "addl": 1,
+        "and": 1,
+        "call": 35,
+        "cltq": 1,
+        "cmp": 6,
+        "cmpb": 1,
+        "cmpl": 8,
+        "cmpq": 3,
+        "cs": 1,
+        "endbr64": 2,
+        "hlt": 1,
+        "je": 8,
+        "jg": 1,
+        "jl": 1,
+        "jle": 5,
+        "jmp": 14,
+        "jne": 7,
+        "lea": 30,
+        "leave": 2,
+        "mov": 145,
+        "movb": 2,
+        "movl": 4,
+        "movslq": 2,
+        "movzwl": 1,
+        "nop": 2,
+        "nopl": 6,
+        "nopw": 1,
+        "pop": 3,
+        "push": 6,
+        "ret": 7,
+        "sar": 2,
+        "shr": 1,
+        "sub": 4,
+        "test": 3,
+        "xor": 3
+      },
+      "name": ".text",
+      "size": 1338,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 5772,
+      "decoded_bytes": 9,
+      "mnemonics": {
+        "add": 1,
+        "ret": 1,
+        "sub": 1
+      },
+      "name": ".fini",
+      "size": 9,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "ADX": "adcx adox",
+      "AES": "aesenc aesenclast aesdec aesdeclast aesimc aeskeygenassist",
+      "BMI2": "bzhi mulx pdep pext rorx sarx shlx shrx",
+      "RDRAND": "rdrand",
+      "RDSEED": "rdseed",
+      "SHA": "sha1msg1 sha1msg2 sha1nexte sha1rnds4 sha256msg1 sha256msg2 sha256rnds2"
+    },
+    "matches": {
+      "ADX": {},
+      "AES": {},
+      "BMI2": {},
+      "RDRAND": {},
+      "RDSEED": {},
+      "SHA": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+  "identity": {
+    "cflags": "-O0 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall",
+    "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "(none)",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "13df988f5f202b550c078a81d9b94c294ef7946d684a6013aaae8f638c5982ce",
+        "url": "https://github.com/beejjorgensen/bgnet/archive/34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9.tar.gz"
+      },
+      {
+        "sha256": "ab57df0b712f6e63511fd41577d3a5ba3bc9c89f07fd77cb1031940c775640cc",
+        "url": "local/pingpong.patch"
+      }
+    ],
+    "project": "tcp-pingpong",
+    "receipt": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/stripped/receipt.json",
+    "receipt_sha256": "1ae1580e20fa334cfe67e90e872123fec1599ac3291a8857a71a77551a325d83",
+    "stripping": "stripped",
+    "variant": {
+      "configuration": "default",
+      "optimization": "O0",
+      "run_id": "800e3acb-c426-4ab0-989a-eac31b283cfb",
+      "stripping": "stripped",
+      "target": "x86_64-linux-gnu"
+    },
+    "version": "bgnet-34fb9d78"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/stripped/pingpong-client",
+  "relocations": {
+    "R_X86_64_COPY": 1,
+    "R_X86_64_GLOB_DAT": 5,
+    "R_X86_64_JUMP_SLOT": 17,
+    "R_X86_64_RELATIVE": 3
+  },
+  "schema_version": 1,
+  "sha256": "6c20dd94d996e0d78817936d52ff77376ded99845d9cc28bb36eec48c26f6e76",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

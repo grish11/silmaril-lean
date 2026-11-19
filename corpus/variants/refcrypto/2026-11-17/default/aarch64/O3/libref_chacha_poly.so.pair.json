@@ -1,0 +1,177 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 8448,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 2448,
+      "sha256": "817e76eca95f98e4e4139d3ebfcd446060260bb8851c1ee17917fd1539353537",
+      "size": 28
+    },
+    ".plt": {
+      "address": 2480,
+      "sha256": "c33679e27adc9f2f0f6642f433dfa6b63a580dbf0a888e820a2443ef7802bdbc",
+      "size": 256
+    },
+    ".text": {
+      "address": 2752,
+      "sha256": "000da2ba430bd56a693793a3642cdbe8809b98715ffb38ed94643c38708f68be",
+      "size": 5696
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "76dae3ae27f2f64a801b947aa2f54f6bfdd153e620f96198cb280f8162bad323",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "e54f299415cfe78c94c938922b1082aa75fb5d42cfee33db244f6bd537dd2b24",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 2752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "poly1305_blocks.constprop.0",
+      "section_index": "11",
+      "size": 260,
+      "type": "FUNC",
+      "value": 5792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "poly1305_auth",
+      "section_index": "11",
+      "size": 88,
+      "type": "FUNC",
+      "value": 7684
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "poly1305_init",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 6052
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_encrypt_packet",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 3008
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_keystream_bytes",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 5700
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "poly1305_verify",
+      "section_index": "11",
+      "size": 84,
+      "type": "FUNC",
+      "value": 7776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_init",
+      "section_index": "11",
+      "size": 4,
+      "type": "FUNC",
+      "value": 3648
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "poly1305_update",
+      "section_index": "11",
+      "size": 1092,
+      "type": "FUNC",
+      "value": 6592
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_encrypt_bytes",
+      "section_index": "11",
+      "size": 1880,
+      "type": "FUNC",
+      "value": 3812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "poly1305_finish",
+      "section_index": "11",
+      "size": 460,
+      "type": "FUNC",
+      "value": 6128
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "poly1305_power_on_self_test",
+      "section_index": "11",
+      "size": 576,
+      "type": "FUNC",
+      "value": 7872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_xor",
+      "section_index": "11",
+      "size": 260,
+      "type": "FUNC",
+      "value": 3376
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_keysetup",
+      "section_index": "11",
+      "size": 136,
+      "type": "FUNC",
+      "value": 3652
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_decrypt_packet",
+      "section_index": "11",
+      "size": 68,
+      "type": "FUNC",
+      "value": 3076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_ivsetup",
+      "section_index": "11",
+      "size": 24,
+      "type": "FUNC",
+      "value": 3788
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20_e_ref_ECRYPT_decrypt_bytes",
+      "section_index": "11",
+      "size": 4,
+      "type": "FUNC",
+      "value": 5696
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crypto_stream_chacha20",
+      "section_index": "11",
+      "size": 232,
+      "type": "FUNC",
+      "value": 3144
+    }
+  ]
+}

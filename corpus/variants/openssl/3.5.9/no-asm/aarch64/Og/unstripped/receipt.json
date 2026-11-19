@@ -1,0 +1,286 @@
+{
+  "package": "openssl",
+  "version": "3.5.9",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/openssl=. (replaces Configure's default -O3; Configure adds -fPIC/-pthread/-m64 etc.: see command lines)",
+  "ldflags": "",
+  "configure_args": "./Configure linux-aarch64 --cross-compile-prefix=aarch64-linux-gnu- no-asm shared no-tests --prefix=/usr/local --openssldir=/usr/local/ssl --libdir=lib CFLAGS=-Og -g0 -ffile-prefix-map=/build/openssl=.",
+  "build_commands": [
+    "aarch64-linux-gnu-gcc  -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include  -fPIC -pthread -Og -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -MMD -MF crypto/libcrypto-shlib-cryptlib.d.tmp -c -o crypto/libcrypto-shlib-cryptlib.o crypto/cryptlib.c",
+    "aarch64-linux-gnu-gcc -fPIC -pthread -Og -g0 -ffile-prefix-map=/build/openssl=. -Wl,-znodelete -shared -Wl,-Bsymbolic -Wl,-soname=libcrypto.so.3 -o libcrypto.so.3 -Wl,--version-script=libcrypto.ld crypto/aes/libcrypto-shlib-aes_cbc.o crypto/aes/libcrypto-shlib-aes_cfb.o crypto/aes/libcrypto-shlib-aes_core.o ",
+    "aarch64-linux-gnu-gcc -fPIC -pthread -Og -g0 -ffile-prefix-map=/build/openssl=. -L. -Wl,-znodelete -shared -Wl,-Bsymbolic -Wl,-soname=libssl.so.3 -o libssl.so.3 -Wl,--version-script=libssl.ld crypto/hashtable/libssl-shlib-hashfunc.o crypto/libssl-shlib-ctype.o crypto/libssl-shlib-getenv.o crypto/libssl-shlib-packet.o ",
+    "${LDCMD:-aarch64-linux-gnu-gcc} -pthread -Og -g0 -ffile-prefix-map=/build/openssl=. -L. -o apps/openssl apps/lib/openssl-bin-cmp_mock_srv.o apps/openssl-bin-asn1parse.o apps/openssl-bin-ca.o apps/openssl-bin-ciphers.o apps/openssl-bin-cmp.o "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/openssl",
+  "inputs": [
+    {
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libcrypto.so.3",
+      "path": "corpus/variants/openssl/3.5.9/no-asm/aarch64/Og/unstripped/libcrypto.so.3",
+      "size": 5833808,
+      "sha256": "c072cf9894aebca3ccb79a127a8ba5608a0b8224909ae1f0328b882550cc7058",
+      "elf_machine": "AArch64",
+      "func_symbols": 14196,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libssl.so.3",
+      "path": "corpus/variants/openssl/3.5.9/no-asm/aarch64/Og/unstripped/libssl.so.3",
+      "size": 1290992,
+      "sha256": "a910eb37cdba128e86b5ae6cd9b1784836a2cf73f64df21e24411aa42c802719",
+      "elf_machine": "AArch64",
+      "func_symbols": 3278,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "openssl",
+      "path": "corpus/variants/openssl/3.5.9/no-asm/aarch64/Og/unstripped/openssl",
+      "size": 1257408,
+      "sha256": "9be8d5f0245849ee5c34f6dc845c39323cfd65243b1f50ec89238b07a35b99af",
+      "elf_machine": "AArch64",
+      "func_symbols": 798,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl version",
+      "result": "pass: OpenSSL 3.5.9"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl version -f (compiler flags baked in)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu openssl dgst -sha256 -r",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad *stdin"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu openssl dgst -sha3-256 -r",
+      "result": "pass: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532 *stdin"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu openssl dgst -blake2b512 -r",
+      "result": "pass: ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923 *stdin"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl enc -aes-128-ecb -K 000102..0f -nopad (FIPS 197 C.1)",
+      "result": "pass: 69c4e0d86a7b0430d8cdb78070b4c55a"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl enc -aes-256-cbc -pbkdf2 encrypt + decrypt round trip (5000 random bytes)",
+      "result": "pass: ok"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl genpkey ED25519; pkeyutl -sign; pkeyutl -verify",
+      "result": "pass: Signature Verified Successfully"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl req -x509 (self-signed P-256 cert) | x509 -noout -subject",
+      "result": "pass: subject=CN=localhost"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl s_server -tls1_3 -rev / qemu-aarch64 -L /usr/aarch64-linux-gnu openssl s_client 127.0.0.1:18444: protocol, verify, reversed reply",
+      "result": "pass: TLSv1.3|Verify return code: 0 (ok)|gnip"
+    },
+    {
+      "command": "s_client transcript (selected lines)",
+      "result": "subject=CN=localhost|New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384|Protocol: TLSv1.3|Verify return code: 0 (ok)|gnip|    Protocol  : TLSv1.3|    Verify return code: 0 (ok)|    Protocol  : TLSv1.3|"
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "unstripped",
+    "configuration": "no-asm",
+    "run_id": "8642d471-2ac0-4a5b-a582-57a31d851993",
+    "target": "aarch64-linux-gnu"
+  },
+  "container_pool": {
+    "pool_id": "8ee45463-c0fb-483c-be86-01ce599dac7f",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T00:07:50.663981+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "adb8bdfeb13b66004dfa41e6bc83e744e7bd120f98534e1a26011e1b81dc43db",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/openssl/pool-774580e0-247e-4c87-9a17-f5f759cc2e88/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T00:07:50.778802+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "9e4ec4c0c2757e7c02ccb520a5636a79526427e2a5eebcf8c48987ced1623ee4",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/openssl/pool-774580e0-247e-4c87-9a17-f5f759cc2e88/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T00:07:50.973454+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/openssl/3.5.9/no-asm/aarch64/Og",
+        "sequence": 2,
+        "started_utc": "2026-11-18T00:12:55.830446+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T00:18:11.750501+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl version",
+      "result": "pass: OpenSSL 3.5.9"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl version -f (compiler flags baked in)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu openssl dgst -sha256 -r",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad *stdin"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu openssl dgst -sha3-256 -r",
+      "result": "pass: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532 *stdin"
+    },
+    {
+      "command": "printf abc | qemu-aarch64 -L /usr/aarch64-linux-gnu openssl dgst -blake2b512 -r",
+      "result": "pass: ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923 *stdin"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl enc -aes-128-ecb -K 000102..0f -nopad (FIPS 197 C.1)",
+      "result": "pass: 69c4e0d86a7b0430d8cdb78070b4c55a"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl enc -aes-256-cbc -pbkdf2 encrypt + decrypt round trip (5000 random bytes)",
+      "result": "pass: ok"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl genpkey ED25519; pkeyutl -sign; pkeyutl -verify",
+      "result": "pass: Signature Verified Successfully"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl req -x509 (self-signed P-256 cert) | x509 -noout -subject",
+      "result": "pass: subject=CN=localhost"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu openssl s_server -tls1_3 -rev / qemu-aarch64 -L /usr/aarch64-linux-gnu openssl s_client 127.0.0.1:18444: protocol, verify, reversed reply",
+      "result": "pass: TLSv1.3|Verify return code: 0 (ok)|gnip"
+    },
+    {
+      "command": "s_client transcript (selected lines)",
+      "result": "subject=CN=localhost|New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384|Protocol: TLSv1.3|Verify return code: 0 (ok)|gnip|    Protocol  : TLSv1.3|    Verify return code: 0 (ok)|    Protocol  : TLSv1.3|"
+    }
+  ]
+}

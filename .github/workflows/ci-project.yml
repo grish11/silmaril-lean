@@ -44,7 +44,9 @@ jobs:
           PY
       # The explorer's pure modules (status semantics, Lean tokenizer): Node unit tests, no browser.
       - name: Explorer unit tests
-        run: node --test tools/silmaril-project/tests/explore/*.test.mjs
+        run: |
+          node --test tools/silmaril-project/tests/explore/*.test.mjs
+          python3 -m unittest discover -s tools/silmaril-project/tests/explore -p '*_test.py'
       - name: Install Rust
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
@@ -60,3 +62,68 @@ jobs:
           restore-keys: cargo-release-v1-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-
       - name: Lock and lint the registry without Lean (make project-registry)
         run: make project-registry
+      - name: Install Chromium for corpus navigation checks
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          cd "$RUNNER_TEMP/pw"
+          npm install --no-save --no-audit --no-fund playwright-core@1.64.1
+          npx playwright-core install --with-deps chromium
+      - name: Build the real corpus database and check browser navigation
+        env:
+          PLAYWRIGHT_CORE: ${{ runner.temp }}/pw/node_modules/playwright-core/index.mjs
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus-site"
+          python3 scripts/corpus/database.py --output "$RUNNER_TEMP/corpus-site/project.sqlite"
+          build/bin/silmaril-project explore --db "$RUNNER_TEMP/corpus-site/project.sqlite" --out "$RUNNER_TEMP/corpus-site/index.html"
+          node tools/silmaril-project/tests/explore/corpus.mjs "$RUNNER_TEMP/corpus-site"
+
+  compiler:
+    # Both required jobs retain their ten-minute limit; the reusable workflow
+    # succeeds only when registry AND compiler succeed. No browser is skipped.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      RUST_TOOLCHAIN: 1.98.1
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+      - name: Restore the Cargo cache
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            tools/silmaril-project/target
+          key: cargo-release-v1-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-${{ hashFiles('tools/silmaril-project/Cargo.lock', 'tools/silmaril-project/src/**') }}
+          restore-keys: cargo-release-v1-${{ runner.os }}-${{ env.RUST_TOOLCHAIN }}-
+      - name: Build the explorer tool
+        run: make project-tool
+      - name: Install Chromium for corpus navigation checks
+        run: |
+          mkdir -p "$RUNNER_TEMP/pw"
+          cd "$RUNNER_TEMP/pw"
+          npm install --no-save --no-audit --no-fund playwright-core@1.64.1
+          npx playwright-core install --with-deps chromium
+      - name: Build the combined public corpus and project schema
+        run: |
+          mkdir -p "$RUNNER_TEMP/corpus-site"
+          python3 - "$RUNNER_TEMP/base.sqlite" <<'PY'
+          import sqlite3, sys
+          c = sqlite3.connect(sys.argv[1])
+          c.executescript(open('tools/silmaril-project/tests/project/no-manifest/project.sql').read())
+          c.close()
+          PY
+          python3 scripts/corpus/database.py --base "$RUNNER_TEMP/base.sqlite" --output "$RUNNER_TEMP/corpus-site/project.sqlite"
+      - name: Export and check actual corpus compiler bindings
+        env:
+          PLAYWRIGHT_CORE: ${{ runner.temp }}/pw/node_modules/playwright-core/index.mjs
+        run: |
+          # Actual combined public schema; no fixture proof evidence is manufactured.
+          build/bin/silmaril-project explore --db "$RUNNER_TEMP/corpus-site/project.sqlite" --out "$RUNNER_TEMP/corpus-site/index.html"
+          python3 tools/compiler-explorer/pages.py --project "$RUNNER_TEMP/corpus-site/project.sqlite" --out "$RUNNER_TEMP/corpus-site/compiler"
+          node tools/silmaril-project/tests/explore/compiler.mjs "$RUNNER_TEMP/corpus-site" "$RUNNER_TEMP/compiler-shots"

@@ -1,0 +1,65 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 3924,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 2352,
+      "sha256": "366d3a50bd22ba8a1e9969c57e2a8f0098136dade99747b85e3551f11280f86a",
+      "size": 28
+    },
+    ".plt": {
+      "address": 2384,
+      "sha256": "8697c7edb15a37243cb1176f04032a4bd0f9eec62c56b4f76a2ad925ef17ac38",
+      "size": 336
+    },
+    ".text": {
+      "address": 2752,
+      "sha256": "f87f37b7f2e2b1b66a752064ad1f18db34f851c290c4d6468e75cc9dbe3f7a8a",
+      "size": 1172
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "e74f005de9971d7533d6e6c84ba0984b189e8214904d0510661e7bad71b5fb49",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "7c9a07a70418a8f3ed0f7b3bae8f064f10f455557fa5cb13dfabdb62d6097365",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 3636
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_in_addr",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 3904
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 3584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "12",
+      "size": 820,
+      "type": "FUNC",
+      "value": 2752
+    }
+  ]
+}

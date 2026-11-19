@@ -117,6 +117,34 @@ private theorem body_run (config : Silmaril.Cerberus.Target.Config)
     returnTemporary, Nat.add_assoc, run_map, run_modifyEffects, run_pure,
     Except.map, addAttributes, Statements.annotate]
 
+private theorem erase_return_literal (source : LiteralMain) :
+    LoopControl.erase (ElaborationCorrectness.returnLiteral source.statementLocation
+      source.expressionLocation source.returnDesugaring source.statementAttributes
+      source.number source.basis source.suffix) {} =
+    pure (ElaborationCorrectness.returnLiteral source.statementLocation
+      source.expressionLocation source.returnDesugaring source.statementAttributes
+      source.number source.basis source.suffix) := by
+  unfold ElaborationCorrectness.returnLiteral
+  rw [LoopControl.erase.eq_def]
+  rfl
+
+private theorem erase_literal_body (source : LiteralMain) (before : State.Context) :
+    State.run (LoopControl.erase source.body) before = (.ok source.body, before) := by
+  unfold LiteralMain.body
+  rw [LoopControl.erase.eq_def]
+  simp only [List.attach_cons, List.attach_nil, List.mapM_cons]
+  simp only [erase_return_literal]
+  rfl
+
+private theorem collect_literal_body (source : LiteralMain) :
+    LoopControl.collect source.body = [] := by
+  unfold LiteralMain.body
+  rw [LoopControl.collect.eq_def]
+  simp only [List.attach_cons, List.attach_nil, List.flatMap_cons, List.append_nil]
+  unfold ElaborationCorrectness.returnLiteral
+  rw [LoopControl.collect.eq_def]
+  rfl
+
 /-- Three allocations come from the actual translation: the return label, the
 returned expression's binding, and the saved return value. This is a successful
 elaboration theorem, rather than an assumed certificate about external output. -/
@@ -161,6 +189,7 @@ theorem literal_elaborate (config : Silmaril.Cerberus.Target.Config)
   simp [Functions.elaborate, State.runErrors, Functions.translate, LiteralMain.program,
     Functions.declaration, Functions.reserveParameterSymbols, Functions.resultType,
     Functions.objectType, Functions.liftError, Functions.integerType, emptyGlobals,
+    erase_literal_body, collect_literal_body,
     LiteralMain.returnType, State.getCallingConvention, run_bind, run_getEffects,
     Functions.insertSymbol, Functions.externalKind, LiteralMain.bindings, finalContext,
     returnLabel, saveTemporary, State.initial, State.initialEffects, labelAllocated,

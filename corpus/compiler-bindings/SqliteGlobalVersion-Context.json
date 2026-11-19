@@ -1,0 +1,54 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.SqliteGlobalVersion.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Initialization/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/SqliteGlobalVersion/Thms.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/ArrayInitializers/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/ObjectExpressions/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Globals/Defs.lean"
+  ],
+  "limits": [
+    "All corpus refinement obligations are stated-unproved. No semantic proof or exporter run is inferred from this display.",
+    "Exact source/Core/ELF evidence does not establish compiler correctness or full translation-unit frontend adequacy. No interactive compilation or source-to-instruction segment mapping is supplied.",
+    "The unchanged SQLite 3.54.1 amalgamation was preprocessed on the current host using the matching recorded GCC version and requested flags. Historical image/header identity, a historical compile replay and whole-TU frontend adequacy are not established. No ELF was rebuilt.",
+    "Actual sqlite3_libversion returns a pointer to the initialized seven-byte sqlite3_version array. The context fixes distinct existing function/global/GOT/caller-region addresses and quantifies over arbitrary 64-byte caller payloads. Other versions/configurations and symbol interposition are outside scope.",
+    "The actual saved global initializer is executed with bounded preparation fuel before entering the unchanged computed getter Core. Preparation adequacy as real whole-program startup, global initialization correctness, frontend adequacy and source/ELF correspondence remain unproved.",
+    "The real function loads through a GOT slot. Actual STT_OBJECT bytes and raw R_X86_64_GLOB_DAT relocation evidence are displayed separately from function CodeAt. Entry restricts the post-loader slot to this ELF global. No dynamic-loader/interposition/whole-ELF loading theorem is supplied.",
+    "Joint entry for every payload, source safety, first-return existence, actual allocation-identity pointer return, SysV pointer ABI, zero-byte private frame, complete source memory preservation after restoring ONLY diagnostic currentLocation, and unrelated target bytes/mappings preservation remain obligations. No desired result, refinement or termination premise is assumed.",
+    "Finite source, machine and loaded-native executions and rejection tests are observations, not semantic or universal termination proofs. Zero corpus semantic proofs. Selected direct integer-array initialization and non-CHERI/non-PNVI/non-strict lvalue array decay branches follow pinned translations; unsupported branches remain unsupported."
+  ],
+  "source": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/global-version/context.c"
+  },
+  "projection": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/global-version/projection.json",
+    "tu": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/global-version/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/global-version/runtime.sexp"
+  },
+  "data_bindings": [
+    {
+      "symbol": "sqlite3_version",
+      "address": 972146,
+      "size": 7,
+      "bytes_hex": "33 2e 35 34 2e 31 00",
+      "relocation": {
+        "file_offset": 53296,
+        "slot": 1109960,
+        "symbol_index": 233,
+        "slot_bytes_hex": "00 00 00 00 00 00 00 00"
+      }
+    }
+  ]
+}

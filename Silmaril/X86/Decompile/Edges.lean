@@ -305,4 +305,22 @@ theorem Decoded.edges_sound {d : Decoded} {s core' : State} {memory memory' : Me
     case ud2 => rw [exec_ud2] at h; cases h
     all_goals exact absurd rfl hr
 
+/-- The decoded instruction controls one retirement in any memory holding the
+listing. This lemma is independent of function partitioning. -/
+theorem step_nextRip {r : Region} {fuel : Nat} {ds : List Decoded} {d : Decoded}
+    {exit : Word} {m next : MState} (hds : r.decode? fuel = some ds)
+    (hload : r.LoadedIn m.memory) (hd : d ∈ ds) (hrip : m.core.rip.toNat = d.addr)
+    (hstep : Ext.stepOpt exit m = some next) :
+    d.NextRip next.core.rip.toNat ∨ d.instr = .ret := by
+  rw [Ext.stepOpt_eq_some_iff] at hstep
+  simp only [Ext.step, hrip, Region.decode?_fetch hds hload hd] at hstep
+  split at hstep
+  · rename_i core memory hex
+    split at hstep
+    · cases hstep
+    · cases hstep
+      exact (Decoded.edges_sound hrip (Region.decode?_size hds d hd) hex).imp id
+        Decoded.mem_edges_ret_iff.mp
+  all_goals cases hstep
+
 end Silmaril.X86.Decompile

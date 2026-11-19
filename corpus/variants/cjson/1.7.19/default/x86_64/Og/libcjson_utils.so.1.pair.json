@@ -1,0 +1,350 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 11236,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "4d61a21a1b29651165271dca3a061d806ae3f771076e598d13bfd4956395d5df",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "1e55f712faa6443f0913c75ee2d72b2ea7a2641895e08578d7893a7d164ce7d9",
+      "size": 480
+    },
+    ".plt.got": {
+      "address": 4608,
+      "sha256": "34b7f099c0d1084f8df2b2b124bbbdfc849051db549a145f7830301d8050597e",
+      "size": 8
+    },
+    ".text": {
+      "address": 4672,
+      "sha256": "45d970f7f6fbc8bf259d53c2960f22e97ae4fed1f9af7c092237bf51856203cc",
+      "size": 6563
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "4f7184b950cec85ddbd45bc0c92bf4101792ccc9752dabeef2dbef87ca3b72b3",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "44c810987d8ed46338ab832c464fe0de0c0cc4ff778584060aa0fab7127c34e4",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "compare_double",
+      "section_index": "12",
+      "size": 61,
+      "type": "FUNC",
+      "value": 4864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pointer_encoded_length",
+      "section_index": "12",
+      "size": 74,
+      "type": "FUNC",
+      "value": 4925
+    },
+    {
+      "binding": "LOCAL",
+      "name": "encode_string_as_pointer",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 4999
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_array_item",
+      "section_index": "12",
+      "size": 69,
+      "type": "FUNC",
+      "value": 5079
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decode_array_index_from_pointer",
+      "section_index": "12",
+      "size": 169,
+      "type": "FUNC",
+      "value": 5148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decode_pointer_inplace",
+      "section_index": "12",
+      "size": 58,
+      "type": "FUNC",
+      "value": 5317
+    },
+    {
+      "binding": "LOCAL",
+      "name": "detach_item_from_array",
+      "section_index": "12",
+      "size": 146,
+      "type": "FUNC",
+      "value": 5375
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSONUtils_strdup",
+      "section_index": "12",
+      "size": 54,
+      "type": "FUNC",
+      "value": 5521
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compare_pointers",
+      "section_index": "12",
+      "size": 237,
+      "type": "FUNC",
+      "value": 5575
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_item_from_pointer",
+      "section_index": "12",
+      "size": 240,
+      "type": "FUNC",
+      "value": 5812
+    },
+    {
+      "binding": "LOCAL",
+      "name": "overwrite_item",
+      "section_index": "12",
+      "size": 93,
+      "type": "FUNC",
+      "value": 6052
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compare_strings",
+      "section_index": "12",
+      "size": 114,
+      "type": "FUNC",
+      "value": 6145
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sort_list",
+      "section_index": "12",
+      "size": 330,
+      "type": "FUNC",
+      "value": 6259
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sort_object",
+      "section_index": "12",
+      "size": 25,
+      "type": "FUNC",
+      "value": 6589
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compare_json",
+      "section_index": "12",
+      "size": 416,
+      "type": "FUNC",
+      "value": 6614
+    },
+    {
+      "binding": "LOCAL",
+      "name": "insert_item_in_array",
+      "section_index": "12",
+      "size": 123,
+      "type": "FUNC",
+      "value": 7030
+    },
+    {
+      "binding": "LOCAL",
+      "name": "detach_path",
+      "section_index": "12",
+      "size": 245,
+      "type": "FUNC",
+      "value": 7153
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_object_item",
+      "section_index": "12",
+      "size": 25,
+      "type": "FUNC",
+      "value": 7398
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decode_patch_operation",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 7423
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apply_patch",
+      "section_index": "12",
+      "size": 1181,
+      "type": "FUNC",
+      "value": 7627
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compose_patch",
+      "section_index": "12",
+      "size": 312,
+      "type": "FUNC",
+      "value": 8808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "create_patches",
+      "section_index": "12",
+      "size": 763,
+      "type": "FUNC",
+      "value": 9120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "merge_patch",
+      "section_index": "12",
+      "size": 242,
+      "type": "FUNC",
+      "value": 9883
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSONUtils_FindPointerFromObjectTo.localalias",
+      "section_index": "12",
+      "size": 292,
+      "type": "FUNC",
+      "value": 10125
+    },
+    {
+      "binding": "LOCAL",
+      "name": "generate_merge_patch",
+      "section_index": "12",
+      "size": 326,
+      "type": "FUNC",
+      "value": 10890
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GenerateMergePatch",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10871
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_ApplyPatchesCaseSensitive",
+      "section_index": "12",
+      "size": 82,
+      "type": "FUNC",
+      "value": 10537
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_AddPatchToArray",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 10619
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GetPointerCaseSensitive",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10436
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_MergePatch",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10833
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_FindPointerFromObjectTo",
+      "section_index": "12",
+      "size": 292,
+      "type": "FUNC",
+      "value": 10125
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GeneratePatches",
+      "section_index": "12",
+      "size": 77,
+      "type": "FUNC",
+      "value": 10641
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GenerateMergePatchCaseSensitive",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 11216
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GetPointer",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10417
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_MergePatchCaseSensitive",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10852
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_SortObject",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10795
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_SortObjectCaseSensitive",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10814
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_ApplyPatches",
+      "section_index": "12",
+      "size": 82,
+      "type": "FUNC",
+      "value": 10455
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GeneratePatchesCaseSensitive",
+      "section_index": "12",
+      "size": 77,
+      "type": "FUNC",
+      "value": 10718
+    }
+  ]
+}

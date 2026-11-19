@@ -37,9 +37,9 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
-theorem enterThreadBuiltin : P.Inv I (Builtins.enterThreadBuiltin : P E σ _) :=
+theorem enterThreadBuiltin : P.InvW I W (Builtins.enterThreadBuiltin : P E σ _) :=
   Canon.P.Inv.bind Canon.P.Inv.currentThreadId fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.getThread _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.getTask _) fun _ =>
@@ -47,17 +47,17 @@ theorem enterThreadBuiltin : P.Inv I (Builtins.enterThreadBuiltin : P E σ _) :=
           Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ => Canon.P.Inv.pure _
 
 theorem trapUnlessSuspended (o : ThreadId) :
-    P.Inv I (Builtins.trapUnlessSuspended o : P E σ Unit) :=
+    P.InvW I W (Builtins.trapUnlessSuspended o : P E σ Unit) :=
   Canon.P.Inv.bind Canon.P.Inv.getStore fun _ => Canon.P.Inv.trapIf _ _
 
-theorem threadIndex : P.Inv I (Builtins.threadIndex : P E σ _) :=
+theorem threadIndex : P.InvW I W (Builtins.threadIndex : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.orTrap _ _) fun _ => Canon.P.Inv.pure _
 
 /-- `thread.new-indirect` preserves `I` when thread registration does. -/
 theorem threadNewIndirect (tbl : E.TableAddr) (ft : V1.FuncType) (fi : Nat) (c : FlatValue)
     (h : ∀ task t s, I s → I (s.registerThreadSt task t)) :
-    P.Inv I (Builtins.threadNewIndirect tbl ft fi c : P E σ _) :=
+    P.InvW I W (Builtins.threadNewIndirect tbl ft fi c : P E σ _) :=
   Canon.P.Inv.bind Canon.P.Inv.currentTask fun task =>
     Canon.P.Inv.bind (Canon.P.Inv.getTask _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
@@ -71,7 +71,7 @@ theorem threadNewIndirect (tbl : E.TableAddr) (ft : V1.FuncType) (fi : Nat) (c :
 
 /-- `thread.resume-later` preserves `I` when starting to wait on `.always` does. -/
 theorem threadResumeLater (i : Nat) (h : ∀ t s, I s → I (s.startWaitingSt t .always)) :
-    P.Inv I (Builtins.threadResumeLater i : P E σ _) :=
+    P.InvW I W (Builtins.threadResumeLater i : P E σ _) :=
   Canon.P.Inv.bind Canon.P.Inv.currentInst fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.getInst _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ =>
@@ -80,18 +80,18 @@ theorem threadResumeLater (i : Nat) (h : ∀ t s, I s → I (s.startWaitingSt t 
             Canon.P.Inv.bind (Runtime.Thread.resumeLater_inv (h o)) fun _ =>
               Canon.P.Inv.pure _
 
-theorem threadSuspend : P.Inv I (Builtins.threadSuspend : P E σ _) :=
+theorem threadSuspend : P.InvW I W (Builtins.threadSuspend : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind Runtime.Thread.suspend_inv fun _ => Canon.P.Inv.pure _
 
 /-- `thread.yield` preserves `I` when starting to wait on `.always` does. -/
 theorem threadYield (h : ∀ t s, I s → I (s.startWaitingSt t .always)) :
-    P.Inv I (Builtins.threadYield : P E σ _) :=
+    P.InvW I W (Builtins.threadYield : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind (Runtime.Thread.waitUntil_inv _ _ _ h) fun _ => Canon.P.Inv.pure _
 
 theorem threadSuspendThenResume (i : Nat) :
-    P.Inv I (Builtins.threadSuspendThenResume i : P E σ _) :=
+    P.InvW I W (Builtins.threadSuspendThenResume i : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.threadsGet _ _) fun o =>
       Canon.P.Inv.bind (trapUnlessSuspended o) fun _ =>
@@ -99,7 +99,7 @@ theorem threadSuspendThenResume (i : Nat) :
 
 /-- `thread.yield-then-resume` preserves `I` when starting to wait on `.always` does. -/
 theorem threadYieldThenResume (i : Nat) (h : ∀ t s, I s → I (s.startWaitingSt t .always)) :
-    P.Inv I (Builtins.threadYieldThenResume i : P E σ _) :=
+    P.InvW I W (Builtins.threadYieldThenResume i : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.threadsGet _ _) fun o =>
       Canon.P.Inv.bind (trapUnlessSuspended o) fun _ =>
@@ -108,7 +108,7 @@ theorem threadYieldThenResume (i : Nat) (h : ∀ t s, I s → I (s.startWaitingS
 /-- `thread.suspend-then-promote` preserves `I` when stopping to wait does. -/
 theorem threadSuspendThenPromote (hr : HostReady σ) (q : Quirks) (i : Nat)
     (hstop : ∀ t s, I s → I (s.stopWaitingSt t)) :
-    P.Inv I (Builtins.threadSuspendThenPromote hr q i : P E σ _) :=
+    P.InvW I W (Builtins.threadSuspendThenPromote hr q i : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.threadsGet _ _) fun o =>
@@ -120,7 +120,7 @@ to wait do. -/
 theorem threadYieldThenPromote (hr : HostReady σ) (q : Quirks) (i : Nat)
     (hstart : ∀ t s, I s → I (s.startWaitingSt t .always))
     (hstop : ∀ t s, I s → I (s.stopWaitingSt t)) :
-    P.Inv I (Builtins.threadYieldThenPromote hr q i : P E σ _) :=
+    P.InvW I W (Builtins.threadYieldThenPromote hr q i : P E σ _) :=
   Canon.P.Inv.bind enterThreadBuiltin fun _ =>
     Canon.P.Inv.bind (Canon.P.Inv.trapIf _ _) fun _ =>
       Canon.P.Inv.bind (Canon.P.Inv.threadsGet _ _) fun o =>

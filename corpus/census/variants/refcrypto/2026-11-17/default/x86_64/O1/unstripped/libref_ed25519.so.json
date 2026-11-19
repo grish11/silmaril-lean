@@ -1,0 +1,260 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "arch": "x86_64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_deregisterTMCloneTable",
+      "_ITM_registerTMCloneTable",
+      "__cxa_finalize@GLIBC_2.2.5",
+      "__gmon_start__",
+      "fclose@GLIBC_2.2.5",
+      "fopen@GLIBC_2.2.5",
+      "fread@GLIBC_2.2.5"
+    ],
+    "interpreter": [],
+    "needed": [
+      "libc.so.6"
+    ],
+    "rpath": [],
+    "runpath": [],
+    "soname": [
+      "libref_ed25519.so"
+    ],
+    "version_information": "\nVersion symbols section '.gnu.version' contains 55 entries:\n Addr: 0x0000000000000bca  Offset: 0x00000bca  Link: 3 (.dynsym)\n  000:   0 (*local*)       1 (*global*)      2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  004:   1 (*global*)      2 (GLIBC_2.2.5)   1 (*global*)      2 (GLIBC_2.2.5)\n  008:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  00c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  010:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  014:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  018:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  01c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  020:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  024:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  028:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  02c:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  030:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  034:   1 (*global*)      1 (*global*)      1 (*global*)   \n\nVersion needs section '.gnu.version_r' contains 1 entry:\n Addr: 0x0000000000000c38  Offset: 0x00000c38  Link: 4 (.dynstr)\n  000000: Version: 1  File: libc.so.6  Cnt: 1\n  0x0010:   Name: GLIBC_2.2.5  Flags: none  Version: 2\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: 4f39ec5a0476dda7f62a038ceaa78042b266cb51\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 8192,
+      "decoded_bytes": 23,
+      "mnemonics": {
+        "add": 1,
+        "call": 1,
+        "je": 1,
+        "mov": 1,
+        "ret": 1,
+        "sub": 1,
+        "test": 1
+      },
+      "name": ".init",
+      "size": 23,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 8224,
+      "decoded_bytes": 720,
+      "mnemonics": {
+        "jmp": 89,
+        "nopl": 1,
+        "push": 45
+      },
+      "name": ".plt",
+      "size": 720,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 8944,
+      "decoded_bytes": 8,
+      "mnemonics": {
+        "jmp": 1,
+        "xchg": 1
+      },
+      "name": ".plt.got",
+      "size": 8,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 8960,
+      "decoded_bytes": 27304,
+      "mnemonics": {
+        "add": 794,
+        "addq": 2,
+        "and": 293,
+        "andb": 2,
+        "bt": 1,
+        "call": 397,
+        "cltq": 5,
+        "cmova": 1,
+        "cmovns": 1,
+        "cmp": 33,
+        "cmpb": 6,
+        "cmpq": 2,
+        "cs": 2,
+        "data16": 14,
+        "endbr64": 2,
+        "imul": 538,
+        "ja": 3,
+        "jbe": 3,
+        "je": 28,
+        "jg": 3,
+        "jl": 1,
+        "jmp": 23,
+        "jne": 44,
+        "jns": 1,
+        "js": 3,
+        "lea": 512,
+        "mov": 2536,
+        "movabs": 8,
+        "movb": 9,
+        "movl": 21,
+        "movq": 10,
+        "movsbl": 6,
+        "movsbq": 3,
+        "movslq": 91,
+        "movzbl": 105,
+        "neg": 15,
+        "nop": 4,
+        "nopl": 12,
+        "nopw": 3,
+        "or": 128,
+        "pop": 203,
+        "push": 203,
+        "ret": 62,
+        "rol": 25,
+        "ror": 27,
+        "sar": 288,
+        "setb": 1,
+        "sete": 1,
+        "setne": 1,
+        "shl": 60,
+        "shr": 83,
+        "sub": 206,
+        "test": 28,
+        "xchg": 2,
+        "xor": 145
+      },
+      "name": ".text",
+      "size": 27304,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 36264,
+      "decoded_bytes": 9,
+      "mnemonics": {
+        "add": 1,
+        "ret": 1,
+        "sub": 1
+      },
+      "name": ".fini",
+      "size": 9,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "ADX": "adcx adox",
+      "AES": "aesenc aesenclast aesdec aesdeclast aesimc aeskeygenassist",
+      "BMI2": "bzhi mulx pdep pext rorx sarx shlx shrx",
+      "RDRAND": "rdrand",
+      "RDSEED": "rdseed",
+      "SHA": "sha1msg1 sha1msg2 sha1nexte sha1rnds4 sha256msg1 sha256msg2 sha256rnds2"
+    },
+    "matches": {
+      "ADX": {},
+      "AES": {},
+      "BMI2": {},
+      "RDRAND": {},
+      "RDSEED": {},
+      "SHA": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+  "identity": {
+    "cflags": "-O1 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD",
+    "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "(none)",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "8f39f02a57bfd1da15634706724a585766e6223f77ecdaf243cad16cd3a1aa1b",
+        "url": "https://www.rfc-editor.org/rfc/rfc6234.txt"
+      },
+      {
+        "sha256": "5a277d4dd8d83f7a3b411c7d22ede4c584a9c95ae5b81724f8f1db6197ea8776",
+        "url": "https://github.com/XKCP/XKCP/archive/d20c8fcaecc543f816a0721d0dfc13b4cf27c14d.tar.gz"
+      },
+      {
+        "sha256": "e1d1194cde9fec0f150961cca8f3d9bdf7c5a5cbe020d1cdfb962b4887793124",
+        "url": "https://github.com/BLAKE2/BLAKE2/archive/ed1974ea83433eba7b2d95c5dcd9ac33cb847913.tar.gz"
+      },
+      {
+        "sha256": "a6ed142ac0bffcd10d0fdc82f9fe7e768fc4aac91aa2797ea9974252e09e998f",
+        "url": "https://web.archive.org/web/20051217122133id_/http://www.esat.kuleuven.ac.be/~rijmen/rijndael/rijndael-fst-3.0.zip"
+      },
+      {
+        "sha256": "9a44c3e619632d140cbad436f5cebbea5f2b8d6efe752946c3e367c4c2ac8288",
+        "url": "https://bench.cr.yp.to/supercop/supercop-20261018.tar.xz"
+      },
+      {
+        "sha256": "78442221554769d557d2eb73583b409d88d83226d498c4e7caa1cc97b0488e4b",
+        "url": "https://github.com/floodyberry/poly1305-donna/archive/e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781.tar.gz"
+      },
+      {
+        "sha256": "aedb26c46d3dc3b721ab37c5248d5c923142e4d56009a9605c470383f32ce77a",
+        "url": "https://github.com/orlp/ed25519/archive/b1f19fab4aebe607805620d25a5e42566ce46a0e.tar.gz"
+      }
+    ],
+    "project": "refcrypto",
+    "receipt": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/receipt.json",
+    "receipt_sha256": "bbc00232de035c2a43bfa7e42901e7663483e9af799769da5588e9eace7862b8",
+    "stripping": "unstripped",
+    "variant": {
+      "configuration": "default",
+      "optimization": "O1",
+      "run_id": "65857fe2-2a03-4784-8142-efbe951738f9",
+      "stripping": "unstripped",
+      "target": "x86_64-linux-gnu"
+    },
+    "version": "2026-11-17"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/unstripped/libref_ed25519.so",
+  "relocations": {
+    "R_X86_64_GLOB_DAT": 4,
+    "R_X86_64_JUMP_SLOT": 44,
+    "R_X86_64_RELATIVE": 3
+  },
+  "schema_version": 1,
+  "sha256": "1948aeef238a3afb7118aee5cf03e7400a082a5161e0ce60d31507ff923a5b6f",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

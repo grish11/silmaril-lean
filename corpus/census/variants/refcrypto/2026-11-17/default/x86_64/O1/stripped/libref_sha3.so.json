@@ -1,0 +1,243 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "arch": "x86_64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_registerTMCloneTable",
+      "__cxa_finalize@GLIBC_2.2.5",
+      "__gmon_start__",
+      "memcpy@GLIBC_2.14"
+    ],
+    "interpreter": [],
+    "needed": [
+      "libc.so.6"
+    ],
+    "rpath": [],
+    "runpath": [],
+    "soname": [
+      "libref_sha3.so"
+    ],
+    "version_information": "\nVersion symbols section '.gnu.version' contains 15 entries:\n Addr: 0x000000000000052c  Offset: 0x0000052c  Link: 3 (.dynsym)\n  000:   0 (*local*)       1 (*global*)      1 (*global*)      2 (GLIBC_2.14) \n  004:   1 (*global*)      3 (GLIBC_2.2.5)   1 (*global*)      1 (*global*)   \n  008:   1 (*global*)      1 (*global*)      1 (*global*)      1 (*global*)   \n  00c:   1 (*global*)      1 (*global*)      1 (*global*)   \n\nVersion needs section '.gnu.version_r' contains 1 entry:\n Addr: 0x0000000000000550  Offset: 0x00000550  Link: 4 (.dynstr)\n  000000: Version: 1  File: libc.so.6  Cnt: 2\n  0x0010:   Name: GLIBC_2.2.5  Flags: none  Version: 3\n  0x0020:   Name: GLIBC_2.14  Flags: none  Version: 2\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: fa7a169d0bcbc591252b8caccf483dfe626413ea\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 4096,
+      "decoded_bytes": 23,
+      "mnemonics": {
+        "add": 1,
+        "call": 1,
+        "je": 1,
+        "mov": 1,
+        "ret": 1,
+        "sub": 1,
+        "test": 1
+      },
+      "name": ".init",
+      "size": 23,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4128,
+      "decoded_bytes": 80,
+      "mnemonics": {
+        "jmp": 9,
+        "nopl": 1,
+        "push": 5
+      },
+      "name": ".plt",
+      "size": 80,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4208,
+      "decoded_bytes": 8,
+      "mnemonics": {
+        "jmp": 1,
+        "xchg": 1
+      },
+      "name": ".plt.got",
+      "size": 8,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4224,
+      "decoded_bytes": 1621,
+      "mnemonics": {
+        "add": 32,
+        "addb": 1,
+        "addq": 1,
+        "and": 3,
+        "call": 22,
+        "cltq": 2,
+        "cmova": 2,
+        "cmovns": 1,
+        "cmp": 21,
+        "cmpb": 1,
+        "cmpq": 1,
+        "data16": 7,
+        "endbr64": 2,
+        "imul": 6,
+        "je": 14,
+        "jmp": 10,
+        "jne": 18,
+        "js": 1,
+        "lea": 46,
+        "mov": 124,
+        "movb": 2,
+        "movl": 1,
+        "movzbl": 3,
+        "nop": 1,
+        "nopl": 8,
+        "nopw": 3,
+        "not": 1,
+        "or": 1,
+        "pop": 13,
+        "push": 19,
+        "rep": 1,
+        "ret": 14,
+        "rol": 2,
+        "sar": 2,
+        "shl": 3,
+        "shr": 12,
+        "sub": 18,
+        "subl": 1,
+        "test": 9,
+        "xchg": 1,
+        "xor": 11
+      },
+      "name": ".text",
+      "size": 1621,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 5848,
+      "decoded_bytes": 9,
+      "mnemonics": {
+        "add": 1,
+        "ret": 1,
+        "sub": 1
+      },
+      "name": ".fini",
+      "size": 9,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "ADX": "adcx adox",
+      "AES": "aesenc aesenclast aesdec aesdeclast aesimc aeskeygenassist",
+      "BMI2": "bzhi mulx pdep pext rorx sarx shlx shrx",
+      "RDRAND": "rdrand",
+      "RDSEED": "rdseed",
+      "SHA": "sha1msg1 sha1msg2 sha1nexte sha1rnds4 sha256msg1 sha256msg2 sha256rnds2"
+    },
+    "matches": {
+      "ADX": {},
+      "AES": {},
+      "BMI2": {},
+      "RDRAND": {},
+      "RDSEED": {},
+      "SHA": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+  "identity": {
+    "cflags": "-O1 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD",
+    "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "(none)",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "8f39f02a57bfd1da15634706724a585766e6223f77ecdaf243cad16cd3a1aa1b",
+        "url": "https://www.rfc-editor.org/rfc/rfc6234.txt"
+      },
+      {
+        "sha256": "5a277d4dd8d83f7a3b411c7d22ede4c584a9c95ae5b81724f8f1db6197ea8776",
+        "url": "https://github.com/XKCP/XKCP/archive/d20c8fcaecc543f816a0721d0dfc13b4cf27c14d.tar.gz"
+      },
+      {
+        "sha256": "e1d1194cde9fec0f150961cca8f3d9bdf7c5a5cbe020d1cdfb962b4887793124",
+        "url": "https://github.com/BLAKE2/BLAKE2/archive/ed1974ea83433eba7b2d95c5dcd9ac33cb847913.tar.gz"
+      },
+      {
+        "sha256": "a6ed142ac0bffcd10d0fdc82f9fe7e768fc4aac91aa2797ea9974252e09e998f",
+        "url": "https://web.archive.org/web/20051217122133id_/http://www.esat.kuleuven.ac.be/~rijmen/rijndael/rijndael-fst-3.0.zip"
+      },
+      {
+        "sha256": "9a44c3e619632d140cbad436f5cebbea5f2b8d6efe752946c3e367c4c2ac8288",
+        "url": "https://bench.cr.yp.to/supercop/supercop-20261018.tar.xz"
+      },
+      {
+        "sha256": "78442221554769d557d2eb73583b409d88d83226d498c4e7caa1cc97b0488e4b",
+        "url": "https://github.com/floodyberry/poly1305-donna/archive/e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781.tar.gz"
+      },
+      {
+        "sha256": "aedb26c46d3dc3b721ab37c5248d5c923142e4d56009a9605c470383f32ce77a",
+        "url": "https://github.com/orlp/ed25519/archive/b1f19fab4aebe607805620d25a5e42566ce46a0e.tar.gz"
+      }
+    ],
+    "project": "refcrypto",
+    "receipt": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/receipt.json",
+    "receipt_sha256": "885a5847e9203ff1e5340674036a316808740b68ce3449a865ba806f37d23de4",
+    "stripping": "stripped",
+    "variant": {
+      "configuration": "default",
+      "optimization": "O1",
+      "run_id": "65857fe2-2a03-4784-8142-efbe951738f9",
+      "stripping": "stripped",
+      "target": "x86_64-linux-gnu"
+    },
+    "version": "2026-11-17"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O1/stripped/libref_sha3.so",
+  "relocations": {
+    "R_X86_64_GLOB_DAT": 4,
+    "R_X86_64_JUMP_SLOT": 4,
+    "R_X86_64_RELATIVE": 3
+  },
+  "schema_version": 1,
+  "sha256": "83b08f565bfbf65d8b0122c70924b2d1c3b57365b3ecea9c172e9e7b2650a0cd",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

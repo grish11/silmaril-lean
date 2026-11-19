@@ -1,0 +1,177 @@
+{
+  "package": "coreutils",
+  "version": "9.12",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O1 -g0 -ffile-prefix-map=/build/coreutils=.",
+  "ldflags": "",
+  "configure_args": "FORCE_UNSAFE_CONFIGURE=1 ./configure --build=x86_64-linux-gnu --host=aarch64-linux-gnu --disable-nls --without-selinux --without-openssl --without-libgmp --disable-acl --disable-xattr --disable-libcap --disable-libsmack --without-systemd --disable-rpath CC=aarch64-linux-gnu-gcc CFLAGS='-O1 -g0 -ffile-prefix-map=/build/coreutils=.'",
+  "build_commands": [
+    "aarch64-linux-gnu-gcc -std=gnu23  -I. -I./lib  -Ilib -I./lib -Isrc -I./src    -O1 -g0 -ffile-prefix-map=/build/coreutils=. -MT src/wc.o -MD -MP -MF $depbase.Tpo -c -o src/wc.o src/wc.c",
+    "aarch64-linux-gnu-gcc -std=gnu23   -O1 -g0 -ffile-prefix-map=/build/coreutils=. -Wl,--as-needed  -o src/wc src/wc.o src/libver.a lib/libcoreutils.a   lib/libcoreutils.a   src/libwc_neon.a "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/coreutils",
+  "inputs": [
+    {
+      "url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz",
+      "sha256": "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "cat",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/cat",
+      "size": 151584,
+      "sha256": "f43b767cc36cf7cb17aea1c1b497ba53b8f867af93be8be2f9377aecbe489008",
+      "elf_machine": "AArch64",
+      "func_symbols": 130,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "echo",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/echo",
+      "size": 81808,
+      "sha256": "7bb9561c0e7cb4f1cd5355735eb6755f948efd38168e7092c199db5847c1c85a",
+      "elf_machine": "AArch64",
+      "func_symbols": 103,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "head",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/head",
+      "size": 151048,
+      "sha256": "478b9198b83353d3e62357eb3df81b747c72fda8e96fa30a0646f34f209e301f",
+      "elf_machine": "AArch64",
+      "func_symbols": 133,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sha256sum",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/sha256sum",
+      "size": 151496,
+      "sha256": "9423e3698bf8ed00909064b1a5b10051079b6ddbe46062fc7457e06ddad7bffb",
+      "elf_machine": "AArch64",
+      "func_symbols": 140,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sort",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/sort",
+      "size": 232528,
+      "sha256": "36534974c2c751c186ef9dfe8c3ceebd058422217d71d5d8e953a8ff2d9d7511",
+      "elf_machine": "AArch64",
+      "func_symbols": 296,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "true",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/true",
+      "size": 81736,
+      "sha256": "d570abd5b0dbca1c74ed97c96085f139fea6fcb31230469191ae869157077b85",
+      "elf_machine": "AArch64",
+      "func_symbols": 102,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "wc",
+      "path": "corpus/variants/coreutils/9.12/default/aarch64/O1/unstripped/wc",
+      "size": 154904,
+      "sha256": "5ef4fec3566198b0c8c185b61b61a94264f22590a912214650a3cce795bab618",
+      "elf_machine": "AArch64",
+      "func_symbols": 163,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu true --version | head -1",
+      "result": "pass: true (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu echo --version | head -1",
+      "result": "pass: echo (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu cat --version | head -1",
+      "result": "pass: cat (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu wc --version | head -1",
+      "result": "pass: wc (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu head --version | head -1",
+      "result": "pass: head (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sort --version | head -1",
+      "result": "pass: sort (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sha256sum --version | head -1",
+      "result": "pass: sha256sum (GNU coreutils) 9.12"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu true; echo $?",
+      "result": "pass: 0"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu echo -e 'a\\tb'",
+      "result": "pass: a\tb"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu cat -n in.txt | tail -1",
+      "result": "pass:      5\tbanana"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu wc in.txt",
+      "result": "pass:  5  5 23 /tmp/tmp.mTlul3Y8tn/in.txt"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu head -n 2 in.txt",
+      "result": "pass: pear\napple"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sort in.txt",
+      "result": "pass: 10\n9\napple\nbanana\npear"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sort -n in.txt | tail -2",
+      "result": "pass: 9\n10"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu printf abc | sha256sum",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  -"
+    },
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu sha256sum 1e6 zero bytes",
+      "result": "pass: d29751f2649b32ff572b5e0a9f541ea660a50f94ff0beedfb0b692b924cc8025  /tmp/tmp.mTlul3Y8tn/zero"
+    }
+  ],
+  "notes": [
+    "configure: 204 checks guessed (cross compilation: yes); see generated/aarch64/configure-cross-guesses.txt"
+  ],
+  "variant": {
+    "optimization": "O1",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "281b8de1-1f0d-4e36-be6e-c594012b275a",
+    "target": "aarch64-linux-gnu"
+  }
+}

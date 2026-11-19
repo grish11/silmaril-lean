@@ -1,0 +1,294 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "arch": "x86_64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_deregisterTMCloneTable",
+      "_ITM_registerTMCloneTable",
+      "__ctype_b_loc@GLIBC_2.3",
+      "__ctype_get_mb_cur_max@GLIBC_2.2.5",
+      "__cxa_atexit@GLIBC_2.2.5",
+      "__cxa_finalize@GLIBC_2.2.5",
+      "__errno_location@GLIBC_2.2.5",
+      "__fpending@GLIBC_2.2.5",
+      "__fprintf_chk@GLIBC_2.3.4",
+      "__freading@GLIBC_2.2.5",
+      "__gmon_start__",
+      "__libc_start_main@GLIBC_2.34",
+      "__overflow@GLIBC_2.2.5",
+      "__printf_chk@GLIBC_2.3.4",
+      "__vfprintf_chk@GLIBC_2.3.4",
+      "_exit@GLIBC_2.2.5",
+      "abort@GLIBC_2.2.5",
+      "calloc@GLIBC_2.2.5",
+      "exit@GLIBC_2.2.5",
+      "fclose@GLIBC_2.2.5",
+      "fcntl@GLIBC_2.2.5",
+      "fflush@GLIBC_2.2.5",
+      "fflush_unlocked@GLIBC_2.2.5",
+      "fileno@GLIBC_2.2.5",
+      "fputc_unlocked@GLIBC_2.2.5",
+      "fputs_unlocked@GLIBC_2.2.5",
+      "free@GLIBC_2.2.5",
+      "fseeko@GLIBC_2.2.5",
+      "fwrite_unlocked@GLIBC_2.2.5",
+      "iswprint@GLIBC_2.2.5",
+      "lseek@GLIBC_2.2.5",
+      "malloc@GLIBC_2.2.5",
+      "mbrtoc32@GLIBC_2.16",
+      "mbsinit@GLIBC_2.2.5",
+      "memcmp@GLIBC_2.2.5",
+      "memcpy@GLIBC_2.14",
+      "memset@GLIBC_2.2.5",
+      "nl_langinfo@GLIBC_2.2.5",
+      "realloc@GLIBC_2.2.5",
+      "setlocale@GLIBC_2.2.5",
+      "strchr@GLIBC_2.2.5",
+      "strcmp@GLIBC_2.2.5",
+      "strcspn@GLIBC_2.2.5",
+      "strerror_r@GLIBC_2.2.5",
+      "strlen@GLIBC_2.2.5",
+      "strncmp@GLIBC_2.2.5",
+      "strrchr@GLIBC_2.2.5",
+      "strspn@GLIBC_2.2.5"
+    ],
+    "interpreter": [
+      "/lib64/ld-linux-x86-64.so.2"
+    ],
+    "needed": [
+      "libc.so.6"
+    ],
+    "rpath": [],
+    "runpath": [],
+    "soname": [],
+    "version_information": "\nVersion symbols section '.gnu.version' contains 61 entries:\n Addr: 0x0000000000000cd2  Offset: 0x00000cd2  Link: 5 (.dynsym)\n  000:   0 (*local*)       2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   3 (GLIBC_2.3.4)\n  004:   4 (GLIBC_2.34)    2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  008:   1 (*global*)      2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  00c:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  010:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  014:   5 (GLIBC_2.16)    2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  018:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  01c:   1 (*global*)      6 (GLIBC_2.14)    2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  020:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  024:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   3 (GLIBC_2.3.4)\n  028:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   3 (GLIBC_2.3.4)\n  02c:   1 (*global*)      2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  030:   7 (GLIBC_2.3)     2 (GLIBC_2.2.5)   1 (*global*)      2 (GLIBC_2.2.5)\n  034:   2 (GLIBC_2.2.5)   1 (*global*)      2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)\n  038:   2 (GLIBC_2.2.5)   2 (GLIBC_2.2.5)   1 (*global*)      1 (*global*)   \n  03c:   1 (*global*)   \n\nVersion needs section '.gnu.version_r' contains 1 entry:\n Addr: 0x0000000000000d50  Offset: 0x00000d50  Link: 6 (.dynstr)\n  000000: Version: 1  File: libc.so.6  Cnt: 6\n  0x0010:   Name: GLIBC_2.3  Flags: none  Version: 7\n  0x0020:   Name: GLIBC_2.14  Flags: none  Version: 6\n  0x0030:   Name: GLIBC_2.16  Flags: none  Version: 5\n  0x0040:   Name: GLIBC_2.34  Flags: none  Version: 4\n  0x0050:   Name: GLIBC_2.3.4  Flags: none  Version: 3\n  0x0060:   Name: GLIBC_2.2.5  Flags: none  Version: 2\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.property\n  Owner                Data size \tDescription\n  GNU                  0x00000010\tNT_GNU_PROPERTY_TYPE_0\t      Properties: x86 ISA needed: x86-64-baseline\n\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: e24ba9a2e9fe698fd740fa27f9890d8d8c5420eb\n\nDisplaying notes found in: .note.ABI-tag\n  Owner                Data size \tDescription\n  GNU                  0x00000010\tNT_GNU_ABI_TAG (ABI version tag)\t    OS: Linux, ABI: 3.2.0\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 8192,
+      "decoded_bytes": 23,
+      "mnemonics": {
+        "add": 1,
+        "call": 1,
+        "je": 1,
+        "mov": 1,
+        "ret": 1,
+        "sub": 1,
+        "test": 1
+      },
+      "name": ".init",
+      "size": 23,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 8224,
+      "decoded_bytes": 720,
+      "mnemonics": {
+        "jmp": 89,
+        "nopl": 1,
+        "push": 45
+      },
+      "name": ".plt",
+      "size": 720,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 8944,
+      "decoded_bytes": 8,
+      "mnemonics": {
+        "jmp": 1,
+        "xchg": 1
+      },
+      "name": ".plt.got",
+      "size": 8,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 8960,
+      "decoded_bytes": 14110,
+      "mnemonics": {
+        "add": 150,
+        "addl": 1,
+        "and": 30,
+        "bt": 1,
+        "call": 270,
+        "cmp": 149,
+        "cmpb": 27,
+        "cmpl": 30,
+        "cmpq": 14,
+        "cqto": 1,
+        "cs": 3,
+        "data16": 4,
+        "div": 1,
+        "endbr64": 2,
+        "hlt": 1,
+        "idiv": 1,
+        "imul": 2,
+        "incl": 1,
+        "ja": 19,
+        "jae": 39,
+        "jb": 5,
+        "jbe": 7,
+        "je": 174,
+        "jg": 8,
+        "jge": 1,
+        "jl": 1,
+        "jle": 4,
+        "jmp": 208,
+        "jne": 87,
+        "jns": 1,
+        "jo": 5,
+        "js": 5,
+        "lea": 238,
+        "mov": 1014,
+        "movabs": 5,
+        "movaps": 36,
+        "movb": 54,
+        "movdqa": 10,
+        "movdqu": 3,
+        "movl": 20,
+        "movq": 22,
+        "movsbl": 30,
+        "movsbq": 3,
+        "movslq": 11,
+        "movups": 4,
+        "movzbl": 81,
+        "movzwl": 4,
+        "mul": 1,
+        "neg": 1,
+        "nopl": 11,
+        "nopw": 2,
+        "not": 1,
+        "or": 24,
+        "pop": 110,
+        "push": 171,
+        "pxor": 1,
+        "ret": 118,
+        "sar": 5,
+        "seta": 9,
+        "setb": 3,
+        "setbe": 7,
+        "sete": 19,
+        "setne": 17,
+        "shl": 18,
+        "shr": 16,
+        "sub": 111,
+        "test": 160,
+        "testb": 4,
+        "testl": 1,
+        "xchg": 1,
+        "xor": 15
+      },
+      "name": ".text",
+      "size": 14110,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 23072,
+      "decoded_bytes": 9,
+      "mnemonics": {
+        "add": 1,
+        "ret": 1,
+        "sub": 1
+      },
+      "name": ".fini",
+      "size": 9,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "ADX": "adcx adox",
+      "AES": "aesenc aesenclast aesdec aesdeclast aesimc aeskeygenassist",
+      "BMI2": "bzhi mulx pdep pext rorx sarx shlx shrx",
+      "RDRAND": "rdrand",
+      "RDSEED": "rdseed",
+      "SHA": "sha1msg1 sha1msg2 sha1nexte sha1rnds4 sha256msg1 sha256msg2 sha256rnds2"
+    },
+    "matches": {
+      "ADX": {},
+      "AES": {},
+      "BMI2": {},
+      "RDRAND": {},
+      "RDSEED": {},
+      "SHA": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+  "identity": {
+    "cflags": "-Og -g0 -ffile-prefix-map=/build/coreutils=.",
+    "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "FORCE_UNSAFE_CONFIGURE=1 ./configure --build=x86_64-linux-gnu --host=x86_64-linux-gnu --disable-nls --without-selinux --without-openssl --without-libgmp --disable-acl --disable-xattr --disable-libcap --disable-libsmack --without-systemd --disable-rpath CC=gcc CFLAGS='-Og -g0 -ffile-prefix-map=/build/coreutils=.'",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210",
+        "url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz"
+      }
+    ],
+    "project": "coreutils",
+    "receipt": "corpus/variants/coreutils/9.12/default/x86_64/Og/stripped/receipt.json",
+    "receipt_sha256": "216e51fb98d7e3d4a1d6fc85b003fb2ac50f44b483fd762c4b00038119c574fd",
+    "stripping": "stripped",
+    "variant": {
+      "configuration": "default",
+      "optimization": "Og",
+      "run_id": "12beac89-e3f6-46c2-b99a-ff4a0bd9f53d",
+      "stripping": "stripped",
+      "target": "x86_64-linux-gnu"
+    },
+    "version": "9.12"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/variants/coreutils/9.12/default/x86_64/Og/stripped/true",
+  "relocations": {
+    "R_X86_64_COPY": 4,
+    "R_X86_64_GLOB_DAT": 5,
+    "R_X86_64_JUMP_SLOT": 44,
+    "R_X86_64_RELATIVE": 16
+  },
+  "schema_version": 1,
+  "sha256": "72b256adde618703277d7559bf851710fedbf9708f3e3af62ae1168ae178708a",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

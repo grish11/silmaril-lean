@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/funcs/ag/popcount",
+  "kind": "assume-guarantee",
+  "function": "popcount",
+  "address": "0x1131c",
+  "words": "0000059300050a63fff5061300a6753300158593fe051ae30005851300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/popcount.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (popcount (old (reg a0))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `popcount` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

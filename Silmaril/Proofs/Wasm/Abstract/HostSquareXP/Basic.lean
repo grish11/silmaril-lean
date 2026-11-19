@@ -25,7 +25,7 @@ namespace Silmaril.Proofs.Wasm.Abstract.HostSquareXP
 
 open Silmaril.Games Silmaril.Games.Abstract
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
@@ -33,7 +33,7 @@ variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagIn
 
 section Back
 
-variable (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+variable (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
   (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
   (hok : InvokeOk s a vs)
 include hT hH hE hs hS hts hok
@@ -79,7 +79,7 @@ end Back
 
 section Of
 
-variable (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+variable (hH : HostSliceT host) (hE : HostSliceE tags host)
   (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
 include hH hE hS hts hok
 
@@ -105,7 +105,7 @@ theorem square_prod_of
 end Of
 
 /-- **The square, from the two converse directions as hypotheses.** -/
-theorem square_of (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem square_of (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
     (hok : InvokeOk s a vs)
     (hdiv : ∀ (cs : List (Call (wasmHostSig H))) (c' : Config H),

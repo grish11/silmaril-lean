@@ -1,0 +1,2175 @@
+{
+  "artifacts": {
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/fft/O0/RECEIPT.json",
+      "sha256": "ad3d332531ba5bfdf2ef3051f5a51e3a7eaac56a9d8234c404d8853c7e36beca",
+      "size": 923
+    },
+    "run": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/fft/O0/run.json",
+      "sha256": "810abd6daa321b33cfedc5075ff52e6ec1f395b71b827b963027eaf047af616c",
+      "size": 566
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/programs/fft.c",
+      "sha256": "acd6576a6a17429cb80aa7f696727ae98758c9843ca0c04729d09b93eacb0347",
+      "size": 1083
+    },
+    "target": {
+      "media": "text/x-asm",
+      "path": "examples/compiler-explorer/builds/fft/O0/fft.s",
+      "sha256": "3fbe7a5e674743a91056b135e2e87f72cd1d66b741ad9dfa529a66e847fba448",
+      "size": 15793
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "command": "gcc -O0 -g -S -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=. fft.c -o fft.s",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O0",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "fft",
+      "id": "nav/fft/10",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "ad9fde8fd2de08931bc4"
+      ],
+      "target": [
+        "ebf51a9c3eb37f3bc48f"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/12",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "87ae23663ae4ad5541d8"
+      ],
+      "target": [
+        "6c661b1eaeb0229271ab"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/13",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "9a885ac12223bb030040"
+      ],
+      "target": [
+        "b9e8cda6cc3095762c89"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/14",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "8f3d609b14a24f4a10c4"
+      ],
+      "target": [
+        "53cd572bb103b2b281be"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/15",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "241e94666f77d09beee1"
+      ],
+      "target": [
+        "8f607f2a992e1f946462"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/16",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "e1e74d034d09f18f21d3"
+      ],
+      "target": [
+        "3f63fea64966949c3fa8"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/17",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "30747ce660175115f43d"
+      ],
+      "target": [
+        "4b6244126e967ea44daa"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/18",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "a8b4f67faa3e987a5445"
+      ],
+      "target": [
+        "962f1960d241e011fb3a"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/19",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "ce9f32f4843bd89a2f8d"
+      ],
+      "target": [
+        "e34d95a8e21e070e8c2e"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/20",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "aafe1e1bc0283ceb4ab9"
+      ],
+      "target": [
+        "b5c6fcfe38d251c8c5d9"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/24",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "15e946c73d42cad436cb"
+      ],
+      "target": [
+        "382cc72971d67a11487e"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/25",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "9e5be69b8d28de80ea9e"
+      ],
+      "target": [
+        "7bd17fdd43557a2b7329"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/26",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "72514296a0de44954c23"
+      ],
+      "target": [
+        "ab047b4bcc456dd8b9ce"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/27",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "f999c3d8eca5404d9db2"
+      ],
+      "target": [
+        "9be216b46b99fadf5bcc"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/28",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "008c174f27340dc81477"
+      ],
+      "target": [
+        "fed7bea5e69419490db9"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/29",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "95c348f84807da1bcc37"
+      ],
+      "target": [
+        "438cf2fb82efe9699959"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/30",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "4530a08eb4ce34183c3a"
+      ],
+      "target": [
+        "d357d7b65285512b0dad"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/31",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "9be8def1b4e3160e8b4c"
+      ],
+      "target": [
+        "3734d0966c9062f7cf2b"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/32",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "b82eff4c079b6a8ec93a"
+      ],
+      "target": [
+        "b6b5da0995e09f8b42d3"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/33",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "88893b3517010de9a9dc"
+      ],
+      "target": [
+        "6bc2ece44e98a4bd7c4a"
+      ]
+    },
+    {
+      "function": "fft",
+      "id": "nav/fft/37",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "db55c492d557f09abeaa"
+      ],
+      "target": [
+        "bd4ad513ae5050651282"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/40",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "c2438b73cd4cf7a5fa2f"
+      ],
+      "target": [
+        "b4cf70df113d54787811"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/41",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "336ea6fa5db54a9f59da"
+      ],
+      "target": [
+        "35bcce31a04e759f3812"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/42",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "8adbbb7dcbec89194cdc"
+      ],
+      "target": [
+        "175d4b1dd4974f134837"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/43",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "d35321f8852de74e3ad0"
+      ],
+      "target": [
+        "38b8e16b6732ca5b03c4"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/44",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "6aad4620efae6b8ed561"
+      ],
+      "target": [
+        "79c20e3fbe8078442df6"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/45",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "8bfd32bc2552db09ee92"
+      ],
+      "target": [
+        "7cca92d2b098f688b480"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/46",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "bb9685e6582ab9562fe8"
+      ],
+      "target": [
+        "f21fcefafd90a6bd38ce"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "source",
+      "id": "008c174f27340dc81477",
+      "label": "line 28",
+      "ranges": [
+        [
+          653,
+          694
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "15e946c73d42cad436cb",
+      "label": "line 24",
+      "ranges": [
+        [
+          490,
+          532
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "175d4b1dd4974f134837",
+      "label": "main: 4 instruction(s) of line 42",
+      "ranges": [
+        [
+          6680,
+          6702
+        ],
+        [
+          6703,
+          6717
+        ],
+        [
+          6718,
+          6734
+        ],
+        [
+          6735,
+          6744
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "241e94666f77d09beee1",
+      "label": "line 15",
+      "ranges": [
+        [
+          347,
+          362
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "30747ce660175115f43d",
+      "label": "line 17",
+      "ranges": [
+        [
+          377,
+          393
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "336ea6fa5db54a9f59da",
+      "label": "line 41",
+      "ranges": [
+        [
+          901,
+          950
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "35bcce31a04e759f3812",
+      "label": "main: 32 instruction(s) of line 41",
+      "ranges": [
+        [
+          5949,
+          5973
+        ],
+        [
+          5974,
+          5998
+        ],
+        [
+          5999,
+          6017
+        ],
+        [
+          6018,
+          6042
+        ],
+        [
+          6043,
+          6067
+        ],
+        [
+          6068,
+          6092
+        ],
+        [
+          6093,
+          6111
+        ],
+        [
+          6112,
+          6136
+        ],
+        [
+          6137,
+          6161
+        ],
+        [
+          6162,
+          6186
+        ],
+        [
+          6187,
+          6205
+        ],
+        [
+          6206,
+          6230
+        ],
+        [
+          6231,
+          6255
+        ],
+        [
+          6256,
+          6279
+        ],
+        [
+          6280,
+          6298
+        ],
+        [
+          6299,
+          6322
+        ],
+        [
+          6323,
+          6341
+        ],
+        [
+          6342,
+          6365
+        ],
+        [
+          6366,
+          6384
+        ],
+        [
+          6385,
+          6408
+        ],
+        [
+          6409,
+          6427
+        ],
+        [
+          6428,
+          6451
+        ],
+        [
+          6452,
+          6470
+        ],
+        [
+          6471,
+          6494
+        ],
+        [
+          6495,
+          6513
+        ],
+        [
+          6514,
+          6537
+        ],
+        [
+          6538,
+          6556
+        ],
+        [
+          6557,
+          6580
+        ],
+        [
+          6581,
+          6599
+        ],
+        [
+          6600,
+          6623
+        ],
+        [
+          6624,
+          6642
+        ],
+        [
+          6643,
+          6666
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "3734d0966c9062f7cf2b",
+      "label": "fft: 15 instruction(s) of line 31",
+      "ranges": [
+        [
+          3794,
+          3815
+        ],
+        [
+          3816,
+          3837
+        ],
+        [
+          3838,
+          3854
+        ],
+        [
+          3855,
+          3860
+        ],
+        [
+          3875,
+          3889
+        ],
+        [
+          3890,
+          3906
+        ],
+        [
+          3907,
+          3929
+        ],
+        [
+          3930,
+          3946
+        ],
+        [
+          3961,
+          3985
+        ],
+        [
+          3986,
+          4006
+        ],
+        [
+          4007,
+          4031
+        ],
+        [
+          4032,
+          4056
+        ],
+        [
+          4057,
+          4081
+        ],
+        [
+          4096,
+          4116
+        ],
+        [
+          4117,
+          4138
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "382cc72971d67a11487e",
+      "label": "fft: 6 instruction(s) of line 24",
+      "ranges": [
+        [
+          1934,
+          1953
+        ],
+        [
+          1967,
+          1975
+        ],
+        [
+          5475,
+          5490
+        ],
+        [
+          5526,
+          5547
+        ],
+        [
+          5548,
+          5570
+        ],
+        [
+          5571,
+          5580
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "38b8e16b6732ca5b03c4",
+      "label": "main: 5 instruction(s) of line 43",
+      "ranges": [
+        [
+          6767,
+          6785
+        ],
+        [
+          6799,
+          6808
+        ],
+        [
+          7334,
+          7352
+        ],
+        [
+          7389,
+          7407
+        ],
+        [
+          7408,
+          7417
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "3f63fea64966949c3fa8",
+      "label": "fft: 2 instruction(s) of line 16",
+      "ranges": [
+        [
+          774,
+          795
+        ],
+        [
+          796,
+          816
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "438cf2fb82efe9699959",
+      "label": "fft: 16 instruction(s) of line 29",
+      "ranges": [
+        [
+          2743,
+          2764
+        ],
+        [
+          2765,
+          2786
+        ],
+        [
+          2787,
+          2803
+        ],
+        [
+          2804,
+          2809
+        ],
+        [
+          2824,
+          2838
+        ],
+        [
+          2839,
+          2855
+        ],
+        [
+          2856,
+          2878
+        ],
+        [
+          2879,
+          2895
+        ],
+        [
+          2896,
+          2916
+        ],
+        [
+          2917,
+          2941
+        ],
+        [
+          2942,
+          2963
+        ],
+        [
+          2964,
+          2988
+        ],
+        [
+          3003,
+          3027
+        ],
+        [
+          3028,
+          3052
+        ],
+        [
+          3053,
+          3076
+        ],
+        [
+          3077,
+          3100
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "4530a08eb4ce34183c3a",
+      "label": "line 30",
+      "ranges": [
+        [
+          732,
+          783
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "4b6244126e967ea44daa",
+      "label": "fft: 3 instruction(s) of line 17",
+      "ranges": [
+        [
+          830,
+          850
+        ],
+        [
+          851,
+          871
+        ],
+        [
+          872,
+          880
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "53cd572bb103b2b281be",
+      "label": "fft: 6 instruction(s) of line 14",
+      "ranges": [
+        [
+          510,
+          518
+        ],
+        [
+          610,
+          625
+        ],
+        [
+          661,
+          681
+        ],
+        [
+          682,
+          703
+        ],
+        [
+          734,
+          751
+        ],
+        [
+          752,
+          760
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "6aad4620efae6b8ed561",
+      "label": "line 44",
+      "ranges": [
+        [
+          994,
+          1068
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "6bc2ece44e98a4bd7c4a",
+      "label": "fft: 17 instruction(s) of line 33",
+      "ranges": [
+        [
+          4640,
+          4664
+        ],
+        [
+          4665,
+          4689
+        ],
+        [
+          4690,
+          4714
+        ],
+        [
+          4715,
+          4737
+        ],
+        [
+          4738,
+          4758
+        ],
+        [
+          4759,
+          4779
+        ],
+        [
+          4780,
+          4800
+        ],
+        [
+          4801,
+          4818
+        ],
+        [
+          4819,
+          4833
+        ],
+        [
+          4834,
+          4851
+        ],
+        [
+          4852,
+          4872
+        ],
+        [
+          4873,
+          4894
+        ],
+        [
+          4895,
+          4918
+        ],
+        [
+          4919,
+          4942
+        ],
+        [
+          4943,
+          4967
+        ],
+        [
+          4968,
+          4991
+        ],
+        [
+          4992,
+          5016
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "6c661b1eaeb0229271ab",
+      "label": "fft: 7 instruction(s) of line 12",
+      "ranges": [
+        [
+          342,
+          360
+        ],
+        [
+          375,
+          393
+        ],
+        [
+          407,
+          415
+        ],
+        [
+          1800,
+          1818
+        ],
+        [
+          1854,
+          1874
+        ],
+        [
+          1875,
+          1897
+        ],
+        [
+          1898,
+          1905
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "72514296a0de44954c23",
+      "label": "line 26",
+      "ranges": [
+        [
+          583,
+          621
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "79c20e3fbe8078442df6",
+      "label": "main: 25 instruction(s) of line 44",
+      "ranges": [
+        [
+          6829,
+          6849
+        ],
+        [
+          6850,
+          6855
+        ],
+        [
+          6856,
+          6870
+        ],
+        [
+          6871,
+          6887
+        ],
+        [
+          6888,
+          6904
+        ],
+        [
+          6905,
+          6926
+        ],
+        [
+          6940,
+          6958
+        ],
+        [
+          6959,
+          6979
+        ],
+        [
+          6980,
+          6999
+        ],
+        [
+          7014,
+          7034
+        ],
+        [
+          7035,
+          7040
+        ],
+        [
+          7041,
+          7055
+        ],
+        [
+          7056,
+          7072
+        ],
+        [
+          7073,
+          7089
+        ],
+        [
+          7090,
+          7110
+        ],
+        [
+          7124,
+          7142
+        ],
+        [
+          7143,
+          7162
+        ],
+        [
+          7163,
+          7180
+        ],
+        [
+          7181,
+          7201
+        ],
+        [
+          7202,
+          7222
+        ],
+        [
+          7223,
+          7240
+        ],
+        [
+          7241,
+          7257
+        ],
+        [
+          7258,
+          7275
+        ],
+        [
+          7276,
+          7290
+        ],
+        [
+          7291,
+          7303
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "7bd17fdd43557a2b7329",
+      "label": "fft: 17 instruction(s) of line 25",
+      "ranges": [
+        [
+          2003,
+          2021
+        ],
+        [
+          2022,
+          2049
+        ],
+        [
+          2050,
+          2074
+        ],
+        [
+          2075,
+          2095
+        ],
+        [
+          2096,
+          2115
+        ],
+        [
+          2116,
+          2140
+        ],
+        [
+          2141,
+          2160
+        ],
+        [
+          2161,
+          2181
+        ],
+        [
+          2182,
+          2192
+        ],
+        [
+          2193,
+          2210
+        ],
+        [
+          2211,
+          2231
+        ],
+        [
+          2232,
+          2253
+        ],
+        [
+          2254,
+          2277
+        ],
+        [
+          2278,
+          2301
+        ],
+        [
+          2302,
+          2326
+        ],
+        [
+          2327,
+          2350
+        ],
+        [
+          2351,
+          2375
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "7cca92d2b098f688b480",
+      "label": "main: 1 instruction(s) of line 45",
+      "ranges": [
+        [
+          7440,
+          7454
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "87ae23663ae4ad5541d8",
+      "label": "line 12",
+      "ranges": [
+        [
+          255,
+          293
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "88893b3517010de9a9dc",
+      "label": "line 33",
+      "ranges": [
+        [
+          846,
+          862
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "8adbbb7dcbec89194cdc",
+      "label": "line 42",
+      "ranges": [
+        [
+          951,
+          963
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "8bfd32bc2552db09ee92",
+      "label": "line 45",
+      "ranges": [
+        [
+          1069,
+          1080
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "8f3d609b14a24f4a10c4",
+      "label": "line 14",
+      "ranges": [
+        [
+          316,
+          346
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "8f607f2a992e1f946462",
+      "label": "fft: 2 instruction(s) of line 15",
+      "ranges": [
+        [
+          537,
+          558
+        ],
+        [
+          559,
+          579
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "95c348f84807da1bcc37",
+      "label": "line 29",
+      "ranges": [
+        [
+          695,
+          731
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "962f1960d241e011fb3a",
+      "label": "fft: 14 instruction(s) of line 18",
+      "ranges": [
+        [
+          902,
+          922
+        ],
+        [
+          923,
+          928
+        ],
+        [
+          929,
+          943
+        ],
+        [
+          944,
+          960
+        ],
+        [
+          961,
+          983
+        ],
+        [
+          984,
+          1000
+        ],
+        [
+          1001,
+          1021
+        ],
+        [
+          1022,
+          1046
+        ],
+        [
+          1047,
+          1068
+        ],
+        [
+          1069,
+          1093
+        ],
+        [
+          1108,
+          1132
+        ],
+        [
+          1133,
+          1157
+        ],
+        [
+          1158,
+          1182
+        ],
+        [
+          1183,
+          1206
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "9a885ac12223bb030040",
+      "label": "line 13",
+      "ranges": [
+        [
+          294,
+          315
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "9be216b46b99fadf5bcc",
+      "label": "fft: 4 instruction(s) of line 27",
+      "ranges": [
+        [
+          2466,
+          2490
+        ],
+        [
+          2491,
+          2514
+        ],
+        [
+          2515,
+          2533
+        ],
+        [
+          2534,
+          2557
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "9be8def1b4e3160e8b4c",
+      "label": "line 31",
+      "ranges": [
+        [
+          784,
+          809
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "9e5be69b8d28de80ea9e",
+      "label": "line 25",
+      "ranges": [
+        [
+          533,
+          582
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "a8b4f67faa3e987a5445",
+      "label": "line 18",
+      "ranges": [
+        [
+          394,
+          424
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "aafe1e1bc0283ceb4ab9",
+      "label": "line 20",
+      "ranges": [
+        [
+          444,
+          459
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "ab047b4bcc456dd8b9ce",
+      "label": "fft: 7 instruction(s) of line 26",
+      "ranges": [
+        [
+          2397,
+          2416
+        ],
+        [
+          2430,
+          2438
+        ],
+        [
+          5298,
+          5319
+        ],
+        [
+          5320,
+          5341
+        ],
+        [
+          5377,
+          5398
+        ],
+        [
+          5399,
+          5421
+        ],
+        [
+          5422,
+          5430
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "ad9fde8fd2de08931bc4",
+      "label": "line 10",
+      "ranges": [
+        [
+          220,
+          221
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "b4cf70df113d54787811",
+      "label": "main: 3 instruction(s) of line 40",
+      "ranges": [
+        [
+          5820,
+          5831
+        ],
+        [
+          5876,
+          5892
+        ],
+        [
+          5918,
+          5934
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "b5c6fcfe38d251c8c5d9",
+      "label": "fft: 10 instruction(s) of line 20",
+      "ranges": [
+        [
+          1545,
+          1565
+        ],
+        [
+          1566,
+          1571
+        ],
+        [
+          1572,
+          1586
+        ],
+        [
+          1587,
+          1603
+        ],
+        [
+          1604,
+          1626
+        ],
+        [
+          1627,
+          1643
+        ],
+        [
+          1658,
+          1682
+        ],
+        [
+          1683,
+          1703
+        ],
+        [
+          1704,
+          1728
+        ],
+        [
+          1729,
+          1750
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "b6b5da0995e09f8b42d3",
+      "label": "fft: 21 instruction(s) of line 32",
+      "ranges": [
+        [
+          4153,
+          4174
+        ],
+        [
+          4175,
+          4196
+        ],
+        [
+          4197,
+          4213
+        ],
+        [
+          4228,
+          4249
+        ],
+        [
+          4250,
+          4266
+        ],
+        [
+          4267,
+          4282
+        ],
+        [
+          4283,
+          4299
+        ],
+        [
+          4300,
+          4310
+        ],
+        [
+          4325,
+          4341
+        ],
+        [
+          4342,
+          4347
+        ],
+        [
+          4362,
+          4376
+        ],
+        [
+          4377,
+          4393
+        ],
+        [
+          4394,
+          4416
+        ],
+        [
+          4417,
+          4433
+        ],
+        [
+          4448,
+          4472
+        ],
+        [
+          4473,
+          4493
+        ],
+        [
+          4494,
+          4518
+        ],
+        [
+          4519,
+          4543
+        ],
+        [
+          4544,
+          4568
+        ],
+        [
+          4583,
+          4603
+        ],
+        [
+          4604,
+          4625
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "b82eff4c079b6a8ec93a",
+      "label": "line 32",
+      "ranges": [
+        [
+          810,
+          845
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "b9e8cda6cc3095762c89",
+      "label": "fft: 3 instruction(s) of line 13",
+      "ranges": [
+        [
+          441,
+          463
+        ],
+        [
+          464,
+          474
+        ],
+        [
+          475,
+          496
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "bb9685e6582ab9562fe8",
+      "label": "line 46",
+      "ranges": [
+        [
+          1081,
+          1082
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "bd4ad513ae5050651282",
+      "label": "fft: 4 instruction(s) of line 37",
+      "ranges": [
+        [
+          5601,
+          5605
+        ],
+        [
+          5606,
+          5610
+        ],
+        [
+          5611,
+          5617
+        ],
+        [
+          5637,
+          5641
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "c2438b73cd4cf7a5fa2f",
+      "label": "line 40",
+      "ranges": [
+        [
+          899,
+          900
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "ce9f32f4843bd89a2f8d",
+      "label": "line 19",
+      "ranges": [
+        [
+          425,
+          443
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "d35321f8852de74e3ad0",
+      "label": "line 43",
+      "ranges": [
+        [
+          964,
+          993
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "d357d7b65285512b0dad",
+      "label": "fft: 31 instruction(s) of line 30",
+      "ranges": [
+        [
+          3115,
+          3136
+        ],
+        [
+          3137,
+          3158
+        ],
+        [
+          3159,
+          3175
+        ],
+        [
+          3190,
+          3211
+        ],
+        [
+          3212,
+          3228
+        ],
+        [
+          3229,
+          3244
+        ],
+        [
+          3245,
+          3261
+        ],
+        [
+          3262,
+          3272
+        ],
+        [
+          3287,
+          3303
+        ],
+        [
+          3304,
+          3309
+        ],
+        [
+          3324,
+          3338
+        ],
+        [
+          3339,
+          3355
+        ],
+        [
+          3356,
+          3378
+        ],
+        [
+          3379,
+          3395
+        ],
+        [
+          3396,
+          3416
+        ],
+        [
+          3417,
+          3438
+        ],
+        [
+          3453,
+          3477
+        ],
+        [
+          3478,
+          3500
+        ],
+        [
+          3501,
+          3521
+        ],
+        [
+          3522,
+          3542
+        ],
+        [
+          3543,
+          3563
+        ],
+        [
+          3564,
+          3581
+        ],
+        [
+          3582,
+          3596
+        ],
+        [
+          3597,
+          3614
+        ],
+        [
+          3615,
+          3635
+        ],
+        [
+          3636,
+          3657
+        ],
+        [
+          3658,
+          3681
+        ],
+        [
+          3682,
+          3705
+        ],
+        [
+          3706,
+          3730
+        ],
+        [
+          3731,
+          3754
+        ],
+        [
+          3755,
+          3779
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "db55c492d557f09abeaa",
+      "label": "line 37",
+      "ranges": [
+        [
+          881,
+          882
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "e1e74d034d09f18f21d3",
+      "label": "line 16",
+      "ranges": [
+        [
+          363,
+          376
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "e34d95a8e21e070e8c2e",
+      "label": "fft: 16 instruction(s) of line 19",
+      "ranges": [
+        [
+          1221,
+          1241
+        ],
+        [
+          1242,
+          1247
+        ],
+        [
+          1248,
+          1262
+        ],
+        [
+          1263,
+          1279
+        ],
+        [
+          1280,
+          1302
+        ],
+        [
+          1303,
+          1319
+        ],
+        [
+          1333,
+          1353
+        ],
+        [
+          1354,
+          1359
+        ],
+        [
+          1360,
+          1374
+        ],
+        [
+          1375,
+          1391
+        ],
+        [
+          1392,
+          1414
+        ],
+        [
+          1415,
+          1431
+        ],
+        [
+          1432,
+          1452
+        ],
+        [
+          1453,
+          1474
+        ],
+        [
+          1489,
+          1509
+        ],
+        [
+          1510,
+          1531
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "ebf51a9c3eb37f3bc48f",
+      "label": "fft: 5 instruction(s) of line 10",
+      "ranges": [
+        [
+          160,
+          171
+        ],
+        [
+          216,
+          232
+        ],
+        [
+          258,
+          274
+        ],
+        [
+          275,
+          297
+        ],
+        [
+          298,
+          320
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "f21fcefafd90a6bd38ce",
+      "label": "main: 2 instruction(s) of line 46",
+      "ranges": [
+        [
+          7468,
+          7474
+        ],
+        [
+          7494,
+          7498
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "f999c3d8eca5404d9db2",
+      "label": "line 27",
+      "ranges": [
+        [
+          622,
+          652
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "fed7bea5e69419490db9",
+      "label": "fft: 14 instruction(s) of line 28",
+      "ranges": [
+        [
+          2579,
+          2598
+        ],
+        [
+          2612,
+          2630
+        ],
+        [
+          2631,
+          2655
+        ],
+        [
+          2656,
+          2680
+        ],
+        [
+          2681,
+          2705
+        ],
+        [
+          2706,
+          2714
+        ],
+        [
+          5055,
+          5074
+        ],
+        [
+          5110,
+          5131
+        ],
+        [
+          5132,
+          5148
+        ],
+        [
+          5149,
+          5164
+        ],
+        [
+          5165,
+          5181
+        ],
+        [
+          5182,
+          5192
+        ],
+        [
+          5223,
+          5244
+        ],
+        [
+          5245,
+          5253
+        ]
+      ],
+      "space": "bytes"
+    }
+  ],
+  "id": "programs/fft/O0",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "navigation_stats": {
+    "instructions_from_other_files": {},
+    "unattributed_instructions": 0
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "no source semantics in Lean covers this program: the C elaborator of Silmaril.Project.CompilesTo has no loops, calls, pointers, floating point or I/O, and no x86 model here covers the linked program with glibc"
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "no ABI statement is attempted for this program"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "no translation is stated, so there is nothing to be vacuous"
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "no semantic mapping: only the compiler's debug line table"
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "no comorphism relation is generated for this program"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [
+    {
+      "about": "target",
+      "artifact": "run",
+      "expected_stdout": "0: +4.000 +0.000i\n1: +1.000 -2.414i\n2: +0.000 +0.000i\n3: +1.000 -0.414i\n4: +0.000 +0.000i\n5: +1.000 +0.414i\n6: +0.000 +0.000i\n7: +1.000 +2.414i\n",
+      "id": "run",
+      "kind": "execution"
+    }
+  ],
+  "title": "fft.c, gcc 13.3.0 -O0 (assembly)",
+  "view": {
+    "source": "source",
+    "target": "target"
+  }
+}

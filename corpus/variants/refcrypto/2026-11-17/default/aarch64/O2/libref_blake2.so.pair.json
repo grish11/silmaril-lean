@@ -1,0 +1,161 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 16272,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 2088,
+      "sha256": "ba6bbd662c58157195a9ed362ab9039923f37e70f1c45a079cb463180cdf289d",
+      "size": 28
+    },
+    ".plt": {
+      "address": 2128,
+      "sha256": "6cbf5aa1984176b7475f88bdca1bb686f4c20325bd64313ddef343a9ff1bba78",
+      "size": 272
+    },
+    ".text": {
+      "address": 2400,
+      "sha256": "5902de8921d4b0436845d9e737201c919213135c9f573a7b2b3621a382e6e219",
+      "size": 13872
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "3423c2aca20ce75ba6b486e3c42bf1302c9d2e97b3b9565e22e30826f68807b9",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "6870904c1f071101a0c31d450c4d4939c095863e500c608537ad54a222e81f28",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "11",
+      "size": 20,
+      "type": "FUNC",
+      "value": 2400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "blake2b_compress",
+      "section_index": "11",
+      "size": 6044,
+      "type": "FUNC",
+      "value": 2656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "blake2s_compress",
+      "section_index": "11",
+      "size": 4980,
+      "type": "FUNC",
+      "value": 9984
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2b",
+      "section_index": "11",
+      "size": 216,
+      "type": "FUNC",
+      "value": 9728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2b_init",
+      "section_index": "11",
+      "size": 92,
+      "type": "FUNC",
+      "value": 8844
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2s_final",
+      "section_index": "11",
+      "size": 392,
+      "type": "FUNC",
+      "value": 15684
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2b_init_key",
+      "section_index": "11",
+      "size": 228,
+      "type": "FUNC",
+      "value": 9232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2b_update",
+      "section_index": "11",
+      "size": 296,
+      "type": "FUNC",
+      "value": 8936
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2b_init_param",
+      "section_index": "11",
+      "size": 140,
+      "type": "FUNC",
+      "value": 8704
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2s_init_key",
+      "section_index": "11",
+      "size": 212,
+      "type": "FUNC",
+      "value": 15472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2s_update",
+      "section_index": "11",
+      "size": 304,
+      "type": "FUNC",
+      "value": 15168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2s_init_param",
+      "section_index": "11",
+      "size": 108,
+      "type": "FUNC",
+      "value": 14976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2s",
+      "section_index": "11",
+      "size": 196,
+      "type": "FUNC",
+      "value": 16076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2",
+      "section_index": "11",
+      "size": 4,
+      "type": "FUNC",
+      "value": 9952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2b_final",
+      "section_index": "11",
+      "size": 248,
+      "type": "FUNC",
+      "value": 9472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "blake2s_init",
+      "section_index": "11",
+      "size": 76,
+      "type": "FUNC",
+      "value": 15084
+    }
+  ]
+}

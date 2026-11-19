@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# test.sh ARCH OBJDIR -- run the sqlite3 shell (natively or under qemu-user) against the built library.
+. "$(dirname "$0")/../common.sh"
+start_test sqlite "$1" "$2"
+t=$(mktemp -d); cp "$OBJ/libsqlite3.so" "$t/libsqlite3.so.0"; cp "$OBJ/sqlite3" "$t/"
+q() { "${RUN[@]}" env LD_LIBRARY_PATH="$t" "$t/sqlite3" "$@" 2>&1; }
+if [ "$ARCH" = aarch64 ]; then q() { "${RUN[@]}" -E LD_LIBRARY_PATH="$t" "$t/sqlite3" "$@" 2>&1; }; fi
+check "${RUNS}sqlite3 :memory: 'select sqlite_version()'" "${CORPUS_SQLITE_VERSION:-3.54.1}" "$(q :memory: 'select sqlite_version()')"
+case ${CORPUS_SQLITE_CONFIG:-default} in
+  fts5-rtree)
+    check 'FTS5 compiled option' 1 "$(q :memory: "select sqlite_compileoption_used('ENABLE_FTS5')")"
+    check 'RTree compiled option' 1 "$(q :memory: "select sqlite_compileoption_used('ENABLE_RTREE')")"
+    check 'FTS5 actual insert/query' hello "$(q :memory: "create virtual table ft using fts5(t); insert into ft values('hello'); select t from ft where ft match 'hello'")"
+    check 'RTree actual range query' 7 "$(q :memory: 'create virtual table rt using rtree(id,x0,x1); insert into rt values(7,1,2); select id from rt where x0>=0 and x1<=3')" ;;
+  small)
+    check 'single-thread compilation' 1 "$(q :memory: "select sqlite_compileoption_used('THREADSAFE=0')")"
+    check 'load extension omitted' 1 "$(q :memory: "select sqlite_compileoption_used('OMIT_LOAD_EXTENSION')")" ;;
+esac
+check "${RUNS}sqlite3 :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t'" "6|1,2,3" \
+  "$(q :memory: 'create table t(x); insert into t values(1),(2),(3); select sum(x),group_concat(x) from t')"
+check "${RUNS}sqlite3 :memory: \"select hex(sha3('abc',256))\" (shell's built-in sha3 extension)" \
+  "3A985DA74FE225B2045C172D6BD390BD855F086E3E9D525B46BFE24511431532" "$(q :memory: "select hex(sha3('abc',256))")"
+q "$t/db" 'create table kv(k text primary key, v); insert into kv values("a",1),("b",2);' >/dev/null
+check "${RUNS}sqlite3 FILE (create table, then reopen and query; json_object)" '{"k":"b","v":2}' \
+  "$(q "$t/db" "select json_object('k',k,'v',v) from kv where k='b'")"
+check "${RUNS}sqlite3 FILE 'pragma integrity_check'" ok "$(q "$t/db" 'pragma integrity_check')"
+rm -rf "$t"
+exit $TEST_FAILED

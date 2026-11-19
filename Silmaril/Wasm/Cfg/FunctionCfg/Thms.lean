@@ -40,8 +40,17 @@ exceptions. The machine is the block-CFG machine on `fn.body` in the function's 
   call is from a `tExt`-checked store, where `CX closedCallX` answers as the Core-sound
   `closedXOk`.
 
-Not claimed here: the converse for divergence (Core divergence of the invocation is `MDivT`),
-hosts, and the store-retaining session view.
+* **`invoke_diverges_iff_mdivT`** (divergence, both directions): Core 3.0 divergence of the
+  invocation is exactly frame divergence of the machine on the body (`MDivT` with `CX closedCallX`
+  and `calleeDivX o`), divergence inside a callee and through a tail callee included. Completeness
+  goes through Core: the invocation enters the function's frame, whose divergence is `MDivT`
+  (`Machine.frame_div_complete`), the oracle and guard obligations being discharged on the
+  fragment (`Proofs.Region.callCompleteG_cx`, `divCallComplete_cx`, `guardedCalls_cx`,
+  `tailGuarded_cx`, `tailsOk_of_typed`). **`funDivX_iff_mdivT`**: with
+  `invoke_diverges_iff_funDivX`, the native extended divergence `FunDivX` is `MDivT`.
+
+Not claimed here: hosts, exceptions (`tExt` rejects `throw` and `try_table`; no host alone does
+not exclude them), and the store-retaining session view.
 -/
 
 namespace Silmaril.Wasm.Cfg.Function
@@ -104,5 +113,34 @@ theorem invoke_diverges_of_mdivT {o : SingleThreaded.GrowOracle} {s : Store H} {
       (calleeDivX o) fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals))) :
     Diverges (SingleThreaded.profile o) noHostX (invoke s a vs) :=
   Proofs.FunctionDiv.invoke_diverges_of_mdivT hok hS hfi hcode hty h
+
+/-- **Divergence of a function's invocation is machine frame divergence of its body**: on the
+stated fragment (typed invocation, `WasmFuncsT`, `tExt`-checked store, deterministic profile, no
+host), Core 3.0 divergence of `invoke s a vs` holds exactly when `MDivT` with `CX closedCallX` and
+`calleeDivX o` holds on the body in the call frame from the CFG entry. -/
+theorem invoke_diverges_iff_mdivT {o : SingleThreaded.GrowOracle} {s : Store H} {a : Nat}
+    {vs : List Val} {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType}
+    (hs : StoreOk s) (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs) (hW : WasmFuncsT s)
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+    Diverges (SingleThreaded.profile o) noHostX (invoke s a vs) ↔
+      MDivT (SingleThreaded.profile o) noHostX (CX (closedCallX : Abstract.CallRel H))
+        (calleeDivX o) fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals)) :=
+  ⟨Proofs.FunctionDiv.mdivT_of_invoke_diverges hs hok hS hW hfi hcode hty,
+    Proofs.FunctionDiv.invoke_diverges_of_mdivT hok hS hfi hcode hty⟩
+
+/-- **Native extended divergence of a function is machine frame divergence of its body**, on the
+stated fragment: `FunDivX s a vs` (`Abstract.XDiverge`) holds exactly when `MDivT` does
+(`invoke_diverges_iff_funDivX` composed with `invoke_diverges_iff_mdivT`). -/
+theorem funDivX_iff_mdivT {o : SingleThreaded.GrowOracle} {s : Store H} {a : Nat}
+    {vs : List Val} {fi : FuncInst H} {fn : Func} {ps rs : List Validation.CValType}
+    (hs : StoreOk s) (hok : InvokeOk s a vs) (hS : StoreChkE tExt s.funcs) (hW : WasmFuncsT s)
+    (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
+    (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) :
+    Abstract.XDiverge.FunDivX s a vs ↔
+      MDivT (SingleThreaded.profile o) noHostX (CX (closedCallX : Abstract.CallRel H))
+        (calleeDivX o) fn.body (initial fn.body s (Frame.forCall fi.module vs fn.locals)) :=
+  ((XProgress.invoke_closedX_adequacy (o := o) hs hok hS hW hfi hty).1.symm).trans
+    (invoke_diverges_iff_mdivT hs hok hS hW hfi hcode hty)
 
 end Silmaril.Wasm.Cfg.Function

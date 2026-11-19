@@ -1,0 +1,48 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.CjsonDetach.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonDetach/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Source/Projection/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Source/Projection/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Thms.lean",
+    "Silmaril/Cerberus/Elaboration/Assignments/Defs.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/X86/SystemV/Defs.lean",
+    "Silmaril/X86/SystemV/CApi/Defs.lean",
+    "Silmaril/Process/Memory.lean",
+    "Silmaril/Cerberus/Elaboration/Statements/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Functions/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Comparisons/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+    "Silmaril/Raw/Cerberus/Core/Dynamics.lean"
+  ],
+  "source": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/detach-item-via-pointer/context.c"
+  },
+  "projection": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/detach-item-via-pointer/projection.json",
+    "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/detach-item-via-pointer/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/detach-item-via-pointer/runtime.sexp"
+  },
+  "limits": [
+    "All contextual obligations UNPROVED;0 corpus semantic proofs; no interactive compilation.",
+    "Actual unchanged cJSON_DetachItemViaPointer source/TU projection, computed Core/procedure metadata and existing O0 global ELF symbol s25_149 at0x5cac,size218. Historical O0 TU/build correspondence and whole-TU/frontend adequacy remain unproved.",
+    "Interior node only: parent/predecessor/item/successor/unrelated are five disjoint live64-byte align8 allocations, arbitrary admissible addresses and arbitrary320 initial payload bytes except actual list links. Parent.child=predecessor, head.prev=successor. No endpoint/null/alias/dead/cyclic/general input claim.",
+    "Actual provenance-carrying pointer returns, RDI/RSI pointer arguments, RAX pointer result, actual pointer equality and full source definitions; no integer stand-in, stub body, substitute callee, default result or desired-refinement premise.",
+    "Entry contains no final-heap/result/refinement/safety/termination law. Source complete-memory observation demands EXACT predecessor.next=successor, successor.prev=predecessor, item.prev=NULL, item.next=NULL, including provenance/allocation/lifetime/stdout and exact bookkeeping. ONLY diagnostic currentLocation is normalized.",
+    "Target must expose all four actual pointer words and returned item address. Only32 exact heap bytes plus24 private stack bytes are writable; all unrelated bytes and ALL region metadata must be preserved. Safety, joint entry existence, first-return and all ABI/frame requirements remain obligations.",
+    "Pinned distinct-provenance equality choices coincide when addresses differ; equal-address/different-provenance ambiguity remains Unsupported. Outside-allocation lifetime mapping remains Unsupported, not claimed UB classification.",
+    "Finite native/Core/browser cases are observations, not proofs or coverage of all quantified addresses/payloads. Universal nondeterministic termination/divergence, allocator/startup and whole-corpus function/equivalence coverage remain unfinished.",
+    "842 artifacts/707 hashes and13 binary statements retained. Existing upstream/pre-existing alerts, unsupported FIPS, cJSON runtime/provenance and distinct jemalloc configuration limits remain.",
+    "One concrete actual Open.step execution checks the returned item pointer, all320 caller bytes, callee-saved registers,24-byte private frame and unchanged other backing bytes/mapping descriptors. It is a finite model observation, not a quantified semantic/entry/ABI/refinement proof."
+  ]
+}

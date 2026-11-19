@@ -28,11 +28,19 @@ fs.mkdirSync(root);
 for (const f of ["index.html", "explore-sw.js", "project.sqlite"]) fs.copyFileSync(path.join(site, f), path.join(root, f));
 const v1 = path.join(work, "v1.sqlite"), v2 = path.join(work, "v2.sqlite"), v3 = path.join(work, "v3.sqlite"), bad = path.join(work, "bad.sqlite");
 fs.copyFileSync(path.join(site, "project.sqlite"), v1);
+// Use a compact project-only copy for transport mutation cases. The complete
+// combined deployed DB is exercised by shell/corpus/compiler browser checks.
+// Removing additive corpus tables here keeps weak-validator whole-file tests
+// bounded and makes the same-size replacement independent of prior free pages.
 // v2: 400 more problems (a longer file); v3: the same length, other titles; bad: v1 with the
 // edges table's pages overwritten.
 execFileSync("python3", ["-I", "-c", `
 import sqlite3, shutil, sys, os
 v1, v2, v3, bad = sys.argv[1:5]
+c = sqlite3.connect(v1)
+for (name,) in c.execute("select name from sqlite_master where type='table' and name glob 'corpus_*'").fetchall():
+    c.execute('DROP TABLE "' + name.replace('"', '""') + '"')
+c.commit(); c.execute("vacuum"); c.close()
 for out in (v2, v3): shutil.copy(v1, out)
 c = sqlite3.connect(v2)
 cols = [r[1] for r in c.execute("pragma table_info(problems)")]
@@ -61,6 +69,7 @@ for p in range(n // 3, n):            # leave the schema and the first tables, o
 open(bad, "wb").write(bytes(data))
 `, v1, v2, v3, bad]);
 
+fs.copyFileSync(v1, path.join(root, "project.sqlite"));
 const port = 8796;
 const log = path.join(work, "requests.jsonl");
 const srv = spawn("python3", ["-I", path.join(path.dirname(new URL(import.meta.url).pathname), "pages_server.py"),

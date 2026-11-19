@@ -1,0 +1,7 @@
+# tests/loops.S `hot` (benchmark loop; no functional contract), used by `bench`.
+schema = "silmaril.wasm-sim.reduce.v0"
+id = "wasm-sim/rv64/hot"
+root = "hot"
+[[function]]
+name = "hot"
+requires = "(distinct (reg a0) #x0000000000000000)"

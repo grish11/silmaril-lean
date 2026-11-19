@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "project": "jemalloc",
+  "version": "5.3.0",
+  "configuration": "default",
+  "optimization": "O2",
+  "actual_new_elf_rows": 4,
+  "retained_rows_no_new_execution_claimed": 0,
+  "profiles": [
+    {
+      "target": "x86_64-linux-gnu",
+      "build": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
+          "sha256": "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa"
+        }
+      ],
+      "included_sources_hash_checked": 180,
+      "measured_exits_passed": 12,
+      "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/jemalloc=. (after configure's own: -std=gnu11 -Wall ... -O3 -funroll-loops -g3 ...; see command lines)",
+      "build_wall_seconds": {
+        "build-a": 31.4713412960009,
+        "build-b": 28.71216456900038
+      },
+      "outputs": [
+        {
+          "object": "libjemalloc.so.2",
+          "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/unstripped/libjemalloc.so.2",
+          "size": 757944,
+          "sha256": "4f87f072a249eb62c91cea7f1eebe272a1d2f68ec563731dccaf13c05e0dee5d",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 1141,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/unstripped/receipt.json",
+          "receipt_sha256": "85196c945415398f5eadfab183e9d1d7ace407ae2ddfd8bb76673ccf973b9650",
+          "census": "corpus/census/variants/jemalloc/5.3.0/default/x86_64/O2/unstripped/libjemalloc.so.2.json",
+          "strip_pair": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/libjemalloc.so.2.pair.json",
+          "canonical_sha256": "ce0ef2ae0354cbe866f229013cada094e54f8d304282b784b0528f4c349e8cd7",
+          "matches_canonical": false
+        },
+        {
+          "object": "libjemalloc.so.2",
+          "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/stripped/libjemalloc.so.2",
+          "size": 679280,
+          "sha256": "af66a6d3589ba0bfd4b6dd6fba761772a0039d542f2def4768845fb80255be3d",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/stripped/receipt.json",
+          "receipt_sha256": "872c8393a893b2617129d7559dd794f74455cdee719070cf9c5c5b3632d696fe",
+          "census": "corpus/census/variants/jemalloc/5.3.0/default/x86_64/O2/stripped/libjemalloc.so.2.json",
+          "strip_pair": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/libjemalloc.so.2.pair.json",
+          "canonical_sha256": "ce0ef2ae0354cbe866f229013cada094e54f8d304282b784b0528f4c349e8cd7",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    },
+    {
+      "target": "aarch64-linux-gnu",
+      "build": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
+          "sha256": "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa"
+        }
+      ],
+      "included_sources_hash_checked": 180,
+      "measured_exits_passed": 12,
+      "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/jemalloc=. (after configure's own: -std=gnu11 -Wall ... -O3 -funroll-loops -g3 ...; see command lines)",
+      "build_wall_seconds": {
+        "build-a": 35.62787413899969,
+        "build-b": 33.5045299100002
+      },
+      "outputs": [
+        {
+          "object": "libjemalloc.so.2",
+          "path": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/unstripped/libjemalloc.so.2",
+          "size": 678384,
+          "sha256": "64dbcc8788a4cbdbddd4333db232e5896cea6df355b8a421bc9acfccde66a947",
+          "elf_machine": "AArch64",
+          "func_symbols": 1127,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/unstripped/receipt.json",
+          "receipt_sha256": "bd15da46d69961aa0e247322416dc152f9cbb83d088f90c236f785f6caa39565",
+          "census": "corpus/census/variants/jemalloc/5.3.0/default/aarch64/O2/unstripped/libjemalloc.so.2.json",
+          "strip_pair": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/libjemalloc.so.2.pair.json",
+          "canonical_sha256": "64dbcc8788a4cbdbddd4333db232e5896cea6df355b8a421bc9acfccde66a947",
+          "matches_canonical": true
+        },
+        {
+          "object": "libjemalloc.so.2",
+          "path": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/stripped/libjemalloc.so.2",
+          "size": 593088,
+          "sha256": "85754a46a67df1d65b048b6b6537d3bd385352eca1af7eae7cc4c247d960ab15",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/stripped/receipt.json",
+          "receipt_sha256": "33679d39b4db33617fd2f6b410be8e7b25e9867697546df1157872526e5884ba",
+          "census": "corpus/census/variants/jemalloc/5.3.0/default/aarch64/O2/stripped/libjemalloc.so.2.json",
+          "strip_pair": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2/libjemalloc.so.2.pair.json",
+          "canonical_sha256": "64dbcc8788a4cbdbddd4333db232e5896cea6df355b8a421bc9acfccde66a947",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    }
+  ],
+  "retained_profiles": [],
+  "limits": [
+    "Only completed actual outputs counted; original paths/hashes preserved.",
+    "Two independently initialized reused pinned containers; independent workspace/build/strip/runtime repeats.",
+    "Static census and runtime observations are not semantic equivalence or Lean proofs.",
+    "No exhaustive upstream test or full local make check claim."
+  ]
+}

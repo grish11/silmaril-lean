@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "run_id": "12426e16-aa8f-48e4-8e62-156949bf2620",
+  "stage": "lean-elaboration-and-kernel-check:Silmaril/Data/IncludeBytes/Types",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T20:18:23.128246+00:00",
+  "command": [
+    "/tmp/corpus-lean/lean-4.37.0-nightly-2026-11-05-linux/bin/lean",
+    "-j",
+    "1",
+    "-DwarningAsError=true",
+    "-DautoImplicit=false",
+    "-o",
+    "/work/out/lean-byte-baseline-repeat-olean/Silmaril/Data/IncludeBytes/Types.olean",
+    "Silmaril/Data/IncludeBytes/Types.lean"
+  ],
+  "cwd": "/work/repo",
+  "target": "x86_64-unknown-linux-gnu",
+  "repository": {
+    "commit": "a533655e541d12055b643177e013f2bcea07340f",
+    "dirty": false,
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Data/IncludeBytes/Types.lean",
+      "sha256": "d68fbf6e34383f94e47060e33f9d5215023fc4c301f535ef77a8df8114185093"
+    },
+    {
+      "path": "lean-toolchain",
+      "sha256": "c8dac2fde85cb3ae79513dc425bb759258a3d5278bbdc29ff68450b45e81bcb9"
+    },
+    {
+      "path": "/work/out/lean-toolchain-version.txt",
+      "sha256": "a523148f7dd6202e42580db01932692ed0b88844a41cca6cea7787e87a338f01"
+    }
+  ],
+  "wall_seconds": 0.19991628000002493,
+  "exit_code": 0,
+  "user_cpu_seconds": 0.13,
+  "system_cpu_seconds": 0.06,
+  "peak_rss_kib": 564412,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

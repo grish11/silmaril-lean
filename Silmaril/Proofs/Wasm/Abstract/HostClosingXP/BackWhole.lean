@@ -7,14 +7,14 @@ public import Silmaril.Wasm.Execution.Core.Soundness
 # The logged backward simulation of the canonical relation: the whole run (proofs)
 
 `back_all`: by strong induction on the length of the run, and on the size of the trees, every
-labelled Core run of a typed problem (`BackG`) and of a typed call (`CallG`) in the deterministic
+labelled Core run of a typed problem (`BackG J`) and of a typed call (`CallG J`) in the deterministic
 profile `SingleThreaded.profile o` is read back as the logged canonical relation, its calls
 resolved against `wasmEvFunXP`'s closure to exactly the run's log.
 
 `evRun_wasmEvFunXP_vals`, `evRun_wasmEvFunXP_throw`, `evRun_wasmEvFunXP_trap`: a Core run of a
 typed invocation, with its host events `cs`, to values, an uncaught exception or a trap is the
 corresponding finished behaviour of `wasmEvFunXP` with exactly that log. The invocation is a call
-in its `call_ref` form (`CallG`); the other two ends are excluded by determinism (`evRun_det_end`
+in its `call_ref` form (`CallG J`); the other two ends are excluded by determinism (`evRun_det_end`
 against `close_trap_evRun`).
 -/
 
@@ -28,32 +28,32 @@ open Silmaril.Wasm.Logic.Core
 open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 
-variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle}
+variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle} {J : Silmaril.Wasm.Interp.BackInv H}
 
 theorem size_args' {i : Instr} {args es : List Binaryen.BExpr} :
     sizeOf args < sizeOf (Binaryen.BExpr.op i args :: es) := by
   simp only [List.cons.sizeOf_spec, Binaryen.BExpr.op.sizeOf_spec]; omega
 
 /-- **The logged backward simulation**, for runs of every length. -/
-theorem back_all (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
-    (n : Nat) : (∀ es, BackG tags o host n es) ∧ CallG tags o host n := by
+theorem back_all (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (n : Nat) : (∀ es, BackG J tags o host n es) ∧ CallG J tags o host n := by
   induction n using Nat.strong_induction_on with
   | _ n ih =>
-  have hC : CallG tags o host n :=
+  have hC : CallG J tags o host n :=
     callG_step hT hH hE (fun m hm => (ih m hm).1) (fun m hm => (ih m hm).2)
-  have hCle : ∀ m ≤ n, CallG tags o host m := fun m hm => by
+  have hCle : ∀ m ≤ n, CallG J tags o host m := fun m hm => by
     rcases Nat.lt_or_eq_of_le hm with h | rfl
     · exact (ih m h).2
     · exact hC
   refine ⟨?_, hC⟩
-  suffices key : ∀ k, ∀ es : List Binaryen.BExpr, sizeOf es < k → BackG tags o host n es from
+  suffices key : ∀ k, ∀ es : List Binaryen.BExpr, sizeOf es < k → BackG J tags o host n es from
     fun es => key _ es (Nat.lt_succ_self _)
   intro k
   induction k with
   | zero => intro es h; omega
   | succ k ihk =>
     intro es hes
-    have ihle : ∀ es', sizeOf es' < sizeOf es → ∀ m ≤ n, BackG tags o host m es' :=
+    have ihle : ∀ es', sizeOf es' < sizeOf es → ∀ m ≤ n, BackG J tags o host m es' :=
       fun es' hlt m hm => by
         rcases Nat.lt_or_eq_of_le hm with h | rfl
         · exact (ih m h).1 es'
@@ -78,8 +78,8 @@ variable {s : Store H} {a : Nat} {vs : List Val} {cs : List (Call (wasmHostSig H
 
 /-- **A Core run of a typed invocation to an end** is a returning behaviour of the closure, the
 run going on from its answer, or a trapping one with the whole log. -/
-theorem invoke_out (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
-    (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
+theorem invoke_out (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hct₀ : J.CT (invoke s a vs)) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
     (hok : InvokeOk s a vs) {c : Config H} (hrun : EvRun (profile o) host (invoke s a vs) cs c)
     {oc : Outcome} (hfin : oc.Ends c.code) :
     (∃ (q : List (Call (wasmHostSig H))) (b : List Val ⊕ Nat) (s₃ : Store H) (m : Nat)
@@ -92,9 +92,8 @@ theorem invoke_out (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
   have hlen : vs.length = ps'.toList.length := invokeOk_length hok hfi hty
   have hcode : (invoke s a vs).code = Interp.callCode [] vs a (.callRefType fi.type) [] := by
     simp [invoke, hfi, Interp.callCode, vals]
-  obtain ⟨fi₀, ps₀, rs₀, -, -, hcok⟩ := invoke_ok hs hok
-  have hct : Sim.ContextTyped ⟨s, {}, Interp.callCode [] vs a (.callRefType fi.type) []⟩ := by
-    have := Sim.ContextTyped.of_configOk hcok
+  have hct : J.CT ⟨s, {}, Interp.callCode [] vs a (.callRefType fi.type) []⟩ := by
+    have := hct₀
     rw [invoke_eq hfi] at this
     simpa [Interp.callCode, vals] using this
   have hn' : EvRunN (profile o) host n ⟨s, {}, Interp.callCode [] vs a (.callRefType fi.type) []⟩
@@ -113,7 +112,7 @@ theorem invoke_out (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostS
 
 /-- **A trapping closed behaviour with the run's log forces the run's end to be a trap**
 (determinism, against `close_trap_evRun`). -/
-theorem trap_end (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem trap_end (hH : HostSliceT host) (hE : HostSliceE tags host)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     {c : Config H} (hrun : EvRun (profile o) host (invoke s a vs) cs c) {oc : Outcome}
     (hfin : oc.Ends c.code) (hz : (cs, .trap) ∈ wasmEvFunXP s (a, vs)) : c.code = [.trap] := by
@@ -138,12 +137,12 @@ theorem ansCode_ends (b : List Val ⊕ Nat) : ∃ oc : Outcome, oc.Ends (ansCode
 theorem throwing_ne_trap {t : Nat} : throwing t ≠ [.trap] := by simp [throwing]
 
 /-- **Values, with exactly the run's log** (deterministic profile). -/
-theorem evRun_wasmEvFunXP_vals (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
+theorem evRun_wasmEvFunXP_vals (hT : J.HostOk host) (hH : HostSliceT host)
+    (hE : HostSliceE tags host) (hct₀ : J.CT (invoke s a vs)) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) {s₂ : Store H} {f₂ : Frame} {ws : List Val}
     (hrun : EvRun (profile o) host (invoke s a vs) cs ⟨s₂, f₂, vals ws⟩) :
     (cs, .ret (.inl ws) s₂) ∈ wasmEvFunXP s (a, vs) := by
-  rcases invoke_out hT hH hE hs hS hts hok hrun (oc := .normal ws) rfl with
+  rcases invoke_out hT hH hE hct₀ hS hts hok hrun (oc := .normal ws) rfl with
     ⟨q, b, s₃, m, cs₂, hz, rfl, hk⟩ | hz
   · obtain ⟨oc, hoc⟩ := ansCode_ends b
     obtain ⟨hc, rfl⟩ := evRunN_of_stuck (ends_stuck hoc s₃ {}) hk
@@ -156,12 +155,12 @@ theorem evRun_wasmEvFunXP_vals (hT : HostTyped host) (hH : NativeHostSlice host)
   · exact (vals_ne_trap' (trap_end hH hE hS hts hok hrun (oc := .normal ws) rfl hz)).elim
 
 /-- **An uncaught exception, with exactly the run's log** (deterministic profile). -/
-theorem evRun_wasmEvFunXP_throw (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
+theorem evRun_wasmEvFunXP_throw (hT : J.HostOk host) (hH : HostSliceT host)
+    (hE : HostSliceE tags host) (hct₀ : J.CT (invoke s a vs)) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) {s₂ : Store H} {f₂ : Frame} {t : Nat}
     (hrun : EvRun (profile o) host (invoke s a vs) cs ⟨s₂, f₂, throwing t⟩) :
     (cs, .ret (.inr t) s₂) ∈ wasmEvFunXP s (a, vs) := by
-  rcases invoke_out hT hH hE hs hS hts hok hrun (oc := .throw t) rfl with
+  rcases invoke_out hT hH hE hct₀ hS hts hok hrun (oc := .throw t) rfl with
     ⟨q, b, s₃, m, cs₂, hz, rfl, hk⟩ | hz
   · obtain ⟨oc, hoc⟩ := ansCode_ends b
     obtain ⟨hc, rfl⟩ := evRunN_of_stuck (ends_stuck hoc s₃ {}) hk
@@ -176,12 +175,12 @@ theorem evRun_wasmEvFunXP_throw (hT : HostTyped host) (hH : NativeHostSlice host
   · exact (throwing_ne_trap (trap_end hH hE hS hts hok hrun (oc := .throw t) rfl hz)).elim
 
 /-- **A trap, with exactly the run's log** (deterministic profile). -/
-theorem evRun_wasmEvFunXP_trap (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
+theorem evRun_wasmEvFunXP_trap (hT : J.HostOk host) (hH : HostSliceT host)
+    (hE : HostSliceE tags host) (hct₀ : J.CT (invoke s a vs)) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) {s₂ : Store H} {f₂ : Frame}
     (hrun : EvRun (profile o) host (invoke s a vs) cs ⟨s₂, f₂, [.trap]⟩) :
     (cs, .trap) ∈ wasmEvFunXP s (a, vs) := by
-  rcases invoke_out hT hH hE hs hS hts hok hrun (oc := .trap) rfl with
+  rcases invoke_out hT hH hE hct₀ hS hts hok hrun (oc := .trap) rfl with
     ⟨q, b, s₃, m, cs₂, hz, rfl, hk⟩ | hz
   · obtain ⟨oc, hoc⟩ := ansCode_ends b
     obtain ⟨hc, rfl⟩ := evRunN_of_stuck (ends_stuck hoc s₃ {}) hk

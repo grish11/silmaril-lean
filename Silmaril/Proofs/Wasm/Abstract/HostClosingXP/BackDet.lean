@@ -222,7 +222,7 @@ variable {tags : List TagInst} {o : GrowOracle}
 /-- **The end of a resolved logged run** (deterministic profile): the Core run of checked code
 with the same log as a resolved logged run of it, to an end with no host-free step, ends as the
 run does. -/
-theorem match_end (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : Store H}
+theorem match_end (hH : HostSliceT host) (hE : HostSliceE tags host) {s : Store H}
     {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
     {labels : List Nat} {ret : Nat} {out : Option Nat}
@@ -250,7 +250,7 @@ theorem match_end (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : S
     exact .inr ⟨ht, he⟩
 
 /-- **The end of a resolved logged run, the Core log extending its log**: no further event. -/
-theorem match_end_pre (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : Store H}
+theorem match_end_pre (hH : HostSliceT host) (hE : HostSliceE tags host) {s : Store H}
     {f : Frame} {stk : List Val} {es : List Binaryen.BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs cs' : List (Call (wasmHostSig H))} {c : Config H} {n : Nat}
     {labels : List Nat} {ret : Nat} {out : Option Nat}

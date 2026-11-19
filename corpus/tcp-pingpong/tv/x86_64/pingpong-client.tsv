@@ -1,0 +1,6 @@
+# {"arch": "x86_64", "decomposition_module": "Silmaril.Elf.Staged.Corpus.TcpPingpong.X8664.PingpongClient.Decomp", "function_map": "corpus/tcp-pingpong/funcmap/x86_64/pingpong-client.json", "object": "pingpong-client", "package": "tcp-pingpong", "twin_code_identical": true, "twin_symbols_identical": true, "twin_text_bytes_differing": 0}
+# symbol	value	size	decomposition (theorem, role)	c_name	tu	int_profile	blockers
+main.cold	0x1130	95	decomp_14 piece	main	-	no	compiler-clone,globals
+main	0x1190	727	decomp_14 piece	main	client.c	no	frontend-rejected,memory-correspondence,callee-contracts,globals
+_start	0x1470	34	decomp_14 piece	-	-	no	no-source-binding
+get_in_addr	0x1560	21	decomp_14 piece	get_in_addr	client.c	no	frontend-rejected,memory-correspondence,globals

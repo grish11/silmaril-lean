@@ -8,16 +8,16 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.InfSplit
 In the deterministic profile `SingleThreaded.profile o`, for a host with typed answers in the
 host slices:
 
-* `CallInfX z K ω`: `K` is a typed call of `z` in some `call_ref` form under values, with
+* `CallInfX J z K ω`: `K` is a typed call of `z` in some `call_ref` form under values, with
   nothing after it, and runs productively with `ω`;
-* `InfOutX s f stk es ω`: the trees run productively within their function (`InfLXP`), their
+* `InfOutX J s f stk es ω`: the trees run productively within their function (`InfLXP`), their
   open calls resolved to exactly `ω`; or they reach a call `z` after a resolved prefix `q`, and
-  the call runs productively with the rest (`CallInfX`). When `q` is empty the reach is a
+  the call runs productively with the rest (`CallInfX J`). When `q` is empty the reach is a
   host-free run into a context around the call (`Lifts`): infinitely many of those in a row
   would be host-free divergence, which a productive run is not;
-* `InfG es`: every typed problem of the trees `es` with a productive Core run is `InfOutX`.
+* `InfG J es`: every typed problem of the trees `es` with a productive Core run is `InfOutX J`.
 
-Glue: contexts lifting host-free steps (`Lifts`), lifting `InfOutX` through the constructors
+Glue: contexts lifting host-free steps (`Lifts`), lifting `InfOutX J` through the constructors
 (`infOut_lift`), a finished head tree ruled out (`head_contraI`) and a head tree run normally in
 front of the trees after it (`head_consI`).
 -/
@@ -35,7 +35,7 @@ open Silmaril.Wasm.Abstract.CallXP (POut)
 open Silmaril.Wasm.Binaryen (BExpr liftInstrs)
 open Shape (streamAppend)
 
-variable {H : Type}
+variable {H : Type} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## The statements -/
 
@@ -49,27 +49,27 @@ def Lifts (o : GrowOracle) (W : Config H → Config H) : Prop :=
 
 /-- **A typed call running productively**, in some frame and `call_ref` form, under values, with
 nothing after it. -/
-def CallInfX (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H)
+def CallInfX (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H)
     (z : (wasmOShape H).self.Op) (K : Config H) (ω : Nat → Call (wasmHostSig H)) : Prop :=
   ∃ (f : Frame) (pre : List Val) (cr : Admin), cr.IsCallRef ∧
     K = ⟨z.2.2, f, Interp.callCode pre z.2.1 z.1 cr []⟩ ∧ CallChkP tags z.2.2 z.1 z.2.1 ∧
-    Sim.ContextTyped K ∧ CoreInf (profile o) host K ω
+    J.CT K ∧ CoreInf (profile o) host K ω
 
 /-- **The canonical reading of a productive run of trees.** -/
-def InfOutX (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (s : Store H)
+def InfOutX (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (s : Store H)
     (f : Frame) (stk : List Val) (es : List BExpr) (ω : Nat → Call (wasmHostSig H)) : Prop :=
   (∃ ν : Nat → OCall H, InfLXP s f stk es ν ∧ Shape.SubstInf Cl (fun i => (ν i).lift) ω) ∨
     ∃ (l : List (OCall H)) (z : (wasmOShape H).self.Op) (q : List (Call (wasmHostSig H)))
       (K : Config H) (ω' : Nat → Call (wasmHostSig H)), ReachLXP s f stk es l z ∧
-      Shape.SubstPre Cl (l.map OCall.lift) q ∧ CallInfX tags o host z K ω' ∧ ω = q ++ω ω' ∧
+      Shape.SubstPre Cl (l.map OCall.lift) q ∧ CallInfX J tags o host z K ω' ∧ ω = q ++ω ω' ∧
       (q = [] → ∃ W, Lifts o W ∧ Relation.ReflTransGen (Det.DStep o) (pcfg s f stk es) (W K))
 
 /-- **The productive backward simulation of trees.** -/
-def InfG (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (es : List BExpr) :
+def InfG (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H) (es : List BExpr) :
     Prop :=
   ∀ (s : Store H) (f : Frame) (stk : List Val) (ω : Nat → Call (wasmHostSig H)),
-    TypedP tags s f stk es → CoreInf (profile o) host (pcfg s f stk es) ω →
-    InfOutX tags o host s f stk es ω
+    J.TypedP tags s f stk es → CoreInf (profile o) host (pcfg s f stk es) ω →
+    InfOutX J tags o host s f stk es ω
 
 /-! ## Contexts -/
 
@@ -146,7 +146,7 @@ theorem infOut_lift {s s' : Store H} {f f' : Frame} {stk stk' : List Val} {es es
     (h₀ : Shape.SubstPre Cl (l₀.map OCall.lift) q₀)
     (hlink : q₀ = [] → ∃ W, Lifts o W ∧
       Relation.ReflTransGen (Det.DStep o) (pcfg s f stk es) (W (pcfg s' f' stk' es')))
-    (h : InfOutX tags o host s' f' stk' es' ω) : InfOutX tags o host s f stk es (q₀ ++ω ω) := by
+    (h : InfOutX J tags o host s' f' stk' es' ω) : InfOutX J tags o host s f stk es (q₀ ++ω ω) := by
   rcases h with ⟨ν, hν, hs⟩ | ⟨l, z, q, K, ω', hry, hres, hq, rfl, hl⟩
   · refine .inl ⟨l₀ ++ω ν, hd ν hν, ?_⟩
     rw [lift_streamAppend]
@@ -165,7 +165,7 @@ theorem infOut_lift₀ {s s' : Store H} {f f' : Frame} {stk stk' : List Val} {es
     (hr : ∀ l z, ReachLXP s' f' stk' es' l z → ReachLXP s f stk es l z)
     (hlink : ∃ W, Lifts o W ∧
       Relation.ReflTransGen (Det.DStep o) (pcfg s f stk es) (W (pcfg s' f' stk' es')))
-    (h : InfOutX tags o host s' f' stk' es' ω) : InfOutX tags o host s f stk es ω := by
+    (h : InfOutX J tags o host s' f' stk' es' ω) : InfOutX J tags o host s f stk es ω := by
   have := infOut_lift (l₀ := []) (q₀ := [])
     (fun ν h => by rw [Shape.streamAppend_nil]; exact hd ν h)
     (fun l z h => by simpa using hr l z h) .nil (fun _ => hlink) h
@@ -188,11 +188,11 @@ theorem link_cons {s : Store H} {f : Frame} {stk : List Val} {e : BExpr} {es : L
   exact h2
 
 /-- **A head tree with a resolved logged run does not run productively alone** after its log. -/
-theorem head_contraI (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem head_contraI (hH : HostSliceT host) (hE : HostSliceE tags host)
     {s : Store H} {f : Frame} {stk : List Val} {es : List BExpr} {l : List (OCall H)}
     {r : Store H × Frame × POut} {cs₁ : List (Call (wasmHostSig H))}
     {ω : Nat → Call (wasmHostSig H)}
-    (ht : TypedP tags s f stk es) (hd : EvalLXPh s f stk es l r) (hres : ResW l cs₁)
+    (ht : J.TypedP tags s f stk es) (hd : EvalLXPh s f stk es l r) (hres : ResW l cs₁)
     (hdv : CoreInf (profile o) host (pcfg s f stk es) (cs₁ ++ω ω)) : False := by
   obtain ⟨-, labels, ret, out, hS, hc, -, -, hts⟩ := ht
   have hcons : (coreHostRel host).Consistent cs₁ := fun c hc' => by

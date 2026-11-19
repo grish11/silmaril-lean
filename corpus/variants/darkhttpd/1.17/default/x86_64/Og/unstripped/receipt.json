@@ -1,0 +1,73 @@
+{
+  "package": "darkhttpd",
+  "version": "1.17",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD",
+  "ldflags": "",
+  "configure_args": "(none: make CC=gcc CFLAGS='-Og -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD' darkhttpd)",
+  "build_commands": [
+    "gcc -Og -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD  `[ \\`uname\\` = \"SunOS\" ] && echo -lsocket -lnsl -lsendfile` darkhttpd.c -o darkhttpd"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/darkhttpd",
+  "inputs": [
+    {
+      "url": "https://github.com/emikulic/darkhttpd/archive/refs/tags/v1.17.tar.gz",
+      "sha256": "4fee9927e2d8bb0a302f0dd62f9ff1e075748fa9f5162c9481a7a58b41462b56"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "darkhttpd",
+      "path": "corpus/variants/darkhttpd/1.17/default/x86_64/Og/unstripped/darkhttpd",
+      "size": 62024,
+      "sha256": "1a558f0eca05769307bd2950e91c4c817214b77c30e1a2eedd2376f4afbaaa99",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 76,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean builds (fresh containers, fresh /build) compared by sha256",
+  "tests": [
+    {
+      "command": "darkhttpd www --addr 127.0.0.1 --port 18381; curl -s http://127.0.0.1:18381/hello.txt",
+      "result": "pass: hello from darkhttpd on x86_64"
+    },
+    {
+      "command": "curl http://127.0.0.1:18381/sub/blob.bin (100000 random bytes): sha256 matches",
+      "result": "pass: 7fb7db25badd70114a9d6b6febf9729aae2663c75c30b451fe1850ad4c303f9e  -"
+    },
+    {
+      "command": "curl -w '%{http_code}' http://127.0.0.1:18381/missing",
+      "result": "pass: 404"
+    },
+    {
+      "command": "curl -r 6-9 http://127.0.0.1:18381/hello.txt (range request: status + body)",
+      "result": "pass: 206 from"
+    },
+    {
+      "command": "curl http://127.0.0.1:18381/sub/ (directory listing names blob.bin)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "darkhttpd log (first lines)",
+      "result": "darkhttpd/1.17, copyright (c) 2003-2025 Emil Mikulic. listening on: http://127.0.0.1:18381/ 127.0.0.1 - - [17/Nov/2026:20:28:15 +0000] \"GET / HTTP/1.1\" 200 447 \"\" \"curl/8.14.1\" 127.0.0.1 - - [17/Nov/2026:20:28:15 +0000] \"GET /hello.txt HTTP/1.1\" 200 225 \"\" \"curl/8.14.1\" 127.0.0.1 - - [17/Nov/2026:20:28:15 +0000] \"GET /sub/blob.bin HTTP/1.1\" 200 100212 \"\" \"curl/8.14.1\" "
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "d09c382f-4e2f-4499-b655-29f8c8602439",
+    "target": "x86_64-linux-gnu"
+  }
+}

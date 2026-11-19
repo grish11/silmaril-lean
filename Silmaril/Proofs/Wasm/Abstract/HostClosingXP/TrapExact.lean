@@ -47,7 +47,7 @@ theorem trapAt_exact {g : Nat} {args : List Val} {s₁ s₂ s₂' : Store H} {b 
   obtain ⟨rfl, rfl, rfl⟩ := mk_inj h.symm
   exact ⟨s₂, rfl, hz fi' ps' rs' hfi hty hts hS hn f c hcr⟩
 
-theorem evalLXPh_trap_exact (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+theorem evalLXPh_trap_exact (hH : HostSliceT host) (hE : HostSliceE tags host) {fn : Func}
     {s' : Store H} {f₂ : Frame} {l : List (OCall H)} {q : List (Call (wasmHostSig H))}
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
@@ -60,7 +60,7 @@ theorem evalLXPh_trap_exact (hH : NativeHostSlice host) (hE : HostSliceE tags ho
   obtain ⟨_, rfl, h⟩ := body_trap_callee (P := P) hH hE hfi hcode hty hn hts hSt hE' hp hq f c hcr
   exact h
 
-theorem evalLXPh_cut_exact (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+theorem evalLXPh_cut_exact (hH : HostSliceT host) (hE : HostSliceE tags host) {fn : Func}
     {l l₁ l₂ : List (OCall H)} {r : Store H × Frame × POut} {g : Nat} {args : List Val}
     {s₁ s₂ s₂' : Store H} {b : List Val ⊕ Nat} {q c₁ : List (Call (wasmHostSig H))}
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)
@@ -80,7 +80,7 @@ theorem evalLXPh_cut_exact (hH : NativeHostSlice host) (hE : HostSliceE tags hos
     (trapAt_exact hz) hq f c hcr
   exact h
 
-theorem evalLXPh_tail_exact (hH : NativeHostSlice host) (hE : HostSliceE tags host) {fn : Func}
+theorem evalLXPh_tail_exact (hH : HostSliceT host) (hE : HostSliceE tags host) {fn : Func}
     {l : List (OCall H)} {s₁ s₂ : Store H} {f₂ : Frame} {a' n : Nat} {args : List Val}
     {q c₁ : List (Call (wasmHostSig H))}
     (hfi : s.funcs[a]? = some fi) (hcode : fi.code = .wasm fn)

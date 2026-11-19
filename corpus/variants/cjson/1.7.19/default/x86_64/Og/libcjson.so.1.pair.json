@@ -1,0 +1,958 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 22172,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 8192,
+      "sha256": "876ae2327ed05578aed2e753c5990713d44047994dbfd865bfa0dd73bd41a98f",
+      "size": 23
+    },
+    ".plt": {
+      "address": 8224,
+      "sha256": "13dd9c29429866c94c98e542228b286676181b8c90a2e5104c920c3a6bc46c89",
+      "size": 544
+    },
+    ".plt.got": {
+      "address": 8768,
+      "sha256": "c958618f59110a78a6b37f532df056a3717a39aad50577eaf0e2086222c75b89",
+      "size": 8
+    },
+    ".text": {
+      "address": 8832,
+      "sha256": "26e7ee3929ffb5e977a7a8055785b0bd100d18f3035b38df909930c8d8eb8af4",
+      "size": 13338
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "7ebffa69bb36d1f37f625bafc827fec6deb354b5e1f8cc464feeb24e6ffbd960",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "d56b8766c76caa4358fd538c1f0f1bea7769b6a0274e97c5b37c8a574c6df89c",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "compare_double",
+      "section_index": "12",
+      "size": 61,
+      "type": "FUNC",
+      "value": 9024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_hex4",
+      "section_index": "12",
+      "size": 95,
+      "type": "FUNC",
+      "value": 9085
+    },
+    {
+      "binding": "LOCAL",
+      "name": "utf16_literal_to_utf8",
+      "section_index": "12",
+      "size": 411,
+      "type": "FUNC",
+      "value": 9180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_string",
+      "section_index": "12",
+      "size": 604,
+      "type": "FUNC",
+      "value": 9591
+    },
+    {
+      "binding": "LOCAL",
+      "name": "buffer_skip_whitespace",
+      "section_index": "12",
+      "size": 91,
+      "type": "FUNC",
+      "value": 10195
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_array_item",
+      "section_index": "12",
+      "size": 50,
+      "type": "FUNC",
+      "value": 10286
+    },
+    {
+      "binding": "LOCAL",
+      "name": "suffix_object",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 10336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "add_item_to_array",
+      "section_index": "12",
+      "size": 110,
+      "type": "FUNC",
+      "value": 10344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cast_away_const",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 10454
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skip_oneline_comment",
+      "section_index": "12",
+      "size": 69,
+      "type": "FUNC",
+      "value": 10458
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skip_multiline_comment",
+      "section_index": "12",
+      "size": 70,
+      "type": "FUNC",
+      "value": 10527
+    },
+    {
+      "binding": "LOCAL",
+      "name": "minify_string",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 10597
+    },
+    {
+      "binding": "LOCAL",
+      "name": "update_offset",
+      "section_index": "12",
+      "size": 49,
+      "type": "FUNC",
+      "value": 10753
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSON_strdup",
+      "section_index": "12",
+      "size": 65,
+      "type": "FUNC",
+      "value": 10802
+    },
+    {
+      "binding": "LOCAL",
+      "name": "add_item_to_object",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 10867
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ensure",
+      "section_index": "12",
+      "size": 283,
+      "type": "FUNC",
+      "value": 11039
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSON_New_Item",
+      "section_index": "12",
+      "size": 43,
+      "type": "FUNC",
+      "value": 11322
+    },
+    {
+      "binding": "LOCAL",
+      "name": "create_reference",
+      "section_index": "12",
+      "size": 95,
+      "type": "FUNC",
+      "value": 11365
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skip_utf8_bom",
+      "section_index": "12",
+      "size": 95,
+      "type": "FUNC",
+      "value": 11460
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_decimal_point",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 11555
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_number",
+      "section_index": "12",
+      "size": 453,
+      "type": "FUNC",
+      "value": 11575
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_string_ptr",
+      "section_index": "12",
+      "size": 469,
+      "type": "FUNC",
+      "value": 12028
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_string",
+      "section_index": "12",
+      "size": 18,
+      "type": "FUNC",
+      "value": 12497
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_number",
+      "section_index": "12",
+      "size": 485,
+      "type": "FUNC",
+      "value": 12515
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_value",
+      "section_index": "12",
+      "size": 371,
+      "type": "FUNC",
+      "value": 13000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_array",
+      "section_index": "12",
+      "size": 253,
+      "type": "FUNC",
+      "value": 13687
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_object",
+      "section_index": "12",
+      "size": 602,
+      "type": "FUNC",
+      "value": 13940
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print",
+      "section_index": "12",
+      "size": 316,
+      "type": "FUNC",
+      "value": 13371
+    },
+    {
+      "binding": "LOCAL",
+      "name": "case_insensitive_strcmp",
+      "section_index": "12",
+      "size": 102,
+      "type": "FUNC",
+      "value": 14542
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_object_item",
+      "section_index": "12",
+      "size": 133,
+      "type": "FUNC",
+      "value": 14644
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSON_Delete.localalias",
+      "section_index": "12",
+      "size": 118,
+      "type": "FUNC",
+      "value": 15007
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_object",
+      "section_index": "12",
+      "size": 512,
+      "type": "FUNC",
+      "value": 15125
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_value",
+      "section_index": "12",
+      "size": 437,
+      "type": "FUNC",
+      "value": 15637
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_array",
+      "section_index": "12",
+      "size": 394,
+      "type": "FUNC",
+      "value": 16074
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSON_Compare.localalias",
+      "section_index": "12",
+      "size": 534,
+      "type": "FUNC",
+      "value": 21232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "replace_item_in_object",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 21988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSON_Duplicate_rec",
+      "section_index": "12",
+      "size": 275,
+      "type": "FUNC",
+      "value": 20405
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateStringArray",
+      "section_index": "12",
+      "size": 174,
+      "type": "FUNC",
+      "value": 20231
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateObjectReference",
+      "section_index": "12",
+      "size": 58,
+      "type": "FUNC",
+      "value": 19208
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsNull",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21044
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_SetNumberHelper",
+      "section_index": "12",
+      "size": 55,
+      "type": "FUNC",
+      "value": 16468
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateBool",
+      "section_index": "12",
+      "size": 41,
+      "type": "FUNC",
+      "value": 18712
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetObjectItemCaseSensitive",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 17529
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetObjectItem",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 17510
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsNumber",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21066
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Print",
+      "section_index": "12",
+      "size": 26,
+      "type": "FUNC",
+      "value": 17028
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddBoolToObject",
+      "section_index": "12",
+      "size": 74,
+      "type": "FUNC",
+      "value": 18753
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ParseWithOpts",
+      "section_index": "12",
+      "size": 51,
+      "type": "FUNC",
+      "value": 16929
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddItemToArray",
+      "section_index": "12",
+      "size": 6,
+      "type": "FUNC",
+      "value": 17571
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Delete",
+      "section_index": "12",
+      "size": 118,
+      "type": "FUNC",
+      "value": 15007
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateRaw",
+      "section_index": "12",
+      "size": 86,
+      "type": "FUNC",
+      "value": 19324
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsInvalid",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 20956
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddNumberToObject",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 18917
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DeleteItemFromObjectCaseSensitive",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 18000
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_malloc",
+      "section_index": "12",
+      "size": 15,
+      "type": "FUNC",
+      "value": 21766
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Parse",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 16980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_SetValuestring",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 21796
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DeleteItemFromObject",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 17978
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsFalse",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 20978
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ParseWithLength",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 17004
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_PrintPreallocated",
+      "section_index": "12",
+      "size": 155,
+      "type": "FUNC",
+      "value": 17295
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddRawToObject",
+      "section_index": "12",
+      "size": 75,
+      "type": "FUNC",
+      "value": 19410
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetArraySize",
+      "section_index": "12",
+      "size": 41,
+      "type": "FUNC",
+      "value": 17450
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_InsertItemInArray",
+      "section_index": "12",
+      "size": 123,
+      "type": "FUNC",
+      "value": 18022
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddItemReferenceToObject",
+      "section_index": "12",
+      "size": 78,
+      "type": "FUNC",
+      "value": 17675
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DetachItemFromObject",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 17934
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddArrayToObject",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 19518
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Version",
+      "section_index": "12",
+      "size": 49,
+      "type": "FUNC",
+      "value": 14792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DeleteItemFromArray",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 17912
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ReplaceItemViaPointer",
+      "section_index": "12",
+      "size": 201,
+      "type": "FUNC",
+      "value": 18145
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_HasObjectItem",
+      "section_index": "12",
+      "size": 23,
+      "type": "FUNC",
+      "value": 17548
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddItemReferenceToArray",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 17631
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddItemToObjectCS",
+      "section_index": "12",
+      "size": 27,
+      "type": "FUNC",
+      "value": 17604
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_PrintUnformatted",
+      "section_index": "12",
+      "size": 26,
+      "type": "FUNC",
+      "value": 17054
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateNull",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 18397
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsTrue",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21000
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DetachItemFromObjectCaseSensitive",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 17956
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateTrue",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 18502
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsRaw",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21210
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetArrayItem",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 17491
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DetachItemFromArray",
+      "section_index": "12",
+      "size": 35,
+      "type": "FUNC",
+      "value": 17877
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateNumber",
+      "section_index": "12",
+      "size": 90,
+      "type": "FUNC",
+      "value": 18827
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddNullToObject",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 18430
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ParseWithLengthOpts",
+      "section_index": "12",
+      "size": 406,
+      "type": "FUNC",
+      "value": 16523
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateArray",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 19485
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_PrintBuffered",
+      "section_index": "12",
+      "size": 215,
+      "type": "FUNC",
+      "value": 17080
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetNumberValue",
+      "section_index": "12",
+      "size": 30,
+      "type": "FUNC",
+      "value": 21088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Compare",
+      "section_index": "12",
+      "size": 534,
+      "type": "FUNC",
+      "value": 21232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ReplaceItemInObject",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 22132
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddTrueToObject",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 18535
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateString",
+      "section_index": "12",
+      "size": 86,
+      "type": "FUNC",
+      "value": 18989
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateFloatArray",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 19875
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddStringToObject",
+      "section_index": "12",
+      "size": 75,
+      "type": "FUNC",
+      "value": 19075
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsBool",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21022
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateDoubleArray",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 20055
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Minify",
+      "section_index": "12",
+      "size": 255,
+      "type": "FUNC",
+      "value": 20701
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateArrayReference",
+      "section_index": "12",
+      "size": 58,
+      "type": "FUNC",
+      "value": 19266
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_Duplicate",
+      "section_index": "12",
+      "size": 21,
+      "type": "FUNC",
+      "value": 20680
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_free",
+      "section_index": "12",
+      "size": 15,
+      "type": "FUNC",
+      "value": 21781
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_InitHooks",
+      "section_index": "12",
+      "size": 166,
+      "type": "FUNC",
+      "value": 14841
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ReplaceItemInArray",
+      "section_index": "12",
+      "size": 51,
+      "type": "FUNC",
+      "value": 18346
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateIntArray",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 19695
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetStringValue",
+      "section_index": "12",
+      "size": 26,
+      "type": "FUNC",
+      "value": 21140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_ReplaceItemInObjectCaseSensitive",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 22151
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsArray",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21166
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddObjectToObject",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 19623
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateObject",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 19590
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsString",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21118
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_DetachItemViaPointer",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 17753
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateFalse",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 18607
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddItemToObject",
+      "section_index": "12",
+      "size": 27,
+      "type": "FUNC",
+      "value": 17577
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_IsObject",
+      "section_index": "12",
+      "size": 22,
+      "type": "FUNC",
+      "value": 21188
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_AddFalseToObject",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 18640
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_CreateStringReference",
+      "section_index": "12",
+      "size": 58,
+      "type": "FUNC",
+      "value": 19150
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSON_GetErrorPtr",
+      "section_index": "12",
+      "size": 15,
+      "type": "FUNC",
+      "value": 14777
+    }
+  ]
+}

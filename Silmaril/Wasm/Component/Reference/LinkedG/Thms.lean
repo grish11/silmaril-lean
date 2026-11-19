@@ -59,7 +59,9 @@ is not proved for `LinkedG` or `LinkedN`; see "Not claimed".
   `ref` into the relation at `init`, with the aliases by `expName` finding the wired lifts;
   (R5) the relation kept by `resumeCfg`. `ExpSpec.ref` and `LinkedG.toRef` record the
   translation only; no theorem of this topic is about them beyond `Linked2.toG_toRef`.
-* Divergence and infinite plays (`LinkedSessionDiv`, `LinkedSessionDAdeq`) for `LinkedG` and
+* Divergence on the reference side is proved in `LinkedGDiv` (`LinkedG.sessDivs_eq_refDivs`,
+  `LinkedN.sessDivs_eq_refDivs`, the IR law `ExpSpec.AdeqD` for `Simple`); the IR side of
+  divergence and infinite plays (`LinkedSessionDAdeq`) for `LinkedG` and
   `LinkedN`.
 * Ill-typed calls of the linked component (as for `Linked2`).
 

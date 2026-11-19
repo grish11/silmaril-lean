@@ -1,0 +1,10 @@
+{
+  "assembly_sha256": "fafab8ea64ef7721c7b9ea503a33c78183ff0f3c1056aa89d5947cca8d0dbc58",
+  "exit": 0,
+  "kind": "execution",
+  "link": "gcc lisp.s -o lisp",
+  "run": "./lisp",
+  "stdout": "11\n(1 2 3)\n",
+  "stdout_sha256": "b5fb1831898bb2dc2e2989300f3e25e8f4fc91293c008527e17ce24947905f2d",
+  "what": "the assembly above, assembled and linked by the same image against its glibc, run once in the container with no input"
+}

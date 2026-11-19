@@ -1,0 +1,80 @@
+{
+  "package": "tcp-pingpong",
+  "version": "bgnet-34fb9d78",
+  "arch": "aarch64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall",
+  "ldflags": "",
+  "configure_args": "(none)",
+  "build_commands": [
+    "aarch64-linux-gnu-gcc -Og -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall server.c -o pingpong-server",
+    "aarch64-linux-gnu-gcc -Og -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall client.c -o pingpong-client"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/tcp-pingpong",
+  "inputs": [
+    {
+      "url": "https://github.com/beejjorgensen/bgnet/archive/34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9.tar.gz",
+      "sha256": "13df988f5f202b550c078a81d9b94c294ef7946d684a6013aaae8f638c5982ce"
+    },
+    {
+      "url": "local/pingpong.patch",
+      "sha256": "ab57df0b712f6e63511fd41577d3a5ba3bc9c89f07fd77cb1031940c775640cc"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "pingpong-client",
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/stripped/pingpong-client",
+      "size": 67792,
+      "sha256": "11f75effa9a290d00a72dcc33cd2c06145200f5b4a3d93cdc5fba9f15aef10c4",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "pingpong-server",
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/stripped/pingpong-server",
+      "size": 67856,
+      "sha256": "260e03602fb549f8b7a967a01cb6a407f41662159be11b6d853051958d17d28e",
+      "elf_machine": "AArch64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two byte-identical clean builds, independently stripped with the pinned tool in a separate post-processing container, byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "qemu-aarch64 -L /usr/aarch64-linux-gnu pingpong-server 18392 & qemu-aarch64 -L /usr/aarch64-linux-gnu pingpong-client 127.0.0.1 18392 5: exit status, pong count",
+      "result": "pass: 0 5"
+    },
+    {
+      "command": "client transcript",
+      "result": "client: attempting connection to 127.0.0.1|client: connected to 127.0.0.1|client: round 1: sent 'ping', received 'pong'|client: round 2: sent 'ping', received 'pong'|client: round 3: sent 'ping', received 'pong'|client: round 4: sent 'ping', received 'pong'|client: round 5: sent 'ping', received 'pong'"
+    },
+    {
+      "command": "server transcript",
+      "result": "server: waiting for connections on port 18392...|server: got connection from 127.0.0.1|server: 127.0.0.1 closed after 5 ping/pong rounds|"
+    },
+    {
+      "command": "server reports 5 rounds",
+      "result": "pass: 1"
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "77cd2dee-e8e2-41a2-a6b0-422851c2af94",
+    "target": "aarch64-linux-gnu"
+  }
+}

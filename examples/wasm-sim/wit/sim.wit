@@ -1,0 +1,175 @@
+/// WIT for the Wasm ISA simulators (docs/wasm-sim-abi.md) and the process model
+/// (examples/wasm-sim/proc). Every function is the canonical-ABI lifting of the core-module
+/// function of the same name (`_` -> `-`): u64/s64 <-> i64, u32/s32 <-> i32, so the
+/// component variants run the very same core code.
+package wsim:sim@0.1.0;
+
+/// The memory model (simulator ABI `mem.*`): zero-extended little-endian loads, stores of the
+/// low bits; a fault traps. `map` maps zero-filled 4 KiB pages (returns the number of new
+/// pages); `mapped` tests one address.
+interface mem {
+  load8: func(addr: u64) -> u64;
+  load16: func(addr: u64) -> u64;
+  load32: func(addr: u64) -> u64;
+  load64: func(addr: u64) -> u64;
+  store8: func(addr: u64, v: u64);
+  store16: func(addr: u64, v: u64);
+  store32: func(addr: u64, v: u64);
+  store64: func(addr: u64, v: u64);
+  %map: func(addr: u64, len: u64) -> u32;
+  mapped: func(addr: u64) -> u32;
+}
+
+/// System calls (simulator ABI `sys.syscall`, x86-64 numbering: rax; rdi rsi rdx r10 r8 r9).
+interface sys {
+  syscall: func(nr: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64) -> u64;
+  /// Initial program break (set by the loader).
+  set-brk: func(addr: u64);
+}
+
+/// Values of locations the ISA leaves undefined (nondeterminism).
+interface nd {
+  undef: func(loc: u32) -> u64;
+}
+
+/// The simulator ABI's `ext.call`: control reached a foreign address; the callee reads and writes the
+/// simulator state through its exports. NOT usable between components: the callback
+/// re-enters the simulator component while it is on the stack.
+interface ext {
+  call: func(target: u64) -> s32;
+}
+
+/// Foreign calls by value (component-friendly): a System V call with the six integer
+/// argument registers; `ret` is the result (rax) of the last successful call.
+interface ffi {
+  call: func(target: u64, a1: u64, a2: u64, a3: u64, a4: u64, a5: u64, a6: u64) -> s32;
+  ret: func() -> u64;
+}
+
+/// Simulator state: locations (x86-64: 0..15 GPRs, 16 rip, 17..23 CF PF AF ZF SF OF DF).
+interface state {
+  get: func(loc: u32) -> u64;
+  set: func(loc: u32, v: u64);
+  modelled: func(loc: u32) -> u32;
+}
+
+/// Execution: status 0 ok, 1 halted, 2 unsupported, 3 fault, 4 out of fuel.
+interface isa {
+  step: func() -> s32;
+  run: func(fuel: u64) -> s32;
+}
+
+/// The foreign address range (dynamic linking).
+interface ext-range {
+  set-ext: func(lo: u64, hi: u64);
+}
+
+/// x86-64 instruction methods of the x86 simulators (program-as-calls). `w` = operand
+/// width in bytes, `op` = Intel /digit (ALU: 0 add 1 or 2 adc 3 sbb 4 and 5 sub 6 xor 7 cmp
+/// 8 test), registers 0..15 (bytes: 16..19 = ah ch dh bh), `a` = an address from `ea`.
+interface isa-x86 {
+  cond: func(cc: u32) -> u32;
+  ea: func(base: s32, index: s32, scale-shift: u32, disp: s64) -> u64;
+  i-next: func(len: u32);
+  i-mov-rr: func(w: u32, d: u32, s: u32);
+  i-mov-ri: func(w: u32, d: u32, v: u64);
+  i-load: func(w: u32, d: u32, a: u64);
+  i-store: func(w: u32, a: u64, s: u32);
+  i-store-i: func(w: u32, a: u64, v: u64);
+  i-movx-rr: func(sx: u32, w: u32, sw: u32, d: u32, s: u32);
+  i-movx-rm: func(sx: u32, w: u32, sw: u32, d: u32, a: u64);
+  i-lea: func(w: u32, d: u32, a: u64);
+  i-alu-rr: func(op: u32, w: u32, d: u32, s: u32);
+  i-alu-ri: func(op: u32, w: u32, d: u32, v: u64);
+  i-alu-rm: func(op: u32, w: u32, d: u32, a: u64);
+  i-alu-mr: func(op: u32, w: u32, a: u64, s: u32);
+  i-alu-mi: func(op: u32, w: u32, a: u64, v: u64);
+  i-unary-r: func(op: u32, w: u32, d: u32);
+  i-shift-ri: func(op: u32, w: u32, d: u32, n: u32);
+  i-shift-rcl: func(op: u32, w: u32, d: u32);
+  i-imul-rr: func(w: u32, d: u32, s: u32);
+  i-imul-rri: func(w: u32, d: u32, s: u32, v: u64);
+  i-muldiv-r: func(op: u32, w: u32, s: u32) -> s32;
+  i-cxx: func(op: u32, w: u32);
+  i-push-r: func(r: u32);
+  i-push-i: func(v: u64);
+  i-pop-r: func(r: u32);
+  i-call: func(t: u64);
+  i-ret: func();
+  i-jmp: func(t: u64);
+  i-cmov-rr: func(cc: u32, w: u32, d: u32, s: u32);
+  i-cmov-rm: func(cc: u32, w: u32, d: u32, a: u64);
+  i-setcc-r: func(cc: u32, r: u32);
+  i-setcc-m: func(cc: u32, a: u64);
+  i-syscall: func() -> s32;
+}
+
+/// System V call wrapper (docs/wasm-sim-abi.md): descriptor serialization as a WIT record would need
+/// cabi_realloc; the core wrapper takes a pointer into its own memory instead (sysv.wat).
+
+world memory {
+  export mem;
+}
+
+world syscalls {
+  import mem;
+  export sys;
+}
+
+/// A simulator with fetch-decode-execute (P-mem).
+world simulator {
+  import mem;
+  import sys;
+  import nd;
+  export state;
+  export isa;
+}
+
+/// The x86 simulators: also the instruction methods.
+world simulator-x86 {
+  include simulator;
+  export isa-x86;
+}
+
+/// The stub simulator x86-mini (foreign calls inside the simulator, callback style).
+world simulator-ext {
+  include simulator;
+  import ext;
+  export ext-range;
+}
+
+/// Foreign calls outside the simulator: wraps a simulator (imports and re-exports state).
+world extrun {
+  import state;
+  import isa;
+  import ffi;
+  import mem;
+  export state;
+  export isa;
+  export ext-range;
+}
+
+/// A foreign library (libc.wat): puts, strlen, putchar.
+world foreign-library {
+  import mem;
+  export ffi;
+}
+
+/// No foreign library.
+world no-foreign {
+  export ffi;
+}
+
+/// Deterministic undefined values.
+world undef-zero {
+  export nd;
+}
+
+/// The ELF loader / launcher (a WASI command; WASI imports come from the p1 adapter).
+world loader {
+  import mem;
+  import sys;
+  import state;
+  import isa;
+  import ext-range;
+}

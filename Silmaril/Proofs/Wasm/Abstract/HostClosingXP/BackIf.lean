@@ -19,7 +19,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle}
+variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-- The check of a block, from its parts. -/
 theorem chk1_block_of {ext : ExtArity H} {F : List (FuncInst H)} {mi : ModuleInst} {nl ret : Nat}
@@ -63,11 +63,11 @@ variable {s : Store H} {f : Frame} {stk : List Val} {c : Config H}
   {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **Conditionals**: the condition, then the block of the chosen arm. -/
-theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_if (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {cnd t el es : List Binaryen.BExpr}
-    (ihc : ∀ m ≤ n, BackG tags o host m cnd)
-    (ihblk : ∀ b : Bool, ∀ m ≤ n, BackG tags o host m (.block bt (if b then t else el) :: es)) :
-    BackG tags o host n (.if_ bt cnd t el :: es) := by
+    (ihc : ∀ m ≤ n, BackG J tags o host m cnd)
+    (ihblk : ∀ b : Bool, ∀ m ≤ n, BackG J tags o host m (.block bt (if b then t else el) :: es)) :
+    BackG J tags o host n (.if_ bt cnd t el :: es) := by
   intro s f stk c cs ht hrun hend hnd
   have hct := typedP_ctx ht
   obtain ⟨-, labels, ret, out, hS, hc, -, hTM, hts⟩ := id ht
@@ -76,7 +76,7 @@ theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSlic
   change EvRunN _ _ _ ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList
     (.if_ bt cnd t el :: es))⟩ _ _ at hrun
   rw [hcode] at hrun
-  obtain ⟨l, r, cs₁, cs₂, rfl, hd, hres, hr⟩ := seq_part (cond_typedP ht) ihc hrun hend hnd
+  obtain ⟨l, r, cs₁, cs₂, rfl, hd, hres, hr⟩ := seq_part (J.cond_typedP ht) ihc hrun hend hnd
   rcases hr with hn | ⟨s₁, f₁, stk₁', m, rfl, hq, hm, hk, hst⟩
   · exact mkOut'' hH hE ht hrun₀ hend (.ifAbort hd hn) hres
   have hst' : Steps (profile o) host ⟨s, f, tcode stk (.if_ bt cnd t el :: es)⟩
@@ -86,8 +86,8 @@ theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSlic
     change Steps _ _ ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList
       (.if_ bt cnd t el :: es))⟩ _
     rw [hcode]; exact hst
-  have hsite := ContextTyped.steps_typed hT hct hst'
-  obtain ⟨cv, stk₁, b, rfl, hb⟩ := truthy_progressH hsite
+  have hsite := J.steps_host hT hct hst'
+  obtain ⟨cv, stk₁, b, rfl, hb⟩ := J.truthy_progress hsite
   have hcons₁ : Cons host cs₁ := (cons_append.1 (evRun_consistent (evRunN_evRun hrun₀))).1
   obtain ⟨-, t₁, a₁, -⟩ := full_run (P := profile o) hH hE hd
     (substPre_mono (close_le_goodCX hH hE) hq) hcons₁ hts
@@ -114,9 +114,9 @@ theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSlic
     · rw [ho] at h2
       rw [hlen] at h2
       simpa using h2
-  have htk : TypedP tags s₁ f₁ stk₁ (.block bt (if b then t else el) :: es) :=
+  have htk : J.TypedP tags s₁ f₁ stk₁ (.block bt (if b then t else el) :: es) :=
     typedP_of (storeChk_inv inv1 hS) hchk
-      (ContextTyped.steps_typed hT hsite (steps_host (by rw [← hcodeB] at hif ⊢; exact hif)))
+      (J.steps_host hT hsite (steps_host (by rw [← hcodeB] at hif ⊢; exact hif)))
       (by rw [inv1.2.1]; exact hTM) t₁
   obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihblk b m' (by omega) s₁ f₁ stk₁ c cs₂ htk hk' hend hnd
   have hres' := resX_prepend hq hres₂
@@ -129,10 +129,10 @@ theorem case_if (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSlic
 
 /-- **`try_table`**: the body in its handler and label; a thrown exception caught or rethrown by
 the clauses. -/
-theorem case_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem case_try (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {bt : BlockType} {cl : List Catch} {body es : List Binaryen.BExpr}
-    (ihB : ∀ m ≤ n, BackG tags o host m body) (ihk : ∀ m ≤ n, BackG tags o host m es) :
-    BackG tags o host n (.tryTable bt cl body :: es) := by
+    (ihB : ∀ m ≤ n, BackG J tags o host m body) (ihk : ∀ m ≤ n, BackG J tags o host m es) :
+    BackG J tags o host n (.tryTable bt cl body :: es) := by
   intro s f stk c cs ht hrun hend hnd
   have hct := typedP_ctx ht
   obtain ⟨-, labels, ret, out, hS, hc, -, hTM, hts⟩ := id ht
@@ -152,7 +152,7 @@ theorem case_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSli
   obtain ⟨m₀, hm₀, hk₀⟩ := through henter hrun hend
   obtain ⟨cb, N₁, cs₁, cs₂, m, rfl, hN₁, h₁, hend₁, hm, hk, hx⟩ := evRunN_try_split hk₀ hend
   have hnd₁ := nd_try hx hnd
-  have htb : TypedP tags s f (stk.take np) body := try_body_typedP har ht
+  have htb : J.TypedP tags s f (stk.take np) body := J.try_body_typedP har ht
   obtain ⟨l₁, ⟨s₁, f₁, ob⟩, hd₁, hres₁, hok₁⟩ :=
     ihB N₁ (by omega) s f (stk.take np) cb cs₁ htb h₁ hend₁ hnd₁
   cases ob with
@@ -192,9 +192,9 @@ theorem case_try (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSli
           ⟨cst, cfr, tcode (vs.take nr ++ stk.drop np) es⟩ :=
         (steps_host henter).trans ((Steps.ctx _ _ (Steps.handler nr cl
           (Steps.label nr [] (evRunN_steps h₁)))).trans (steps_host hex))
-      have htk : TypedP tags cst cfr (vs.take nr ++ stk.drop np) es :=
+      have htk : J.TypedP tags cst cfr (vs.take nr ++ stk.drop np) es :=
         typedP_of (storeChk_inv inv1 hS) (chk_after inv1 hp hnr h2)
-          (ContextTyped.steps_typed hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
+          (J.steps_host hT hct hstT) (by rw [inv1.2.1]; exact hTM) t₁
       obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihk m' (by omega) _ _ _ c cs₂ htk hk' hend hnd
       exact mkOut hH hE ht hrun hend (.tryOk har hd₁ hvs hd₂) (resX_prepend hq₁ hres₂)
     · exact mkOut'' hH hE ht hrun hend (.tryBrk har hd₁) (.inl (resX_nontrap hres₁ (by simp)))

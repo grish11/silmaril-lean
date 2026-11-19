@@ -1,0 +1,4 @@
+GENERATED FILES -- not upstream sources, not hand-written.
+Produced in /build/coreutils by the x86_64 build (build.sh x86_64): configure/build-generated sources and
+headers that the compiler read (from the depfiles) and that are absent from, or differ from, the
+pinned upstream archive. Refresh with: corpus/build-all.sh --collect coreutils

@@ -1,0 +1,16 @@
+# Genuine public amalgamation releases, not labels over the same source tree.
+# SHA256 measured from these exact public archives; fetch.sh verifies before use.
+["3.46.1"]
+root = "sqlite-amalgamation-3460100"
+url = "https://sqlite.org/2024/sqlite-amalgamation-3460100.zip"
+sha256 = "77823cb110929c2bcb0f5d48e4833b5c59a8a6e40cdea3936b99e199dbbe5784"
+
+["3.50.4"]
+root = "sqlite-amalgamation-3500400"
+url = "https://sqlite.org/2025/sqlite-amalgamation-3500400.zip"
+sha256 = "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032"
+
+["3.54.1"]
+root = "sqlite-amalgamation-3540100"
+url = "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip"
+sha256 = "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"

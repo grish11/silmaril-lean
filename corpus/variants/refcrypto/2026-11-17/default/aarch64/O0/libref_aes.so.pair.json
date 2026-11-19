@@ -1,0 +1,73 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 10280,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 1232,
+      "sha256": "0b956a0ca35183645274659ab3ad9dbc49499cbd9601286668cba4afab92234c",
+      "size": 28
+    },
+    ".plt": {
+      "address": 1264,
+      "sha256": "dc83f0e7bf22b128b696c9838b9d60d9624df470c5c914abde9af5a370dd8eaf",
+      "size": 80
+    },
+    ".text": {
+      "address": 1344,
+      "sha256": "31c2093e02ae1f09cebdbeb34881e4ba5f081d840ed7004bd43d9744e7ad15b2",
+      "size": 8936
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "d07c08169fd89b56e1d0825b1957e9bcdd2b08e39d39881dac0062c58314dbd9",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "323e5887aeb6c9c02c496166f52f417bef8569a310f20ab8e07b6b297e4f67f2",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "9",
+      "size": 20,
+      "type": "FUNC",
+      "value": 1344
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelDecrypt",
+      "section_index": "9",
+      "size": 2500,
+      "type": "FUNC",
+      "value": 7780
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelEncrypt",
+      "section_index": "9",
+      "size": 2500,
+      "type": "FUNC",
+      "value": 5280
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelKeySetupEnc",
+      "section_index": "9",
+      "size": 2200,
+      "type": "FUNC",
+      "value": 1576
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelKeySetupDec",
+      "section_index": "9",
+      "size": 1504,
+      "type": "FUNC",
+      "value": 3776
+    }
+  ]
+}

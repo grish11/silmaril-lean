@@ -1,0 +1,47 @@
+{
+  "scope": "Unregistered candidate; actual saved-TU spans only, no correspondence/refinement/coverage proof",
+  "tu_sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+  "spans": [
+    {
+      "offset": 2067,
+      "length": 33,
+      "sha256": "2c742c60cbc478ebf3fa75441a0ca7e9d0621362d9ecdf95c1406d9c644aa32c"
+    },
+    {
+      "offset": 37470,
+      "length": 211,
+      "sha256": "b1ac4802441d2e23511305424bd2fbcf29056de0c94d9068ce592f2a35374ec2"
+    },
+    {
+      "offset": 37802,
+      "length": 24,
+      "sha256": "4bd973ae8263b171e8650a5853dc53f77aff3b7b8d731250db71286a134e60cf"
+    },
+    {
+      "offset": 120649,
+      "length": 996,
+      "sha256": "5a4cc23c2ac3ab987e990095bb5e7ea26fc936f59435c6ffb109378e7175c6fb"
+    },
+    {
+      "offset": 125337,
+      "length": 102,
+      "sha256": "92532d92fe2e237fa608712ec7bed4d0cff687101bfe21e35b9eca8da6fe4672"
+    },
+    {
+      "offset": 127028,
+      "length": 1344,
+      "sha256": "69a82b4e6482b809d16b95096d14933ef2284544fb1e36f30eb22b225ad70cbb"
+    },
+    {
+      "offset": 140177,
+      "length": 1571,
+      "sha256": "16c1aee0f2b77743917a80643bca9c5654f1c70c02d8d956e1ba445e92c1a80e"
+    }
+  ],
+  "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+  "closure": "corpus/cjson/semantic-inputs/linux-x86_64/insert-item-in-array/context.c",
+  "closure_sha256": "02ab0ecd20b076cab3def2fc07074476993b79ee38532e1903507c44891086a0",
+  "source": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+  "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+  "limits": "Exact unchanged saved-TU closure spans; historical preprocessing/build identity and source-to-ELF/frontend adequacy remain unproved. Unregistered candidate, not a coverage increment."
+}

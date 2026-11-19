@@ -1,0 +1,422 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 12876,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "4a918b288823444b1f3bd2cac2c244a3aef65a474540e17413ac23d9083432c4",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "1601e643690918657c6efb6c3d9ba6294af14d577148539e7fde4f769aab8f29",
+      "size": 576
+    },
+    ".plt.got": {
+      "address": 4704,
+      "sha256": "75548ce1fb6ef9d0f0d0b1019d6defc7be3869c48e3bd9347c73ce49d447ddb3",
+      "size": 8
+    },
+    ".text": {
+      "address": 4736,
+      "sha256": "d598dec5bc8a94ff332d0547e8c35acf6a855f88c973e274a39474bea06f0240",
+      "size": 8139
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "bab12d689029b6acb990f9fece6c12c5068e8e5130d0d1ecdbef59d2854d10fc",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "f7e9a611431ad5d56ce60efe90458fa4c79393b3c560d143d10fed4385e4e818",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "SHA1ProcessMessageBlock",
+      "section_index": "12",
+      "size": 694,
+      "type": "FUNC",
+      "value": 4928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA1Finalize",
+      "section_index": "12",
+      "size": 306,
+      "type": "FUNC",
+      "value": 5622
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA224_256ProcessMessageBlock",
+      "section_index": "12",
+      "size": 546,
+      "type": "FUNC",
+      "value": 6592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA224_256Finalize",
+      "section_index": "12",
+      "size": 294,
+      "type": "FUNC",
+      "value": 7138
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA224_256ResultN",
+      "section_index": "12",
+      "size": 194,
+      "type": "FUNC",
+      "value": 7432
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA384_512ProcessMessageBlock",
+      "section_index": "12",
+      "size": 605,
+      "type": "FUNC",
+      "value": 8320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA384_512Finalize",
+      "section_index": "12",
+      "size": 448,
+      "type": "FUNC",
+      "value": 8925
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA384_512ResultN",
+      "section_index": "12",
+      "size": 186,
+      "type": "FUNC",
+      "value": 9373
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA512Reset",
+      "section_index": "12",
+      "size": 109,
+      "type": "FUNC",
+      "value": 9669
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdf",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 12327
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdfInput",
+      "section_index": "12",
+      "size": 65,
+      "type": "FUNC",
+      "value": 12530
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA256Input",
+      "section_index": "12",
+      "size": 213,
+      "type": "FUNC",
+      "value": 7857
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdfExtract",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 11715
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHABlockSize",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 10670
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAInput",
+      "section_index": "12",
+      "size": 102,
+      "type": "FUNC",
+      "value": 10332
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA1Result",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 6365
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAHashSize",
+      "section_index": "12",
+      "size": 42,
+      "type": "FUNC",
+      "value": 10682
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdfFinalBits",
+      "section_index": "12",
+      "size": 69,
+      "type": "FUNC",
+      "value": 12595
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA224FinalBits",
+      "section_index": "12",
+      "size": 18,
+      "type": "FUNC",
+      "value": 8223
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA512Result",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 10209
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hmac",
+      "section_index": "12",
+      "size": 105,
+      "type": "FUNC",
+      "value": 11610
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA224Reset",
+      "section_index": "12",
+      "size": 106,
+      "type": "FUNC",
+      "value": 7626
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA512Input",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 9778
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAReset",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 10228
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA1Reset",
+      "section_index": "12",
+      "size": 85,
+      "type": "FUNC",
+      "value": 5928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA224Result",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 7732
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA1FinalBits",
+      "section_index": "12",
+      "size": 139,
+      "type": "FUNC",
+      "value": 6226
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdfExpand",
+      "section_index": "12",
+      "size": 504,
+      "type": "FUNC",
+      "value": 11823
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdfResult",
+      "section_index": "12",
+      "size": 211,
+      "type": "FUNC",
+      "value": 12664
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA384Reset",
+      "section_index": "12",
+      "size": 91,
+      "type": "FUNC",
+      "value": 9559
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA512FinalBits",
+      "section_index": "12",
+      "size": 163,
+      "type": "FUNC",
+      "value": 10028
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA256Reset",
+      "section_index": "12",
+      "size": 106,
+      "type": "FUNC",
+      "value": 7751
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hmacFinalBits",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 11334
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hmacReset",
+      "section_index": "12",
+      "size": 386,
+      "type": "FUNC",
+      "value": 10880
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA384Result",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 9650
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hmacResult",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 11406
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAFinalBits",
+      "section_index": "12",
+      "size": 134,
+      "type": "FUNC",
+      "value": 10434
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAHashSizeBits",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 10724
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAHashName",
+      "section_index": "12",
+      "size": 57,
+      "type": "FUNC",
+      "value": 10768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA1Input",
+      "section_index": "12",
+      "size": 213,
+      "type": "FUNC",
+      "value": 6013
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "USHAResult",
+      "section_index": "12",
+      "size": 102,
+      "type": "FUNC",
+      "value": 10568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA224Input",
+      "section_index": "12",
+      "size": 14,
+      "type": "FUNC",
+      "value": 8070
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA256Result",
+      "section_index": "12",
+      "size": 19,
+      "type": "FUNC",
+      "value": 8241
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA384Input",
+      "section_index": "12",
+      "size": 14,
+      "type": "FUNC",
+      "value": 10014
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA256FinalBits",
+      "section_index": "12",
+      "size": 139,
+      "type": "FUNC",
+      "value": 8084
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "SHA384FinalBits",
+      "section_index": "12",
+      "size": 18,
+      "type": "FUNC",
+      "value": 10191
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hmacInput",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 11266
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hkdfReset",
+      "section_index": "12",
+      "size": 111,
+      "type": "FUNC",
+      "value": 12419
+    }
+  ]
+}

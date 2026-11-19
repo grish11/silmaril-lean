@@ -257,6 +257,15 @@ requests add latency.
 - **Summary:** the local project row, object counts by kind, and derived verdicts
   (holds/fails/unknown by summary code). It also shows statuses by SZS code with their
   coarsening, the root, the groups, the first problems that do not hold, and `meta`.
+- **Progress** (`#/progress`, `views/progress.js`): every family of the project (the children of
+  its root group), with each problem reachable through `children` edges counted once per family in
+  exactly one of holds, fails and open, and apart from those: deprecated, expected open, findings,
+  **axiomatic** (an answer uses an axiom beyond `propext`, `Classical.choice`, `Quot.sound`), **not
+  kernel** (settled at another tier) and detached. A project classifies its problems into
+  **dimensions** with groups named `<prefix>.dimension.<d>`, `d` one of `inventory` (what the
+  artifacts are), `decomposition` (where the functions are) and `semantic` (what the code does);
+  the page cross-tabulates families and dimensions, lists problems in no dimension group as
+  unclassified, and reads nothing from names or titles. Unit tests: `tests/explore/progress.test.mjs`.
 - **Graph:** the problem DAG from `edges`, with the root on top (dagre layout).
   - Problems are coloured green, red or grey by their derived verdict. Groups are boxes labelled
     with their counts of children that hold, fail or are unknown.

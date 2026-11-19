@@ -1,0 +1,20 @@
+name = "darkhttpd"
+version = "1.17"
+category = "minimal HTTP server"
+summary = "darkhttpd 1.17 (tag v1.17, commit 3075d35e1d2deb65ed8b079137c4ae1213de4b48): single-file static-content web server, built with upstream's Makefile."
+license = "ISC"
+license_files = ["upstream/darkhttpd-1.17/COPYING"]
+homepage = "https://github.com/emikulic/darkhttpd"
+
+[[archive]]
+url = "https://github.com/emikulic/darkhttpd/archive/refs/tags/v1.17.tar.gz"
+sha256 = "4fee9927e2d8bb0a302f0dd62f9ff1e075748fa9f5162c9481a7a58b41462b56"
+root = "darkhttpd-1.17"
+retrieved = "2026-11-17"
+
+[[object]]
+name = "darkhttpd"
+kind = "exe"
+sources = ["upstream/darkhttpd-1.17/darkhttpd.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD"
+notes = "make CC=<cc> CFLAGS=<cflags> darkhttpd -> <cc> <cflags> darkhttpd.c -o darkhttpd (PIE, Debian gcc default)."

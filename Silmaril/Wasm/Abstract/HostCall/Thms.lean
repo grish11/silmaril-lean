@@ -145,7 +145,7 @@ with the whole log, or runs to a stuck end (not at a host call) with a prefix of
 continuation goes on with the rest. `evDiv_through_steps` (deterministic profile, typed start),
 `evDiv_unique` (a unique host-free step, a smaller measure when there are events),
 `evDiv_host_call` (the next event answers the host call), `evDiv_stuck`, `evDiv_trap`,
-`evDiv_nil`, `evDiv_mono`.
+`evDiv_throw`, `evDiv_nil`, `evDiv_mono`.
 
 **Building labelled and productive runs** (proofs in `Chain`), for the forward simulation of
 logged native runs: `evRun_of_free` (a host-free run is silent); `hEvStep_label`,
@@ -161,8 +161,9 @@ chain of labelled runs `K n ⟶ K (n + 1)` whose logs concatenate to an unbounde
 runs: `coreInf_split_wrap` (an injective context), `coreInf_split_seq`, `coreInf_split_label`,
 `coreInf_split_frame` (the part in front, a label or a call frame runs productively, or runs to a
 stuck end with a prefix of the stream and the rest runs productively); `coreInf_through_dsteps`
-(through host-free steps, deterministic profile); `coreInf_no_step`, `coreInf_trap_head` (no
-productive run from a stuck configuration or a head trap); `coreInf_not_diverges` (a productive
+(through host-free steps, deterministic profile); `coreInf_no_step`, `coreInf_trap_head`,
+`coreInf_throw_head` (no productive run from a stuck configuration, a head trap or a head
+exception); `coreInf_not_diverges` (a productive
 run is not host-free divergence), with `trace_of_tgChain`, `evRun_nil_silentRun`,
 `silentRun_dsteps`; `coreInf_silent_step`, `coreInf_cons_event` (a silent step or an event in
 front of a productive run).
@@ -747,6 +748,12 @@ theorem evDiv_trap {n : Nat} {s : Store H} {f : Frame} {ws : List Val} {r : List
     {cs : List (Call (wasmHostSig H))} : ¬ EvDiv P host n ⟨s, f, vals ws ++ .trap :: r⟩ cs :=
   Silmaril.Proofs.Wasm.Abstract.HostCall.evDiv_trap
 
+/-- A head exception does not diverge, with or without events. -/
+theorem evDiv_throw {n : Nat} {s : Store H} {f : Frame} {ws : List Val} {x : Nat}
+    {r : List Admin} {cs : List (Call (wasmHostSig H))} :
+    ¬ EvDiv P host n ⟨s, f, vals ws ++ throwing x ++ r⟩ cs :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.evDiv_throw
+
 /-- **Splitting a sequence**: `es` diverges with the whole log, or runs to values with a
 prefix of the log and the continuation goes on with the rest. -/
 theorem evDiv_seq_split {n : Nat} {s : Store H} {f : Frame} {es rest : List Admin}
@@ -995,6 +1002,12 @@ theorem coreInf_no_step {c : Config H} {ω : Nat → Call (wasmHostSig H)}
 theorem coreInf_trap_head {s : Store H} {f : Frame} {ws : List Val} {r : List Admin}
     {ω : Nat → Call (wasmHostSig H)} : ¬ CoreInf P host ⟨s, f, vals ws ++ .trap :: r⟩ ω :=
   Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_trap
+
+/-- **A head exception has no productive run.** -/
+theorem coreInf_throw_head {s : Store H} {f : Frame} {ws : List Val} {x : Nat} {r : List Admin}
+    {ω : Nat → Call (wasmHostSig H)} :
+    ¬ CoreInf P host ⟨s, f, vals ws ++ throwing x ++ r⟩ ω :=
+  Silmaril.Proofs.Wasm.Abstract.HostCall.coreInf_throw
 
 /-- A chain of nonempty runs is an infinite run. -/
 theorem trace_of_tgChain {R : Config H → Config H → Prop} {x : Nat → Config H}

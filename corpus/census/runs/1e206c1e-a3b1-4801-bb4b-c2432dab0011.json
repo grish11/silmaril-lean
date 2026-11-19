@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "run_id": "1e206c1e-a3b1-4801-bb4b-c2432dab0011",
+  "stage": "elf-census",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T20:11:56.677150+00:00",
+  "command": [
+    "python3",
+    "-I",
+    "scripts/corpus/census.py",
+    "--output",
+    "/out/census"
+  ],
+  "cwd": "/repo",
+  "target": "x86_64+aarch64-linux-gnu",
+  "repository": {
+    "commit": "d582d3b148b40acfbe087c8188566a4b44f6de45",
+    "dirty": true,
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cache": "unspecified",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "scripts/corpus/census.py",
+      "sha256": "89523f475d2f2714e01c22a2bd29d77108a3906c3c4e655862047aeda158ef5b"
+    },
+    {
+      "path": "corpus/toolchain/lock.txt",
+      "sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+    }
+  ],
+  "wall_seconds": 12.252069413000072,
+  "exit_code": 0,
+  "user_cpu_seconds": 11.06,
+  "system_cpu_seconds": 1.43,
+  "peak_rss_kib": 152152,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

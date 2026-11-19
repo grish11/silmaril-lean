@@ -1,0 +1,134 @@
+{
+  "schema": "silmaril.binary-equivalence.v1",
+  "root": "Silmaril.Elf.Corpus.CjsonArraySize.Equivalence.Thms",
+  "definition": "Silmaril/Elf/Corpus/CjsonArraySize/Equivalence/Defs.lean",
+  "endpoints": [
+    {
+      "id": "O0",
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1",
+      "sha256": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+      "functions": {
+        "cJSON_GetArraySize": {
+          "address": 21378,
+          "size": 81,
+          "file_offset": 21378,
+          "bytes_hex": "55 48 89 e5 48 89 7d e8 48 c7 45 f0 00 00 00 00 48 c7 45 f8 00 00 00 00 48 83 7d e8 00 75 07 b8 00 00 00 00 eb 29 48 8b 45 e8 48 8b 40 10 48 89 45 f0 eb 10 48 83 45 f8 01 48 8b 45 f0 48 8b 00 48 89 45 f0 48 83 7d f0 00 75 e9 48 8b 45 f8 5d c3",
+          "code_sha256": "250cea30ef23c2c0ae33fd945a386eb084083c988139a67475bc53d80cc09559",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/receipt.json",
+        "sha256": "0778e34eecd2f85992fa73722d86c84675d816fb072064120ec9bf6a169292ca"
+      },
+      "build": {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/build.json",
+        "sha256": "339ad3cc14b3fca5defc990a3eaba0f045e3959bd7ecef15d6e32fb84dbc389e",
+        "version": "1.7.19",
+        "configuration": "default",
+        "target": "x86_64-linux-gnu",
+        "optimization": "O0",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+        "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+        "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+        "image_id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+        "source_inputs": [
+          {
+            "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+            "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+          }
+        ],
+        "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+      },
+      "source": {
+        "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+        "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+        "definitions": {
+          "cJSON_GetArraySize": {
+            "offset": 50522,
+            "length": 371,
+            "sha256": "1cee806061bff3348c35ca5254d1fa2a2b6d3113063bbd4042b97c4aae4c5023",
+            "text": "CJSON_PUBLIC(int) cJSON_GetArraySize(const cJSON *array)\n{\n    cJSON *child = NULL;\n    size_t size = 0;\n\n    if (array == NULL)\n    {\n        return 0;\n    }\n\n    child = array->child;\n\n    while(child != NULL)\n    {\n        size++;\n        child = child->next;\n    }\n\n    /* FIXME: Can overflow here. Cannot be fixed without breaking the API */\n\n    return (int)size;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "O2",
+      "path": "corpus/elf/cjson/x86_64/libcjson.so.1",
+      "sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+      "functions": {
+        "cJSON_GetArraySize": {
+          "address": 16528,
+          "size": 35,
+          "file_offset": 16528,
+          "bytes_hex": "48 85 ff 74 1b 48 8b 57 10 48 85 d2 74 12 31 c0 48 8b 12 48 83 c0 01 48 85 d2 75 f4 c3 0f 1f 00 31 c0 c3",
+          "code_sha256": "df6bd3a23ae75b263e7da76387d5dd12e0f923e3f0745439ecf69363a7ec5e19",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/elf/cjson/x86_64/receipt.json",
+        "sha256": "4370a88ff99c2ddfe6a60e565198d75921ef798e3a0111de9f7f081e963f63e1"
+      },
+      "build": {
+        "path": "corpus/elf/cjson/x86_64/receipt.json",
+        "sha256": "4370a88ff99c2ddfe6a60e565198d75921ef798e3a0111de9f7f081e963f63e1",
+        "version": "1.7.19",
+        "configuration": "default",
+        "target": "x86_64-linux-gnu",
+        "optimization": "O2",
+        "cflags": "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+        "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+        "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+        "image_id": "sha256:42e6f05098b3fd5e3439f33b0ce83fa8601b0af0829d59f22b754b98fed690c2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+            "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+          }
+        ],
+        "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+      },
+      "source": {
+        "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+        "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+        "definitions": {
+          "cJSON_GetArraySize": {
+            "offset": 50522,
+            "length": 371,
+            "sha256": "1cee806061bff3348c35ca5254d1fa2a2b6d3113063bbd4042b97c4aae4c5023",
+            "text": "CJSON_PUBLIC(int) cJSON_GetArraySize(const cJSON *array)\n{\n    cJSON *child = NULL;\n    size_t size = 0;\n\n    if (array == NULL)\n    {\n        return 0;\n    }\n\n    child = array->child;\n\n    while(child != NULL)\n    {\n        size++;\n        child = child->next;\n    }\n\n    /* FIXME: Can overflow here. Cannot be fixed without breaking the API */\n\n    return (int)size;\n}"
+          }
+        }
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "name": "arrayTraversalOptimization",
+      "declaration": "Silmaril.Elf.Corpus.CjsonArraySize.Equivalence.Task.optimization",
+      "function_symbol": "cJSON_GetArraySize",
+      "profile": "cjson-finite-list-v1",
+      "left": "O0",
+      "right": "O2",
+      "left_frame": 32,
+      "right_frame": 0,
+      "length_bound": 64,
+      "value": null
+    }
+  ],
+  "excluded": [
+    "Cycles, invalid/dead/aliased allocations and lists beyond64 nodes are not selected.",
+    "Different source/configuration/version pairs are incompatible with this selected problem."
+  ],
+  "limits": [
+    "UNPROVED binary obligation; finite native/Open.step observations are not an equivalence proof.",
+    "Finite acyclic allocated lists of length0..64, including a null root; arbitrary admissible aligned heap base and arbitrary unrelated payload bytes.",
+    "Both code excerpts share one initial process memory; this is function-level placement, not a whole-ELF segment mapping.",
+    "Both actual first returns, ABI preservation, complete region metadata and caller-memory preservation outside exact32/0 private stack frames are obligations.",
+    "No desired count, return equality, source refinement, safety or termination is assumed in entry. No callee replacement.",
+    "Universal nondeterministic termination/divergence, whole-TU/frontend/build adequacy and general input behavior remain unproved.",
+    "Historical cJSON repeat-runtime gaps, unsupported FIPS, distinct jemalloc configurations and repository security alerts remain disclosed."
+  ]
+}

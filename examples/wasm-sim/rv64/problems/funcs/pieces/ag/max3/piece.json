@@ -1,0 +1,13 @@
+{
+  "schema": "silmaril.wasm-sim.piece.v0",
+  "id": "wasm-sim/rv64/funcs/ag/max3",
+  "kind": "assume-guarantee",
+  "function": "max3",
+  "address": "0x11260",
+  "words": "00a5d66300a658630000806700058513feb64ce30006051300008067",
+  "program": {"kind": "annotated-wat", "source": "../../../modules/max3.wat", "representation": "P-locals", "imports": {"callees": [], "memory": false}, "params": ["a0", "a1", "a2"], "results": ["a0"]},
+  "spec": {"requires": "true", "ensures": "(= (reg a0) (ite (bvsgt (ite (bvsgt (old (reg a0)) (old (reg a1))) (old (reg a0)) (old (reg a1))) (old (reg a2))) (ite (bvsgt (old (reg a0)) (old (reg a1))) (old (reg a0)) (old (reg a1))) (old (reg a2))))", "reads": "[]", "writes": "[]", "assumes": []},
+  "statement": "assuming the imports {} meet their contracts, the Wasm function `max3` meets its contract (total correctness, ABI checks at ret)",
+  "solvers": ["wpc/HWP (Silmaril.Wasm.Logic.Core)", "wasm-vc (i64)", "agent"],
+  "status": "open"
+}

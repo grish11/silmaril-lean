@@ -40,13 +40,13 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
-theorem endMayLeave (inst : InstId) : P.Inv I (Builtins.endMayLeave inst : P E σ Unit) :=
+theorem endMayLeave (inst : InstId) : P.InvW I W (Builtins.endMayLeave inst : P E σ Unit) :=
   P.Inv.bind (P.Inv.getInst inst) fun _ => P.Inv.trapIf _ _
 
 theorem expectEnd (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (ent : HandleEntry) :
-    P.Inv I (Builtins.expectEnd kind t ent : P E σ (EndId × End E)) := by
+    P.InvW I W (Builtins.expectEnd kind t ent : P E σ (EndId × End E)) := by
   unfold Builtins.expectEnd
   split
   · exact P.Inv.bind (P.Inv.getObj _ _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ =>
@@ -54,20 +54,20 @@ theorem expectEnd (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (ent : Han
   · exact P.Inv.trap _
 
 theorem checkCopyIdle (kind : EndKind) (st : EndState) :
-    P.Inv I (Builtins.checkCopyIdle kind st : P E σ Unit) := by
+    P.InvW I W (Builtins.checkCopyIdle kind st : P E σ Unit) := by
   cases st <;> first | exact P.Inv.pure _ | exact P.Inv.trap _
 
 theorem copyResultFlat (kind : EndKind) (cx : LiftLowerContext E) (payload : Nat) :
-    P.Inv I (Builtins.copyResultFlat kind cx payload : P E σ (List FlatValue)) := by
+    P.InvW I W (Builtins.copyResultFlat kind cx payload : P E σ (List FlatValue)) := by
   unfold Builtins.copyResultFlat
   exact P.Inv.ite (P.Inv.bind (P.Inv.ptrType _) fun _ => P.Inv.pure _) (P.Inv.pure _)
 
 theorem awaitEndEvent (h : AwaitPres I) (site : WaitSite) (async_ : Bool) (e : EndId)
-    {res : Nat → P E σ (List FlatValue)} (hr : ∀ p, P.Inv I (res p)) :
-    P.Inv I (Builtins.awaitEndEvent site async_ e res) := by
+    {res : Nat → P E σ (List FlatValue)} (hr : ∀ p, P.InvW I W (res p)) :
+    P.InvW I W (Builtins.awaitEndEvent site async_ e res) := by
   unfold Builtins.awaitEndEvent
   refine P.Inv.bind (Waitable.hasPendingEvent_inv _) fun _ => ?_
-  have hg : P.Inv I (do
+  have hg : P.InvW I W (do
       let ev ← Waitable.getPendingEvent (E := E) (σ := σ) (.end_ e)
       res ev.payload) :=
     P.Inv.bind (Waitable.getPendingEvent_inv (h.takeEvent _)) fun _ => hr _
@@ -78,7 +78,7 @@ theorem newBuiltin (hA : P.Inv.AddHandlePres I)
     (hN : ∀ k t o s, I s → I (newEndsSt (E := E) k t o s))
     (hI : ∀ e i s, I s → I (HandleSt.setEndIndex (E := E) e i s)) (lim : Limits)
     (k : EndKind) (t : Option (WIT.ClosedType RtId)) :
-    P.Inv I (Builtins.newBuiltin lim k t : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.newBuiltin lim k t : P E σ (List FlatValue)) :=
   P.Inv.bind P.Inv.currentInst fun _ => P.Inv.bind (endMayLeave _) fun _ =>
     P.Inv.bind P.Inv.getStore fun _ => P.Inv.bind (P.Inv.modifyStore (hN _ _ _)) fun _ =>
     P.Inv.bind (P.Inv.handlesAdd _ _ fun s hs => hA s _ ⟨_, NotSubtaskEntry.end_ _⟩ hs) fun _ =>
@@ -89,7 +89,7 @@ theorem newBuiltin (hA : P.Inv.AddHandlePres I)
 theorem cancelCopy (h : AwaitPres I) (hc : ∀ e b s, I s → I (cancel (E := E) e b s))
     (lim : Limits) (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (async_ : Bool)
     (i : Nat) :
-    P.Inv I (Builtins.cancelCopy lim kind t async_ i : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.cancelCopy lim kind t async_ i : P E σ (List FlatValue)) :=
   P.Inv.bind P.Inv.currentInst fun _ => P.Inv.bind (endMayLeave _) fun _ =>
     P.Inv.bind (P.Inv.handlesGet _ _) fun _ => P.Inv.bind (expectEnd _ _ _) fun _ =>
     P.Inv.bind (P.Inv.trapIf _ _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ =>
@@ -99,7 +99,7 @@ theorem cancelCopy (h : AwaitPres I) (hc : ∀ e b s, I s → I (cancel (E := E)
 theorem dropEnd (hR : P.Inv.RemoveHandlePres I)
     (hd : ∀ e s, I s → I (Runtime.dropEnd (E := E) e s))
     (lim : Limits) (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (i : Nat) :
-    P.Inv I (Builtins.dropEnd lim kind t i : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.dropEnd lim kind t i : P E σ (List FlatValue)) :=
   P.Inv.bind P.Inv.currentInst fun _ => P.Inv.bind (endMayLeave _) fun _ =>
     P.Inv.bind (P.Inv.handlesRemove _ _ fun s hs => hR s _ _ hs) fun _ =>
     P.Inv.bind (expectEnd _ _ _) fun _ =>
@@ -107,7 +107,7 @@ theorem dropEnd (hR : P.Inv.RemoveHandlePres I)
     P.Inv.bind (endDrop_inv (hd _)) fun _ => P.Inv.pure _
 
 theorem expectForwardEnd (kind : EndKind) (t : Option (WIT.ClosedType RtId))
-    (ent : HandleEntry) : P.Inv I (Builtins.expectForwardEnd kind t ent : P E σ EndId) :=
+    (ent : HandleEntry) : P.InvW I W (Builtins.expectForwardEnd kind t ent : P E σ EndId) :=
   P.Inv.bind (expectEnd _ _ _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ =>
     P.Inv.bind (P.Inv.trapIf _ _) fun _ => P.Inv.pure _
 
@@ -123,13 +123,13 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem copyBuiltin (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I) (h : AwaitPres I)
     (hc : ∀ e buf isRead s, I s → I (copySt (E := E) e buf isRead s)) (lim : Limits)
     (q : Quirks) (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (opts : CanonOpts E)
     (i ptr length : Nat) :
-    P.Inv I (Builtins.copyBuiltin lim q kind t opts i ptr length : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.copyBuiltin lim q kind t opts i ptr length : P E σ (List FlatValue)) :=
   P.Inv.bind P.Inv.currentInst fun _ => P.Inv.bind (endMayLeave _) fun _ =>
     P.Inv.bind (P.Inv.handlesGet _ _) fun _ => P.Inv.bind (expectEnd _ _ _) fun _ =>
     P.Inv.bind (checkCopyIdle _ _) fun _ => P.Inv.bind (P.Inv.trapIf _ _) fun _ =>
@@ -141,7 +141,7 @@ theorem forwardBuiltin (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I)
     (hR : P.Inv.RemoveHandlePres I)
     (hf : ∀ src dst s, I s → I (forwardSt (E := E) src dst s)) (lim : Limits) (q : Quirks)
     (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (ri wi : Nat) :
-    P.Inv I (Builtins.forwardBuiltin lim q kind t ri wi : P E σ (List FlatValue)) :=
+    P.InvW I W (Builtins.forwardBuiltin lim q kind t ri wi : P E σ (List FlatValue)) :=
   P.Inv.bind P.Inv.currentInst fun _ => P.Inv.bind (endMayLeave _) fun _ =>
     P.Inv.bind (P.Inv.handlesRemove _ _ fun s hs => hR s _ _ hs) fun _ =>
     P.Inv.bind (expectForwardEnd _ _ _) fun _ =>

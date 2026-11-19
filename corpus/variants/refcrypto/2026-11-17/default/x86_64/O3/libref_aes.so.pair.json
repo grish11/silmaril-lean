@@ -1,0 +1,70 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 9720,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "52a9201211f3c06525ba99a5d875ba4fcc4ae5984cd9bc8e5332dec157f7c9aa",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "b74762001b5827ee918c860f4628ef08301da6ba217836165203d76b98d85f08",
+      "size": 32
+    },
+    ".plt.got": {
+      "address": 4160,
+      "sha256": "5c125c6800e202f1d7837ed7680cd850217352eab844978e498d269ea1dd54f6",
+      "size": 8
+    },
+    ".text": {
+      "address": 4176,
+      "sha256": "e696c3fc009791a2f410485be8058dd94c37877a6d86e073122a2251543efb30",
+      "size": 5542
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "cb1cf4ccda8227ec27dc0f90a2608b7b857ba5c3933cf7ffdd9436bbdb41ee88",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "5c23a5983b4e96ffdea82da322eec8dd17c9b86171c63e246d25e60c96b00cfc",
+  "unstripped_function_symbols": [
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelDecrypt",
+      "section_index": "10",
+      "size": 950,
+      "type": "FUNC",
+      "value": 8768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelEncrypt",
+      "section_index": "10",
+      "size": 947,
+      "type": "FUNC",
+      "value": 7808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelKeySetupEnc",
+      "section_index": "10",
+      "size": 2565,
+      "type": "FUNC",
+      "value": 4368
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rijndaelKeySetupDec",
+      "section_index": "10",
+      "size": 858,
+      "type": "FUNC",
+      "value": 6944
+    }
+  ]
+}

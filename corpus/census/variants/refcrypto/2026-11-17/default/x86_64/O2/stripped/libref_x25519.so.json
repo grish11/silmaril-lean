@@ -1,0 +1,248 @@
+{
+  "abi_evidence": {
+    "ifunc_symbols": [],
+    "import_matches": {
+      "futex": [],
+      "signals": [],
+      "threads": [],
+      "vdso": []
+    },
+    "tls_program_header": false
+  },
+  "analysis_image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+  "arch": "x86_64",
+  "dynamic": {
+    "imports": [
+      "1:",
+      "_ITM_deregisterTMCloneTable",
+      "_ITM_registerTMCloneTable",
+      "__gmon_start__"
+    ],
+    "interpreter": [],
+    "needed": [],
+    "rpath": [],
+    "runpath": [],
+    "soname": [
+      "libref_x25519.so"
+    ],
+    "version_information": "\nNo version information found in this file.\n"
+  },
+  "dynamic_observations": {
+    "status": "not measured",
+    "syscalls": null
+  },
+  "elf_notes": "\nDisplaying notes found in: .note.gnu.build-id\n  Owner                Data size \tDescription\n  GNU                  0x00000014\tNT_GNU_BUILD_ID (unique build ID bitstring)\t    Build ID: 0f0d3aadbed8a91bbb5ac85446750614c4ad4085\n",
+  "evidence_kind": "tool-derived static evidence; not a Lean proof",
+  "executable_sections": [
+    {
+      "address": 4096,
+      "decoded_bytes": 23,
+      "mnemonics": {
+        "add": 1,
+        "call": 1,
+        "je": 1,
+        "mov": 1,
+        "ret": 1,
+        "sub": 1,
+        "test": 1
+      },
+      "name": ".init",
+      "size": 23,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4128,
+      "decoded_bytes": 224,
+      "mnemonics": {
+        "jmp": 27,
+        "nopl": 1,
+        "push": 14
+      },
+      "name": ".plt",
+      "size": 224,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4352,
+      "decoded_bytes": 8,
+      "mnemonics": {
+        "jmp": 1,
+        "xchg": 1
+      },
+      "name": ".plt.got",
+      "size": 8,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 4368,
+      "decoded_bytes": 7160,
+      "mnemonics": {
+        "add": 200,
+        "and": 59,
+        "andb": 1,
+        "call": 63,
+        "cltq": 3,
+        "cmp": 2,
+        "cmpb": 1,
+        "cmpq": 1,
+        "cs": 4,
+        "data16": 1,
+        "endbr64": 2,
+        "imul": 168,
+        "je": 5,
+        "jmp": 5,
+        "jne": 10,
+        "lea": 108,
+        "mov": 639,
+        "movaps": 2,
+        "movb": 1,
+        "movd": 25,
+        "movdqa": 4,
+        "movdqu": 16,
+        "movq": 20,
+        "movsbl": 1,
+        "movslq": 67,
+        "movups": 22,
+        "movzbl": 30,
+        "neg": 4,
+        "nop": 2,
+        "nopl": 12,
+        "nopw": 4,
+        "or": 25,
+        "paddd": 3,
+        "pand": 3,
+        "pop": 43,
+        "pshufd": 2,
+        "psubd": 3,
+        "punpckldq": 16,
+        "punpcklqdq": 8,
+        "push": 43,
+        "pxor": 11,
+        "ret": 17,
+        "sar": 96,
+        "shl": 30,
+        "shr": 1,
+        "sub": 57,
+        "test": 2,
+        "xchg": 6,
+        "xor": 3
+      },
+      "name": ".text",
+      "size": 7160,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    },
+    {
+      "address": 11528,
+      "decoded_bytes": 9,
+      "mnemonics": {
+        "add": 1,
+        "ret": 1,
+        "sub": 1
+      },
+      "name": ".fini",
+      "size": 9,
+      "syscall_sites": [],
+      "undecoded_bytes": 0,
+      "unreported_bytes": 0
+    }
+  ],
+  "extension_evidence": {
+    "classifier": {
+      "ADX": "adcx adox",
+      "AES": "aesenc aesenclast aesdec aesdeclast aesimc aeskeygenassist",
+      "BMI2": "bzhi mulx pdep pext rorx sarx shlx shrx",
+      "RDRAND": "rdrand",
+      "RDSEED": "rdseed",
+      "SHA": "sha1msg1 sha1msg2 sha1nexte sha1rnds4 sha256msg1 sha256msg2 sha256rnds2"
+    },
+    "matches": {
+      "ADX": {},
+      "AES": {},
+      "BMI2": {},
+      "RDRAND": {},
+      "RDSEED": {},
+      "SHA": {}
+    },
+    "method": "exact mnemonic matches in linear disassembly; bounded allowlist"
+  },
+  "generator_sha256": "34922f943bcb2d9fefdd9e78a6f719bff0cdc856ab507f519e28cec24ffbb597",
+  "identity": {
+    "cflags": "-O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD",
+    "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+    "configure_args": "(none)",
+    "image": {
+      "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598",
+      "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+      "tag": "silmaril-corpus-toolchain:trixie-20251103"
+    },
+    "inputs": [
+      {
+        "sha256": "8f39f02a57bfd1da15634706724a585766e6223f77ecdaf243cad16cd3a1aa1b",
+        "url": "https://www.rfc-editor.org/rfc/rfc6234.txt"
+      },
+      {
+        "sha256": "5a277d4dd8d83f7a3b411c7d22ede4c584a9c95ae5b81724f8f1db6197ea8776",
+        "url": "https://github.com/XKCP/XKCP/archive/d20c8fcaecc543f816a0721d0dfc13b4cf27c14d.tar.gz"
+      },
+      {
+        "sha256": "e1d1194cde9fec0f150961cca8f3d9bdf7c5a5cbe020d1cdfb962b4887793124",
+        "url": "https://github.com/BLAKE2/BLAKE2/archive/ed1974ea83433eba7b2d95c5dcd9ac33cb847913.tar.gz"
+      },
+      {
+        "sha256": "a6ed142ac0bffcd10d0fdc82f9fe7e768fc4aac91aa2797ea9974252e09e998f",
+        "url": "https://web.archive.org/web/20051217122133id_/http://www.esat.kuleuven.ac.be/~rijmen/rijndael/rijndael-fst-3.0.zip"
+      },
+      {
+        "sha256": "9a44c3e619632d140cbad436f5cebbea5f2b8d6efe752946c3e367c4c2ac8288",
+        "url": "https://bench.cr.yp.to/supercop/supercop-20261018.tar.xz"
+      },
+      {
+        "sha256": "78442221554769d557d2eb73583b409d88d83226d498c4e7caa1cc97b0488e4b",
+        "url": "https://github.com/floodyberry/poly1305-donna/archive/e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781.tar.gz"
+      },
+      {
+        "sha256": "aedb26c46d3dc3b721ab37c5248d5c923142e4d56009a9605c470383f32ce77a",
+        "url": "https://github.com/orlp/ed25519/archive/b1f19fab4aebe607805620d25a5e42566ce46a0e.tar.gz"
+      }
+    ],
+    "project": "refcrypto",
+    "receipt": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/stripped/receipt.json",
+    "receipt_sha256": "af510081e167093c875dd739f8b3c37d8ecb3cb5edd9d73eee5620c39188be1f",
+    "stripping": "stripped",
+    "variant": {
+      "configuration": "default",
+      "optimization": "O2",
+      "run_id": "f7c6d08a-95ed-4385-aa11-a91512b897ea",
+      "stripping": "stripped",
+      "target": "x86_64-linux-gnu"
+    },
+    "version": "2026-11-17"
+  },
+  "limits": [
+    "Linear objdump decoding can interpret embedded data as instructions; not control-flow reachability.",
+    "Mnemonic counts are decoder evidence, not complete ISA-extension classification or semantic support.",
+    "Imports do not demonstrate runtime use; static linking, indirect calls and inline syscalls can hide dependencies.",
+    "Absent import matches or syscall sites do not establish absence of a feature or dependency.",
+    "Syscall numbers, indirect targets, signal behavior, vDSO use and runtime effects remain unknown."
+  ],
+  "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/stripped/libref_x25519.so",
+  "relocations": {
+    "R_X86_64_GLOB_DAT": 4,
+    "R_X86_64_JUMP_SLOT": 13,
+    "R_X86_64_RELATIVE": 3
+  },
+  "schema_version": 1,
+  "sha256": "c762af36be4b02e572f6692f3c403464c93c012ddc183c61059fa5d0903583da",
+  "tools": {
+    "objdump": "GNU objdump (GNU Binutils for Debian) 2.44",
+    "readelf": "GNU readelf (GNU Binutils for Debian) 2.44"
+  }
+}

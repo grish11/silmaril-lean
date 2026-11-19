@@ -1,0 +1,21 @@
+name = "tinycc"
+version = "0.9.27"
+category = "C compiler (TinyCC)"
+summary = "TinyCC (Tiny C Compiler) 0.9.27, the latest release, built with its own ./configure + make: the tcc compiler driver with libtcc linked in, targeting the architecture it runs on (x86-64, or AArch64 cross-built)."
+license = "LGPL-2.1-or-later"
+license_files = ["upstream/tcc-0.9.27/COPYING"]
+homepage = "https://bellard.org/tcc/"
+
+[[archive]]
+url = "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2"
+sha256 = "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+root = "tcc-0.9.27"
+retrieved = "2026-11-17"
+notes = "savannah publishes no .sig for this release (404); pinned by sha256 only."
+
+[[object]]
+name = "tcc"
+kind = "exe"
+sources = ["upstream/tcc-0.9.27/tcc.c", "upstream/tcc-0.9.27/libtcc.c", "upstream/tcc-0.9.27/tccpp.c", "upstream/tcc-0.9.27/tccgen.c", "upstream/tcc-0.9.27/tccelf.c", "upstream/tcc-0.9.27/tccasm.c", "upstream/tcc-0.9.27/tccrun.c", "x86_64: x86_64-gen.c x86_64-link.c i386-asm.c; aarch64: arm64-gen.c arm64-link.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/tinycc=. -MMD plus configure's warning flags; ONE_SOURCE=0 (exact lines: receipt.json)"
+notes = "make tcc only: libtcc1.a (tcc's runtime support library, compiled by tcc itself) is not built; the test links tcc's object output with gcc instead."

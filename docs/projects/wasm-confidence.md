@@ -290,4 +290,3 @@ Prioritized plan for the WAST bridge:
 3. **The `ModuleOk` ↔ SpecTec validation bridge**, then `Task.wholeStep` (§7.1): the rows are
    about `Execution.Core`, not yet about the transcribed specification.
 4. **Allowed-set rows beyond straight-line floats** and the remaining spec files.
-

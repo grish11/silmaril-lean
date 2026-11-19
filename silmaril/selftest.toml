@@ -49,9 +49,24 @@ children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.self
   "silmaril.selftest.open",
   "silmaril.selftest.hello.six", "silmaril.selftest.square", "silmaril.selftest.hello.six_row",
   "silmaril.selftest.formats", "silmaril.shapes", "silmaril.sysv_tv.max2",
-  "silmaril.compiles_to.all", "silmaril.selftest.languages", "formats.examples",
+  "silmaril.compiles_to.all", "silmaril.compiler_explorer.all", "silmaril.selftest.languages",
+  "formats.examples",
   "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors",
-  "silmaril.elf.cli", "silmaril.wasm_wast"]
+  "silmaril.elf.cli", "containers", "silmaril.wasm_wast"]
+
+# The container shapes and the instances over the minimal machine (docs/projects/containers.md).
+[[group]]
+name = "containers"
+title = "Containers: verified obligations (no undefined behaviour) over runtime models"
+children = ["silmaril.shapes.containers.vpre", "silmaril.shapes.containers.wlp",
+  "silmaril.shapes.containers.wp", "silmaril.shapes.containers.vsufficient",
+  "silmaril.shapes.containers.checker_sound", "silmaril.shapes.containers.preserves_ub",
+  "silmaril.shapes.containers.seq_agrees", "silmaril.shapes.containers.monitor_correct",
+  "containers.mini.hello_wp", "containers.mini.thread_spawn_wlp",
+  "containers.mini.thread_spawn_wlp_assume_no_ub", "containers.mini.tcp_then_thread_wlp_enforce",
+  "containers.mini.no_ub_check_sound", "containers.mini.restrict_preserves_ub",
+  "containers.monitor_correct_stdio", "containers.mini.vsys_sound_raw",
+  "containers.mini.raw_sound_vsys", "containers.mini.check_sound_vsys", "containers.noop.oci_wp"]
 
 [[group]]
 name = "silmaril.selftest.formats"
@@ -75,6 +90,9 @@ children = ["silmaril.shapes.format.parses", "silmaril.shapes.format.agree",
   "silmaril.shapes.c.compiles_to.builds", "silmaril.shapes.c.compiles_to.point",
   "silmaril.shapes.c.compiles_to.segment", "silmaril.shapes.c.compiles_to.segment_from_c",
   "silmaril.shapes.c.compiles_to.canonical_entry",
+  "silmaril.shapes.compiler_explorer.c.translation", "silmaril.shapes.compiler_explorer.c.nonvacuous",
+  "silmaril.shapes.compiler_explorer.c.edge", "silmaril.shapes.compiler_explorer.c.mapping",
+  "silmaril.shapes.compiler_explorer.c.refines_location",
   "silmaril.shapes.machine.reach", "silmaril.shapes.machine.reach_set",
   "silmaril.shapes.machine.simulates", "silmaril.shapes.machine.bisimilar",
   "silmaril.shapes.machine.sat", "silmaril.shapes.machine.json.reach",

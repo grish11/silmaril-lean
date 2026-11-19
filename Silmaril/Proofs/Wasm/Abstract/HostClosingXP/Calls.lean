@@ -85,7 +85,7 @@ theorem wpl_ans_throw {t : Nat} {rest : List Admin} {pre : List Val} :
   wpl_matchP (wpl_of_wp (wp_throwing ⟨rfl, rfl, rfl⟩))
 
 /-- **A call answered by returned values.** -/
-theorem coreLP_callRet (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem coreLP_callRet (hH : HostSliceT host) (hE : HostSliceE tags host)
     (aha : ArityGoodE (ehExt tags) s f stk args (s₁, f₁, .normal stk₁) true)
     (iha : CoreLP tags P host s f stk args (s₁, f₁, .flow (.normal stk₁)) q₁)
     (hfi : s₁.func? f₁ x = some (a, fi)) (hty : Validation.DefType.funcType? fi.type = some (ps, rs))
@@ -139,7 +139,7 @@ theorem coreLP_callThrow {t : Nat}
   exact wpl_append_normal (iha hS ha) (wpl_evRun st wpl_ans_throw)
 
 /-- **An indirect or reference call answered by returned values.** -/
-theorem coreLP_irRet {top : Val} (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem coreLP_irRet {top : Val} (hH : HostSliceT host) (hE : HostSliceE tags host)
     (hi : (∃ x, i = .callIndirect x y) ∨ i = .callRef y)
     (aha : ArityGoodE (ehExt tags) s f stk args (s₁, f₁, .normal (top :: stk₁)) true)
     (iha : CoreLP tags P host s f stk args (s₁, f₁, .flow (.normal (top :: stk₁))) q₁)

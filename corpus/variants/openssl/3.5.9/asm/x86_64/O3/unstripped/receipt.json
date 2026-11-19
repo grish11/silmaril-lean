@@ -1,0 +1,302 @@
+{
+  "package": "openssl",
+  "version": "3.5.9",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O3 -g0 -ffile-prefix-map=/build/openssl=. (replaces Configure's default -O3; Configure adds -fPIC/-pthread/-m64 etc.: see command lines)",
+  "ldflags": "",
+  "configure_args": "./Configure linux-x86_64 shared no-tests --prefix=/usr/local --openssldir=/usr/local/ssl --libdir=lib CFLAGS=-O3 -g0 -ffile-prefix-map=/build/openssl=.",
+  "build_commands": [
+    "gcc  -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include  -DAES_ASM -DBSAES_ASM -DCMLL_ASM -DECP_NISTZ256_ASM -DGHASH_ASM -DKECCAK1600_ASM -DMD5_ASM -DOPENSSL_BN_ASM_GF2m -DOPENSSL_BN_ASM_MONT -DOPENSSL_BN_ASM_MONT5 -DOPENSSL_CPUID_OBJ -DOPENSSL_IA32_SSE2 -DPOLY1305_ASM -DRC4_ASM -DSHA1_ASM -DSHA256_ASM -DSHA512_ASM -DVPAES_ASM -DWHIRLPOOL_ASM -DX25519_ASM -fPIC -pthread -m64 -Wa,--noexecstack -O3 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DL_ENDIAN -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -MMD -MF crypto/libcrypto-shlib-cryptlib.d.tmp -c -o crypto/libcrypto-shlib-cryptlib.o crypto/cryptlib.c",
+    "gcc -fPIC -pthread -m64 -Wa,--noexecstack -O3 -g0 -ffile-prefix-map=/build/openssl=. -Wl,-znodelete -shared -Wl,-Bsymbolic -Wl,-soname=libcrypto.so.3 -o libcrypto.so.3 -Wl,--version-script=libcrypto.ld crypto/aes/libcrypto-shlib-aes-x86_64.o crypto/aes/libcrypto-shlib-aes_cfb.o crypto/aes/libcrypto-shlib-aes_ecb.o ",
+    "gcc -fPIC -pthread -m64 -Wa,--noexecstack -O3 -g0 -ffile-prefix-map=/build/openssl=. -L. -Wl,-znodelete -shared -Wl,-Bsymbolic -Wl,-soname=libssl.so.3 -o libssl.so.3 -Wl,--version-script=libssl.ld crypto/hashtable/libssl-shlib-hashfunc.o crypto/libssl-shlib-ctype.o crypto/libssl-shlib-getenv.o crypto/libssl-shlib-packet.o ",
+    "${LDCMD:-gcc} -pthread -m64 -Wa,--noexecstack -O3 -g0 -ffile-prefix-map=/build/openssl=. -L. -o apps/openssl apps/lib/openssl-bin-cmp_mock_srv.o apps/openssl-bin-asn1parse.o apps/openssl-bin-ca.o apps/openssl-bin-ciphers.o apps/openssl-bin-cmp.o "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/openssl",
+  "inputs": [
+    {
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libcrypto.so.3",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O3/unstripped/libcrypto.so.3",
+      "size": 7209168,
+      "sha256": "a21d838d61aac186ef0e0c7c7f733c32bae2c8b9592533abfc1ab61fb454aeeb",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 12811,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libssl.so.3",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O3/unstripped/libssl.so.3",
+      "size": 1266440,
+      "sha256": "8e5cb5bac1e3bacbf4ff3c37258b00a2dae4b1b12f0e700580cab3803c50e11e",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 2429,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "openssl",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O3/unstripped/openssl",
+      "size": 1250536,
+      "sha256": "6b1b80898c4bc7bc96af07ea670225a566a71b7cdd88227217ade407af33dae9",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 571,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs",
+  "tests": [
+    {
+      "command": "openssl version",
+      "result": "pass: OpenSSL 3.5.9"
+    },
+    {
+      "command": "openssl version -f (compiler flags baked in)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "printf abc | openssl dgst -sha256 -r",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad *stdin"
+    },
+    {
+      "command": "printf abc | openssl dgst -sha3-256 -r",
+      "result": "pass: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532 *stdin"
+    },
+    {
+      "command": "printf abc | openssl dgst -blake2b512 -r",
+      "result": "pass: ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923 *stdin"
+    },
+    {
+      "command": "openssl enc -aes-128-ecb -K 000102..0f -nopad (FIPS 197 C.1)",
+      "result": "pass: 69c4e0d86a7b0430d8cdb78070b4c55a"
+    },
+    {
+      "command": "openssl enc -aes-256-cbc -pbkdf2 encrypt + decrypt round trip (5000 random bytes)",
+      "result": "pass: ok"
+    },
+    {
+      "command": "openssl genpkey ED25519; pkeyutl -sign; pkeyutl -verify",
+      "result": "pass: Signature Verified Successfully"
+    },
+    {
+      "command": "openssl req -x509 (self-signed P-256 cert) | x509 -noout -subject",
+      "result": "pass: subject=CN=localhost"
+    },
+    {
+      "command": "openssl s_server -tls1_3 -rev / openssl s_client 127.0.0.1:18443: protocol, verify, reversed reply",
+      "result": "pass: TLSv1.3|Verify return code: 0 (ok)|gnip"
+    },
+    {
+      "command": "s_client transcript (selected lines)",
+      "result": "subject=CN=localhost|New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384|Protocol: TLSv1.3|Verify return code: 0 (ok)|gnip|    Protocol  : TLSv1.3|    Verify return code: 0 (ok)|    Protocol  : TLSv1.3|"
+    }
+  ],
+  "variant": {
+    "optimization": "O3",
+    "stripping": "unstripped",
+    "configuration": "asm",
+    "run_id": "0b06ea28-f637-46ee-b13e-1b0188bf85d8",
+    "target": "x86_64-linux-gnu"
+  },
+  "container_pool": {
+    "pool_id": "8ee45463-c0fb-483c-be86-01ce599dac7f",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T00:07:50.663981+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "adb8bdfeb13b66004dfa41e6bc83e744e7bd120f98534e1a26011e1b81dc43db",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/openssl/pool-774580e0-247e-4c87-9a17-f5f759cc2e88/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T00:07:50.778802+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "9e4ec4c0c2757e7c02ccb520a5636a79526427e2a5eebcf8c48987ced1623ee4",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/openssl/pool-774580e0-247e-4c87-9a17-f5f759cc2e88/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T00:07:50.973454+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/openssl/3.5.9/asm/x86_64/O3",
+        "sequence": 16,
+        "started_utc": "2026-11-18T01:36:59.402260+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T01:42:12.394443+00:00"
+      }
+    ],
+    "controller_reconnections": [
+      {
+        "utc": "2026-11-18T00:42:57.496292+00:00",
+        "profile": "corpus/variants/openssl/3.5.9/no-asm/aarch64/O3",
+        "reason": "previous host controller ended; existing idle workers preserved",
+        "validation": "image, exact mounts, limits, isolation, idle processes and whole package locks rechecked",
+        "strategy": "verify two successful measured builds; rerun all stripping, runtime tests, receipts and census",
+        "controller": {
+          "revision": "3a36752640a43a12f51cf520990206406c2851a5",
+          "hashes": {
+            "scripts/corpus/variants.py": "fbe02fb896c58fc36f9594435b218bc913d415501a6e058715e5e39beeb2b629",
+            "scripts/corpus/container_pool.py": "f0afbb6c2f706d4a401e7145288e04b2b97ff9c9550a3870d8fa5de2d547e4ea"
+          }
+        }
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "openssl version",
+      "result": "pass: OpenSSL 3.5.9"
+    },
+    {
+      "command": "openssl version -f (compiler flags baked in)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "printf abc | openssl dgst -sha256 -r",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad *stdin"
+    },
+    {
+      "command": "printf abc | openssl dgst -sha3-256 -r",
+      "result": "pass: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532 *stdin"
+    },
+    {
+      "command": "printf abc | openssl dgst -blake2b512 -r",
+      "result": "pass: ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923 *stdin"
+    },
+    {
+      "command": "openssl enc -aes-128-ecb -K 000102..0f -nopad (FIPS 197 C.1)",
+      "result": "pass: 69c4e0d86a7b0430d8cdb78070b4c55a"
+    },
+    {
+      "command": "openssl enc -aes-256-cbc -pbkdf2 encrypt + decrypt round trip (5000 random bytes)",
+      "result": "pass: ok"
+    },
+    {
+      "command": "openssl genpkey ED25519; pkeyutl -sign; pkeyutl -verify",
+      "result": "pass: Signature Verified Successfully"
+    },
+    {
+      "command": "openssl req -x509 (self-signed P-256 cert) | x509 -noout -subject",
+      "result": "pass: subject=CN=localhost"
+    },
+    {
+      "command": "openssl s_server -tls1_3 -rev / openssl s_client 127.0.0.1:18443: protocol, verify, reversed reply",
+      "result": "pass: TLSv1.3|Verify return code: 0 (ok)|gnip"
+    },
+    {
+      "command": "s_client transcript (selected lines)",
+      "result": "subject=CN=localhost|New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384|Protocol: TLSv1.3|Verify return code: 0 (ok)|gnip|    Protocol  : TLSv1.3|    Verify return code: 0 (ok)|    Protocol  : TLSv1.3|"
+    }
+  ]
+}

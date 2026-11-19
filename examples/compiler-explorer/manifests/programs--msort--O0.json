@@ -1,0 +1,1759 @@
+{
+  "artifacts": {
+    "receipt": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/msort/O0/RECEIPT.json",
+      "sha256": "5e38905427a7862c8f07bf3bfd4b1289ceac866399be6c9f8ada3dde5948db72",
+      "size": 931
+    },
+    "run": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/builds/msort/O0/run.json",
+      "sha256": "f20082b542af75bc00ae1677ab360d9d41dd21431f37ec50128518c9c1fd59ec",
+      "size": 433
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/programs/msort.c",
+      "sha256": "d48b0e6ea33321d880bf0d852707aea394e90a3f52ae46950951100ee8bb4e18",
+      "size": 767
+    },
+    "target": {
+      "media": "text/x-asm",
+      "path": "examples/compiler-explorer/builds/msort/O0/msort.s",
+      "sha256": "77724ecced5a446cfe814edf6facf757ebd1217defaeb06c142fb7d0b50bf8a0",
+      "size": 12963
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": {
+    "command": "gcc -O0 -g -S -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=. msort.c -o msort.s",
+    "compiler": "gcc",
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "kind": "compiler",
+    "opt": "O0",
+    "receipt": "receipt",
+    "target": "x86_64-linux-gnu",
+    "version": "gcc (GCC) 13.3.0"
+  },
+  "direction": "compiled",
+  "edges": [
+    {
+      "function": "main",
+      "id": "nav/main/28",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "b2932aa3088198fdc14f"
+      ],
+      "target": [
+        "a6826d5649f22b34bba4"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/29",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "df59dd50e67425720152"
+      ],
+      "target": [
+        "24c8df50640245a162f2"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/31",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "6fd4b16ee6783ac696ca"
+      ],
+      "target": [
+        "9e12aeec01fc0272b1f1"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/32",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "54d461ad5a21585c0f12"
+      ],
+      "target": [
+        "bc24f6d1629c1d396f51"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/33",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "91b37768954bd353be84"
+      ],
+      "target": [
+        "98cd769d26523b539e0b"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/34",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "a5b2c849caad8be413ab"
+      ],
+      "target": [
+        "eda11fea4b4adc8defa2"
+      ]
+    },
+    {
+      "function": "main",
+      "id": "nav/main/35",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "bc7b0c9fa39d172bd588"
+      ],
+      "target": [
+        "8d7876bd248ddc90cbe1"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/5",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "b44f41f60fc186e57d68"
+      ],
+      "target": [
+        "1cfc43a779c1bc396d6c"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/6",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "5a4651798633db6f6c82"
+      ],
+      "target": [
+        "bce2a80d1a92ad617466"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/7",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "1d4e08de0870b870b740"
+      ],
+      "target": [
+        "586fff20ec2498a3fa7c"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/8",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "9c5e7bcfca6f27c4ada2"
+      ],
+      "target": [
+        "3ceb7d80e549ec5f90bc"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/9",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "1ac416c3652a3945de7b"
+      ],
+      "target": [
+        "cf7c1d0d183b6a7f65c7"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/10",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "9812e9988a4bebde7a4a"
+      ],
+      "target": [
+        "e9fd0cafa30056663945"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/11",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "61a29fec8857bc62e679"
+      ],
+      "target": [
+        "d93cb6e573da6ca15a8a"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/12",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "bfe7ee24de77319522f0"
+      ],
+      "target": [
+        "1d38caea4088068ab1fc"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/13",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "a4697ff4ea28b295845f"
+      ],
+      "target": [
+        "c5c64e79c8aec1cee114"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/14",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "2f1ae995a05e30ef540f"
+      ],
+      "target": [
+        "2a2fa8b61785f0e4a35b"
+      ]
+    },
+    {
+      "function": "merge",
+      "id": "nav/merge/15",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "63a207644449e9a8541e"
+      ],
+      "target": [
+        "4b76383687e49779df3e"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/18",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "8311f2203eefc619b8d3"
+      ],
+      "target": [
+        "260ca4448845ed5b7e36"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/19",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "fe102d5a54c7b0d9cc60"
+      ],
+      "target": [
+        "fb19a989f1f211fa3562"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/20",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "45fea01e0e865f8ba163"
+      ],
+      "target": [
+        "a4fdbf54a54129573f29"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/21",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "ee6df6911f62e52ba32c"
+      ],
+      "target": [
+        "99ac8c082542343f882b"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/22",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "68e1498452eab58041e0"
+      ],
+      "target": [
+        "03c42f390917b0108715"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/23",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "b9ca904c918ea41f06b6"
+      ],
+      "target": [
+        "82737d7096b4bfbbbac6"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/24",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "e93e5f61248a0f110adc"
+      ],
+      "target": [
+        "9f228189b4b223e234a9"
+      ]
+    },
+    {
+      "function": "msort",
+      "id": "nav/msort/25",
+      "kind": "navigation",
+      "origin": "dwarf-loc",
+      "source": [
+        "4664e9a643e340ff9565"
+      ],
+      "target": [
+        "545bfc822b7f2483eb17"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "target",
+      "id": "03c42f390917b0108715",
+      "label": "msort: 6 instruction(s) of line 22",
+      "ranges": [
+        [
+          3964,
+          3984
+        ],
+        [
+          3985,
+          4006
+        ],
+        [
+          4007,
+          4028
+        ],
+        [
+          4029,
+          4050
+        ],
+        [
+          4051,
+          4067
+        ],
+        [
+          4068,
+          4079
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "1ac416c3652a3945de7b",
+      "label": "line 9",
+      "ranges": [
+        [
+          257,
+          274
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "1cfc43a779c1bc396d6c",
+      "label": "merge: 7 instruction(s) of line 5",
+      "ranges": [
+        [
+          169,
+          180
+        ],
+        [
+          225,
+          241
+        ],
+        [
+          267,
+          288
+        ],
+        [
+          289,
+          310
+        ],
+        [
+          311,
+          332
+        ],
+        [
+          333,
+          354
+        ],
+        [
+          355,
+          376
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "1d38caea4088068ab1fc",
+      "label": "merge: 16 instruction(s) of line 12",
+      "ranges": [
+        [
+          2289,
+          2309
+        ],
+        [
+          2310,
+          2329
+        ],
+        [
+          2330,
+          2350
+        ],
+        [
+          2351,
+          2356
+        ],
+        [
+          2371,
+          2393
+        ],
+        [
+          2394,
+          2415
+        ],
+        [
+          2416,
+          2439
+        ],
+        [
+          2454,
+          2475
+        ],
+        [
+          2476,
+          2495
+        ],
+        [
+          2496,
+          2517
+        ],
+        [
+          2518,
+          2523
+        ],
+        [
+          2537,
+          2559
+        ],
+        [
+          2560,
+          2581
+        ],
+        [
+          2582,
+          2598
+        ],
+        [
+          2613,
+          2631
+        ],
+        [
+          2646,
+          2664
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "1d4e08de0870b870b740",
+      "label": "line 7",
+      "ranges": [
+        [
+          180,
+          207
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "24c8df50640245a162f2",
+      "label": "main: 8 instruction(s) of line 29",
+      "ranges": [
+        [
+          4756,
+          4775
+        ],
+        [
+          4776,
+          4795
+        ],
+        [
+          4796,
+          4815
+        ],
+        [
+          4816,
+          4835
+        ],
+        [
+          4836,
+          4855
+        ],
+        [
+          4856,
+          4875
+        ],
+        [
+          4876,
+          4895
+        ],
+        [
+          4896,
+          4915
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "260ca4448845ed5b7e36",
+      "label": "msort: 7 instruction(s) of line 18",
+      "ranges": [
+        [
+          3430,
+          3441
+        ],
+        [
+          3486,
+          3502
+        ],
+        [
+          3528,
+          3543
+        ],
+        [
+          3544,
+          3565
+        ],
+        [
+          3566,
+          3587
+        ],
+        [
+          3588,
+          3609
+        ],
+        [
+          3610,
+          3631
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "2a2fa8b61785f0e4a35b",
+      "label": "merge: 12 instruction(s) of line 14",
+      "ranges": [
+        [
+          2837,
+          2858
+        ],
+        [
+          2859,
+          2864
+        ],
+        [
+          2865,
+          2887
+        ],
+        [
+          2888,
+          2909
+        ],
+        [
+          2910,
+          2926
+        ],
+        [
+          2940,
+          2961
+        ],
+        [
+          2962,
+          2980
+        ],
+        [
+          2981,
+          3003
+        ],
+        [
+          3004,
+          3025
+        ],
+        [
+          3026,
+          3042
+        ],
+        [
+          3057,
+          3075
+        ],
+        [
+          3090,
+          3108
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "2f1ae995a05e30ef540f",
+      "label": "line 14",
+      "ranges": [
+        [
+          366,
+          384
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "3ceb7d80e549ec5f90bc",
+      "label": "merge: 39 instruction(s) of line 8",
+      "ranges": [
+        [
+          584,
+          604
+        ],
+        [
+          605,
+          610
+        ],
+        [
+          611,
+          633
+        ],
+        [
+          634,
+          655
+        ],
+        [
+          656,
+          672
+        ],
+        [
+          673,
+          691
+        ],
+        [
+          705,
+          725
+        ],
+        [
+          726,
+          731
+        ],
+        [
+          732,
+          754
+        ],
+        [
+          755,
+          776
+        ],
+        [
+          777,
+          793
+        ],
+        [
+          794,
+          812
+        ],
+        [
+          826,
+          842
+        ],
+        [
+          843,
+          850
+        ],
+        [
+          880,
+          900
+        ],
+        [
+          901,
+          920
+        ],
+        [
+          921,
+          941
+        ],
+        [
+          942,
+          947
+        ],
+        [
+          977,
+          999
+        ],
+        [
+          1000,
+          1021
+        ],
+        [
+          1022,
+          1038
+        ],
+        [
+          1068,
+          1086
+        ],
+        [
+          1087,
+          1095
+        ],
+        [
+          1130,
+          1150
+        ],
+        [
+          1151,
+          1170
+        ],
+        [
+          1171,
+          1191
+        ],
+        [
+          1192,
+          1197
+        ],
+        [
+          1227,
+          1249
+        ],
+        [
+          1250,
+          1271
+        ],
+        [
+          1272,
+          1288
+        ],
+        [
+          1318,
+          1336
+        ],
+        [
+          1371,
+          1392
+        ],
+        [
+          1393,
+          1412
+        ],
+        [
+          1413,
+          1434
+        ],
+        [
+          1435,
+          1453
+        ],
+        [
+          1482,
+          1504
+        ],
+        [
+          1505,
+          1526
+        ],
+        [
+          1527,
+          1543
+        ],
+        [
+          1573,
+          1591
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "45fea01e0e865f8ba163",
+      "label": "line 20",
+      "ranges": [
+        [
+          454,
+          465
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "4664e9a643e340ff9565",
+      "label": "line 25",
+      "ranges": [
+        [
+          580,
+          581
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "4b76383687e49779df3e",
+      "label": "merge: 4 instruction(s) of line 15",
+      "ranges": [
+        [
+          3261,
+          3265
+        ],
+        [
+          3266,
+          3270
+        ],
+        [
+          3271,
+          3281
+        ],
+        [
+          3301,
+          3305
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "545bfc822b7f2483eb17",
+      "label": "msort: 2 instruction(s) of line 25",
+      "ranges": [
+        [
+          4430,
+          4436
+        ],
+        [
+          4456,
+          4460
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "54d461ad5a21585c0f12",
+      "label": "line 32",
+      "ranges": [
+        [
+          676,
+          705
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "586fff20ec2498a3fa7c",
+      "label": "merge: 7 instruction(s) of line 7",
+      "ranges": [
+        [
+          557,
+          565
+        ],
+        [
+          1610,
+          1630
+        ],
+        [
+          1631,
+          1652
+        ],
+        [
+          1653,
+          1661
+        ],
+        [
+          1701,
+          1721
+        ],
+        [
+          1722,
+          1743
+        ],
+        [
+          1744,
+          1751
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "5a4651798633db6f6c82",
+      "label": "line 6",
+      "ranges": [
+        [
+          149,
+          179
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "61a29fec8857bc62e679",
+      "label": "line 11",
+      "ranges": [
+        [
+          298,
+          314
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "63a207644449e9a8541e",
+      "label": "line 15",
+      "ranges": [
+        [
+          385,
+          386
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "68e1498452eab58041e0",
+      "label": "line 22",
+      "ranges": [
+        [
+          498,
+          523
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "6fd4b16ee6783ac696ca",
+      "label": "line 31",
+      "ranges": [
+        [
+          653,
+          675
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "82737d7096b4bfbbbac6",
+      "label": "msort: 6 instruction(s) of line 23",
+      "ranges": [
+        [
+          4093,
+          4114
+        ],
+        [
+          4115,
+          4135
+        ],
+        [
+          4136,
+          4157
+        ],
+        [
+          4158,
+          4179
+        ],
+        [
+          4180,
+          4196
+        ],
+        [
+          4197,
+          4208
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "8311f2203eefc619b8d3",
+      "label": "line 18",
+      "ranges": [
+        [
+          433,
+          434
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "8d7876bd248ddc90cbe1",
+      "label": "main: 2 instruction(s) of line 35",
+      "ranges": [
+        [
+          5586,
+          5592
+        ],
+        [
+          5612,
+          5616
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "91b37768954bd353be84",
+      "label": "line 33",
+      "ranges": [
+        [
+          706,
+          752
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "9812e9988a4bebde7a4a",
+      "label": "line 10",
+      "ranges": [
+        [
+          275,
+          297
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "98cd769d26523b539e0b",
+      "label": "main: 12 instruction(s) of line 33",
+      "ranges": [
+        [
+          5114,
+          5132
+        ],
+        [
+          5133,
+          5142
+        ],
+        [
+          5182,
+          5197
+        ],
+        [
+          5198,
+          5207
+        ],
+        [
+          5243,
+          5258
+        ],
+        [
+          5294,
+          5314
+        ],
+        [
+          5315,
+          5320
+        ],
+        [
+          5321,
+          5349
+        ],
+        [
+          5350,
+          5366
+        ],
+        [
+          5367,
+          5384
+        ],
+        [
+          5385,
+          5399
+        ],
+        [
+          5400,
+          5412
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "99ac8c082542343f882b",
+      "label": "msort: 10 instruction(s) of line 21",
+      "ranges": [
+        [
+          3742,
+          3763
+        ],
+        [
+          3764,
+          3785
+        ],
+        [
+          3800,
+          3816
+        ],
+        [
+          3817,
+          3832
+        ],
+        [
+          3833,
+          3849
+        ],
+        [
+          3850,
+          3860
+        ],
+        [
+          3861,
+          3877
+        ],
+        [
+          3891,
+          3912
+        ],
+        [
+          3913,
+          3929
+        ],
+        [
+          3930,
+          3950
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "9c5e7bcfca6f27c4ada2",
+      "label": "line 8",
+      "ranges": [
+        [
+          208,
+          256
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "9e12aeec01fc0272b1f1",
+      "label": "main: 6 instruction(s) of line 31",
+      "ranges": [
+        [
+          4929,
+          4950
+        ],
+        [
+          4951,
+          4972
+        ],
+        [
+          4973,
+          4987
+        ],
+        [
+          4988,
+          5002
+        ],
+        [
+          5003,
+          5019
+        ],
+        [
+          5020,
+          5031
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "9f228189b4b223e234a9",
+      "label": "msort: 9 instruction(s) of line 24",
+      "ranges": [
+        [
+          4222,
+          4243
+        ],
+        [
+          4244,
+          4264
+        ],
+        [
+          4265,
+          4286
+        ],
+        [
+          4287,
+          4308
+        ],
+        [
+          4309,
+          4330
+        ],
+        [
+          4331,
+          4347
+        ],
+        [
+          4348,
+          4364
+        ],
+        [
+          4365,
+          4376
+        ],
+        [
+          4377,
+          4386
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "a4697ff4ea28b295845f",
+      "label": "line 13",
+      "ranges": [
+        [
+          338,
+          365
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "a4fdbf54a54129573f29",
+      "label": "msort: 1 instruction(s) of line 20",
+      "ranges": [
+        [
+          4406,
+          4410
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "a5b2c849caad8be413ab",
+      "label": "line 34",
+      "ranges": [
+        [
+          753,
+          764
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "a6826d5649f22b34bba4",
+      "label": "main: 3 instruction(s) of line 28",
+      "ranges": [
+        [
+          4629,
+          4640
+        ],
+        [
+          4685,
+          4701
+        ],
+        [
+          4727,
+          4742
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "b2932aa3088198fdc14f",
+      "label": "line 28",
+      "ranges": [
+        [
+          598,
+          599
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "b44f41f60fc186e57d68",
+      "label": "line 5",
+      "ranges": [
+        [
+          147,
+          148
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "b9ca904c918ea41f06b6",
+      "label": "line 23",
+      "ranges": [
+        [
+          524,
+          549
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "bc24f6d1629c1d396f51",
+      "label": "main: 5 instruction(s) of line 32",
+      "ranges": [
+        [
+          5053,
+          5071
+        ],
+        [
+          5085,
+          5094
+        ],
+        [
+          5453,
+          5471
+        ],
+        [
+          5508,
+          5526
+        ],
+        [
+          5527,
+          5536
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "bc7b0c9fa39d172bd588",
+      "label": "line 35",
+      "ranges": [
+        [
+          765,
+          766
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "bce2a80d1a92ad617466",
+      "label": "merge: 6 instruction(s) of line 6",
+      "ranges": [
+        [
+          389,
+          410
+        ],
+        [
+          411,
+          431
+        ],
+        [
+          445,
+          466
+        ],
+        [
+          467,
+          487
+        ],
+        [
+          501,
+          522
+        ],
+        [
+          523,
+          544
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "bfe7ee24de77319522f0",
+      "label": "line 12",
+      "ranges": [
+        [
+          315,
+          337
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "c5c64e79c8aec1cee114",
+      "label": "merge: 7 instruction(s) of line 13",
+      "ranges": [
+        [
+          2750,
+          2771
+        ],
+        [
+          2772,
+          2793
+        ],
+        [
+          2807,
+          2816
+        ],
+        [
+          3139,
+          3158
+        ],
+        [
+          3195,
+          3216
+        ],
+        [
+          3217,
+          3238
+        ],
+        [
+          3239,
+          3247
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "cf7c1d0d183b6a7f65c7",
+      "label": "merge: 4 instruction(s) of line 9",
+      "ranges": [
+        [
+          1774,
+          1782
+        ],
+        [
+          2196,
+          2216
+        ],
+        [
+          2217,
+          2238
+        ],
+        [
+          2239,
+          2246
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "d93cb6e573da6ca15a8a",
+      "label": "merge: 4 instruction(s) of line 11",
+      "ranges": [
+        [
+          2260,
+          2268
+        ],
+        [
+          2684,
+          2704
+        ],
+        [
+          2705,
+          2726
+        ],
+        [
+          2727,
+          2735
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "df59dd50e67425720152",
+      "label": "line 29",
+      "ranges": [
+        [
+          600,
+          638
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "e93e5f61248a0f110adc",
+      "label": "line 24",
+      "ranges": [
+        [
+          550,
+          579
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "e9fd0cafa30056663945",
+      "label": "merge: 16 instruction(s) of line 10",
+      "ranges": [
+        [
+          1802,
+          1822
+        ],
+        [
+          1823,
+          1842
+        ],
+        [
+          1843,
+          1863
+        ],
+        [
+          1864,
+          1869
+        ],
+        [
+          1884,
+          1906
+        ],
+        [
+          1907,
+          1928
+        ],
+        [
+          1929,
+          1952
+        ],
+        [
+          1967,
+          1988
+        ],
+        [
+          1989,
+          2008
+        ],
+        [
+          2009,
+          2030
+        ],
+        [
+          2031,
+          2036
+        ],
+        [
+          2050,
+          2072
+        ],
+        [
+          2073,
+          2094
+        ],
+        [
+          2095,
+          2111
+        ],
+        [
+          2126,
+          2144
+        ],
+        [
+          2159,
+          2177
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "eda11fea4b4adc8defa2",
+      "label": "main: 1 instruction(s) of line 34",
+      "ranges": [
+        [
+          5558,
+          5572
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "ee6df6911f62e52ba32c",
+      "label": "line 21",
+      "ranges": [
+        [
+          466,
+          497
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "target",
+      "id": "fb19a989f1f211fa3562",
+      "label": "msort: 4 instruction(s) of line 19",
+      "ranges": [
+        [
+          3646,
+          3667
+        ],
+        [
+          3668,
+          3689
+        ],
+        [
+          3703,
+          3717
+        ],
+        [
+          3718,
+          3727
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "fe102d5a54c7b0d9cc60",
+      "label": "line 19",
+      "ranges": [
+        [
+          435,
+          453
+        ]
+      ],
+      "space": "bytes"
+    }
+  ],
+  "id": "programs/msort/O0",
+  "lean": {
+    "family": null,
+    "modules": []
+  },
+  "navigation_stats": {
+    "instructions_from_other_files": {},
+    "unattributed_instructions": 0
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "translation",
+      "kind": "translation",
+      "statement": null,
+      "unsupported": "no source semantics in Lean covers this program: the C elaborator of Silmaril.Project.CompilesTo has no loops, calls, pointers, floating point or I/O, and no x86 model here covers the linked program with glibc"
+    },
+    {
+      "decl": null,
+      "id": "abi",
+      "kind": "abi",
+      "statement": null,
+      "unsupported": "no ABI statement is attempted for this program"
+    },
+    {
+      "decl": null,
+      "id": "nonvacuity",
+      "kind": "nonvacuity",
+      "statement": null,
+      "unsupported": "no translation is stated, so there is nothing to be vacuous"
+    },
+    {
+      "decl": null,
+      "id": "mapping",
+      "kind": "mapping",
+      "statement": null,
+      "unsupported": "no semantic mapping: only the compiler's debug line table"
+    },
+    {
+      "decl": null,
+      "id": "refinement",
+      "kind": "refinement",
+      "statement": null,
+      "unsupported": "no comorphism relation is generated for this program"
+    }
+  ],
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "tests": [
+    {
+      "about": "target",
+      "artifact": "run",
+      "expected_stdout": "1 2 3 4 5 6 7 8\n",
+      "id": "run",
+      "kind": "execution"
+    }
+  ],
+  "title": "msort.c, gcc 13.3.0 -O0 (assembly)",
+  "view": {
+    "source": "source",
+    "target": "target"
+  }
+}

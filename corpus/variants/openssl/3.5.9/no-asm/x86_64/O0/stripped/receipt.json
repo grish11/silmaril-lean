@@ -1,0 +1,116 @@
+{
+  "package": "openssl",
+  "version": "3.5.9",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O0 -g0 -ffile-prefix-map=/build/openssl=. (replaces Configure's default -O3; Configure adds -fPIC/-pthread/-m64 etc.: see command lines)",
+  "ldflags": "",
+  "configure_args": "./Configure linux-x86_64 no-asm shared no-tests --prefix=/usr/local --openssldir=/usr/local/ssl --libdir=lib CFLAGS=-O0 -g0 -ffile-prefix-map=/build/openssl=.",
+  "build_commands": [
+    "gcc  -I. -Iinclude -Iproviders/common/include -Iproviders/implementations/include  -fPIC -pthread -m64 -O0 -g0 -ffile-prefix-map=/build/openssl=. -DOPENSSL_USE_NODELETE -DL_ENDIAN -DOPENSSL_PIC -DOPENSSLDIR=\"\\\"/usr/local/ssl\\\"\" -DENGINESDIR=\"\\\"/usr/local/lib/engines-3\\\"\" -DMODULESDIR=\"\\\"/usr/local/lib/ossl-modules\\\"\" -DOPENSSL_BUILDING_OPENSSL -DNDEBUG  -MMD -MF crypto/libcrypto-shlib-cryptlib.d.tmp -c -o crypto/libcrypto-shlib-cryptlib.o crypto/cryptlib.c",
+    "gcc -fPIC -pthread -m64 -O0 -g0 -ffile-prefix-map=/build/openssl=. -Wl,-znodelete -shared -Wl,-Bsymbolic -Wl,-soname=libcrypto.so.3 -o libcrypto.so.3 -Wl,--version-script=libcrypto.ld crypto/aes/libcrypto-shlib-aes_cbc.o crypto/aes/libcrypto-shlib-aes_cfb.o crypto/aes/libcrypto-shlib-aes_core.o ",
+    "gcc -fPIC -pthread -m64 -O0 -g0 -ffile-prefix-map=/build/openssl=. -L. -Wl,-znodelete -shared -Wl,-Bsymbolic -Wl,-soname=libssl.so.3 -o libssl.so.3 -Wl,--version-script=libssl.ld crypto/hashtable/libssl-shlib-hashfunc.o crypto/libssl-shlib-ctype.o crypto/libssl-shlib-getenv.o crypto/libssl-shlib-packet.o ",
+    "${LDCMD:-gcc} -pthread -m64 -O0 -g0 -ffile-prefix-map=/build/openssl=. -L. -o apps/openssl apps/lib/openssl-bin-cmp_mock_srv.o apps/openssl-bin-asn1parse.o apps/openssl-bin-ca.o apps/openssl-bin-ciphers.o apps/openssl-bin-cmp.o "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/openssl",
+  "inputs": [
+    {
+      "url": "https://github.com/openssl/openssl/releases/download/openssl-3.5.9/openssl-3.5.9.tar.gz",
+      "sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libcrypto.so.3",
+      "path": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O0/stripped/libcrypto.so.3",
+      "size": 5859744,
+      "sha256": "1b4752fcf346bcdeed0464a5e4d891f4d7745e5716728e1b09adaa07ab9d498d",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "libssl.so.3",
+      "path": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O0/stripped/libssl.so.3",
+      "size": 1405272,
+      "sha256": "70fa5da41e637a50c541ab989bad5f9da3b1b7c9e50590f601eb910e2d3060e8",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "openssl",
+      "path": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O0/stripped/openssl",
+      "size": 1265456,
+      "sha256": "2ac3dad891af30654115846ba037ed3949711038edacffd4dc0c84baa0081f61",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two byte-identical clean builds, independently stripped with the pinned tool in a separate post-processing container, byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "openssl version",
+      "result": "pass: OpenSSL 3.5.9"
+    },
+    {
+      "command": "openssl version -f (compiler flags baked in)",
+      "result": "pass: 1"
+    },
+    {
+      "command": "printf abc | openssl dgst -sha256 -r",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad *stdin"
+    },
+    {
+      "command": "printf abc | openssl dgst -sha3-256 -r",
+      "result": "pass: 3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532 *stdin"
+    },
+    {
+      "command": "printf abc | openssl dgst -blake2b512 -r",
+      "result": "pass: ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab92386edd4009923 *stdin"
+    },
+    {
+      "command": "openssl enc -aes-128-ecb -K 000102..0f -nopad (FIPS 197 C.1)",
+      "result": "pass: 69c4e0d86a7b0430d8cdb78070b4c55a"
+    },
+    {
+      "command": "openssl enc -aes-256-cbc -pbkdf2 encrypt + decrypt round trip (5000 random bytes)",
+      "result": "pass: ok"
+    },
+    {
+      "command": "openssl genpkey ED25519; pkeyutl -sign; pkeyutl -verify",
+      "result": "pass: Signature Verified Successfully"
+    },
+    {
+      "command": "openssl req -x509 (self-signed P-256 cert) | x509 -noout -subject",
+      "result": "pass: subject=CN=localhost"
+    },
+    {
+      "command": "openssl s_server -tls1_3 -rev / openssl s_client 127.0.0.1:18443: protocol, verify, reversed reply",
+      "result": "pass: TLSv1.3|Verify return code: 0 (ok)|gnip"
+    },
+    {
+      "command": "s_client transcript (selected lines)",
+      "result": "subject=CN=localhost|New, TLSv1.3, Cipher is TLS_AES_256_GCM_SHA384|Protocol: TLSv1.3|Verify return code: 0 (ok)|gnip|    Protocol  : TLSv1.3|    Verify return code: 0 (ok)|    Protocol  : TLSv1.3|"
+    }
+  ],
+  "variant": {
+    "optimization": "O0",
+    "stripping": "stripped",
+    "configuration": "no-asm",
+    "run_id": "21424d46-20f5-4ae6-ae0c-3e2681879952",
+    "target": "x86_64-linux-gnu"
+  }
+}

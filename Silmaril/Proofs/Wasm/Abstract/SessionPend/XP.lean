@@ -84,7 +84,7 @@ variable {o : SingleThreaded.GrowOracle} {tags : List TagInst}
 
 /-- **Every reached callout is a call prefix of the Core triple with exceptions**
 (deterministic profile, `InvOkXP tags`, a host with typed answers in the host slices). -/
-theorem callout_satPXP (hT : HostTyped host) (hH : Interp.NativeHostSlice host)
+theorem callout_satPXP (hT : HostTyped host) (hH : Interp.HostSliceT host)
     (hE : Interp.HostSliceE tags host) (hOk : ∀ s q, Ok s q → InvOkXP tags s q)
     {s : Store H} {q : Nat × List Val}
     {c : List (Call (wasmHostSig H))} {m : (wasmHostSig H).Op} (hq : Ok s q)
@@ -147,7 +147,7 @@ theorem callout_satPXP (hT : HostTyped host) (hH : Interp.NativeHostSlice host)
 /-- **The call prefixes of the store-retaining Core triple with exceptions are the reached
 callouts** (deterministic profile, `InvOkXP tags`, a host with typed answers in the host
 slices). -/
-theorem coreTripleSXP_satP_iff (hT : HostTyped host) (hH : Interp.NativeHostSlice host)
+theorem coreTripleSXP_satP_iff (hT : HostTyped host) (hH : Interp.HostSliceT host)
     (hE : Interp.HostSliceE tags host) (hOk : ∀ s q, Ok s q → InvOkXP tags s q)
     {s : Store H} {q : Nat × List Val} {c : List (Call (wasmHostSig H))}
     {m : (wasmHostSig H).Op} :

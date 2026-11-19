@@ -1,0 +1,35 @@
+# Hand-written loops of tests/loops.S.
+schema = "silmaril.wasm-sim.reduce.v0"
+id = "wasm-sim/rv64/loops"
+title = "RV64 hand-written loops: sum_to, fib"
+
+[defs]
+tri = "(define-fun tri ((x (_ BitVec 64))) (_ BitVec 64) ((_ extract 63 0) (bvudiv (bvmul ((_ zero_extend 64) x) (bvadd ((_ zero_extend 64) x) #x00000000000000000000000000000001)) #x00000000000000000000000000000002)))"
+fib = "(declare-fun fib ((_ BitVec 64)) (_ BitVec 64))"
+
+[lean]
+prelude = """
+/-- Fibonacci numbers. -/
+def fibN (n : Nat) : Nat := (Nat.iterate (fun p : Nat × Nat => (p.2, p.1 + p.2)) n (0, 1)).1
+"""
+
+[artifact]
+elf = "loops"
+source = "../tests/loops.S"
+
+[[function]]
+name = "sum_to"
+lean_spec = { entry = "Rv64SumTo", pre = "a0.toNat < 2 ^ 32", post = "r_a0 = BitVec.ofNat 64 (a0.toNat * (a0.toNat + 1) / 2)" }
+requires = "(bvult (reg a0) #x0000000100000000)"
+ensures = "(= (reg a0) (tri (old (reg a0))))"
+sample_max = 100000
+[[function.cut]]
+at = 4
+invariant = "(and (bvule (reg a0) (old (reg a0))) (= (bvadd (reg t0) (tri (reg a0))) (tri (old (reg a0)))))"
+decreases = "(reg a0)"
+
+[[function]]
+name = "fib"
+lean_spec = { entry = "Rv64Fib", pre = "True", post = "r_a0 = BitVec.ofNat 64 (fibN a0.toNat)" }
+ensures = "(= (reg a0) (fib (old (reg a0))))"
+sample_max = 200

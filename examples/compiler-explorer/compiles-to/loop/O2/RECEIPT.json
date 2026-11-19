@@ -1,0 +1,16 @@
+{
+  "command": "objdump -d -w -j .text loop.o",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "listing": {
+    "path": "listing.txt",
+    "sha256": "2e89065f9a8324eeea19676f9e3ee30cb17d3f37be3c0037ec5a209464f34ac1",
+    "size": 1054
+  },
+  "network": "none",
+  "objdump": "GNU objdump (GNU Binutils for Debian) 2.40",
+  "object": {
+    "path": "examples/compiles-to/loop/O2/loop.o",
+    "sha256": "1b638d78e61971142aa2c662df7be30d6502a8b73ad03c8a069c7db09505ca2c"
+  },
+  "workdir": "/src"
+}

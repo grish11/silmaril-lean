@@ -1,0 +1,16 @@
+{
+  "command": "objdump -d -w -j .text branch.o",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "listing": {
+    "path": "listing.txt",
+    "sha256": "eb90c0450d4eead842897605c75eb0cd9d741859cbe6173d904277f81b886a82",
+    "size": 661
+  },
+  "network": "none",
+  "objdump": "GNU objdump (GNU Binutils for Debian) 2.40",
+  "object": {
+    "path": "examples/compiles-to/branch/O0/branch.o",
+    "sha256": "aa197ae40627c1e9b8e406993ac637210d7eb33d5c3d1f7213f5867040c840b6"
+  },
+  "workdir": "/src"
+}

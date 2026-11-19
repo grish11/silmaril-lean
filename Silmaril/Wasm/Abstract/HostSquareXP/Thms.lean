@@ -9,8 +9,8 @@ import Silmaril.Proofs.Wasm.Abstract.HostSquareXP.Basic
 # The exact-log commuting square for the canonical closure: theorems
 
 Proofs in `Silmaril.Proofs.Wasm.Abstract.HostSquareXP`. Deterministic profile `profile o`; a host
-with typed answers (`HostTyped host`) in the native host slice (`Interp.NativeHostSlice host`)
-whose answers keep the exception checker's store check and the tag invariants
+with typed answers (`HostTyped host`) in the typed host slice (`Interp.HostSliceT host`, possibly
+throwing) whose answers keep the exception checker's store check and the tag invariants
 (`Interp.HostSliceE tags host`); a typed store (`StoreOk s`) with the exception checker's store
 check (`Interp.StoreChkE (Interp.ehExt tags) s.funcs`) and the tag invariants
 (`Interp.TagsOk tags s`); a typed invocation (`InvokeOk s a vs`). Every log is exact.
@@ -38,7 +38,7 @@ whole square `hostSquareXP` there.
 namespace Silmaril.Wasm.Abstract
 
 open Silmaril.Games Silmaril.Games.Abstract Silmaril.Wasm.Execution.Core
-open Silmaril.Wasm.Interp (NativeHostSlice HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
 variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
@@ -46,7 +46,7 @@ variable {H : Type} {o : GrowOracle} {host : HostSemantics H} {tags : List TagIn
 
 /-- **Finished ends at exactly their log** (deterministic profile): values, an uncaught exception
 and a trap; `div` is on neither side. -/
-theorem hostSquareXP_done (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem hostSquareXP_done (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) (cs : List (Call (wasmHostSig H)))
     (e : End (Store H) (List Val ⊕ Nat)) :
@@ -54,7 +54,7 @@ theorem hostSquareXP_done (hT : HostTyped host) (hH : NativeHostSlice host)
   Silmaril.Proofs.Wasm.Abstract.HostSquareXP.square_done hT hH hE hs hS hts hok cs e
 
 /-- **Pending calls with no host outcome, at exactly their log** (deterministic profile). -/
-theorem hostSquareXP_blocked (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem hostSquareXP_blocked (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) (cs : List (Call (wasmHostSig H)))
     (m : (wasmHostSig H).Op) :
@@ -62,7 +62,7 @@ theorem hostSquareXP_blocked (hT : HostTyped host) (hH : NativeHostSlice host)
   Silmaril.Proofs.Wasm.Abstract.HostSquareXP.square_blocked hT hH hE hs hS hts hok cs m
 
 /-- **Pending calls the host diverges on, at exactly their log** (deterministic profile). -/
-theorem hostSquareXP_hostDiv (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem hostSquareXP_hostDiv (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs) (cs : List (Call (wasmHostSig H)))
     (m : (wasmHostSig H).Op) :
@@ -70,7 +70,7 @@ theorem hostSquareXP_hostDiv (hT : HostTyped host) (hH : NativeHostSlice host)
   Silmaril.Proofs.Wasm.Abstract.HostSquareXP.square_hostDiv hT hH hE hs hS hts hok cs m
 
 /-- **Divergence after a log**, given the converse direction `hdiv`. -/
-theorem hostSquareXP_div_of (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem hostSquareXP_div_of (hH : HostSliceT host) (hE : HostSliceE tags host)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     (hdiv : ∀ (cs : List (Call (wasmHostSig H))) (c' : Config H),
       EvRun (profile o) host (invoke s a vs) cs c' →
@@ -80,7 +80,7 @@ theorem hostSquareXP_div_of (hH : NativeHostSlice host) (hE : HostSliceE tags ho
   Silmaril.Proofs.Wasm.Abstract.HostSquareXP.square_div_of hH hE hS hts hok hdiv cs
 
 /-- **Productive runs**, given the converse direction `hinf`. -/
-theorem hostSquareXP_prod_of (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem hostSquareXP_prod_of (hH : HostSliceT host) (hE : HostSliceE tags host)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     (hinf : ∀ ω : Nat → Call (wasmHostSig H), CoreInf (profile o) host (invoke s a vs) ω →
       ω ∈ wasmEvInfNXP s (a, vs))
@@ -90,7 +90,7 @@ theorem hostSquareXP_prod_of (hH : NativeHostSlice host) (hE : HostSliceE tags h
 
 /-- **The square, given the two converse directions** `hdiv` and `hinf` (deterministic
 profile). -/
-theorem hostSquareXP_of (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem hostSquareXP_of (hT : HostTyped host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs)
     (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     (hdiv : ∀ (cs : List (Call (wasmHostSig H))) (c' : Config H),

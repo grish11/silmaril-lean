@@ -35,11 +35,11 @@ theorem runStoreSteps_cons (cx : LiftLowerContext E) (ptr : Nat) (s : ABI.StoreS
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem loadStringFromRange (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
     (ptr tagged : Nat) :
-    P.Inv I (Canon.loadStringFromRange lim q cx ptr tagged : P E σ StrVal) := by
+    P.InvW I W (Canon.loadStringFromRange lim q cx ptr tagged : P E σ StrVal) := by
   unfold Canon.loadStringFromRange
   refine bind (ptrType cx) fun a => bind (trapIf _ _) fun _ => bind (trapIf _ _) fun _ =>
     bind (checkInBounds _ _ _) fun _ => bind (readMem _ _ _) fun bs => ?_
@@ -48,13 +48,13 @@ theorem loadStringFromRange (lim : Limits) (q : Quirks) (cx : LiftLowerContext E
   · exact pure _
 
 theorem loadString (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (ptr : Nat) :
-    P.Inv I (Canon.loadString lim q cx ptr : P E σ StrVal) :=
+    P.InvW I W (Canon.loadString lim q cx ptr : P E σ StrVal) :=
   bind (ptrSize cx) fun _ =>
     bind (bind (readMem _ _ _) fun _ => pure _) fun _ =>
       bind (bind (readMem _ _ _) fun _ => pure _) fun _ => loadStringFromRange _ _ _ _ _
 
 theorem runStoreStep (cx : LiftLowerContext E) (ptr : Nat) (s : ABI.StoreStep) :
-    P.Inv I (Canon.runStoreStep cx ptr s : P E σ Nat) := by
+    P.InvW I W (Canon.runStoreStep cx ptr s : P E σ Nat) := by
   cases s with
   | allocate => exact allocate _ _ _
   | reallocate => exact reallocate _ _ _ _ _
@@ -67,7 +67,7 @@ theorem runStoreStep (cx : LiftLowerContext E) (ptr : Nat) (s : ABI.StoreStep) :
     exact bind (readMem _ _ _) fun _ => bind (writeMem _ _ _) fun _ => pure _
 
 theorem runStoreSteps (cx : LiftLowerContext E) (ptr : Nat) (ss : List ABI.StoreStep) :
-    P.Inv I (Canon.runStoreSteps cx ptr ss : P E σ Nat) := by
+    P.InvW I W (Canon.runStoreSteps cx ptr ss : P E σ Nat) := by
   induction ss generalizing ptr with
   | nil => exact pure _
   | cons s ss ih =>
@@ -76,12 +76,12 @@ theorem runStoreSteps (cx : LiftLowerContext E) (ptr : Nat) (ss : List ABI.Store
 
 theorem storeStringIntoRange (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
     (v : StrVal) :
-    P.Inv I (Canon.storeStringIntoRange lim q cx v : P E σ (Nat × Nat)) :=
+    P.InvW I W (Canon.storeStringIntoRange lim q cx v : P E σ (Nat × Nat)) :=
   bind (ptrType cx) fun _ => bind (runStoreSteps _ _ _) fun _ => pure _
 
 theorem storeString (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (v : StrVal)
     (ptr : Nat) :
-    P.Inv I (Canon.storeString lim q cx v ptr : P E σ Unit) :=
+    P.InvW I W (Canon.storeString lim q cx v ptr : P E σ Unit) :=
   bind (storeStringIntoRange lim q cx v) fun _ => bind (ptrSize cx) fun _ =>
     bind (writeMem _ _ _) fun _ => writeMem _ _ _
 

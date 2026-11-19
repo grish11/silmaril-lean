@@ -1,0 +1,234 @@
+{
+  "status": "actual host preprocessing, same GCC version and recorded cJSON flags; not pinned-container execution or ELF rebuild",
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "input_files": [
+    {
+      "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+      "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+    },
+    {
+      "path": "/usr/include/stdc-predef.h",
+      "sha256": "82975831ea2d1f95b60225f37ddd6130225f0c3de2318674cb178fea661ad87b"
+    },
+    {
+      "path": "/usr/include/string.h",
+      "sha256": "2829e08094d8e97155e863a0aa5ea37cf09d4ffcd6ce86e572571276c2e21a8a"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+      "sha256": "06256b79e2535489e5dce8c21854d3b0bd72d5479a3d013170f09261defc0a4f"
+    },
+    {
+      "path": "/usr/include/features.h",
+      "sha256": "20c5358da5ab2353b26bda1b36e66400290fbd2b16d30a6a21dc16f4f22ab280"
+    },
+    {
+      "path": "/usr/include/features-time64.h",
+      "sha256": "89036fa88ac19881ddfb07d4e65beb620a083d770cbf1c925f148c9ea1ce5a63"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+      "sha256": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+      "sha256": "d949eed9646ca5916b338e1f02ffaf31a4c62907738805aba4ffa329a365f8f2"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+      "sha256": "69a3c3625bac01b58ab781d02c7800592b5082c4ea962a456260dcf288216f68"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+      "sha256": "30f74e9207fbbbe7fafb7b5e3e54124997abc44549506c514f2adae054ee3d56"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+      "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+      "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stddef.h",
+      "sha256": "c93f57f1538121cdbc27b59a47f1ed82b078d40e404b46481c83bafadd5deada"
+    },
+    {
+      "path": "/usr/include/stdio.h",
+      "sha256": "e5094b40bd7ab3bea3a4e80a4071069882c2e9a4488ff2b1b03174352a0db0b1"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/stdarg.h",
+      "sha256": "7ead4a2428691baf94bec3fd2db8984dbb1c5f597edf0f9bc3068fb43dad22f7"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types.h",
+      "sha256": "74d92766725404961cc2908de587aeaf24a5a8ef49a0103c5d3fb9f9fe9dead0"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+      "sha256": "49656ffcee2a7091ae16f8ad737c63c1d3e06ecdb84c3fa1c6f65b0b6784262a"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+      "sha256": "b0c5f25ce84037dda2c42408543a4616e129d70d6ebf10bd3ecc8b756466582a"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+      "sha256": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h",
+      "sha256": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+      "sha256": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h",
+      "sha256": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/FILE.h",
+      "sha256": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+      "sha256": "5b1e0312496e150398e71409ffd203e00cdff92365772ffa6aa4a198c3b8ea53"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h",
+      "sha256": "436ad57abe906d460631967c822c0622dc100da1e1bd3e0fa8879b6f7f2c6654"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+      "sha256": "959a6fafb663ca665daa89066124c126291603e14d727d8a1d59823e9fd92451"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+      "sha256": "a8a1a20b3e3c9811b348f9f7c4a3825d0eae6b27615991d1ca50dd1338e32a00"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdio.h",
+      "sha256": "182891bcd563185c52e7c01f4fdbd885f943f70682dd758ceab319eeaf917c08"
+    },
+    {
+      "path": "/usr/include/math.h",
+      "sha256": "a048a56f2b20ed5a192616b64b7a01508437eaaf9c04e83f69d60527f5416c7d"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/math-vector.h",
+      "sha256": "daa745b265e601145966f0e2e0f31ec632b45acf95db7c7d9954747f4b0282b4"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/libm-simd-decl-stubs.h",
+      "sha256": "26cbdf8bdae4735c1f5dcdd124b8d48253cf3ed69837c381f532c7d76977ea37"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/flt-eval-method.h",
+      "sha256": "23a5215104041d3bf0aec17ced13d17beaaa7f48346dd48022ef4b6f47f912bf"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/fp-logb.h",
+      "sha256": "4c9d15c0730ae3b77c8f5efb12561bb3efa43eda4d8043683f241584b65d9083"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/fp-fast.h",
+      "sha256": "face0a968a557c3fe56fafa0d45043d763d92314fa03621bb86c0ea48c8b8814"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls-macros.h",
+      "sha256": "9d82c07d16ca739b615328f1c4cdec17d4062ca2a6c44b27d77ed5b94f4c2a83"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls-helper-functions.h",
+      "sha256": "6010275c8748fc750862c4b99475171250dcfb2b6d4cdb6a04a2ba7263d04425"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/mathcalls.h",
+      "sha256": "ed098a1872adcc16ae513aaea668207b684cb415e559d43f768c1f76fcda6ab0"
+    },
+    {
+      "path": "/usr/include/stdlib.h",
+      "sha256": "999cb2acafbb64984f99ee410a42dfd79815de184a0312d7c136e31795a952d2"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdlib-bsearch.h",
+      "sha256": "231afa57a5d88ab4ede48d5d0808f7343986405ee89f85505dd06e1d31971a88"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdlib-float.h",
+      "sha256": "fdd6c94e471e2aa2e03bae449f993392a6593044490fc82601b77d7116381201"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/limits.h",
+      "sha256": "bc572350077d8caa24f82d5439119aa2dc184e72cc4ea325b4cd0137db51580f"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/syslimits.h",
+      "sha256": "22dd0ab81baadd5a8d455b445855f341d419c7b0267beca235de00b7ec78e529"
+    },
+    {
+      "path": "/usr/include/limits.h",
+      "sha256": "59dccd0e0f84037a0be75a01efe840b7b1ebe8502cdfb49742697c49290ce18f"
+    },
+    {
+      "path": "/usr/include/ctype.h",
+      "sha256": "21c99631e2d75b93e87bca3f26cfe24586895bf9505717f680a1751b1605b05e"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/endian.h",
+      "sha256": "f559fd70d8a24202805d1d8a3546e28c427f6ce7808296002687cb6c636fd21f"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/endianness.h",
+      "sha256": "659a7060004eda113671a38852c4d1e9cb97a35932bcd1d8540f98c09c180747"
+    },
+    {
+      "path": "/usr/lib/gcc/x86_64-linux-gnu/14/include/float.h",
+      "sha256": "0924f0708449d918e3152d00087efdf18e3f26c92030c464a6b4a77da1439f57"
+    },
+    {
+      "path": "/usr/include/locale.h",
+      "sha256": "54aaf5745fb69ed99930781bbeb42b925e9a5523b912834e6987da0c7d88a5a4"
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/locale.h",
+      "sha256": "9706602e00fd81bd6f825b331b846b381fad21b420b6d8b753f569612995b005"
+    },
+    {
+      "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.h",
+      "sha256": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee"
+    }
+  ],
+  "output_sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+  "full_tu_frontend": "rejected at system-header GNU syntax; projected closure also rejects GNU visibility declaration",
+  "formal_binding": "not completed",
+  "executed_command": [
+    "gcc",
+    "-E",
+    "-O2",
+    "-g0",
+    "-ffile-prefix-map=/build/cjson=.",
+    "-std=c89",
+    "-pedantic",
+    "-Wall",
+    "-fstack-protector-strong",
+    "-fvisibility=hidden",
+    "-DCJSON_EXPORT_SYMBOLS",
+    "-DCJSON_API_VISIBILITY",
+    "-DENABLE_LOCALES",
+    "-fPIC",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c"
+  ],
+  "working_directory": "repository root",
+  "package_versions": [
+    "cpp-14\t14.2.0-19",
+    "gcc-14\t14.2.0-19",
+    "libc6-dev\t2.41-12+deb13u4",
+    "linux-libc-dev\t6.12.115-2"
+  ],
+  "compiler_executable_sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f"
+}

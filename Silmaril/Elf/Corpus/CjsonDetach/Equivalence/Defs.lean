@@ -1,0 +1,110 @@
+module
+public import Silmaril.Elf.Corpus.CjsonDetach.Thms
+public import Silmaril.Elf.Staged.Corpus.Cjson.X8664.LibcjsonSo1.Thms
+public import Silmaril.Project.Shapes.SysV.Defs
+public import Silmaril.X86.Sse9.Thms
+@[expose] public section
+namespace Silmaril.Elf.Corpus.CjsonDetach.Equivalence
+open Silmaril.Project.Shapes
+open Silmaril.X86 (FnContract)
+open Silmaril.X86.Sse9 (XState)
+def leftCode : List (BitVec 8) := [0x55,0x48,0x89,0xe5,0x48,0x89,0x7d,0xf8,0x48,0x89,0x75,0xf0,0x48,0x83,0x7d,0xf8,0x00,0x74,0x22,0x48,0x83,0x7d,0xf0,0x00,0x74,0x1b,0x48,0x8b,0x45,0xf8,0x48,0x8b,0x40,0x10,0x48,0x39,0x45,0xf0,0x74,0x17,0x48,0x8b,0x45,0xf0,0x48,0x8b,0x40,0x08,0x48,0x85,0xc0,0x75,0x0a,0xb8,0x00,0x00,0x00,0x00,0xe9,0x99,0x00,0x00,0x00,0x48,0x8b,0x45,0xf8,0x48,0x8b,0x40,0x10,0x48,0x39,0x45,0xf0,0x74,0x12,0x48,0x8b,0x45,0xf0,0x48,0x8b,0x40,0x08,0x48,0x8b,0x55,0xf0,0x48,0x8b,0x12,0x48,0x89,0x10,0x48,0x8b,0x45,0xf0,0x48,0x8b,0x00,0x48,0x85,0xc0,0x74,0x13,0x48,0x8b,0x45,0xf0,0x48,0x8b,0x00,0x48,0x8b,0x55,0xf0,0x48,0x8b,0x52,0x08,0x48,0x89,0x50,0x08,0x48,0x8b,0x45,0xf8,0x48,0x8b,0x40,0x10,0x48,0x39,0x45,0xf0,0x75,0x11,0x48,0x8b,0x45,0xf0,0x48,0x8b,0x10,0x48,0x8b,0x45,0xf8,0x48,0x89,0x50,0x10,0xeb,0x20,0x48,0x8b,0x45,0xf0,0x48,0x8b,0x00,0x48,0x85,0xc0,0x75,0x14,0x48,0x8b,0x45,0xf8,0x48,0x8b,0x40,0x10,0x48,0x8b,0x55,0xf0,0x48,0x8b,0x52,0x08,0x48,0x89,0x50,0x08,0x48,0x8b,0x45,0xf0,0x48,0xc7,0x40,0x08,0x00,0x00,0x00,0x00,0x48,0x8b,0x45,0xf0,0x48,0xc7,0x00,0x00,0x00,0x00,0x00,0x48,0x8b,0x45,0xf0,0x5d,0xc3]
+def left : Silmaril.Project.Shapes.Placement := ⟨23724, leftCode, 0⟩
+def rightCode : List (BitVec 8) := [0x48,0x85,0xff,0x74,0x7b,0x48,0x85,0xf6,0x74,0x76,0x48,0x8b,0x4f,0x10,0x48,0x39,0xf1,0x74,0x35,0x48,0x8b,0x46,0x08,0x48,0x85,0xc0,0x74,0x24,0x48,0x8b,0x16,0x48,0x89,0x10,0x48,0x85,0xd2,0x74,0x49,0x66,0x0f,0xef,0xc0,0x48,0x89,0x42,0x08,0x48,0x89,0xf0,0x0f,0x11,0x06,0xc3,0x66,0x2e,0x0f,0x1f,0x84,0x00,0x00,0x00,0x00,0x00,0xc3,0x0f,0x1f,0x80,0x00,0x00,0x00,0x00,0x48,0x8b,0x06,0x48,0x85,0xc0,0x74,0x08,0x48,0x8b,0x56,0x08,0x48,0x89,0x50,0x08,0x66,0x0f,0xef,0xc0,0x48,0x89,0x47,0x10,0x48,0x89,0xf0,0x0f,0x11,0x06,0xc3,0x66,0x0f,0x1f,0x84,0x00,0x00,0x00,0x00,0x00,0x66,0x0f,0xef,0xc0,0x48,0x89,0x41,0x08,0x48,0x89,0xf0,0x0f,0x11,0x06,0xc3,0x90,0x31,0xc0,0xc3]
+def right : Silmaril.Project.Shapes.Placement := ⟨17248, rightCode, 0⟩
+structure Input where
+  address : Fin 5 → Nat
+  payload : Fin 5 → Fin 64 → BitVec 8
+  aligned : ∀ j, address j % 8 = 0
+  lower : ∀ j, 65536 < address j
+  upper : ∀ j, address j + 64 < 2^47
+  disjoint : ∀ j k, j ≠ k → address j+64 ≤ address k ∨ address k+64 ≤ address j
+
+def word (i : Input) (j : Fin 5) : BitVec 64 := BitVec.ofNat 64 (i.address j)
+def signature : Silmaril.X86.SystemV.CApi.Signature := ⟨[.pointer,.pointer],some .pointer⟩
+def initialWord (i : Input) (j : Fin 5) (offset : Nat) : Option (BitVec 64) :=
+  match j.val,offset with
+  | 0,16 => some (word i 1)
+  | 1,0 => some (word i 2)
+  | 1,8 => some (word i 3)
+  | 2,0 => some (word i 3)
+  | 2,8 => some (word i 1)
+  | 3,0 => some 0
+  | 3,8 => some (word i 2)
+  | _,_ => none
+
+def initialByte (i : Input) (j : Fin 5) (k : Fin 64) : BitVec 8 :=
+  match initialWord i j (k.val/8*8) with
+  | some w => (w >>> ((k.val%8)*8)).setWidth 8
+  | none => i.payload j k
+
+def finalWord (i : Input) (j : Fin 5) (offset : Nat) : Option (BitVec 64) :=
+  match j.val,offset with
+  | 1,0 => some (word i 3)
+  | 3,8 => some (word i 1)
+  | 2,0 | 2,8 => some 0
+  | _,_ => none
+
+def finalByte (i : Input) (j : Fin 5) (k : Fin 64) : BitVec 8 :=
+  match finalWord i j (k.val/8*8) with
+  | some w => (w >>> ((k.val%8)*8)).setWidth 8
+  | none => initialByte i j k
+
+/-- Finite byte predicates for the exact 320-byte caller domain; no C provenance
+interpretation is supplied by these binary-only byte checks. -/
+def initialBytesMatch (i : Input) (m : Silmaril.X86.MState) : Bool :=
+  (List.finRange 5).all fun j => (List.finRange 64).all fun k =>
+    m.memory.bytes.get? (i.address j+k.val) == some (initialByte i j k)
+def finalBytesMatch (i : Input) (m : Silmaril.X86.MState) : Bool :=
+  (List.finRange 5).all fun j => (List.finRange 64).all fun k =>
+    m.memory.bytes.get? (i.address j+k.val) == some (finalByte i j k)
+
+def updateAddress (i : Input) (a : Nat) : Prop :=
+  (i.address 1 ≤ a ∧ a < i.address 1+8) ∨
+  (i.address 3+8 ≤ a ∧ a < i.address 3+16) ∨
+  (i.address 2 ≤ a ∧ a < i.address 2+16)
+
+def initial (i : Input) (a b : XState) : Prop :=
+  SysV.CallEntry left signature 24 (.cons (word i 0) (.cons (word i 2) .nil)) a.m ∧
+  SysV.CallEntry right signature 0 (.cons (word i 0) (.cons (word i 2) .nil)) b.m ∧
+  a.m.memory = b.m.memory ∧ (∀ r, a.m.core.read r = b.m.core.read r) ∧
+  a.m.core.flags = b.m.core.flags ∧ a.xmm = b.xmm ∧
+  Silmaril.X86.Sse9.isa.live a ∧ Silmaril.X86.Sse9.isa.live b ∧
+  FnContract.AbiEntry a.m.core a.m.memory ∧ FnContract.AbiEntry b.m.core b.m.memory ∧
+  (∀ j, i.address j+65536 < SysV.rspOf a.m ∧
+    a.m.memory.Permitted .read (i.address j) 64) ∧
+  initialBytesMatch i a.m = true ∧
+  a.m.memory.Permitted .write (i.address 1) 8 ∧
+  a.m.memory.Permitted .write (i.address 3+8) 8 ∧
+  a.m.memory.Permitted .write (i.address 2) 16
+
+def sideOutcome (i : Input) (frame : Nat) (before after : XState) : Prop :=
+  FnContract.AbiReturn before.m.core before.m.memory after.m.core ∧
+  before.m.memory.WritesWithin after.m.memory
+    (fun a => SysV.StackBelow before.m frame a ∨ updateAddress i a) ∧
+  finalBytesMatch i after.m = true
+
+def outcome (i : Input) (a b x y : XState) : Prop :=
+  sideOutcome i 24 a x ∧ sideOutcome i 0 b y ∧
+  x.m.core.read .rax = y.m.core.read .rax ∧
+  (∀ address, ¬ SysV.StackBelow a.m 24 address →
+    x.m.memory.bytes.get? address = y.m.memory.bytes.get? address) ∧
+  x.m.memory.regions = y.m.memory.regions
+
+/-- Restricted interior-node O0/O2 obligation, UNPROVED: both code identities, all-input joint entry existence,
+first returns and exact heap/ABI outcomes demanded. No equality, desired heap,
+source refinement or target safety premise. XMM is SysV caller-clobbered; actual
+128-bit store affects exactly the two zeroed item pointer words. This binary
+context does not assert C allocation/provenance adequacy or whole-ELF loading. -/
+@[problem "silmaril.corpus.cjson.detach.optimization_equivalence"
+  (title := "Actual cJSON interior-node detachment O0/O2 exact-heap binary equivalence")]
+def Task.optimization : Prop :=
+  Silmaril.Elf.CodeAt Silmaril.Elf.Staged.CorpusVariants.Cjson.N1719.Default.X8664.O0.Unstripped.LibcjsonSo1.F 23724 leftCode ∧
+  Silmaril.Elf.CodeAt Silmaril.Elf.Staged.Corpus.Cjson.X8664.LibcjsonSo1.F 17248 rightCode ∧
+  (∀ i, ∃ a b, initial i a b) ∧
+  (∀ i a b, initial i a b →
+    (∃ x, FnContract.FirstReturn Silmaril.X86.Sse9.isa a x) ∧
+    (∃ y, FnContract.FirstReturn Silmaril.X86.Sse9.isa b y) ∧
+    ∀ x y, FnContract.FirstReturn Silmaril.X86.Sse9.isa a x →
+      FnContract.FirstReturn Silmaril.X86.Sse9.isa b y → outcome i a b x y)
+end Silmaril.Elf.Corpus.CjsonDetach.Equivalence

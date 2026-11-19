@@ -1,0 +1,1 @@
+{"architecture":"amd64","os":"linux","config":{"Entrypoint":["/noop"]},"rootfs":{"type":"layers","diff_ids":["sha256:c2e4b98bae96ca80b54509d3067c208b6f9d22d9153e6ae80a83c947787a5d14"]}}

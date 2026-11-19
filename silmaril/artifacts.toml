@@ -164,6 +164,16 @@ derivation = "silmaril.wasm_components.adapter.reactor.fetch"
 meta = { wasm = { custom = ["component-type:wit-bindgen:0.62.0:wasi:cli@0.2.12:imports:encoded world", "name", "producers", "target_features"], exports = ["func adapter_close_badfd", "func adapter_monotonic_clock_set_paused", "func adapter_open_badfd", "func args_get", "func args_sizes_get", "func cabi_import_realloc", "func clock_res_get", "func clock_time_get", "func environ_get", "func environ_sizes_get", "func fd_advise", "func fd_allocate", "func fd_close", "func fd_datasync", "func fd_fdstat_get", "func fd_fdstat_set_flags", "func fd_fdstat_set_rights", "func fd_filestat_get", "func fd_filestat_set_size", "func fd_filestat_set_times", "func fd_pread", "func fd_prestat_dir_name", "func fd_prestat_get", "func fd_pwrite", "func fd_read", "func fd_readdir", "func fd_renumber", "func fd_seek", "func fd_sync", "func fd_tell", "func fd_write", "func path_create_directory", "func path_filestat_get", "func path_filestat_set_times", "func path_link", "func path_open", "func path_readlink", "func path_remove_directory", "func path_rename", "func path_symlink", "func path_unlink_file", "func poll_oneoff", "func proc_exit", "func proc_raise", "func random_get", "func reset_adapter_state", "func sched_yield", "func sock_accept", "func sock_recv", "func sock_send", "func sock_shutdown"], imports = ["memory env/memory", "func wasi:filesystem/types@0.2.12/filesystem-error-code", "func wasi:io/error@0.2.12/[resource-drop]error", "func wasi:io/streams@0.2.12/[method]output-stream.check-write", "func wasi:io/streams@0.2.12/[method]output-stream.write", "func wasi:io/streams@0.2.12/[method]output-stream.blocking-flush", "func __main_module__/cabi_realloc", "func wasi:filesystem/types@0.2.12/[method]descriptor.metadata-hash", "func wasi:filesystem/types@0.2.12/[method]directory-entry-stream.read-directory-entry", "func wasi:filesystem/types@0.2.12/[method]descriptor.metadata-hash-at", "func wasi:cli/environment@0.2.12/get-arguments", "func wasi:clocks/monotonic-clock@0.2.12/resolution", "func wasi:clocks/wall-clock@0.2.12/resolution", "func wasi:clocks/wall-clock@0.2.12/now", "func wasi:clocks/monotonic-clock@0.2.12/now", "func wasi:cli/environment@0.2.12/get-environment", "func wasi:filesystem/types@0.2.12/[method]descriptor.advise", "func wasi:filesystem/types@0.2.12/[resource-drop]directory-entry-stream", "func wasi:filesystem/types@0.2.12/[method]descriptor.sync-data", "func wasi:filesystem/types@0.2.12/[method]descriptor.get-flags", "func wasi:filesystem/types@0.2.12/[method]descriptor.get-type", "func wasi:filesystem/types@0.2.12/[method]descriptor.set-size", "func wasi:filesystem/types@0.2.12/[method]descriptor.set-times", "func wasi:filesystem/types@0.2.12/[method]descriptor.read", "func wasi:filesystem/preopens@0.2.6/get-directories", "func wasi:filesystem/types@0.2.12/[resource-drop]descriptor", "func wasi:filesystem/types@0.2.12/[method]descriptor.write", "func wasi:filesystem/types@0.2.12/[method]descriptor.append-via-stream", "func wasi:io/streams@0.2.12/[resource-drop]output-stream", "func wasi:io/streams@0.2.12/[method]input-stream.blocking-read", "func wasi:io/streams@0.2.12/[method]input-stream.read", "func wasi:filesystem/types@0.2.12/[method]descriptor.read-directory", "func wasi:io/streams@0.2.12/[resource-drop]input-stream", "func wasi:filesystem/types@0.2.12/[method]descriptor.sync", "func wasi:filesystem/types@0.2.12/[method]descriptor.create-directory-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.stat-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.set-times-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.link-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.open-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.readlink-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.remove-directory-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.rename-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.symlink-at", "func wasi:filesystem/types@0.2.12/[method]descriptor.unlink-file-at", "func wasi:io/streams@0.2.12/[method]input-stream.subscribe", "func wasi:io/streams@0.2.12/[method]output-stream.subscribe", "func wasi:clocks/monotonic-clock@0.2.12/subscribe-duration", "func wasi:clocks/monotonic-clock@0.2.12/subscribe-instant", "func wasi:io/poll@0.2.12/[resource-drop]pollable", "func wasi:io/poll@0.2.12/poll", "func wasi:random/random@0.2.12/get-random-bytes", "func wasi:filesystem/types@0.2.12/[method]descriptor.read-via-stream", "func wasi:cli/stderr@0.2.12/get-stderr", "func wasi:io/streams@0.2.12/[method]output-stream.blocking-write-and-flush", "func wasi:filesystem/types@0.2.12/[method]descriptor.write-via-stream", "func wasi:cli/stdin@0.2.12/get-stdin", "func wasi:cli/stdout@0.2.12/get-stdout", "func wasi:cli/terminal-stdin@0.2.12/get-terminal-stdin", "func wasi:cli/terminal-input@0.2.12/[resource-drop]terminal-input", "func wasi:cli/terminal-stdout@0.2.12/get-terminal-stdout", "func wasi:cli/terminal-output@0.2.12/[resource-drop]terminal-output", "func wasi:cli/terminal-stderr@0.2.12/get-terminal-stderr", "func wasi:filesystem/types@0.2.12/[method]descriptor.stat", "func wasi:cli/exit@0.2.12/exit"], layer = "module", license = "Apache-2.0 WITH LLVM-exception", version = 1 } }
 
 [[artifact]]
+cid = "bafkr4icjfaoiep3z6hfvly3knk6l3pm67ibllbgadje6vjqyprqknpvgqa"
+type = "blob"
+name = "silmaril.wasm.examples.sat_accept.component"
+paths = ["examples/wasm-acceptors/sat_accept.wasm"]
+size = 960
+sha256 = "78b2a97ed369c0117e63491b2b7bf9a2eb0d4bef5d951201852e307551eef499"
+git_sha1 = "2c83da7cc2a36e7c73a74a3bad0e65987766245b"
+meta = { wasm = { custom = [], exports = ["func check-stream", "func check-nested"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
+
+[[artifact]]
 cid = "bafkr4icnlrdyw4h55eu5dzskxp2tianb3hf2vuiflhdf3kbzt3trmc2aei"
 type = "blob"
 name = "silmaril.compiles_to.straight.o0.object"
@@ -296,6 +306,16 @@ derivation = "silmaril.wasm_components.gen.linked.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.linked.blob" } }
 
 [[artifact]]
+cid = "bafkr4igd5n4qywsi5wnzogjwvltd3chsrjoa6um4ed6cb5o5vig73jztka"
+type = "blob"
+name = "silmaril.wasm.examples.farkas_accept.component"
+paths = ["examples/wasm-acceptors/farkas_accept.wasm"]
+size = 794
+sha256 = "f3048c4e556e99ab1ad0c3f7a1f9528f4d1f5a25801b442587391f3f75bce996"
+git_sha1 = "18d4e4e65f3321acfa22fb9c62d8b55d2b31ff94"
+meta = { wasm = { custom = [], exports = ["type ineq", "func check"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
+
+[[artifact]]
 cid = "bafkr4igey43jzn5rh4ji7q2uib4g6bzs3ammrmur7eds3nlp6xjdul6jfi"
 type = "blob"
 name = "silmaril.wasm.examples.member_check.prog"
@@ -326,6 +346,16 @@ sha256 = "ba732a1b1ef96b839ced144dfc41bd9d38f924cf7bd9477c982197306c6252fc"
 git_sha1 = "2c4ff108774004d7af6ba3ec51a912e3b0e305ac"
 derivation = "silmaril.wasm_components.gen.comp_b.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.comp_b.blob" } }
+
+[[artifact]]
+cid = "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km"
+type = "blob"
+name = "silmaril.wasm.examples.lrat_accept.component"
+paths = ["examples/wasm-acceptors/lrat_accept.wasm"]
+size = 3198
+sha256 = "d761553e57d20813207aa1df1e19168787ec8e7dd8fcef253dc4f4369221a784"
+git_sha1 = "08b04a5c89cff872f23503c52ddf96dcf096ad53"
+meta = { wasm = { custom = [], exports = ["func check-stream", "func check-nested"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
 
 [[artifact]]
 cid = "bafkr4ihjitr643vnhzwmwj2kyxkvpad23ayzskzhpihwasjbozsyeux65q"

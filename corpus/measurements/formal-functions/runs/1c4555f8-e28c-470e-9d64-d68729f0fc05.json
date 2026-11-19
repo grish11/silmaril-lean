@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "run_id": "1c4555f8-e28c-470e-9d64-d68729f0fc05",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T18:45:36.108650+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs"
+  ],
+  "cwd": "/work/isolated-sqlite-version",
+  "target": "cjson-array-item-observation-with-sqlite-array-ports",
+  "repository": {
+    "commit": "da454cee1dc0b24499f18e54dba8f8bf1e39f911",
+    "dirty": true,
+    "diff_sha256": "bac8d68adbca7fde49b470f4c7f29ee2a179cc53d694cd8d24d336fd449b0822"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArrayItem/Context/Defs.lean",
+      "sha256": "29d6aa7f62ed10b5696bbe459c525e15acf7c0bcf59a1b9e9144b935b8c3fbc3"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+      "sha256": "2d8e920c3e400611951c986310c7c9617eea44e8d1d7fa918bbaf4a1fc23606f"
+    }
+  ],
+  "wall_seconds": 30.329945024001063,
+  "exit_code": 0,
+  "user_cpu_seconds": 32.08,
+  "system_cpu_seconds": 42.62,
+  "peak_rss_kib": 3686204,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

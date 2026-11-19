@@ -34,11 +34,11 @@ variable {E : CoreEngine} {σ : Type}
 
 section Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem checkGuestBuffer_inv (lim : Limits) (cx : LiftLowerContext E)
     (t : Option (WIT.ClosedType RtId)) (ptr length : Nat) :
-    P.Inv I (checkGuestBuffer lim cx t ptr length : P E σ Unit) := by
+    P.InvW I W (checkGuestBuffer lim cx t ptr length : P E σ Unit) := by
   unfold checkGuestBuffer
   refine P.Inv.bind (P.Inv.trapIf _ _) fun _ => ?_
   split
@@ -48,11 +48,11 @@ theorem checkGuestBuffer_inv (lim : Limits) (cx : LiftLowerContext E)
 
 theorem mkGuestBuffer_inv (lim : Limits) (cx : LiftLowerContext E)
     (t : Option (WIT.ClosedType RtId)) (ptr length : Nat) :
-    P.Inv I (mkGuestBuffer lim cx t ptr length : P E σ (BufferDesc E)) :=
+    P.InvW I W (mkGuestBuffer lim cx t ptr length : P E σ (BufferDesc E)) :=
   P.Inv.bind (checkGuestBuffer_inv lim cx t ptr length) fun _ => P.Inv.pure _
 
 theorem readBuffer_inv (h : P.Inv.LoadPres I) (lim : Limits) (q : Quirks) (b : BufferDesc E)
-    (n : Nat) : P.Inv I (readBuffer lim q b n : P E σ (List Val)) := by
+    (n : Nat) : P.InvW I W (readBuffer lim q b n : P E σ (List Val)) := by
   match b with
   | .guest cx (some u) ptr _ progress =>
     exact P.Inv.bind (P.Inv.ptrType _) fun _ => P.Inv.loadListFromValidRange h _ _ _ _ _ _
@@ -61,12 +61,12 @@ theorem readBuffer_inv (h : P.Inv.LoadPres I) (lim : Limits) (q : Quirks) (b : B
     exact P.Inv.bind (P.Inv.callVals _) fun _ => P.Inv.ite (P.Inv.pure _) (P.Inv.internal _)
 
 theorem endCancel_inv {e : EndId} (hc : ∀ b s, I s → I (cancel e b s)) :
-    P.Inv I (endCancel e : P E σ Unit) :=
+    P.InvW I W (endCancel e : P E σ Unit) :=
   P.Inv.bind P.Inv.getStore fun _ =>
     P.Inv.bind (P.Inv.ite (P.Inv.choose _) (P.Inv.pure _)) fun b => P.Inv.modifyStore (hc b)
 
 theorem endDrop_inv {e : EndId} (hd : ∀ s, I s → I (dropEnd e s)) :
-    P.Inv I (endDrop e : P E σ Unit) := P.Inv.modifyStore hd
+    P.InvW I W (endDrop e : P E σ Unit) := P.Inv.modifyStore hd
 
 end Inv
 
@@ -79,10 +79,10 @@ variable {E : CoreEngine} {σ : Type}
 
 section Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem writeBuffer_inv (h : P.Inv.StorePres I) (lim : Limits) (q : Quirks) (b : BufferDesc E)
-    (vs : List Val) : P.Inv I (writeBuffer lim q b vs : P E σ Unit) := by
+    (vs : List Val) : P.InvW I W (writeBuffer lim q b vs : P E σ Unit) := by
   match b with
   | .guest cx (some u) ptr _ progress =>
     exact P.Inv.bind (P.Inv.ptrType _) fun _ => P.Inv.storeListIntoValidRange h _ _ _ _ _ _
@@ -90,7 +90,7 @@ theorem writeBuffer_inv (h : P.Inv.StorePres I) (lim : Limits) (q : Quirks) (b :
   | .host _ _ _ => exact P.Inv.callUnit _
 
 theorem performCopy_inv (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I) (lim : Limits) (q : Quirks)
-    (a : CopyAction E) : P.Inv I (performCopy lim q a : P E σ Unit) := by
+    (a : CopyAction E) : P.InvW I W (performCopy lim q a : P E σ Unit) := by
   cases a with
   | none => exact P.Inv.pure _
   | transfer _ _ n wb rb =>
@@ -99,7 +99,7 @@ theorem performCopy_inv (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I) (lim : 
 theorem endCopy_inv (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I) (lim : Limits) (q : Quirks)
     {e : EndId} {buf : BufferDesc E} {isRead : Bool}
     (hc : ∀ s, I s → I (copySt e buf isRead s)) :
-    P.Inv I (endCopy lim q e buf isRead : P E σ Unit) := by
+    P.InvW I W (endCopy lim q e buf isRead : P E σ Unit) := by
   unfold endCopy
   refine P.Inv.bind P.Inv.getStore fun _ => ?_
   split
@@ -108,7 +108,7 @@ theorem endCopy_inv (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I) (lim : Limi
 
 theorem endForward_inv (hl : P.Inv.LoadPres I) (hs : P.Inv.StorePres I) (lim : Limits) (q : Quirks)
     {src dst : EndId} (hf : ∀ s, I s → I (forwardSt src dst s)) :
-    P.Inv I (endForward lim q src dst : P E σ Unit) := by
+    P.InvW I W (endForward lim q src dst : P E σ Unit) := by
   unfold endForward
   refine P.Inv.bind P.Inv.getStore fun _ => ?_
   split

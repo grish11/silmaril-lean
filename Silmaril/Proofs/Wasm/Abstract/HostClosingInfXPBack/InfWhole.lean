@@ -5,10 +5,10 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.InfLoop
 /-!
 # Productive runs: the trees, calls and invocations (proofs)
 
-* `inf_trees`: `InfG es` for all trees, by induction on their size: the head tree runs
-  productively alone (the head cases), or runs to values (`evRunN_back_vals`) and the trees after
+* `inf_trees`: `InfG J es` for all trees, by induction on their size: the head tree runs
+  productively alone (the head cases), or runs to values (`J.evRunN_back_vals`) and the trees after
   it go on (`head_consI`, `cont_typedH`).
-* `callInf_step`: a typed call running productively (`CallInfX`): its callee is a Wasm function
+* `callInf_step`: a typed call running productively (`CallInfX J`): its callee is a Wasm function
   (a host function answers its event and stops); entering its frame is its only step. Its body
   runs productively within the function (`InfLXP`), or reaches a call (a descent,
   `descends_reach`), or ends in a pending tail call, which leaves the frame at the tail callee's
@@ -18,7 +18,7 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.InfLoop
 * `callInf_closure`, by choice of the descents: the productive runs of a call are in
   `wasmEvInfNXP`: a productive run within a body after finitely many descents (`closeInfL`), or
   an infinite descent chain (`closeInf`), with unboundedly many host calls since infinitely many
-  host-free descents in a row would be host-free divergence (`coreInf_not_diverges`).
+  host-free descents in a row would be host-free divergence (`J.coreInf_not_diverges`).
 * `coreInf_wasmEvInfNXP'`: a productive Core run of a typed invocation is in `wasmEvInfNXP`.
 -/
 
@@ -35,17 +35,17 @@ open Silmaril.Wasm.Abstract.CallXP (POut)
 open Silmaril.Wasm.Binaryen (BExpr liftInstrs)
 open Shape (streamAppend)
 
-variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics H}
+variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## Trees -/
 
 /-- **The productive backward simulation of trees**, by induction on their size. -/
-theorem inf_trees (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host) :
-    ∀ es, InfG tags o host es := by
+theorem inf_trees (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host) :
+    ∀ es, InfG J tags o host es := by
   intro es
   induction hsz : sizeOf es using Nat.strong_induction_on generalizing es with
   | _ k ihk =>
-  have ih : ∀ es', sizeOf es' < sizeOf es → InfG tags o host es' :=
+  have ih : ∀ es', sizeOf es' < sizeOf es → InfG J tags o host es' :=
     fun es' h => ihk _ (hsz ▸ h) es' rfl
   intro s f stk ω ht hdv
   rcases es with _ | ⟨e, es⟩
@@ -64,7 +64,7 @@ theorem inf_trees (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSl
     · exact headInf_try hT hH hE (ih _ size_try) ht hdh
   dsimp only at hw hd₁
   subst hw
-  obtain ⟨l₁, stk₂, hd, hq, rfl⟩ := evRunN_back_vals hT hH hE (typedP_head ht) hr₁
+  obtain ⟨l₁, stk₂, hd, hq, rfl⟩ := J.evRunN_back_vals hT hH hE (typedP_head ht) hr₁
   have hcons := consistent_of_coreInf hdv
   have hst : Steps (profile o) host (pcfg s f stk (e :: es)) (pcfg s₂ f₂ stk₂ es) := by
     rw [hX]
@@ -92,7 +92,7 @@ theorem coreInf_at_host {P : Numerics.Profile} {K : Config H} {x : Ctx × Nat ×
 
 /-- **One step of the productive run of a call**: within the callee's body, or a descent to the
 next call running productively. -/
-def CallStepOut (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H)
+def CallStepOut (J : Silmaril.Wasm.Interp.BackInv H) (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H)
     (z : (wasmOShape H).self.Op) (K : Config H) (ω : Nat → Call (wasmHostSig H)) : Prop :=
   (∃ (fi : FuncInst H) (fn : Func) (ν : Nat → OCall H), z.2.2.funcs[z.1]? = some fi ∧
     fi.code = .wasm fn ∧
@@ -100,13 +100,13 @@ def CallStepOut (tags : List TagInst) (o : GrowOracle) (host : HostSemantics H)
     Shape.SubstInf Cl (fun i => (ν i).lift) ω) ∨
   ∃ (z' : (wasmOShape H).self.Op) (K' : Config H) (q : List (Call (wasmHostSig H)))
     (ω' : Nat → Call (wasmHostSig H)), Shape.Descends wasmHOpenXP Cl z q z' ∧
-    CallInfX tags o host z' K' ω' ∧ ω = q ++ω ω' ∧
+    CallInfX J tags o host z' K' ω' ∧ ω = q ++ω ω' ∧
     (q = [] → ∃ W, Lifts o W ∧ Relation.TransGen (Det.DStep o) K (W K'))
 
 /-- **The productive run of a typed call, one step.** -/
-theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : HostSliceE tags host)
+theorem callInf_step (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {z : (wasmOShape H).self.Op} {K : Config H} {ω : Nat → Call (wasmHostSig H)}
-    (h : CallInfX tags o host z K ω) : CallStepOut tags o host z K ω := by
+    (h : CallInfX J tags o host z K ω) : CallStepOut J tags o host z K ω := by
   obtain ⟨a, us, s⟩ := z
   obtain ⟨f, pre, cr, hcr, rfl, hcc, hct, hdv⟩ := h
   obtain ⟨hS, hts, fi, ps, rs, hfi, hty, hn⟩ := id hcc
@@ -132,7 +132,8 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
       have h' : Step (profile o) host ⟨s', f, vals (pre ++ ws)⟩ c' := by
         simpa [Ctx.fill, Result.toAdmin, vals] using h
       exact Sim.Step.not_vals h'
-    · exact hH.noThrow _ _ _ _ _ hans
+    · exact coreInf_throw_head (ws := pre) (x := t) (r := [])
+        (by simpa [Ctx.fill, Result.toAdmin] using hd₁)
     · exact coreInf_trap_head (ws := pre) (r := []) (by simpa [Ctx.fill, Result.toAdmin] using hd₁)
   | wasm fn =>
     let F := Frame.forCall fi.module us fn.locals
@@ -144,9 +145,9 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
       rw [hcodeB, ← hrl]
       exact Silmaril.Wasm.Logic.Core.Step.ctx pre [] (Step.callRefFunc hcr hfi hex hn' hcode)
     have hdK := coreInf_through_dsteps (.single hstep) hdv
-    have htK := hct.steps (.single hstep)
-    have hctB : TypedP tags s F [] (liftInstrs fn.body) :=
-      callee_typedP ⟨hcc, f, cr, pre, [], hcr, hct⟩ hfi hcode
+    have htK := J.steps hct (.single hstep)
+    have hctB : J.TypedP tags s F [] (liftInstrs fn.body) :=
+      J.callee_typedP ⟨hcc, f, cr, pre, [], hcr, hct⟩ hfi hcode
     rcases coreInf_split_frame hdK with hdb | ⟨cs₁, ω₂, cb, N₁, rfl, hb, hsb, hdc, hd₄⟩
     · -- the body runs productively
       rcases inf_trees hT hH hE _ s F [] ω hctB hdb with ⟨ν, hν, hs⟩ |
@@ -157,7 +158,7 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
         exact ⟨_, (lifts_frame f pre rs.length []).comp hW,
           tg_trans_rtg (.single hstep) ((lifts_frame (o := o) f pre rs.length []).rtg hrt)⟩
     -- the body ends
-    obtain ⟨l, ⟨s', f₂, ob⟩, hd, hres, hok⟩ := evRunN_back hT hH hE hctB hb hsb hdc
+    obtain ⟨l, ⟨s', f₂, ob⟩, hd, hres, hok⟩ := J.evRunN_back hT hH hE hctB hb hsb hdc
     have hcons₁ := consistent_of_coreInf hdv
     obtain ⟨ob₀, hbc⟩ := body_chkP (tags := tags) hS hfi hcode hty hn
     have hstB : Steps (profile o) host ⟨s, f, Interp.callCode pre us a cr []⟩
@@ -165,7 +166,7 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
           []⟩ :=
       (Relation.ReflTransGen.single (Step.of_noHost host hstep)).trans
         (Steps.ctx pre [] (Steps.frame rs.length (Steps.label rs.length [] (evRunN_steps hb))))
-    have hctX := ContextTyped.steps_typed hT hct hstB
+    have hctX := J.steps_host hT hct hstB
     have hfin : ∀ e : End (Store H) (List Val ⊕ Nat), (cs₁, e) ∈ wasmEvFunXP s (a, us) →
         False := by
       intro e he
@@ -230,10 +231,10 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
           [.ref (.func a'), c₀.retToCallIn cb.frame.module]) ++ []⟩ : Config H) =
           ⟨s', f, Interp.callCode pre args a' (c₀.retToCallIn cb.frame.module) []⟩ := by
         rw [hs']
-      have hct₂ : Sim.ContextTyped ⟨s', f,
+      have hct₂ : J.CT ⟨s', f,
           Interp.callCode pre args a' (c₀.retToCallIn cb.frame.module) []⟩ := by
         rw [← hK']
-        exact ContextTyped.steps_typed hT hctX (steps_host hst)
+        exact J.steps_host hT hctX (steps_host hst)
       have hd₆ : CoreInf (profile o) host ⟨s', f,
           Interp.callCode pre args a' (c₀.retToCallIn cb.frame.module) []⟩ ω₂ := by
         rw [← hK']
@@ -250,14 +251,14 @@ theorem callInf_step (hT : HostTyped host) (hH : NativeHostSlice host) (hE : Hos
 /-! ## The closure -/
 
 /-- **The productive runs of a typed call are in `wasmEvInfNXP`**, by choice of the descents. -/
-theorem callInf_closure (hT : HostTyped host) (hH : NativeHostSlice host)
+theorem callInf_closure (hT : J.HostOk host) (hH : HostSliceT host)
     (hE : HostSliceE tags host) (z : (wasmOShape H).self.Op) (K : Config H)
-    (ω : Nat → Call (wasmHostSig H)) (hz : CallInfX tags o host z K ω) :
+    (ω : Nat → Call (wasmHostSig H)) (hz : CallInfX J tags o host z K ω) :
     ω ∈ wasmEvInfNXP z.2.2 (z.1, z.2.1) := by
   classical
   by_contra hno
   let Good : (wasmOShape H).self.Op × Config H × (Nat → Call (wasmHostSig H)) → Prop := fun p =>
-    CallInfX tags o host p.1 p.2.1 p.2.2 ∧ p.2.2 ∉ wasmEvInfNXP p.1.2.2 (p.1.1, p.1.2.1)
+    CallInfX J tags o host p.1 p.2.1 p.2.2 ∧ p.2.2 ∉ wasmEvInfNXP p.1.2.2 (p.1.1, p.1.2.1)
   have step : ∀ p : {p // Good p}, ∃ (p' : {p // Good p}) (q : List (Call (wasmHostSig H))),
       Shape.Descends wasmHOpenXP Cl p.1.1 q p'.1.1 ∧ p.1.2.2 = q ++ω p'.1.2.2 ∧
       (q = [] → ∃ W, Lifts o W ∧ Relation.TransGen (Det.DStep o) p.1.2.1 (W p'.1.2.1)) := by
@@ -289,7 +290,7 @@ theorem callInf_closure (hT : HostTyped host) (hH : NativeHostSlice host)
     have hdiv := trace_of_tgChain (R := Det.DStep o)
       (x := fun k => Φ k (G (N + k)).1.2.1) (fun k => (hΦ k).tg (htg k))
     obtain ⟨-, -, -, -, -, -, hct, hd⟩ := (G N).2.1
-    exact coreInf_not_diverges hct hdiv hd
+    exact J.coreInf_not_diverges hct hdiv hd
   have hchainω : ∀ n, (G n).1.2.2 = q (G n) ++ω (G (n + 1)).1.2.2 := fun n => by
     rw [hG]; exact hω (G n)
   have hcsω := Shape.streamConcat_of_chain (w := fun n => (G n).1.2.2) hchainω
@@ -304,15 +305,14 @@ theorem callInf_closure (hT : HostTyped host) (hH : NativeHostSlice host)
 
 /-- **A productive Core run of a typed invocation is in `wasmEvInfNXP`** (deterministic
 profile). -/
-theorem coreInf_wasmEvInfNXP' (hT : HostTyped host) (hH : NativeHostSlice host)
-    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
+theorem coreInf_wasmEvInfNXP' (hT : J.HostOk host) (hH : HostSliceT host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hct₀ : J.CT (invoke s a vs))
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     {ω : Nat → Call (wasmHostSig H)} (h : CoreInf (profile o) host (invoke s a vs) ω) :
     ω ∈ wasmEvInfNXP s (a, vs) := by
-  have hct := invoke_callTyped hs hok hS hts
+  have hct := J.invoke_callTyped hct₀ hok hS hts
   obtain ⟨⟨-, -, fi, ps, rs, hfi, hty, hlen⟩, -⟩ := id hct
-  obtain ⟨_, _, _, _, _, hcfg⟩ := invoke_ok hs hok
-  have hctx := Sim.ContextTyped.of_configOk hcfg
+  have hctx := hct₀
   have hinv : invoke s a vs = ⟨s, {}, Interp.callCode [] vs a (.callRefType fi.type) []⟩ := by
     rw [invoke_eqP hfi]; simp [Interp.callCode, vals]
   rw [hinv] at h hctx

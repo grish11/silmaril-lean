@@ -1,0 +1,120 @@
+{
+  "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "archive_sha256": "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
+  "profiles": [
+    {
+      "arch": "x86_64",
+      "configuration": "asm",
+      "command": [
+        "perl",
+        "./Configure",
+        "linux-x86_64",
+        "shared",
+        "no-tests",
+        "--prefix=/usr/local",
+        "--openssldir=/usr/local/ssl",
+        "--libdir=lib",
+        "CFLAGS=-O1 -g0 -ffile-prefix-map=/build/openssl=."
+      ],
+      "configuration_probe": {
+        "asm_disabled": false,
+        "target": "linux-x86_64",
+        "perlasm_scheme": "elf"
+      },
+      "wall_seconds": 7.6046332230007465,
+      "status": "Configure only; no compiler build, ELF, reproducibility or semantic claim",
+      "generator_check": {
+        "command": [
+          "make",
+          "-j1",
+          "crypto/aes/aes-x86_64.s"
+        ],
+        "generated_path": "crypto/aes/aes-x86_64.s",
+        "sha256": "876e3b0fb3c0442ed04e1186b13d51ab12ecfab0d22bd03d7564c58c1d029d96",
+        "size": 58468,
+        "scope": "one actual perlasm generation target; not assembled, linked or runtime-tested"
+      }
+    },
+    {
+      "arch": "x86_64",
+      "configuration": "no-asm",
+      "command": [
+        "perl",
+        "./Configure",
+        "linux-x86_64",
+        "no-asm",
+        "shared",
+        "no-tests",
+        "--prefix=/usr/local",
+        "--openssldir=/usr/local/ssl",
+        "--libdir=lib",
+        "CFLAGS=-O1 -g0 -ffile-prefix-map=/build/openssl=."
+      ],
+      "configuration_probe": {
+        "asm_disabled": true,
+        "target": "linux-x86_64",
+        "perlasm_scheme": "elf"
+      },
+      "wall_seconds": 7.878724398000486,
+      "status": "Configure only; no compiler build, ELF, reproducibility or semantic claim"
+    },
+    {
+      "arch": "aarch64",
+      "configuration": "asm",
+      "command": [
+        "perl",
+        "./Configure",
+        "linux-aarch64",
+        "--cross-compile-prefix=aarch64-linux-gnu-",
+        "shared",
+        "no-tests",
+        "--prefix=/usr/local",
+        "--openssldir=/usr/local/ssl",
+        "--libdir=lib",
+        "CFLAGS=-O1 -g0 -ffile-prefix-map=/build/openssl=."
+      ],
+      "configuration_probe": {
+        "target": "linux-aarch64",
+        "asm_disabled": false,
+        "perlasm_scheme": "linux64"
+      },
+      "wall_seconds": 7.510778983999444,
+      "status": "Configure only; no compiler build, ELF, reproducibility or semantic claim",
+      "generator_check": {
+        "command": [
+          "make",
+          "-j1",
+          "crypto/aes/aesv8-armx.S"
+        ],
+        "generated_path": "crypto/aes/aesv8-armx.S",
+        "sha256": "c27ead0622d0561af5d4528dedfa5cae53627bd18eeadf978b3349d36848ae35",
+        "size": 83714,
+        "scope": "one actual perlasm generation target; not assembled, linked or runtime-tested"
+      }
+    },
+    {
+      "arch": "aarch64",
+      "configuration": "no-asm",
+      "command": [
+        "perl",
+        "./Configure",
+        "linux-aarch64",
+        "--cross-compile-prefix=aarch64-linux-gnu-",
+        "no-asm",
+        "shared",
+        "no-tests",
+        "--prefix=/usr/local",
+        "--openssldir=/usr/local/ssl",
+        "--libdir=lib",
+        "CFLAGS=-O1 -g0 -ffile-prefix-map=/build/openssl=."
+      ],
+      "configuration_probe": {
+        "target": "linux-aarch64",
+        "perlasm_scheme": "linux64",
+        "asm_disabled": true
+      },
+      "wall_seconds": 7.429448206000416,
+      "status": "Configure only; no compiler build, ELF, reproducibility or semantic claim"
+    }
+  ]
+}

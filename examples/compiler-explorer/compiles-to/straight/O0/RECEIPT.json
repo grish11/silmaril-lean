@@ -1,0 +1,16 @@
+{
+  "command": "objdump -d -w -j .text straight.o",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "listing": {
+    "path": "listing.txt",
+    "sha256": "95a10bf6ee30b18f2d16fe295a223b5e8f8c30e5cb71d914a5c3373f7a732a32",
+    "size": 863
+  },
+  "network": "none",
+  "objdump": "GNU objdump (GNU Binutils for Debian) 2.40",
+  "object": {
+    "path": "examples/compiles-to/straight/O0/straight.o",
+    "sha256": "482026b8561dfbb3b2d13e49aba4d78354d6bee097524a97d5bdf662a48b26f4"
+  },
+  "workdir": "/src"
+}

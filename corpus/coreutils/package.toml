@@ -1,0 +1,59 @@
+name = "coreutils"
+version = "9.12"
+category = "GNU command-line utilities: true, echo, cat, wc, head, sort, sha256sum"
+summary = "GNU coreutils 9.12 release tarball (GPG signature by Padraig Brady, key 6C37DC12121A5006BC1DB804DF6FD971306037D9, verified with gpgv against gnu-keyring.gpg), genuine ./configure && make (cross for aarch64), only the seven programs built; unstripped."
+license = "GPL-3.0-or-later"
+license_files = ["upstream/coreutils-9.12/COPYING"]
+homepage = "https://www.gnu.org/software/coreutils/"
+
+[[archive]]
+url = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz"
+sha256 = "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+root = "coreutils-9.12"
+retrieved = "2026-11-17"
+signature = "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz.sig"
+signature_sha256 = "e28e1ee5d29f88bd88bedf64bbbf033106eb28eb2efc9ffc4a0c3c92a80ac353"
+keyring = "https://ftp.gnu.org/gnu/gnu-keyring.gpg (sha256 8013de59880f7a59f53b6bd207f4d2a408d67b84a82fa9cba1dbbf443428e2db)"
+
+[[object]]
+name = "true"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/true.c"]
+cflags = "-std=gnu23 -I. -I./lib -Ilib -I./lib -Isrc -I./src -O2 -g0 -ffile-prefix-map=/build/coreutils=."
+notes = "linked with src/libver.a lib/libcoreutils.a (-Wl,--as-needed). Sources of lib/libcoreutils.a: every upstream/coreutils-9.12/lib/** file + generated/<arch>/lib/** (from the depfiles)."
+
+[[object]]
+name = "echo"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/echo.c"]
+cflags = "as for true"
+
+[[object]]
+name = "cat"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/cat.c"]
+cflags = "as for true"
+
+[[object]]
+name = "wc"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/wc.c", "upstream/coreutils-9.12/src/wc_avx2.c (x86_64: libwc_avx2.a, -mavx2)", "upstream/coreutils-9.12/src/wc_neon.c (aarch64: libwc_neon.a)"]
+cflags = "as for true (+ the SIMD helper's own flag)"
+
+[[object]]
+name = "head"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/head.c"]
+cflags = "as for true"
+
+[[object]]
+name = "sort"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/sort.c"]
+cflags = "as for true"
+
+[[object]]
+name = "sha256sum"
+kind = "exe"
+sources = ["upstream/coreutils-9.12/src/cksum.c (compiled as src/sha256sum-cksum.o with -DHASH_ALGO_SHA256=1)", "src/cksum_* SIMD helpers (libcksum_*.a)"]
+cflags = "as for true (+ -DHASH_ALGO_SHA256=1 etc., see the depfiles / make log)"

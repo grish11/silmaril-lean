@@ -1,0 +1,27 @@
+name = "cjson"
+version = "1.7.19"
+category = "JSON parser library; JSON utilities library"
+summary = "cJSON 1.7.19 (tag v1.7.19, commit c859b25da02955fef659d658b8f324b5cde87be3): libcjson.so.1 from cJSON.c and libcjson_utils.so.1 from cJSON_Utils.c (linked against libcjson.so.1, as upstream's CMake build does)."
+license = "MIT"
+license_files = ["upstream/cJSON-1.7.19/LICENSE"]
+homepage = "https://github.com/DaveGamble/cJSON"
+
+[[archive]]
+url = "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz"
+sha256 = "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+root = "cJSON-1.7.19"
+retrieved = "2026-11-17"
+
+[[object]]
+name = "libcjson.so.1"
+kind = "shared"
+sources = ["upstream/cJSON-1.7.19/cJSON.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD"
+notes = "gcc -shared -Wl,-soname,libcjson.so.1 cJSON.o -lm. Flags = upstream CMakeLists.txt defaults (minus warning-only flags beyond -pedantic -Wall)."
+
+[[object]]
+name = "libcjson_utils.so.1"
+kind = "shared"
+sources = ["upstream/cJSON-1.7.19/cJSON_Utils.c"]
+cflags = "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD"
+notes = "gcc -shared -Wl,-soname,libcjson_utils.so.1 cJSON_Utils.o -L. -lcjson (DT_NEEDED libcjson.so.1; cJSON.c is NOT linked into it, unlike upstream's plain Makefile)."

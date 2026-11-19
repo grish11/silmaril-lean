@@ -1,0 +1,30 @@
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_SHARED_LIBS=ON -DBUILD_TESTING=OFF -DOPENSSL_NO_ASM=OFF -DFIPS=ON -DCMAKE_C_COMPILER=gcc '-DCMAKE_C_FLAGS=-O0 -g0 -ffile-prefix-map=/build/boringssl=.' '-DCMAKE_C_FLAGS_RELEASE=-g0 -DNDEBUG' -DCMAKE_CXX_COMPILER=g++ '-DCMAKE_CXX_FLAGS=-O0 -g0 -ffile-prefix-map=/build/boringssl=.' '-DCMAKE_CXX_FLAGS_RELEASE=-g0 -DNDEBUG' -DCMAKE_ASM_COMPILER=gcc '-DCMAKE_ASM_FLAGS=-O0 -g0 -ffile-prefix-map=/build/boringssl=.' '-DCMAKE_ASM_FLAGS_RELEASE=-g0 -DNDEBUG'
+-- The C compiler identification is GNU 14.2.0
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /usr/bin/gcc - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- The CXX compiler identification is GNU 14.2.0
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/g++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- The ASM compiler identification is GNU
+-- Found assembler: /usr/bin/gcc
+CMake Warning (dev) at CMakeLists.txt:646 (add_custom_command):
+  The following keywords are not supported when using
+  add_custom_command(TARGET): DEPENDS.
+
+  Policy CMP0175 is not set: add_custom_command() rejects invalid arguments.
+  Run "cmake --help-policy CMP0175" for policy details.  Use the cmake_policy
+  command to set the policy and suppress this warning.
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Configuring done (0.6s)
+-- Generating done (0.0s)
+-- Build files have been written to: /build/boringssl/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/build

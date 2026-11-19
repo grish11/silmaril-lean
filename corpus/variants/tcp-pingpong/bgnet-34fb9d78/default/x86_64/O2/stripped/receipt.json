@@ -1,0 +1,223 @@
+{
+  "package": "tcp-pingpong",
+  "version": "bgnet-34fb9d78",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall",
+  "ldflags": "",
+  "configure_args": "(none)",
+  "build_commands": [
+    "gcc -O2 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall server.c -o pingpong-server",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/tcp-pingpong=. -Wall client.c -o pingpong-client"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/tcp-pingpong",
+  "inputs": [
+    {
+      "url": "https://github.com/beejjorgensen/bgnet/archive/34fb9d781a3643bc1e2a36ba6e77e0d347ffe2c9.tar.gz",
+      "sha256": "13df988f5f202b550c078a81d9b94c294ef7946d684a6013aaae8f638c5982ce"
+    },
+    {
+      "url": "local/pingpong.patch",
+      "sha256": "ab57df0b712f6e63511fd41577d3a5ba3bc9c89f07fd77cb1031940c775640cc"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "pingpong-client",
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O2/stripped/pingpong-client",
+      "size": 14584,
+      "sha256": "0bedaf8a4b4e91e5ecca34e54f36c3a69e65ec3d91ce082d8b721182c914fa68",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "pingpong-server",
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O2/stripped/pingpong-server",
+      "size": 14656,
+      "sha256": "09d756c10872df1974d0ff3bd46451d61487f7da6d2b413ca0a74e8149de109d",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs; independently stripped in their respective workers; byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "pingpong-server 18391 & pingpong-client 127.0.0.1 18391 5: exit status, pong count",
+      "result": "pass: 0 5"
+    },
+    {
+      "command": "client transcript",
+      "result": "client: attempting connection to 127.0.0.1|client: connected to 127.0.0.1|client: round 1: sent 'ping', received 'pong'|client: round 2: sent 'ping', received 'pong'|client: round 3: sent 'ping', received 'pong'|client: round 4: sent 'ping', received 'pong'|client: round 5: sent 'ping', received 'pong'"
+    },
+    {
+      "command": "server transcript",
+      "result": "server: waiting for connections on port 18391...|server: got connection from 127.0.0.1|server: 127.0.0.1 closed after 5 ping/pong rounds|"
+    },
+    {
+      "command": "server reports 5 rounds",
+      "result": "pass: 1"
+    }
+  ],
+  "variant": {
+    "optimization": "O2",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "0d8a8f14-f99a-4aab-8169-3bfc8aa512c1",
+    "target": "x86_64-linux-gnu"
+  },
+  "container_pool": {
+    "toolchain": "corpus/toolchain",
+    "pool_id": "9efe74fb-b55e-49f1-8e87-9d7898502570",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T02:28:55.540405+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "126d0c14947d86b41b777a7853b8c21e9dc0739a62fdeaab251c8b53f7fb655c",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.667852+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "8a6c2e29fb4922229be80f1529fbad7f09c44cf0e362bf36ad932010679ef0e8",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.879578+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O2",
+        "sequence": 3,
+        "started_utc": "2026-11-18T02:29:07.855819+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T02:29:12.667822+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "pingpong-server 18391 & pingpong-client 127.0.0.1 18391 5: exit status, pong count",
+      "result": "pass: 0 5"
+    },
+    {
+      "command": "client transcript",
+      "result": "client: attempting connection to 127.0.0.1|client: connected to 127.0.0.1|client: round 1: sent 'ping', received 'pong'|client: round 2: sent 'ping', received 'pong'|client: round 3: sent 'ping', received 'pong'|client: round 4: sent 'ping', received 'pong'|client: round 5: sent 'ping', received 'pong'"
+    },
+    {
+      "command": "server transcript",
+      "result": "server: waiting for connections on port 18391...|server: got connection from 127.0.0.1|server: 127.0.0.1 closed after 5 ping/pong rounds|"
+    },
+    {
+      "command": "server reports 5 rounds",
+      "result": "pass: 1"
+    }
+  ]
+}

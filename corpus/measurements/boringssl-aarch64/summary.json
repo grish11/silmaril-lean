@@ -1,0 +1,69 @@
+{
+  "actual_elf_rows": 30,
+  "unique_hashes": 18,
+  "profiles": 5,
+  "measured_exits_passed": 90,
+  "profile_slices": [
+    {
+      "configuration": "asm",
+      "optimization": "O0",
+      "actual_elf_rows": 6,
+      "summary": "asm/O0/summary.json",
+      "build_wall_seconds": {
+        "build-a": 69.7248447130005,
+        "build-b": 53.06677021299947
+      },
+      "source_files_hash_checked": 1307
+    },
+    {
+      "configuration": "asm",
+      "optimization": "O2",
+      "actual_elf_rows": 6,
+      "summary": "asm/O2/summary.json",
+      "build_wall_seconds": {
+        "build-a": 77.23614074699981,
+        "build-b": 60.93336247500156
+      },
+      "source_files_hash_checked": 1307
+    },
+    {
+      "configuration": "fips-shared",
+      "optimization": "O0",
+      "actual_elf_rows": 6,
+      "summary": "fips-shared/O0/summary.json",
+      "build_wall_seconds": {
+        "build-a": 74.15611131500009,
+        "build-b": 58.15688110499832
+      },
+      "source_files_hash_checked": 1208
+    },
+    {
+      "configuration": "no-asm",
+      "optimization": "O0",
+      "actual_elf_rows": 6,
+      "summary": "no-asm/O0/summary.json",
+      "build_wall_seconds": {
+        "build-a": 67.15183692900064,
+        "build-b": 52.06619650900029
+      },
+      "source_files_hash_checked": 1181
+    },
+    {
+      "configuration": "no-asm",
+      "optimization": "O2",
+      "actual_elf_rows": 6,
+      "summary": "no-asm/O2/summary.json",
+      "build_wall_seconds": {
+        "build-a": 74.8955299850004,
+        "build-b": 59.90096016100142
+      },
+      "source_files_hash_checked": 1181
+    }
+  ],
+  "limits": [
+    "Only completed actual profiles counted; failed native GCC FIPS_SHARED O2 remains unsupported, not retried.",
+    "Representative O0/O2 standard and O0 FIPS_SHARED selection, not all optimization levels or upstream versions.",
+    "QEMU observations, not native AArch64 hardware execution or FIPS validation/certification.",
+    "Static/observed evidence is not semantic equivalence or Lean proof."
+  ]
+}

@@ -37,26 +37,26 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 theorem next (vi : FlatCursor) (t : CoreType) :
-    P.Inv I (FlatCursor.next vi t : P E σ _) := by
+    P.InvW I W (FlatCursor.next vi t : P E σ _) := by
   unfold FlatCursor.next
   split
   · exact pure _
   · exact internal _
 
 theorem nextN (vi : FlatCursor) (ts : List CoreType) :
-    P.Inv I (FlatCursor.nextN vi ts : P E σ _) := by
+    P.InvW I W (FlatCursor.nextN vi ts : P E σ _) := by
   induction ts generalizing vi with
   | nil => exact pure _
   | cons t ts ih => exact bind (next vi t) fun _ => bind (ih _) fun _ => pure _
 
-theorem flatMismatch {α : Type} : P.Inv I (Canon.flatMismatch : P E σ α) := internal _
+theorem flatMismatch {α : Type} : P.InvW I W (Canon.flatMismatch : P E σ α) := internal _
 
 theorem liftFlatPrim (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType)
     (prim : WIT.Primitive) (vi : FlatCursor) :
-    P.Inv I (Canon.liftFlatPrim lim q cx p prim vi : P E σ _) := by
+    P.InvW I W (Canon.liftFlatPrim lim q cx p prim vi : P E σ _) := by
   unfold Canon.liftFlatPrim
   cases prim
   case bool | f32 | f64 => exact bind (next _ _) fun _ => pure _
@@ -66,29 +66,29 @@ theorem liftFlatPrim (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : 
       bind (loadStringFromRange _ _ _ _ _) fun _ => pure _
   all_goals exact bind (next _ _) fun _ => pure _
 
-theorem liftFlatN {f : FlatCursor → P E σ (Val × FlatCursor)} (hf : ∀ vi, P.Inv I (f vi))
-    (n : Nat) (vi : FlatCursor) : P.Inv I (Canon.liftFlatN f n vi) := by
+theorem liftFlatN {f : FlatCursor → P E σ (Val × FlatCursor)} (hf : ∀ vi, P.InvW I W (f vi))
+    (n : Nat) (vi : FlatCursor) : P.InvW I W (Canon.liftFlatN f n vi) := by
   induction n generalizing vi with
   | zero => exact pure _
   | succ n ih => exact bind (hf _) fun _ => bind (ih _) fun _ => pure _
 
 theorem liftFlatListWith (lim : Limits) (cx : LiftLowerContext E) (p : AddrType) (l : Layout)
-    {f : Nat → P E σ Val} (hf : ∀ n, P.Inv I (f n)) (vi : FlatCursor) :
-    P.Inv I (Canon.liftFlatListWith lim cx p l f vi) :=
+    {f : Nat → P E σ Val} (hf : ∀ n, P.InvW I W (f n)) (vi : FlatCursor) :
+    P.InvW I W (Canon.liftFlatListWith lim cx p l f vi) :=
   bind (next _ _) fun _ => bind (next _ _) fun _ =>
     bind (loadListFromRangeWith lim cx l hf _ _) fun _ => pure _
 
 theorem liftFlatVariantWith (n : Nat) (joined : List CoreType) (wants : Nat → List CoreType)
     {payload : Nat → FlatCursor → P E σ (Option Val × FlatCursor)}
-    (hp : ∀ i c, P.Inv I (payload i c)) (vi : FlatCursor) :
-    P.Inv I (Canon.liftFlatVariantWith n joined wants payload vi) :=
+    (hp : ∀ i c, P.InvW I W (payload i c)) (vi : FlatCursor) :
+    P.InvW I W (Canon.liftFlatVariantWith n joined wants payload vi) :=
   bind (next _ _) fun _ => bind (trapIf _ _) fun _ => bind (nextN _ _) fun _ =>
     bind (hp _ _) fun _ => pure _
 
 mutual
   theorem liftFlatAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (t : WIT.ClosedType RtId) → (vi : FlatCursor) →
-      P.Inv I (Canon.liftFlatAt lim q cx p t vi : P E σ _)
+      P.InvW I W (Canon.liftFlatAt lim q cx p t vi : P E σ _)
     | .prim prim, vi => by rw [Canon.liftFlatAt]; exact liftFlatPrim _ _ _ _ _ _
     | .ref r, _ => nomatch r
     | .list t, vi => by
@@ -149,7 +149,7 @@ mutual
   theorem liftFlatFields (h : LoadPres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (fields : List (String × WIT.ClosedType RtId)) → (vi : FlatCursor) →
-      P.Inv I (Canon.liftFlatFields lim q cx p fields vi : P E σ _)
+      P.InvW I W (Canon.liftFlatFields lim q cx p fields vi : P E σ _)
     | [], _ => by rw [Canon.liftFlatFields]; exact pure _
     | (_, t) :: fields, vi => by
       rw [Canon.liftFlatFields]
@@ -159,7 +159,7 @@ mutual
   theorem liftFlatTypes (h : LoadPres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (ts : List (WIT.ClosedType RtId)) → (vi : FlatCursor) →
-      P.Inv I (Canon.liftFlatTypes lim q cx p ts vi : P E σ _)
+      P.InvW I W (Canon.liftFlatTypes lim q cx p ts vi : P E σ _)
     | [], _ => by rw [Canon.liftFlatTypes]; exact pure _
     | t :: ts, vi => by
       rw [Canon.liftFlatTypes]
@@ -170,7 +170,7 @@ mutual
       (cx : LiftLowerContext E) (p : AddrType) :
       (cases : List (String × Option (WIT.ClosedType RtId))) → (i : Nat) →
       (vi : FlatCursor) →
-      P.Inv I (Canon.liftFlatCaseAt lim q cx p cases i vi : P E σ _)
+      P.InvW I W (Canon.liftFlatCaseAt lim q cx p cases i vi : P E σ _)
     | [], _, _ => by rw [Canon.liftFlatCaseAt]; exact pure _
     | (_, t) :: _, 0, vi => by rw [Canon.liftFlatCaseAt]; exact liftFlatOpt h lim q cx p t vi
     | _ :: cases, i + 1, vi => by
@@ -179,7 +179,7 @@ mutual
   theorem liftFlatOpt (h : LoadPres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (t : Option (WIT.ClosedType RtId)) → (vi : FlatCursor) →
-      P.Inv I (Canon.liftFlatOpt lim q cx p t vi : P E σ _)
+      P.InvW I W (Canon.liftFlatOpt lim q cx p t vi : P E σ _)
     | none, _ => by rw [Canon.liftFlatOpt]; exact pure _
     | some t, vi => by
       rw [Canon.liftFlatOpt]; exact bind (liftFlatAt h lim q cx p t vi) fun _ => pure _
@@ -187,7 +187,7 @@ end
 
 theorem liftFlatValues (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
     (max : Nat) (vi : FlatCursor) (ts : List (WIT.ClosedType RtId)) :
-    P.Inv I (Canon.liftFlatValues lim q cx max vi ts : P E σ _) :=
+    P.InvW I W (Canon.liftFlatValues lim q cx max vi ts : P E σ _) :=
   bind (ptrType cx) fun p =>
     ite (bind (next _ _) fun _ => bind (trapIf _ _) fun _ => bind (checkInBounds _ _ _)
       fun _ => bind (loadTypesAt h lim q cx p ts _) fun _ => pure _)
@@ -195,7 +195,7 @@ theorem liftFlatValues (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLo
 
 theorem lowerFlatPrim (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
     (p : AddrType) (pt : WIT.Primitive) (v : Val) :
-    P.Inv I (Canon.lowerFlatPrim lim q cx p pt v : P E σ _) := by
+    P.InvW I W (Canon.lowerFlatPrim lim q cx p pt v : P E σ _) := by
   unfold Canon.lowerFlatPrim
   split
   · exact pure _
@@ -209,7 +209,7 @@ theorem lowerFlatPrim (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
   · exact flatMismatch
 
 theorem coerceLowerSlots (hs ws : List CoreType) (vs : List FlatValue) :
-    P.Inv I (Canon.coerceLowerSlots hs ws vs : P E σ _) := by
+    P.InvW I W (Canon.coerceLowerSlots hs ws vs : P E σ _) := by
   induction hs generalizing ws vs with
   | nil => rw [Canon.coerceLowerSlots.eq_def]; exact pure _
   | cons h hs ih =>
@@ -221,18 +221,18 @@ theorem coerceLowerSlots (hs ws : List CoreType) (vs : List FlatValue) :
     · exact bind (coerceLower _ _ _) fun _ => bind (ih _ _) fun _ => pure _
 
 theorem lowerFlatVariantWith (n : Nat) (joined : List CoreType) (i : Nat)
-    (haves : List CoreType) {payload : P E σ (List FlatValue)} (hp : P.Inv I payload) :
-    P.Inv I (Canon.lowerFlatVariantWith n joined i haves payload) :=
+    (haves : List CoreType) {payload : P E σ (List FlatValue)} (hp : P.InvW I W payload) :
+    P.InvW I W (Canon.lowerFlatVariantWith n joined i haves payload) :=
   ite (bind hp fun _ => bind (coerceLowerSlots _ _ _) fun _ => pure _) flatMismatch
 
 theorem spillPointer (cx : LiftLowerContext E) (p : AddrType) (l : Layout)
-    (o : Option FlatCursor) : P.Inv I (Canon.spillPointer cx p l o : P E σ _) := by
+    (o : Option FlatCursor) : P.InvW I W (Canon.spillPointer cx p l o : P E σ _) := by
   cases o with
   | none => exact bind (allocate _ _ _) fun _ => pure _
   | some op => exact bind (next _ _) fun _ => pure _
 
 theorem unpackCallbackResult (packed : Nat) :
-    P.Inv I (Canon.unpackCallbackResult packed : P E σ _) := orTrap _ _
+    P.InvW I W (Canon.unpackCallbackResult packed : P E σ _) := orTrap _ _
 
 end P.Inv
 
@@ -246,12 +246,12 @@ variable {E : CoreEngine} {σ : Type}
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
 mutual
   theorem lowerFlatAt (h : StorePres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (v : Val) → (t : WIT.ClosedType RtId) →
-      P.Inv I (Canon.lowerFlatAt lim q cx p v t : P E σ _)
+      P.InvW I W (Canon.lowerFlatAt lim q cx p v t : P E σ _)
     | v, .prim pt => by rw [Canon.lowerFlatAt]; exact lowerFlatPrim _ _ _ _ _ _
     | _, .ref r => nomatch r
     | v, .list u => by
@@ -317,7 +317,7 @@ mutual
   theorem lowerFlatFields (h : StorePres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (vs : List Val) → (fields : List (String × WIT.ClosedType RtId)) →
-      P.Inv I (Canon.lowerFlatFields lim q cx p vs fields : P E σ _)
+      P.InvW I W (Canon.lowerFlatFields lim q cx p vs fields : P E σ _)
     | [], [] => by rw [Canon.lowerFlatFields]; exact pure _
     | v :: vs, (_, t) :: fields => by
       rw [Canon.lowerFlatFields]
@@ -329,7 +329,7 @@ mutual
   theorem lowerFlatTypes (h : StorePres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (vs : List Val) → (ts : List (WIT.ClosedType RtId)) →
-      P.Inv I (Canon.lowerFlatTypes lim q cx p vs ts : P E σ _)
+      P.InvW I W (Canon.lowerFlatTypes lim q cx p vs ts : P E σ _)
     | [], [] => by rw [Canon.lowerFlatTypes]; exact pure _
     | v :: vs, t :: ts => by
       rw [Canon.lowerFlatTypes]
@@ -341,7 +341,7 @@ mutual
   theorem lowerFlatCase (h : StorePres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) (i : Nat) (payload : Option Val) :
       (cases : List (String × Option (WIT.ClosedType RtId))) →
-      P.Inv I (Canon.lowerFlatCase lim q cx p i payload cases : P E σ _)
+      P.InvW I W (Canon.lowerFlatCase lim q cx p i payload cases : P E σ _)
     | [] => by rw [Canon.lowerFlatCase.eq_def]; exact flatMismatch
     | (_, t) :: cases => by
       rw [Canon.lowerFlatCase.eq_def]
@@ -352,7 +352,7 @@ mutual
   theorem lowerFlatOpt (h : StorePres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) (payload : Option Val) :
       (t : Option (WIT.ClosedType RtId)) →
-      P.Inv I (Canon.lowerFlatOpt lim q cx p payload t : P E σ _)
+      P.InvW I W (Canon.lowerFlatOpt lim q cx p payload t : P E σ _)
     | none => by rw [Canon.lowerFlatOpt.eq_def]; exact pure _
     | some t => by
       rw [Canon.lowerFlatOpt.eq_def]
@@ -364,7 +364,7 @@ end
 theorem lowerFlatValues (h : StorePres I) (lim : Limits) (q : Quirks)
     (cx : LiftLowerContext E) (max : Nat) (vs : List Val) (ts : List (WIT.ClosedType RtId))
     (outParam : Option FlatCursor) :
-    P.Inv I (Canon.lowerFlatValues lim q cx max vs ts outParam : P E σ _) :=
+    P.InvW I W (Canon.lowerFlatValues lim q cx max vs ts outParam : P E σ _) :=
   bind (ptrType cx) fun p =>
     ite (bind (spillPointer _ _ _ _) fun _ => bind (trapIf _ _) fun _ =>
       bind (checkInBounds _ _ _) fun _ => bind (store h _ _ _ _ _ _) fun _ => pure _)

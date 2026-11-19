@@ -1,0 +1,20 @@
+{
+  "external_input_sha256": "2b6b330ba584732803de11dbb89ff15117d0f1a105ee032d17869dafff1bb806",
+  "files": {
+    "context.c": "fd758ed6f378c0485f4a5b4cd7f4f177d1480ab5dca77ebe25ec9e16781d9364",
+    "typed-ail.sexp": "70dfb7d10ce86ff6b256283d74398082f86e571fb5360f71c5580adad357ecb1",
+    "program.sexp": "7cd269ca50b04f09cae919d75e379a97a491c07d6cd5f9a208b1c843edba492f",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "translation-unit.i": "4e33d7c4e78fd242acba9caef4964217e3df3ef5f8138bd15a8af33bf40805e7",
+    "source-build.log.gz": "379f0f52fb825bd2c3ef5713d3a5675c7f4f4d30d5c2175dcc474b2ee2afc4b3",
+    "projection.json": "d0621e4d2a2eee5b097823a67d1eae8b698a86301682cd3ebd43ab5b8cab3613"
+  },
+  "elf_sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+  "original_build_receipt": "../mi_version/source-binding.json",
+  "immutable_files": {
+    "corpus/mimalloc/upstream/mimalloc-2.1.9/src/os.c": "8108e9d5a3866f010a6156cc2d9c2a05422ae71027577aeb9a31d482bb169554",
+    "corpus/mimalloc/upstream/mimalloc-2.1.9/include/mimalloc/prim.h": "b7f329eb3343ad9259beb381d9b71c68cfc10e771df7bc726485ba980e968e3b",
+    "corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+    "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/mi_version/source-binding.json": "2aa9fbd5d77214ffd79059a47c4adfac2426de7ad7f0d7d1d22a4cecdedee82d"
+  }
+}

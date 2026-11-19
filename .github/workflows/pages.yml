@@ -71,8 +71,9 @@ jobs:
       - name: Dump, check and write the database and the page, on prove
         run: |
           hiloop-prove run --build Silmaril --build SilmarilLogicGraphData --build ProjectSelfTest --build SysVTvExample \
-            --build CompilesToExamples --build wasm-pages --build elf-pages --out _site -- \
-            env -u CARGO_TARGET_DIR make pages PAGES_SOURCE_REV="$GITHUB_SHA"
+            --build CompilesToExamples --build wasm-pages --build elf-pages --out pages-site.tar.gz -- \
+            env -u CARGO_TARGET_DIR make pages-archive PAGES_SOURCE_REV="$GITHUB_SHA"
+          tar -xzf pages-site.tar.gz
           ls -l _site
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
@@ -81,8 +82,18 @@ jobs:
   # The explorer's browser tests on the site just built (tools/silmaril-project/tests/explore):
   # the Wasm function pages' graphs, counts, links and keys, the variant fixtures, and the shared
   # shell (navigation, source dialog, status badges, database switches). Deploying
-  # does not wait for them; a failure marks the run red.
+  # waits for them, including the corpus and compiler viewer checks.
   browser-tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: shell
+            tests: wasm_cfg wasm_cfg_variants shell snapshot provenance
+          - group: languages
+            tests: wasm_acceptors acceptor_runs wasm_languages languages attention
+          - group: corpus-compiler
+            tests: elf logic formal corpus compiler
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -107,29 +118,27 @@ jobs:
       - name: Run the explorer's browser tests
         env:
           PLAYWRIGHT_CORE: ${{ runner.temp }}/pw/node_modules/playwright-core/index.mjs
+          BROWSER_TESTS: ${{ matrix.tests }}
         run: |
           mkdir -p "$RUNNER_TEMP/site" && tar -xf "$RUNNER_TEMP/pages/artifact.tar" -C "$RUNNER_TEMP/site"
           cd tools/silmaril-project/tests/explore
-          node wasm_cfg.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node wasm_cfg_variants.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node shell.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node snapshot.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node provenance.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node wasm_acceptors.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node wasm_languages.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node languages.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node attention.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node elf.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
-          node logic.mjs "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+          python3 -I test_pages_server.py
+          for test in $BROWSER_TESTS; do
+            if [ "$test" = corpus ]; then
+              node "$test.mjs" "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots/corpus.png"
+            else
+              node "$test.mjs" "$RUNNER_TEMP/site" "$RUNNER_TEMP/shots"
+            fi
+          done
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: explorer-screenshots
+          name: explorer-screenshots-${{ matrix.group }}
           path: ${{ runner.temp }}/shots
           if-no-files-found: ignore
 
   deploy:
-    needs: build
+    needs: [build, browser-tests]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -160,3 +169,5 @@ jobs:
           echo "$headers" | grep -qi '^content-range: bytes 0-99/[0-9]' || { echo "no Content-Range total"; exit 1; }
           head -c 15 /tmp/head.bin | grep -q 'SQLite format 3' || { echo "not the SQLite header"; exit 1; }
           curl -sSf -o /dev/null "${PAGE_URL%/}/explore-sw.js"
+          curl -sSf -o /dev/null "${PAGE_URL%/}/compiler/api/problems.json"
+          curl -sSf -o /dev/null "${PAGE_URL%/}/compiler/integration.json"

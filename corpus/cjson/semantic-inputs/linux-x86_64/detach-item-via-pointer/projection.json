@@ -1,0 +1,24 @@
+{
+  "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+  "tu_sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+  "spans": [
+    {
+      "offset": 37470,
+      "length": 211,
+      "sha256": "b1ac4802441d2e23511305424bd2fbcf29056de0c94d9068ce592f2a35374ec2"
+    },
+    {
+      "offset": 136693,
+      "length": 2069,
+      "sha256": "b3a2c912b1a68e66e97cd4efc38d9015eb0015996ee19180c97cc435624f4d6e"
+    }
+  ],
+  "source": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+  "original_offset": 59398,
+  "original_length": 802,
+  "original_sha256": "0e9aa3d8dc86ad4cd91d798710b29d624830a9401116947c88acf7c1a61bed9a",
+  "closure_sha256": "dc3e68189a20294a404f896ac3611eae6a77c44c23bc89991c459bc590dab8a8",
+  "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+  "closure": "corpus/cjson/semantic-inputs/linux-x86_64/detach-item-via-pointer/context.c",
+  "limits": "Exact saved TU and original function byte spans only; historical preprocessing/build correspondence and whole-TU/frontend adequacy are not proved."
+}

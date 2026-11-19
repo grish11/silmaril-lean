@@ -3,7 +3,8 @@
 
 For every `Silmaril/WasmSpec/<Name>/manifest.toml` (and `<Name>/V<n>/manifest.toml`):
 
-* the manifest parses and has the required tables;
+* the manifest parses and has the required tables (`results` and solutions only when the
+  entry's `status` is not `stated`, which a stated entry must not list);
 * `program.source` exists beside it, and the `wat3!` quotation of `program.lean` in
   `program.module` is the same text (up to surrounding whitespace);
 * every named Lean module exists as a file;
@@ -43,9 +44,13 @@ def check(manifest: pathlib.Path) -> list[str]:
         m = tomllib.loads(manifest.read_text())
     except tomllib.TOMLDecodeError as e:
         return [f"{rel}: {e}"]
-    for key in ("name", "version", "summary", "status", "program", "spec", "results"):
+    # A `stated` entry has a specification but no results yet (no `results`, no solutions).
+    stated = m.get("status") == "stated"
+    for key in ("name", "version", "summary", "status", "program", "spec") + (() if stated else ("results",)):
         if key not in m:
             errs.append(f"{rel}: missing `{key}`")
+    if stated and (m.get("results") or m.get("solution")):
+        errs.append(f"{rel}: a `stated` entry lists results or solutions")
     if errs:
         return errs
     prog = m["program"]
@@ -61,9 +66,11 @@ def check(manifest: pathlib.Path) -> list[str]:
             errs.append(f"{rel}: no `wat3!` quotation of {prog['lean']} in {prog['module']}")
         elif q.strip() != src.read_text().strip():
             errs.append(f"{rel}: {prog['lean']} does not quote {src.name} verbatim")
-    for table in ("spec", "results"):
+    for table in ("spec",) + (() if stated else ("results",)):
         if not module_path(m[table]["module"]).is_file():
             errs.append(f"{rel}: {table}.module {m[table]['module']} has no file")
+    if stated:
+        return errs
     thms = module_path(m["results"]["module"])
     audits = thms.read_text() if thms.is_file() else ""
     for sol in m.get("solution", []):

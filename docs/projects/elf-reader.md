@@ -154,3 +154,38 @@ checks that `--verify` rejects each of these edits:
 
 Axioms are collected with one cache for all theorems, and checked against `Lean.collectAxioms` on
 a sample.
+
+## Function decompositions
+
+`Silmaril.Elf.Staged.Decomp` (`Defs`, `Thms`; proof in `Silmaril.Proofs.Elf.Staged.Decomp`):
+**`Decomposes F L x ps`** says that section `x` of the file is an executable `SHT_PROGBITS`
+section and that the pieces `ps`, in address order, tile its address range exactly. A piece is a
+function (`.fn k i s`: entry `i` of the symbol table in section `k` reads as `s`, a defined
+`STT_FUNC`/`STT_GNU_IFUNC` symbol of section `x` with nonzero `st_size`, whose extent is exactly the
+piece) or a gap (`.gap n`, `n > 0` bytes no chosen function symbol covers). `emit-reader` writes
+`Pinned/*/Decomp.lean`: one `decomp_x` theorem per executable section with function symbols, along
+`.symtab` when the file has one and `.dynsym` otherwise, assembled by `decomposes_of` from the
+layout, the checked symbol theorems of `Functions` (`symbolIs_of_partIs'`) and one
+`decide +kernel` run of the tail-recursive `tilesB` (`tilesB_iff`). Standard axioms only.
+
+What a decomposition is **not**: it does not say that a function's bytes decode as instructions,
+that control stays inside the extent, or anything about behaviour; aliases (several symbols with
+one extent) are represented once; symbols whose extent overlaps a chosen one are left out and
+counted; zero-size symbols are counted, not used. It is the same statement for every `e_machine`
+the reader accepts (ELFCLASS64, little-endian): x86-64, AArch64 and RISC-V files alike.
+`emit-reader … --namespace NS --include-path REL --generator SCRIPT` emits the same modules for a
+downstream project's files.
+
+| file | section | bytes | functions | covered | gaps (bytes) | aliases | check |
+|---|---|---|---|---|---|---|---|
+| `zlib-checksums` | `.text` | 3,804 | 15 | 3,697 (97.1%) | 13 (107) | 0 | 2.4 s |
+| `zlib-libz` | `.text` | 72,224 | 88 | 41,190 (57.0%) | 84 (31,034) | 0 | 1.9 s |
+| `glibc-libm` | `.text` | 515,974 | 650 | 314,603 (60.9%) | 622 (201,371) | 531 | 2.8 s |
+| `glibc-libc` | `.text` | 1,603,641 | 2,299 | 533,632 (33.2%) | 2,199 (1,070,009) | 632 | 5.2 s |
+| `hello-gcc` | `.text` | 265 | 2 | 65 (24.5%) | 2 (200) | 0 | 1.8 s |
+| `hello-clang` | `.text` | 257 | 2 | 55 (21.4%) | 1 (202) | 0 | 1.8 s |
+| `gnu-sha256sum` | — | | 0 | | | | (stripped: `.dynsym` holds imports only; nothing to decompose) |
+
+The library files are stripped, so only exported functions have symbols: their gaps are mostly
+code of internal functions, not padding. The coverage is what the symbol table supports, and is
+reported as such.

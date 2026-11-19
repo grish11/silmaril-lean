@@ -1,0 +1,79 @@
+{
+  "package": "cjson",
+  "version": "1.7.19",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-Og -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+  "ldflags": "-shared",
+  "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+  "build_commands": [
+    "gcc -Og -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD -c cJSON.c -o cJSON.o",
+    "gcc -shared -Wl,-soname,libcjson.so.1 -o libcjson.so.1 cJSON.o -lm",
+    "ln -sf libcjson.so.1 libcjson.so",
+    "gcc -Og -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD -c cJSON_Utils.c -o cJSON_Utils.o",
+    "gcc -shared -Wl,-soname,libcjson_utils.so.1 -o libcjson_utils.so.1 cJSON_Utils.o -L. -lcjson"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/cjson",
+  "inputs": [
+    {
+      "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+      "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libcjson.so.1",
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/Og/stripped/libcjson.so.1",
+      "size": 35000,
+      "sha256": "d56b8766c76caa4358fd538c1f0f1bea7769b6a0274e97c5b37c8a574c6df89c",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "libcjson_utils.so.1",
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/Og/stripped/libcjson_utils.so.1",
+      "size": 18544,
+      "sha256": "44c810987d8ed46338ab832c464fe0de0c0cc4ff778584060aa0fab7127c34e4",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two byte-identical clean builds, independently stripped in fresh containers, byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "cjson_test (upstream test.c linked against libcjson.so.1): exit status",
+      "result": "pass: 0"
+    },
+    {
+      "command": "cjson_test output: 47 lines, sha256 3b5c2dfae1639d493cdccbd1d16b30e31aa03eae9d4b38776016a9f518252757",
+      "result": "Version: 1.7.19 { \t\"name\":\t\"Jack (\\\"Bee\\\") Nimble\", \t\"format\":\t{ \t\t\"type\":\t\"rect\", \t\t\"width\":\t1920, \t\t\"height\":\t1080, \t\t\"interlace\":\tfalse, "
+    },
+    {
+      "command": "utils_smoke (local/utils_smoke.c against libcjson_utils.so.1 + libcjson.so.1)",
+      "result": "pass: 0 4 ok"
+    },
+    {
+      "command": "utils_smoke output",
+      "result": "ok GetPointer /tags/1: y ok GeneratePatches (cJSON sorts keys first): [{\"op\":\"add\",\"path\":\"/m\",\"value\":2},{\"op\":\"remove\",\"path\":\"/n\"},{\"op\":\"replace\",\"path\":\"/tags/1\",\"value\":\"z\"}] ok ApplyPatches rc=0 equal=1 ok MergePatch (RFC 7386 example): {\"a\":\"z\",\"c\":{\"d\":\"e\"}} cJSON_Version 1.7.19"
+    }
+  ],
+  "variant": {
+    "optimization": "Og",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "1e4535c4-75de-4904-b154-f54aab720733",
+    "target": "x86_64-linux-gnu"
+  }
+}

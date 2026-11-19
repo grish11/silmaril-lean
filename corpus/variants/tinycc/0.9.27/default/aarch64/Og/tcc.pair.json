@@ -1,0 +1,3745 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 162292,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 7664,
+      "sha256": "6b0b9266c43ef36ef30bc10d287bfd62978724b899418d7864216b8151303c59",
+      "size": 28
+    },
+    ".plt": {
+      "address": 7696,
+      "sha256": "2f628845daac0fe48486be5261d196627c796a78b9fc65da85a360d94c17aa00",
+      "size": 1088
+    },
+    ".text": {
+      "address": 8832,
+      "sha256": "67f3f852f30215a2c25ef7cd7e81e993ad4fd93a59c0c878794e023c96c66ac8",
+      "size": 153460
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "90cba051bc7c19f9b9da5f0919c22a74cfb753a0ba772390f49d305606a17369",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "35640feff0307ea65bee9050e5e00c06c776dc97ceed7dd284a755e36698957d",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 8884
+    },
+    {
+      "binding": "LOCAL",
+      "name": "le2belong",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 9128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "contains_any",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 9168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_dirs",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 9228
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_search_dirs",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 9344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ar_usage",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 9484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_environment",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 9572
+    },
+    {
+      "binding": "LOCAL",
+      "name": "default_outputfile",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 9684
+    },
+    {
+      "binding": "LOCAL",
+      "name": "getclock_ms",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 9904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "no_flag",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 13216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "strstart",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 13296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "link_option",
+      "section_index": "12",
+      "size": 280,
+      "type": "FUNC",
+      "value": 13352
+    },
+    {
+      "binding": "LOCAL",
+      "name": "strcat_vprintf",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 13632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "strcat_printf",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 13724
+    },
+    {
+      "binding": "LOCAL",
+      "name": "error1",
+      "section_index": "12",
+      "size": 516,
+      "type": "FUNC",
+      "value": 13852
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skip_linker_arg",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 14368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_compile",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 15040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_split_path",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 15876
+    },
+    {
+      "binding": "LOCAL",
+      "name": "args_parser_make_argv",
+      "section_index": "12",
+      "size": 280,
+      "type": "FUNC",
+      "value": 16092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "args_parser_add_file",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 16372
+    },
+    {
+      "binding": "LOCAL",
+      "name": "copy_linker_arg",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 16476
+    },
+    {
+      "binding": "LOCAL",
+      "name": "args_parser_listfile",
+      "section_index": "12",
+      "size": 308,
+      "type": "FUNC",
+      "value": 16640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_set_linker",
+      "section_index": "12",
+      "size": 728,
+      "type": "FUNC",
+      "value": 17116
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_cleanup",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 18152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_option_D",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 18824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_add_library_internal",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 19680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_space",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 23712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "isid",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 23820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "check_space",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 23900
+    },
+    {
+      "binding": "LOCAL",
+      "name": "TOK_GET",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 23968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "bn_lshift",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 24256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "bn_zero",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 24312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pp_need_space",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 24340
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tal_new",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 24512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tal_realloc_impl",
+      "section_index": "12",
+      "size": 428,
+      "type": "FUNC",
+      "value": 24604
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cstr_realloc",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 25032
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tok_alloc_new",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 25124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tal_free_impl",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 25368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tal_delete",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 25464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "search_cached_include",
+      "section_index": "12",
+      "size": 248,
+      "type": "FUNC",
+      "value": 25524
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pp_line",
+      "section_index": "12",
+      "size": 228,
+      "type": "FUNC",
+      "value": 25772
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pp_check_he0xE",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 26000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_number",
+      "section_index": "12",
+      "size": 2148,
+      "type": "FUNC",
+      "value": 26116
+    },
+    {
+      "binding": "LOCAL",
+      "name": "add_char",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 28360
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_escape_string",
+      "section_index": "12",
+      "size": 940,
+      "type": "FUNC",
+      "value": 28780
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_string",
+      "section_index": "12",
+      "size": 484,
+      "type": "FUNC",
+      "value": 29796
+    },
+    {
+      "binding": "LOCAL",
+      "name": "macro_is_equal",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 31340
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tok_print",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 31628
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_pp_string",
+      "section_index": "12",
+      "size": 560,
+      "type": "FUNC",
+      "value": 31936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_line_comment",
+      "section_index": "12",
+      "size": 432,
+      "type": "FUNC",
+      "value": 32496
+    },
+    {
+      "binding": "LOCAL",
+      "name": "handle_stray_noerror",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 33004
+    },
+    {
+      "binding": "LOCAL",
+      "name": "handle_stray",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 33200
+    },
+    {
+      "binding": "LOCAL",
+      "name": "handle_stray1",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 33236
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skip_spaces",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 33464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tok_str_add2",
+      "section_index": "12",
+      "size": 404,
+      "type": "FUNC",
+      "value": 34564
+    },
+    {
+      "binding": "LOCAL",
+      "name": "maybe_run_test",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 35608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "define_print",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 35792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pp_debug_builtins",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 36004
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pp_debug_defines",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 36076
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pragma_parse",
+      "section_index": "12",
+      "size": 924,
+      "type": "FUNC",
+      "value": 37060
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_preprocess",
+      "section_index": "12",
+      "size": 404,
+      "type": "FUNC",
+      "value": 48864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "preprocess_skip",
+      "section_index": "12",
+      "size": 676,
+      "type": "FUNC",
+      "value": 44392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "next_nomacro1",
+      "section_index": "12",
+      "size": 3928,
+      "type": "FUNC",
+      "value": 40276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "next_nomacro_spc",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 44204
+    },
+    {
+      "binding": "LOCAL",
+      "name": "next_argstream",
+      "section_index": "12",
+      "size": 504,
+      "type": "FUNC",
+      "value": 45820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "paste_tokens",
+      "section_index": "12",
+      "size": 312,
+      "type": "FUNC",
+      "value": 46324
+    },
+    {
+      "binding": "LOCAL",
+      "name": "macro_twosharps",
+      "section_index": "12",
+      "size": 396,
+      "type": "FUNC",
+      "value": 46636
+    },
+    {
+      "binding": "LOCAL",
+      "name": "macro_subst_tok",
+      "section_index": "12",
+      "size": 1420,
+      "type": "FUNC",
+      "value": 47032
+    },
+    {
+      "binding": "LOCAL",
+      "name": "macro_subst",
+      "section_index": "12",
+      "size": 468,
+      "type": "FUNC",
+      "value": 49268
+    },
+    {
+      "binding": "LOCAL",
+      "name": "macro_arg_subst",
+      "section_index": "12",
+      "size": 776,
+      "type": "FUNC",
+      "value": 49736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "reg_fret",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 52216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_opic_sdiv",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 52224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_opic_lt",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 52280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_null_pointer",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 52300
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_compatible_unqualified_types",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 52424
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compare_types",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 52640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_compatible_func",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 52448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_compatible_types",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 52820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "exact_log2p1",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 52844
+    },
+    {
+      "binding": "LOCAL",
+      "name": "find_field",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 52924
+    },
+    {
+      "binding": "LOCAL",
+      "name": "struct_add_offset",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 53044
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sym_to_attr",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 53156
+    },
+    {
+      "binding": "LOCAL",
+      "name": "case_cmp",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 53312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__sym_malloc",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 53356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sym_malloc",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 53464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "patch_type",
+      "section_index": "12",
+      "size": 432,
+      "type": "FUNC",
+      "value": 53536
+    },
+    {
+      "binding": "LOCAL",
+      "name": "check_comparison_pointer_types",
+      "section_index": "12",
+      "size": 336,
+      "type": "FUNC",
+      "value": 53968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_cvt_itof1",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 54304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_cvt_ftoi1",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 54324
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skip_or_save_block",
+      "section_index": "12",
+      "size": 332,
+      "type": "FUNC",
+      "value": 54344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "is_label",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 54676
+    },
+    {
+      "binding": "LOCAL",
+      "name": "type_to_str",
+      "section_index": "12",
+      "size": 1052,
+      "type": "FUNC",
+      "value": 54768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vla_sp_restore_root",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 55820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vla_sp_restore",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 55872
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_opif",
+      "section_index": "12",
+      "size": 464,
+      "type": "FUNC",
+      "value": 55988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "patch_storage",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 57508
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_btype_qualify",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 58724
+    },
+    {
+      "binding": "LOCAL",
+      "name": "external_sym",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 58808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_type",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 59408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vdup",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 59588
+    },
+    {
+      "binding": "LOCAL",
+      "name": "struct_layout",
+      "section_index": "12",
+      "size": 1568,
+      "type": "FUNC",
+      "value": 60696
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pointed_size",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 62264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "convert_parameter_type",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 62368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "asm_label_instr",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 62608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "move_reg",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 63180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "adjust_bf",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 63620
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_cast",
+      "section_index": "12",
+      "size": 1208,
+      "type": "FUNC",
+      "value": 63744
+    },
+    {
+      "binding": "LOCAL",
+      "name": "force_charshort_cast",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 73636
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_cast_s",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 64952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "condition_3way",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 64984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_assign_cast",
+      "section_index": "12",
+      "size": 568,
+      "type": "FUNC",
+      "value": 65108
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gfunc_param_typed",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 65676
+    },
+    {
+      "binding": "LOCAL",
+      "name": "store_packed_bf",
+      "section_index": "12",
+      "size": 404,
+      "type": "FUNC",
+      "value": 74320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vpush64",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 69300
+    },
+    {
+      "binding": "LOCAL",
+      "name": "init_putv",
+      "section_index": "12",
+      "size": 964,
+      "type": "FUNC",
+      "value": 66940
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_packed_bf",
+      "section_index": "12",
+      "size": 352,
+      "type": "FUNC",
+      "value": 73968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vpush_ref",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 69460
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gv_dup",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 68948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vsetc",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 69092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vpushsym",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 69344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vpushs",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 69504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vseti",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 69628
+    },
+    {
+      "binding": "LOCAL",
+      "name": "init_putz",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 69672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vla_runtime_type_size",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 69768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vla_runtime_pointed_size",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 69860
+    },
+    {
+      "binding": "LOCAL",
+      "name": "vpush",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 69892
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_opic",
+      "section_index": "12",
+      "size": 1764,
+      "type": "FUNC",
+      "value": 70112
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gvtst",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 73444
+    },
+    {
+      "binding": "LOCAL",
+      "name": "incr_bf_adr",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 73848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gcase",
+      "section_index": "12",
+      "size": 508,
+      "type": "FUNC",
+      "value": 74724
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_const64",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 85924
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_attribute",
+      "section_index": "12",
+      "size": 1092,
+      "type": "FUNC",
+      "value": 75572
+    },
+    {
+      "binding": "LOCAL",
+      "name": "post_type",
+      "section_index": "12",
+      "size": 1180,
+      "type": "FUNC",
+      "value": 76664
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_btype",
+      "section_index": "12",
+      "size": 1088,
+      "type": "FUNC",
+      "value": 87804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "type_decl",
+      "section_index": "12",
+      "size": 428,
+      "type": "FUNC",
+      "value": 77844
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_type",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 78272
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_builtin_params",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 78344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_eq",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 88992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decl_initializer_alloc",
+      "section_index": "12",
+      "size": 1344,
+      "type": "FUNC",
+      "value": 91668
+    },
+    {
+      "binding": "LOCAL",
+      "name": "block",
+      "section_index": "12",
+      "size": 3056,
+      "type": "FUNC",
+      "value": 93064
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_shift",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 83244
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_cmp",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 83316
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_cmpeq",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 83400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_and",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 83472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_xor",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 83532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_or",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 83592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_land",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 83652
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_lor",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 83980
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_cond",
+      "section_index": "12",
+      "size": 1532,
+      "type": "FUNC",
+      "value": 84308
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expr_const1",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 85840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "struct_decl",
+      "section_index": "12",
+      "size": 1796,
+      "type": "FUNC",
+      "value": 86008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_expr_type",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 88892
+    },
+    {
+      "binding": "LOCAL",
+      "name": "parse_init_elem",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 89124
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decl_initializer",
+      "section_index": "12",
+      "size": 1364,
+      "type": "FUNC",
+      "value": 89276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decl_designator",
+      "section_index": "12",
+      "size": 1028,
+      "type": "FUNC",
+      "value": 90640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decl",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 98144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decl0",
+      "section_index": "12",
+      "size": 1672,
+      "type": "FUNC",
+      "value": 96472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_function",
+      "section_index": "12",
+      "size": 352,
+      "type": "FUNC",
+      "value": 96120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gen_inline_functions",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 98172
+    },
+    {
+      "binding": "LOCAL",
+      "name": "isid",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 102856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "elf_hash",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 102936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "relocate_rel",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 102992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "prepare_dynamic_rel",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 103052
+    },
+    {
+      "binding": "LOCAL",
+      "name": "layout_sections",
+      "section_index": "12",
+      "size": 848,
+      "type": "FUNC",
+      "value": 103092
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fill_unloadable_phdr",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 103940
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_be32",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 104148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_be64",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 104180
+    },
+    {
+      "binding": "LOCAL",
+      "name": "free_section",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 104232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_add_support",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 104256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tidy_section_headers",
+      "section_index": "12",
+      "size": 452,
+      "type": "FUNC",
+      "value": 104336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sort_syms",
+      "section_index": "12",
+      "size": 468,
+      "type": "FUNC",
+      "value": 104788
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_output_binary",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 105256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_data",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 105436
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ld_add_file",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 105528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ld_next",
+      "section_index": "12",
+      "size": 428,
+      "type": "FUNC",
+      "value": 105620
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ld_add_file_list",
+      "section_index": "12",
+      "size": 644,
+      "type": "FUNC",
+      "value": 106048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rebuild_hash",
+      "section_index": "12",
+      "size": 268,
+      "type": "FUNC",
+      "value": 107448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "put_dt",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 107716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fill_dynamic",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 107768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "alloc_sec_names",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 108284
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_output_elf",
+      "section_index": "12",
+      "size": 716,
+      "type": "FUNC",
+      "value": 109388
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_write_elf_file",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 110104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "build_got",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 111400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "add_init_array_defines",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 111516
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_add_linker_symbols",
+      "section_index": "12",
+      "size": 460,
+      "type": "FUNC",
+      "value": 111728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "bind_libs_dynsyms",
+      "section_index": "12",
+      "size": 228,
+      "type": "FUNC",
+      "value": 112188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "put_got_entry",
+      "section_index": "12",
+      "size": 544,
+      "type": "FUNC",
+      "value": 113904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "bind_exe_dynsyms",
+      "section_index": "12",
+      "size": 688,
+      "type": "FUNC",
+      "value": 114448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "export_global_syms",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 115136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fill_local_got_entries",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 115332
+    },
+    {
+      "binding": "LOCAL",
+      "name": "final_sections_reloc",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 115968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "elf_output_file",
+      "section_index": "12",
+      "size": 1216,
+      "type": "FUNC",
+      "value": 117188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_load_alacarte",
+      "section_index": "12",
+      "size": 344,
+      "type": "FUNC",
+      "value": 120464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rt_get_caller_pc",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 122300
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_pages_executable",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 122376
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tcc_relocate_ex",
+      "section_index": "12",
+      "size": 500,
+      "type": "FUNC",
+      "value": 122464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_exception_handler",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 122964
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sig_error",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 124444
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rt_printline",
+      "section_index": "12",
+      "size": 1028,
+      "type": "FUNC",
+      "value": 123104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rt_error",
+      "section_index": "12",
+      "size": 312,
+      "type": "FUNC",
+      "value": 124132
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_encode_bimm64",
+      "section_index": "12",
+      "size": 444,
+      "type": "FUNC",
+      "value": 125028
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_movi",
+      "section_index": "12",
+      "size": 456,
+      "type": "FUNC",
+      "value": 125472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_iconst",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 125928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fltr",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 126040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_type_size",
+      "section_index": "12",
+      "size": 232,
+      "type": "FUNC",
+      "value": 126096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intr",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 126328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_hfa_aux",
+      "section_index": "12",
+      "size": 548,
+      "type": "FUNC",
+      "value": 126400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_hfa",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 126948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_pcs_aux",
+      "section_index": "12",
+      "size": 788,
+      "type": "FUNC",
+      "value": 127056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_pcs",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 127844
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_sym",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 128148
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_movimm",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 128356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_ldrv",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 128608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_ldrx",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 128828
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_strv",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 129088
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_strx",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 129304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_ldrs",
+      "section_index": "12",
+      "size": 1004,
+      "type": "FUNC",
+      "value": 129484
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_spoff",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 130488
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_gen_bl_or_b",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 130592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_gen_opic",
+      "section_index": "12",
+      "size": 848,
+      "type": "FUNC",
+      "value": 130784
+    },
+    {
+      "binding": "LOCAL",
+      "name": "arm64_gen_opil",
+      "section_index": "12",
+      "size": 1448,
+      "type": "FUNC",
+      "value": 131632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "read64le",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 144160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "write64le",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 144248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__aarch64_sync_cache_range",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 146656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__floatunditf",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 159456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__multf3",
+      "section_index": "12",
+      "size": 2344,
+      "type": "FUNC",
+      "value": 153056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__eqtf2",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 152768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__floatunsitf",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 159072
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__extendsftf2",
+      "section_index": "12",
+      "size": 316,
+      "type": "FUNC",
+      "value": 159616
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__sfp_handle_exceptions",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 162176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__extenddftf2",
+      "section_index": "12",
+      "size": 316,
+      "type": "FUNC",
+      "value": 159936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__netf2",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 152768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__addtf3",
+      "section_index": "12",
+      "size": 3416,
+      "type": "FUNC",
+      "value": 146816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__divtf3",
+      "section_index": "12",
+      "size": 2516,
+      "type": "FUNC",
+      "value": 150240
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__clear_cache",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 146624
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__trunctfdf2",
+      "section_index": "12",
+      "size": 976,
+      "type": "FUNC",
+      "value": 161184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__fixunstfdi",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 159200
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__subtf3",
+      "section_index": "12",
+      "size": 3648,
+      "type": "FUNC",
+      "value": 155424
+    },
+    {
+      "binding": "LOCAL",
+      "name": "__trunctfsf2",
+      "section_index": "12",
+      "size": 900,
+      "type": "FUNC",
+      "value": 160256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_vla_sp_restore",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 144012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "skip",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 48776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sym_push",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 58472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "relocate_syms",
+      "section_index": "12",
+      "size": 268,
+      "type": "FUNC",
+      "value": 115528
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccgen_compile",
+      "section_index": "12",
+      "size": 248,
+      "type": "FUNC",
+      "value": 98416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccelf_end_file",
+      "section_index": "12",
+      "size": 396,
+      "type": "FUNC",
+      "value": 111004
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dynarray_reset",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 14776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gfunc_prolog",
+      "section_index": "12",
+      "size": 908,
+      "type": "FUNC",
+      "value": 136856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_error",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 15316
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_symbol",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 20752
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gexpr",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 93012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "store",
+      "section_index": "12",
+      "size": 496,
+      "type": "FUNC",
+      "value": 134496
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gfunc_epilog",
+      "section_index": "12",
+      "size": 384,
+      "type": "FUNC",
+      "value": 139644
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "is_float",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 55924
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_sym_ref",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 60012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gfunc_call",
+      "section_index": "12",
+      "size": 1864,
+      "type": "FUNC",
+      "value": 134992
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gfunc_return",
+      "section_index": "12",
+      "size": 416,
+      "type": "FUNC",
+      "value": 139228
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccelf_delete",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 106692
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_add",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 34968
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cstr_wccat",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 28684
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_elf_sym_addr",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 109276
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "define_find",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 35372
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gjmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 140028
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "asm_instr",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 15496
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_set_num_callers",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 125016
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_vla_sp_save",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 143932
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vset",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 69596
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pstrcpy",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 14448
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sym_find",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 58412
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "check_vstack",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 56496
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_tool_ar",
+      "section_index": "12",
+      "size": 1892,
+      "type": "FUNC",
+      "value": 9980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_va_start",
+      "section_index": "12",
+      "size": 332,
+      "type": "FUNC",
+      "value": 137764
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "parse_define",
+      "section_index": "12",
+      "size": 752,
+      "type": "FUNC",
+      "value": 45068
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_reg",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 63344
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "preprocess_start",
+      "section_index": "12",
+      "size": 524,
+      "type": "FUNC",
+      "value": 50512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_set_output_type",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 20240
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "find_section",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 108076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vrotb",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 59620
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_elf_sym",
+      "section_index": "12",
+      "size": 340,
+      "type": "FUNC",
+      "value": 108544
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_open",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 18264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "expect",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 26092
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vrott",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 59976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_debug_start",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 56552
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_fileextension",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 14692
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vstore",
+      "section_index": "12",
+      "size": 1084,
+      "type": "FUNC",
+      "value": 65856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_opi",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 140676
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_elf_sym",
+      "section_index": "12",
+      "size": 592,
+      "type": "FUNC",
+      "value": 110412
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cstr_free",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 29732
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "next_nomacro",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 44332
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "relocate_plt",
+      "section_index": "12",
+      "size": 680,
+      "type": "FUNC",
+      "value": 144736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "parse_asm_str",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 62556
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "new_section",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 106952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_preprocess",
+      "section_index": "12",
+      "size": 564,
+      "type": "FUNC",
+      "value": 51652
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sym_push2",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 58216
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_file",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 19836
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_sym_attr",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 113472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_print_stats",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 23544
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "find_elf_sym",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 109096
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sym_find2",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 58312
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pstrncpy",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 14584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_bcheck",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 116608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "expr_sum",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 83168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_memcheck",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 14772
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_vla_alloc",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 144064
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_library",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 20484
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_extern_sym",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 57976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_close",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 18028
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vpushi",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 69548
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_basename",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 14628
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_idnum",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 34164
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_set_error_func",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 14876
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_undefine_symbol",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 18904
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_parse_args",
+      "section_index": "12",
+      "size": 1700,
+      "type": "FUNC",
+      "value": 21844
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "relocate",
+      "section_index": "12",
+      "size": 1184,
+      "type": "FUNC",
+      "value": 145420
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_debug_line",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 56916
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_realloc",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 15708
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pstrcat",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 14504
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cstr_ccat",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 28264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "save_regs",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 63268
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccelf_stab_new",
+      "section_index": "12",
+      "size": 148,
+      "type": "FUNC",
+      "value": 113176
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_define_symbol",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 18628
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_library_err",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 20620
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "new_symtab",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 108884
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_load_object_file",
+      "section_index": "12",
+      "size": 1880,
+      "type": "FUNC",
+      "value": 118584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_pragma_libs",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 20684
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "next",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 48452
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccpp_delete",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 51472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "unary",
+      "section_index": "12",
+      "size": 4564,
+      "type": "FUNC",
+      "value": 78524
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "update_storage",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 57376
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_debug_funcstart",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 57072
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_error_noabort",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 14888
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "greloca",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 58016
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_tok_str",
+      "section_index": "12",
+      "size": 888,
+      "type": "FUNC",
+      "value": 30452
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_include_path",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 19220
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ieee_finite",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 55964
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_alloc",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 30280
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "save_reg_upstack",
+      "section_index": "12",
+      "size": 396,
+      "type": "FUNC",
+      "value": 62760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_debug_funcend",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 57276
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "section_ptr_add",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 107404
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_dup",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 34276
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_set_options",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 21744
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_object_type",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 118424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cstr_new",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 29720
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gsym",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 133264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "parse_comment",
+      "section_index": "12",
+      "size": 628,
+      "type": "FUNC",
+      "value": 33536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vswap",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 69920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_set_lib_path",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 20816
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_elf_str",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 108196
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_cvt_ftoi",
+      "section_index": "12",
+      "size": 312,
+      "type": "FUNC",
+      "value": 142296
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_dll",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 20108
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gtst",
+      "section_index": "12",
+      "size": 488,
+      "type": "FUNC",
+      "value": 140188
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_stabs",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 113040
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "build_got_entries",
+      "section_index": "12",
+      "size": 440,
+      "type": "FUNC",
+      "value": 116168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "preprocess_end",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 51036
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "begin_macro",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 35056
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "create_plt_entry",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 144584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "inp",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 32928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "section_add",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 107272
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccpp_new",
+      "section_index": "12",
+      "size": 356,
+      "type": "FUNC",
+      "value": 51116
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "struct_find",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 58352
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "define_push",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 35432
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_alloc",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 34216
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_file_internal",
+      "section_index": "12",
+      "size": 388,
+      "type": "FUNC",
+      "value": 19292
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_free",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 14752
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_elf_reloc",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 112608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_realloc",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 34448
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_compile_string",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 18508
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "save_reg",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 63156
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 8832
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccelf_new",
+      "section_index": "12",
+      "size": 296,
+      "type": "FUNC",
+      "value": 113608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_elf_reloca",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 112416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fill_got_entry",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 116872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dynarray_add",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 15772
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_strdup",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 15652
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_delete",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 18968
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "external_global_sym",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 60144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "elfsym",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 57324
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "indir",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 75332
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "o",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 127988
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tccelf_begin_file",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 106892
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "lvalue_type",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 62688
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mk_pointer",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 62296
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_va_arg",
+      "section_index": "12",
+      "size": 1124,
+      "type": "FUNC",
+      "value": 138096
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vrote",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 59804
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_run_free",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 124780
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gjmp_addr",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 140092
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "resolve_common_syms",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 116716
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "12",
+      "size": 1068,
+      "type": "FUNC",
+      "value": 12148
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_sysinclude_path",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 19256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "code_reloc",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 144316
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fill_got",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 117012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_opf",
+      "section_index": "12",
+      "size": 1204,
+      "type": "FUNC",
+      "value": 140724
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cstr_reset",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 29788
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "section_realloc",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 107164
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_tool_cross",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 11872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gsym_addr",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 133080
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_new",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 34188
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_load_archive",
+      "section_index": "12",
+      "size": 416,
+      "type": "FUNC",
+      "value": 120808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_runtime",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 116612
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vpush_global_sym",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 69404
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_load_dll",
+      "section_index": "12",
+      "size": 768,
+      "type": "FUNC",
+      "value": 121224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "define_undef",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 35308
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_free",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 34392
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_op",
+      "section_index": "12",
+      "size": 1352,
+      "type": "FUNC",
+      "value": 72092
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "section_reserve",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 108004
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gv",
+      "section_index": "12",
+      "size": 1044,
+      "type": "FUNC",
+      "value": 67904
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_get_symbol_err",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 110388
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_opl",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 140700
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_crt",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 20152
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "relocate_init",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 145416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "relocate_section",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 115796
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_add_tok",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 35196
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_run",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 124852
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "asm_global_instr",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 15516
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sym_pop",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 59148
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "preprocess",
+      "section_index": "12",
+      "size": 2292,
+      "type": "FUNC",
+      "value": 37984
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "type_size",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 60368
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_cvt_itof",
+      "section_index": "12",
+      "size": 320,
+      "type": "FUNC",
+      "value": 141976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_cvt_sxtw",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 141928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "minp",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 33416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_output_file",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 118404
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_get_symbol",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 110364
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_clear_cache",
+      "section_index": "12",
+      "size": 792,
+      "type": "FUNC",
+      "value": 143140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vpushv",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 59488
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "unget_tok",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 36968
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ggoto",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 143096
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "test_lvalue",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 56452
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_mallocz",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 15600
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_makedeps",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 11896
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sym_free",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 58192
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gv2",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 71876
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cstr_cat",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 28548
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_relocate",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 124660
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load",
+      "section_index": "12",
+      "size": 1200,
+      "type": "FUNC",
+      "value": 133296
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_stabn",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 113392
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "free_defines",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 36336
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_new",
+      "section_index": "12",
+      "size": 704,
+      "type": "FUNC",
+      "value": 20868
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_extern_sym2",
+      "section_index": "12",
+      "size": 280,
+      "type": "FUNC",
+      "value": 57696
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "expr_prod",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 83088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_load_ldscript",
+      "section_index": "12",
+      "size": 308,
+      "type": "FUNC",
+      "value": 121992
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gfunc_sret",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 139220
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "label_find",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 36512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_stabd",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 113432
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "label_pop",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 36716
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_debug_end",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 56840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_add_library_path",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 20072
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "parse_mult_str",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 62428
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "put_stabs_r",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 113324
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_open_bf",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 17844
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "free_inline_functions",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 98664
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "expr_const",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 75520
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gaddrof",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 60304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_warning",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 16948
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tcc_malloc",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 15536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "global_identifier_push",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 59012
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "handle_eob",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 31768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gotplt_entry_type",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 144452
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tok_str_free_str",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 34356
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "label_push",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 36572
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "squeeze_multi_relocs",
+      "section_index": "12",
+      "size": 408,
+      "type": "FUNC",
+      "value": 112632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "inc",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 75232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gen_cvt_ftof",
+      "section_index": "12",
+      "size": 488,
+      "type": "FUNC",
+      "value": 142608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "vpop",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 59308
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "end_macro",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 35112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_flag",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 21572
+    }
+  ]
+}

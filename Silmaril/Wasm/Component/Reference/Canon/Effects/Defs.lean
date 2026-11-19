@@ -766,22 +766,34 @@ def threadsRemove (inst : InstId) (i : Nat) : P E σ ThreadId := do
 
 /-! ## Program-logic hook -/
 
-/-- An operation preserves the store invariant `I`: only `modify f` constrains (`f` must
-preserve `I`); every other operation is accepted here, its store effect being the machine's
-(proved against the machine in `Machine/Invariant.lean`). -/
-def Op.PreservesInv (I : CStore E → Prop) : Op E σ → Prop
+/-- An operation preserves the store invariant `I` and writes only host states satisfying `W`:
+`modify f` must preserve `I`, `hostSet s` must have `W s`; every other operation is accepted here,
+its store effect being the machine's (proved against the machine in `Machine/Invariant.lean`). -/
+def Op.PreservesInvW (I : CStore E → Prop) (W : σ → Prop) : Op E σ → Prop
   | .modify f => ∀ s, I s → I (f s)
+  | .hostSet s => W s
   | _ => True
 
-/-- Every store update a program can issue preserves `I`. -/
-def P.Inv (I : CStore E → Prop) (p : P E σ α) : Prop :=
-  Prog.Every (S := Eff E σ) (Op.PreservesInv I) p
+/-- An operation preserves the store invariant `I`: only `modify f` constrains (`f` must
+preserve `I`); every other operation is accepted here (`Op.PreservesInvW` with every host write
+allowed). -/
+abbrev Op.PreservesInv (I : CStore E → Prop) : Op E σ → Prop :=
+  Op.PreservesInvW I (fun _ => True)
+
+/-- Every store update a program can issue preserves `I`, and every host write it can issue
+satisfies `W`. With `W = fun _ => False` the program never writes the host state. -/
+def P.InvW (I : CStore E → Prop) (W : σ → Prop) (p : P E σ α) : Prop :=
+  Prog.Every (S := Eff E σ) (Op.PreservesInvW I W) p
+
+/-- Every store update a program can issue preserves `I` (`P.InvW` with every host write
+allowed). -/
+abbrev P.Inv (I : CStore E → Prop) (p : P E σ α) : Prop := P.InvW I (fun _ => True) p
 
 namespace P.Inv
 
-variable {I : CStore E → Prop}
+variable {I : CStore E → Prop} {W : σ → Prop}
 
-theorem pure (a : α) : P.Inv I (Pure.pure a : P E σ α) := Prog.Every.pure a
+theorem pure (a : α) : P.InvW I W (Pure.pure a : P E σ α) := Prog.Every.pure a
 
 end P.Inv
 

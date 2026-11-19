@@ -10,7 +10,7 @@ A Core run to a host call is read through the trapping behaviours of #548's simu
 host that also answers that call by a trap:
 
 * `answerAt host m`: `host`, also answering the host call `m` by a trap in its store. It keeps
-  every hypothesis of the forward and backward simulations (`nativeHostSlice_answerAt`,
+  every hypothesis of the forward and backward simulations (`hostSliceT_answerAt`,
   `hostSliceE_answerAt`, `hostTyped_answerAt`), and its runs with a log `host` allows are runs of
   `host` (`evRun_of_answerAt`);
 * `wasmEvPendXP_evRun` (every profile): a pending call `(cs, m)` answered by a trap is a trapping
@@ -32,7 +32,7 @@ open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
 open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
 
-variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
+variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## A host answering one call by a trap -/
 
@@ -41,8 +41,8 @@ def answerAt (host : HostSemantics H) (m : (wasmHostSig H).Op) : HostSemantics H
   fun h s vs o =>
     host h s vs o ∨ (h = m.1 ∧ s = m.2.1 ∧ vs = m.2.2 ∧ o = .returned m.2.1 .trap)
 
-theorem nativeHostSlice_answerAt (hH : NativeHostSlice host) (m : (wasmHostSig H).Op) :
-    NativeHostSlice (answerAt host m) where
+theorem hostSliceT_answerAt (hH : HostSliceT host) (m : (wasmHostSig H).Op) :
+    HostSliceT (answerAt host m) where
   funcs h s vs s' r hr := by
     rcases hr with hr | ⟨-, rfl, -, he⟩
     · exact hH.funcs h s vs s' r hr
@@ -50,10 +50,6 @@ theorem nativeHostSlice_answerAt (hH : NativeHostSlice host) (m : (wasmHostSig H
   arity s a fi h ps rs vs ws s' hf hc hty hr := by
     rcases hr with hr | ⟨-, -, -, he⟩
     · exact hH.arity s a fi h ps rs vs ws s' hf hc hty hr
-    · cases he
-  noThrow h s vs s' t hr := by
-    rcases hr with hr | ⟨-, -, -, he⟩
-    · exact hH.noThrow h s vs s' t hr
     · cases he
 
 theorem hostSliceE_answerAt {tags : List TagInst} (hE : HostSliceE tags host)
@@ -67,12 +63,9 @@ theorem hostSliceE_answerAt {tags : List TagInst} (hE : HostSliceE tags host)
     · exact hE.tags h s vs s' r hr
     · cases he; exact id
 
-theorem hostTyped_answerAt (hT : HostTyped host) (m : (wasmHostSig H).Op) :
-    HostTyped (answerAt host m) := by
-  intro s fi h vs ps rs hs hfi hcode he hvs out hout
-  rcases hout with hout | ⟨-, rfl, -, rfl⟩
-  · exact hT s fi h vs ps rs hs hfi hcode he hvs out hout
-  · exact ⟨hs, Extend.refl hs, trivial⟩
+theorem hostTyped_answerAt (hT : J.HostOk host) (m : (wasmHostSig H).Op) :
+    J.HostOk (answerAt host m) :=
+  J.hostOk_trap m hT
 
 theorem cons_answerAt {m : (wasmHostSig H).Op} {q : List (Call (wasmHostSig H))}
     (hc : Cons host q) : Cons (answerAt host m) (q ++ [trapEv m]) := by
@@ -184,7 +177,7 @@ theorem invokeOk_type {s : Store H} {a : Nat} {vs : List Val} (hok : InvokeOk s 
 /-! ## Pending calls -/
 
 /-- **Pending calls, natively to Core, at exactly their log** (every profile). -/
-theorem wasmEvPendXP_evRun {tags : List TagInst} (hH : NativeHostSlice host)
+theorem wasmEvPendXP_evRun {tags : List TagInst} (hH : HostSliceT host)
     (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hts : TagsOk tags s)
     (hS : StoreChkE (ehExt tags) s.funcs) (hok : InvokeOk s a vs)
     {cs : List (Call (wasmHostSig H))} {m : (wasmHostSig H).Op}
@@ -193,7 +186,7 @@ theorem wasmEvPendXP_evRun {tags : List TagInst} (hH : NativeHostSlice host)
       SingleThreaded.decompose? c.store c.code = some (E, a', m.1, m.2.2) ∧ c.store = m.2.1 := by
   obtain ⟨fi, ps, rs, hfi, hty⟩ := invokeOk_type hok
   have hcl : (cs ++ [trapEv m], .trap) ∈ wasmEvFunXP s (a, vs) := pendLXP_trap h hfi hty
-  obtain ⟨s₂, run⟩ := wasmEvFunXP_trap_evRun (P := P) (nativeHostSlice_answerAt hH m)
+  obtain ⟨s₂, run⟩ := wasmEvFunXP_trap_evRun (P := P) (hostSliceT_answerAt hH m)
     (hostSliceE_answerAt hE m) hts hS hok hcl (cons_answerAt hc)
   obtain ⟨c₁, c₂, r₁, st, -⟩ := evRun_split run cs [] (trapEv m) rfl
   obtain ⟨E, a', hd, hst, -, -⟩ := st
@@ -201,10 +194,10 @@ theorem wasmEvPendXP_evRun {tags : List TagInst} (hH : NativeHostSlice host)
 
 /-- **Core runs to a host call are pending calls at exactly their log** (deterministic
 profile). -/
-theorem evRun_pendXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host)
-    (hH : NativeHostSlice host) (hE : HostSliceE tags host) {s : Store H} {a : Nat}
-    {vs : List Val} (hs : StoreOk s) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
-    (hok : InvokeOk s a vs) {c : Config H} {cs : List (Call (wasmHostSig H))}
+theorem evRun_pendXP {o : GrowOracle} {tags : List TagInst} (hT : J.HostOk host)
+    (hH : HostSliceT host) (hE : HostSliceE tags host) {s : Store H} {a : Nat}
+    {vs : List Val} (hct₀ : J.CT (invoke s a vs)) (hS : StoreChkE (ehExt tags) s.funcs)
+    (hts : TagsOk tags s) (hok : InvokeOk s a vs) {c : Config H} {cs : List (Call (wasmHostSig H))}
     {E : SingleThreaded.Ctx} {a' : Nat} {hh : H} {us : List Val}
     (hrun : EvRun (profile o) host (invoke s a vs) cs c)
     (hd : SingleThreaded.decompose? c.store c.code = some (E, a', hh, us)) :
@@ -215,8 +208,8 @@ theorem evRun_pendXP {o : GrowOracle} {tags : List TagInst} (hT : HostTyped host
     ⟨E, a', hd, rfl, Or.inr ⟨rfl, rfl, rfl, rfl⟩, rfl⟩
   obtain ⟨f', ht⟩ := fill_trap_steps' (P := profile o) c.store E c.frame
   have run := evRun_trans (evRun_answerAt (m := m) hrun) (.event st (evRun_of_free ht))
-  have hcl := evRun_wasmEvFunXP_trap (hostTyped_answerAt hT m) (nativeHostSlice_answerAt hH m)
-    (hostSliceE_answerAt hE m) hs hS hts hok run
+  have hcl := evRun_wasmEvFunXP_trap (hostTyped_answerAt hT m) (hostSliceT_answerAt hH m)
+    (hostSliceE_answerAt hE m) hct₀ hS hts hok run
   exact close_pend (w := []) hcl
 
 end Silmaril.Proofs.Wasm.Abstract.HostClosingXP

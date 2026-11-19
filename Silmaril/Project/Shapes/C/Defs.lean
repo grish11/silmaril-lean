@@ -195,6 +195,30 @@ def ElaboratesTo {sig : Signature} (ail : Ail.TypedProgram) (name : String) (F :
       ∃ info, b.funInfo.find? (fun e => e.1.key == sym.key) = some (sym, info) ∧
         info.2.2.2.1 = F.params.map fun x => (some x.1, x.2)
 
+/-- Explicit elaboration data for corpus functions needing an exported runtime
+rather than the constructed scalar example. Inputs contain no correctness law. -/
+structure ElaborationInputs where
+  target : Silmaril.Cerberus.Target.Config
+  types : Silmaril.Cerberus.Target.Environment
+  runtime : Silmaril.Cerberus.Elaboration.Functions.RuntimeInputs
+  freshness : Silmaril.Cerberus.Elaboration.Freshness.Context
+
+def ElaborationInputs.run (inputs : ElaborationInputs) (ail : Ail.TypedProgram) :
+    Except Silmaril.Cerberus.Elaboration.State.Error Codec.FileBindings :=
+  (Silmaril.Cerberus.Elaboration.Functions.elaborate inputs.target inputs.types
+    inputs.runtime ail inputs.freshness).1
+
+/-- The actual fixed elaborator, procedure body, parameter objects and function
+information must agree. This accepts data, not an assumed refinement relation. -/
+def ElaboratesWith {sig : Signature} (inputs : ElaborationInputs)
+    (ail : Ail.TypedProgram) (name : String) (F : CFn sig) : Prop :=
+  ∃ b, inputs.run ail = .ok b ∧ F.file = b.toFile ∧
+    ∃ sym loc marker ret, procedureNamed b name =
+      some (sym, .procedure loc marker ret (F.params.map fun x => (x.1, BaseType.object .pointer))
+        F.body) ∧
+      ∃ info, b.funInfo.find? (fun e => e.1.key == sym.key) = some (sym, info) ∧
+        info.2.2.2.1 = F.params.map fun x => (some x.1, x.2)
+
 /-! ## IR to C, x86 to C, and builds -/
 
 /-- **The IR function `f` corresponds to the C function `F`**: `f`'s meaning refines `F`'s
