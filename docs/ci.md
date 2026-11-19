@@ -33,6 +33,13 @@ changed. These changes check everything:
 - any other file that is not in the Makefile's `SCOPE_EXCLUDE` list (files that
   Lake never reads), such as `.github/`, the `Makefile` or `tools/binaryen-lean/`.
 With no Lake target, the job restores nothing and runs only the source checks.
+The 32 Cerberus runtime checks in `tests/cerberus/runtime-checks.json` run in at
+most four command slots, with separate temporary directories and one Lean thread
+per command. The two larger cJSON array-item tests partition their original
+three seeds, preserving all 168 Core and 420 machine cases. The runner rejects
+missing/duplicate seeds, incorrect counts, child failures and timeouts, and kills
+and reaps command groups on cancellation. No-argument test commands still run all
+original seeds. This runtime work remains inside `make check` and its timing budget.
 The timing check waits for all selected correctness jobs. It includes their
 setup, cache transfer, tests and publication, plus waits after the attempt
 starts. Time Lake spends compiling modules the run had to build does not count:
