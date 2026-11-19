@@ -1,0 +1,580 @@
+{
+  "schema": "silmaril.binary-equivalence.v1",
+  "root": "multiple original measured legacy roots; see each registry declaration",
+  "definition": "Silmaril/Elf/Corpus/MimallocVersion/Defs.lean",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/MimallocVersion/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocVersion/Thms.lean",
+    "Silmaril/Elf/Corpus/MimallocVersion/AllVariants/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocVersion/AllVariants/Thms.lean",
+    "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Defs.lean",
+    "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Thms.lean",
+    "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Variants/Defs.lean",
+    "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Variants/Thms.lean",
+    "Silmaril/Project/Shapes/SysV/Defs.lean",
+    "Silmaril/Project/Shapes/X86/Defs.lean"
+  ],
+  "endpoints": [
+    {
+      "id": "mimallocO0unstripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/unstripped/libmimalloc.so.2.1",
+      "sha256": "b89f65cbfb1a06468e1ba2b89ec908e5897a61cda109df92f112d9709e4dbf7d",
+      "functions": {
+        "mi_version": {
+          "address": 73263,
+          "size": 11,
+          "file_offset": 73263,
+          "bytes_hex": "55 48 89 e5 b8 db 00 00 00 5d c3",
+          "code_sha256": "a134e7ee1bd2321bcec69ec17173b675ca1e795a1d5c18c9acc4fc01e3e085b3",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/unstripped/receipt.json",
+        "sha256": "272146f87bf12bc2279b5de12f4b1fbc20334f6d3993e880783538e4d2095ce2"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/build.json",
+        "sha256": "1033d8bc5941aaf54419e2073b5efcf730e0bd9aa951e85b4ae8596a631349d2",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "O0",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocO3unstripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/unstripped/libmimalloc.so.2.1",
+      "sha256": "d31800fec23b41fe8b9cbc2fac88762b4d4a2716b1fbe65fea1fd0aeb8b0aab3",
+      "functions": {
+        "mi_version": {
+          "address": 64240,
+          "size": 6,
+          "file_offset": 64240,
+          "bytes_hex": "b8 db 00 00 00 c3",
+          "code_sha256": "4dfc881a302887502b3632f42122adf3dc74cd8ab03af0c2e908cc805a48b0a0",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/unstripped/receipt.json",
+        "sha256": "f5a619d65b19d420f5700767ce04b8b9314016ca73237dbf96192fe504c36db9"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/build.json",
+        "sha256": "83454d48e3d8018aaac629a7bc53826751ea1e5c688b03ba67c36dcaca170d43",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "O3",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O3 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocO0stripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/stripped/libmimalloc.so.2.1",
+      "sha256": "2811fa0abc1ecf4d6378cc1aed2e7211555403c0d5b6b1a9f2cc78f0c9e0c616",
+      "functions": {
+        "mi_version": {
+          "address": 73263,
+          "size": 11,
+          "file_offset": 73263,
+          "bytes_hex": "55 48 89 e5 b8 db 00 00 00 5d c3",
+          "code_sha256": "a134e7ee1bd2321bcec69ec17173b675ca1e795a1d5c18c9acc4fc01e3e085b3",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/stripped/receipt.json",
+        "sha256": "395b03a8c129f15f2d33ca072ce52bbfe2173efec125c6b1e1213f550c658066"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/build.json",
+        "sha256": "1033d8bc5941aaf54419e2073b5efcf730e0bd9aa951e85b4ae8596a631349d2",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "O0",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocOgstripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/stripped/libmimalloc.so.2.1",
+      "sha256": "94599d02484f5a1fca59893d0c2a675e8782257b4af967dfdb08d1175952e379",
+      "functions": {
+        "mi_version": {
+          "address": 53387,
+          "size": 6,
+          "file_offset": 53387,
+          "bytes_hex": "b8 db 00 00 00 c3",
+          "code_sha256": "4dfc881a302887502b3632f42122adf3dc74cd8ab03af0c2e908cc805a48b0a0",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/stripped/receipt.json",
+        "sha256": "de13655e46d2641cb1134a381d12af1c341469594b1009d48a5bc04298988ca9"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/build.json",
+        "sha256": "feef56c31f9287f1e55eeb09d611b410c76741fcce92485cf9ddf909ba756d02",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "Og",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-Og -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocOgunstripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/unstripped/libmimalloc.so.2.1",
+      "sha256": "609c0d03494a8964e3b736dc8b8f93c2049fbdfb0df15699691292b3fe24e3f4",
+      "functions": {
+        "mi_version": {
+          "address": 53387,
+          "size": 6,
+          "file_offset": 53387,
+          "bytes_hex": "b8 db 00 00 00 c3",
+          "code_sha256": "4dfc881a302887502b3632f42122adf3dc74cd8ab03af0c2e908cc805a48b0a0",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/unstripped/receipt.json",
+        "sha256": "e45b054297b1954536ece72f288147d6f4ae11596ab9baff234d5e4e6e36f515"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/build.json",
+        "sha256": "feef56c31f9287f1e55eeb09d611b410c76741fcce92485cf9ddf909ba756d02",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "Og",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-Og -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocO1stripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/stripped/libmimalloc.so.2.1",
+      "sha256": "58b5880abaa05d857c2008d5427c126e3a45d5b95ced48c8a4ed4fc18cf0c99a",
+      "functions": {
+        "mi_version": {
+          "address": 54710,
+          "size": 6,
+          "file_offset": 54710,
+          "bytes_hex": "b8 db 00 00 00 c3",
+          "code_sha256": "4dfc881a302887502b3632f42122adf3dc74cd8ab03af0c2e908cc805a48b0a0",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/stripped/receipt.json",
+        "sha256": "07975f2a60e5980bf2d0b8a8b17f077249c2a567e53bd51f56387e4333d77a49"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/build.json",
+        "sha256": "0070fadd82bdcad3b48db9c639c9a4d49ee5c4ba04942a2f311a76e5713a3dac",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "O1",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O1 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocO1unstripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/unstripped/libmimalloc.so.2.1",
+      "sha256": "c95e5e0299d30f67eccdc106bf6cd15d2fa84bd65ccfc71a4b9c2e7757f45f21",
+      "functions": {
+        "mi_version": {
+          "address": 54710,
+          "size": 6,
+          "file_offset": 54710,
+          "bytes_hex": "b8 db 00 00 00 c3",
+          "code_sha256": "4dfc881a302887502b3632f42122adf3dc74cd8ab03af0c2e908cc805a48b0a0",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/unstripped/receipt.json",
+        "sha256": "28cdadedf6246593a356f514d4f6c4b4fcf9d4ab3b9bb75f15906c084e6e3689"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/build.json",
+        "sha256": "0070fadd82bdcad3b48db9c639c9a4d49ee5c4ba04942a2f311a76e5713a3dac",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "O1",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O1 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "mimallocO3stripped",
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/stripped/libmimalloc.so.2.1",
+      "sha256": "1aba36eebc02977f9623048cf7a15734df14c181531f65f21131bec003b48a45",
+      "functions": {
+        "mi_version": {
+          "address": 64240,
+          "size": 6,
+          "file_offset": 64240,
+          "bytes_hex": "b8 db 00 00 00 c3",
+          "code_sha256": "4dfc881a302887502b3632f42122adf3dc74cd8ab03af0c2e908cc805a48b0a0",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/stripped/receipt.json",
+        "sha256": "eb5c454d6a83879498ec74df18a3e6fee9bada7c6da7d99dd4b2e976a3abd7e1"
+      },
+      "build": {
+        "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/build.json",
+        "sha256": "83454d48e3d8018aaac629a7bc53826751ea1e5c688b03ba67c36dcaca170d43",
+        "configuration": "default",
+        "version": "2.1.9",
+        "optimization": "O3",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+            "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O3 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+        "project": "mimalloc"
+      },
+      "source": {
+        "path": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+        "sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+        "definitions": {
+          "mi_version": {
+            "offset": 859,
+            "length": 69,
+            "sha256": "34494715fa9523f1dac06e2201082a7620f75e6e56b252f880db590763645814",
+            "text": "int mi_version(void) mi_attr_noexcept {\n  return MI_MALLOC_VERSION;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "tinyccO0unstripped",
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "sha256": "516d5364f354cdebcc3c6cd43df76f504cf17f8b0000a16a6ba061b9b1bec67c",
+      "functions": {
+        "isid": {
+          "address": 29960,
+          "size": 51,
+          "file_offset": 29960,
+          "bytes_hex": "55 48 89 e5 89 7d fc 83 7d fc 60 7e 06 83 7d fc 7a 7e 12 83 7d fc 40 7e 06 83 7d fc 5a 7e 06 83 7d fc 5f 75 07 b8 01 00 00 00 eb 05 b8 00 00 00 00 5d c3",
+          "code_sha256": "763e0728e8de9454038b75bd558123de4defd3b49b8547497a02025d8fe9a372",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/receipt.json",
+        "sha256": "7ab7220291262d8652e211d360d30476897730b4b2a5c3bf7ac5b96e1f8e3739"
+      },
+      "build": {
+        "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/build.json",
+        "sha256": "9108c6c7a351e236f9014eab8ae6abd6dc2b3b6fb75054252282996f6e57e3ac",
+        "configuration": "default",
+        "version": "0.9.27",
+        "optimization": "O0",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2",
+            "sha256": "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/tinycc=. -MMD (configure adds -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result)",
+        "project": "tinycc"
+      },
+      "source": {
+        "path": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+        "sha256": "bdc8d9b6904b36b071bb6fe93fe7f72ef069de00228c383347193053fbae75c3",
+        "definitions": {
+          "isid": {
+            "offset": 40833,
+            "length": 106,
+            "sha256": "fe013cf1088bf87350652f034f95b1d6668edd7fb187f29dbcedcea0881fc487",
+            "text": "static inline int isid(int c) {\n    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "tinyccOgunstripped",
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/Og/unstripped/tcc",
+      "sha256": "398ba6ca51236ceefa5902884ba42153959790c3b821b90a4037094d27a9b340",
+      "functions": {
+        "isid": {
+          "address": 24069,
+          "size": 53,
+          "file_offset": 24069,
+          "bytes_hex": "83 ff 5f 74 1e 7e 0e 83 ef 61 83 ff 19 76 20 b8 00 00 00 00 c3 83 ef 41 83 ff 19 76 0c b8 00 00 00 00 c3 b8 01 00 00 00 c3 b8 01 00 00 00 c3 b8 01 00 00 00 c3",
+          "code_sha256": "aca3c24454df3356734a2a6efa260c07699717965bc7eb0a998e6e031496402e",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/tinycc/0.9.27/default/x86_64/Og/unstripped/receipt.json",
+        "sha256": "b449eeb8789148e4fcd2d798f606fc62b7b4c5004bf6464d406a42688ac4c5a2"
+      },
+      "build": {
+        "path": "corpus/variants/tinycc/0.9.27/default/x86_64/Og/build.json",
+        "sha256": "d9e6d1bffb04e1a099c225745ebee6719c2d1a1ec1d6f784d28faeb72a5efa0d",
+        "configuration": "default",
+        "version": "0.9.27",
+        "optimization": "Og",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://download.savannah.gnu.org/releases/tinycc/tcc-0.9.27.tar.bz2",
+            "sha256": "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
+          }
+        ],
+        "target": "x86_64-linux-gnu",
+        "cflags": "-Og -g0 -ffile-prefix-map=/build/tinycc=. -MMD (configure adds -Wdeclaration-after-statement -fno-strict-aliasing -Wno-pointer-sign -Wno-sign-compare -Wno-unused-result)",
+        "project": "tinycc"
+      },
+      "source": {
+        "path": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+        "sha256": "bdc8d9b6904b36b071bb6fe93fe7f72ef069de00228c383347193053fbae75c3",
+        "definitions": {
+          "isid": {
+            "offset": 40833,
+            "length": 106,
+            "sha256": "fe013cf1088bf87350652f034f95b1d6668edd7fb187f29dbcedcea0881fc487",
+            "text": "static inline int isid(int c) {\n    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';\n}"
+          }
+        }
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "name": "mi_version_equivalent",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.Task.mi_version_equivalent",
+      "function_symbol": "mi_version",
+      "profile": "legacy-mimalloc-version-v1",
+      "left": "mimallocO0unstripped",
+      "right": "mimallocO3unstripped",
+      "left_frame": 8,
+      "right_frame": 8,
+      "value": 219
+    },
+    {
+      "name": "O0_strip_equivalent",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.AllVariants.Task.O0_strip_equivalent",
+      "function_symbol": "mi_version",
+      "profile": "legacy-mimalloc-version-v1",
+      "left": "mimallocO0unstripped",
+      "right": "mimallocO0stripped",
+      "left_frame": 8,
+      "right_frame": 8,
+      "value": 219
+    },
+    {
+      "name": "Og_strip_equivalent",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.AllVariants.Task.Og_strip_equivalent",
+      "function_symbol": "mi_version",
+      "profile": "legacy-mimalloc-version-v1",
+      "left": "mimallocOgunstripped",
+      "right": "mimallocOgstripped",
+      "left_frame": 8,
+      "right_frame": 8,
+      "value": 219
+    },
+    {
+      "name": "O1_strip_equivalent",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.AllVariants.Task.O1_strip_equivalent",
+      "function_symbol": "mi_version",
+      "profile": "legacy-mimalloc-version-v1",
+      "left": "mimallocO1unstripped",
+      "right": "mimallocO1stripped",
+      "left_frame": 8,
+      "right_frame": 8,
+      "value": 219
+    },
+    {
+      "name": "O3_strip_equivalent",
+      "declaration": "Silmaril.Elf.Corpus.MimallocVersion.AllVariants.Task.O3_strip_equivalent",
+      "function_symbol": "mi_version",
+      "profile": "legacy-mimalloc-version-v1",
+      "left": "mimallocO3unstripped",
+      "right": "mimallocO3stripped",
+      "left_frame": 8,
+      "right_frame": 8,
+      "value": 219
+    },
+    {
+      "name": "equivalent",
+      "declaration": "Silmaril.Elf.Corpus.TinyccClosed.Identifier.Variants.Task.equivalent",
+      "function_symbol": "isid",
+      "profile": "legacy-tinycc-isid-v1",
+      "left": "tinyccO0unstripped",
+      "right": "tinyccOgunstripped",
+      "left_frame": 16,
+      "right_frame": 16,
+      "value": null
+    }
+  ],
+  "excluded": [
+    "Different source versions/configurations are not selected.",
+    "Only the original registered symbol AND address are selected: TinyCC contains multiple isid symbols.",
+    "No bare extracted fragment, fixture adapter or synthetic whole-ELF identity is promoted."
+  ],
+  "limits": [
+    "All six original statements remain UNPROVED; byte identity and successful Lean checks are not semantic proofs.",
+    "Existing actual ELF functions, CodeAt facts and original SysV contracts are displayed without changing their meaning. The mimalloc contracts allow8 private stack bytes on BOTH sides; TinyCC allows16 on BOTH sides, even when optimized code needs less.",
+    "TinyCC requires the explicit ASCII identifier predicate for every signed32 input, including negatives; no single constant result is claimed. mimalloc requires signed32 result219.",
+    "Upstream source spans and included-source build receipts are provenance only: no saved TU/Core binding, frontend adequacy, source-to-instruction mapping, compiler/exporter replay or source refinement is supplied for these binary obligations. Separate O2 contextual source problems are not substituted.",
+    "Exact symbol/address plus executable PT_LOAD bytes and catalog entries are checked; CodeAt facts are linked separately. This does not prove whole-ELF loading or execution adequacy.",
+    "Existing upstream/pre-existing first-party security findings, unsupported FIPS, cJSON provenance/runtime and distinct jemalloc configuration limits remain. No interactive compilation or semantic proof."
+  ]
+}

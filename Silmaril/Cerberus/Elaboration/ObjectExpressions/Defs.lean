@@ -32,4 +32,26 @@ def rvalue (config : Target.Config) (location : Loc) (childType : Ctype)
   return weakSequence pointer.pattern core
     (MemoryActions.load location (ailCtype childType) pointer.expression (loadOrder childType))
 
+/-- Pinned `translation.lem:3159–3185`, non-CHERI, non-PNVI,
+non-strict lvalue-array branch. Both wrappers are allocated after the actual
+child, including the otherwise-unused result wrapper. Rvalue temporary-array
+and strict memory-operation branches reject explicitly. -/
+def arrayDecay (config : Target.Config) (input : Ail.TypedExpression)
+    (resultType : Ctype) (child : State.ElabM Effect) : State.ElabM Effect := do
+  if config.cheri then throw (.message "unsupported: CHERI array decay")
+  let .mk category _ _ _ := input
+  let .lvalue .. := category
+    | throw (.message "unsupported: rvalue-array decay temporary-object lifetime")
+  let .mk _ (.pointer _ referent) := resultType
+    | throw (.message "ill-typed AilEarray_decay: result is not a pointer")
+  let core ← child
+  let pointer ← State.wrappedFreshSymbol (.object .pointer)
+  let result ← State.wrappedFreshSymbol (.object .pointer)
+  let _ := result
+  if config.strictPointerArithmetic then
+    throw (.message "unsupported: strict array-decay memory operation")
+  return weakSequence pointer.pattern core
+    (addStandard "§6.3.2.1#3" (pureEffect (specified
+      (arrayShift pointer.expression referent (integer 0)))))
+
 end Silmaril.Cerberus.Elaboration.ObjectExpressions

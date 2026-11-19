@@ -1,0 +1,20 @@
+{
+  "external_input_sha256": "8176f850bbc07d56e4592b3c768d8c944ea1e7c5a134f5f06457025f0bce3be6",
+  "files": {
+    "context.c": "d28acc15b04eb9fe7377e76026b006d36214ad39159ee797f795bacfb0974d38",
+    "typed-ail.sexp": "6a1b789ce74955bb6480baad9f069955d12c44961ba1830d1b63a7b6724d3b21",
+    "program.sexp": "4e0bd85c2d333bb68b1f9d3b55772375eb2a02dcbb0d1b58fa1d8a683ed4c7d4",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "projection.json": "47fb64bd0b94f6b4095b59c6da95626d929191ae1fa86e5a2e73cd87af76590c"
+  },
+  "immutable_files": {
+    "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+    "corpus/elf/sqlite/x86_64/libsqlite3.so": "fcdd0cd75ea98cee14f2743832c6ad2ed4dd4229e2b5093f8bce7dc33c9c17f8",
+    "corpus/elf/sqlite/x86_64/receipt.json": "440481b4de2f2d7d808e50dd72a09789f4657e401aea9d0aca5d938b72705ec4",
+    "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf",
+    "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/translation-unit.i": "31992f073781a1cdbd06ee2a00b2de14b62d87b5e81199dbb6a0fb7dfb7b6f1d",
+    "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/preprocessing.json": "8f43041c7c871983a98c2b4adc324ea7e310ce5695ce806bb0a3ecc0e29ca537"
+  },
+  "elf": "corpus/elf/sqlite/x86_64/libsqlite3.so",
+  "preprocessing": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/preprocessing.json"
+}

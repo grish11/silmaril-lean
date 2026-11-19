@@ -1,0 +1,32 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/MimallocOsGlobals/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/MimallocOsGlobals/Thms.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean"
+  ],
+  "limits": [
+    "All corpus refinement obligations are stated-unproved. No semantic proof or exporter run is inferred from this display.",
+    "Exact source/Core/ELF evidence does not establish compiler correctness or full translation-unit frontend adequacy. No interactive compilation or source-to-instruction segment mapping is supplied.",
+    "Actual initialized global:48 bytes/align8, eight fields. Post-startup page fields, typed allocation, read permission and preserved memory/lifetime/stdout effects are explicit.",
+    "The large-page source procedure calls the actual page-size helper in the zero branch; canonical O2 inlines it. No substitute callee contract is assumed.",
+    "The frontend retains actual zero-parameter metadata variadic=false, prototype=false for lexical (void). Global-startup and allocator correctness remain unproved."
+  ],
+  "source": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/context.c"
+  },
+  "projection": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/projection.json",
+    "tu": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/runtime.sexp"
+  }
+}

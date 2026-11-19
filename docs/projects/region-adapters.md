@@ -154,3 +154,8 @@ source, layout, browser-unit and offline process gates as well. Targeted local
 success is not a claim that the full native release suite was run locally.
 CI evaluates correctness and timing separately; passing either check does
 not establish that the other passed.
+
+The [nested Wasm map guide](wasm-nested-byte-maps.md) describes candidate-spine
+validation for block, loop, if and try_table bodies, including coverage against
+the existing CFG inventory. The original root checker remains a smaller API;
+module/body provenance and operational assumptions remain separate.

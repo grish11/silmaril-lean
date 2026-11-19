@@ -193,3 +193,65 @@ python3 scripts/corpus/variants.py --package openssl --configuration no-asm \
 The pool does not change `corpus/build-all.sh`, historical canonical artifacts,
 formal coverage or catalog ownership. Runtime smoke tests are observations of
 their recorded commands, not functional-equivalence or source-semantics proofs.
+
+### Explicit profile subsets in one pool
+
+Repeated `--profile CONFIGURATION:ARCH:LEVEL` selects exact tuples for one package,
+without building Cartesian cross terms. It cannot combine with `--arch`,
+`--configuration` or `--level`. Package configuration, architecture and optimization
+are checked before Docker inspection. Defaults and ordinary matrix selectors stay
+unchanged; selecting a tuple does not claim that it builds successfully.
+
+```sh
+python3 scripts/corpus/variants.py --package boringssl \
+  --profile no-asm:aarch64:O0 --profile no-asm:aarch64:O2 \
+  --profile asm:aarch64:O0 --profile asm:aarch64:O2 \
+  --profile fips-shared:aarch64:O0 --work /work/out/boringssl-aarch64
+```
+
+This example omits optimized FIPS_SHARED, a separately unsupported/failed pinned
+GCC14 native configuration. It does not retry it or substitute another compiler.
+All selected profiles share exactly two workers; clean repeats, stripping, runtime
+tests and publication guards remain identical. A failure ends the invocation,
+records the active profile as failed, and removes both workers without retry.
+
+### Detached controllers and recovery
+
+For a long build that must outlive its launching terminal/session, use
+`background.py`. It starts the explicit command in a new POSIX session with
+stdin closed, durable logs, an exclusive PID record and a shared two-CPU host
+affinity cap. Successful launch is not successful completion. Inspect the
+build's lifecycle and stage receipts; run the progress monitor detached too.
+
+```sh
+python3 scripts/corpus/background.py --record /work/out/build-job.json \
+  --log /work/out/build-job.log -- python3 -B scripts/corpus/variants.py \
+  --package openssl --configuration asm --work /work/out/openssl-asm
+```
+
+If the host controller was killed but both workers remain, `--resume-pool POOL`
+and `--recover-work PROFILE_WORK` (with `--resume`) can reconnect **without
+creating replacement containers**. Recovery requires an unpublished profile,
+two idle original workers, the exact immutable image, original mounts/limits/
+read-only root, and matching full package locks. It verifies the frozen recipes,
+both successful measured builds and unchanged copied outputs before rerunning
+all strip comparisons, runtime tests, receipt creation and census. Original
+logs/timings remain; reconnection time, reason and controller hashes are recorded.
+Already published profiles are retained by hash validation. Incomplete builds,
+busy workers or mismatched identities are rejected for explicit investigation.
+This does not claim a new clean build or a fresh container on recovery.
+
+### Published Pages catalog
+
+[Corpus](https://hiloopai.github.io/silmaril-lean/#/corpus) reads the same public
+`project.sqlite` as the other project views. `make pages` backs up the freshly
+checked public project database into a new output and adds corpus tables **before**
+generating the HTML and its database size/hash. It does not publish a private base
+database. `PAGES_SOURCE_REV` is also passed to the corpus generator, so artifact
+links use the public pushed Git commit rather than a build-service checkout HEAD.
+The deployment waits for actual corpus and compiler-viewer browser checks.
+
+[Compiler integration](https://hiloopai.github.io/silmaril-lean/#/compiler) links
+the existing static source/target fixture viewer and explains its coverage.
+The full corpus is not automatically a set of compiler-explorer mappings or
+semantic proofs; per-artifact/function statuses remain explicit.

@@ -27,6 +27,22 @@ def union (left right : List Sym) : List Sym := right.foldl (fun acc symbol => i
 def without (free bound : List Sym) : List Sym :=
   free.filter fun symbol => !(bound.any fun name => decide (name.key = symbol.key))
 
+/-- Pinned `symbols_in_pattern`, including its wildcard accumulator reset.
+This intentionally preserves that source equation rather than silently repairing
+it while broadening the selected linking domain. -/
+def symbolsInPattern (acc : List Sym) : Pat → List Sym
+  | .mk _ (.base (some symbol, _)) => insert symbol acc
+  | .mk _ (.base (none, _)) => []
+  | .mk _ (.ctor _ patterns) =>
+      patterns.attach.foldl (fun acc pattern => symbolsInPattern acc pattern.val) acc
+termination_by pattern => sizeOf pattern
+decreasing_by
+  simp_wf
+  have h := List.sizeOf_lt_of_mem pattern.property
+  omega
+
+def boundSymbols (pattern : Pat) : Except String (List Sym) := .ok (symbolsInPattern [] pattern)
+
 /-- Source PEcall ignores its name and inspects arguments; CType/value payloads
 introduce no free expression symbols in the source dependency analysis. -/
 def freePure : Pure → Except String (List Sym)
@@ -39,7 +55,19 @@ def freePure : Pure → Except String (List Sym)
     | .struct _ members => do
         let sets ← members.attach.mapM fun member => freePure member.val.2
         return sets.foldl union []
-    | .union _ _ expression => freePure expression
+    | .union _ _ expression | .cfunction expression | .memberof _ _ expression
+      | .memberShift expression _ _ | .not expression | .convInt _ expression
+      | .isScalar expression | .isInteger expression | .isSigned expression
+      | .isUnsigned expression => freePure expression
+    | .op _ left right | .wrapI _ _ left right | .catchExceptionalCondition _ _ left right
+      | .areCompatible left right => return union (← freePure left) (← freePure right)
+    | .if_ test yes no => return union (union (← freePure test) (← freePure yes)) (← freePure no)
+    | .let_ pattern value rest =>
+        return union (← freePure value) (without (← freePure rest) (symbolsInPattern [] pattern))
+    | .case_ value branches => do
+        let sets ← branches.attach.mapM fun branch => do
+          return without (← freePure branch.val.2) (symbolsInPattern [] branch.val.1)
+        return sets.foldl union (← freePure value)
     | _ => .error "unsupported: independent-global pure dependency form"
 termination_by expression => sizeOf expression
 decreasing_by
@@ -53,11 +81,10 @@ decreasing_by
       rcases member with ⟨⟨identifier, value⟩, membership⟩
       simp_all
       omega
-
-def boundSymbols : Pat → Except String (List Sym)
-  | .mk _ (.base (some symbol, _)) => .ok [symbol]
-  | .mk _ (.base (none, _)) => .ok []
-  | _ => .error "unsupported: independent-global binding pattern"
+    | have h := List.sizeOf_lt_of_mem branch.property
+      rcases branch with ⟨⟨pattern, value⟩, membership⟩
+      simp_all
+      omega
 
 def freeAction : ActionNode Codec.wireModel Unit Sym → Except String (List Sym)
   | .create alignment type _ => return union (← freePure alignment) (← freePure type)
@@ -68,14 +95,24 @@ def freeEffect : Effect → Except String (List Sym)
   | .mk _ node => match node with
     | .pure expression => freePure expression
     | .bound expression => freeEffect expression
-    | .sseq pattern first rest => do
+    | .sseq pattern first rest | .wseq pattern first rest => do
         let firstSymbols ← freeEffect first
         let restSymbols ← freeEffect rest
         let bound ← boundSymbols pattern
         return union firstSymbols (without restSymbols bound)
+    | .unseq expressions => do
+        let sets ← expressions.attach.mapM fun expression => freeEffect expression.val
+        return sets.foldl union []
     | .action (.mk _ (.mk _ _ action)) => freeAction action
     | _ => .error "unsupported: independent-global effect dependency form"
 termination_by expression => sizeOf expression
+decreasing_by
+  all_goals simp_wf
+  all_goals
+    first
+    | omega
+    | have h := List.sizeOf_lt_of_mem expression.property
+      omega
 
 def freeGlobal : Global Codec.wireModel Unit Unit → Except String (List Sym)
   | .declaration _ => .ok []

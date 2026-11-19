@@ -32,7 +32,25 @@ def main():
     ap.add_argument("--log", required=True)
     ap.add_argument("--validators", choices=["strong", "weak", "lastmod", "none"], default="strong")
     args = ap.parse_args()
-    root = os.path.abspath(args.root)
+    root = os.path.realpath(args.root)
+
+    # Enumerate trusted paths independently of request text. Refresh on a miss
+    # so tests can create additional database fixtures while the server runs.
+    files = {}
+    def refresh_files():
+        nonlocal files
+        refreshed = {}
+        for directory, _, names in os.walk(root):
+            for name in names:
+                candidate = os.path.join(directory, name)
+                resolved = os.path.realpath(candidate)
+                if resolved.startswith(root + os.sep) and os.path.isfile(resolved):
+                    refreshed["/" + os.path.relpath(candidate, root).replace(os.sep, "/")] = resolved
+        files = refreshed
+    refresh_files()
+    # Static Pages serves an already encoded representation. Reuse it for HEAD
+    # and GET until the file changes; ctime also detects writes that restore mtime.
+    gzip_bodies = {}
 
     class H(http.server.BaseHTTPRequestHandler):
         def log_message(self, *a):
@@ -47,12 +65,18 @@ def main():
 
         def serve(self, head):
             u = urllib.parse.urlsplit(self.path)
-            p = os.path.normpath(os.path.join(root, urllib.parse.unquote(u.path).lstrip("/") or "index.html"))
-            if not p.startswith(root) or not os.path.isfile(p):
+            key = urllib.parse.unquote(u.path)
+            if key.endswith("/"):
+                key += "index.html"
+            p = files.get(key)
+            if p is None:
+                refresh_files()
+                p = files.get(key)
+            if p is None:
                 self.send_response(404); self.end_headers(); self.record(404, 0); return
-            data = open(p, "rb").read()
             st = os.stat(p)
-            tag = '"%x-%x"' % (int(st.st_mtime), len(data))
+            length = st.st_size
+            tag = '"%x-%x"' % (int(st.st_mtime), length)
             lastmod = email.utils.formatdate(int(st.st_mtime), usegmt=True)
 
             def validators(etag):
@@ -63,23 +87,34 @@ def main():
                 if args.validators in ("weak", "lastmod"):
                     self.send_header("Last-Modified", lastmod)
             ctype = ("text/html; charset=utf-8" if p.endswith(".html") else
-                     "text/javascript" if p.endswith(".js") else "application/octet-stream")
+                     "text/javascript" if p.endswith(".js") else
+                     "text/css" if p.endswith(".css") else
+                     "application/json" if p.endswith(".json") else "application/octet-stream")
             rng = self.headers.get("Range")
             gz = "gzip" in (self.headers.get("Accept-Encoding") or "")
             if rng and rng.startswith("bytes="):
                 a, _, b = rng[6:].partition("-")
-                a = int(a); b = min(int(b) if b else len(data) - 1, len(data) - 1)
-                body = data[a:b + 1]
+                a = int(a); b = min(int(b) if b else length - 1, length - 1)
+                with open(p, "rb") as stream:
+                    stream.seek(a)
+                    body = stream.read(max(0, b - a + 1))
                 self.send_response(206)
-                self.send_header("Content-Range", "bytes %d-%d/%d" % (a, b, len(data)))
+                self.send_header("Content-Range", "bytes %d-%d/%d" % (a, b, length))
                 validators(tag)
             elif gz:
-                body = gzip.compress(data)
+                version = (st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+                cached = gzip_bodies.get(p)
+                if cached is None or cached[0] != version:
+                    with open(p, "rb") as stream:
+                        cached = (version, gzip.compress(stream.read()))
+                    gzip_bodies[p] = cached
+                body = cached[1]
                 self.send_response(200)
                 self.send_header("Content-Encoding", "gzip")
                 validators("W/" + tag)
             else:
-                body = data
+                with open(p, "rb") as stream:
+                    body = stream.read()
                 self.send_response(200)
                 validators(tag)
             self.send_header("Content-Type", ctype)

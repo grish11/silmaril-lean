@@ -9,7 +9,7 @@ public import Silmaril.Games.Abstract.SessionLinkAssoc.Defs
 public import Silmaril.Games.Abstract.StratSession.Defs
 public import Silmaril.Games.DivComp.Defs
 public import Silmaril.Games.DPair.Defs
-import Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.Main
+import Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.RealMain
 
 /-!
 # Linked components with host imports through the generic session link: theorems
@@ -76,20 +76,41 @@ Not needed: `Adequate`, determinism (except for the composition forms).
 
    and the server's session is the host passthrough handler `callH id sumAns` paired with the
    exporter's session, below the routing handler `SessionExt.routeH l.route`.
+6. **The host-realizable object is a generic link with a stateful host**
+   (`HLinked2.compTripleR_eq_linkR`, `HLinked2.compTripleS_eq_linkR`,
+   `HLinked2.compSession_eq_threadS_linkR`, `WireTy`): with the realizability host
+   `hostTripleR l.host` (state `R`; a call forced at `R` answered by a trap with no visible call;
+   an unforced call visible, refused (`R := m :: R`) or legally answered when `m ∉ R`
+   (`R := []`)) beside the exporter, `serverR := routeS l.route (hostTripleR l.host) expTripleH`,
+
+   `compTripleR P l Ie Ii = mapStore (storeEquivR l.host) (linkS (serverR P l Ie) (clientH P l Ii))`,
+
+   `compTripleS P l Ie Ii = mapStore (storeEquivR l.host) (StratLegal.restrict (hostLegal l.host) (linkR P l Ie Ii))`,
+
+   `compSession P l = threadS (StratLegal.restrict (hostLegal l.host) (linkR P l Ie Ii)) (([], Ie.store), Ii.store)`.
+
+   Exact (finished behaviours, pending calls, streams). Proof: rounds of `serverR` are rounds of
+   the passthrough `serverO` with a `VisRun` log, or with a forced refusal hidden; a trap answer
+   ends the client's round (`SimpleI.impTripleS_trapAbortsRound`), so a hidden refusal is last and
+   the round returns the trap; a pending unforced host call, refused, traps at once
+   (`refuse_mem`). At `profile o` (`HLinked2.comp_threadS_linkR`, `HLinked2.threadS_serverR`):
+   `(threadS (serverR …) (R, π)).comp (threadS (clientH …) u) = threadS (linkR …) ((R, π), u)`,
+   and `threadS (serverR …) (R, π)` is `threadS (hostTripleR l.host) R` paired with the exporter's
+   session below `routeH l.route`.
 
 ## Not claimed
 
-* **A plain passthrough for the realizable object.** `compTripleS` is not stated as
-  `restrict (linkS (routeS … (callS …) …) …)` for any store map: such a link shows forced refusals
-  (item 4). Whether `compTripleR` is exactly a generic link whose host side is a stateful
-  realizability triple (state `R`, answering a forced call by a trap without a call) is not
-  proved here. No concrete component is exhibited whose open and realizable objects differ.
+* **A plain passthrough for the realizable object.** `compTripleS` is not the restricted
+  passthrough link `linkO` for any store map: such a link shows forced refusals (item 4); item 6
+  is the correct generic form, with the stateful `hostTripleR`, which is not a handler. No
+  concrete component is exhibited whose open and realizable objects differ.
 * The composition forms on the legal interface (`linkS` commuting with `StratLegal.restrict`),
   and composition forms at nondeterministic profiles.
 * Nested or n-ary components with host imports; the relation to `SessionHost.hostLinkS` (host
   calls answered and hidden), which applies once a host is fixed.
 
-Proofs: `Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.{Basic, Fin, Inf, Pend, Main}`.
+Proofs: `Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.{Basic, Fin, Inf, Pend, Main,
+RealServer, RealMain}`.
 -/
 
 public section
@@ -188,6 +209,47 @@ theorem comp_threadS_linkO (o : GrowOracle) (π u : Store Nat) :
         (threadS (l.clientH (profile o) Ii) u) =
       threadS (l.linkO (profile o) Ie Ii) ((PUnit.unit, π), u) :=
   Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.comp_threadS_linkO o π u
+
+/-! ## The host-realizable object as a generic link -/
+
+/-- **The host-realizable triple is the generic link of the realizability host beside the
+exporter serving the importer**, the stores reordered (proved, `WireTy`). -/
+theorem compTripleR_eq_linkR (hw : l.WireTy) :
+    compTripleR P l Ie Ii =
+      mapStore (storeEquivR l.host) (linkS (l.serverR P Ie) (l.clientH P Ii)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.compTripleR_eq_linkR hw
+
+/-- **The host-realizable triple on the legal interface** is the legal restriction of the
+host-realizable link (proved, `WireTy`). -/
+theorem compTripleS_eq_linkR (hw : l.WireTy) :
+    compTripleS P l Ie Ii =
+      mapStore (storeEquivR l.host) (StratLegal.restrict (hostLegal l.host) (l.linkR P Ie Ii)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.compTripleS_eq_linkR hw
+
+/-- **The canonical session object is the session of the restricted host-realizable link**
+(proved, `WireTy`, at the instances of the two core modules). -/
+theorem compSession_eq_threadS_linkR (hIe : l.exp.mod.IsInst Ie) (hIi : l.imp.mod.IsInst Ii)
+    (hw : l.WireTy) :
+    compSession P l =
+      threadS (StratLegal.restrict (hostLegal l.host) (l.linkR P Ie Ii))
+        (([], Ie.store), Ii.store) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.compSession_eq_threadS_linkR hIe hIi hw
+
+/-- **The host-realizable server's session is the realizability host's session beside the
+exporter's**, below the routing handler (proved, `profile o`). -/
+theorem threadS_serverR (o : GrowOracle) (R : List (sigN l.host.length).Op) (π : Store Nat) :
+    threadS (l.serverR (profile o) Ie) (R, π) =
+      ((threadS (hostTripleR l.host) R).pair (threadS (l.expTripleH (profile o) Ie) π)).comp
+        (DStrategy.ofHandler (SessionExt.routeH l.route)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.threadS_serverR o R π
+
+/-- **The host-realizable link is the server's session composed with the client's** (proved,
+`profile o`). -/
+theorem comp_threadS_linkR (o : GrowOracle) (R : List (sigN l.host.length).Op)
+    (π u : Store Nat) :
+    (threadS (l.serverR (profile o) Ie) (R, π)).comp (threadS (l.clientH (profile o) Ii) u) =
+      threadS (l.linkR (profile o) Ie Ii) ((R, π), u) :=
+  Silmaril.Proofs.Wasm.Component.Reference.HLinkedLink.comp_threadS_linkR o R π u
 
 end HLinked2
 

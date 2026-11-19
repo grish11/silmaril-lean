@@ -9,6 +9,9 @@ lawful models form complete lattices; see the
 through a state invariant even when an unrestricted constituent block cannot. It does not infer a unique partition,
 prove an arbitrary parent region, or manufacture call resumptions.
 
+The [logic, graph, certificate, target-query and effect APIs](region-logic-graphs.md)
+keep syntax, graph observations and proof decorations separate from that core.
+
 ## Reading and building
 
 The public entry points are:

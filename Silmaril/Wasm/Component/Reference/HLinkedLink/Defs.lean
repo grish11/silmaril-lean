@@ -54,6 +54,14 @@ inlines it.
 `VisRun` from `R` to `R'` ends at `R'`; a behaviour returning the trap after a last refused call
 `m` forced at `R'` (`Forced`) is kept with that call hidden; a stream is kept when all its prefixes
 are `VisRun`s. Then it is saturated (`StratObs.sat`).
+
+## The host-realizable server
+
+`HLinked2.hostTripleR h` is a stateful host triple over `R`: a call forced at `R` is answered by a
+trap with no visible call (state kept); an unforced call is visible, refused (`R := m :: R`) or
+answered legally when `m ∉ R` (`R := []`). `HLinked2.serverR := routeS l.route (hostTripleR
+l.host) (expTripleH P l Ie)`, `HLinked2.linkR := linkS serverR clientH`, and `storeEquivR`
+reorders `((R, π), u)` to `(u, π, R)`.
 -/
 
 @[expose] public section
@@ -162,6 +170,41 @@ def realize (h : Iface)
     fun _ _ => ∅,
     fun s q => {ω | ω ∈ t.2.2 (s.1, s.2.1) q ∧
       ∀ n, ∃ R' : List (sigN h.length).Op, VisRun h s.2.2 (streamTake ω n) R'})
+
+/-! ## The host-realizable host -/
+
+/-- **The host-realizable host triple**, over the calls `R` refused since the last answered call:
+a call forced at `R` (`Forced`) is answered by a trap **without a visible call**, the state kept;
+any other call is the visible call itself, refused (its call added to `R`) or answered with a
+legal answer when not in `R` (`R` reset). Its pending calls are the unforced calls. -/
+def hostTripleR (h : Iface) :
+    ObsTriple (sigN h.length) (List (sigN h.length).Op) (sigN h.length).Op (Payload ⊕ PUnit.{1}) :=
+  (fun R m => {x | (Forced h R m ∧ x = ([], .ret (.inr PUnit.unit) R)) ∨
+      (¬ Forced h R m ∧ x = ([⟨m, none⟩], .ret (.inr PUnit.unit) (m :: R))) ∨
+      (∃ p : Payload, m ∉ R ∧ hostLegal h m (some p) ∧ x = ([⟨m, some p⟩], .ret (.inl p) []))},
+    fun R m => {x | ¬ Forced h R m ∧ x = ([], m)},
+    fun _ _ => ∅)
+
+/-- **The host-realizable server**: the host-realizable host beside the exporter, routed. -/
+def serverR (Ie : ScalarInstance) :
+    ObsTriple (sigN l.host.length) (List (sigN l.host.length).Op × Store Nat) (Nat × Payload)
+      (Payload ⊕ PUnit.{1}) :=
+  SessionExt.routeS l.route (hostTripleR l.host) (l.expTripleH P Ie)
+
+/-- **The host-realizable generic link**: the host-realizable server serving the client. -/
+def linkR (Ie Ii : ScalarInstance) :
+    ObsTriple (sigN l.host.length) ((List (sigN l.host.length).Op × Store Nat) × Store Nat)
+      (Nat × Payload) (Payload ⊕ PUnit.{1}) :=
+  linkS (l.serverR P Ie) (l.clientH P Ii)
+
+/-- The stores of the host-realizable link, `(R, π)` and `u`, as the stores `(u, π, R)`. -/
+def storeEquivR (h : Iface) :
+    (List (sigN h.length).Op × Store Nat) × Store Nat ≃
+      Store Nat × Store Nat × List (sigN h.length).Op where
+  toFun x := (x.2, x.1.2, x.1.1)
+  invFun y := ((y.2.2, y.2.1), y.1)
+  left_inv _ := rfl
+  right_inv _ := rfl
 
 end HLinked2
 

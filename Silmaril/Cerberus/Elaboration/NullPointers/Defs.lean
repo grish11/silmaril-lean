@@ -39,4 +39,27 @@ def castInteger (config : Target.Config) (source destination : Ctype)
   let _ ← State.freshDescription .none
   return addStandard "§6.5.4" (pureEffect (specified (nullptr referenced)))
 
+/-- Null-constant equality branch from pinned `translation.lem:514–546`.
+Only the pointer child is translated, before the three fresh wrappers. The
+unspecified-loaded-value case retains the source UB instead of returning false.
+General pointer/pointer comparisons and CHERI remain outside this slice. -/
+def compareNull (config : Target.Config) (notEqual : Bool) (location : Loc)
+    (pointerType : Ctype) (child : State.ElabM Effect) : State.ElabM Effect := do
+  if config.cheri then throw (.message "unsupported: CHERI null-pointer comparison")
+  unless Constants.isPointer pointerType do
+    throw (.message "unsupported: null comparison requires a pointer operand")
+  let core ← child
+  let loaded ← State.wrappedFreshSymbol (.loaded .pointer)
+  let object ← State.wrappedFreshSymbol (.object .pointer)
+  let result ← State.wrappedFreshSymbol .boolean
+  let nullValue := standardPure "§6.5.9#5, sentence 2" (nullptr pointerType)
+  let operation := memoryOperation (if notEqual then .ptrNe else .ptrEq)
+    [object.expression, nullValue]
+  let yes := addStandard "§6.5.9#3" (pureEffect
+    (ifPure result.expression (specified (integer 1)) (specified (integer 0))))
+  return weakSequence loaded.pattern core (caseEffect loaded.expression
+    [(specifiedPattern object.pattern, weakSequence result.pattern operation yes),
+     (wildcard (.loaded .pointer), pureEffect
+       (undefined location (.UB_CERB004_unspecified .UB_unspec_equality_ptr_vs_NULL)))])
+
 end Silmaril.Cerberus.Elaboration.NullPointers

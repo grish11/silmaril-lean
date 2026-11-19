@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "run_id": "2ba05c5c-c7be-4545-af98-27ea118462aa",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T17:54:23.723796+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.SqliteGlobalVersion.Context.Defs",
+    "Silmaril.Proofs.Elf.Corpus.SqliteGlobalVersion.Observation"
+  ],
+  "cwd": "/work/isolated-sqlite-version",
+  "target": "sqlite-global-pointer-context-and-observation-regressions",
+  "repository": {
+    "commit": "95d640fdd522825d6a670d1e2b6052e573420e2a",
+    "dirty": true,
+    "diff_sha256": "77fc0f2e21c2a5936189b1e807f89468c38359a2e7b29c0e1b7fe7de4f2fb59b"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/SqliteGlobalVersion/Context/Defs.lean",
+      "sha256": "ee615554701c1d530f88006313a4bed55d672de6b5137c3a74d8192dce1f8743"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/SqliteGlobalVersion/Observation.lean",
+      "sha256": "c45d8f7507f7a0b189f4ca8f5a8b976722f037135c31f35b8fce8a16489ebab9"
+    }
+  ],
+  "wall_seconds": 7.525338673993247,
+  "exit_code": 0,
+  "user_cpu_seconds": 6.02,
+  "system_cpu_seconds": 22.16,
+  "peak_rss_kib": 3670520,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

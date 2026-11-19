@@ -1,0 +1,31 @@
+{
+  "build": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O2/build.json",
+  "build_sha256": "b5b9d443ef3bdb9ef3c099ea5afd1700dc9e850c09ceba54e63dc7b6a492832f",
+  "c_family_volatile_asm_sources": [
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 176,
+          "source_line": "asm volatile(                   \\"
+        },
+        {
+          "line": 191,
+          "source_line": "asm volatile(                   \\"
+        }
+      ],
+      "path": "corpus/openssl/upstream/openssl-3.5.9/crypto/bn/bn_div.c",
+      "sha256": "6f9245038e473655075346be8e494966ac19ac4522dace1456e9af37fd9116f0"
+    }
+  ],
+  "evidence": "lexical syntax in exact included source bytes; separate from compiler-emitted assembly",
+  "limits": [
+    "Source inclusion does not establish that an asm site survives target preprocessing or executes.",
+    "Only explicit volatile asm syntax is classified; nonvolatile forms, macros, builtins and C++ raw strings need separate analysis.",
+    "Standalone .S/.s is never classified as C inline assembly.",
+    "No source semantics, Lean proof, function correspondence or ISA support is inferred."
+  ],
+  "python": "3.13.5",
+  "schema_version": 1,
+  "standalone_assembly_inputs": [],
+  "tool_sha256": "30e00fb84158ef6b316eea5760a55ed757ea02264216510929c0e83cb2a73810"
+}

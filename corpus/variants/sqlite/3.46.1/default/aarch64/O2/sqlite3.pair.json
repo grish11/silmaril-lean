@@ -1,0 +1,2561 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 171284,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 26336,
+      "sha256": "f13fe3551e8a3299634d26f55fd9ffe4d2abc58d31378cceab304a263471167f",
+      "size": 28
+    },
+    ".plt": {
+      "address": 26368,
+      "sha256": "1ff322eaa1f937ba9b1b9a2acdf58c6016666a4e69fc0bf021c980d4f28b82e0",
+      "size": 3168
+    },
+    ".text": {
+      "address": 29568,
+      "sha256": "949a5f4e35aa2b30dcad27388f08dee02a5079eaa623b35d6de7961eda765907",
+      "size": 141716
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "2c52429f536711c8537c823d9efecf0a8145032d8c6911f51b01cec4861a6ef1",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "cee492a3a09ef4bf703f8dcbca59110b097049bdafb4f18dfcdb392d817ee1ae",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 36084
+    },
+    {
+      "binding": "LOCAL",
+      "name": "consoleRestore",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 36352
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceSize",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 36356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceRoundup",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 36384
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceInit",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 36400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceShutdown",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 36416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "KeccakF1600Step",
+      "section_index": "12",
+      "size": 2872,
+      "type": "FUNC",
+      "value": 36432
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesRowid",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 39304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesEof",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 39328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_next_char",
+      "section_index": "12",
+      "size": 380,
+      "type": "FUNC",
+      "value": 39344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_next_char_nocase",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 39724
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirRowid",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 39760
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirEof",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 39780
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirBestIndex",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 39808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionRowid",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 40096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionEof",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 40128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionBestIndex",
+      "section_index": "12",
+      "size": 364,
+      "type": "FUNC",
+      "value": 40144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndClose",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndRead",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 40544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndSync",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40576
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndFileSize",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 40608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndLock",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndUnlock",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndCheckReservedLock",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40704
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndSectorSize",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndDeviceCharacteristics",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndShmMap",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndShmLock",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndShmBarrier",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndShmUnmap",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 40896
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndUnfetch",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 40928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndDelete",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 40960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndAccess",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 40976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndFullPathname",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 40992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndDlOpen",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndDlError",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndDlSym",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndDlClose",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndRandomness",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41072
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndSleep",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41088
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndCurrentTime",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndGetLastError",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndCurrentTimeInt64",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndSetSystemCall",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndGetSystemCall",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndNextSystemCall",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertUpdate",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 41200
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertEof",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 41216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertRowid",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 41232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckGetToken",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 41248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceFree",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 41504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceMalloc",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 41608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "memtraceRealloc",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 41700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceShrink",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 41888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceDestroy",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 41964
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceTruncate",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 42048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceRekey",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 42144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceUnpin",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 42276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceFetch",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 42384
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetracePagecount",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 42540
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceCachesize",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 42656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceCreate",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 42752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceShutdown",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 42912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pcachetraceInit",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 42988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndFileControl",
+      "section_index": "12",
+      "size": 148,
+      "type": "FUNC",
+      "value": 43104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesDisconnect",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 43264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertClose",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 43296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxScanFree",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 43344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "import_cleanup",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 43520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "testcase_glob",
+      "section_index": "12",
+      "size": 744,
+      "type": "FUNC",
+      "value": 43584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "uintCollFunc",
+      "section_index": "12",
+      "size": 640,
+      "type": "FUNC",
+      "value": 44328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimal_cmp",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 44968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndReadMark",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 45120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxHashFind",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 45312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesOpen",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 45512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirOpen",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 45600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionOpen",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 45708
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalMul",
+      "section_index": "12",
+      "size": 516,
+      "type": "FUNC",
+      "value": 45804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalNewFromText",
+      "section_index": "12",
+      "size": 928,
+      "type": "FUNC",
+      "value": 46320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimal_expand",
+      "section_index": "12",
+      "size": 224,
+      "type": "FUNC",
+      "value": 47248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndOpen",
+      "section_index": "12",
+      "size": 476,
+      "type": "FUNC",
+      "value": 47472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimal_result_sci",
+      "section_index": "12",
+      "size": 580,
+      "type": "FUNC",
+      "value": 47948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lsModeFunc",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 48528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellDtostr",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 48716
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionColumn",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 48868
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesBestIndex",
+      "section_index": "12",
+      "size": 576,
+      "type": "FUNC",
+      "value": 49024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "zSkipValidUtf8",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 49600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "quickscan",
+      "section_index": "12",
+      "size": 752,
+      "type": "FUNC",
+      "value": 49856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "base64",
+      "section_index": "12",
+      "size": 1232,
+      "type": "FUNC",
+      "value": 50608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesFilter",
+      "section_index": "12",
+      "size": 808,
+      "type": "FUNC",
+      "value": 51840
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ieee754inc",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 52648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ieee754func",
+      "section_index": "12",
+      "size": 636,
+      "type": "FUNC",
+      "value": 52720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesColumn",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 53356
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesConnect",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 53476
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirConnect",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 53608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionConnect",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 53728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndWriteMark",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 53860
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndTruncate",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 54048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndWrite",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 54144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "writeFile",
+      "section_index": "12",
+      "size": 540,
+      "type": "FUNC",
+      "value": 54336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ctxErrorMsg",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 54880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirSetErrmsg",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 55020
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxAppendText",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 55144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckMprintf",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 55432
+    },
+    {
+      "binding": "LOCAL",
+      "name": "readFileContents",
+      "section_index": "12",
+      "size": 304,
+      "type": "FUNC",
+      "value": 55616
+    },
+    {
+      "binding": "LOCAL",
+      "name": "readfileFunc",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 55920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirColumn",
+      "section_index": "12",
+      "size": 340,
+      "type": "FUNC",
+      "value": 55980
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirResetCursor",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 56320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirClose",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 56456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirNext",
+      "section_index": "12",
+      "size": 476,
+      "type": "FUNC",
+      "value": 56512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirFilter",
+      "section_index": "12",
+      "size": 352,
+      "type": "FUNC",
+      "value": 56992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionNext",
+      "section_index": "12",
+      "size": 828,
+      "type": "FUNC",
+      "value": 57344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionFilter",
+      "section_index": "12",
+      "size": 452,
+      "type": "FUNC",
+      "value": 58176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "timeOfDay",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 58628
+    },
+    {
+      "binding": "LOCAL",
+      "name": "db_int",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 58820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cli_strcmp",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 58944
+    },
+    {
+      "binding": "LOCAL",
+      "name": "toggleSelectOrder",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 58976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "bind_table_init",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 59144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertColumn",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 59328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellFkeyCollateClause",
+      "section_index": "12",
+      "size": 356,
+      "type": "FUNC",
+      "value": 59392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "quoteChar",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 59748
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxSampleFunc",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 59916
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxRemFunc",
+      "section_index": "12",
+      "size": 648,
+      "type": "FUNC",
+      "value": 60128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "freeText",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 60776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellUSleepFunc",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 60816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "editFunc",
+      "section_index": "12",
+      "size": 1020,
+      "type": "FUNC",
+      "value": 60896
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellStrtod",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 61920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "resolve_backslashes",
+      "section_index": "12",
+      "size": 460,
+      "type": "FUNC",
+      "value": 61984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apndFetch",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 62444
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimal_add",
+      "section_index": "12",
+      "size": 504,
+      "type": "FUNC",
+      "value": 62504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimal_result",
+      "section_index": "12",
+      "size": 492,
+      "type": "FUNC",
+      "value": 63008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalSumValue",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 63500
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalSumFinalize",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 63560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxMalloc",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 63632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertNext",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 63820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckPrepare",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 63936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckPrepareFmt",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 64128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxNewConstraint",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 64300
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_file_close",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 64452
+    },
+    {
+      "binding": "LOCAL",
+      "name": "writefileFunc",
+      "section_index": "12",
+      "size": 640,
+      "type": "FUNC",
+      "value": 64512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxIdentifierRequiresQuotes",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 65152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "interrupt_handler",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 65280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rc_err_oom_die.part.0",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 29700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "unused_string",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 65344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "find_home_dir.part.0",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 65536
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sqlite3_intck_close.part.0",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 65700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sqlite3_intck_message.part.0",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 29744
+    },
+    {
+      "binding": "LOCAL",
+      "name": "base85",
+      "section_index": "12",
+      "size": 1488,
+      "type": "FUNC",
+      "value": 65824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "isNumber.constprop.0",
+      "section_index": "12",
+      "size": 272,
+      "type": "FUNC",
+      "value": 67312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fPrintfUtf8",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 67584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellLog",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 67808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ieee754func_from_blob",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 67880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ieee754func_to_blob",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 68004
+    },
+    {
+      "binding": "LOCAL",
+      "name": "countNonzeros",
+      "section_index": "12",
+      "size": 68,
+      "type": "FUNC",
+      "value": 68160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxAppendColDefn.isra.0",
+      "section_index": "12",
+      "size": 304,
+      "type": "FUNC",
+      "value": 68228
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxHashAdd.isra.0",
+      "section_index": "12",
+      "size": 392,
+      "type": "FUNC",
+      "value": 68544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesNext",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 68936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shell_strncpy.isra.0",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 69056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "seriesClose",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 69120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fsdirDisconnect",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 69152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionDisconnect",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 69184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertDisconnect",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 69216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "completionClose",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 69248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sqlite3_expert_destroy.part.0",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 69344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "optionMatch.part.0",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 69600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "designateEmitStream.constprop.0",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 69664
+    },
+    {
+      "binding": "LOCAL",
+      "name": "fPutsUtf8.isra.0",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 69824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sql_trace_callback",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 69952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "verify_uninitialized",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 70280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sqlite3re_free",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 70340
+    },
+    {
+      "binding": "LOCAL",
+      "name": "oPutsUtf8.isra.0",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 70400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ePutsUtf8.isra.0",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 70540
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_redir",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 70688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shell_out_of_memory",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 70752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "import_append_char",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 70784
+    },
+    {
+      "binding": "LOCAL",
+      "name": "appendText",
+      "section_index": "12",
+      "size": 452,
+      "type": "FUNC",
+      "value": 70912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "captureOutputCallback",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 71364
+    },
+    {
+      "binding": "LOCAL",
+      "name": "explain_data_prepare",
+      "section_index": "12",
+      "size": 968,
+      "type": "FUNC",
+      "value": 71532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "translateForDisplayAndDup",
+      "section_index": "12",
+      "size": 884,
+      "type": "FUNC",
+      "value": 72512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "showHelp",
+      "section_index": "12",
+      "size": 908,
+      "type": "FUNC",
+      "value": 73408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shell_error_context",
+      "section_index": "12",
+      "size": 420,
+      "type": "FUNC",
+      "value": 74316
+    },
+    {
+      "binding": "LOCAL",
+      "name": "local_getline",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 74736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "save_err_msg",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 75072
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sayAbnormalExit",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 75264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ePrintfUtf8",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 75296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_file_open",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 75520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cmdline_option_value.part.0",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 75744
+    },
+    {
+      "binding": "LOCAL",
+      "name": "failIfSafeMode",
+      "section_index": "12",
+      "size": 148,
+      "type": "FUNC",
+      "value": 75792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "safeModeAuth",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 75940
+    },
+    {
+      "binding": "LOCAL",
+      "name": "csv_read_one_field",
+      "section_index": "12",
+      "size": 732,
+      "type": "FUNC",
+      "value": 76128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "readFile",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 76864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_reset",
+      "section_index": "12",
+      "size": 320,
+      "type": "FUNC",
+      "value": 77152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tryToCloneSchema",
+      "section_index": "12",
+      "size": 752,
+      "type": "FUNC",
+      "value": 77472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tryToCloneData",
+      "section_index": "12",
+      "size": 1204,
+      "type": "FUNC",
+      "value": 78224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellPreparePrintf.constprop.0",
+      "section_index": "12",
+      "size": 264,
+      "type": "FUNC",
+      "value": 79428
+    },
+    {
+      "binding": "LOCAL",
+      "name": "readHexDb.constprop.0",
+      "section_index": "12",
+      "size": 964,
+      "type": "FUNC",
+      "value": 79692
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellDatabaseError.isra.0",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 80656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "oPrintfUtf8",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 80688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "faultsim_callback",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 80908
+    },
+    {
+      "binding": "LOCAL",
+      "name": "progress_handler",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 81120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "utf8_width_print",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 81248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellPutsFunc",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 81472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "eqp_render_level",
+      "section_index": "12",
+      "size": 356,
+      "type": "FUNC",
+      "value": 81536
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_hex_blob",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 81892
+    },
+    {
+      "binding": "LOCAL",
+      "name": "eqp_append",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 82080
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_html_string",
+      "section_index": "12",
+      "size": 352,
+      "type": "FUNC",
+      "value": 82280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_quoted_string",
+      "section_index": "12",
+      "size": 272,
+      "type": "FUNC",
+      "value": 82632
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_csv",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 82912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_quoted_escaped_string",
+      "section_index": "12",
+      "size": 688,
+      "type": "FUNC",
+      "value": 83136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "printSchemaLine.part.0",
+      "section_index": "12",
+      "size": 300,
+      "type": "FUNC",
+      "value": 83824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_json_string",
+      "section_index": "12",
+      "size": 524,
+      "type": "FUNC",
+      "value": 84128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "output_c_string",
+      "section_index": "12",
+      "size": 468,
+      "type": "FUNC",
+      "value": 84652
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellAuth",
+      "section_index": "12",
+      "size": 272,
+      "type": "FUNC",
+      "value": 85120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "displayStatLine.constprop.0",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 85392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "display_stats.part.0.constprop.0",
+      "section_index": "12",
+      "size": 1620,
+      "type": "FUNC",
+      "value": 85584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "eqp_render.constprop.0",
+      "section_index": "12",
+      "size": 224,
+      "type": "FUNC",
+      "value": 87204
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lintFkeyIndexes.isra.0",
+      "section_index": "12",
+      "size": 980,
+      "type": "FUNC",
+      "value": 87428
+    },
+    {
+      "binding": "LOCAL",
+      "name": "run_table_dump_query.isra.0",
+      "section_index": "12",
+      "size": 572,
+      "type": "FUNC",
+      "value": 88416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_box_row_separator",
+      "section_index": "12",
+      "size": 348,
+      "type": "FUNC",
+      "value": 88992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "integerValue",
+      "section_index": "12",
+      "size": 364,
+      "type": "FUNC",
+      "value": 89344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "booleanValue",
+      "section_index": "12",
+      "size": 296,
+      "type": "FUNC",
+      "value": 89708
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckFinalize",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 90016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckCheckObjectSql",
+      "section_index": "12",
+      "size": 600,
+      "type": "FUNC",
+      "value": 90144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "intckParseCreateIndexFunc",
+      "section_index": "12",
+      "size": 820,
+      "type": "FUNC",
+      "value": 90752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_copy",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 91584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "newTempFile",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 91792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_insert",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 92048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalCollFunc",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 92304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ascii_read_one_field",
+      "section_index": "12",
+      "size": 280,
+      "type": "FUNC",
+      "value": 92488
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxPrintfPrepareStmt",
+      "section_index": "12",
+      "size": 224,
+      "type": "FUNC",
+      "value": 92768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxFindIndexes",
+      "section_index": "12",
+      "size": 904,
+      "type": "FUNC",
+      "value": 92992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxCreateFromCons",
+      "section_index": "12",
+      "size": 1104,
+      "type": "FUNC",
+      "value": 93896
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxCreateFromWhere",
+      "section_index": "12",
+      "size": 380,
+      "type": "FUNC",
+      "value": 95008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertFilter",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 95392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertOpen",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 95584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellFakeSchema",
+      "section_index": "12",
+      "size": 516,
+      "type": "FUNC",
+      "value": 95648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellModuleSchema",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 96164
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shellAddSchemaName",
+      "section_index": "12",
+      "size": 636,
+      "type": "FUNC",
+      "value": 96292
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_row_separator",
+      "section_index": "12",
+      "size": 344,
+      "type": "FUNC",
+      "value": 96928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalPow2",
+      "section_index": "12",
+      "size": 320,
+      "type": "FUNC",
+      "value": 97280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalFromDouble",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 97600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimal_new",
+      "section_index": "12",
+      "size": 304,
+      "type": "FUNC",
+      "value": 97888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalSumInverse",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 98192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalSumStep",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 98368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalMulFunc",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 98564
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalSubFunc",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 98848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalAddFunc",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 99048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalCmpFunc",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 99200
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalFunc",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 99404
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decimalPow2Func",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 99552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sha3_step_vformat",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 99656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertBestIndex",
+      "section_index": "12",
+      "size": 600,
+      "type": "FUNC",
+      "value": 99916
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA3Final",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 100516
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sha3QueryFunc",
+      "section_index": "12",
+      "size": 1536,
+      "type": "FUNC",
+      "value": 100736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sha3Func",
+      "section_index": "12",
+      "size": 496,
+      "type": "FUNC",
+      "value": 102272
+    },
+    {
+      "binding": "LOCAL",
+      "name": "zAutoColumn",
+      "section_index": "12",
+      "size": 872,
+      "type": "FUNC",
+      "value": 102768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tryToClone",
+      "section_index": "12",
+      "size": 364,
+      "type": "FUNC",
+      "value": 103648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shell_callback.isra.0",
+      "section_index": "12",
+      "size": 5412,
+      "type": "FUNC",
+      "value": 104012
+    },
+    {
+      "binding": "LOCAL",
+      "name": "exec_prepared_stmt",
+      "section_index": "12",
+      "size": 4248,
+      "type": "FUNC",
+      "value": 109424
+    },
+    {
+      "binding": "LOCAL",
+      "name": "callback",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 113672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "idxAuthCallback",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 113700
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertConnect",
+      "section_index": "12",
+      "size": 592,
+      "type": "FUNC",
+      "value": 113952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_esc_char",
+      "section_index": "12",
+      "size": 548,
+      "type": "FUNC",
+      "value": 114544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_subcompile_string",
+      "section_index": "12",
+      "size": 1760,
+      "type": "FUNC",
+      "value": 115104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_subcompile_re",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 116864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "re_sql_func",
+      "section_index": "12",
+      "size": 3004,
+      "type": "FUNC",
+      "value": 117068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertDotCommand.isra.0",
+      "section_index": "12",
+      "size": 604,
+      "type": "FUNC",
+      "value": 124448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "expertFinish",
+      "section_index": "12",
+      "size": 704,
+      "type": "FUNC",
+      "value": 129440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "shell_exec",
+      "section_index": "12",
+      "size": 1892,
+      "type": "FUNC",
+      "value": 130144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "dump_callback",
+      "section_index": "12",
+      "size": 1636,
+      "type": "FUNC",
+      "value": 132036
+    },
+    {
+      "binding": "LOCAL",
+      "name": "open_db",
+      "section_index": "12",
+      "size": 1484,
+      "type": "FUNC",
+      "value": 136512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "runOneSqlLine",
+      "section_index": "12",
+      "size": 1308,
+      "type": "FUNC",
+      "value": 137996
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_meta_command",
+      "section_index": "12",
+      "size": 29816,
+      "type": "FUNC",
+      "value": 139392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_input",
+      "section_index": "12",
+      "size": 1908,
+      "type": "FUNC",
+      "value": 169216
+    },
+    {
+      "binding": "LOCAL",
+      "name": "atexit",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 171264
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "shellReset",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 171140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3MemTraceActivate",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 120072
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_completion_init",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 121728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_base85_init",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 121068
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_step",
+      "section_index": "12",
+      "size": 628,
+      "type": "FUNC",
+      "value": 134144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_test_sql",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 135920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dummyCompare",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 29568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_report",
+      "section_index": "12",
+      "size": 152,
+      "type": "FUNC",
+      "value": 133700
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_destroy",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 133856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_base64_init",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 121024
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_uint_init",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 120736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "shellDeleteFile",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 171136
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_error",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 134832
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_analyze",
+      "section_index": "12",
+      "size": 3800,
+      "type": "FUNC",
+      "value": 125632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_count",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 133672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_decimal_init",
+      "section_index": "12",
+      "size": 248,
+      "type": "FUNC",
+      "value": 120768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_unlock",
+      "section_index": "12",
+      "size": 1060,
+      "type": "FUNC",
+      "value": 134860
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_new",
+      "section_index": "12",
+      "size": 1940,
+      "type": "FUNC",
+      "value": 122400
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3PcacheTraceDeactivate",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 120356
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_config",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 124352
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_fileio_init",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 121480
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_shathree_init",
+      "section_index": "12",
+      "size": 248,
+      "type": "FUNC",
+      "value": 120480
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3MemTraceDeactivate",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 120160
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_appendvfs_init",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 121760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_series_init",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 121232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "deduceDatabaseType",
+      "section_index": "12",
+      "size": 424,
+      "type": "FUNC",
+      "value": 136076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_message",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 134784
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3CompletionVtabInit",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 121696
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 36032
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_regexp_init",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 121348
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "12",
+      "size": 6216,
+      "type": "FUNC",
+      "value": 29792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_expert_sql",
+      "section_index": "12",
+      "size": 564,
+      "type": "FUNC",
+      "value": 125056
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_close",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 134124
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_ieee_init",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 121120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dummyUDF",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 29612
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3PcacheTraceActivate",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 120260
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dummyUDFvalue",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 29656
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "useDummyCS",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 58792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sqlite3_intck_open",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 133868
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "close_db",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 139304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "registerUDFs",
+      "section_index": "12",
+      "size": 544,
+      "type": "FUNC",
+      "value": 121856
+    }
+  ]
+}

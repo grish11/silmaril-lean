@@ -1,0 +1,1 @@
+PASS66 actual shared-initial-memory Open.step loop-pair observations: both genuine instruction streams, equal actual low32 returns, preserved caller memory/mappings/callee-saved state and exact32/0 private frames; registered obligation remains UNPROVED, no semantic proof; actual child/payload input negatives passed

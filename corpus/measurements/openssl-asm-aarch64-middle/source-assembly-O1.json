@@ -1,0 +1,182 @@
+{
+  "build": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/build.json",
+  "build_sha256": "180cfff4344ce947f58ea4476ce96376b6ad4e6f2fbb100b9b385704cfbcc625",
+  "c_family_volatile_asm_sources": [
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 176,
+          "source_line": "asm volatile(                   \\"
+        },
+        {
+          "line": 191,
+          "source_line": "asm volatile(                   \\"
+        }
+      ],
+      "path": "corpus/openssl/upstream/openssl-3.5.9/crypto/bn/bn_div.c",
+      "sha256": "6f9245038e473655075346be8e494966ac19ac4522dace1456e9af37fd9116f0"
+    }
+  ],
+  "evidence": "lexical syntax in exact included source bytes; separate from compiler-emitted assembly",
+  "limits": [
+    "Source inclusion does not establish that an asm site survives target preprocessing or executes.",
+    "Only explicit volatile asm syntax is classified; nonvolatile forms, macros, builtins and C++ raw strings need separate analysis.",
+    "Standalone .S/.s is never classified as C inline assembly.",
+    "No source semantics, Lean proof, function correspondence or ISA support is inferred."
+  ],
+  "python": "3.13.5",
+  "schema_version": 1,
+  "standalone_assembly_inputs": [
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/aes/asm/aes-ia64.S",
+      "sha256": "506d700c10738a33f83d26c80d99e95dceafaadba01081b69f1c8312cdbfdc9f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/bn/asm/ia64.S",
+      "sha256": "a717390029880696c77d08da5bd4e24339c7ca4191b22187616c7dc50ce23f41"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/bn/asm/s390x.S",
+      "sha256": "2827857167383f2bb692cd55809cee5d150aaee78136d1ecf06db4cab48e64aa"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/bn/asm/sparcv8.S",
+      "sha256": "3ab94379452f822633ec2c4281ee7f64bb4cd9e06e347e184850f2b144eaf9a5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/bn/asm/sparcv8plus.S",
+      "sha256": "4483ddfbef56b7e4a53aea6597fbe6b32739b0c511423179faafeeaf9f81083e"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/ia64cpuid.S",
+      "sha256": "53460227fe444197b86ceacc9163f70f3c11b7b863ed01ae62fff9c6f8985ad3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/poly1305/asm/poly1305-ia64.S",
+      "sha256": "f3bb6d63d85a685230768a356d66e40f175486733beaa076abf3103259be0e63"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/upstream/openssl-3.5.9/crypto/sparccpuid.S",
+      "sha256": "fafcbf2fe95dfd47fb27faf75c3982b24801074d11fdd19bb05dfa3f5c587514"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/aes/aesv8-armx.S",
+      "sha256": "c27ead0622d0561af5d4528dedfa5cae53627bd18eeadf978b3349d36848ae35"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/aes/bsaes-armv8.S",
+      "sha256": "384cd9c4fe767b4be59491c1ba28dbe6e2794068e0156db6f6fe7f434f1b0857"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/aes/vpaes-armv8.S",
+      "sha256": "f81067745b7900b813a964a80c954c5afc7ce00ace91438c69fa0ee1cac7630c"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/arm64cpuid.S",
+      "sha256": "1b948966063669c684fac3234674729c34752c90643a79df89977d2a1cb61f85"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/bn/armv8-mont.S",
+      "sha256": "74687d78d1dcd8f2925ea11128ce801164125ac5f17670661c4ce158ea08f7e4"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/chacha/chacha-armv8-sve.S",
+      "sha256": "34ed108df466a88ab32899b99ffbe5d10b14f651540ad7f2589ed5bf0431607e"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/chacha/chacha-armv8.S",
+      "sha256": "05e4e2206c4c6de1b70b9e1e7b3061a95b61b89c946534ce5f52ebd3ab1f13b2"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/ec/ecp_nistz256-armv8.S",
+      "sha256": "9605550fa8647f53be497e6b21881d39113215236385267a04491d4bab4e9c90"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/ec/ecp_sm2p256-armv8.S",
+      "sha256": "bb943e87606461836c2c5b8d125b4a4c3938b7d8a5044d2227d2ae9ec4f0dcd9"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/md5/md5-aarch64.S",
+      "sha256": "be7d9ad0d252d253858be043646b5d09716b4ab0e0ad123d87674271d09297f7"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/modes/aes-gcm-armv8-unroll8_64.S",
+      "sha256": "a7f9c5d71799470a8d57ad381a478f55443f3079e816bfeacdec6ed5fdaff636"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/modes/aes-gcm-armv8_64.S",
+      "sha256": "5fef4e6420c44e019c713b90cb7e45f65f39f8cf33d283ac0ec0245c0c5f12c2"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/modes/ghashv8-armx.S",
+      "sha256": "a7df5903ff6d0606e2115a16e2c5db73f883f30659945bfb92e350b5681c11bb"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/poly1305/poly1305-armv8.S",
+      "sha256": "8e2671f54298f4698e305fa1fc4c894f434f996c55128cef53aef54698a9ad2a"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sha/keccak1600-armv8.S",
+      "sha256": "4a66027536d35d30b3ad886d68f549e0e8eb13bb33581eb063238246fcc0a567"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sha/sha1-armv8.S",
+      "sha256": "e56b65dd191e975655b7d2eb91819d5380772639b8a5c2c3aa66420f463bce33"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sha/sha256-armv8.S",
+      "sha256": "3b477079e3138a0009d9ee08e3e1c478361ff12f13d56f9942976d6f529f972a"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sha/sha512-armv8.S",
+      "sha256": "31613e7bfae01d963e141e4c8317038f3ef7a0e32788592f4d9ec5fd872ee5a4"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sm3/sm3-armv8.S",
+      "sha256": "07ff373fa6f1f60e5a69d207198067a4a2864c8df09150a520baf6c27eb71c90"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sm4/sm4-armv8.S",
+      "sha256": "74f519d4c51a6deb890b459525274d04cc413a935c1a8552ca4b1b2b4a6a7435"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sm4/vpsm4-armv8.S",
+      "sha256": "bf8d4d61502e78a9f2f71d780bf7c1a7bdeeb5f925af483f30944f1264ac2bb2"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/aarch64/O1/generated/crypto/sm4/vpsm4_ex-armv8.S",
+      "sha256": "be2a401eacbfc321294326d2e88bb2037fb09107902dfc723f96f159f10fc737"
+    }
+  ],
+  "tool_sha256": "30e00fb84158ef6b316eea5760a55ed757ea02264216510929c0e83cb2a73810"
+}

@@ -1,0 +1,143 @@
+{
+  "schema": "silmaril.binary-equivalence.v1",
+  "root": "Silmaril.Elf.Corpus.CjsonDetach.Equivalence.Thms",
+  "definition": "Silmaril/Elf/Corpus/CjsonDetach/Equivalence/Defs.lean",
+  "endpoints": [
+    {
+      "id": "O0",
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1",
+      "sha256": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+      "functions": {
+        "cJSON_DetachItemViaPointer": {
+          "address": 23724,
+          "size": 218,
+          "file_offset": 23724,
+          "bytes_hex": "55 48 89 e5 48 89 7d f8 48 89 75 f0 48 83 7d f8 00 74 22 48 83 7d f0 00 74 1b 48 8b 45 f8 48 8b 40 10 48 39 45 f0 74 17 48 8b 45 f0 48 8b 40 08 48 85 c0 75 0a b8 00 00 00 00 e9 99 00 00 00 48 8b 45 f8 48 8b 40 10 48 39 45 f0 74 12 48 8b 45 f0 48 8b 40 08 48 8b 55 f0 48 8b 12 48 89 10 48 8b 45 f0 48 8b 00 48 85 c0 74 13 48 8b 45 f0 48 8b 00 48 8b 55 f0 48 8b 52 08 48 89 50 08 48 8b 45 f8 48 8b 40 10 48 39 45 f0 75 11 48 8b 45 f0 48 8b 10 48 8b 45 f8 48 89 50 10 eb 20 48 8b 45 f0 48 8b 00 48 85 c0 75 14 48 8b 45 f8 48 8b 40 10 48 8b 55 f0 48 8b 52 08 48 89 50 08 48 8b 45 f0 48 c7 40 08 00 00 00 00 48 8b 45 f0 48 c7 00 00 00 00 00 48 8b 45 f0 5d c3",
+          "code_sha256": "e708a615c21f79c2fdc18dcb0024da9906e295784446680058696ebe87fcad09",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/receipt.json",
+        "sha256": "0778e34eecd2f85992fa73722d86c84675d816fb072064120ec9bf6a169292ca"
+      },
+      "build": {
+        "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/build.json",
+        "sha256": "339ad3cc14b3fca5defc990a3eaba0f045e3959bd7ecef15d6e32fb84dbc389e",
+        "version": "1.7.19",
+        "configuration": "default",
+        "target": "x86_64-linux-gnu",
+        "optimization": "O0",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+        "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+        "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+        "image_id": "sha256:fa677ba07a2e15e09323f3b00494134c725ca6dfdc255abd4e37d2b79a2b0127",
+        "source_inputs": [
+          {
+            "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+            "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+          }
+        ],
+        "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+      },
+      "source": {
+        "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+        "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+        "definitions": {
+          "cJSON_DetachItemViaPointer": {
+            "offset": 59398,
+            "length": 802,
+            "sha256": "0e9aa3d8dc86ad4cd91d798710b29d624830a9401116947c88acf7c1a61bed9a",
+            "text": "CJSON_PUBLIC(cJSON *) cJSON_DetachItemViaPointer(cJSON *parent, cJSON * const item)\n{\n    if ((parent == NULL) || (item == NULL) || (item != parent->child && item->prev == NULL))\n    {\n        return NULL;\n    }\n\n    if (item != parent->child)\n    {\n        /* not the first element */\n        item->prev->next = item->next;\n    }\n    if (item->next != NULL)\n    {\n        /* not the last element */\n        item->next->prev = item->prev;\n    }\n\n    if (item == parent->child)\n    {\n        /* first element */\n        parent->child = item->next;\n    }\n    else if (item->next == NULL)\n    {\n        /* last element */\n        parent->child->prev = item->prev;\n    }\n\n    /* make sure the detached item doesn't point anywhere anymore */\n    item->prev = NULL;\n    item->next = NULL;\n\n    return item;\n}"
+          }
+        }
+      }
+    },
+    {
+      "id": "O2",
+      "path": "corpus/elf/cjson/x86_64/libcjson.so.1",
+      "sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+      "functions": {
+        "cJSON_DetachItemViaPointer": {
+          "address": 17248,
+          "size": 131,
+          "file_offset": 17248,
+          "bytes_hex": "48 85 ff 74 7b 48 85 f6 74 76 48 8b 4f 10 48 39 f1 74 35 48 8b 46 08 48 85 c0 74 24 48 8b 16 48 89 10 48 85 d2 74 49 66 0f ef c0 48 89 42 08 48 89 f0 0f 11 06 c3 66 2e 0f 1f 84 00 00 00 00 00 c3 0f 1f 80 00 00 00 00 48 8b 06 48 85 c0 74 08 48 8b 56 08 48 89 50 08 66 0f ef c0 48 89 47 10 48 89 f0 0f 11 06 c3 66 0f 1f 84 00 00 00 00 00 66 0f ef c0 48 89 41 08 48 89 f0 0f 11 06 c3 90 31 c0 c3",
+          "code_sha256": "2793acca0f0a6c59c9cfc6271c5b7123720c41310c6f5e28af23f5ba51ea77bb",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules"
+        }
+      },
+      "receipt": {
+        "path": "corpus/elf/cjson/x86_64/receipt.json",
+        "sha256": "4370a88ff99c2ddfe6a60e565198d75921ef798e3a0111de9f7f081e963f63e1"
+      },
+      "build": {
+        "path": "corpus/elf/cjson/x86_64/receipt.json",
+        "sha256": "4370a88ff99c2ddfe6a60e565198d75921ef798e3a0111de9f7f081e963f63e1",
+        "version": "1.7.19",
+        "configuration": "default",
+        "target": "x86_64-linux-gnu",
+        "optimization": "O2",
+        "cflags": "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+        "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+        "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+        "image_id": "sha256:42e6f05098b3fd5e3439f33b0ce83fa8601b0af0829d59f22b754b98fed690c2",
+        "source_inputs": [
+          {
+            "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+            "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+          }
+        ],
+        "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+      },
+      "source": {
+        "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+        "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+        "definitions": {
+          "cJSON_DetachItemViaPointer": {
+            "offset": 59398,
+            "length": 802,
+            "sha256": "0e9aa3d8dc86ad4cd91d798710b29d624830a9401116947c88acf7c1a61bed9a",
+            "text": "CJSON_PUBLIC(cJSON *) cJSON_DetachItemViaPointer(cJSON *parent, cJSON * const item)\n{\n    if ((parent == NULL) || (item == NULL) || (item != parent->child && item->prev == NULL))\n    {\n        return NULL;\n    }\n\n    if (item != parent->child)\n    {\n        /* not the first element */\n        item->prev->next = item->next;\n    }\n    if (item->next != NULL)\n    {\n        /* not the last element */\n        item->next->prev = item->prev;\n    }\n\n    if (item == parent->child)\n    {\n        /* first element */\n        parent->child = item->next;\n    }\n    else if (item->next == NULL)\n    {\n        /* last element */\n        parent->child->prev = item->prev;\n    }\n\n    /* make sure the detached item doesn't point anywhere anymore */\n    item->prev = NULL;\n    item->next = NULL;\n\n    return item;\n}"
+          }
+        }
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "name": "interiorDetachOptimization",
+      "declaration": "Silmaril.Elf.Corpus.CjsonDetach.Equivalence.Task.optimization",
+      "function_symbol": "cJSON_DetachItemViaPointer",
+      "profile": "cjson-interior-detach-v1",
+      "left": "O0",
+      "right": "O2",
+      "left_frame": 24,
+      "right_frame": 0,
+      "object_count": 5,
+      "value": null
+    }
+  ],
+  "excluded": [
+    "Null/endpoint/alias/dead/cyclic/general-list inputs are not selected.",
+    "Different source/configuration/version pairs are incompatible with this selected problem."
+  ],
+  "limits": [
+    "UNPROVED binary obligation; eight actual Sse9 machine and16 loaded native pairs are finite observations, not equivalence proofs.",
+    "Restricted interior-node case: arbitrary admissible aligned/disjoint five-object addresses and320 payload bytes; actual parent/prev/item/next links. No C allocation/provenance interpretation is invented by this binary-only context.",
+    "Same source1.7.19/default configuration, real O0 0x5cac/218bytes and O2 0x4360/131bytes; different instructions including actual SSE pxor and16-byte movups store.",
+    "Shared initial process memory contains both code excerpts. Joint entries for EVERY input, both first returns, SysV pointer-return equality and ABI preservation are demanded, never assumed.",
+    "Exact predecessor.next, successor.prev and item.next/item.prev final words are demanded; all320 caller bytes checked, every unrelated byte and complete mapping metadata preserved outside24/0 private stack frames. No arbitrary writes within a permitted heap footprint.",
+    "Sse9 extends the handwritten open machine with actual128-bit XMM state; XMM registers are SysV caller-clobbered, not observable results. No hardware refinement proof.",
+    "No desired return/equality/final-heap/source refinement/safety/termination premise or callee replacement. General input behavior, universal divergence/termination, whole-ELF loading and frontend/build adequacy remain unproved.",
+    "842 artifacts/707 hashes and0 corpus semantic proofs retained. Existing alerts, unsupported FIPS, cJSON provenance/runtime and distinct jemalloc configuration limits remain; broad coverage unfinished."
+  ],
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonDetach/Equivalence/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonDetach/Equivalence/Thms.lean",
+    "Silmaril/Project/Shapes/SysV/Defs.lean",
+    "Silmaril/X86/FnContract/Defs.lean",
+    "Silmaril/X86/Sse9/Defs.lean",
+    "Silmaril/X86/Sse9/Thms.lean"
+  ]
+}

@@ -95,8 +95,17 @@ example : ControlTests.equalZero Target.pinnedApple Target.emptyEnvironment inpu
     (.mk ControlTests.signedIntCategory [.marker 7, .std "original"] location
       (.binary input .eq (.mk category [.marker 7, .std "original"] location
         (.const (.integer (.iconstant 0 .octal none)))))) := by cbv
+private def pointerCategory : Ail.GenTypeCategory :=
+  .rvalue (.pointer ⟨false, false, false⟩ (.mk [] .void))
+private def pointerInput : Ail.TypedExpression :=
+  .mk pointerCategory [.marker 7, .std "original"] location (.const .null)
+-- Pointer truth uses the pinned null constant, never an integer stand-in.
+example : ControlTests.equalZero Target.pinnedApple Target.emptyEnvironment pointerInput =
+    .ok (.mk ControlTests.signedIntCategory [.marker 7, .std "original"] location
+      (.binary pointerInput .eq
+        (.mk pointerCategory [.marker 7, .std "original"] location (.const .null)))) := by cbv
 example : (ControlTests.equalZero Target.pinnedApple Target.emptyEnvironment
-    (.mk (.rvalue (.pointer ⟨false, false, false⟩ (.mk [] .void))) [] location (.const .null))).isOk = false := by cbv
+    (.mk (.rvalue .void) [] location (.const .null))).isOk = false := by cbv
 
 #print axioms Comparisons.booleanInteger_shape
 #print axioms Comparisons.specifiedPair_shape

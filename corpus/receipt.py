@@ -41,7 +41,7 @@ tp_path = os.path.join(objdir, '.tests.jsonl')
 if os.path.exists(tp_path):
     tests = [json.loads(l) for l in open(tp_path, encoding='utf-8') if l.strip()]
 receipt = {
-    'package': pkg['name'], 'version': pkg['version'], 'arch': arch,
+    'package': pkg['name'], 'version': one('version', pkg['version']), 'arch': arch,
     'image': {'tag': tag, 'id': image_id, 'base': base},
     'compiler': first_line([tp + 'gcc', '--version']),
     'binutils': first_line([tp + 'ld', '--version']),

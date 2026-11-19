@@ -1,0 +1,26 @@
+{
+  "files": {
+    "README.md": "4d82b19a2672ca2649681a7ab5bdffbad221e02fa61c145ecfac9ca49bc7b50c",
+    "context.c": "02ab0ecd20b076cab3def2fc07074476993b79ee38532e1903507c44891086a0",
+    "program.sexp": "eb22ccb1326729d07ff9f384a9f3241f2ab44299911d06466a4a6e4904316854",
+    "projection.json": "b1a6963ee4a88f65c9f3222b9120e0f83e6eb8795111dab11ea6e57c288fc6f5",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "typed-ail.sexp": "d55580ecf58cb58e3e714186a00248c2089e54498d78792c3798b59136ee2223"
+  },
+  "immutable_files": {
+    "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+    "corpus/cjson/semantic-inputs/linux-x86_64/predicates/preprocess-receipt.json": "a27feac4379d8f35faa94f0b7c98bf37af170ff384fc3a2e715028ea88bdace5",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee",
+    "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf",
+    "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+    "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/receipt.json": "0778e34eecd2f85992fa73722d86c84675d816fb072064120ec9bf6a169292ca",
+    "corpus/variants/cjson/1.7.19/default/x86_64/O0/build.json": "339ad3cc14b3fca5defc990a3eaba0f045e3959bd7ecef15d6e32fb84dbc389e"
+  },
+  "external_input_sha256": "d399a736f05bf821ced743c081c0e7578684fe839c7e88a6dc8ec489c55e1bdc",
+  "literal_fingerprint": "ordered concatenation with independent per-file hashes",
+  "limits": [
+    "Actual unchanged four-definition source closure; bounded context UNPROVED, no semantic proof.",
+    "Saved TU/source/build/frontend/whole-TU and private-observation adequacy gaps remain."
+  ]
+}

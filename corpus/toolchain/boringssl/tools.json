@@ -1,0 +1,111 @@
+{
+  "tools": {
+    "cmake": {
+      "path": "/usr/bin/cmake",
+      "sha256": "9a2692f4d712265eb29c90c3366bfc40df400ea586b0477edabbcf3bae745dc1",
+      "version": "cmake version 3.31.6"
+    },
+    "ninja": {
+      "path": "/usr/bin/ninja",
+      "sha256": "e8e646527e23aa7a66d0f04b86b89f1bb2f25edcc1c5e402a0989e5364c8779b",
+      "version": "1.12.1"
+    },
+    "go": {
+      "path": "/usr/local/go/bin/go",
+      "sha256": "de0ae3e082ce7599eae4fb69fa2ef1e43b8f31ffd3fce62cdf81930aa9005050",
+      "version": "go version go1.27.4 linux/amd64"
+    },
+    "perl": {
+      "path": "/usr/bin/perl",
+      "sha256": "2e341d06b8e72eae72cd72da47b38ba1174bedc83904ab177fe8fd9f89f220cd",
+      "version": "v5.40.1"
+    },
+    "python3": {
+      "path": "/usr/bin/python3.13",
+      "sha256": "e59d0124ff06c248546876e01fcfb1ea3cda63534949f94a9372bfcfe3bfc3f5",
+      "version": "Python 3.13.5"
+    },
+    "qemu-aarch64": {
+      "path": "/usr/bin/qemu-aarch64",
+      "sha256": "7782202f446dd1b4deccf02915e98e51af81e0f4cc54a5de40690c4829aa9d78",
+      "version": "qemu-aarch64 version 10.0.3 (Debian 1:10.0.3+ds-0+deb13u1)"
+    },
+    "gcc": {
+      "path": "/usr/bin/x86_64-linux-gnu-gcc-14",
+      "sha256": "a23ecab8ff08f09ad8c80602c2c5df7f49e09c25905cb8975902e101bf72635f",
+      "version": "gcc (Debian 14.2.0-19) 14.2.0"
+    },
+    "g++": {
+      "path": "/usr/bin/x86_64-linux-gnu-g++-14",
+      "sha256": "6b3696e4dcb85e1c949c732a02befa50e3983ecf94ce7e8e58d9d503b954b79d",
+      "version": "g++ (Debian 14.2.0-19) 14.2.0"
+    },
+    "ld": {
+      "path": "/usr/bin/x86_64-linux-gnu-ld.bfd",
+      "sha256": "d2766988b6a1b1d1518cdc09242e726d1f24e151e16410ada3092b11ffd9081b",
+      "version": "GNU ld (GNU Binutils for Debian) 2.44"
+    },
+    "ar": {
+      "path": "/usr/bin/x86_64-linux-gnu-ar",
+      "sha256": "f8fe09d485b40b1d47c534c96f5cbaaa9148e247aa0494c087104421f48ac5eb",
+      "version": "GNU ar (GNU Binutils for Debian) 2.44"
+    },
+    "strip": {
+      "path": "/usr/bin/x86_64-linux-gnu-strip",
+      "sha256": "a97ae77cd5d88799edc0edb31caa2fc81d32eecaa9619d329bed890f6fd06e3a",
+      "version": "GNU strip (GNU Binutils for Debian) 2.44"
+    },
+    "readelf": {
+      "path": "/usr/bin/x86_64-linux-gnu-readelf",
+      "sha256": "4a387d80a70e6e97ef940a666fab59d5c38e7cf19ff907192fa983cb8505a7de",
+      "version": "GNU readelf (GNU Binutils for Debian) 2.44"
+    },
+    "objdump": {
+      "path": "/usr/bin/x86_64-linux-gnu-objdump",
+      "sha256": "96afb8521834982d0e711b5d6e9785252bf82129fb0106b93a6bd54d83fae11f",
+      "version": "GNU objdump (GNU Binutils for Debian) 2.44"
+    },
+    "aarch64-linux-gnu-gcc": {
+      "path": "/usr/bin/aarch64-linux-gnu-gcc-14",
+      "sha256": "fb743ca27a77466c91da66047eec879a615993feaabd860aaf3750e7b222b131",
+      "version": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0"
+    },
+    "aarch64-linux-gnu-g++": {
+      "path": "/usr/bin/aarch64-linux-gnu-g++-14",
+      "sha256": "ebf50622610283dd2a7ad6b50947bebccb33f994e3e9ba8c11d04d5ab6bd4850",
+      "version": "aarch64-linux-gnu-g++ (Debian 14.2.0-19) 14.2.0"
+    },
+    "aarch64-linux-gnu-ld": {
+      "path": "/usr/bin/aarch64-linux-gnu-ld.bfd",
+      "sha256": "bdb57a3334f460af5921b65de134f128642325a2087ff716dafd0adbfcc0778a",
+      "version": "GNU ld (GNU Binutils for Debian) 2.44"
+    },
+    "aarch64-linux-gnu-ar": {
+      "path": "/usr/bin/aarch64-linux-gnu-ar",
+      "sha256": "16b0d0f1dab8223859aa4b16ca3fc63b962d9c3494f6bc7f240ab168440eecdf",
+      "version": "GNU ar (GNU Binutils for Debian) 2.44"
+    },
+    "aarch64-linux-gnu-strip": {
+      "path": "/usr/bin/aarch64-linux-gnu-strip",
+      "sha256": "7d09ed4eea03511b39cf7c64da06f9f90ec691fbb61e2430c2cab65a5cf50049",
+      "version": "GNU strip (GNU Binutils for Debian) 2.44"
+    },
+    "aarch64-linux-gnu-readelf": {
+      "path": "/usr/bin/aarch64-linux-gnu-readelf",
+      "sha256": "24f2c9ff1291d14f86cdd07bf15a0e48c0275cb3776421d0ca1760cceda20be3",
+      "version": "GNU readelf (GNU Binutils for Debian) 2.44"
+    },
+    "aarch64-linux-gnu-objdump": {
+      "path": "/usr/bin/aarch64-linux-gnu-objdump",
+      "sha256": "b9ae08c9c02c91ced02b80a140c937ba119fe073872fff701f67477bf597a5eb",
+      "version": "GNU objdump (GNU Binutils for Debian) 2.44"
+    }
+  },
+  "go": {
+    "archive": "https://go.dev/dl/go1.27.4.linux-amd64.tar.gz",
+    "archive_sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840",
+    "archive_size": 70680823,
+    "tree_manifest_sha256": "f285de4a44ea0fb8c894493661305bd819629bac28e63b77b7ecdd844dff1d8e"
+  },
+  "package_lock_sha256": "6993f84960d608655f3c36d682815db8fbc900a0e2f60872d215d876d2f1afce"
+}

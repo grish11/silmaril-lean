@@ -7,6 +7,23 @@ import Silmaril.Proofs.Wasm.Region.ByteMap
 namespace Silmaril.Wasm.Region.ByteMap
 open Silmaril.Wasm.Binary Silmaril.Wasm.Binary.Core
 
+/-- Reusable full-slice decoder soundness; a partial/unknown parse is not an
+empty encoding. The parser must consume its entire supplied slice. -/
+theorem parseAll_sound {α : Type} {G : Bytes → α → Prop} {parser : Decode.DecodeM α}
+    (sound : Decode.Sound G parser) {bytes : Bytes} {a : α}
+    (h : parseAll? parser bytes = some a) : G bytes a := Proofs.parseAll_sound sound h
+
+theorem instruction_encoding {fuel : Nat} {bytes : Bytes} {instr : Silmaril.Wasm.Instr}
+    (h : parseAll? (readOne fuel) bytes = some instr) : Binary.Core.Instr Forms.all bytes instr :=
+  parseAll_sound (Proofs.readOne_sound fuel) h
+
+/-- A delimiter can be supplied to validate a sequence slice which excludes it,
+including an arm whose actual source delimiter is `else`. -/
+theorem sequence_encoding {bytes : Bytes} {body : Silmaril.Wasm.Expr}
+    (h : parseAll? Decode.readExpr (bytes ++ [0x0B]) = some body) : Instrs Forms.all bytes body := by
+  obtain ⟨b, eq, encoded⟩ := Proofs.expr_inversion (parseAll_sound Decode.readExpr_sound h)
+  simpa only [List.append_cancel_right eq] using encoded
+
 /-- Source bytes encode the claimed instruction, including its actual prefix. -/
 theorem span_sound {input : Input} {m : ByteMapEntry} (h : input.SpanChecks m) :
     input.DecodesAt m.decoded m.bytes := Proofs.span_sound h

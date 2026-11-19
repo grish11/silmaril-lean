@@ -1,0 +1,29 @@
+{
+  "tu_sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+  "spans": [
+    {
+      "offset": 2067,
+      "length": 33,
+      "sha256": "2c742c60cbc478ebf3fa75441a0ca7e9d0621362d9ecdf95c1406d9c644aa32c"
+    },
+    {
+      "offset": 37470,
+      "length": 211,
+      "sha256": "b1ac4802441d2e23511305424bd2fbcf29056de0c94d9068ce592f2a35374ec2"
+    },
+    {
+      "offset": 120649,
+      "length": 1348,
+      "sha256": "5cdce1008e9e9b0170f05eeff5e0bbb9993143337ee1246197649972f1af6171"
+    }
+  ],
+  "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+  "source": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+  "source_sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+  "original_offset": 50895,
+  "original_length": 523,
+  "original_sha256": "ea7f86b39321d5d3cdb318ae397034fe55839fcaaa277e5dcbb8ba0529ed1665",
+  "closure": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/context.c",
+  "closure_sha256": "c2de1199e9c8b0b2bc57d49490a269be893b34893e99f8c0a9d564032801a353",
+  "limits": "Exact saved-TU helper/caller spans; historical preprocessing/build correspondence and whole-TU/frontend adequacy remain unproved."
+}

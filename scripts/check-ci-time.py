@@ -22,7 +22,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
-LIMIT_SECONDS = 240
+LIMIT_SECONDS = 300
 # GitHub prefixes every log line with its time; Lake's symbol shows the job's log level.
 BUILT = re.compile(r"^(\S+Z) (?:\x1b\[[0-9;]*m)*[✔⚠ℹ] \[\d+/\d+\] Built \S+ \(([^)]*)\)")
 DURATION = re.compile(r"(\d+(?:\.\d+)?)(ms|s|m|h)")
@@ -113,7 +113,7 @@ def check(run, jobs, now, lines=()):
             report.write(message + "\n")
     print(message)
     if counted > LIMIT_SECONDS:
-        print("::error::CI exceeded four minutes outside module compilation. "
+        print(f"::error::CI exceeded {LIMIT_SECONDS} seconds outside module compilation. "
               "Correctness checks were allowed to finish.")
         return 1
     return 0

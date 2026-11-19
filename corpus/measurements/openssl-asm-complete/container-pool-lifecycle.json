@@ -1,0 +1,288 @@
+{
+  "pool_id": "8ee45463-c0fb-483c-be86-01ce599dac7f",
+  "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+  "lifecycle": "two independently initialized persistent containers; reused across profiles",
+  "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+  "reset": [
+    "bash",
+    "-eu",
+    "-c",
+    "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+  ],
+  "environment": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "SOURCE_DATE_EPOCH": "1762128000",
+    "JOBS": "3"
+  },
+  "resources": {
+    "containers": 2,
+    "cpu_per_container": 3,
+    "memory_bytes_per_container": 12884901888,
+    "execution": "serial builds, strips and tests; no third container"
+  },
+  "started_utc": "2026-11-18T00:07:50.663981+00:00",
+  "workers": [
+    {
+      "slot": 0,
+      "container_id": "adb8bdfeb13b66004dfa41e6bc83e744e7bd120f98534e1a26011e1b81dc43db",
+      "creation_command": [
+        "docker",
+        "run",
+        "--network",
+        "host",
+        "--pull=never",
+        "--detach",
+        "--read-only",
+        "--cpus",
+        "3",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "12g",
+        "--pids-limit",
+        "256",
+        "--workdir",
+        "/",
+        "--tmpfs",
+        "/build:rw,exec,size=8g",
+        "--tmpfs",
+        "/tmp:rw,exec,size=1g",
+        "--tmpfs",
+        "/root:rw,size=64m",
+        "-v",
+        "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/corpus:/corpus:ro",
+        "-v",
+        "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/scripts:/scripts:ro",
+        "-v",
+        "/root/.cache/silmaril-corpus:/cache:ro",
+        "-v",
+        "/work/out/container-pool/openssl/pool-774580e0-247e-4c87-9a17-f5f759cc2e88/0:/out",
+        "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "sleep",
+        "infinity"
+      ],
+      "initialized_utc": "2026-11-18T00:07:50.778802+00:00",
+      "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+    },
+    {
+      "slot": 1,
+      "container_id": "9e4ec4c0c2757e7c02ccb520a5636a79526427e2a5eebcf8c48987ced1623ee4",
+      "creation_command": [
+        "docker",
+        "run",
+        "--network",
+        "host",
+        "--pull=never",
+        "--detach",
+        "--read-only",
+        "--cpus",
+        "3",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "12g",
+        "--pids-limit",
+        "256",
+        "--workdir",
+        "/",
+        "--tmpfs",
+        "/build:rw,exec,size=8g",
+        "--tmpfs",
+        "/tmp:rw,exec,size=1g",
+        "--tmpfs",
+        "/root:rw,size=64m",
+        "-v",
+        "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/corpus:/corpus:ro",
+        "-v",
+        "/work/out/container-pool/openssl/recipes-87d5fb41-19de-496c-80e7-611c99215eb2/scripts:/scripts:ro",
+        "-v",
+        "/root/.cache/silmaril-corpus:/cache:ro",
+        "-v",
+        "/work/out/container-pool/openssl/pool-774580e0-247e-4c87-9a17-f5f759cc2e88/1:/out",
+        "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "sleep",
+        "infinity"
+      ],
+      "initialized_utc": "2026-11-18T00:07:50.973454+00:00",
+      "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+    }
+  ],
+  "profiles": [
+    {
+      "identity": "corpus/variants/openssl/3.5.9/no-asm/aarch64/O0",
+      "sequence": 1,
+      "started_utc": "2026-11-18T00:07:51.955047+00:00",
+      "container_reused": false,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:12:55.311763+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/no-asm/aarch64/Og",
+      "sequence": 2,
+      "started_utc": "2026-11-18T00:12:55.830446+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:18:19.543865+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/no-asm/aarch64/O1",
+      "sequence": 3,
+      "started_utc": "2026-11-18T00:18:19.960221+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:24:02.380981+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/no-asm/aarch64/O2",
+      "sequence": 4,
+      "started_utc": "2026-11-18T00:24:02.798257+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:30:25.386835+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/no-asm/aarch64/O3",
+      "sequence": 5,
+      "started_utc": "2026-11-18T00:30:25.805124+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:44:17.317747+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/aarch64/O0",
+      "sequence": 6,
+      "started_utc": "2026-11-18T00:44:17.735850+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:49:30.282400+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/aarch64/Og",
+      "sequence": 7,
+      "started_utc": "2026-11-18T00:49:30.707058+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T00:54:55.289507+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/aarch64/O1",
+      "sequence": 8,
+      "started_utc": "2026-11-18T00:54:55.714684+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:00:39.276397+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/aarch64/O2",
+      "sequence": 9,
+      "started_utc": "2026-11-18T01:00:39.702921+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:07:06.768679+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/aarch64/O3",
+      "sequence": 10,
+      "started_utc": "2026-11-18T01:07:07.190872+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:13:46.127827+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O2",
+      "sequence": 11,
+      "started_utc": "2026-11-18T01:13:46.851378+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:18:37.341236+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/x86_64/O0",
+      "sequence": 12,
+      "started_utc": "2026-11-18T01:18:37.856722+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:22:57.930211+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/x86_64/Og",
+      "sequence": 13,
+      "started_utc": "2026-11-18T01:22:58.356693+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:27:19.685233+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/x86_64/O1",
+      "sequence": 14,
+      "started_utc": "2026-11-18T01:27:20.133126+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:31:49.459770+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/x86_64/O2",
+      "sequence": 15,
+      "started_utc": "2026-11-18T01:31:49.886420+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:36:58.973483+00:00"
+    },
+    {
+      "identity": "corpus/variants/openssl/3.5.9/asm/x86_64/O3",
+      "sequence": 16,
+      "started_utc": "2026-11-18T01:36:59.402260+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T01:42:23.004545+00:00"
+    }
+  ],
+  "controller_reconnections": [
+    {
+      "utc": "2026-11-18T00:42:57.496292+00:00",
+      "profile": "corpus/variants/openssl/3.5.9/no-asm/aarch64/O3",
+      "reason": "previous host controller ended; existing idle workers preserved",
+      "validation": "image, exact mounts, limits, isolation, idle processes and whole package locks rechecked",
+      "strategy": "verify two successful measured builds; rerun all stripping, runtime tests, receipts and census",
+      "controller": {
+        "revision": "3a36752640a43a12f51cf520990206406c2851a5",
+        "hashes": {
+          "scripts/corpus/variants.py": "fbe02fb896c58fc36f9594435b218bc913d415501a6e058715e5e39beeb2b629",
+          "scripts/corpus/container_pool.py": "f0afbb6c2f706d4a401e7145288e04b2b97ff9c9550a3870d8fa5de2d547e4ea"
+        }
+      }
+    }
+  ],
+  "stopped_utc": "2026-11-18T01:42:23.195504+00:00",
+  "removal": [
+    {
+      "container_id": "adb8bdfeb13b66004dfa41e6bc83e744e7bd120f98534e1a26011e1b81dc43db",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "container_id": "9e4ec4c0c2757e7c02ccb520a5636a79526427e2a5eebcf8c48987ced1623ee4",
+      "exit_code": 0,
+      "stderr": ""
+    }
+  ]
+}

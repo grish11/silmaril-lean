@@ -8,7 +8,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -17,30 +17,33 @@
       "function": "_mi_os_has_overcommit",
       "status": "blocked",
       "blockers": [
-        "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this Boolean getter still needs its own exact closure, computed Core/ELF binding and Boolean ABI context"
       ],
-      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics",
+      "resolved_prerequisites": [
+        "actual eight-field global layout/initializer and saved os.i recovered; page-size contexts are instantiated"
+      ]
     },
     {
       "project": "mimalloc",
       "function": "_mi_os_has_virtual_reserve",
       "status": "blocked",
       "blockers": [
-        "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this Boolean getter still needs its own exact closure, computed Core/ELF binding and Boolean ABI context"
       ],
-      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics",
+      "resolved_prerequisites": [
+        "actual eight-field global layout/initializer and saved os.i recovered; page-size contexts are instantiated"
+      ]
     },
     {
       "project": "mimalloc",
       "function": "_mi_os_page_size",
-      "status": "blocked",
-      "blockers": [
-        "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
-      ],
-      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+      "status": "stated-unproved",
+      "blockers": [],
+      "evidence": "actual saved-TU closure, computed Core/global layout, ELF CodeAt, finite source/native checks; not semantic proof",
+      "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+      "function_address": 62000
     },
     {
       "project": "mimalloc",
@@ -48,7 +51,7 @@
       "status": "blocked",
       "blockers": [
         "actual global/array/struct memory context required",
-        "current CFn entry model covers integer parameter objects, not allocator global memory"
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
       ],
       "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
     },
@@ -102,6 +105,124 @@
         "bitwise macro lowering/config binding required"
       ],
       "evidence": "actual symbol0xff10,size7 and upstream conditional definitions inspected; identity definition deliberately not substituted"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNull",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsBool",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNumber",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsString",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsArray",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsObject",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsInvalid",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsFalse",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsTrue",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsRaw",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_large_page_size",
+      "status": "stated-unproved",
+      "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+      "function_address": 62016,
+      "evidence": "actual conditional Core executes actual source callee; canonical O2 inlines it; nonvacuous global-memory problem, not proof"
     }
   ],
   "promoted": [

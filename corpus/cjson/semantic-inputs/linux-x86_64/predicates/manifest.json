@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "actual host preprocessing and exact declaration closure; not full-TU frontend acceptance or semantic correctness",
+  "files": [
+    {
+      "path": "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz",
+      "sha256": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/README.md",
+      "sha256": "3e2485eab240ce4c127318d73eb03287bd6235ec8454c8b44f65b1c5f5029670"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/context.c",
+      "sha256": "c09e52545b71dcc83e603c21a65821a692bffbc4cb7fd3913a6660fc0fc942ab"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/licenses/gcc-copyright",
+      "sha256": "20390f8a6f3b1e4d7cb45dd8652dabb259bbef688cbad839bcdb0b9ba7252f79"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/licenses/glibc-copyright",
+      "sha256": "f5788886720a2605a946e81d571e6c8162b09f58d2e2ceb8d36e5768fccd850d"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/preprocess-receipt.json",
+      "sha256": "a27feac4379d8f35faa94f0b7c98bf37af170ff384fc3a2e715028ea88bdace5"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/program.sexp",
+      "sha256": "5567495bd982a19d43237278e2ce8455609fbf87d10f8c863c92b0f13243593a"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/projection.json",
+      "sha256": "5e7d64e59ebd1a030a10181cea2a37a2c1f3378949894becb81bdf7f5fbff661"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/runtime.sexp",
+      "sha256": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+      "sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/typed-ail.sexp",
+      "sha256": "be99ee653068405c40ca5a2f551bbc8b21bf2f8628c2ef1c8d5a296ce12276a2"
+    },
+    {
+      "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+      "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+    },
+    {
+      "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.h",
+      "sha256": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee"
+    },
+    {
+      "path": "corpus/elf/cjson/x86_64/libcjson.so.1",
+      "sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2"
+    }
+  ]
+}

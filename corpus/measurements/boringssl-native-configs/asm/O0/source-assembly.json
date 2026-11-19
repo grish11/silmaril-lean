@@ -1,0 +1,898 @@
+{
+  "build": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/build.json",
+  "build_sha256": "736f39f1c94af46f3ce9ca668605784e910e262efde268c1226403040ef9b094",
+  "c_family_volatile_asm_sources": [
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 51,
+          "source_line": "__asm__ volatile("
+        },
+        {
+          "line": 59,
+          "source_line": "__asm__ volatile("
+        },
+        {
+          "line": 74,
+          "source_line": "__asm__ volatile(\"xgetbv\" : \"=a\"(eax), \"=d\"(edx) : \"c\"(xcr));"
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/cpu_intel.cc",
+      "sha256": "68c69951bfc38b0978f06264a8ad32647f28ed1bb74e7dae39067aa2958a2497"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 163,
+          "source_line": "__asm__ __volatile__(\"mrs %0, S3_3_C4_C2_5\" : \"=r\"(previous) : : \"memory\");"
+        },
+        {
+          "line": 168,
+          "source_line": "__asm__ __volatile__(\"msr S3_3_C4_C2_5, %0\" ::\"r\"(on) : \"memory\");"
+        },
+        {
+          "line": 171,
+          "source_line": "__asm__ __volatile__(\"msr S3_3_C4_C2_5, xzr\" ::: \"memory\");"
+        },
+        {
+          "line": 176,
+          "source_line": "__asm__ __volatile__(\"sb\" ::: \"memory\");"
+        },
+        {
+          "line": 179,
+          "source_line": "__asm__ __volatile__(\"dsb nsh\" ::: \"memory\");"
+        },
+        {
+          "line": 180,
+          "source_line": "__asm__ __volatile__(\"isb sy\" ::: \"memory\");"
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/crypto.cc",
+      "sha256": "e6181b9e912fec4bf155b1745d7303d6e00ad5e602314ac703f2aea25a1d018c"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 227,
+          "source_line": "__asm__ volatile("
+        },
+        {
+          "line": 255,
+          "source_line": "__asm__ volatile("
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/fipsmodule/bn/asm/x86_64-gcc.cc.inc",
+      "sha256": "6858a7b450282bb24fe99d4692cc9d538cad040866d7c9e94ed03da56d9c134f"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 128,
+          "source_line": "__asm__ volatile(\"divl %4\""
+        },
+        {
+          "line": 133,
+          "source_line": "__asm__ volatile(\"divq %4\""
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/fipsmodule/bn/div.cc.inc",
+      "sha256": "7020b5215a0a765df6d7529c454c4ffe34e7a79b80b3c68be595a0d62d00eb37"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 57,
+          "source_line": "__asm__ volatile(\"mrs %0, cntvct_el0\" : \"=r\"(ret));"
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/fipsmodule/entropy/jitter.cc.inc",
+      "sha256": "7732fb0fc06cea5492432006ac57e65a48d36782834da39966ea9bc85ebd094c"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 1563,
+          "source_line": "__asm__ __volatile__(\"\" : : \"r\"(val) : \"memory\");"
+        },
+        {
+          "line": 1591,
+          "source_line": "__asm__ __volatile__(\"\" : : \"r\"(val) : \"memory\");"
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/internal.h",
+      "sha256": "710dd2f39a0a7b5b827c3c2077503133d5f23115e17cd5a884dec69c037fb11f"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 304,
+          "source_line": "__asm__ __volatile__(\"\" : : \"r\"(ptr) : \"memory\");"
+        }
+      ],
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/mem.cc",
+      "sha256": "38ae0d587e73f60c9ee09c84acc3c5145f909c83b26a6e1fdf7ab26d13c0ddbf"
+    }
+  ],
+  "evidence": "lexical syntax in exact included source bytes; separate from compiler-emitted assembly",
+  "limits": [
+    "Source inclusion does not establish that an asm site survives target preprocessing or executes.",
+    "Only explicit volatile asm syntax is classified; nonvolatile forms, macros, builtins and C++ raw strings need separate analysis.",
+    "Standalone .S/.s is never classified as C inline assembly.",
+    "No source semantics, Lean proof, function correspondence or ISA support is inferred."
+  ],
+  "python": "3.13.5",
+  "schema_version": 1,
+  "standalone_assembly_inputs": [
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/curve25519/asm/x25519-asm-arm.S",
+      "sha256": "bc003e3aa0abb4e34d355aecc639e0651fdc0418b4a46c1c303ab713cf9ba195"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/hrss/asm/poly_rq_mul.S",
+      "sha256": "3ac0bbf93e1bc931fde223487f86cb03a194e06da0fcbfa9141e530e77712554"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/crypto/poly1305/poly1305_arm_asm.S",
+      "sha256": "ebd5ccabeb3fc57cc98548e24814bc6af167dcd7a4a73e8c92e5be5d048ac69d"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aes-gcm-avx2-x86_64-apple.S",
+      "sha256": "e28af65edcc42ad07b66470f5d586f6bdb7f8d61fef807e30157e5d9b3b5c944"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aes-gcm-avx2-x86_64-linux.S",
+      "sha256": "b0c905c08852e1a229bbb8101a4e1fdb1914d6c943f1391ce818af07efd6dfc3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aes-gcm-avx512-x86_64-apple.S",
+      "sha256": "7a2acfce605f0611b64e0bde1b1c1429b0e92d4a3a672b462e00c3909a12b663"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aes-gcm-avx512-x86_64-linux.S",
+      "sha256": "f69f7c074fba679730afde5592eb794773dd3fdcb4a394594036d5b75194171f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesni-gcm-x86_64-apple.S",
+      "sha256": "7e4fb7a1f9879eeb461db010c2711a4de6c7538ab113188631e472cb2ac864e4"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesni-gcm-x86_64-linux.S",
+      "sha256": "1ce94e9b3b1b144354b525ee1c00dd32181ae52b1dbd88ad750e74d70f710ba3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesni-x86-apple.S",
+      "sha256": "2696f0e9f5d883f16509da53ad0ba10e4976375772b3af1f765213a13aa7112a"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesni-x86-linux.S",
+      "sha256": "1dab126b1ab515ff05a27bd967cd31a3952c87e087dc51e9265b0345bc41a34f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesni-x86_64-apple.S",
+      "sha256": "df0b3778546fecac8f24e8586505ce3c139c36d1a7f0fa997e828e6dc812c507"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesni-x86_64-linux.S",
+      "sha256": "7c7436743a5e223afa08e6533e922fad436e06e8c2cf6370a639c778e952f043"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-armv7-linux.S",
+      "sha256": "ae2a61467be1f6bcf1258ce0b3196bb410c0a847f90cb41ae8a392862b651d29"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-armv8-apple.S",
+      "sha256": "b4dd875cf80e25f30ca621e2787376c6836b8aca3a17c736218e3326e0492d3f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-armv8-linux.S",
+      "sha256": "aeb9425d000d0d1be890858a85ee09e5257a355b56fc86aaab96eab5b55375a0"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-armv8-win.S",
+      "sha256": "c9a916bd7b5005076d1b5fc249254bc15e89f510e6608f48b3079e02155a0598"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-gcm-armv8-apple.S",
+      "sha256": "e2636df4e53e24a86b616be2668746af8c960bb8004cdd2680d9d2d151564e28"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-gcm-armv8-linux.S",
+      "sha256": "ff7842f3c15a0b58f4fd0cd7b629cc731200a3242835808fbc755328f2512e86"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/aesv8-gcm-armv8-win.S",
+      "sha256": "304cd105a5d045c42a0012ee93e6263981f21985bfed618ff3135c55945fde77"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/armv4-mont-linux.S",
+      "sha256": "ba0ef4604fa5706d2d8edd857d1047a133f3c019a0179ab9289131fcdba8cecf"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/armv8-mont-apple.S",
+      "sha256": "cc1e9e73a7bee08826fc03e951947ab90d79ea6770dc0c22009bc94614c3c68b"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/armv8-mont-linux.S",
+      "sha256": "094cf0bdada4de6a69ce32e38cf17aadd668cea2db09f2d7352edd4b569acf34"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/armv8-mont-win.S",
+      "sha256": "ac46c2538f66d49d36642bc202f2f12c39f1fbb799e201c38254e4c8d09995e8"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/bn-586-apple.S",
+      "sha256": "bec7178728d6b1556b9643bfcfa6405e5ec358075f14ada036fc373b8742ca16"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/bn-586-linux.S",
+      "sha256": "3e138d063cb3690851f50aab1eb3eb4ddb117e0562a063b3f6432a90ece68791"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/bn-armv8-apple.S",
+      "sha256": "9d3c8869075e9cc7b71f3ec7e63d5933a4474f7ac3b659f872ea67c9a2321c30"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/bn-armv8-linux.S",
+      "sha256": "47449ce0a45109288e308c1e09376f77bac04ca9a81f2864db0d92ce8cf2fa4e"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/bn-armv8-win.S",
+      "sha256": "f9f64c12b842d426cb19e660a658c2bca262ec776ca62618c945ec08fb2c7ece"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/bsaes-armv7-linux.S",
+      "sha256": "73a73165e2b04c8815e83e616b9dcd48f23ec7f26c5c36a23aa944c5293a1731"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/co-586-apple.S",
+      "sha256": "bb434ac021fe85c493a9adf8ec602c1588a679c8a0222fd12cec57d1600f2649"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/co-586-linux.S",
+      "sha256": "58c78b9c7fe0b2c89bf340b3617e598c3d0ac7b8e16c9a5777475caae0ab1172"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-armv4-linux.S",
+      "sha256": "00dc5cde3688d79c1e002a47c1eaa53a0c1251f79be200d3ef9401e75a541995"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-neon-armv8-apple.S",
+      "sha256": "db50e7579dfcc423d1b384d10ce5a8aa6fccdc70445e6aeac2c0818f8de95dc5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-neon-armv8-linux.S",
+      "sha256": "58d5982a4b95214b21851b0443104d97657dad262f78911d0e31dbee2af6612d"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-neon-armv8-win.S",
+      "sha256": "01fe4c56b0b5b1fd57e831bf8124c5750d2355ff899cd788ace9229bd220fbff"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-ssse3-x86-apple.S",
+      "sha256": "f0d2472e5a568e79813e0fb1fb8a945049a33e3e980d72a34caa544e945f51af"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-ssse3-x86-linux.S",
+      "sha256": "8f41c60047481d2acd0fa2b3f58712c34005638f834bee9cc41ec9da8774eb8f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-ssse3-x86_64-apple.S",
+      "sha256": "0fd61c55b48b6d01694a62d21ef6e6b6b18d698613ead1eec3c57ee619bfae34"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-ssse3-x86_64-linux.S",
+      "sha256": "5a7d7648eac095d96c49b48274d6896a4e371ec149353349ccedadd1248e9908"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-x86-apple.S",
+      "sha256": "0ebd8e7ee76f16c03b016831ca50f34e4b45e104bf5b673c1f01ed4fe7d072a4"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-x86-linux.S",
+      "sha256": "3807e0c026f0ab775457de73969f23a37f2b4e79c567c302420506c229c28b9b"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-x86_64-apple.S",
+      "sha256": "06d0c56b7b164baf3aa3ba515cddb37206125d21afc7031e7575fcaa3ceea343"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghash-x86_64-linux.S",
+      "sha256": "d600642c3133453ad9ae17f2856d13f2fcf3f4f968b24b7aefcba4d0464677be"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghashv8-armv7-linux.S",
+      "sha256": "1b7f939bc363e79a1849f9bc0ffd2b91eda97c89eeb65a687b7ba954361e13ec"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghashv8-armv8-apple.S",
+      "sha256": "8643e412da758a390db5fae8857bd70e6314343735a8dc9a89ea49c73e1c9db1"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghashv8-armv8-linux.S",
+      "sha256": "f8efdb8e96aca7003c28ae9ef939d06d4abfff34aa3f36d86160aabde93de8a5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/ghashv8-armv8-win.S",
+      "sha256": "42a2daae75a9860198df6600a649506c07d82abd5259c661232b9f37f9c209a6"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256-armv8-asm-apple.S",
+      "sha256": "f554918f9275528380cc3b4cb82f7fedf66707bca3e3b14b5e9371ec8014879b"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256-armv8-asm-linux.S",
+      "sha256": "89d924572219066ba3ad9c6810de71d834228fd7cd80a913001f9b15bc964222"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256-armv8-asm-win.S",
+      "sha256": "487ae3e252ac37522350f2df66a07aab5c8d255714ddcd641fc8d81e1d20e9a3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256-x86_64-asm-apple.S",
+      "sha256": "910c9fda1c174188fe2caae56e600cd0cdd8bca3b6b6dd35a02ffd9027d934c2"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256-x86_64-asm-linux.S",
+      "sha256": "5157fda7b007fdcdfa6b8992a04e8d98e45eacee39cd69caa81b06ceab4e209a"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256_beeu-armv8-asm-apple.S",
+      "sha256": "b15456600db466c14224561611328cc18beb1c1ab811d416b5f0674ad8e76cbb"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256_beeu-armv8-asm-linux.S",
+      "sha256": "a7c775ade84b7b9c477837519ae625de67c66a428b3211ffa62fce90acb6d2aa"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256_beeu-armv8-asm-win.S",
+      "sha256": "727df9eadf29aca4ab1323f6665abf7bd3fe3451eb760a353ed4349d85d2a8bc"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256_beeu-x86_64-asm-apple.S",
+      "sha256": "c2daf1333be15cd73d1253b3b0d39f062d4617a2f820aab43773621d3044abd0"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/p256_beeu-x86_64-asm-linux.S",
+      "sha256": "6889d449d99183a22375132138a4e9ac6c02501fa814f2ce026e3e7a35aa01d8"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/rdrand-x86_64-apple.S",
+      "sha256": "1ddc5242138700fb1c3d5b459d6aed3b64c839c4cfc93cf90982c903e29f7be4"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/rdrand-x86_64-linux.S",
+      "sha256": "c7ab216a421dd5f120fee6841092aa13624e2701265883d537b6f620bee23009"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/rsaz-avx2-apple.S",
+      "sha256": "2a1d10db43a2701206234925210e76a8c7d5838a605a98025459d62de5ba24b2"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/rsaz-avx2-linux.S",
+      "sha256": "a2f92bc5062da6d9ca84b4b902a148060766e116211f0e8ffd978fff085d0b7b"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-586-apple.S",
+      "sha256": "9c412355d850b90d21b8ba298916d915ae4074a9cbd105a7d7fbb9c0499451be"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-586-linux.S",
+      "sha256": "66ba55bb40e902e55cd301c3e3c713e35600d8ee70adec45343051327d4d971a"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-armv4-large-linux.S",
+      "sha256": "caad5972722e08798bc62c7b361ae6ae17dd6fe19ba99ac41b99eb7c85d65c93"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-armv8-apple.S",
+      "sha256": "b70a2d3496b99838b13ee87f62ddee56c2047c8a5fad5b63f7351d0eb62afe2a"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-armv8-linux.S",
+      "sha256": "38cd9aa0c1ad9228eb1ea2535adfa7cc0b17446fe04f720d60bd1a53839ce2fd"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-armv8-win.S",
+      "sha256": "44d6ad4864aebb54c3a79bd3b9f22c5905d57163aeee41bde1660d74ceb3ed4a"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-x86_64-apple.S",
+      "sha256": "b66dc9fd50744e4750cb6f7769ad7b89eb02345239510f3cdbf26abaa4a9fd4f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha1-x86_64-linux.S",
+      "sha256": "c9bc2a90ba8019063b10afa3cb28a5c4b8cdeaf426e1ba823df70da550d02537"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-586-apple.S",
+      "sha256": "5f036753786f77761076100d93f0bcc97219e5a8f75fce4fcd6ae06bdfc2d5d8"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-586-linux.S",
+      "sha256": "75a4bd320e66110bd5baa195af49c3c83223ab4d779cbb93540a187cea37cda1"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-armv4-linux.S",
+      "sha256": "c7606aa4c508da72a6e4fc70d98871582d9d9aed96cc7da2b492ac106233d6f6"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-armv8-apple.S",
+      "sha256": "49d138cd4db246e94a56f79db919e0499d174185521087190d235e1079f91e02"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-armv8-linux.S",
+      "sha256": "69c58ea900dc362acd89c060cee1106450af6e91a1571a1c2e0aa1f5f1a51aec"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-armv8-win.S",
+      "sha256": "128997e4cc4782808eb729610ce9b980364f1091165fdd418e49582148b4cdab"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-x86_64-apple.S",
+      "sha256": "1342e1db629dc3d092e26f6f3a4d64da15030d104237071e8d970a02f07ce1e4"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha256-x86_64-linux.S",
+      "sha256": "b73045c6bf833da46818e4dfb336eeb7d4e9353df129ebf53e4b7b0c8b4914a2"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-586-apple.S",
+      "sha256": "f3046fcfe86f603921e9311b9720924596c8352647e768fc141e9c4cf88922b0"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-586-linux.S",
+      "sha256": "a73c1a252e778afab04e9c5e8d1f92152e3a0b29a51bda57f252748f2dcf85ad"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-armv4-linux.S",
+      "sha256": "256dce08b3db51707919866af6115bfa1c28276b15001cbd7132f3d413ae2de9"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-armv8-apple.S",
+      "sha256": "e043798618d3804e4fe135036d24fc4e812bec040eacfed95bc79f99ec180fa0"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-armv8-linux.S",
+      "sha256": "86a7a06d16f2e0f5a35d1a25a417b4d7f990a20f5bab8a17f7f4af0ab4b81e9f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-armv8-win.S",
+      "sha256": "547de0651c970f55b486e9dd52d071df121f674ca5bd98e7c1d047afb6015f40"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-x86_64-apple.S",
+      "sha256": "cc23e1d9366a40560eac4f80162914da53c06355303e9a586143aab5bd9de6a1"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/sha512-x86_64-linux.S",
+      "sha256": "6020dd7f4202f4e30d615dc46d12428ea517a74b42b5891b0ab4a5a3b7aca0ce"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-armv7-linux.S",
+      "sha256": "d0f5e0bb6a57c4ae5c6f46969a6d6ce533ad16ada100cd1beb324f3aac9ba6be"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-armv8-apple.S",
+      "sha256": "f7bb519dc20ec1784133df6b52d69ae6de9100eb3a79ac2bdb88ea8e6aed87ff"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-armv8-linux.S",
+      "sha256": "af1d62ac030858f7e12313c67c3fed4a93e0662c3d147fc0dd7fd54a25bd16ae"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-armv8-win.S",
+      "sha256": "e21ae48a2b9ed2cb1c6f8044c3eab21ec4a234da413434b22bcb28a4bd5e0487"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-x86-apple.S",
+      "sha256": "0abe123c09c5ca6606191d25b7a295e7c1e4972f8adbe0ab24a21a23ec4bba20"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-x86-linux.S",
+      "sha256": "0807d4191b11d80de8fbf06f5a8447341150312020a63427dd24c6e4700951a2"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-x86_64-apple.S",
+      "sha256": "d3cd9e2dd76e016ea38a9f5f74e7c625ae016ebba1c76e9562ce41e36818cb36"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/vpaes-x86_64-linux.S",
+      "sha256": "9a5136b16379addf2f4abbdf4378c1c5295c5b4bfa565f6c371cd10145fd44ca"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/x86-mont-apple.S",
+      "sha256": "87afab60d1ec32640527e627ca8b4340b533d6a202f034f66d792db6491cc42c"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/x86-mont-linux.S",
+      "sha256": "228c225fd1a73713c4c97305b708c4236ff420d6eff4eda1a87df22896724454"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/x86_64-mont-apple.S",
+      "sha256": "061060e1143010fb812dcae06f28f63f18568b027dc17e02241a7a96cbd81ca6"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/x86_64-mont-linux.S",
+      "sha256": "fb0b3ddd156e14fbbaeaa36444b3f316cc7b5df85b0088c934e17a07ee6632e2"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/x86_64-mont5-apple.S",
+      "sha256": "a6c7abfa9172ac35c01003cf59fab99b3acb2725202b45ee04ba33d5f84b5a04"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/bcm/x86_64-mont5-linux.S",
+      "sha256": "ffcb77a9dc24a598ce5050ca67855aa9f5717b81516d6395fb1050c77c502bb5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/aes128gcmsiv-x86_64-apple.S",
+      "sha256": "dfbfd1ebd368f80e4a9ba6b486ca3d3f418c435bdffa91f1e6aeeff4f20202d5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/aes128gcmsiv-x86_64-linux.S",
+      "sha256": "5084b313018005656cba8564c0db65997891f7c14c24afed0323713b6b2c017e"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-armv4-linux.S",
+      "sha256": "ff6dea0d95bd6e881ab1983c819ea8f6812632386bcaf21012e05436a6d204c1"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-armv8-apple.S",
+      "sha256": "743149a4ef17771c80b0d84ac7488f37d8a4e9c6ca039590cdd364a29612d58f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-armv8-linux.S",
+      "sha256": "54fecd4949e323140fa771a97fc08e1b3ac575a547059eeb4ff9382a1d0c416c"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-armv8-win.S",
+      "sha256": "a4a3c0da5c49693fb0eb69205517075c5eb43bf8e7c43b6d91427f18a95a2336"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-x86-apple.S",
+      "sha256": "dd9ac95a23da033d1e209805311554e2f1979bbed5ea7cb359aebd8db8a0d661"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-x86-linux.S",
+      "sha256": "f2efefa813de26ae2808de9d25594ed2653e1524f0a6a8fa6bbb65a5aeb664cd"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-x86_64-apple.S",
+      "sha256": "c7ddfd0fdf537c8356e5186260a9a4313c511e631bbd04f54c28a77d273aaa65"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha-x86_64-linux.S",
+      "sha256": "8f227399b22c0ce2091a7538c1587e725d7be35154b9e1483d8a0604bf759405"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha20_poly1305_armv8-apple.S",
+      "sha256": "bcbe3d27d3522f5aca97b9f940953d751471dd5b918c66c54560686c3d256125"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha20_poly1305_armv8-linux.S",
+      "sha256": "e6da71dd2c1c2cdfce61b0f95e3195cf9dea3ed885ca72f9eb691f9331479dcb"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha20_poly1305_armv8-win.S",
+      "sha256": "1fdb3ed18fcbafe523203547a06671650efe791d4779a91b83e5b49ec59fb42b"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha20_poly1305_x86_64-apple.S",
+      "sha256": "d09cc22ad81dd137686d85dc7ec1784d96e750d9a5691967153b347c3de4f86f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/chacha20_poly1305_x86_64-linux.S",
+      "sha256": "c09abf9669e3eed1fc6d6db91199d2d1d1336fe1356a1f6afb6df4ca9adce1ba"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/md5-586-apple.S",
+      "sha256": "12227c5c826fd2f801f7949a8dc0607c4bc4f4a6f882cf21561a3ed4cd4ac174"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/md5-586-linux.S",
+      "sha256": "631828aeb527dd203153fb1d467af3e85f9e2a4042cc41cb2fb202971f356025"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/md5-x86_64-apple.S",
+      "sha256": "f57f1d39670a81247038a34b9812a217d9d93dbe45fc62db8594773d5fa65830"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/crypto/md5-x86_64-linux.S",
+      "sha256": "d6f9ca9a1ec665e2d2fb73bbf94e143eaec5a9d9c7aa3971ac6b6785492f29fa"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-armv4-linux.S",
+      "sha256": "9d7caca1a9992ddb3875f03a1ce863e4ea25a2af589b2b1543764754fc827f3a"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-armv8-apple.S",
+      "sha256": "81410e45d17cc8aeafe2ed2212566583ccf2f5e0491a5751186b7d87466e0e9e"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-armv8-linux.S",
+      "sha256": "4efc9f70d26370c99b9e25add8a138b145b384a1fda2f2a042ba7e7d326d2ad0"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-armv8-win.S",
+      "sha256": "cdffbcbfc7efd2c5809d0e31dc1e5785260ea06d56cbb6015290faf9bee2f408"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-x86-apple.S",
+      "sha256": "009c1a3192907304a63ff995114356f784c3b50e6e753894ae9b47f445fbb230"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-x86-linux.S",
+      "sha256": "22ed22fff830ab5d49675cb3dfa36d775bccd665a02196b863e253e5d5cfcd4e"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-x86_64-apple.S",
+      "sha256": "d9d07dc8e3fbe4e5663169cbf5482a6739ac16bc9b91611e3a7ba2d618ce124c"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/gen/test_support/trampoline-x86_64-linux.S",
+      "sha256": "bbabf47da0421dd2b0b0455ab09b679c1ab433cf3e0dff6437926bf140eee37d"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/third_party/fiat/asm/fiat_curve25519_adx_mul.S",
+      "sha256": "8f2d7e408477bab5aa0f422aa19e51879a6236c0f9de747f06c36537b05e9ba1"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/third_party/fiat/asm/fiat_curve25519_adx_square.S",
+      "sha256": "1f60556cabea25408a636acfd5563d259e4d96b69228e4798040c8ef5988e6e3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/third_party/fiat/asm/fiat_p256_adx_mul.S",
+      "sha256": "95986de8fdbbb314aa0d2a8dd4f06dcbaeb52282465696a7cd6010de0b5b9196"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/third_party/fiat/asm/fiat_p256_adx_sqr.S",
+      "sha256": "ee4a45b89b5c2304ca2a55c42dbf014f351ba558ec63d0bf29d2ca84604d7ab6"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/aarch64-Basic/in.s",
+      "sha256": "96a6022c4184bceedf1d48c77cb419dcbe7fd30c24764632068702e2d1bc3688"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/aarch64-Basic/out.s",
+      "sha256": "69fa69d5d095a3382c22ab118d560990ea4fede4927d23b5236d39b69e781439"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/generic-AddrSig/in.s",
+      "sha256": "921a6ca37865fd1d4eabf48eafe983bd9d8202f67346f8adcd0eb8dfd2322f72"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/generic-AddrSig/out.s",
+      "sha256": "2151def9b003a6d03b39bf8e0fa0c928c1138f95f6ae1bff4cc1cd6053eae7b2"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/generic-FileDirectives/in.s",
+      "sha256": "3f5c23b40d3e06ab80178c4f84a40b8c41e164576957739331f0124c1a77324d"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/generic-FileDirectives/out.s",
+      "sha256": "afed15834d10d7ee517e42229734beca1d7c285c8ea6175a525a05eea187a8dd"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-BSS/in.s",
+      "sha256": "46d6e3f9db393ecdc4890e3bb28b7d83af1f32036d97c9ff98a04420857d0123"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-BSS/out.s",
+      "sha256": "7e25dcc77f6a12bdc608596b502a0e500a016d057d8369008e1cb5d58eab35d3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-Basic/in.s",
+      "sha256": "82607d26fed69e20c90baa639415312700f9a391a3e1ece545d76b6fcfacf2ff"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-Basic/out.s",
+      "sha256": "88257ff0ed07d9c1deba29e167fdd7ea9e16dc10d33952ea98e50dacf54cf8a3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-GOTRewrite/in.s",
+      "sha256": "15501f34ba8f7afde02d172d95e9a78d6bcb03c978d050f47d5d61bb8fb05aeb"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-GOTRewrite/out.s",
+      "sha256": "12e0b4577526880f8ba6c70fa78e267e204a904e77f861145652c4851c997339"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-LabelRewrite/in1.s",
+      "sha256": "4e1ad66615f14168f39a6fc4d88ee5656bae8ef2197cd672080d8695b6972a40"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-LabelRewrite/in2.s",
+      "sha256": "acf2968df683687aef9c4c715bc95ce930408dc608c6f2a926801f6c488229f5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-LabelRewrite/out.s",
+      "sha256": "f76f75e192805ef28ac4ef70aa0c37ebbd30308fad9a96f0d3e898be399e889f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-LargeMemory/in.s",
+      "sha256": "6ec3f012dddaf9907e6f91b5b5d545f08cbde7bc7a33ae72572687808c036258"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-LargeMemory/out.s",
+      "sha256": "26aeecbd4a93b1a04a46750f60c5498b47be084aea3fdd62453a18784d5a64a7"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-Sections/in.s",
+      "sha256": "828bc12dc1903894ad4555dcf07d5e249a292960b80488d39a67a235821df836"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-Sections/out.s",
+      "sha256": "23e5c6e89f79b87626d82f83f6cbbb8020da3ba5e96e3654d90df8a08a305cde"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-ThreeArg/in.s",
+      "sha256": "ba2800c90983f982c439944d5e930edc837f859821d6da62bf536cbe360860e7"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/delocate/testdata/x86_64-ThreeArg/out.s",
+      "sha256": "011e9cc8a577512b61d0c3d802392ebd09d9f6a5418ef122575db29c5c13dc0f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/inject_hash/testdata/empty.S",
+      "sha256": "ac6efc4cf46404494bc7461a3a58a47d8818c410c9ad2d975ff0702efc9a978c"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/upstream/boringssl-ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/util/fipstools/inject_hash/testdata/test.S",
+      "sha256": "aa340750c93895943352aec4d5264ba87a844f59ee09136d96c11669ea593406"
+    }
+  ],
+  "tool_sha256": "30e00fb84158ef6b316eea5760a55ed757ea02264216510929c0e83cb2a73810"
+}

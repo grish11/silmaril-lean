@@ -96,7 +96,9 @@ reference composition needs `HLinked2.Adequate` and typed calls, as `HLinked2.se
 * Nondeterministic profiles. The relation to the generic `SessionLink.linkS` is in
   `HLinkedLink`: the open triple is exactly the link of the host passthrough beside the exporter
   serving the importer (legally restricted), and the host-realizable triple is its realizable
-  restriction `HLinked2.realize` (not a plain passthrough: forced refusals are hidden).
+  restriction `HLinked2.realize` (not a plain passthrough: forced refusals are hidden), which is
+  exactly the generic link with the stateful realizability host `HLinked2.hostTripleR`
+  (`HLinked2.compTripleR_eq_linkR`).
 -/
 
 public section

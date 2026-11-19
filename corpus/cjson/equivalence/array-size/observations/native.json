@@ -1,0 +1,22 @@
+{
+  "artifacts": [
+    {
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/O0/unstripped/libcjson.so.1",
+      "sha256": "0c7ab3d1ba9aa7808bab6e22695e2fee1702753ad0f4570ce53952120629b456",
+      "address": 21378,
+      "size": 81,
+      "bytes_hex": "554889e548897de848c745f00000000048c745f80000000048837de8007507b800000000eb29488b45e8488b4010488945f0eb10488345f801488b45f0488b00488945f048837df00075e9488b45f85dc3"
+    },
+    {
+      "path": "corpus/elf/cjson/x86_64/libcjson.so.1",
+      "sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+      "address": 16528,
+      "size": 35,
+      "bytes_hex": "4885ff741b488b57104885d2741231c0488b124883c0014885d275f4c30f1f0031c0c3"
+    }
+  ],
+  "cases": 66,
+  "actual_native_return_equality": true,
+  "caller_memory_preserved": true,
+  "scope": "Finite native pair observations; binary obligation UNPROVED, no semantic proof; finite healthy null/list inputs0..64 only, not general or source-refinement evidence; no artifact rebuilds"
+}

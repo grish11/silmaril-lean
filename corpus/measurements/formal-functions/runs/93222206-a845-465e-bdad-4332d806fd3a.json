@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "run_id": "93222206-a845-465e-bdad-4332d806fd3a",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T12:58:21.806786+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocClosed.ArenaNone.Thms"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "Silmaril.Elf.Corpus.MimallocClosed.ArenaNone.Thms",
+  "repository": {
+    "commit": "da5a9606578eaf1e71e8ee01a1ec4556901f1ee0",
+    "dirty": true,
+    "diff_sha256": "03279f255b892d17b5f1042c00d235a98408d1d8020ee55b628a5a88462fe785"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Functions/Defs.lean",
+      "sha256": "b54f327927ae3ddcf5514d78e6186beacc0ae3b7a30061d465ed4ae1f8c67f31"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocClosed/AllocatorDone/Defs.lean",
+      "sha256": "1bf0391c9529ce9683b3bf58cb69ada758b2f3bde3d7180545d4e12123d0be51"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocClosed/AllocatorDone/Thms.lean",
+      "sha256": "ee63c6fca2ca6cdcec985b6788f1032acbb40fcd0a962aaad0a5ae8bd603ed60"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocClosed/ArenaNone/Defs.lean",
+      "sha256": "41217b9a42498d6d8ea56d2c54a65d9a1d049cb9e1df6e577ffbee14fb3a2841"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocClosed/ArenaNone/Thms.lean",
+      "sha256": "e571240571abb2ad08bd233658e92c2421aabd8827064f8e0d317b659ee7bc8c"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/MimallocClosed/AllocatorDone.lean",
+      "sha256": "7a4de21c731f830265e7fadd5bf6de369f50c44c5c89bfc79fa45e1a7f3648df"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/MimallocClosed/ArenaNone.lean",
+      "sha256": "9485c67e3aa63dabfd89780571709ebbeba0cbe1cf99c006f818c98fc79aede1"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/closed-leaves/_mi_allocator_done.c",
+      "sha256": "841fad1c24521f77fe20bfcfa422508d38bdd257acf7dfd9122d2b6796d7a531"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/closed-leaves/_mi_arena_id_none.c",
+      "sha256": "9f385dfd7d356545067a987acaab1ab09856d9bf78f11c37eedcf1d1be552fe3"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/closed-leaves/arena.i",
+      "sha256": "f8369633446cdf8c74fbdd3f78ba659a2baaacd04d2d588b33320682173605a0"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/closed-leaves/prim_prim.i",
+      "sha256": "6ccabfc02fe115dc5222bfa92880fdf14522cc11310fd9ca9d916215fbdb5b0e"
+    }
+  ],
+  "wall_seconds": 13.49765574799676,
+  "exit_code": 0,
+  "user_cpu_seconds": 12.66,
+  "system_cpu_seconds": 22.16,
+  "peak_rss_kib": 3803544,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

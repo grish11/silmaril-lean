@@ -1,0 +1,98 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.CjsonInsert.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonInsert/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Source/Projection/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Source/Projection/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Thms.lean",
+    "Silmaril/Cerberus/Elaboration/Assignments/Defs.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/X86/SystemV/Defs.lean",
+    "Silmaril/X86/SystemV/CApi/Defs.lean",
+    "Silmaril/Process/Memory.lean",
+    "Silmaril/Cerberus/Elaboration/Statements/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Functions/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Comparisons/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+    "Silmaril/Raw/Cerberus/Core/Dynamics.lean",
+    "Silmaril/Elf/Corpus/CjsonInsert/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/CallArguments/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Postfix/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/ControlTests/Defs.lean"
+  ],
+  "source": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/insert-item-in-array/context.c"
+  },
+  "projection": {
+    "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+    "spans": [
+      [
+        2067,
+        33
+      ],
+      [
+        37470,
+        211
+      ],
+      [
+        37802,
+        24
+      ],
+      [
+        120649,
+        996
+      ],
+      [
+        125337,
+        102
+      ],
+      [
+        127028,
+        1344
+      ],
+      [
+        140177,
+        1571
+      ]
+    ]
+  },
+  "core": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/insert-item-in-array/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/insert-item-in-array/runtime.sexp"
+  },
+  "limits": [
+    "All contextual obligations UNPROVED;0 corpus semantic proofs; no interactive compilation.",
+    "Actual unchanged cJSON_InsertItemInArray with get_array_item, suffix_object and add_item_to_array saved-TU bodies and computed Core. Existing O0 ELF caller0x5eca/226bytes and actual helper excerpts only; no new build, manufactured symbol, stub/default body or substitute callee contract.",
+    "Restricted six disjoint live64-byte objects: root, first/middle/tail in a three-node acyclic list, new item and unrelated object. Interior signed32 index1 or append index3 only; arbitrary admissible aligned contiguous heap base and384 caller payload bytes. Node links have actual allocation provenance, first.prev is tail, new.next is null. Other indices, endpoints, aliases, cyclic/dead/general-list inputs and broader functions remain outside this tranche.",
+    "Actual pointer truth uses ConstantNull and actual void helper calls return BTy_unit per pinned Cerberus. Pointer arguments and actual parameter/local allocation/cleanup remain. No integer pointer stand-ins, desired heap/result/refinement, source safety or termination entry premise.",
+    "Exact four interior or three append typed pointer updates are demanded source postconditions; complete original caller allocation metadata, permissions, lifetimes, bytes, pointer provenance, parameter objects and stdout must be preserved otherwise. Actual fresh helper automatic/parameter allocations must be dead. Original private parameter objects are allocations0/1/2; six original caller allocations3..8 remain fully observed.",
+    "Observation-adequacy gap ONLY in this nested-call insertion context: private automatic bytes and allocator/excluded-action bookkeeping are hidden, not proved unobservable to arbitrary continuations. This is not full-record memory equality or arbitrary-continuation equivalence; earlier suffix/detachment complete-record observations are unchanged.",
+    "Target loads caller and all three real ELF helper excerpts. Pointer arguments, low32 signed-int argument/return with arbitrary upper input bits, SysV saved registers and128-byte nested private frame remain obligations. The frame bound follows actual top48/call8/add40/call8/suffix24 nesting. Every unrelated caller/code byte and all mapping metadata must be preserved; exact final pointer words are observed, not arbitrary writes within a footprint.",
+    "Joint entries for EVERY admissible input, source safety, actual machine first returns, every first-return ABI/frame and matching finite source execution remain obligations. No termination/refinement/equality assumption. Universal termination/divergence, frontend/whole-TU/source-to-ELF and observation adequacy remain unproved.",
+    "Eight actual Core and eight actual Open.step cases,16 loaded-native cases and kernel observation-mutation regressions are finite observations/checks, not semantic/refinement/termination proofs. Source readonly modification UB064 and missing-allocation lifetime Unsupported, target readonly rejection, unrelated/native unchanged-heap comparisons remain explicit.",
+    "842 artifacts/707 hashes,15 registered binary statements and15 binary viewer routes,16 separate fixtures retained. Upstream/pre-existing alerts, unsupported FIPS, cJSON runtime/provenance and distinct jemalloc limits remain; broad corpus function/variant coverage unfinished."
+  ],
+  "callees": [
+    {
+      "symbol": "get_array_item",
+      "address": 21459,
+      "size": 84
+    },
+    {
+      "symbol": "suffix_object",
+      "address": 21933,
+      "size": 38
+    },
+    {
+      "symbol": "add_item_to_array",
+      "address": 22127,
+      "size": 170
+    }
+  ]
+}

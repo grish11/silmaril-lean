@@ -34,3 +34,11 @@ dl { display:grid; grid-template-columns: 110px 1fr; gap:2px 8px; font-size:12px
 pre.out { font-size:11.5px; background:#f4f4f2; padding:4px; max-height:120px; overflow:auto; }
 footer { padding:4px 16px; border-top:1px solid var(--line); font-size:12px; }
 details summary { cursor:pointer; }
+#corpus-evidence { margin: 1rem; padding: 1rem; border: 1px solid #aaa; }
+#corpus-evidence pre { max-height: 32rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#corpus-evidence details { margin-block: .8rem; }
+#corpus-source-spans { max-height: 14rem; overflow: auto; white-space: pre-wrap; }
+[hidden] { display: none !important; }
+
+body[data-corpus-declaration] #side { overflow-wrap: anywhere; }
+body[data-corpus-declaration] #selection .stmt { font-size: 12px; }

@@ -1078,7 +1078,7 @@ The plain graph stays an over-approximation, and claims about it say so.
 
              **The converse inclusion** (`instTripleS ⊆ cfgInstTripleU`): its legal part is stage 2
              below; the full inclusion, on well-formed stores in the checker's profile, is stage 3a
-             below. The threaded sessions remain (stage 3b). The original obstacle, in the proof: `HostClosingXP.back_all` (and the divergence and
+             below; the threaded sessions are stage 3b below. The original obstacle, in the proof: `HostClosingXP.back_all` (and the divergence and
              productive backward simulations, `HostClosingInfXPBack`, `HostEval`) carries
              `Sim.ContextTyped` across Core steps through `ContextTyped.steps_typed hT`. With
              a dangling reference on the stack, in a local or in a global, no `ConfigOk`
@@ -1189,15 +1189,115 @@ The plain graph stays an over-approximation, and claims about it say so.
                excludes the instructions where Core's decision on a dangling reference differs from the
                witness's).
 
-             Remaining, not claimed: the threaded sessions on a relaxed domain (stage 3b). The per-question
-             equality needs `I.WellFormed s` (so `StoreOk s`), which is not preserved
-             (`ExampleAlias.alEnd_not_storeOk`). A `StoreOkD`-based domain needs (i) the forward direction
-             without `StoreOk` (#988's `fin_sub`/`pend_sub`/`inf_sub` take `InvOkXP` but use only its
-             checker, tag and invocation parts), (ii) the entry `configOkD_invoke` from the domain, and
-             (iii) preservation of `TagsOk`/`ExnsOk` along `instHostU` rounds on the actual store: the
-             witness gives `ExnsOk` at `T` only, and that every actual exception's tag is a tag of the
-             store is not yet part of `GhostOk`. No `core3SemD` corollary. `HostEval` and `FullObsNative`
-             (not on the path of the instance triples) still carry `Sim.ContextTyped`/`HostTyped`.
+             **Stage 3b: threaded sessions on a relaxed domain** (`Wasm/Cfg/DanglingSession`,
+             `cfg/dangling-rev-4`). Deterministic profile `profile o` for the backward direction; the
+             forward direction and the domain's preservation hold at every profile. Every profile,
+             with profile-free functions: stage 3c below.
+             - What a round changes in the real store. `instHost I` and every `instHostQ I Q` keep the
+               store (`NodeBridge.storePreserving_instHost`); only Wasm steps change it.
+               `DanglingSession.step_store` (every host-free Core step, every profile): functions and
+               tags kept, exceptions only appended (`throw`), `TagsOk tags` kept; `evRunQ_store`: the
+               same along labelled runs at `instHostQ I Q`. Globals, memories, tables, structs and
+               arrays are not constrained beyond the witness typing of `StoreOkD`.
+             - Counterexample (the raw domain is not kept): `al_round`, `reach_alEnd`: on
+               `ExampleAlias`, `run()` with `h()` answered by the dangling exception `0` is a finished
+               round of `instTripleS alI P` from `alStore` (`InstDom`) to `alEnd`, which is not
+               `StoreOk` (`not_instDom_alEnd`); `instDomD_alEnd`: it is in the relaxed domain.
+             - The domain `InstDomD I s` (strictly weaker than `StoreOk`, no `acyclicExns`): the function
+               clauses of `WellFormed` (`FuncsWF`), `StoreChkE (ehExt s.tags) s.funcs`, **real
+               `Interp.ExnsOk s.tags s`** (every real exception's tag is a tag of the store, with its
+               field count), and `StoreOkD s`. `exn_typed` relates them: a real exception's tag is a real
+               tag of parameter types `ts`, and its fields are, up to exception addresses
+               (`ValApprox`), values of types `ts` on the witness. Entry: `instDomD_of_supported`
+               (`WellFormed` + `StoreSupported`), `instDomD_of_instDom` (`InstDom` + `FuncsSupp`).
+               Preservation: `domD_of_round` (every finished round, store-keeping traps included),
+               `domD_of_reach`, `funcs_of_reach`.
+             - Forward direction without `StoreOk`: `DanglingExn.fin_sub_of`/`pend_sub_of`/`inf_sub_of`
+               (store check, `TagsOk`, typed invocation); #988's `fin_sub`/`pend_sub`/`inf_sub` are
+               their corollaries with unchanged statements. On the domain: `cfgInstTripleU_sub`,
+               `sub_cfgInstTripleU` (via `configOkD_of_domD` and `backD`), **`agree`** (per question,
+               `AgreeAt` on all observations).
+             - **Sessions**: `threadS_eq`, `instSession_eq`, `instSession_eq_of_supported`:
+               `threadS (instTripleS I (profile o)) s₀ = threadS (cfgInstTripleU I) s₀` (`=
+               cfgInstSessionU I s₀`) from `InstDomD I s₀`, by `StratSession.threadS_congr` at every
+               store reachable by the instance session (each in the domain by `domD_of_reach`); this
+               covers finite plays, pending plays, divergences after a log and infinite plays. Infinite
+               plays are either finished rounds followed by a productive stream of the current round
+               (at a reachable store: the third component of `agree`) or coherent infinite sequences of
+               finished rounds: `infRounds_iff` (round `k` starts at a store reachable by the first `k`
+               rounds, `reach_of_infRounds`, so in the domain; induction on `k` in both directions).
+             - What follows: the raw instance session only (`instSession`). `core3SemD` does not feed
+               host throws to instance sessions (#995), so there is no `core3SemD`/`cfgSemD` corollary.
+               `cfgInstSessionU` is a root of `CfgClosureAudit`.
+             - Ledger: `HostEval` and `FullObsNative` still use the old typing
+          Open technical debt, not accepted duplication: `Proofs/Wasm/Abstract/BackInv/Through.lean` still copies
+          about 100 lines of `interpHead_exact`, `refOk?_complete` and `referenceStep?_complete`, at closed-valid
+          types. Their in-place generalization (#1074, Part A) is blocked by `CI time budget`. Editing the widely
+          imported `SingleThreaded/Exec` and `Execution/Core/Exec/ValCheck` headers puts the compiler-explorer
+          closure in scope. Its selected post-build checks then exceed the 240 s non-compile limit, measured at
+          370.5 s:
+          - 9 `leanchecker` replays, about 148 s;
+          - process gates and the Cerberus oracle, about 82 s.
+
+          Parallel replay was measured and rejected. Over the same 9 targets, sequential takes 448/450 s,
+          4-way 400 s and 2-way 503 s, with peak RSS of 1.5 to 7.9 GiB per replay. The work is bound by I/O, not
+          CPU. No budget exception has been granted.
+               (`Sim.ContextTyped`/`HostTyped`) and are not on the instance path.
+
+             **Stage 3c: every numeric profile** (`Wasm/Cfg/ProfileFree`, `Wasm/Cfg/DanglingProfile`,
+             `cfg/profile-indep`). The backward results of `CfgInst`, `CfgLegal`, `CfgLegalComp`,
+             `DanglingBack` and `DanglingSession` now also hold at **every** `Numerics.Profile` `P`
+             (`nd`, `relaxed`, `nan`, `grow` arbitrary), on start stores whose functions are
+             profile-free.
+             - Where determinism was used, and why it was inessential. The deterministic profile
+               enters the backward proofs only through Core steps of supported code: same-log runs end
+               alike (`HostClosingXP.BackDet` `evRunN_event_det`, `evRun_det_end`, `TrapExact`
+               `evRun_trap_det`); a stuck or host-call end excludes divergence on the same log
+               (`DivBase.noDiv_of_evRun`, `InfSplit.noInf_of_evRun`, `HostClosingInfXPBack.Reach`); the
+               native divergent and productive witnesses follow the Core run by `Det.DStep` chains
+               (`InfGoal` `Lifts`, `InfLoop`, `InfWhole`, `trace_of_tgChain`); `BackInv.through`
+               (`diverges_through_of`, `HostCall.diverges_through`); and, for sessions, `StoreDet`
+               (`storeDet_instTripleS`, used by `mem_inf_instSession`, `instSession_eq_iff` and the
+               `restrictLog` pullbacks of `CfgLegal`; the `DanglingSession` equalities use none). All of
+               these are facts about Core steps of the code that runs. No use needs determinism of
+               a profile beyond that.
+             - The step lemma (`ProfileFree.step_profile`, any host). `PSens`: the instructions whose
+               Core rules read the profile (float unary and binary operations, conversions, vector
+               operations other than `v128.const`, `memory.grow`, `table.grow`). On code without them
+               (`IFree`/`AFree`; `select`, every call form including `call_indirect`, `call_ref` and
+               tail calls, references, type tests, aggregates, `throw`/`throw_ref`/`try_table`,
+               labels, handlers and frames are allowed), a step at `P` is a step at every `P'`. The
+               invariant `ConfigFree` (code and `FuncsFree` functions) is kept by every step against
+               a `HostFree` host (`step_free`; store-preserving hosts such as `instHost I`), and
+               `StoreSupported` gives `FuncsFree` (`funcsFree_of_storeSupported`).
+             - Lifts with the same witnesses (no choice, no compactness): `hEvStep_profile`,
+               `evRun_profile_iff`, `diverges_profile_iff` (the same trace), `coreInf_profile_iff` (the
+               same segmented run), `coreObsLXP_profile_iff` (every `FullObs`),
+               `coreBehSXP_profile_iff`, `coreCallout_profile_iff`, `coreTripleSO_profile`.
+             - Instance level: `instTripleS_profile`, `instTripleL_profile` (`AgreeAt`, at a store with
+               `FuncsFree`); every finished round keeps `FuncsFree` (`funcsFree_of_round`), so
+               `instSession_profile`, `threadS_instTripleL_profile`, `threadS_noThrowT_profile`;
+               `storeDet_at`; `mem_inf_instSession_P`.
+             - Derived at every `P`: `instTripleS_agree_cfgInstTripleU_P` (`WellFormed`,
+               `StoreSupported`), `agree_P`, `threadS_eq_P`, `instSession_eq_P`, `infRounds_iff_P`
+               (`InstDomD` and `FuncsFree`), `instSession_eq_of_supported_P` (`WellFormed`,
+               `StoreSupported`); legal and throw-free: `instTripleL_agree_P`,
+               `noThrowT_instTripleS_agree_P`, `threadS_instTripleL_eq_P`, `threadS_noThrowT_eq_P`
+               (`InstDom` and `FuncsFree`); components: `core3SemD_sem_profile`,
+               `legalSemD_sem_profile`, `denUD_core3SemD_profile`, `denUD_legalSemD_profile`,
+               `denUD_cfgSemD_eq_core3_P`, `denD_cfgSemD_eq_core3_P` (`CompIn InstDom` and
+               `CompIn FuncsFree`); for every `BackInv`: `coreBehSXP_mem_P`, `coreCallout_mem_P`,
+               `coreInf_mem_P` (with `FuncsFree` and a `HostFree` host).
+             - Restriction. The hypothesis is syntactic. `InstDom` and `InstDomD` do not give
+               `FuncsFree`: the checker skips code after an instruction that never falls through, so
+               a profile-sensitive instruction may sit in dead code. The statements there take
+               `FuncsFree` (or `StoreSupported`) explicitly. A global `StoreDet (instTripleS I P)` is
+               not claimed, since it quantifies over stores whose functions read the profile; only
+               `storeDet_at` is proved. On profile-free stores no backward statement needs a
+               deterministic profile, so there is no counterexample to give there.
+               Characterizations stated through `LegalPlay`/`restrictLog` (`mem_legalSession` and its
+               variants, `legalSession_eq_iff`, `instSession_eq_iff`) were not restated at every
+               profile.
 
              **The legal typed canonical object** (`Games/Abstract/SessionLegal`,
              `Wasm/Abstract/NodeLegal`, `Wasm/Cfg/CfgLegal`). The legal domain is stated on

@@ -1,0 +1,370 @@
+{
+  "package": "refcrypto",
+  "version": "2026-11-17",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD",
+  "ldflags": "-shared -Wl,-soname,<lib>",
+  "configure_args": "(none)",
+  "build_commands": [
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irfc6234 -c rfc6234/sha1.c -o obj/libref_sha2.so__sha1.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irfc6234 -c rfc6234/sha224-256.c -o obj/libref_sha2.so__sha224-256.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irfc6234 -c rfc6234/sha384-512.c -o obj/libref_sha2.so__sha384-512.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irfc6234 -c rfc6234/usha.c -o obj/libref_sha2.so__usha.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irfc6234 -c rfc6234/hmac.c -o obj/libref_sha2.so__hmac.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irfc6234 -c rfc6234/hkdf.c -o obj/libref_sha2.so__hkdf.o",
+    "gcc -shared -Wl,-soname,libref_sha2.so -o libref_sha2.so obj/libref_sha2.so__sha1.o obj/libref_sha2.so__sha224-256.o obj/libref_sha2.so__sha384-512.o obj/libref_sha2.so__usha.o obj/libref_sha2.so__hmac.o obj/libref_sha2.so__hkdf.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -c XKCP-d20c8fcaecc543f816a0721d0dfc13b4cf27c14d/Standalone/CompactFIPS202/C/Keccak-readable-and-compact.c -o obj/libref_sha3.so__Keccak-readable-and-compact.o",
+    "gcc -shared -Wl,-soname,libref_sha3.so -o libref_sha3.so obj/libref_sha3.so__Keccak-readable-and-compact.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -IBLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref -c BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2b-ref.c -o obj/libref_blake2.so__blake2b-ref.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -IBLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref -c BLAKE2-ed1974ea83433eba7b2d95c5dcd9ac33cb847913/ref/blake2s-ref.c -o obj/libref_blake2.so__blake2s-ref.o",
+    "gcc -shared -Wl,-soname,libref_blake2.so -o libref_blake2.so obj/libref_blake2.so__blake2b-ref.o obj/libref_blake2.so__blake2s-ref.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Irijndael-fst-3.0 -c rijndael-fst-3.0/rijndael-alg-fst.c -o obj/libref_aes.so__rijndael-alg-fst.o",
+    "gcc -shared -Wl,-soname,libref_aes.so -o libref_aes.so obj/libref_aes.so__rijndael-alg-fst.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_stream/chacha20/e/ref -Isupercop-20261018/include -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/chacha20 -Ipoly1305-donna-e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781 -DCRYPTO_NAMESPACE(name)=crypto_stream_chacha20_e_ref_##name -c supercop-20261018/crypto_stream/chacha20/e/ref/api.c -o obj/libref_chacha_poly.so__api.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_stream/chacha20/e/ref -Isupercop-20261018/include -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/chacha20 -Ipoly1305-donna-e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781 -DCRYPTO_NAMESPACE(name)=crypto_stream_chacha20_e_ref_##name -c supercop-20261018/crypto_stream/chacha20/e/ref/e/chacha.c -o obj/libref_chacha_poly.so__chacha.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_stream/chacha20/e/ref -Isupercop-20261018/include -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/chacha20 -Ipoly1305-donna-e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781 -DCRYPTO_NAMESPACE(name)=crypto_stream_chacha20_e_ref_##name -c poly1305-donna-e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781/poly1305-donna.c -o obj/libref_chacha_poly.so__poly1305-donna.o",
+    "gcc -shared -Wl,-soname,libref_chacha_poly.so -o libref_chacha_poly.so obj/libref_chacha_poly.so__api.o obj/libref_chacha_poly.so__chacha.o obj/libref_chacha_poly.so__poly1305-donna.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/add_scalar.c -o obj/libref_ed25519.so__add_scalar.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/fe.c -o obj/libref_ed25519.so__fe.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/ge.c -o obj/libref_ed25519.so__ge.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/key_exchange.c -o obj/libref_ed25519.so__key_exchange.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/keypair.c -o obj/libref_ed25519.so__keypair.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/sc.c -o obj/libref_ed25519.so__sc.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/seed.c -o obj/libref_ed25519.so__seed.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/sha512.c -o obj/libref_ed25519.so__sha512.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/sign.c -o obj/libref_ed25519.so__sign.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Ied25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src -c ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e/src/verify.c -o obj/libref_ed25519.so__verify.o",
+    "gcc -shared -Wl,-soname,libref_ed25519.so -o libref_ed25519.so obj/libref_ed25519.so__add_scalar.o obj/libref_ed25519.so__fe.o obj/libref_ed25519.so__ge.o obj/libref_ed25519.so__key_exchange.o obj/libref_ed25519.so__keypair.o obj/libref_ed25519.so__sc.o obj/libref_ed25519.so__seed.o obj/libref_ed25519.so__sha512.o obj/libref_ed25519.so__sign.o obj/libref_ed25519.so__verify.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/scalarmult.c -o obj/libref_x25519.so__scalarmult.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/base.c -o obj/libref_x25519.so__base.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_0.c -o obj/libref_x25519.so__fe_0.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_1.c -o obj/libref_x25519.so__fe_1.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_add.c -o obj/libref_x25519.so__fe_add.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_copy.c -o obj/libref_x25519.so__fe_copy.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_cswap.c -o obj/libref_x25519.so__fe_cswap.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_frombytes.c -o obj/libref_x25519.so__fe_frombytes.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_invert.c -o obj/libref_x25519.so__fe_invert.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_mul.c -o obj/libref_x25519.so__fe_mul.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_mul121666.c -o obj/libref_x25519.so__fe_mul121666.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_sq.c -o obj/libref_x25519.so__fe_sq.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_sub.c -o obj/libref_x25519.so__fe_sub.o",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/refcrypto=. -fPIC -MMD -Isupercop-20261018/crypto_scalarmult/curve25519/ref10 -Isupercop-20261018/cryptoint -I/corpus/refcrypto/local/supercop-shim/x25519 -DCRYPTO_NAMESPACE(name)=crypto_scalarmult_curve25519_ref10_##name -c supercop-20261018/crypto_scalarmult/curve25519/ref10/fe_tobytes.c -o obj/libref_x25519.so__fe_tobytes.o",
+    "gcc -shared -Wl,-soname,libref_x25519.so -o libref_x25519.so obj/libref_x25519.so__scalarmult.o obj/libref_x25519.so__base.o obj/libref_x25519.so__fe_0.o obj/libref_x25519.so__fe_1.o obj/libref_x25519.so__fe_add.o obj/libref_x25519.so__fe_copy.o obj/libref_x25519.so__fe_cswap.o obj/libref_x25519.so__fe_frombytes.o obj/libref_x25519.so__fe_invert.o obj/libref_x25519.so__fe_mul.o obj/libref_x25519.so__fe_mul121666.o obj/libref_x25519.so__fe_sq.o obj/libref_x25519.so__fe_sub.o obj/libref_x25519.so__fe_tobytes.o"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/refcrypto",
+  "inputs": [
+    {
+      "url": "https://www.rfc-editor.org/rfc/rfc6234.txt",
+      "sha256": "8f39f02a57bfd1da15634706724a585766e6223f77ecdaf243cad16cd3a1aa1b"
+    },
+    {
+      "url": "https://github.com/XKCP/XKCP/archive/d20c8fcaecc543f816a0721d0dfc13b4cf27c14d.tar.gz",
+      "sha256": "5a277d4dd8d83f7a3b411c7d22ede4c584a9c95ae5b81724f8f1db6197ea8776"
+    },
+    {
+      "url": "https://github.com/BLAKE2/BLAKE2/archive/ed1974ea83433eba7b2d95c5dcd9ac33cb847913.tar.gz",
+      "sha256": "e1d1194cde9fec0f150961cca8f3d9bdf7c5a5cbe020d1cdfb962b4887793124"
+    },
+    {
+      "url": "https://web.archive.org/web/20051217122133id_/http://www.esat.kuleuven.ac.be/~rijmen/rijndael/rijndael-fst-3.0.zip",
+      "sha256": "a6ed142ac0bffcd10d0fdc82f9fe7e768fc4aac91aa2797ea9974252e09e998f"
+    },
+    {
+      "url": "https://bench.cr.yp.to/supercop/supercop-20261018.tar.xz",
+      "sha256": "9a44c3e619632d140cbad436f5cebbea5f2b8d6efe752946c3e367c4c2ac8288"
+    },
+    {
+      "url": "https://github.com/floodyberry/poly1305-donna/archive/e6ad6e091d30d7f4ec2d4f978be1fcfcbce72781.tar.gz",
+      "sha256": "78442221554769d557d2eb73583b409d88d83226d498c4e7caa1cc97b0488e4b"
+    },
+    {
+      "url": "https://github.com/orlp/ed25519/archive/b1f19fab4aebe607805620d25a5e42566ce46a0e.tar.gz",
+      "sha256": "aedb26c46d3dc3b721ab37c5248d5c923142e4d56009a9605c470383f32ce77a"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libref_aes.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_aes.so",
+      "size": 23816,
+      "sha256": "566832ec25944a8a4f52a18780a0f5153b23a13c86d472fb8c410f8660c72e50",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 4,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libref_blake2.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_blake2.so",
+      "size": 28520,
+      "sha256": "b0d17fc78ea566597946d2415a800d5c8fb135e85d0076c475fc77d6e1106994",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 15,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libref_chacha_poly.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_chacha_poly.so",
+      "size": 20968,
+      "sha256": "a0b1ba14c3a9e93181a069ef00279b9b1188289d2d44f16ddd8538ea7a39b96b",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 18,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libref_ed25519.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_ed25519.so",
+      "size": 83600,
+      "sha256": "2905fe076151ac7aa951b0b787de3e3173567afbdd0e0a93b0b1365fbbc22730",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 51,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libref_sha2.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_sha2.so",
+      "size": 30528,
+      "sha256": "e9ca671be4f2a88d6b7cff60e1f0bd075cdf560bffa2b8d42f5b671a0ae1bc91",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 50,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libref_sha3.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_sha3.so",
+      "size": 15680,
+      "sha256": "ccc2520f8accbaecb287936081c2bb12109f80b240bfced97131e4e5edffa7f8",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 9,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "libref_x25519.so",
+      "path": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2/unstripped/libref_x25519.so",
+      "size": 20728,
+      "sha256": "72b465d415c553eda39620e73de1337d8da57da13ece0abec06e860eed02df35",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 14,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs",
+  "tests": [
+    {
+      "command": "kat (local/kat.c against libref_*.so): exit status and summary",
+      "result": "pass: 0 32/32 known-answer tests passed"
+    },
+    {
+      "command": "kat output",
+      "result": "PASS SHA-1(abc) [RFC 6234]|PASS SHA-224(abc) [RFC 6234]|PASS SHA-256(abc) [RFC 6234]|PASS SHA-384(abc) [RFC 6234]|PASS SHA-512(abc) [RFC 6234]|PASS HMAC-SHA-256 RFC 4231 TC2 [RFC 6234]|PASS HKDF-SHA-256 RFC 5869 TC1 [RFC 6234]|PASS SHA3-256(abc) [XKCP compact]|PASS SHA3-512(abc) [XKCP compact]|PASS SHAKE128('',256 bits) [XKCP compact]|PASS SHAKE256('',512 bits) [XKCP compact]|PASS BLAKE2b-512(abc) RFC 7693 A [BLAKE2 ref]|PASS BLAKE2s-256(abc) RFC 7693 B [BLAKE2 ref]|PASS AES-128 encrypt FIPS 197 C.1 [rijndael-alg-fst]|PASS AES-128 decrypt FIPS 197 C.1 [rijndael-alg-fst]|PASS AES-192 encrypt FIPS 197 C.2 [rijndael-alg-fst]|PASS AES-192 decrypt FIPS 197 C.2 [rijndael-alg-fst]|PASS AES-256 encrypt FIPS 197 C.3 [rijndael-alg-fst]|PASS AES-256 decrypt FIPS 197 C.3 [rijndael-alg-fst]|PASS ChaCha20 block, zero key/nonce, RFC 8439 A.1 #1 [SUPERCOP e/ref]|PASS ChaCha20 encrypt RFC 8439 2.4.2 [SUPERCOP e/ref]|PASS Poly1305 RFC 8439 2.5.2 [poly1305-donna]|PASS Ed25519 RFC 8032 TEST 1 public key [orlp/ed25519]|PASS Ed25519 RFC 8032 TEST 1 signature [orlp/ed25519]|PASS Ed25519 RFC 8032 TEST 1 verify == 1 [orlp/ed25519]|PASS Ed25519 corrupted signature rejected [orlp/ed25519]|PASS Ed25519 RFC 8032 TEST 2 signature [orlp/ed25519]|PASS X25519 RFC 7748 5.2 vector 1 [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 Alice public [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 Bob public [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 shared (Alice) [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 shared (Bob) [SUPERCOP ref10]|32/32 known-answer tests passed|"
+    },
+    {
+      "command": "shatest  (RFC 6234 test driver against libref_sha2.so): exit status, FAILED count, PASSED count>0",
+      "result": "pass: 0 0 yes"
+    },
+    {
+      "command": "shatest : PASSED lines",
+      "result": "70"
+    },
+    {
+      "command": "shatest -m (RFC 6234 test driver against libref_sha2.so): exit status, FAILED count, PASSED count>0",
+      "result": "pass: 0 0 yes"
+    },
+    {
+      "command": "shatest -m: PASSED lines",
+      "result": "35"
+    },
+    {
+      "command": "shatest -d (RFC 6234 test driver against libref_sha2.so): exit status, FAILED count, PASSED count>0",
+      "result": "pass: 0 0 yes"
+    },
+    {
+      "command": "shatest -d: PASSED lines",
+      "result": "105"
+    }
+  ],
+  "notes": [
+    "RFC 6234 C files are cut out of rfc6234.txt by local/extract-rfc6234.py (generated/<arch>/rfc6234/)"
+  ],
+  "variant": {
+    "optimization": "O2",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "f7c6d08a-95ed-4385-aa11-a91512b897ea",
+    "target": "x86_64-linux-gnu"
+  },
+  "container_pool": {
+    "toolchain": "corpus/toolchain",
+    "pool_id": "9efe74fb-b55e-49f1-8e87-9d7898502570",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T02:28:55.540405+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "126d0c14947d86b41b777a7853b8c21e9dc0739a62fdeaab251c8b53f7fb655c",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.667852+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "8a6c2e29fb4922229be80f1529fbad7f09c44cf0e362bf36ad932010679ef0e8",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.879578+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2",
+        "sequence": 9,
+        "started_utc": "2026-11-18T02:32:06.167993+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T02:32:32.712755+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "kat (local/kat.c against libref_*.so): exit status and summary",
+      "result": "pass: 0 32/32 known-answer tests passed"
+    },
+    {
+      "command": "kat output",
+      "result": "PASS SHA-1(abc) [RFC 6234]|PASS SHA-224(abc) [RFC 6234]|PASS SHA-256(abc) [RFC 6234]|PASS SHA-384(abc) [RFC 6234]|PASS SHA-512(abc) [RFC 6234]|PASS HMAC-SHA-256 RFC 4231 TC2 [RFC 6234]|PASS HKDF-SHA-256 RFC 5869 TC1 [RFC 6234]|PASS SHA3-256(abc) [XKCP compact]|PASS SHA3-512(abc) [XKCP compact]|PASS SHAKE128('',256 bits) [XKCP compact]|PASS SHAKE256('',512 bits) [XKCP compact]|PASS BLAKE2b-512(abc) RFC 7693 A [BLAKE2 ref]|PASS BLAKE2s-256(abc) RFC 7693 B [BLAKE2 ref]|PASS AES-128 encrypt FIPS 197 C.1 [rijndael-alg-fst]|PASS AES-128 decrypt FIPS 197 C.1 [rijndael-alg-fst]|PASS AES-192 encrypt FIPS 197 C.2 [rijndael-alg-fst]|PASS AES-192 decrypt FIPS 197 C.2 [rijndael-alg-fst]|PASS AES-256 encrypt FIPS 197 C.3 [rijndael-alg-fst]|PASS AES-256 decrypt FIPS 197 C.3 [rijndael-alg-fst]|PASS ChaCha20 block, zero key/nonce, RFC 8439 A.1 #1 [SUPERCOP e/ref]|PASS ChaCha20 encrypt RFC 8439 2.4.2 [SUPERCOP e/ref]|PASS Poly1305 RFC 8439 2.5.2 [poly1305-donna]|PASS Ed25519 RFC 8032 TEST 1 public key [orlp/ed25519]|PASS Ed25519 RFC 8032 TEST 1 signature [orlp/ed25519]|PASS Ed25519 RFC 8032 TEST 1 verify == 1 [orlp/ed25519]|PASS Ed25519 corrupted signature rejected [orlp/ed25519]|PASS Ed25519 RFC 8032 TEST 2 signature [orlp/ed25519]|PASS X25519 RFC 7748 5.2 vector 1 [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 Alice public [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 Bob public [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 shared (Alice) [SUPERCOP ref10]|PASS X25519 RFC 7748 6.1 shared (Bob) [SUPERCOP ref10]|32/32 known-answer tests passed|"
+    },
+    {
+      "command": "shatest  (RFC 6234 test driver against libref_sha2.so): exit status, FAILED count, PASSED count>0",
+      "result": "pass: 0 0 yes"
+    },
+    {
+      "command": "shatest : PASSED lines",
+      "result": "70"
+    },
+    {
+      "command": "shatest -m (RFC 6234 test driver against libref_sha2.so): exit status, FAILED count, PASSED count>0",
+      "result": "pass: 0 0 yes"
+    },
+    {
+      "command": "shatest -m: PASSED lines",
+      "result": "35"
+    },
+    {
+      "command": "shatest -d (RFC 6234 test driver against libref_sha2.so): exit status, FAILED count, PASSED count>0",
+      "result": "pass: 0 0 yes"
+    },
+    {
+      "command": "shatest -d: PASSED lines",
+      "result": "105"
+    }
+  ]
+}

@@ -370,6 +370,10 @@ def primitive (op : Prim) (vs : List Val) (tags : Mem.Concrete.Tags := ∅) : Ex
         | .function _, .allocated _ _ | .allocated _ _, .function _ => pure false
         | .allocated i a, .allocated j b =>
             if i == j then pure (a == b)
+            -- Pinned concrete/impl_mem.ml:1696–1701 offers false or addr
+            -- equality for distinct provenance. When addresses differ both
+            -- choices are false; equal-address ambiguity remains unsupported.
+            else if a != b then pure false
             else throw (.unsupported "distinct provenance pointer equality choices")
         | .unprovenanced a, .unprovenanced b => pure (a == b)
         | _, _ => throw (.unsupported "pointer equality with differing provenance")

@@ -1,0 +1,276 @@
+{
+  "build": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/build.json",
+  "build_sha256": "3b92bf1d62e937984c8f5fd6198e04784c9f0a1d39aef1ac68ef950e0ad2773b",
+  "c_family_volatile_asm_sources": [
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 218,
+          "source_line": "asm volatile(\"       subq    %0,%0           \\n\" /* clear carry */"
+        },
+        {
+          "line": 245,
+          "source_line": "asm volatile(\"       subq    %0,%0           \\n\" /* clear borrow */"
+        }
+      ],
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/bn/asm/x86_64-gcc.c",
+      "sha256": "1ed59f94b76b76524e65e9b13b12d681ba27037f0dab6efd8c23757bc345c347"
+    },
+    {
+      "explicit_volatile_asm_syntax": [
+        {
+          "line": 176,
+          "source_line": "asm volatile(                   \\"
+        },
+        {
+          "line": 191,
+          "source_line": "asm volatile(                   \\"
+        }
+      ],
+      "path": "corpus/openssl/upstream/openssl-3.5.9/crypto/bn/bn_div.c",
+      "sha256": "6f9245038e473655075346be8e494966ac19ac4522dace1456e9af37fd9116f0"
+    }
+  ],
+  "evidence": "lexical syntax in exact included source bytes; separate from compiler-emitted assembly",
+  "limits": [
+    "Source inclusion does not establish that an asm site survives target preprocessing or executes.",
+    "Only explicit volatile asm syntax is classified; nonvolatile forms, macros, builtins and C++ raw strings need separate analysis.",
+    "Standalone .S/.s is never classified as C inline assembly.",
+    "No source semantics, Lean proof, function correspondence or ISA support is inferred."
+  ],
+  "python": "3.13.5",
+  "schema_version": 1,
+  "standalone_assembly_inputs": [
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/aes/asm/aes-ia64.S",
+      "sha256": "506d700c10738a33f83d26c80d99e95dceafaadba01081b69f1c8312cdbfdc9f"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/bn/asm/ia64.S",
+      "sha256": "a717390029880696c77d08da5bd4e24339c7ca4191b22187616c7dc50ce23f41"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/bn/asm/s390x.S",
+      "sha256": "2827857167383f2bb692cd55809cee5d150aaee78136d1ecf06db4cab48e64aa"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/bn/asm/sparcv8.S",
+      "sha256": "3ab94379452f822633ec2c4281ee7f64bb4cd9e06e347e184850f2b144eaf9a5"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/bn/asm/sparcv8plus.S",
+      "sha256": "4483ddfbef56b7e4a53aea6597fbe6b32739b0c511423179faafeeaf9f81083e"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/ia64cpuid.S",
+      "sha256": "53460227fe444197b86ceacc9163f70f3c11b7b863ed01ae62fff9c6f8985ad3"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/poly1305/asm/poly1305-ia64.S",
+      "sha256": "f3bb6d63d85a685230768a356d66e40f175486733beaa076abf3103259be0e63"
+    },
+    {
+      "origin": "upstream archive input",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/upstream/openssl-3.5.9/crypto/sparccpuid.S",
+      "sha256": "fafcbf2fe95dfd47fb27faf75c3982b24801074d11fdd19bb05dfa3f5c587514"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/aes-x86_64.s",
+      "sha256": "876e3b0fb3c0442ed04e1186b13d51ab12ecfab0d22bd03d7564c58c1d029d96"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/aesni-mb-x86_64.s",
+      "sha256": "61c6d67949ad72de84ce012c5f8010ca5c0d08cb3616b94a62ddc1c2266bf852"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/aesni-sha1-x86_64.s",
+      "sha256": "5b102b8cf7654e1baeae91cfe7104279b1d53298cbcbdc5d0c4851679878b151"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/aesni-sha256-x86_64.s",
+      "sha256": "007dfc4c3ec6911c1f2e68cb0d31db0d68f6ebfa7c419929ddba6140dd4fc727"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/aesni-x86_64.s",
+      "sha256": "21ce8d66478779a42b01824c5fa486e588cf7ee931e9ee7c54372c0b96ea2bd0"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/aesni-xts-avx512.s",
+      "sha256": "609feab55c436e71382e9f1a1f67dac443598ac45845fcea309d4c2365a33ddf"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/bsaes-x86_64.s",
+      "sha256": "0a69004b5a39322ce49f6ab9e9fe78cf8019bcbbccd0030f2bc808fd17ecbffa"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/aes/vpaes-x86_64.s",
+      "sha256": "d3cf868740e613868ef492ebea8b2a8114e75b87260bd49b92d0889f49abd3fc"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-2k-avx512.s",
+      "sha256": "ae09b2ad222b3bd1025bf6b296eba4b0392c18b98ee5d132a6c5fd419c517c5b"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-2k-avxifma.s",
+      "sha256": "33e1524486a76964918c35e1893bff0bca4bd7f8a603e32e7ecc20fc39ed1f03"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-3k-avx512.s",
+      "sha256": "b0b174a4cb64e8ff908998776e4476d524b148c5cdb952db98f6d7df4b8bd3e2"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-3k-avxifma.s",
+      "sha256": "d7eb40ffece90e7314486aa87eb15675b84234176a3692488fd2241a80644459"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-4k-avx512.s",
+      "sha256": "90ef57d64000687cf18d185e6b41b09251e8189d23623fdb755bdfd4c163ef43"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-4k-avxifma.s",
+      "sha256": "61700e47cd85020ed9855624952c265b37a66906858801847266962b7a25c1cf"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-avx2.s",
+      "sha256": "f8ebf42c16c10e185aebdc30f3c7e7a9788812d6f67762d0294c1688b876d950"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/rsaz-x86_64.s",
+      "sha256": "e8d2a046312c6b3f5bd08d7c843afb4cdd4e75fc03f19cea3d0f639a3e75aed0"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/x86_64-gf2m.s",
+      "sha256": "af12b43d1a9809ade8088a8984b11969179e12eb56f8d53afa78144df974bbdb"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/x86_64-mont.s",
+      "sha256": "b972807e9cc03233d953c7016fe7e5f8aed37cf4f701fadadec6fef7cc1df89f"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/bn/x86_64-mont5.s",
+      "sha256": "0d121192e15a057a0b2919bbc90eb9d811e191da1ee88dcdf97da942415f83a9"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/camellia/cmll-x86_64.s",
+      "sha256": "b57af5c23480d443a46595f34fc07ca51e6dcd8ee799dcec560a8891a14b7143"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/chacha/chacha-x86_64.s",
+      "sha256": "c2a0d2b02299682c885a23844e784efcd632c919d74af6362121a45215480de8"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/ec/ecp_nistz256-x86_64.s",
+      "sha256": "850e1901aa9d7604e4f24b133673a633ae158e53e8597c53dd2f93f25b35fc12"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/ec/x25519-x86_64.s",
+      "sha256": "cc8b8a7802ae4a85e55117bcecb4da8d53838715958c369de8561684dee671da"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/md5/md5-x86_64.s",
+      "sha256": "5c7e9c5f4520ee898902a3b7385339ccc48bb9ddcfe93b9fcda1785e14be0d56"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/modes/aes-gcm-avx512.s",
+      "sha256": "a021f301fb113eff3f9545cd7646a63c972e81ee8b4b54a1430199163ba0f267"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/modes/aesni-gcm-x86_64.s",
+      "sha256": "2cfcde6bc546cf258afb5ecac0aee8024a2484971d8c36dab4c44a5593e2cb90"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/modes/ghash-x86_64.s",
+      "sha256": "75f1a8d3ac9ebfb7d2b7b1d34f0a4e6bfca99503af179d37e4497ac84c087470"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/poly1305/poly1305-x86_64.s",
+      "sha256": "5f5d177c1c774f239a3b17f5113994075dd120dab6a1e3d75dd11a644e1e4f31"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/rc4/rc4-md5-x86_64.s",
+      "sha256": "b5c4a3afa9e0876970583d63605c3e0cca7a91d51ea3a2546d78b7177f3bd4ca"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/rc4/rc4-x86_64.s",
+      "sha256": "412f6f0eb20f94c1b2ad250c8197b1aba1bcb6960347ae0e0874c444b7426413"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/sha/keccak1600-x86_64.s",
+      "sha256": "e43c726a86236e3cbafbf9ba62121d50fc9bf7105a8f96f2328835793a2272fc"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/sha/sha1-mb-x86_64.s",
+      "sha256": "4cdda82ba1403af1cfa6e68b3bbdcc11d42aee0992ae1b2cacb834f5d9009401"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/sha/sha1-x86_64.s",
+      "sha256": "335fed506f21fff0e983f61938d27829c214e2f658a181ae7403d2031ee982c7"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/sha/sha256-mb-x86_64.s",
+      "sha256": "47b142a69a5fee23ca8522c2cdd7f00be4a99b56ef81365b6c9f36c40d977030"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/sha/sha256-x86_64.s",
+      "sha256": "ee6a1b94e2f598ac0ae8369904efdfa390b5c3cda10e969d827e353fe5f0e28b"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/sha/sha512-x86_64.s",
+      "sha256": "1c9f7e511c4402a0872f71c75653fd722780550af95882b84f84581fa0afc84c"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/whrlpool/wp-x86_64.s",
+      "sha256": "eae6e478a2e5a1a8f8462ea8d7c8aea6e7d3febb105e3c6c4840091ff837d11a"
+    },
+    {
+      "origin": "build-generated",
+      "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O1/generated/crypto/x86_64cpuid.s",
+      "sha256": "cb58e0bdf332d872a93e29f214e5ba30dec08d1814da5702fe62a7f142d02a77"
+    }
+  ],
+  "tool_sha256": "30e00fb84158ef6b316eea5760a55ed757ea02264216510929c0e83cb2a73810"
+}

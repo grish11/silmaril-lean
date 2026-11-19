@@ -1,0 +1,29 @@
+{
+  "artifact_receipt": "corpus/variants/darkhttpd/1.17/default/x86_64/O0/unstripped/receipt.json",
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "requested_cflags": "-O0 -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD",
+  "measurement": "preprocessing.json",
+  "translation_unit_sha256": "8b90d8bdc55576387362eef17ecc31fc1c0fde495ef73b2950bf10e1ad19ea82",
+  "historical_image_identity_established": false,
+  "historical_header_identity_established": false,
+  "historical_compile_replay": false,
+  "whole_tu_frontend_adequacy": false,
+  "omitted_dependency_flags": [
+    "-MMD"
+  ],
+  "preprocessing_only_flags": [
+    "-E",
+    "-P"
+  ],
+  "observed_command": [
+    "gcc",
+    "-E",
+    "-P",
+    "-O0",
+    "-g0",
+    "-ffile-prefix-map=/build/darkhttpd=.",
+    "corpus/darkhttpd/upstream/darkhttpd-1.17/darkhttpd.c",
+    "-o",
+    "/work/out/darkhttpd-logencoding-binding/translation-unit.i"
+  ]
+}

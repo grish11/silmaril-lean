@@ -1,0 +1,26 @@
+{
+  "schema": "silmaril.source-preprocessing.v1",
+  "scope": "Current-host preprocessing only. No ELF rebuild, historical image/header identity, historical compile replay or whole-TU adequacy is claimed.",
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "working_directory": "corpus/sqlite/upstream/sqlite-amalgamation-3540100",
+  "command": [
+    "gcc",
+    "-O2",
+    "-g0",
+    "-ffile-prefix-map=/build/sqlite=.",
+    "-DSQLITE_THREADSAFE=1",
+    "-MMD",
+    "-MF",
+    "<output>/dependencies.d",
+    "-fPIC",
+    "-E",
+    "sqlite3.c",
+    "-o",
+    "<output>/translation-unit.i"
+  ],
+  "canonical_receipt": "corpus/elf/sqlite/x86_64/receipt.json",
+  "canonical_compiler_match": true,
+  "historical_image_identity_established": false,
+  "historical_header_identity_established": false,
+  "translation_unit_sha256": "31992f073781a1cdbd06ee2a00b2de14b62d87b5e81199dbb6a0fb7dfb7b6f1d"
+}

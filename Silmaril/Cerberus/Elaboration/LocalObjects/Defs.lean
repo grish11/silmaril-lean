@@ -3,6 +3,7 @@ module
 public import Silmaril.Cerberus.Elaboration.Arithmetic.Defs
 public import Silmaril.Cerberus.Elaboration.Conversion.Defs
 public import Silmaril.Cerberus.Elaboration.Lifetimes.Defs
+public import Silmaril.Cerberus.Elaboration.NullPointers.Defs
 
 /-! Focused local-object block and initializer equations from pinned
 `translation.lem:3713-3771,4083-4175`. Recursive expression/statement dispatch
@@ -77,14 +78,29 @@ def initializer (config : Target.Config) (env : Target.Environment)
       if (← get).backend == "Cn" then return skip
       else return addStandard "§6.2.4#6" (store (unspecified type) .na)
   | some input =>
-      unless arithmeticType type do
-        throw (.message "unsupported: initialized local is not a direct arithmetic object")
       let sourceType ← Constants.liftResult (Constants.targetResult (GeneralizedTypes.expressionType config env input))
-      let objectType ← Constants.liftResult (Arithmetic.scalarObjectType sourceType)
+      let objectType ← Constants.liftResult (match sourceType with
+        | .mk _ (.pointer ..) => .ok .pointer
+        | _ => Arithmetic.scalarObjectType sourceType)
+      -- translation.lem:4104 allocates this wrapper even for a null initializer.
       let temporary ← State.wrappedFreshSymbol (.loaded objectType)
-      let core ← translate input
-      let value ← Constants.liftResult (Conversion.loadedArithmetic bindings sourceType type temporary.expression)
-      return strongSequence temporary.pattern core (store value .na)
+      match type with
+      | .mk _ (.pointer _ referenced) =>
+          if NullPointers.isNullPointerConstant input then
+            return store (specified (nullptr referenced)) .na
+          else
+            unless Constants.isPointer sourceType do
+              throw (.message "unsupported: pointer initializer source is not a pointer or null constant")
+            let core ← translate input
+            return strongSequence temporary.pattern core (store temporary.expression .na)
+      | _ =>
+          unless arithmeticType type do
+            throw (.message "unsupported: initialized local is not a direct arithmetic or pointer object")
+          unless arithmeticType sourceType do
+            throw (.message "unsupported: pointer-to-Bool local initializer")
+          let core ← translate input
+          let value ← Constants.liftResult (Conversion.loadedArithmetic bindings sourceType type temporary.expression)
+          return strongSequence temporary.pattern core (store value .na)
 
 /-- Exact `Core_aux.concat_sseq`, including removal of a final pure Unit. -/
 def concatStrong : Effect → Effect → Effect
