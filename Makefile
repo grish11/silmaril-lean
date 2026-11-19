@@ -79,7 +79,7 @@ check:
 	fi
 	$(MAKE) process-gates
 	examples/layout/gen-lean.sh --check
-
+	$(if $(filter Silmaril,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/DrislDebug.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/cerberus-runtime/check.py --lake "$(LAKE)" --python "$(PYTHON)")
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
 	$(if $(filter ctv-pipeline,$(CHECK_TARGETS)),$(MAKE) c-tv-check)
