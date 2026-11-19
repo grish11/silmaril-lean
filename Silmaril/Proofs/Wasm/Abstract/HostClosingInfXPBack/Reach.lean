@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Interp.PProgress.Thms
 public import Silmaril.Wasm.Abstract.HostCall.Thms
 public import Silmaril.Wasm.Abstract.HostClosingXP.Thms
+public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackInv
 
 /-!
 # Closed reaches of a host call, and their Core runs (proofs)

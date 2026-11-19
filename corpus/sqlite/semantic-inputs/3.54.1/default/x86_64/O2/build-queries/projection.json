@@ -1,0 +1,18 @@
+{
+  "tu": "translation-unit.i",
+  "sha256": "31992f073781a1cdbd06ee2a00b2de14b62d87b5e81199dbb6a0fb7dfb7b6f1d",
+  "spans": [
+    {
+      "name": "sqlite3_libversion_number",
+      "offset": 3240508,
+      "length": 54,
+      "sha256": "89f2847ac4d737a96879e7d5ccd9fa5a131ab0aa6a32c1b7fa73545469973fd3"
+    },
+    {
+      "name": "sqlite3_threadsafe",
+      "offset": 3240569,
+      "length": 41,
+      "sha256": "549dc219189d271dc875f668984ba069dd8f3305f0b679407e68779a55e39dac"
+    }
+  ]
+}

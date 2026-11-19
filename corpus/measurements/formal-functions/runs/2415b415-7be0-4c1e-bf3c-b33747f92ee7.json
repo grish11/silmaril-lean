@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "run_id": "2415b415-7be0-4c1e-bf3c-b33747f92ee7",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T06:41:55.096724+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "mimalloc-global-getters-checked-procedure-abi",
+  "repository": {
+    "commit": "940ade97dc99a39d64ee67ff162d6d36673f8751",
+    "dirty": true,
+    "diff_sha256": "3d9da4fef8dff6f9a97bfafa89a7dd7820e4bfa064ac72765154f66e31523a60"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Context/Defs.lean",
+      "sha256": "e142b76ef38156a7c09d560f4a509a647681aa3b6992ce6f4d6315683cb8c1b0"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Elaboration/Defs.lean",
+      "sha256": "9bdcae260e284ea3a9c5b954fdf45969afa009cf31c017ddb4a58005e9b62d18"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocOsGlobals/Source/Elaboration/Thms.lean",
+      "sha256": "769d2211e63774ecc808e3cb09838566f3617ee621f683a6f60c8cc2dac073f1"
+    },
+    {
+      "path": "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/os-globals/manifest.json",
+      "sha256": "e7ff4ccd979682c5aa36366f8f85493d5d0dfda450f7a8b36bd81305a097e2cb"
+    }
+  ],
+  "wall_seconds": 4.372854303997883,
+  "exit_code": 0,
+  "user_cpu_seconds": 3.76,
+  "system_cpu_seconds": 21.4,
+  "peak_rss_kib": 1297472,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

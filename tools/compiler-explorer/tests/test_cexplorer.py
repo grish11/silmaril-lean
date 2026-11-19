@@ -332,6 +332,37 @@ class Project(Base):
         pdb.close()
         return path
 
+    def test_static_pages_preserve_project_evidence_and_missing(self):
+        spec = importlib.util.spec_from_file_location("compiler_pages", HERE.parent / "pages.py")
+        pages = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pages)
+        output = self.tmp / "site"
+        # This isolated fixture adapter DB has no corpus catalog. Production Pages
+        # keeps include_corpus=True; actual corpus coverage has its own tests.
+        pages.export(self.project_db(), output, include_corpus=False)
+        listing = json.loads((output / "api/problems.json").read_text())
+        self.assertEqual(len(listing), len(list(MANIFESTS.glob("*.json"))))
+        views = {}
+        for item in listing:
+            self.assertRegex(item['static_path'], r'^api/problems/[0-9a-f]{64}\.json$')
+            views[item['id']] = json.loads((output / item['static_path']).read_text())
+            self.assertEqual(views[item['id']]['id'], item['id'])
+        view = views['compiles-to/straight/O0/add3']
+        translation = next(o for o in view['obligations'] if o['kind'] == 'translation')
+        self.assertEqual(translation['status'], 'proved')
+        self.assertEqual(view['manifest_sha256'], cx.sha256(STRAIGHT_O0.read_bytes()))
+        missing = views['programs/msort/O2']
+        self.assertNotIn('proved', [o['status'] for o in missing['obligations']])
+        self.assertIn('not every corpus function', (output / 'index.html').read_text())
+        # A repeated Pages build must refresh evidence rather than keep a prior proof.
+        project = sqlite3.connect(self.tmp / 'project.sqlite')
+        project.execute("DELETE FROM statuses WHERE problem LIKE 'silmaril.compiler_explorer.%'")
+        project.commit()
+        project.close()
+        pages.export(self.tmp / 'project.sqlite', output, include_corpus=False)
+        refreshed = json.loads((output / next(p['static_path'] for p in listing if p['id'] == view['id'])).read_text())
+        self.assertNotIn('proved', [o['status'] for o in refreshed['obligations']])
+
     def test_rows_prove_with_artifact_binding(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         cx.ingest_project(self.db, self.project_db())

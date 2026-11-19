@@ -178,7 +178,7 @@ private theorem returnExpression_run (config : Silmaril.Cerberus.Target.Config)
        {before with freshness := {before.freshness with next := before.freshness.next + 1}}) := by
   simp [Statements.returnExpression, ordinary, Lifetimes.captureVisible,
     run_bind, run_map, Except.map, run_visibleObjects, noObjects,
-    integerLiteral_type, Statements.liftError, Except.mapError, returnType, Statements.integerType,
+    integerLiteral_type, Statements.liftError, Except.mapError, returnType, Constants.isPointer, Statements.integerType,
     integerLiteral_dispatch_wrapped, noTemporaries, wrapped_fresh, available,
     loadedArithmetic_call runtime conversion resultType parameters body found, lifetime_run,
     returnExpressionCore]

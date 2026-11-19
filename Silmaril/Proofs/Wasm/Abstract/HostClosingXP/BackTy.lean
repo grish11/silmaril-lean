@@ -23,7 +23,7 @@ namespace Silmaril.Proofs.Wasm.Abstract.HostClosingXP
 open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Validation
 open Silmaril.Wasm.Abstract.CallXT
 
-variable {H : Type}
+variable {H : Type} {J : Silmaril.Wasm.Interp.BackInv H}
 
 theorem funcType_of_expand' {d : DefType} {ps rs : Ty (.list .val)} (h : Expand d (.func ps rs)) :
     DefType.funcType? d = some (ps.toList, rs.toList) := by
@@ -86,7 +86,7 @@ theorem funcType_of_indRes {s : Store H} {f : Frame} {x : TableIdx} {y : TypeIdx
       exact funcType_of_sub hheap (hs _ _ hfi) (hm _ _ hd) hd'
 
 /-- **A typed `call_ref` form on a function reference: its function has a function type.** -/
-theorem funcType_of_callRef_cfg {P : Silmaril.Wasm.Numerics.Profile} {s : Store H} {f : Frame}
+theorem funcType_of_callRef_cfg_typed {P : Silmaril.Wasm.Numerics.Profile} {s : Store H} {f : Frame}
     {vs : List Val} {a : Nat} {cr : Admin} {rest : List Admin} {fi : FuncInst H}
     (ht : Sim.ContextTyped ⟨s, f, vals vs ++ .ref (.func a) :: cr :: rest⟩) (hcr : cr.IsCallRef)
     (hfi : s.funcs[a]? = some fi) :
@@ -127,7 +127,7 @@ theorem forall₂_last_left' {α β : Type} {R : α → β → Prop} :
     exact ⟨_ :: m', b, rfl, .cons h h', hb⟩
 
 /-- **A typed `return_call_ref` on a function reference: its function has a function type.** -/
-theorem funcType_of_returnCallRef_site {s : Store H} {f : Frame} {stk : List Val} {fa : Nat}
+theorem funcType_of_returnCallRef_site_typed {s : Store H} {f : Frame} {stk : List Val} {fa : Nat}
     {y : TypeIdx} {rest : List Admin} {fi : FuncInst H}
     (ht : Sim.ContextTyped ⟨s, f, vals (.ref (.func fa) :: stk).reverse ++
       .plain (.returnCallRef y) :: rest⟩)
@@ -204,5 +204,26 @@ theorem funcType_of_returnCallRef_site {s : Store H} {f : Frame} {stk : List Val
     obtain ⟨-, hs⟩ := Silmaril.Wasm.Execution.Core.CallRefDef.chain_heap_drop rfl h1
       (hfiok : SubClosed.Good (Ty.use (Ty.dt fi.type)))
     exact funcType_of_sub hs hfiok hdok (funcType_of_expand' he)
+
+/-- **A `call_ref` form on a function reference in an invariant: its function has a function
+type** (read off the witness). -/
+theorem funcType_of_callRef_cfg {P : Silmaril.Wasm.Numerics.Profile} {s : Store H} {f : Frame}
+    {vs : List Val} {a : Nat} {cr : Admin} {rest : List Admin} {fi : FuncInst H}
+    (ht : J.CT ⟨s, f, vals vs ++ .ref (.func a) :: cr :: rest⟩) (hcr : cr.IsCallRef)
+    (hfi : s.funcs[a]? = some fi) :
+    ∃ ps rs, DefType.funcType? fi.type = some (ps, rs) := by
+  obtain ⟨T, X, -, -, hw⟩ := J.wit' ht
+  exact funcType_of_callRef_cfg_typed (P := P) hw hcr hfi
+
+/-- **A `return_call_ref` on a function reference in an invariant: its function has a function
+type** (read off the witness). -/
+theorem funcType_of_returnCallRef_site {s : Store H} {f : Frame} {stk : List Val} {fa : Nat}
+    {y : TypeIdx} {rest : List Admin} {fi : FuncInst H}
+    (ht : J.CT ⟨s, f, vals (.ref (.func fa) :: stk).reverse ++
+      .plain (.returnCallRef y) :: rest⟩)
+    (hm : TyTypes f.module) (hfi : s.funcs[fa]? = some fi) (hfiok : TyOk {} fi.type) :
+    ∃ ps rs, DefType.funcType? fi.type = some (ps, rs) := by
+  obtain ⟨T, X, -, -, hw⟩ := J.wit' ht
+  exact funcType_of_returnCallRef_site_typed hw hm hfi hfiok
 
 end Silmaril.Proofs.Wasm.Abstract.HostClosingXP

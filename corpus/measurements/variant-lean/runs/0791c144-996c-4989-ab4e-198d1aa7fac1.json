@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "run_id": "0791c144-996c-4989-ab4e-198d1aa7fac1",
+  "stage": "tinycc-function-optimization-equivalence-and-structural-checks",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T00:35:31.019752+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.TinyccClosed.Identifier.Variants.Thms",
+    "Silmaril.Elf.Staged.CorpusVariants.Tinycc.N0927.Default.X8664.Og.Unstripped.Tcc.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.Tinycc.N0927.Default.X8664.O0.Stripped.Tcc.Decomp"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "x86_64-linux-gnu",
+  "repository": {
+    "commit": "4f4dc05ff125f80fa0d39971f6629004722f059b",
+    "dirty": true,
+    "diff_sha256": "baef061d870ef1ac6b18f17fbc16dff345b79d76ea8c794427b8aaec5f34d466"
+  },
+  "cache": "warm",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Variants/Defs.lean",
+      "sha256": "62204984f74ee847e697e737f916e778528c4bf3391bb64d019bae93a53274af"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Variants/Thms.lean",
+      "sha256": "5d47c54f50bb02badf69ab1258c185bce0273bff70235d91a667f2edf56f25fe"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bytes.lean",
+      "sha256": "e4001161f075a6034e01e98644e1d04247c1f91e0b2bd212947be712160a3f1d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Decomp.lean",
+      "sha256": "087071aa8755105d2d1a0060769b8abffbfc60cee796e8f2f529d4ac8d48a6aa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Defs.lean",
+      "sha256": "d267c6a546f85b16b8fe3ee7c76d1d1889a5d72ea0ee33f3592128985360e465"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Functions.lean",
+      "sha256": "5db79ebff0daa3cfc84682da835cc5e03a442d4b6d3f8dad898715e2f6cc9fd6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Thms.lean",
+      "sha256": "720fd5a7fa8818c5583cc3e38c64d5ec0ff2f2ffa3d5fc48ca2067fc9c373577"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bodies/Part0.lean",
+      "sha256": "73886e1e8b344da5ec51d5f35ff0e691c15fb7d6f651440937ac58e15cb277de"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bodies/Part1.lean",
+      "sha256": "17312bcb738efcaf0c9c041bdff51578b5a99f576bc8676e6da78939564ef372"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bodies/Part2.lean",
+      "sha256": "3d139c0a62e85c800a3b05c670b5d220e75b183bfa9f7ca12a73670c44b1c409"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bodies/Part3.lean",
+      "sha256": "8fb0662e10d4e0a15c7db89491d0b48facaf91377d163b390cfa5629cb8d1c12"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bodies/Part4.lean",
+      "sha256": "f86f6dc87e94fdf65c6f46e78fbfb465739831f71952f66255e55f10e48bafa4"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/Og/Unstripped/Tcc/Bodies/Part5.lean",
+      "sha256": "40d513295fe21d61672670f6cf0a22341738a956bf3271d5e74c0d11dddf359f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Stripped/Tcc/Bytes.lean",
+      "sha256": "05b50e0f07c5e11841ad22ef25980c8332842ce61c7a9b58747ff89395a92e07"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Stripped/Tcc/Decomp.lean",
+      "sha256": "7e618a08effabfcc777c0eb9631fcd4717c2127838d2e2a745ee59882a12fea0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Stripped/Tcc/Defs.lean",
+      "sha256": "2234a1f19a219dc6aaff050f9714f21269001c45891feb69456f93282c6a53b0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Stripped/Tcc/Functions.lean",
+      "sha256": "93c3a164b6fed3ca1b06e8521c02f412b4f350b21521476320c995a3fa49f6a0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Stripped/Tcc/Thms.lean",
+      "sha256": "caedaf190c3fec6d23692e13425d8185bc2476507278b9964725cac042bdf174"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bytes.lean",
+      "sha256": "87441326292df242e5be33634d0db4de0f1b4459570a0ad62e35b048d37f2b15"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Decomp.lean",
+      "sha256": "5436981ec0904accc1c33c181a1cd187582914050046dac641e03672b4053a50"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Defs.lean",
+      "sha256": "0c1ddf125022a817a9893f15141567a8076ccf15d80dfebdef4f6998dd5574df"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Functions.lean",
+      "sha256": "0dd4cbaf91d711d56079ad491d0e761755afb2b8ac00b169f54e75d43c9854fa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Thms.lean",
+      "sha256": "1e6bbfa165febd8c4bd4668259817dab007b1192d81cbeeaf014231f1d9bc714"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part0.lean",
+      "sha256": "4097e447a1c1c8d70e06d332602eda638740d361c324f493e96155c84430ce55"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part1.lean",
+      "sha256": "543c8f1461261e09def6581518dfd0046343ba7f804763588b9b6043d9601d11"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part2.lean",
+      "sha256": "7f64a4989dd95b6ead3f671c7ed62b2f7a78ae991addd16a5a58b773a0f26b1c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part3.lean",
+      "sha256": "0ada853b75c69e0dc17074802fd79c0ed4f38c4998e7b24c1423a0c1b15dc8da"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part4.lean",
+      "sha256": "ae07673ba08de93445487ca4486cd8139fd657f74b547531564f529a14a21eaf"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part5.lean",
+      "sha256": "f34f39fbd2fe6379b9ff1f986863996da914b37a0a57ce7eb744d98c7a8729d0"
+    },
+    {
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "sha256": "516d5364f354cdebcc3c6cd43df76f504cf17f8b0000a16a6ba061b9b1bec67c"
+    },
+    {
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/stripped/tcc",
+      "sha256": "e71efc2dbfdbccea6a46ab8dc9fa28281335a6f5ec8abfe5c2ee1e90ed9287b5"
+    },
+    {
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/Og/unstripped/tcc",
+      "sha256": "398ba6ca51236ceefa5902884ba42153959790c3b821b90a4037094d27a9b340"
+    },
+    {
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/tcc.pair.json",
+      "sha256": "e358013e479dae4bc4535d2c4edcc29ff0e536c3a4f4f900cef0f1cb4b72bb6f"
+    },
+    {
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/Og/tcc.pair.json",
+      "sha256": "32f0df6b73b5ec89caed966d45d056b0d59299dcf60c9270a34a7bfb8d52dfc1"
+    }
+  ],
+  "wall_seconds": 9.087249084001087,
+  "exit_code": 0,
+  "user_cpu_seconds": 6.35,
+  "system_cpu_seconds": 15.82,
+  "peak_rss_kib": 3668144,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

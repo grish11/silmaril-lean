@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "run_id": "976fb5c7-551d-428b-9ccb-e9e89b8b7dd5",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T13:06:24.074490+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.CjsonDetach.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "Silmaril.Elf.Corpus.CjsonDetach.Context.Defs",
+  "repository": {
+    "commit": "da5a9606578eaf1e71e8ee01a1ec4556901f1ee0",
+    "dirty": true,
+    "diff_sha256": "6d32e6b08ae138a2c80faadcd0a5002ef0e53c57b2533e6ea436417507d8bd24"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Context/Defs.lean",
+      "sha256": "94e533b795afca8d74489f7056f6d1079916adf4533d1cf3a1beeef98b4ec6f3"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Defs.lean",
+      "sha256": "b19ef0391c46621b68ec2ddd9dcac1778df46c2a0dc26af03b45e962c4efe9d5"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Source/Defs.lean",
+      "sha256": "0a84c4587f38915f61545b1acccb52247bc5692af7f3b4f99c5065691445fc54"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Source/Elaboration/Defs.lean",
+      "sha256": "f58ff2dbde03fc81388a21164c3d3525a12af183db5aff8820eb9b037e53d555"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Source/Elaboration/Thms.lean",
+      "sha256": "aa0cec55fd310279391f31352e85061452f90c4ffee8e9f39d5154a7e853629f"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Source/Projection/Defs.lean",
+      "sha256": "c90f7c868dc0fda639928714dca7f64af22e7d6911d46d7aff22b8f50210dcd6"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Source/Projection/Thms.lean",
+      "sha256": "91ed597c853f558a4a899df4c72b888366fa93ea6cbe44ab0bd994750c47e1e6"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonDetach/Thms.lean",
+      "sha256": "ea6fff21e14b7c91d91df138cdd5b0b6bb788dc1146f7d8e111bb3ad5f7974f8"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonDetach/Bindings.lean",
+      "sha256": "c720d8231d17a5b3bc28193383e6aa7362aa5dddcf719747f0d639a39db8ad7f"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonDetach/Projection.lean",
+      "sha256": "de470431d8186c15f10ecc770d90ba5fd40949796e0fea22cc9eb38e9d1286c7"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonDetach/Source.lean",
+      "sha256": "fe62ed8a5d6533c947cc46bcafaace75fe4e41705e3b10e17fb601c9ff7555d7"
+    }
+  ],
+  "wall_seconds": 44.14828124100313,
+  "exit_code": 0,
+  "user_cpu_seconds": 42.8,
+  "system_cpu_seconds": 24.18,
+  "peak_rss_kib": 5525560,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

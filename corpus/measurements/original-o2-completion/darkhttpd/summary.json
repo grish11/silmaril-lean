@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "project": "darkhttpd",
+  "version": "1.17",
+  "configuration": "default",
+  "optimization": "O2",
+  "actual_new_elf_rows": 4,
+  "retained_rows_no_new_execution_claimed": 0,
+  "profiles": [
+    {
+      "target": "x86_64-linux-gnu",
+      "build": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/emikulic/darkhttpd/archive/refs/tags/v1.17.tar.gz",
+          "sha256": "4fee9927e2d8bb0a302f0dd62f9ff1e075748fa9f5162c9481a7a58b41462b56"
+        }
+      ],
+      "included_sources_hash_checked": 3,
+      "measured_exits_passed": 12,
+      "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD",
+      "build_wall_seconds": {
+        "build-a": 0.6865515890003735,
+        "build-b": 0.6664334959987173
+      },
+      "outputs": [
+        {
+          "object": "darkhttpd",
+          "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/unstripped/darkhttpd",
+          "size": 56960,
+          "sha256": "b45c15569dd015aaf8b434ddf8771f65da7bdb6c0f81f258a8e94e25c35732fe",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 50,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/unstripped/receipt.json",
+          "receipt_sha256": "ee27012b6f9ec3bf2f7537bc0511570c2ecdd78fe53a87628a411eae96e40484",
+          "census": "corpus/census/variants/darkhttpd/1.17/default/x86_64/O2/unstripped/darkhttpd.json",
+          "strip_pair": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/darkhttpd.pair.json",
+          "canonical_sha256": "b45c15569dd015aaf8b434ddf8771f65da7bdb6c0f81f258a8e94e25c35732fe",
+          "matches_canonical": true
+        },
+        {
+          "object": "darkhttpd",
+          "path": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/stripped/darkhttpd",
+          "size": 48072,
+          "sha256": "e5abd756354ee4cb83be15cab47b23c2144979d5293d73a821bf600ecb58b616",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/stripped/receipt.json",
+          "receipt_sha256": "9a9c89637d6e1c16b82b6b1d53c102e17b0102a6cd5fd04cc8155ddeecabce0f",
+          "census": "corpus/census/variants/darkhttpd/1.17/default/x86_64/O2/stripped/darkhttpd.json",
+          "strip_pair": "corpus/variants/darkhttpd/1.17/default/x86_64/O2/darkhttpd.pair.json",
+          "canonical_sha256": "b45c15569dd015aaf8b434ddf8771f65da7bdb6c0f81f258a8e94e25c35732fe",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    },
+    {
+      "target": "aarch64-linux-gnu",
+      "build": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/emikulic/darkhttpd/archive/refs/tags/v1.17.tar.gz",
+          "sha256": "4fee9927e2d8bb0a302f0dd62f9ff1e075748fa9f5162c9481a7a58b41462b56"
+        }
+      ],
+      "included_sources_hash_checked": 3,
+      "measured_exits_passed": 12,
+      "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/darkhttpd=. -MMD",
+      "build_wall_seconds": {
+        "build-a": 0.8169538700003613,
+        "build-b": 0.7562950330011518
+      },
+      "outputs": [
+        {
+          "object": "darkhttpd",
+          "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/unstripped/darkhttpd",
+          "size": 78240,
+          "sha256": "fb41f374181fc07d4c1db90d55728f1c40b593ae9e9756943df497ce81124c58",
+          "elf_machine": "AArch64",
+          "func_symbols": 34,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/unstripped/receipt.json",
+          "receipt_sha256": "4db53a2c61861d83f666ad06bbb18fd6989027fca11217134a5bd8314231f8f6",
+          "census": "corpus/census/variants/darkhttpd/1.17/default/aarch64/O2/unstripped/darkhttpd.json",
+          "strip_pair": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/darkhttpd.pair.json",
+          "canonical_sha256": "fb41f374181fc07d4c1db90d55728f1c40b593ae9e9756943df497ce81124c58",
+          "matches_canonical": true
+        },
+        {
+          "object": "darkhttpd",
+          "path": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/stripped/darkhttpd",
+          "size": 68512,
+          "sha256": "13fd1a82c297bb4d2c4cc201750649bf9ccee2fcf7f7e2e0d6748feba816fae4",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/stripped/receipt.json",
+          "receipt_sha256": "21e8c166df6c3effe707a04c6f71235b50a9674de9186e3c9e48d12940a8a8bc",
+          "census": "corpus/census/variants/darkhttpd/1.17/default/aarch64/O2/stripped/darkhttpd.json",
+          "strip_pair": "corpus/variants/darkhttpd/1.17/default/aarch64/O2/darkhttpd.pair.json",
+          "canonical_sha256": "fb41f374181fc07d4c1db90d55728f1c40b593ae9e9756943df497ce81124c58",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    }
+  ],
+  "retained_profiles": [],
+  "limits": [
+    "Only completed actual outputs counted; original paths/hashes preserved.",
+    "Two independently initialized reused pinned containers; independent workspace/build/strip/runtime repeats.",
+    "Static census and runtime observations are not semantic equivalence or Lean proofs.",
+    "No exhaustive upstream test or full local make check claim."
+  ]
+}

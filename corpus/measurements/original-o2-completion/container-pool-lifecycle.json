@@ -1,0 +1,255 @@
+{
+  "toolchain": "corpus/toolchain",
+  "pool_id": "9efe74fb-b55e-49f1-8e87-9d7898502570",
+  "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+  "lifecycle": "two independently initialized persistent containers; reused across profiles",
+  "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+  "reset": [
+    "bash",
+    "-eu",
+    "-c",
+    "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+  ],
+  "environment": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "SOURCE_DATE_EPOCH": "1762128000",
+    "JOBS": "3"
+  },
+  "resources": {
+    "containers": 2,
+    "cpu_per_container": 3,
+    "memory_bytes_per_container": 12884901888,
+    "execution": "serial builds, strips and tests; no third container"
+  },
+  "started_utc": "2026-11-18T02:28:55.540405+00:00",
+  "workers": [
+    {
+      "slot": 0,
+      "container_id": "126d0c14947d86b41b777a7853b8c21e9dc0739a62fdeaab251c8b53f7fb655c",
+      "creation_command": [
+        "docker",
+        "run",
+        "--network",
+        "host",
+        "--pull=never",
+        "--detach",
+        "--read-only",
+        "--cpus",
+        "3",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "12g",
+        "--pids-limit",
+        "256",
+        "--workdir",
+        "/",
+        "--tmpfs",
+        "/build:rw,exec,size=8g",
+        "--tmpfs",
+        "/tmp:rw,exec,size=1g",
+        "--tmpfs",
+        "/root:rw,size=64m",
+        "-v",
+        "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+        "-v",
+        "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+        "-v",
+        "/root/.cache/silmaril-corpus:/cache:ro",
+        "-v",
+        "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/0:/out",
+        "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "sleep",
+        "infinity"
+      ],
+      "initialized_utc": "2026-11-18T02:28:55.667852+00:00",
+      "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+    },
+    {
+      "slot": 1,
+      "container_id": "8a6c2e29fb4922229be80f1529fbad7f09c44cf0e362bf36ad932010679ef0e8",
+      "creation_command": [
+        "docker",
+        "run",
+        "--network",
+        "host",
+        "--pull=never",
+        "--detach",
+        "--read-only",
+        "--cpus",
+        "3",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "12g",
+        "--pids-limit",
+        "256",
+        "--workdir",
+        "/",
+        "--tmpfs",
+        "/build:rw,exec,size=8g",
+        "--tmpfs",
+        "/tmp:rw,exec,size=1g",
+        "--tmpfs",
+        "/root:rw,size=64m",
+        "-v",
+        "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+        "-v",
+        "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+        "-v",
+        "/root/.cache/silmaril-corpus:/cache:ro",
+        "-v",
+        "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/1:/out",
+        "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "sleep",
+        "infinity"
+      ],
+      "initialized_utc": "2026-11-18T02:28:55.879578+00:00",
+      "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+    }
+  ],
+  "profiles": [
+    {
+      "identity": "corpus/variants/darkhttpd/1.17/default/x86_64/O2",
+      "sequence": 1,
+      "started_utc": "2026-11-18T02:28:56.684130+00:00",
+      "container_reused": false,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:29:01.171444+00:00"
+    },
+    {
+      "identity": "corpus/variants/darkhttpd/1.17/default/aarch64/O2",
+      "sequence": 2,
+      "started_utc": "2026-11-18T02:29:01.423689+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:29:06.919981+00:00"
+    },
+    {
+      "identity": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O2",
+      "sequence": 3,
+      "started_utc": "2026-11-18T02:29:07.855819+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:29:13.359215+00:00"
+    },
+    {
+      "identity": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O2",
+      "sequence": 4,
+      "started_utc": "2026-11-18T02:29:13.605940+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:29:20.117029+00:00"
+    },
+    {
+      "identity": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2",
+      "sequence": 5,
+      "started_utc": "2026-11-18T02:29:20.850126+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:29:30.321638+00:00"
+    },
+    {
+      "identity": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2",
+      "sequence": 6,
+      "started_utc": "2026-11-18T02:29:30.570196+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:29:41.185623+00:00"
+    },
+    {
+      "identity": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2",
+      "sequence": 7,
+      "started_utc": "2026-11-18T02:29:41.637906+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:30:46.399087+00:00"
+    },
+    {
+      "identity": "corpus/variants/jemalloc/5.3.0/default/aarch64/O2",
+      "sequence": 8,
+      "started_utc": "2026-11-18T02:30:46.647665+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:32:00.142533+00:00"
+    },
+    {
+      "identity": "corpus/variants/refcrypto/2026-11-17/default/x86_64/O2",
+      "sequence": 9,
+      "started_utc": "2026-11-18T02:32:06.167993+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:32:33.971189+00:00"
+    },
+    {
+      "identity": "corpus/variants/refcrypto/2026-11-17/default/aarch64/O2",
+      "sequence": 10,
+      "started_utc": "2026-11-18T02:32:34.219853+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:33:06.127872+00:00"
+    },
+    {
+      "identity": "corpus/variants/tinycc/0.9.27/default/x86_64/O2",
+      "sequence": 11,
+      "started_utc": "2026-11-18T02:33:06.391657+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:33:13.529138+00:00"
+    },
+    {
+      "identity": "corpus/variants/tinycc/0.9.27/default/aarch64/O2",
+      "sequence": 12,
+      "started_utc": "2026-11-18T02:33:13.774980+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:33:21.829264+00:00"
+    },
+    {
+      "identity": "corpus/variants/coreutils/9.12/default/x86_64/O2",
+      "sequence": 13,
+      "started_utc": "2026-11-18T02:33:22.117495+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:37:11.857485+00:00"
+    },
+    {
+      "identity": "corpus/variants/coreutils/9.12/default/aarch64/O2",
+      "sequence": 14,
+      "started_utc": "2026-11-18T02:37:12.163684+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:40:23.690561+00:00"
+    }
+  ],
+  "stopped_utc": "2026-11-18T02:40:23.914335+00:00",
+  "removal": [
+    {
+      "container_id": "126d0c14947d86b41b777a7853b8c21e9dc0739a62fdeaab251c8b53f7fb655c",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "container_id": "8a6c2e29fb4922229be80f1529fbad7f09c44cf0e362bf36ad932010679ef0e8",
+      "exit_code": 0,
+      "stderr": ""
+    }
+  ]
+}

@@ -1,0 +1,182 @@
+{
+  "toolchain": "corpus/toolchain/boringssl",
+  "pool_id": "0c5b011a-bc25-401f-b461-fdd09a1dff8d",
+  "image_id": "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+  "lifecycle": "two independently initialized persistent containers; reused across profiles",
+  "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+  "reset": [
+    "bash",
+    "-eu",
+    "-c",
+    "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+  ],
+  "environment": {
+    "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    "HOME": "/root",
+    "LC_ALL": "C",
+    "TZ": "UTC",
+    "SOURCE_DATE_EPOCH": "1762128000",
+    "JOBS": "3"
+  },
+  "resources": {
+    "containers": 2,
+    "cpu_per_container": 3,
+    "memory_bytes_per_container": 12884901888,
+    "execution": "serial builds, strips and tests; no third container"
+  },
+  "started_utc": "2026-11-18T02:40:27.553321+00:00",
+  "workers": [
+    {
+      "slot": 0,
+      "container_id": "48de2c3061930bb41453cd0d102e53c0a890061559cb1788723c58ad95430888",
+      "creation_command": [
+        "docker",
+        "run",
+        "--network",
+        "host",
+        "--pull=never",
+        "--detach",
+        "--read-only",
+        "--cpus",
+        "3",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "12g",
+        "--pids-limit",
+        "256",
+        "--workdir",
+        "/",
+        "--tmpfs",
+        "/build:rw,exec,size=8g",
+        "--tmpfs",
+        "/tmp:rw,exec,size=1g",
+        "--tmpfs",
+        "/root:rw,size=64m",
+        "-v",
+        "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/corpus:/corpus:ro",
+        "-v",
+        "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/scripts:/scripts:ro",
+        "-v",
+        "/root/.cache/silmaril-corpus:/cache:ro",
+        "-v",
+        "/work/out/container-pool/boringssl-aarch64/pool-f6a4aed5-d906-4e45-a0ab-2b2e913bbd5d/0:/out",
+        "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+        "sleep",
+        "infinity"
+      ],
+      "initialized_utc": "2026-11-18T02:40:27.670489+00:00",
+      "extended_tool_inventory_sha256": {
+        "tools.json": "c56ae57f2c7f36d3e39c64c2e31d92bf11739a3b063c35119d2222b322ea57d7",
+        "go-tree.sha256": "f285de4a44ea0fb8c894493661305bd819629bac28e63b77b7ecdd844dff1d8e"
+      },
+      "package_lock_sha256": "6993f84960d608655f3c36d682815db8fbc900a0e2f60872d215d876d2f1afce"
+    },
+    {
+      "slot": 1,
+      "container_id": "076d721e3691a8f0865cb47f2f47b9e9bc8a483c0e62a854c15e899d4a9b66f8",
+      "creation_command": [
+        "docker",
+        "run",
+        "--network",
+        "host",
+        "--pull=never",
+        "--detach",
+        "--read-only",
+        "--cpus",
+        "3",
+        "--memory",
+        "12g",
+        "--memory-swap",
+        "12g",
+        "--pids-limit",
+        "256",
+        "--workdir",
+        "/",
+        "--tmpfs",
+        "/build:rw,exec,size=8g",
+        "--tmpfs",
+        "/tmp:rw,exec,size=1g",
+        "--tmpfs",
+        "/root:rw,size=64m",
+        "-v",
+        "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/corpus:/corpus:ro",
+        "-v",
+        "/work/out/container-pool/boringssl-aarch64/recipes-e8e9d5b4-ee76-4e74-8223-8a95158df5cb/scripts:/scripts:ro",
+        "-v",
+        "/root/.cache/silmaril-corpus:/cache:ro",
+        "-v",
+        "/work/out/container-pool/boringssl-aarch64/pool-f6a4aed5-d906-4e45-a0ab-2b2e913bbd5d/1:/out",
+        "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+        "sleep",
+        "infinity"
+      ],
+      "initialized_utc": "2026-11-18T02:40:29.717496+00:00",
+      "extended_tool_inventory_sha256": {
+        "tools.json": "c56ae57f2c7f36d3e39c64c2e31d92bf11739a3b063c35119d2222b322ea57d7",
+        "go-tree.sha256": "f285de4a44ea0fb8c894493661305bd819629bac28e63b77b7ecdd844dff1d8e"
+      },
+      "package_lock_sha256": "6993f84960d608655f3c36d682815db8fbc900a0e2f60872d215d876d2f1afce"
+    }
+  ],
+  "profiles": [
+    {
+      "identity": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/no-asm/aarch64/O0",
+      "sequence": 1,
+      "started_utc": "2026-11-18T02:40:32.004335+00:00",
+      "container_reused": false,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:42:42.769110+00:00"
+    },
+    {
+      "identity": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/no-asm/aarch64/O2",
+      "sequence": 2,
+      "started_utc": "2026-11-18T02:42:43.186116+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:45:07.247946+00:00"
+    },
+    {
+      "identity": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O0",
+      "sequence": 3,
+      "started_utc": "2026-11-18T02:45:07.689555+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:47:21.320777+00:00"
+    },
+    {
+      "identity": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/aarch64/O2",
+      "sequence": 4,
+      "started_utc": "2026-11-18T02:47:21.755653+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:49:48.075594+00:00"
+    },
+    {
+      "identity": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/fips-shared/aarch64/O0",
+      "sequence": 5,
+      "started_utc": "2026-11-18T02:49:48.498256+00:00",
+      "container_reused": true,
+      "workspace_reset_verified": true,
+      "status": "passed",
+      "finished_utc": "2026-11-18T02:52:12.075561+00:00"
+    }
+  ],
+  "stopped_utc": "2026-11-18T02:52:12.236070+00:00",
+  "removal": [
+    {
+      "container_id": "48de2c3061930bb41453cd0d102e53c0a890061559cb1788723c58ad95430888",
+      "exit_code": 0,
+      "stderr": ""
+    },
+    {
+      "container_id": "076d721e3691a8f0865cb47f2f47b9e9bc8a483c0e62a854c15e899d4a9b66f8",
+      "exit_code": 0,
+      "stderr": ""
+    }
+  ]
+}

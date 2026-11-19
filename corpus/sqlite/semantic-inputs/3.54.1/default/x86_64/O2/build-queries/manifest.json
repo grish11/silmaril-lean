@@ -1,0 +1,18 @@
+{
+  "external_input_sha256": "8b8baaf3b1d75220a6665d6fb4cfcf69f230ace0f629a15b62566603701cc780",
+  "files": {
+    "context.c": "fa8672b63affea57a936d76b3cd7adb67b19ef336c005cf4ed5213ee1355d028",
+    "typed-ail.sexp": "4b18126110dd90ca54830215283d9f12916b12c345d918a79e63f48b0d612986",
+    "program.sexp": "a319bf961d26528a99b34a78d1074964053a36240ac652f9bbc9dce017614a0e",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "projection.json": "de152f8f272a75f280bd813232781655e1561aa9192e706cc04150e1c6f2d217",
+    "translation-unit.i": "31992f073781a1cdbd06ee2a00b2de14b62d87b5e81199dbb6a0fb7dfb7b6f1d",
+    "preprocessing.json": "8f43041c7c871983a98c2b4adc324ea7e310ce5695ce806bb0a3ecc0e29ca537"
+  },
+  "immutable_files": {
+    "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+    "corpus/elf/sqlite/x86_64/libsqlite3.so": "fcdd0cd75ea98cee14f2743832c6ad2ed4dd4229e2b5093f8bce7dc33c9c17f8",
+    "corpus/elf/sqlite/x86_64/receipt.json": "440481b4de2f2d7d808e50dd72a09789f4657e401aea9d0aca5d938b72705ec4",
+    "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf"
+  }
+}

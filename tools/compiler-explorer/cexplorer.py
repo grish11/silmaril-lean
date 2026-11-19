@@ -822,7 +822,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
         db = connect(self.db_path, readonly=True)
         try:
-            if path == "/api/problems":
+            if path in ("/api/problems", "/api/problems.json"):
                 self.json(200, problem_list(db))
             elif path.startswith("/api/problems/"):
                 pid = urllib.parse.unquote(path[len("/api/problems/"):])

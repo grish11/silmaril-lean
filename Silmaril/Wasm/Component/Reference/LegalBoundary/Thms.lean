@@ -81,6 +81,11 @@ legal injections, those of `CfgLegalOwner.legal_injection_of` (`Linked2.Adequate
   REF names but no machine rule produces).
 * An interface in which a raw Core exception crosses a component boundary (an `ssig` with an
   exception answer) is a different interface, not a failure of this one.
+* The threading of items 2–3 through the session-level reference observations (finished
+  outcomes, quiet divergences and productive runs of `Linked2`, `LinkedG` and `HLinked2`) is not
+  here: it is `LegalBoundaryRuns` (`stepTwin_throw_trap`, `rest_throw_iff_trap`,
+  `sessCalls_through_trap`, `sessDiv_through_trap`, `sessRun_through_trap`, and no infinite rest
+  from either configuration).
 -/
 
 public section

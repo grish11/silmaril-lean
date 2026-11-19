@@ -14,7 +14,7 @@ development-environment checks, but defer the full Lean build until ready.
 | Development environments | Docker and Nix cross-tool smoke, in parallel | 10 minutes each |
 | CI helpers | Cache credential/path tests and timing tests | 2 minutes |
 | CI | Require every selected check to pass | 1 minute |
-| CI time budget | Fail separately when the attempt exceeds four minutes, not counting module compilation | 2 minutes |
+| CI time budget | Fail separately when the attempt exceeds five minutes, not counting module compilation | 2 minutes |
 
 `make check` builds the full Lean library and native tools with `--wfail`. It runs
 the layout, process facts, header, SHA artifact, x86 catalogue and offline LPS
@@ -64,7 +64,7 @@ outside this measurement. Reruns use the current attempt's start time.
 After a toolchain or archive-tool change no published build matches. Run **CI**
 manually on **main** with **seed** checked: it builds cold with a 90-minute Lean
 limit, runs all correctness checks, and publishes. Only this explicit manual mode
-skips the four-minute timing check.
+skips the five-minute timing check.
 
 A fork pull request's public Linux runner has four CPUs and 16 GB RAM.
 `LEAN_NUM_THREADS=2` limits Lake's worker pool; the native release suites run one

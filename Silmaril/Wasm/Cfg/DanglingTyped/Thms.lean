@@ -6,6 +6,9 @@ public import Silmaril.Wasm.Cfg.CfgInst.Defs
 public import Silmaril.Wasm.Cfg.CfgInst.Thms
 import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Init
 import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Chk
+import Silmaril.Proofs.Wasm.Cfg.DanglingTyped.Back
+public import Silmaril.Wasm.Interp.CtxInv.Defs
+public import Silmaril.Wasm.Abstract.BackInv.Defs
 
 @[expose] public section
 
@@ -44,12 +47,13 @@ acceptance alone (`StoreChkE`, so `InstDom`) does **not** give `FuncsSupp`: the 
 code after an instruction that never falls through, which may hold an unsupported instruction
 (`ExampleAlias.dc_instDom`, `dc_not_funcsSupp`).
 
-**Not claimed here.** No theorem here relates Core and the native/CFG semantics. The backward
-simulation (`Abstract.HostClosingXP`, `HostClosingInfXPBack`, `HostEval`) is still stated for
-`Sim.ContextTyped` configurations and `HostTyped` hosts; carrying it over `ConfigOkD` is open.
-The supported profile excludes `ref.test`, `br_on_cast*`, aggregates and abstract-heap
-`ref.cast`, where Core's decision on a dangling reference (`DanglingExn.step_refTest`,
-`step_refCast`) differs from the witness's.
+**The backward simulations' operations.** `ConfigOkD` against `HostTypedD` hosts has every
+operation of `Interp.BackInv` (`ConfigOkD.suffix`, `.label`, `.handler`, `.frameHole`, `.wit`,
+`.steps_host`, `hostTypedD_trapAt`, `.through`); the instance is `DanglingBack.backD`, and the
+reverse inclusion built on it is `DanglingBack.instTripleS_sub_cfgInstTripleU`. The supported
+profile excludes `ref.test`, `br_on_cast*`, aggregates and abstract-heap `ref.cast`, where Core's
+decision on a dangling reference (`DanglingExn.step_refTest`, `step_refCast`) differs from the
+witness's.
 -/
 
 namespace Silmaril.Wasm.Cfg.DanglingTyped
@@ -151,5 +155,63 @@ theorem configOkD_of_supported {I : Game.ScalarInstance} {s : Store Nat} (hw : I
     ConfigOkD (invoke s (Abstract.NodeBridge.qOf I a).1 (Abstract.NodeBridge.qOf I a).2) :=
   configOkD_invoke_of_storeOk hw.storeOk (funcsSupp_of_storeSupported hw.storeOk hsup)
     (CfgInst.invOkXP_of_dom (CfgInst.instDom_of_supported hw hsup) a).2.2.2
+
+/-! ## The operations of the backward simulations' invariant
+
+`ConfigOkD` against `HostTypedD` hosts has every operation of `Interp.BackInv` (the instance is
+`DanglingBack.backD`). -/
+
+theorem ConfigOkD.suffix {s : Store H} {f : Frame} {body rest : List Admin}
+    (h : ConfigOkD ⟨s, f, body ++ rest⟩) : ConfigOkD ⟨s, f, body⟩ :=
+  Proofs.DanglingTyped.ConfigOkD.suffix h
+
+theorem ConfigOkD.label {s : Store H} {f : Frame} {n : Nat} {cont : List Instr} {vs : List Val}
+    {body rest : List Admin} (h : ConfigOkD ⟨s, f, vals vs ++ [.label n cont body] ++ rest⟩) :
+    ConfigOkD ⟨s, f, body⟩ :=
+  Proofs.DanglingTyped.ConfigOkD.label h
+
+theorem ConfigOkD.handler {s : Store H} {f : Frame} {n : Nat} {cs : List Catch} {vs : List Val}
+    {body rest : List Admin} (h : ConfigOkD ⟨s, f, vals vs ++ [.handler n cs body] ++ rest⟩) :
+    ConfigOkD ⟨s, f, body⟩ :=
+  Proofs.DanglingTyped.ConfigOkD.handler h
+
+theorem ConfigOkD.frameHole {s : Store H} {f fi : Frame} {n : Nat} {vs : List Val}
+    {body rest : List Admin} (h : ConfigOkD ⟨s, f, vals vs ++ [.frame n fi body] ++ rest⟩) :
+    ConfigOkD ⟨s, fi, body⟩ :=
+  Proofs.DanglingTyped.ConfigOkD.frameHole h
+
+/-- **The witness, as the backward simulations read it**: tags extending the store's, and
+defined-type casts deciding as on the actual store. -/
+theorem ConfigOkD.wit {c : Config H} (h : ConfigOkD c) :
+    ∃ (T : List TagInst) (X : List ExnInst), c.store.tags <+: T ∧
+      (∀ (m : ModuleInst) (r : Ref) (b : Bool) (y : TypeIdx),
+        RefOk { c.store with tags := T, exns := X } r (m.instRef ⟨b, .typeIdx y⟩) ↔
+          RefOk c.store r (m.instRef ⟨b, .typeIdx y⟩)) ∧
+      Sim.ContextTyped ⟨{ c.store with tags := T, exns := X }, c.frame, c.code⟩ :=
+  Proofs.DanglingTyped.ConfigOkD.wit h
+
+/-- Core runs against a store-keeping host with typed values keep the relaxed invariant. -/
+theorem ConfigOkD.steps_host {host : HostSemantics H} (hT : HostTypedD host) {c c' : Config H}
+    (hc : ConfigOkD c) (h : Steps P host c c') : ConfigOkD c' :=
+  Proofs.DanglingTyped.ConfigOkD.steps_host hT hc h
+
+/-- Answering one more call by a trap in its store keeps `HostTypedD`. -/
+theorem hostTypedD_trapAt {host : HostSemantics H} (m : H × Store H × List Val)
+    (hT : HostTypedD host) : HostTypedD (Interp.trapAt host m) :=
+  Proofs.DanglingTyped.hostTypedD_trapAt m hT
+
+/-- **The actual store of a configuration in the relaxed invariant has closed-valid principal
+types**, and its code meets the interpreter's cast side conditions. -/
+theorem ConfigOkD.storeTy_deepAll {c : Config H} (h : ConfigOkD c) :
+    Abstract.StoreTy c.store ∧
+      SingleThreaded.Exec.DeepAll SingleThreaded.Exec.IHeadInv c.frame c.code :=
+  Proofs.DanglingTyped.ConfigOkD.storeTy_deepAll h
+
+/-- **Divergence passes through every host-free step** of a configuration in the relaxed
+invariant (deterministic profile). -/
+theorem ConfigOkD.through {o : SingleThreaded.GrowOracle} {host : HostSemantics H}
+    {K d : Config H} (ht : ConfigOkD K) (hK : Diverges (SingleThreaded.profile o) host K)
+    (hd : SingleThreaded.Det.DStep o K d) : Diverges (SingleThreaded.profile o) host d :=
+  Proofs.DanglingTyped.ConfigOkD.through ht hK hd
 
 end Silmaril.Wasm.Cfg.DanglingTyped

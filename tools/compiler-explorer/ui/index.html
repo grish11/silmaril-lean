@@ -10,6 +10,7 @@
 <body>
 <header>
   <h1>Compiler explorer <span class="sub">source ↔ target, with what is proved about each link</span></h1>
+  <p><a href="?">Compiler fixtures</a> · <label>Registered corpus statement <select id="corpus-statement"><option value="">Choose a statement</option></select></label> · <label>Binary-equivalence problem <select id="binary-statement"><option value="">Choose a pair</option></select></label></p>
   <div class="pickers">
     <label>Program <select id="program"></select></label>
     <label>Build <select id="build"></select></label>
@@ -31,6 +32,7 @@
     <section id="assumptions"></section>
   </aside>
 </main>
+<section id="corpus-evidence" hidden></section>
 <footer id="status" class="muted"></footer>
 </body>
 </html>

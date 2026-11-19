@@ -33,9 +33,22 @@ class TimeBudgetTests(unittest.TestCase):
     def check(self, *jobs):
         return quiet(ci_time.check, self.attempt, list(jobs), self.now)
 
-    def test_four_minutes_of_running_jobs_passes_but_exceeding_it_fails(self):
-        self.assertEqual(self.check(job("a", "2026-01-01T00:00:00Z", "2026-01-01T00:04:00Z"))[0], 0)
-        self.assertEqual(self.check(job("a", "2026-01-01T00:00:00Z", "2026-01-01T00:04:01Z"))[0], 1)
+    def test_five_minutes_of_running_jobs_passes_but_exceeding_it_fails(self):
+        self.assertEqual(self.check(job("a", "2026-01-01T00:00:00Z", "2026-01-01T00:05:00Z"))[0], 0)
+        self.assertEqual(self.check(job("a", "2026-01-01T00:00:00Z", "2026-01-01T00:05:00.001Z"))[0], 1)
+
+    def test_observed_timings_and_over_budget_diagnostic(self):
+        # Counted times from direct-function and byte-CFG correctness runs.
+        for elapsed in [242.5, 297.0]:
+            with self.subTest(elapsed=elapsed):
+                end = (ci_time.timestamp("2026-01-01T00:00:00Z") +
+                       timedelta(seconds=elapsed)).isoformat()
+                self.assertEqual(self.check(job("lean", "2026-01-01T00:00:00Z", end))[0], 0)
+        status, out = self.check(job("lean", "2026-01-01T00:00:00Z",
+                                    "2026-01-01T00:09:46.7Z"))
+        self.assertEqual(status, 1)
+        self.assertIn("586.7s counts against the 300s limit", out)
+        self.assertIn("::error::CI exceeded 300 seconds", out)
 
     def test_waiting_for_a_runner_does_not_count(self):
         # main after #93 (run 43357817902): `lean / check` waited 213 s for a 16-vCPU runner.
@@ -60,16 +73,16 @@ class TimeBudgetTests(unittest.TestCase):
         ], self.now)), 240)
 
     def test_rerunning_only_the_budget_still_counts_the_correctness_jobs(self):
-        # Attempt 1 ran `lean` for 300 s and failed the budget; attempt 2, an hour later,
+        # Attempt 1 ran `lean` for 301 s and failed the budget; attempt 2, an hour later,
         # reruns only this check, whose list keeps attempt 1's `lean`.
         rerun = {"run_started_at": "2026-01-01T01:00:00Z"}
-        jobs = [job("lean", "2026-01-01T00:00:00Z", "2026-01-01T00:05:00Z"),
+        jobs = [job("lean", "2026-01-01T00:00:00Z", "2026-01-01T00:05:01Z"),
                 {"name": "CI time budget / budget", "started_at": "2026-01-01T01:00:05Z",
                  "completed_at": None, "conclusion": None}]
         now = datetime(2026, 1, 1, 1, 0, 15, tzinfo=timezone.utc)
         status, out = quiet(ci_time.check, rerun, jobs, now)
         self.assertEqual(status, 1)
-        self.assertIn("310.0s with a job running (3305.0s with none", out)
+        self.assertIn("311.0s with a job running (3304.0s with none", out)
 
     def test_invalid_timestamps_fail_instead_of_passing(self):
         for started in ["invalid", "2026-01-01T00:11:00Z", "2026-01-01T00:01:00"]:

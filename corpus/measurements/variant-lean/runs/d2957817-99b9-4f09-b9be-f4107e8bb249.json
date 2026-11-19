@@ -1,0 +1,839 @@
+{
+  "schema_version": 1,
+  "run_id": "d2957817-99b9-4f09-b9be-f4107e8bb249",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T23:54:03.481256+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O0.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O0.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O0.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O0.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O1.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O1.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O1.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O1.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O3.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O3.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O3.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.O3.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.Og.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.Og.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.Og.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.Aarch64.Og.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O0.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O0.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O0.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O0.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O1.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O1.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O1.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O1.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O3.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O3.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O3.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.O3.Unstripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.Og.Stripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.Og.Stripped.PingpongServer.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.Og.Unstripped.PingpongClient.Decomp",
+    "Silmaril.Elf.Staged.CorpusVariants.TcpPingpong.Bgnet34fb9d78.Default.X8664.Og.Unstripped.PingpongServer.Decomp"
+  ],
+  "cwd": "/work/tcp-structural",
+  "target": "x86_64+aarch64-linux-gnu",
+  "repository": {
+    "commit": "e52a89a9fc8e36a3fae5764e8861632159647d78",
+    "dirty": true,
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cache": "unspecified",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/stripped/pingpong-client",
+      "sha256": "53eb273d9af84ac56e9cee8bb3c656c8574d5d63adfabbcc34b06c06228ce0cc"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "747e66a9fa9ee36854ccd17d4a80c99c8fff846b76ef90451a3045803e31016c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "001436ab28d3b3a5c38d98173d7ffd7eb9ee830c24dd791b3778d72024e5ef53"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongClient/Defs.lean",
+      "sha256": "c5f79c13085c4c8d14e43479892e6d619bb759cfb42e151dbdda1edf8ecd8c1b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongClient/Functions.lean",
+      "sha256": "f30273d1390d76de8f14b31f60af78d3adcb5abf2211c38439800aa3a6d20afe"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongClient/Thms.lean",
+      "sha256": "5434c0eae8cd71ead4b0aec12b58073344927248e9e62f4d02230ead5a34c081"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/stripped/pingpong-server",
+      "sha256": "c8b083643af4b9a7142e7f1ca4b08cce8a75a8b5a7ab341d14505cf23e5308f3"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "b7e8e34bf217202ff7acd34108e5b170828951ff95f0969b4f4024e0f3ec1256"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "56e5f89ac4e41989cec49fe5a9c20dcbfd4061388c90ae023ba13f4503a24a16"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongServer/Defs.lean",
+      "sha256": "7718befe24bcad406c8559e84121e870b0b31df75fa305aa1077faf51c0b833d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongServer/Functions.lean",
+      "sha256": "066a1814f5be3836e88b2dd37b52e9f962b2d91c6de4607759d3a67140e99504"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Stripped/PingpongServer/Thms.lean",
+      "sha256": "ad2a055fe20f235d5a6f69d0472f16921c2a43a1ad70912f72fd2b7f0431064d"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/unstripped/pingpong-client",
+      "sha256": "2eb0534eee21e42177f5d04c37500217cebc35050434da29611bead0eaffa725"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "86b2e778d4a9c5ad529db1925d61c403b32bdd8b1c286fd2ddb7287732b8752a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "c2e7e660c900fef6f0d8aa570210ce430fd53d4bddc343db1c8d8e96368af8ee"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "869ca7a9919fc740a600cc2a5d889d4fd17506ef8a4a6a66469fb6a1d13972b8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "44a90355ae04582db7eb84a99fa699eb9ddada5e9088693ce56ba5fa42050b64"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "1486af5b141ce68eecd03fb37da198df472557f55cadee61aff72de7d2ff9311"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O0/unstripped/pingpong-server",
+      "sha256": "62aa45561cc72008ab60e7caec0598eb0e45b59524222602ba28b44034f6525c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "e2a52320eca7ef20e46b53fbeab21cf0f84abc95d0d7e696d364ae2d398286aa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "3070935b872a7f8894650698ccef7b35b2579901671d8b1f96fb4fc7dfdf523d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "bf96914609bffd83d831fc97ecfc2d1e5eebd5965fb6d98266f7bcc51f9d9cc6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "ec74983df4d393e233e4238212ad4e05e6d83a73c04f9a0536e0146046f1b5d7"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O0/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "1af4a84928d9a7c02b11f195fc49a8045c8e126c9fba61e7d40ad72ed232c68b"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/stripped/pingpong-client",
+      "sha256": "73d8358c933eb38411b28f6c70373c7fdc9e848d0a90fdaae66d61f7f7c56d30"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "6dea2ade2686685059820ca0dfcceebf4480b22508581a820052442392b51ced"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "baca5d8b366e9e650b53a026a93bcc4f602be2cc1a4c388959a8cefebf83ecbe"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongClient/Defs.lean",
+      "sha256": "fb712d295c5577d08f6ad7b7d6ba14bad23e24d51349b5bc60921157cb45f4c1"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongClient/Functions.lean",
+      "sha256": "39fb07972cc4555eedfcd8e4250f3d6d729aa822e83bde09d49e357f5b0f7ac8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongClient/Thms.lean",
+      "sha256": "04ffe72a0509443dcbcfd67b0bb1345d201de167c5a1a57a8665e8e651076bab"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/stripped/pingpong-server",
+      "sha256": "fad7f2e326f049f2e4511c37a8c75131679ceb4b203e0dbf6b646d63f8e67d4f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "94bf4368d32587dfdbd9e057d72303949088b88f55433ff74146bdba64a58bb6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "b02d75a38a3fc7854ea792b2443ff5cc5fdb27d7ddbc1676794db6fec4264492"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongServer/Defs.lean",
+      "sha256": "9c32ed9488b79a6bb4e4c24dd5ea9687bc8ef48b41d28ec190d8f83a37176301"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongServer/Functions.lean",
+      "sha256": "5ff3064d3858573f47cc6cff0795244855acdf62f4527dbf1c00e384836d3ad1"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Stripped/PingpongServer/Thms.lean",
+      "sha256": "9e51b2e76c8da0f2dc3fed7b913b86eaab86f78b2c6fcbe0cbfab3c1ba1aaf93"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/unstripped/pingpong-client",
+      "sha256": "64358f8916228851093d00764749737daf4595cdc76229e5f8c441460e5e6355"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "d07c02d05ca41b246ee0489972a8c5d868165d01d86a20e64905bd62f843a983"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "3be3f3b18a50c30c16a14ae2a23591b982f9dd4580562aa62214d27bd80f9e03"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "acdc5ac5a6c89f9e6cadccb07a830c71a5405444a1a800e55601578a22185bb9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "866aea05eef15aa0338290a5a3a4d177119638085e79be0936d060d54b7234fa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "60ee35d38306668aa5a7b4fee28e0211114cd5af35bc2107e30bca5362434596"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O1/unstripped/pingpong-server",
+      "sha256": "fb8d6d5669bb7c3a7c9d87b44f647cdb6b2492f9e9720ceded271857e49e49b6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "7272461e2f2affce1feb2bab513eabf6fa074d8559e01549387d9e6f5f689d5d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "523ffc1a7f2291eca7d9b5d3c772dfac57321d2f7e284626db769a66a4129acb"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "b4a3ea0d30175c875acd6eb08da226ac7a598f75bb340afe9450c9f5c288797e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "5ee311b82f1c27218100ff92b3e5c1ece4fb4c36fb1eca2eab5a78073c917a31"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O1/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "f97fa8d3880bf9e24ae33fd1a9f7c3d1776d7add5ab3bc1698031f261ed91a9c"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/stripped/pingpong-client",
+      "sha256": "7c9a07a70418a8f3ed0f7b3bae8f064f10f455557fa5cb13dfabdb62d6097365"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "84ae81cfd8fa4ba832b4bd99ad220dc71c440f573e2790f845f7a9b18b02e765"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "94534b27dbd3591916926e9952b549ff1d5d6da9e310cd87d1649417396fbe82"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongClient/Defs.lean",
+      "sha256": "28366f7b5522938b517c5b629394a79e5b49bbe4647ff45be9b75aa6c930e376"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongClient/Functions.lean",
+      "sha256": "c6b2bf78d0ce98d625a830c2dd42ad33f2b169fa117013155708172d702f0411"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongClient/Thms.lean",
+      "sha256": "177132060be51ac280c9df7a5fd1a8b953b2522c06c6f0a500af23c19f57aa63"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/stripped/pingpong-server",
+      "sha256": "f6836ffabd66f8fccff9929ff9537468833689512cdf3db4e75bd3e0d2610300"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "3a61e6eb5ad6d3c674c9d595d7e178ce52e498428d8f5c122cfcaa36fdaea117"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "e737285d3f8fb8bb9dff4e2efbaec8ec5686260a1889811b88c73c1b4f5f663e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongServer/Defs.lean",
+      "sha256": "d62245c4b54a0dc47c3fbf8173568d50515aadd3bc388e637d105534f9a9620e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongServer/Functions.lean",
+      "sha256": "eff64d874ee10bf115007b5da7f79f2c77fc8cb029da3220a9a8bf270adb74f9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Stripped/PingpongServer/Thms.lean",
+      "sha256": "02d5ecae68c0727c38780c59ca3bee175c4bbd8775b0df7b334ac2db19bf7ebd"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/unstripped/pingpong-client",
+      "sha256": "e74f005de9971d7533d6e6c84ba0984b189e8214904d0510661e7bad71b5fb49"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "5b53e80b1c4558a1932163cf9c8489fe7cef9dec8254e3f4cbefc8a99b75044f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "9ac9a3af16b736828420806ec9e822eb3dfb0600a9666a8cdc677f548e81325e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "f0df53f93a01bd771847fc1521457616284ae97f9723ca2a49ac6bfc29ca0ce3"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "6ca84d42fc0b1c6f172512a6a04abb3b1361b3e8ed65a524c10e1811c0b47129"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "b789e06ac17c64f6b6b65c27cbd3b6eba363bb9e955900b5a82ed3a845637930"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/O3/unstripped/pingpong-server",
+      "sha256": "47d2caaf83e4a5b0a86cc403f5f42c66853289c6035cd061fe20d37470c1056b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "d37577c850ace93846b5cb4304a39135049fc1440a9ed45cafa2b592e4a8c131"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "3a150aaeb0e064f4e935bb79cf398b73bd7ffcdb025a0aadee6fabfe65ccda6a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "b1338d327a73f03c6f3338d277b1fa238bdc362e1bb887859cbf329a6476a52f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "afa63dce76a7a17e2848eb2e15d39ab5c29204fdb3990bdebd311aa507130efc"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/O3/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "25cea42dad3c7bca055a9f566c27dc1b7e188eb024669ff2501e11acf85d15a0"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/stripped/pingpong-client",
+      "sha256": "11f75effa9a290d00a72dcc33cd2c06145200f5b4a3d93cdc5fba9f15aef10c4"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "671f9cf78716dae9382e5b931262a19a405fcd4847c123504cf8153e38b139aa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "e801a8be6990d90714bf3a96e9c344398b2e75284aca8ea004b528d282021752"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongClient/Defs.lean",
+      "sha256": "2d19d967752a540f0b9f3caab2b15d46c7002152f5c6ac69069c568670f3e0ea"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongClient/Functions.lean",
+      "sha256": "cc1c4424fcb135197f1458e3ec132afdddb6cbd477ed59c4beea09230611eb98"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongClient/Thms.lean",
+      "sha256": "6e2bc8c2b07075b4764fbb2f9edbd30e0949d7669c1324436ce4209a7140ad6c"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/stripped/pingpong-server",
+      "sha256": "260e03602fb549f8b7a967a01cb6a407f41662159be11b6d853051958d17d28e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "9514f52dea03fb1de444bab31f9a4884ed7b077494a98ce5e7af93fac21968c7"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "eaf122d5757fa5c927959242b44295f566f007f4a39ed67d63f7165e9a2bf517"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongServer/Defs.lean",
+      "sha256": "4bed272fe69d64af729adcdf360d155a2671c5ecbadb62ccb5c42d1474a928cb"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongServer/Functions.lean",
+      "sha256": "417deead10d845b149e79a68c7ca3e1fdd8674b29893f2517dce9bf4c3b4617f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Stripped/PingpongServer/Thms.lean",
+      "sha256": "640c53087d3b7fff94241db774adaf26a55b62d8304744c503f267fa6fb28c3d"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/unstripped/pingpong-client",
+      "sha256": "35111b64dc48e3234035d1d0ba3cfa4c0ee137c536aef7b634d49c432a163cef"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "35e0e5aa27df4cb37462723276eb371446ae8a6c3dd077ef337678d3c1bd21c9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "ff8404ac8fc2c4e95e7fc5fe56f05e914378c1fcdafcdca60119c5fba174a893"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "85ad3efa3fbe613224b245f42ff8b8a1da342048bfb360448bbb4e8e26e319f2"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "0ba4ca99e169c448d05ac17da0552465d28b8cb3dc83e0b43f4e9437b7769f57"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "821cf76a7ee54d641e9e61a362d7c2e75f4e0df0805f041305dca6432414a377"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/aarch64/Og/unstripped/pingpong-server",
+      "sha256": "5e1d2b6c0d5df124b4fad502bfb0f8de9f6c31adc26bcfea5a2a42ade498e65e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "7e08c2134eb13d77bd419ee10e841084f5d0324e8c750861927ad168b9b4cd48"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "0e11430cc1a1b19b9248293b5c97546616ca93e9df8436f5912f2a4906e4ec76"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "128b5c8f3345e0d9e71086ea14fe6967a18cb693a4fed23475165ef85279426f"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "487b6947a6768e90c974ac2dee073905fb61939efb8f2bb61f7593d33895d1d6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/Aarch64/Og/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "ae54ba9606f96a5821bd528a5b795ca07c0ac8d1122b6acff9ed6ba7d4c329e0"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/stripped/pingpong-client",
+      "sha256": "6c20dd94d996e0d78817936d52ff77376ded99845d9cc28bb36eec48c26f6e76"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "e2640a7e05a001996b1ece37f10c78ae3b393c001556255c8e4daf40ee005f66"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "61882800e99660e775d26ac7b760832ae08216387c3d672a2e41ad4403807fd4"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongClient/Defs.lean",
+      "sha256": "f31c4d6d5628cc2744e3f35de493419b6743a9290bd4d2af5752dc34e60e4153"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongClient/Functions.lean",
+      "sha256": "e5764ff7b58c879760e4703fab4054e3d36acd351aa5e4348c5159ecad582501"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongClient/Thms.lean",
+      "sha256": "e75f5ccdf28147777700a07f80aa0806a179c47b463bb020f66bbd67f1ccb82f"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/stripped/pingpong-server",
+      "sha256": "e56821a2ababeae30effc38ea947dd3ddc3c2f2aee2d091f48e82763879874a3"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "22995b4161a01510cded1d48318fc52eb097163cea006fd018d5b4f5f350aa63"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "ece3e2bc53d69969454839522dbe462c9f56c11c0ba1487c5c8d1f4fc54ef1ab"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongServer/Defs.lean",
+      "sha256": "24be33558036b6b7486eaaed491a508ee8a9c75555a105b7d6c5098e641017b8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongServer/Functions.lean",
+      "sha256": "94bab52f7d305ab57177a1338a86d3f0baa02a73e2cfbf9313524648515f94ad"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Stripped/PingpongServer/Thms.lean",
+      "sha256": "b7b154dccc1bf3015d33a1dd0e41d45dedd805bd6be4e03a62434b526894c49a"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/unstripped/pingpong-client",
+      "sha256": "b3cb86d23f1e6c263c2c6b86fac810384bb4b3c337aff2f61c0405997068e931"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "10ce75a8f80c84011652d727a7fbc1666c99f3fc44ac2c2611a2cd5343009473"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "99449fa8d9dd0e701f2189ee6f33a4e99fe710dfe15504247190cafeb38cd023"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "9765cec1dde89b2208dfa1fcbe446dade3b94ae5036234d848c1933a4c6af4d9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "8206dbd92901a3cde776ef7830decdd5d6d59b1a2ffe12156112b35f3a7f2a42"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "f779ba036a28d9452a5016a2f2e5e8d72fdbf114a291fabb0f42f393da5c0041"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O0/unstripped/pingpong-server",
+      "sha256": "c25b0e5bd87a6638581583c873ba81f1d077c6c1057f38c0a9620f753358fe8a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "4b668a5beabcaada0040d2fb1410bcda8d01d7912c15ac46fec1ffabacd85af6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "b3a350e2fe5c477f036b63fb1a4b9eea301481e277c2a8a7eeec29fb67b72959"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "2353ddc3ec1ed5bb6ed121b0c1f1e59c60e3c912acb04341a07eb174510b3028"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "f5e3c44889fd514fc1d3e01013ce92d2c2bd7d511e5b4b468be5b38813593669"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O0/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "a28f6dd006854d1051a95d62a002788c60e319d400565a0550837c27a0cc90cf"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/stripped/pingpong-client",
+      "sha256": "665b59d406cbbf7b33998176988ad57bee8cbe94de409087488a2e50856f3895"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "22955d9811129fa79b7ea40e106ba3dcf374b3a7da00bc9c488bc64f84c2f072"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "432288948c68e9e0d72c577c1681ea22e66afff9f03e1e8da78fd5a1794fc37c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongClient/Defs.lean",
+      "sha256": "c063eef4bb37fb30c3893a6b41024e319915ac5751fbb0d56a1820d0adfa44ff"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongClient/Functions.lean",
+      "sha256": "ae555dc614cfd607128a9e9f56c5090fc64c1902fe9ca666dec0c535202a2363"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongClient/Thms.lean",
+      "sha256": "adba772bcfeb0d9108c48ce73553dd15988c2d873791ac2b4cadbf4780b20808"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/stripped/pingpong-server",
+      "sha256": "da2656c820084f6ddf9faf0b3126adc7e95618bb56ced243fca4100d6c7bf294"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "6ab2e405491ed9aed4e66b9e3b0376331243599fba7ae0aa3a0f37e239530a25"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "d62568f4bfafc30c6bd1b5f9eceb56152f7d2782477b6c3e3692620596469421"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongServer/Defs.lean",
+      "sha256": "58e318e29e1a1546d1aa4009c5b2196b6855ea3045364443c67d6a179b5661db"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongServer/Functions.lean",
+      "sha256": "c8c8acb5d0fe79abfa77a48b1bce8fc69f8eb38c648718eb33806fbc0822db26"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Stripped/PingpongServer/Thms.lean",
+      "sha256": "b3eda67254972f0778e94eace6950d9cc7ad021a7a4d5d32db11640a8476cc1c"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/unstripped/pingpong-client",
+      "sha256": "f3e13e96b762809d8846a69c816d17d415641fdc639b38e2ea40271015d20b33"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "5708ace50d2d37d7d7124568d751dc0d99eb752d7cf751962cd4b030fbccefba"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "e9c97fc27858a638eaa906524a3b1798789cea0e4c7170e19d0a67b2845c0531"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "f57b994898f6a73ae378a439702e2a610213f6bedae0d5d673aacbd989f1ef5e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "8a93e9362e95623e688f0b56eeaa8f6d5fe5a0a070be707f3e5ac527e74586f9"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "1fc0d723898997bca72e737738a01faa58c351739f56a531e22b2fefb5cc1ee0"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O1/unstripped/pingpong-server",
+      "sha256": "d9012b7616d7b6ba25697fc3153d841b4a56a706becbb04feadbc22532c503e6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "67393991d38933ccfc771d99cde4c9e9986d7a6976d2bb0818ef2d6081997f89"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "5884d6ca2b9c6423ed0139273dbc7a3be9cfeec21451bdc4b204a74154a068d8"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "f541b5e05b6bc1323c6a709fa3fa1f1cce3c2bc192fdf8e2f9799cfb816b0c5d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "ea05e3b625b8c69599884dc38fdec8abd010dfb2d983c26c4cb28a5f4f2e10cf"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O1/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "3a71a5bacdaa95347efe70e9912dbbe695542e905f1c7e7734dceea996b86f59"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/stripped/pingpong-client",
+      "sha256": "0bedaf8a4b4e91e5ecca34e54f36c3a69e65ec3d91ce082d8b721182c914fa68"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "8c1b7023b130faf78f28e339fe88d8cb1141dcd94e80545af482d94a61c58037"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "d34bda34d18f9fb1e58b6926291670ea187a470c7f7949717189356cc5de5b81"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongClient/Defs.lean",
+      "sha256": "200795e2fe6c192d276c59b75c3bf8788297a59bf3d0e575705c9c4a0665870a"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongClient/Functions.lean",
+      "sha256": "71c7ec2b8c5cd01c8931e81891e4835807f4ca0fa147f563d03c2f874cd4e02b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongClient/Thms.lean",
+      "sha256": "237a32ddf132e92712d6c5c47e85e128a5af8442145b5797c4d05c4c3682f45f"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/stripped/pingpong-server",
+      "sha256": "09d756c10872df1974d0ff3bd46451d61487f7da6d2b413ca0a74e8149de109d"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "cd24b1638b14302c8a1a906e7700e96dc5ac86319d357e46f87a1b216416f76b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "0ca972605df1f4a42a2d15303afba24f0476502e99d53ddca78750d54707d38e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongServer/Defs.lean",
+      "sha256": "ed4bd09988a75705530474808d64a830c96acce2c7059bcb2b760c6b5d0a6744"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongServer/Functions.lean",
+      "sha256": "80e0c39ab40ad7bcad932eb7e0e397c51243dc15e8232beecd5e4c6871dc2f82"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Stripped/PingpongServer/Thms.lean",
+      "sha256": "b567aa7aee2a8f049ddb13af4645d762040810c44cfdceeb617e7b936b80713e"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/unstripped/pingpong-client",
+      "sha256": "a5cc2deb102bb00ec42cc59d777e473087c56e56eb7d1f86e05d1f5b9e60bbaa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "a42e50f5d1f0465a204f6de49c24332b25ed8a56dabda447e93b1a74d5125dfa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "b63e330464172c1da222fe270c94c201adee183ef98d4f6c7ee945abfc7e763b"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "f843ca3770dfdf0b708ad32b77d6497459abb6b045cab50db6c53a86e98103e2"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "556a6730cbe7d00be507bcc006a30365291922e08b3f27aa9657efc4e631d014"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "8d89ab2f721cb65f83ee47279ccd550c386d2ec870974dc31d95ccad5a1ff50f"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/O3/unstripped/pingpong-server",
+      "sha256": "6c90b3d796cd61411a063f0e476c62fe5400e8b49b0b5746df2474f021bc1baa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "3ca8318b42c13e1dcc7ffd18dd07a0512d448d5e2fcdbe5c86d1a4783d6cc13e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "468da0b102c9cf839962549567c64db1af3c7daf868b32ce2dd0765527f76cb6"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "c728a83de12de582a6c8b38ae6ec6da04eef40eef500da52b153749ac54552f5"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "8a7c6a58e3ed086ba4c32bc43158ceddc6330aff27c3cbaa8feb5eb41b9b21d7"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/O3/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "cfbf238fd2ae68b9446b38eaf5eabc8e2a99c61694db781be566e4af81bfaf8e"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/stripped/pingpong-client",
+      "sha256": "82f89f13013beab83f215c350c2fee4df56c4aa832c818411efa620a78ca9655"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongClient/Bytes.lean",
+      "sha256": "6642882586e9b2c90c8defcfcf73db46114254767bb79ef81fd6a324ada3aa95"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongClient/Decomp.lean",
+      "sha256": "3a1fbc806ff076956dee51d79b6ca4df7ca17cf63b5f3ef29a6b084d8f136199"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongClient/Defs.lean",
+      "sha256": "170e723746502a3d4af9a47e5f85794ebb8e5bc4487f88b805a632ae00c66247"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongClient/Functions.lean",
+      "sha256": "c70716edf6c465befd963e793b36b36468fa68ba7beaff797b61cc6e2bbdc2ee"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongClient/Thms.lean",
+      "sha256": "569dadbdb43d80111644312ed8b09f6566ed7bebb6dacb0c5f37a96a0fb9a6ae"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/stripped/pingpong-server",
+      "sha256": "a66275df4bf2781491eef7ace790f359d60140f332db647520070fd2311ce411"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongServer/Bytes.lean",
+      "sha256": "17bdcda6ce0edccc118af355d06173360da6f8d4ce63186a16a038c3fc691237"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongServer/Decomp.lean",
+      "sha256": "9112bd7000be12b1518ba3502301b698d6408cb2e8874d61663540f7e72c8387"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongServer/Defs.lean",
+      "sha256": "8b7fd16af002f73135be15da0db810e78339d0cd1b6dece68bacf43265be7dc5"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongServer/Functions.lean",
+      "sha256": "9e5d3f2e93b5b0af15227837d1b47985de736aeb4b2a46c680fea3e5d5cc7b51"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Stripped/PingpongServer/Thms.lean",
+      "sha256": "21e4969789ec3c25e4cab5bba0bd076b44f1b1ffeb7a058530426a1396b88b2b"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/unstripped/pingpong-client",
+      "sha256": "d00688bc5b9cf077f7ced120fde2bb9771849cddf616327c7dda20d3fa94341c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongClient/Bytes.lean",
+      "sha256": "0ec630a619985a45e264b0a3d33f23c8b34048bb7891216cccd7467c8d79b09e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongClient/Decomp.lean",
+      "sha256": "e96ecccb397ecfb151770fbddc91e70301c0156ea1078f3ba051b95aaca22a46"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongClient/Defs.lean",
+      "sha256": "92ebce88d2106b3099f0b06730bbe6182236056c5f68bc6b37f7fda8f2aeb7a5"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongClient/Functions.lean",
+      "sha256": "ca218c1e2599f5671bb36de9ebe54969a324de7977f20cda9ea6585e63a5b816"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongClient/Thms.lean",
+      "sha256": "1c9709a99e9dec9960241faf4833ae6fa9347e88d52b560868cf6e435ec4a383"
+    },
+    {
+      "path": "corpus/variants/tcp-pingpong/bgnet-34fb9d78/default/x86_64/Og/unstripped/pingpong-server",
+      "sha256": "236af61bce8e7ad173ce7d474d690de4514674379ec967baa65d161a939b2ffc"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongServer/Bytes.lean",
+      "sha256": "100ef39d15963f2adca9a3ad05a6a64123f431ad8b7d29d2db27ff304b86873e"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongServer/Decomp.lean",
+      "sha256": "1204adb69238e64face7afce66be51296eb6d58138a5daa178cdec477fec8852"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongServer/Defs.lean",
+      "sha256": "60295fd739b399766144741fb102fa077919378b3384a2a926f0884da5795104"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongServer/Functions.lean",
+      "sha256": "1c9542048ea83aae99e6c2ece10281e36e04d0405731aaac439e5b43d7132fb0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/TcpPingpong/Bgnet34fb9d78/Default/X8664/Og/Unstripped/PingpongServer/Thms.lean",
+      "sha256": "b7a45753818144b59049b088f031ea0a69ea921107510db46a026c9061842586"
+    }
+  ],
+  "wall_seconds": 132.67937649799933,
+  "exit_code": 0,
+  "user_cpu_seconds": 261.16,
+  "system_cpu_seconds": 141.2,
+  "peak_rss_kib": 3138380,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

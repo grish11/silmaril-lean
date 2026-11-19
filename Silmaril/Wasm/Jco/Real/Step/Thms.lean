@@ -32,11 +32,12 @@ wrong core type, where Core would be stuck; out-of-bounds loads trap on both sid
 not stated). The converse (every Core run is an abstract one) is not stated; at a deterministic
 profile it would follow from determinism of Core.
 
-**Fragment.** Not covered: `memory.copy` (Core 3.0 copies byte by byte), `if … else … end`
+**Fragment.** Not covered here: `memory.copy` (Core 3.0 copies byte by byte), `if … else … end`
 (an `XInstr` branch runs on the whole operand stack, a Wasm block only on its parameters), and
-stores (they need a typing hypothesis on the stored value; see the open items in
-`docs/projects/wasm-components.md`). So the moving `cabi_realloc` of `Styles/Realloc` and the multi-value shim
-`mvShim` are not covered yet.
+stores (they need a typing hypothesis on the stored value). `Silmaril.Wasm.Jco.Real.StepX`
+covers the three for well-typed code (`execT_agree`, `invokeT_agree`), traps
+(`execT_trap`, `invokeT_trap`), and the moving `cabi_realloc` of `Styles/Realloc`
+(`reallocShimX_core`, `reallocShimX_core_trap`).
 
 New statements.
 -/

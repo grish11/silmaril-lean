@@ -44,6 +44,8 @@ open Silmaril.X86.SystemV.CApi (Signature Scalar Arguments ReturnValue)
 
 /-- The 64-bit word an INTEGER argument is passed in: zero-extended. -/
 def argWord : (kind : Scalar) → kind.Value → Word
+  | .boolean, v => BitVec.ofNat 64 (cond v 1 0)
+  | .uint8, v => v.setWidth 64
   | .int32, v => v.setWidth 64
   | .uint32, v => v.setWidth 64
   | .int64, v => v

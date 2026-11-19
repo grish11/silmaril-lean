@@ -1,0 +1,29 @@
+{
+  "command": [
+    "cmake",
+    "-S",
+    ".",
+    "-B",
+    "build",
+    "-G",
+    "Ninja",
+    "-DCMAKE_BUILD_TYPE=Release",
+    "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
+    "-DBUILD_SHARED_LIBS=ON",
+    "-DBUILD_TESTING=OFF",
+    "-DOPENSSL_NO_ASM=ON",
+    "-DFIPS=OFF",
+    "-DCMAKE_C_COMPILER=gcc",
+    "-DCMAKE_C_FLAGS=-O2 -g0 -ffile-prefix-map=/build/boringssl=.",
+    "-DCMAKE_C_FLAGS_RELEASE=-g0 -DNDEBUG",
+    "-DCMAKE_CXX_COMPILER=g++",
+    "-DCMAKE_CXX_FLAGS=-O2 -g0 -ffile-prefix-map=/build/boringssl=.",
+    "-DCMAKE_CXX_FLAGS_RELEASE=-g0 -DNDEBUG",
+    "-DCMAKE_ASM_COMPILER=gcc",
+    "-DCMAKE_ASM_FLAGS=-O2 -g0 -ffile-prefix-map=/build/boringssl=.",
+    "-DCMAKE_ASM_FLAGS_RELEASE=-g0 -DNDEBUG"
+  ],
+  "module": "upstream fipsmodule object-library boundary",
+  "validation": "research configuration; no FIPS validation or certification",
+  "assembly": "upstream committed pregenerated inputs; no local perlasm regeneration; upstream ASM flags may include -Wa,-g"
+}

@@ -1,0 +1,168 @@
+{
+  "schema_version": 1,
+  "run_id": "99deb393-411a-4b86-a30d-c12554cda9ae",
+  "stage": "null-pointer-lowering-affected-formal-replay",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T02:38:23.859325+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.TinyccClosed.Digit.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Identifier.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Octal.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Space.Thms",
+    "Silmaril.Elf.Corpus.TinyccClosed.Upper.Thms"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "x86_64-linux-gnu",
+  "repository": {
+    "commit": "d80d9750329b9a8784a29bd1d2e31420b486f516",
+    "dirty": false,
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cache": "warm",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Comparisons/Defs.lean",
+      "sha256": "07ac90087628ed7a41847fec6615e3f325a2f9dbeaa8155b06df6ce07fa33751"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Conditionals/Defs.lean",
+      "sha256": "beac19e17a238f97754897c93478804edab1549d306e59af6691a3522a71366c"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+      "sha256": "a934d2a635924ea4130d28db67e443eef09df6a7de4ad419a90e7fa14bb47e27"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Digit/Defs.lean",
+      "sha256": "812cf38e8691e0d02b44593cc9bf45390eb40433ae4cc13ca57f8fec399b1e39"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Digit/Thms.lean",
+      "sha256": "8a6fb4d1e89ba490917a3cef888e0eb9e8b15f36709e12402c804b8ed21e339b"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Defs.lean",
+      "sha256": "df46b68e2ac2bf1368b3cc089d7727ebd091788790e93b0b51a9fbbe955155c3"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Identifier/Thms.lean",
+      "sha256": "f93548f863fcf8e44408c8138baa61939a7ba16edf918389ab538f4372a4eceb"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Octal/Defs.lean",
+      "sha256": "75193846f57eff513f89d1ba0af57e6cfb61d209f634288a2c3d1c047b70016e"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Octal/Thms.lean",
+      "sha256": "e541b06d6fc2520acdd9a9c4c312a6ca0a89e48875427c8101568d04111c909b"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Space/Defs.lean",
+      "sha256": "bb29cfcd38a88e0c3bac8650ae4db1047f117f26fa60b64e141f862d4471feea"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Space/Thms.lean",
+      "sha256": "8471f38614a3c018d59307d8f2e402742d32f47dcf27a4cff54ef6fc96c72b26"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Upper/Defs.lean",
+      "sha256": "de244cac6009cb1363953c2258790cf8bd5ed68f43b95a76399c1038286c2f45"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/TinyccClosed/Upper/Thms.lean",
+      "sha256": "541a644aa04a0ae6ae592461a509654490158e815c63af83f5b71ad9e97ef59c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part0.lean",
+      "sha256": "4097e447a1c1c8d70e06d332602eda638740d361c324f493e96155c84430ce55"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part1.lean",
+      "sha256": "543c8f1461261e09def6581518dfd0046343ba7f804763588b9b6043d9601d11"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part2.lean",
+      "sha256": "7f64a4989dd95b6ead3f671c7ed62b2f7a78ae991addd16a5a58b773a0f26b1c"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part3.lean",
+      "sha256": "0ada853b75c69e0dc17074802fd79c0ed4f38c4998e7b24c1423a0c1b15dc8da"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part4.lean",
+      "sha256": "ae07673ba08de93445487ca4486cd8139fd657f74b547531564f529a14a21eaf"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bodies/Part5.lean",
+      "sha256": "f34f39fbd2fe6379b9ff1f986863996da914b37a0a57ce7eb744d98c7a8729d0"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Bytes.lean",
+      "sha256": "87441326292df242e5be33634d0db4de0f1b4459570a0ad62e35b048d37f2b15"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Decomp.lean",
+      "sha256": "5436981ec0904accc1c33c181a1cd187582914050046dac641e03672b4053a50"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Defs.lean",
+      "sha256": "0c1ddf125022a817a9893f15141567a8076ccf15d80dfebdef4f6998dd5574df"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Functions.lean",
+      "sha256": "0dd4cbaf91d711d56079ad491d0e761755afb2b8ac00b169f54e75d43c9854fa"
+    },
+    {
+      "path": "Silmaril/Elf/Staged/CorpusVariants/Tinycc/N0927/Default/X8664/O0/Unstripped/Tcc/Thms.lean",
+      "sha256": "1e6bbfa165febd8c4bd4668259817dab007b1192d81cbeeaf014231f1d9bc714"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/TinyccClosed/Digit.lean",
+      "sha256": "51fc195cd6a0c1f1aed678d96a34acb09b112ea19c16eb08c83f292077dbd878"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/TinyccClosed/Identifier.lean",
+      "sha256": "4beb6eec52f3a54f5a1edc2ec3c22927324562e0e5f5fa9aa952e7d89494fc7c"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/TinyccClosed/Octal.lean",
+      "sha256": "c60dbe9b2f72d0ec78cfe5b82181f0c9c13dc0ca9e7e0bd1bd083b733cba0853"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/TinyccClosed/Space.lean",
+      "sha256": "ab605ccbca54d334f34c29b50a1d1523d943948f7ee12e84488035ba76fed343"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/TinyccClosed/Upper.lean",
+      "sha256": "8050d4dd1afac3027d909e2534b8b01c4e13f1890be340cadca6cdbcee74bf7b"
+    },
+    {
+      "path": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+      "sha256": "bdc8d9b6904b36b071bb6fe93fe7f72ef069de00228c383347193053fbae75c3"
+    },
+    {
+      "path": "corpus/variants/tinycc/0.9.27/default/x86_64/O0/unstripped/tcc",
+      "sha256": "516d5364f354cdebcc3c6cd43df76f504cf17f8b0000a16a6ba061b9b1bec67c"
+    }
+  ],
+  "wall_seconds": 23.359637687997747,
+  "exit_code": 0,
+  "user_cpu_seconds": 80.82,
+  "system_cpu_seconds": 42.3,
+  "peak_rss_kib": 4315952,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

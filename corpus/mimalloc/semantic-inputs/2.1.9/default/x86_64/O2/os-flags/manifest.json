@@ -1,0 +1,21 @@
+{
+  "external_input_sha256": "caac41c256f40ef20abb49715d49ee60dffb6e60c6b0c33dc07c25aaeed2156d",
+  "files": {
+    "context.c": "2e3f89c48db58c79a63cee47c143bdd05a6ef81fbae56ca41760e70292890885",
+    "typed-ail.sexp": "4820f624511d515855dbe7e022e803f72891b9f7f97f56702da545601164b546",
+    "program.sexp": "66bf5e95d82ee9cbd83fde17d4c0ed92571df1f4f4ecd868f96ff47a66d94434",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "projection.json": "6383b809e93e40ee722691dbb6b54164a53d896788f2c9f164beeade4e604f7b"
+  },
+  "elf_sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+  "immutable_files": {
+    "corpus/mimalloc/upstream/mimalloc-2.1.9/src/os.c": "8108e9d5a3866f010a6156cc2d9c2a05422ae71027577aeb9a31d482bb169554",
+    "corpus/mimalloc/upstream/mimalloc-2.1.9/include/mimalloc/prim.h": "b7f329eb3343ad9259beb381d9b71c68cfc10e771df7bc726485ba980e968e3b",
+    "corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+    "corpus/mimalloc/semantic-inputs/2.1.9/default/x86_64/O2/mi_version/source-binding.json": "2aa9fbd5d77214ffd79059a47c4adfac2426de7ad7f0d7d1d22a4cecdedee82d"
+  },
+  "shared_tu": "../os-globals/translation-unit.i",
+  "shared_tu_sha256": "4e33d7c4e78fd242acba9caef4964217e3df3ef5f8138bd15a8af33bf40805e7",
+  "shared_build_log": "../os-globals/source-build.log.gz",
+  "shared_build_log_sha256": "379f0f52fb825bd2c3ef5713d3a5675c7f4f4d30d5c2175dcc474b2ee2afc4b3"
+}

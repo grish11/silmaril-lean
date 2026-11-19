@@ -1,0 +1,59 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Projection/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Source/Projection/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Thms.lean",
+    "Silmaril/Cerberus/Elaboration/Assignments/Defs.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/X86/SystemV/Defs.lean",
+    "Silmaril/X86/SystemV/CApi/Defs.lean",
+    "Silmaril/Process/Memory.lean",
+    "Silmaril/Cerberus/Elaboration/Statements/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Functions/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Comparisons/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+    "Silmaril/Raw/Cerberus/Core/Dynamics.lean",
+    "Silmaril/Elf/Corpus/CjsonArrayItem/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/CallArguments/Defs.lean",
+    "Silmaril/Cerberus/Elaboration/Postfix/Defs.lean"
+  ],
+  "source": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/context.c"
+  },
+  "projection": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/projection.json",
+    "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-item/runtime.sexp"
+  },
+  "limits": [
+    "All contextual obligations UNPROVED;0 corpus semantic proofs; no interactive compilation.",
+    "Actual unchanged saved-TU cJSON_GetArrayItem AND get_array_item source definitions, computed Core/procedure metadata and existing x86 O0 ELF caller0x5427/51bytes and helper0x53d3/84bytes. Source/TU/build correspondence and whole-TU/frontend adequacy remain unproved.",
+    "Null or finite contiguous acyclic lists length0..64, any signed32 index, arbitrary admissible aligned heap base and arbitrary payload bytes plus one disjoint unrelated object. Root.child and node.next links have real allocation provenance. No cyclic/dead/overlapping/arbitrary-graph or general-input coverage.",
+    "Actual pointer arguments, signed32 low32 SysV integer argument with arbitrary upper32 bits, pointer return in RAX, explicit size_t unsigned64 conversion and actual helper body. No integer pointer stand-in, default body/result, substitute callee or desired-refinement assumption.",
+    "All original source allocations/lifetimes, heap and parameter bytes/provenance, registrations and stdout must be preserved; newly allocated actual argument/local objects must be dead. Private automatic allocation bytes and allocation/excluded-action bookkeeping are outside the declared caller observation; not full-record source memory equality.",
+    "Target loads both actual helper/caller excerpts contiguously and enters caller at offset84. Exactly72 bytes below caller entry RSP are private across the actual nested call. All unrelated caller/code bytes and ALL mapping metadata must be preserved; no arbitrary heap-write footprint.",
+    "Joint entry existence for EVERY input, source safety, target first return, every first-return ABI/frame and matching finite actual source execution/pointer observation are demanded obligations, never input premises. Universal nondeterministic termination/divergence and general-input correctness remain unproved.",
+    "Pointer observation rejects noncaller allocation provenance and interior offsets that are not mapped object bases. Equal-address distinct-provenance comparisons and outside-allocation lifetime UB mapping remain Unsupported.",
+    "168 Core context,420 native caller and420 context-prepared actual Open.step caller/helper cases are finite observations, not proofs of the quantified context. Core cases include three addresses/payloads and lengths0,1,8,64; source safety/allocation/provenance negatives and exact actual memory/ABI checks are retained.",
+    "842 artifacts/707 hashes,14 binary statements and16 distinct fixtures retained. Existing upstream/pre-existing alerts, unsupported FIPS, cJSON runtime/provenance and distinct jemalloc configuration limits remain; broad corpus coverage unfinished.",
+    "Observation-adequacy gap specific to this nested caller/helper context: private automatic bytes and allocator/excluded-action bookkeeping are hidden, not proved unobservable to arbitrary continuations. This is not full-memory or arbitrary-continuation equivalence; other corpus complete-record observations are unchanged. Original private parameter objects are allocations0/1; root2, nodes3..n+2 and unrelated object n+3 are preserved in full. Fresh helper argument/local objects execute actual Core allocation/cleanup and must be dead; escaped private pointer returns are rejected."
+  ],
+  "callees": [
+    {
+      "symbol": "get_array_item",
+      "address": 21459,
+      "size": 84
+    }
+  ]
+}

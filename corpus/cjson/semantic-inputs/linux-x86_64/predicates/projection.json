@@ -1,0 +1,55 @@
+{
+  "tu_sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+  "spans": [
+    [
+      37470,
+      37681
+    ],
+    [
+      37802,
+      37825
+    ],
+    [
+      165135,
+      165489
+    ],
+    [
+      164770,
+      165134
+    ],
+    [
+      165491,
+      165847
+    ],
+    [
+      165849,
+      166205
+    ],
+    [
+      166207,
+      166562
+    ],
+    [
+      166564,
+      166920
+    ],
+    [
+      163702,
+      164054
+    ],
+    [
+      164056,
+      164411
+    ],
+    [
+      164413,
+      164767
+    ],
+    [
+      166922,
+      167275
+    ]
+  ],
+  "projected_sha256": "c09e52545b71dcc83e603c21a65821a692bffbc4cb7fd3913a6660fc0fc942ab",
+  "status": "exact byte projection from real preprocessed TU; no full-TU frontend acceptance or source-to-ELF proof"
+}

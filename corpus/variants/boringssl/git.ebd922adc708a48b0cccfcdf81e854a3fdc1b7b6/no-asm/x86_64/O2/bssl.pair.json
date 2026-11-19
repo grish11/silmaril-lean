@@ -1,0 +1,1350 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 108012,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 24576,
+      "sha256": "f334642a36acd3b299b74e691a4b784973964a5802cd018ec4d1d5e9e0885251",
+      "size": 23
+    },
+    ".plt": {
+      "address": 24608,
+      "sha256": "e69b4494c4185b14e6c0384414931a8e58e22340b09eeea9184dcb1e98eb9390",
+      "size": 4048
+    },
+    ".plt.got": {
+      "address": 28656,
+      "sha256": "1d21e19e14fdcedb8a38d4cd3c0b38f9a6148dfc69fba2c9d2111aebb629ec7f",
+      "size": 8
+    },
+    ".text": {
+      "address": 28672,
+      "sha256": "6813cc60a6816fd3415328dea8cdedca262e13b1c84c17e1a05c5c48b12e072a",
+      "size": 79338
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "91c225cd22cc627111d6e6a183a134cf6b56336a213b5312fd40a12cc8a8fc09",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "b5d389ca179c310173552790d82053c1a2c3e1fcd4050553216d5273972b962d",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 33344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 33472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJRS7_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1244,
+      "type": "FUNC",
+      "value": 33792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJRS7_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0.cold",
+      "section_index": "14",
+      "size": 39,
+      "type": "FUNC",
+      "value": 28672
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl11SplitStringESt17basic_string_viewIcSt11char_traitsIcEES3_.cold",
+      "section_index": "14",
+      "size": 81,
+      "type": "FUNC",
+      "value": 28711
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl9TrimSpaceESt17basic_string_viewIcSt11char_traitsIcEE.cold",
+      "section_index": "14",
+      "size": 24,
+      "type": "FUNC",
+      "value": 28792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl7CiphersERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 28816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZZN4bssl6ClientERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EEENUlP6ssl_stPhE_4_FUNESC_SD_",
+      "section_index": "14",
+      "size": 3,
+      "type": "FUNC",
+      "value": 38688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL14WaitForSessionEP6ssl_sti",
+      "section_index": "14",
+      "size": 258,
+      "type": "FUNC",
+      "value": 38704
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL14WaitForSessionEP6ssl_sti.cold",
+      "section_index": "14",
+      "size": 17,
+      "type": "FUNC",
+      "value": 28838
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL23NextProtoSelectCallbackEP6ssl_stPPhS2_PKhjPv",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 38976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL14KeyLogCallbackEPK6ssl_stPKc",
+      "section_index": "14",
+      "size": 44,
+      "type": "FUNC",
+      "value": 39008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL12InfoCallbackEPK6ssl_stii",
+      "section_index": "14",
+      "size": 121,
+      "type": "FUNC",
+      "value": 39056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL18NewSessionCallbackEP6ssl_stP14ssl_session_st",
+      "section_index": "14",
+      "size": 125,
+      "type": "FUNC",
+      "value": 39184
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2IS3_EEPKcRKS3_.constprop.0",
+      "section_index": "14",
+      "size": 166,
+      "type": "FUNC",
+      "value": 39312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2IS3_EEPKcRKS3_.constprop.0.cold",
+      "section_index": "14",
+      "size": 12,
+      "type": "FUNC",
+      "value": 28856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPcEEvT_S7_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 39488
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt6vectorIhSaIhEE15_M_range_insertIPKcEEvN9__gnu_cxx17__normal_iteratorIPhS1_EET_S9_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 812,
+      "type": "FUNC",
+      "value": 39648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt6vectorIhSaIhEE15_M_range_insertIPKcEEvN9__gnu_cxx17__normal_iteratorIPhS1_EET_S9_St20forward_iterator_tag.isra.0.cold",
+      "section_index": "14",
+      "size": 12,
+      "type": "FUNC",
+      "value": 28868
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 40464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE7_M_copyILb0ENSE_11_Alloc_nodeEEEPSt13_Rb_tree_nodeIS8_ESJ_PSt18_Rb_tree_node_baseRT0_.isra.0",
+      "section_index": "14",
+      "size": 465,
+      "type": "FUNC",
+      "value": 57904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 40592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJOS5_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1335,
+      "type": "FUNC",
+      "value": 40912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL12DoConnectionEP10ssl_ctx_stSt3mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES8_St4lessIS8_ESaISt4pairIKS8_S8_EEEPFbP6ssl_stiE",
+      "section_index": "14",
+      "size": 5744,
+      "type": "FUNC",
+      "value": 42256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL12DoConnectionEP10ssl_ctx_stSt3mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES8_St4lessIS8_ESaISt4pairIKS8_S8_EEEPFbP6ssl_stiE.cold",
+      "section_index": "14",
+      "size": 252,
+      "type": "FUNC",
+      "value": 28880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl6ClientERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 415,
+      "type": "FUNC",
+      "value": 29132
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_GLOBAL__sub_I__ZN4bssl6ClientERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 53,
+      "type": "FUNC",
+      "value": 31536
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 59264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL8OpenFileERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 259,
+      "type": "FUNC",
+      "value": 59424
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL8OpenFileERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE.cold",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 29547
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPcEEvT_S7_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 59696
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL7SumFileEPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPK9env_md_stRKNS_6SourceE",
+      "section_index": "14",
+      "size": 974,
+      "type": "FUNC",
+      "value": 59856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL7SumFileEPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEPK9env_md_stRKNS_6SourceE.cold",
+      "section_index": "14",
+      "size": 43,
+      "type": "FUNC",
+      "value": 29568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL5CheckERKNS_18CheckModeArgumentsEPK9env_md_stRKNS_6SourceE",
+      "section_index": "14",
+      "size": 2267,
+      "type": "FUNC",
+      "value": 60832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL5CheckERKNS_18CheckModeArgumentsEPK9env_md_stRKNS_6SourceE.cold",
+      "section_index": "14",
+      "size": 99,
+      "type": "FUNC",
+      "value": 29611
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL9DigestSumEPK9env_md_stRKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS9_EE",
+      "section_index": "14",
+      "size": 2152,
+      "type": "FUNC",
+      "value": 63104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL9DigestSumEPK9env_md_stRKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS9_EE.cold",
+      "section_index": "14",
+      "size": 132,
+      "type": "FUNC",
+      "value": 29710
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl11WriteToFileERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_4SpanIKhLm18446744073709551615EEE.cold",
+      "section_index": "14",
+      "size": 16,
+      "type": "FUNC",
+      "value": 29842
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl18LoadPrivateKeyFileERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE.cold",
+      "section_index": "14",
+      "size": 16,
+      "type": "FUNC",
+      "value": 29858
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 67728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 67856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJOS5_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1335,
+      "type": "FUNC",
+      "value": 68176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl11GenerateECHERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 168,
+      "type": "FUNC",
+      "value": 29874
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 72448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 72608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 72736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJOS5_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1335,
+      "type": "FUNC",
+      "value": 73056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl18GenerateEd25519KeyERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 45,
+      "type": "FUNC",
+      "value": 30042
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 75440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl14GenerateRSAKeyERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 66,
+      "type": "FUNC",
+      "value": 30087
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 75984
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 76144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 76272
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJOS5_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1335,
+      "type": "FUNC",
+      "value": 76592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl8DoPKCS12ERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 186,
+      "type": "FUNC",
+      "value": 30153
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 79744
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl4RandERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 121,
+      "type": "FUNC",
+      "value": 30339
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZZN4bssl6ServerERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EEENUlP6ssl_stPhE_4_FUNESC_SD_",
+      "section_index": "14",
+      "size": 3,
+      "type": "FUNC",
+      "value": 81392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL14KeyLogCallbackEPK6ssl_stPKc",
+      "section_index": "14",
+      "size": 44,
+      "type": "FUNC",
+      "value": 81408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL12InfoCallbackEPK6ssl_stii",
+      "section_index": "14",
+      "size": 121,
+      "type": "FUNC",
+      "value": 81456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2IS3_EEPKcRKS3_.constprop.0",
+      "section_index": "14",
+      "size": 166,
+      "type": "FUNC",
+      "value": 81584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2IS3_EEPKcRKS3_.constprop.0.cold",
+      "section_index": "14",
+      "size": 12,
+      "type": "FUNC",
+      "value": 30460
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPcEEvT_S7_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 81760
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 81920
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJOS5_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1335,
+      "type": "FUNC",
+      "value": 82240
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 1050,
+      "type": "FUNC",
+      "value": 83584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL18MakeSelfSignedCertEP11evp_pkey_sti.constprop.0",
+      "section_index": "14",
+      "size": 595,
+      "type": "FUNC",
+      "value": 84640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL18MakeSelfSignedCertEP11evp_pkey_sti.constprop.0.cold",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 30472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl6ServerERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 469,
+      "type": "FUNC",
+      "value": 30505
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE8_M_eraseEPSt13_Rb_tree_nodeIS8_E.isra.0",
+      "section_index": "14",
+      "size": 113,
+      "type": "FUNC",
+      "value": 94112
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE24_M_get_insert_unique_posERS7_.isra.0",
+      "section_index": "14",
+      "size": 309,
+      "type": "FUNC",
+      "value": 94240
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE22_M_emplace_hint_uniqueIJRKSt21piecewise_construct_tSt5tupleIJOS5_EESJ_IJEEEEESt17_Rb_tree_iteratorIS8_ESt23_Rb_tree_const_iteratorIS8_EDpOT_.isra.0",
+      "section_index": "14",
+      "size": 1335,
+      "type": "FUNC",
+      "value": 94560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl4SignERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE.cold",
+      "section_index": "14",
+      "size": 105,
+      "type": "FUNC",
+      "value": 30974
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL6IsFIPSERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 35,
+      "type": "FUNC",
+      "value": 97808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL8FindToolERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 112,
+      "type": "FUNC",
+      "value": 97856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "main.cold",
+      "section_index": "14",
+      "size": 60,
+      "type": "FUNC",
+      "value": 31079
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL13DecodeHexCharEc",
+      "section_index": "14",
+      "size": 66,
+      "type": "FUNC",
+      "value": 98080
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL7SendAllEiPKcm",
+      "section_index": "14",
+      "size": 188,
+      "type": "FUNC",
+      "value": 98160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEE12_M_constructIPKcEEvT_S8_St20forward_iterator_tag.isra.0",
+      "section_index": "14",
+      "size": 146,
+      "type": "FUNC",
+      "value": 98352
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL24GetLastSocketErrorStringEv",
+      "section_index": "14",
+      "size": 74,
+      "type": "FUNC",
+      "value": 98512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL24GetLastSocketErrorStringEv.cold",
+      "section_index": "14",
+      "size": 12,
+      "type": "FUNC",
+      "value": 31139
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL16PrintSocketErrorEPKc",
+      "section_index": "14",
+      "size": 91,
+      "type": "FUNC",
+      "value": 98592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL16PrintSocketErrorEPKc.cold",
+      "section_index": "14",
+      "size": 16,
+      "type": "FUNC",
+      "value": 31151
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL13SplitHostPortEPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_RKS5_.constprop.0",
+      "section_index": "14",
+      "size": 714,
+      "type": "FUNC",
+      "value": 98688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bsslL13SplitHostPortEPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_RKS5_.constprop.0.cold",
+      "section_index": "14",
+      "size": 27,
+      "type": "FUNC",
+      "value": 31167
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl7ConnectEPiRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE.cold",
+      "section_index": "14",
+      "size": 24,
+      "type": "FUNC",
+      "value": 31194
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl19PrintConnectionInfoEP6bio_stPK6ssl_st.cold",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 31218
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl13PrintSSLErrorEP8_IO_FILEPKcii.cold",
+      "section_index": "14",
+      "size": 16,
+      "type": "FUNC",
+      "value": 31239
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl12TransferDataEP6ssl_sti.cold",
+      "section_index": "14",
+      "size": 17,
+      "type": "FUNC",
+      "value": 31255
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl14DoSMTPStartTLSEi.cold",
+      "section_index": "14",
+      "size": 90,
+      "type": "FUNC",
+      "value": 31272
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl12DoHTTPTunnelEiRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE.cold",
+      "section_index": "14",
+      "size": 36,
+      "type": "FUNC",
+      "value": 31362
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl26CertificateTypesFromStringESt17basic_string_viewIcSt11char_traitsIcEE.cold",
+      "section_index": "14",
+      "size": 102,
+      "type": "FUNC",
+      "value": 31398
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl9DecodeHexESt17basic_string_viewIcSt11char_traitsIcEE.cold",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 31500
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl11SplitStringESt17basic_string_viewIcSt11char_traitsIcEES3_",
+      "section_index": "14",
+      "size": 831,
+      "type": "FUNC",
+      "value": 35504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl22ParseKeyValueArgumentsEPSt3mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_St4lessIS6_ESaISt4pairIKS6_S6_EEERKSt6vectorIS6_SaIS6_EEPKNS_8argumentE",
+      "section_index": "14",
+      "size": 1393,
+      "type": "FUNC",
+      "value": 36496
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl6OpenFDEPKci",
+      "section_index": "14",
+      "size": 71,
+      "type": "FUNC",
+      "value": 66320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl12DoHTTPTunnelEiRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 788,
+      "type": "FUNC",
+      "value": 104592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl20SocketSetNonBlockingEib",
+      "section_index": "14",
+      "size": 101,
+      "type": "FUNC",
+      "value": 102160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl26CertificateTypesFromStringESt17basic_string_viewIcSt11char_traitsIcEE",
+      "section_index": "14",
+      "size": 630,
+      "type": "FUNC",
+      "value": 105392
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl17VersionFromStringEPtRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 178,
+      "type": "FUNC",
+      "value": 100912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl14DoSMTPStartTLSEi",
+      "section_index": "14",
+      "size": 1059,
+      "type": "FUNC",
+      "value": 103520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl8FDToFILEENS_8ScopedFDEPKc",
+      "section_index": "14",
+      "size": 71,
+      "type": "FUNC",
+      "value": 66640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl8Listener6AcceptEPi",
+      "section_index": "14",
+      "size": 46,
+      "type": "FUNC",
+      "value": 100864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl7ConnectEPiRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 1138,
+      "type": "FUNC",
+      "value": 99424
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl17InitSocketLibraryEv",
+      "section_index": "14",
+      "size": 6,
+      "type": "FUNC",
+      "value": 99408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl18LoadPrivateKeyFileERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 124,
+      "type": "FUNC",
+      "value": 66912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl12TransferDataEP6ssl_sti",
+      "section_index": "14",
+      "size": 917,
+      "type": "FUNC",
+      "value": 102592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl16SocketLineReader13ReadSMTPReplyEPjPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 1424,
+      "type": "FUNC",
+      "value": 106368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl11GetUnsignedEPjRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEjRKSt3mapIS6_S6_St4lessIS6_ESaISt4pairIS7_S6_EEE",
+      "section_index": "14",
+      "size": 353,
+      "type": "FUNC",
+      "value": 35136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl9WriteToFDEiPmPKvm",
+      "section_index": "14",
+      "size": 102,
+      "type": "FUNC",
+      "value": 66528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl13PrintSSLErrorEP8_IO_FILEPKcii",
+      "section_index": "14",
+      "size": 313,
+      "type": "FUNC",
+      "value": 102272
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl9DecodeHexESt17basic_string_viewIcSt11char_traitsIcEE",
+      "section_index": "14",
+      "size": 330,
+      "type": "FUNC",
+      "value": 106032
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl10ReadFromFDEiPmPvm",
+      "section_index": "14",
+      "size": 102,
+      "type": "FUNC",
+      "value": 66416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl10PrintUsageEPKNS_8argumentE",
+      "section_index": "14",
+      "size": 81,
+      "type": "FUNC",
+      "value": 35040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl8Listener4InitERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE",
+      "section_index": "14",
+      "size": 256,
+      "type": "FUNC",
+      "value": 100608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl19PrintConnectionInfoEP6bio_stPK6ssl_st",
+      "section_index": "14",
+      "size": 1049,
+      "type": "FUNC",
+      "value": 101104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZNSt6vectorIN4bssl6SourceESaIS1_EE17_M_realloc_appendIJS1_EEEvDpOT_",
+      "section_index": "14",
+      "size": 782,
+      "type": "FUNC",
+      "value": 65536
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl9TrimSpaceESt17basic_string_viewIcSt11char_traitsIcEE",
+      "section_index": "14",
+      "size": 159,
+      "type": "FUNC",
+      "value": 36336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl7ReadAllEPSt6vectorIhSaIhEEP8_IO_FILE",
+      "section_index": "14",
+      "size": 328,
+      "type": "FUNC",
+      "value": 67040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl11WriteToFileERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_4SpanIKhLm18446744073709551615EEE",
+      "section_index": "14",
+      "size": 192,
+      "type": "FUNC",
+      "value": 66720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl8ListenerD1Ev",
+      "section_index": "14",
+      "size": 30,
+      "type": "FUNC",
+      "value": 100576
+    },
+    {
+      "binding": "LOCAL",
+      "name": "_ZN4bssl7CloseFDEi",
+      "section_index": "14",
+      "size": 5,
+      "type": "FUNC",
+      "value": 66400
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl4RandERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 1242,
+      "type": "FUNC",
+      "value": 79872
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt10unique_ptrI6bio_stN4bssl8internal7DeleterEED1Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 57856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl6ServerERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 8839,
+      "type": "FUNC",
+      "value": 85248
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZSt16__do_uninit_copyIN9__gnu_cxx17__normal_iteratorIPKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIS7_SaIS7_EEEEPS7_ET0_T_SG_SF_",
+      "section_index": "14",
+      "size": 262,
+      "type": "FUNC",
+      "value": 81120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl6ClientERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 9808,
+      "type": "FUNC",
+      "value": 48000
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt6vectorIhSaIhEE17_M_realloc_appendIJhEEEvDpOT_",
+      "section_index": "14",
+      "size": 218,
+      "type": "FUNC",
+      "value": 107792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "14",
+      "size": 1485,
+      "type": "FUNC",
+      "value": 31616
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZZN4bssl8internal11DeleterImplI13stack_st_X509vE4FreeEPS2_ENUlPFvPvES5_E_4_FUNES7_S5_",
+      "section_index": "14",
+      "size": 8,
+      "type": "FUNC",
+      "value": 79712
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EEC1ERKSE_",
+      "section_index": "14",
+      "size": 131,
+      "type": "FUNC",
+      "value": 58720
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt10unique_ptrI14ssl_session_stN4bssl8internal7DeleterEED1Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 57808
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE4findERS7_",
+      "section_index": "14",
+      "size": 247,
+      "type": "FUNC",
+      "value": 37904
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS5_EED2Ev",
+      "section_index": "14",
+      "size": 101,
+      "type": "FUNC",
+      "value": 97968
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl7CiphersERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 500,
+      "type": "FUNC",
+      "value": 38160
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl9SHA512SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl11GenerateECHERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 2728,
+      "type": "FUNC",
+      "value": 69520
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl18GenerateEd25519KeyERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 1036,
+      "type": "FUNC",
+      "value": 74400
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt22_Optional_payload_baseISt6vectorIhSaIhEEE8_M_resetEv",
+      "section_index": "14",
+      "size": 43,
+      "type": "FUNC",
+      "value": 59168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "14",
+      "size": 34,
+      "type": "FUNC",
+      "value": 33104
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EEC2ERKSE_",
+      "section_index": "14",
+      "size": 131,
+      "type": "FUNC",
+      "value": 58720
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt10unique_ptrI6bio_stN4bssl8internal7DeleterEED2Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 57856
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt10unique_ptrI14ssl_session_stN4bssl8internal7DeleterEED2Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 57808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl9SHA256SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65360
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt12_Vector_baseISt17basic_string_viewIcSt11char_traitsIcEESaIS3_EED1Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 59120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl9SHA384SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65392
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC1IS3_EEPKcRKS3_",
+      "section_index": "14",
+      "size": 178,
+      "type": "FUNC",
+      "value": 72256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl8ListenerD2Ev",
+      "section_index": "14",
+      "size": 30,
+      "type": "FUNC",
+      "value": 100576
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS5_EED1Ev",
+      "section_index": "14",
+      "size": 101,
+      "type": "FUNC",
+      "value": 97968
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt6vectorIhSaIhEE17_M_default_appendEm",
+      "section_index": "14",
+      "size": 349,
+      "type": "FUNC",
+      "value": 67376
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl7SHA1SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65296
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl14GenerateRSAKeyERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 414,
+      "type": "FUNC",
+      "value": 75568
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt12_Vector_baseISt17basic_string_viewIcSt11char_traitsIcEESaIS3_EED2Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 59120
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNKSt8_Rb_treeINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairIKS5_S5_ESt10_Select1stIS8_ESt4lessIS5_ESaIS8_EE4findERS7_",
+      "section_index": "14",
+      "size": 247,
+      "type": "FUNC",
+      "value": 58864
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt12_Vector_baseIhSaIhEED2Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 58672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl4SignERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 1901,
+      "type": "FUNC",
+      "value": 95904
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEC2IS3_EEPKcRKS3_",
+      "section_index": "14",
+      "size": 178,
+      "type": "FUNC",
+      "value": 72256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl12SHA512256SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65456
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl9SHA224SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl8DoPKCS12ERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 1773,
+      "type": "FUNC",
+      "value": 77936
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZZN4bssl8internal11DeleterImplI20stack_st_ASN1_OBJECTvE4FreeEPS2_ENUlPFvPvES5_E_4_FUNES7_S5_",
+      "section_index": "14",
+      "size": 8,
+      "type": "FUNC",
+      "value": 94096
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt3mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES5_St4lessIS5_ESaISt4pairIKS5_S5_EEEixEOS5_",
+      "section_index": "14",
+      "size": 286,
+      "type": "FUNC",
+      "value": 58384
+    },
+    {
+      "binding": "WEAK",
+      "name": "_ZNSt12_Vector_baseIhSaIhEED1Ev",
+      "section_index": "14",
+      "size": 33,
+      "type": "FUNC",
+      "value": 58672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_ZN4bssl6MD5SumERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE",
+      "section_index": "14",
+      "size": 21,
+      "type": "FUNC",
+      "value": 65264
+    }
+  ]
+}

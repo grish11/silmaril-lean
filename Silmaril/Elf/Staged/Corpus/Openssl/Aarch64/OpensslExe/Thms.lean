@@ -3,8 +3,109 @@ module
 public import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bytes
 public import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Defs
 public import Silmaril.Elf.Staged.Reader.Thms
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part0
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part1
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part2
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part3
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part4
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part5
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part6
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part7
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part8
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part9
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part10
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part11
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part12
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part13
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part14
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part15
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part16
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part17
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part18
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part19
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part20
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part21
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part22
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part23
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part24
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part25
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part26
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part27
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part28
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part29
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part30
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part31
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part32
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part33
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part34
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part35
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part36
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part37
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part38
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part39
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part40
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part41
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part42
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part43
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part44
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part45
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part46
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part47
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part48
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part49
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part50
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part51
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part52
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part53
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part54
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part55
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part56
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part57
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part58
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part59
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part60
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part61
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part62
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part63
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part64
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part65
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part66
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part67
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part68
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part69
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part70
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part71
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part72
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part73
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part74
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part75
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part76
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part77
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part78
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part79
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part80
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part81
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part82
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part83
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part84
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part85
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part86
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part87
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part88
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part89
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part90
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part91
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part92
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part93
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part94
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part95
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part96
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part97
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part98
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part99
+import Silmaril.Elf.Staged.Corpus.Openssl.Aarch64.OpensslExe.Bodies.Part100
 
-/-! # openssl 3.5.9 `openssl` (aarch64; `corpus/elf/openssl/aarch64/openssl`): every part, checked against the file's bytes
+/-! # openssl 3.5.9 openssl (aarch64): every part, checked against the file's bytes
 
 GENERATED by `elf-staged emit-reader corpus/elf/openssl/aarch64/openssl Openssl/Aarch64/OpensslExe …` (`scripts/corpus/gen.py`); do not edit.
 
@@ -14,7 +115,7 @@ one `decide +kernel` run on the kernel bytes `K` (`Reader.partIs_of_kbytes`). Th
 exact footprint of the reader. `layout` and `parses` assemble the parts into the parse of the
 whole file (`Silmaril.Elf.Parses`) with no further kernel run of the reader. -/
 
-set_option maxHeartbeats 0
+set_option maxRecDepth 100000
 
 @[expose] public section
 
@@ -336,9 +437,9 @@ theorem body_2 : PartIs F [] (Parse.body L.shs sh2) b2 :=
 theorem body_3 : PartIs F [⟨688, 28⟩] (Parse.body L.shs sh3) b3 :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
-/-- **The body of section 4** (`.dynsym`). -/
-theorem body_4 : PartIs F [⟨720, 75640⟩] (Parse.body L.shs sh4) b4 :=
-  partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
+/-- **The body of section 4**, assembled from checked entry windows. -/
+theorem body_4 : BodyIs F L sh4 b4 :=
+  (bodyIs_symbols_iff (strs := sh5) (by decide) (by decide)).mpr ⟨by decide, by decide +kernel, (entriesAt_append.mpr ⟨entries_4_0, (entriesAt_append.mpr ⟨entries_4_1, (entriesAt_append.mpr ⟨entries_4_2, (entriesAt_append.mpr ⟨entries_4_3, (entriesAt_append.mpr ⟨entries_4_4, (entriesAt_append.mpr ⟨entries_4_5, (entriesAt_append.mpr ⟨entries_4_6, (entriesAt_append.mpr ⟨entries_4_7, (entriesAt_append.mpr ⟨entries_4_8, (entriesAt_append.mpr ⟨entries_4_9, (entriesAt_append.mpr ⟨entries_4_10, (entriesAt_append.mpr ⟨entries_4_11, (entriesAt_append.mpr ⟨entries_4_12, (entriesAt_append.mpr ⟨entries_4_13, (entriesAt_of_ok (sub_kbytes K.wf_true K.toByteArray_eq) (by decide +kernel))⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩
 
 /-- **The body of section 5** (`.dynstr`). -/
 theorem body_5 : PartIs F [] (Parse.body L.shs sh5) b5 :=
@@ -352,13 +453,13 @@ theorem body_6 : PartIs F [⟨76528, 3408⟩] (Parse.body L.shs sh6) b6 :=
 theorem body_7 : PartIs F [⟨76360, 168⟩, ⟨79936, 256⟩] (Parse.body L.shs sh7) b7 :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
-/-- **The body of section 8** (`.rela.dyn`). -/
-theorem body_8 : PartIs F [⟨80192, 142056⟩] (Parse.body L.shs sh8) b8 :=
-  partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
+/-- **The body of section 8**, assembled from checked entry windows. -/
+theorem body_8 : BodyIs F L sh8 b8 :=
+  (bodyIs_relas_iff (by decide)).mpr ⟨by decide, by decide +kernel, (entriesAt_append.mpr ⟨entries_8_0, (entriesAt_append.mpr ⟨entries_8_1, (entriesAt_append.mpr ⟨entries_8_2, (entriesAt_append.mpr ⟨entries_8_3, (entriesAt_append.mpr ⟨entries_8_4, (entriesAt_append.mpr ⟨entries_8_5, (entriesAt_append.mpr ⟨entries_8_6, (entriesAt_append.mpr ⟨entries_8_7, (entriesAt_append.mpr ⟨entries_8_8, (entriesAt_append.mpr ⟨entries_8_9, (entriesAt_append.mpr ⟨entries_8_10, (entriesAt_append.mpr ⟨entries_8_11, (entriesAt_append.mpr ⟨entries_8_12, (entriesAt_append.mpr ⟨entries_8_13, (entriesAt_append.mpr ⟨entries_8_14, (entriesAt_append.mpr ⟨entries_8_15, (entriesAt_append.mpr ⟨entries_8_16, (entriesAt_append.mpr ⟨entries_8_17, (entriesAt_append.mpr ⟨entries_8_18, (entriesAt_append.mpr ⟨entries_8_19, (entriesAt_append.mpr ⟨entries_8_20, (entriesAt_append.mpr ⟨entries_8_21, (entriesAt_append.mpr ⟨entries_8_22, (entriesAt_append.mpr ⟨entries_8_23, (entriesAt_append.mpr ⟨entries_8_24, (entriesAt_append.mpr ⟨entries_8_25, (entriesAt_append.mpr ⟨entries_8_26, (entriesAt_append.mpr ⟨entries_8_27, (entriesAt_append.mpr ⟨entries_8_28, (entriesAt_append.mpr ⟨entries_8_29, (entriesAt_append.mpr ⟨entries_8_30, (entriesAt_append.mpr ⟨entries_8_31, (entriesAt_append.mpr ⟨entries_8_32, (entriesAt_append.mpr ⟨entries_8_33, (entriesAt_append.mpr ⟨entries_8_34, (entriesAt_append.mpr ⟨entries_8_35, (entriesAt_append.mpr ⟨entries_8_36, (entriesAt_append.mpr ⟨entries_8_37, (entriesAt_append.mpr ⟨entries_8_38, (entriesAt_append.mpr ⟨entries_8_39, (entriesAt_append.mpr ⟨entries_8_40, (entriesAt_append.mpr ⟨entries_8_41, (entriesAt_append.mpr ⟨entries_8_42, (entriesAt_append.mpr ⟨entries_8_43, (entriesAt_append.mpr ⟨entries_8_44, (entriesAt_append.mpr ⟨entries_8_45, (entriesAt_append.mpr ⟨entries_8_46, (entriesAt_of_ok (sub_kbytes K.wf_true K.toByteArray_eq) (by decide +kernel))⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩
 
-/-- **The body of section 9** (`.rela.plt`). -/
-theorem body_9 : PartIs F [⟨222248, 40320⟩] (Parse.body L.shs sh9) b9 :=
-  partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
+/-- **The body of section 9**, assembled from checked entry windows. -/
+theorem body_9 : BodyIs F L sh9 b9 :=
+  (bodyIs_relas_iff (by decide)).mpr ⟨by decide, by decide +kernel, (entriesAt_append.mpr ⟨entries_9_0, (entriesAt_append.mpr ⟨entries_9_1, (entriesAt_append.mpr ⟨entries_9_2, (entriesAt_append.mpr ⟨entries_9_3, (entriesAt_append.mpr ⟨entries_9_4, (entriesAt_append.mpr ⟨entries_9_5, (entriesAt_append.mpr ⟨entries_9_6, (entriesAt_append.mpr ⟨entries_9_7, (entriesAt_append.mpr ⟨entries_9_8, (entriesAt_append.mpr ⟨entries_9_9, (entriesAt_append.mpr ⟨entries_9_10, (entriesAt_append.mpr ⟨entries_9_11, (entriesAt_append.mpr ⟨entries_9_12, (entriesAt_append.mpr ⟨entries_9_13, (entriesAt_of_ok (sub_kbytes K.wf_true K.toByteArray_eq) (by decide +kernel))⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩
 
 /-- **The body of section 10** (`.init`). -/
 theorem body_10 : PartIs F [] (Parse.body L.shs sh10) b10 :=
@@ -432,6 +533,10 @@ theorem body_26 : PartIs F [] (Parse.body L.shs sh26) b26 :=
 theorem body_27 : PartIs F [] (Parse.body L.shs sh27) b27 :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
+/-- **The body of section 28**, assembled from checked entry windows. -/
+theorem body_28 : BodyIs F L sh28 b28 :=
+  (bodyIs_symbols_iff (strs := sh29) (by decide) (by decide)).mpr ⟨by decide, by decide +kernel, (entriesAt_append.mpr ⟨entries_28_0, (entriesAt_append.mpr ⟨entries_28_1, (entriesAt_append.mpr ⟨entries_28_2, (entriesAt_append.mpr ⟨entries_28_3, (entriesAt_append.mpr ⟨entries_28_4, (entriesAt_append.mpr ⟨entries_28_5, (entriesAt_append.mpr ⟨entries_28_6, (entriesAt_append.mpr ⟨entries_28_7, (entriesAt_append.mpr ⟨entries_28_8, (entriesAt_append.mpr ⟨entries_28_9, (entriesAt_append.mpr ⟨entries_28_10, (entriesAt_append.mpr ⟨entries_28_11, (entriesAt_append.mpr ⟨entries_28_12, (entriesAt_append.mpr ⟨entries_28_13, (entriesAt_append.mpr ⟨entries_28_14, (entriesAt_append.mpr ⟨entries_28_15, (entriesAt_append.mpr ⟨entries_28_16, (entriesAt_append.mpr ⟨entries_28_17, (entriesAt_append.mpr ⟨entries_28_18, (entriesAt_append.mpr ⟨entries_28_19, (entriesAt_append.mpr ⟨entries_28_20, (entriesAt_append.mpr ⟨entries_28_21, (entriesAt_append.mpr ⟨entries_28_22, (entriesAt_append.mpr ⟨entries_28_23, (entriesAt_append.mpr ⟨entries_28_24, (entriesAt_append.mpr ⟨entries_28_25, (entriesAt_of_ok (sub_kbytes K.wf_true K.toByteArray_eq) (by decide +kernel))⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩)⟩
+
 /-- **The body of section 29** (`.strtab`). -/
 theorem body_29 : PartIs F [] (Parse.body L.shs sh29) b29 :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
@@ -444,10 +549,11 @@ theorem body_30 : PartIs F [] (Parse.body L.shs sh30) b30 :=
 theorem loader : PartIs F [⟨660, 27⟩, ⟨76360, 37⟩, ⟨1047344, 440⟩] (readLoader L.phdrs) ld :=
   partIs_of_kbytes K.wf_true K.toByteArray_eq (by decide +kernel)
 
-/-! No whole-file `parses` theorem: the tables of sections [28] (symbol tables of more than
-2000 entries, relocation tables of more than 8000) have no whole-table body theorem, since one kernel run over such a table
-exceeds the budget of a module. Their function entries are checked one by one (`Functions`), and the
-layout, the loader view and every other body are checked here. -/
+/-- **The parse of the whole file** (`Silmaril.Elf.Parses`), assembled from the parts. -/
+theorem parses : Parses F (L.assemble bodies ld) :=
+  parses_assemble layout
+    (.cons body_0.bodyIs (.cons body_1.bodyIs (.cons body_2.bodyIs (.cons body_3.bodyIs (.cons body_4 (.cons body_5.bodyIs (.cons body_6.bodyIs (.cons body_7.bodyIs (.cons body_8 (.cons body_9 (.cons body_10.bodyIs (.cons body_11.bodyIs (.cons body_12.bodyIs (.cons body_13.bodyIs (.cons body_14.bodyIs (.cons body_15.bodyIs (.cons body_16.bodyIs (.cons body_17.bodyIs (.cons body_18.bodyIs (.cons body_19.bodyIs (.cons body_20.bodyIs (.cons body_21.bodyIs (.cons body_22.bodyIs (.cons body_23.bodyIs (.cons body_24.bodyIs (.cons body_25.bodyIs (.cons body_26.bodyIs (.cons body_27.bodyIs (.cons body_28 (.cons body_29.bodyIs (.cons body_30.bodyIs .nil)))))))))))))))))))))))))))))))
+    loader.loaderIs
 
 /-- **Padding**: the 7 bytes at 0x9 are zero. -/
 theorem pad_0 : ZerosAt F 9 7 :=

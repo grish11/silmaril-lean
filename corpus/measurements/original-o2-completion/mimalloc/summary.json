@@ -1,0 +1,128 @@
+{
+  "schema_version": 1,
+  "project": "mimalloc",
+  "version": "2.1.9",
+  "configuration": "default",
+  "optimization": "O2",
+  "actual_new_elf_rows": 4,
+  "retained_rows_no_new_execution_claimed": 0,
+  "profiles": [
+    {
+      "target": "x86_64-linux-gnu",
+      "build": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+          "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+        }
+      ],
+      "included_sources_hash_checked": 29,
+      "measured_exits_passed": 12,
+      "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+      "build_wall_seconds": {
+        "build-a": 3.171050095001192,
+        "build-b": 2.7995945359998586
+      },
+      "outputs": [
+        {
+          "object": "libmimalloc.so.2.1",
+          "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/unstripped/libmimalloc.so.2.1",
+          "size": 165000,
+          "sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 459,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/unstripped/receipt.json",
+          "receipt_sha256": "6d84945d2dd534ce597e8742cd0699343933e906cf75a380c95e2ae4dd39a7b3",
+          "census": "corpus/census/variants/mimalloc/2.1.9/default/x86_64/O2/unstripped/libmimalloc.so.2.1.json",
+          "strip_pair": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/libmimalloc.so.2.1.pair.json",
+          "canonical_sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+          "matches_canonical": true
+        },
+        {
+          "object": "libmimalloc.so.2.1",
+          "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/stripped/libmimalloc.so.2.1",
+          "size": 140160,
+          "sha256": "0a2fa43234f9d1785a81ba7e00681bc993083c72dcb2c8228b24c8f174710d68",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/stripped/receipt.json",
+          "receipt_sha256": "f8aae97275f46043d166414f61cab921e52d6ba17afdd71812b06a312ce474d3",
+          "census": "corpus/census/variants/mimalloc/2.1.9/default/x86_64/O2/stripped/libmimalloc.so.2.1.json",
+          "strip_pair": "corpus/variants/mimalloc/2.1.9/default/x86_64/O2/libmimalloc.so.2.1.pair.json",
+          "canonical_sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    },
+    {
+      "target": "aarch64-linux-gnu",
+      "build": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz",
+          "sha256": "dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20"
+        }
+      ],
+      "included_sources_hash_checked": 29,
+      "measured_exits_passed": 12,
+      "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/mimalloc=. -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc -march=armv8.1-a -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+      "build_wall_seconds": {
+        "build-a": 3.626619545999347,
+        "build-b": 3.236013671999899
+      },
+      "outputs": [
+        {
+          "object": "libmimalloc.so.2.1",
+          "path": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/unstripped/libmimalloc.so.2.1",
+          "size": 166848,
+          "sha256": "7217a0e89d3f830e7f6edac2c64b3220f0ba535bd37092a209890ebcd49a5bd2",
+          "elf_machine": "AArch64",
+          "func_symbols": 442,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/unstripped/receipt.json",
+          "receipt_sha256": "41052ff9185a40a9036e57fedff1182881e016fb13191a1be1cd39a6e20cc97f",
+          "census": "corpus/census/variants/mimalloc/2.1.9/default/aarch64/O2/unstripped/libmimalloc.so.2.1.json",
+          "strip_pair": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/libmimalloc.so.2.1.pair.json",
+          "canonical_sha256": "7217a0e89d3f830e7f6edac2c64b3220f0ba535bd37092a209890ebcd49a5bd2",
+          "matches_canonical": true
+        },
+        {
+          "object": "libmimalloc.so.2.1",
+          "path": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/stripped/libmimalloc.so.2.1",
+          "size": 140072,
+          "sha256": "69d15f6a6bb24c1dcfd40742aef59aae88b549f6b53a8dfdb561875d5231eb32",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/stripped/receipt.json",
+          "receipt_sha256": "a85cc5ebad2dc97c302c7950785669aa60bc849ef1fedfb78abfa65deece51a4",
+          "census": "corpus/census/variants/mimalloc/2.1.9/default/aarch64/O2/stripped/libmimalloc.so.2.1.json",
+          "strip_pair": "corpus/variants/mimalloc/2.1.9/default/aarch64/O2/libmimalloc.so.2.1.pair.json",
+          "canonical_sha256": "7217a0e89d3f830e7f6edac2c64b3220f0ba535bd37092a209890ebcd49a5bd2",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": true
+    }
+  ],
+  "retained_profiles": [],
+  "limits": [
+    "Only completed actual outputs counted; original paths/hashes preserved.",
+    "Two independently initialized reused pinned containers; independent workspace/build/strip/runtime repeats.",
+    "Static census and runtime observations are not semantic equivalence or Lean proofs.",
+    "No exhaustive upstream test or full local make check claim."
+  ]
+}

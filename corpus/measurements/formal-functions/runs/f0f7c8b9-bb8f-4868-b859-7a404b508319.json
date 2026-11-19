@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "run_id": "f0f7c8b9-bb8f-4868-b859-7a404b508319",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T10:17:43.413973+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.DarkhttpdLogEncoding.Context.Defs",
+    "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+    "Silmaril.Elf.Corpus.MimallocOsFlags.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "darkhttpd-byte-context-and-affected-registered-roots",
+  "repository": {
+    "commit": "6748b7b830c83287c3d62b0adf4ae4a037284527",
+    "dirty": true,
+    "diff_sha256": "c9b13e43b9776588057b584bb0893b767c03a97e1d668d06e48093fabd61bd11"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Context/Defs.lean",
+      "sha256": "bc04390346942696fdd0d2aaa87a437672091320771550c488fded2f63f8b7d5"
+    },
+    {
+      "path": "Silmaril/X86/SystemV/Defs.lean",
+      "sha256": "c0d835ce05a648f300ca61674294d16915d3f5831c3b112ec21df5b18ce3f9a9"
+    },
+    {
+      "path": "Silmaril/X86/SystemV/CApi/Defs.lean",
+      "sha256": "6574f2b6b59c274b579e17a285ab8127f286a7db2cdfd26e805e732c54496930"
+    },
+    {
+      "path": "Silmaril/Project/Shapes/SysV/Rtl/Defs.lean",
+      "sha256": "579ef8eb944c3b47cef2b786caf68121b70314ceb46636455066c05281044642"
+    },
+    {
+      "path": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/manifest.json",
+      "sha256": "9779cc3809298a5e88dc4c12f0788109aab5167ff3e0be21b353ae42868f1915"
+    }
+  ],
+  "wall_seconds": 60.533712122,
+  "exit_code": 0,
+  "user_cpu_seconds": 66.55,
+  "system_cpu_seconds": 27.76,
+  "peak_rss_kib": 4533300,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}
