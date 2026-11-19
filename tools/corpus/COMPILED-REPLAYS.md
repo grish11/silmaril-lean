@@ -58,3 +58,14 @@ These measurements do not certify a CI budget pass. Keep the unchanged timing
 accounting and original acceptance target distinct, retain historical failures,
 and validate net benefit locally before starting expensive full CI. No tests,
 input domains, assertions, security scans or timeouts should be weakened.
+
+`replay_measure.py` provides a separate sampled descendant-RSS diagnostic with
+an unchanged default 32GiB guard. It counts each Linux `Tgid` once, even when a
+proc implementation lists thread IDs as children. Distinct processes may still
+share pages, so their summed RSS is conservative; sampling is not hard aggregate
+memory isolation. A sampler error stops the measured process group. Run its
+focused regression with:
+
+```sh
+python3 -m unittest discover -s tools/corpus -p test_replay_measure.py
+```
