@@ -35,7 +35,9 @@ def capacity():
         slots = min(slots, max(1, quota // period))
     # On a smaller container retain correctness with sequential phases.
     overlap = slots >= 2 and (not memory or memory == "max" or int(memory) >= 8 * 1024**3)
-    runtime_slots = min(4, max(1, slots // 2)) if overlap else min(4, slots)
+    # Four simultaneous imported runtime environments plus the ELF exporter
+    # exceeded the 16 GiB aggregate RSS bound in CI; retain two during overlap.
+    runtime_slots = min(2, max(1, slots // 2)) if overlap else min(4, slots)
     release_slots = min(4, slots - runtime_slots) if overlap else min(4, slots)
     return {"affinity_cpus": len(os.sched_getaffinity(0)), "cpu_max": cpu,
             "memory_max": memory, "runtime_slots": runtime_slots,

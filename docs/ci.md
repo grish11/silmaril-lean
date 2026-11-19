@@ -48,8 +48,10 @@ temporary directory. Feature outputs use their existing separate paths. The logi
 incremental test edits only its own records and loader, outside the runtime import
 closures; the phase coordinator also restores that input on failure/cancellation.
 The coordinator records actual CPU affinity/quota and memory limits. It caps runtime
-and native release slots at four each, with one Lean thread per command and at most
-eight total slots, reducing allocations or running serially on smaller containers.
+slots at two while overlapping up to four native release slots, with one Lean
+thread per command, reducing allocations or running serially on smaller containers.
+The standalone runtime runner still permits four slots. Four overlapping runtime
+slots exceeded the conservative aggregate RSS bound during ELF export in CI.
 Both phase results must succeed. Failure, timeout or a termination signal cancels
 the peer, kills command groups before reaping them, and waits for cleanup. Logs
 include phase boundaries, CPU time and sampled aggregate container memory (including
