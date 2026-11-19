@@ -15,6 +15,7 @@ public def main : IO Unit := do
     IO.println s!"host choose() = {choice}; sample(false) = {!choice}"
     IO.println s!"  source: {repr trace}"
     IO.println s!"  container: {repr (trace.filter Event.isExport)}; wrapper exit 0"
+  IO.println "sample(false) can also wait for an answer; availability does not prove delivery. No exit."
   let trapTrace := completedTrace true false
   IO.println s!"sample(true): {repr trapTrace}; guest {repr (guestOutcome none)}; wrapper exit 70"
   IO.println s!"optional more-UB policy: {repr ((guestOutcome none).trapAsUB .unmodeled)}"

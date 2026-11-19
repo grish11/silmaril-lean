@@ -19,8 +19,8 @@ theorem run_reaches {trap t s} (h : Run trap t s) :
 theorem run_legal {trap t s} (h : Run trap t s) :
     Silmaril.Games.Legal (t.map (Event.move trap)) := ⟨_, (run_reaches h).path⟩
 
-theorem source_simulates {host trap b} (ha : Admitted host) (hb : source host trap b) :
-    linked host trap b := Silmaril.Proofs.Containers.SyncComponent.source_simulates ha hb
+theorem source_simulates {host trap b} (hb : source host trap b) :
+    linked host trap b := Silmaril.Proofs.Containers.SyncComponent.source_simulates hb
 
 theorem loose_admitted : Admitted looseHost :=
   Silmaril.Proofs.Containers.SyncComponent.loose_admitted
@@ -46,9 +46,7 @@ theorem linked_good (host : ClosedHost)
 /-- The same interface spec reaches containers via the checked executor certificate. This
 quantifies every admitted host and every source execution, not selected test seeds. -/
 theorem runtime_returns (host : ClosedHost) (trap : Bool) (ha : Admitted host) :
-    (runtime.beh ((), host, trap)).Sat (fun b => Spec.noUB b ∧
-      ∃ r, ReturnOK [.bool trap] (values r) ∧
-        b = .done [.call trap, .returned r] (.exited (reportCode r))) :=
+    (runtime.beh ((), host, trap)).Sat (fun b => Spec.noUB b ∧ Reports trap b) :=
   Silmaril.Proofs.Containers.SyncComponent.runtime_returns host trap ha
 
 theorem runtime_choice (host : ClosedHost) (choice : Bool) (hc : hostPlay choice ∈ host) :
@@ -58,11 +56,16 @@ theorem runtime_choice (host : ClosedHost) (choice : Bool) (hc : hostPlay choice
 
 /-- The stronger functional law also relates each result to a choice actually permitted by
 the host; neither Boolean branch was dropped by the observation adapter. -/
-theorem runtime_complements (host : ClosedHost) (ha : Admitted host) :
-    (runtime.beh ((), host, false)).Sat (fun b => ∃ choice,
+theorem runtime_complements (host : ClosedHost) :
+    (runtime.beh ((), host, false)).Sat (fun b => b = .blocked [.call false] ∨ ∃ choice,
       hostPlay choice ∈ host ∧
       b = .done [.call false, .returned (some (!choice))] (.exited 0)) :=
-  Silmaril.Proofs.Containers.SyncComponent.runtime_complements host ha
+  Silmaril.Proofs.Containers.SyncComponent.runtime_complements host
+
+/-- Availability of a response in a safety strategy does not prove eventual delivery. -/
+theorem runtime_waits (host : ClosedHost) :
+    runtime.beh ((), host, false) (.blocked [.call false]) :=
+  Silmaril.Proofs.Containers.SyncComponent.runtime_waits host
 
 theorem runtime_trap (host : ClosedHost) :
     runtime.beh ((), host, true) (.done [.call true, .returned none] (.exited 70)) :=

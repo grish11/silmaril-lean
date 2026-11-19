@@ -105,8 +105,8 @@ the WIT result shape. No trap or malformed value is an admitted host answer. -/
 def TypedAnswers (t : List Silmaril.Wasi.WEv) : Prop :=
   ∀ e ∈ t, ∃ b, e = .imp chooseName [] (values (some b))
 
-/-- Safety alone cannot require a host to answer. One-shot responsiveness is explicit and
-does not assert scheduling fairness or engine progress. -/
+/-- Safety alone cannot require a host to answer. One-shot availability supplies a complete
+execution witness, not eventual delivery, scheduling fairness or engine progress. -/
 def Admitted (host : ClosedHost) : Prop :=
   (Silmaril.Wasi.hostSat TypedAnswers).holds host ∧ ∃ b, hostPlay b ∈ host
 
@@ -150,19 +150,27 @@ def trapPolicy : Adapter Event Event := ⟨fun b => match b with
   | .done t stop => if .returned none ∈ t then .done t (.undefined .unmodeled) else .done t stop
   | b => b⟩
 
-/-- Complete source executions compatible with the actual host strategy, plus an explicit
-waiting run if that host offers no Boolean answer. The model is one invocation. -/
+/-- Complete source executions compatible with the actual host strategy, plus a waiting
+behavior in normal mode. Finite-play host strategies do not assert eventual delivery, even
+when a reply is available. The model is one invocation. -/
 def source (host : ClosedHost) (trap : Bool) : Model Event := fun b =>
   (∃ t r, Run trap t (.finished r) ∧ t.filterMap Event.host ∈ host ∧ b = report t r) ∨
-  (trap = false ∧ (¬ ∃ choice, hostPlay choice ∈ host) ∧
-    b = .blocked [.call false])
+  (trap = false ∧ b = .blocked [.call false])
 
 /-- Independently defined by the existing linked component's plays and their typed export
 observations. Source-machine runs do not occur in this definition. -/
 def linked (host : ClosedHost) (trap : Bool) : Model Event := fun b =>
-  ∃ r, [.inr (.ask (sampleOp trap)), .inr (.ans (sampleOp trap) (values r))] ∈
+  (∃ r, [.inr (.ask (sampleOp trap)), .inr (.ans (sampleOp trap) (values r))] ∈
     Silmaril.Wasi.link host (Silmaril.Wasi.ofBody body) ∧
-    b = .done [.call trap, .returned r] (.exited (reportCode r))
+    b = .done [.call trap, .returned r] (.exited (reportCode r))) ∨
+  (trap = false ∧ [.inr (.ask (sampleOp trap))] ∈
+    Silmaril.Wasi.link host (Silmaril.Wasi.ofBody body) ∧ b = .blocked [.call false])
+
+/-- The transferred partial export spec; waiting is not a successful return. -/
+def Reports (trap : Bool) (b : Beh Event) : Prop :=
+  (∃ r, ReturnOK [.bool trap] (values r) ∧
+    b = .done [.call trap, .returned r] (.exited (reportCode r))) ∨
+  (trap = false ∧ b = .blocked [.call false])
 
 def runtime : Runtime (Unit × ClosedHost × Bool) (ClosedHost × Bool) Event where
   load i := .ok i.2

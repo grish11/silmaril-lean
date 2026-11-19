@@ -12,6 +12,7 @@ The model runner enumerates these complete source traces:
 | `sample(false)` | `choose() = false` | `true` | 0 |
 | `sample(false)` | `choose() = true` | `false` | 0 |
 | `sample(true)` | no import | defined guest trap | 70 |
+| `sample(false)` | answer not delivered | waiting | no exit |
 
 The [WIT file](../../examples/containers/sync-component/world.wit) declares a synchronous
 `choose: func() -> bool` import and `sample: func(trap: bool) -> bool` export. Its names and
@@ -70,9 +71,9 @@ execution**, rather than only these seeds.
 | --- | --- |
 | WIT types | Supported export argument is one Boolean. Import answer is exactly one Boolean; traps and malformed values are excluded by `TypedAnswers`. `untyped_reply_rejected` checks a wrong integer answer. |
 | Turns | Existing host strategies are legal/receptive. Source simulation establishes component legality; `reply_requires_wait` rejects a reply before its request. |
-| Host progress | `Admitted` separately requires at least one answer to the first `choose()` call. Host safety alone does not guarantee an answer. |
+| Host progress | `Admitted` separately requires at least one available answer to the first `choose()` call, to witness a complete execution. A safety strategy does not guarantee eventual delivery. |
 | Nonvacuity | The loose host is admitted. For every admitted host and either invocation mode, `runtime_nonempty` supplies an execution. |
-| Source progress | This finite one-invocation runner includes a waiting behavior if the host offers no Boolean answer. Admitted-host responsiveness excludes that behavior. No engine fairness or arbitrary-program termination is asserted. |
+| Source progress | Waiting remains possible even when an answer is available: finite-play strategies express safety, not eventual delivery. `runtime_waits` checks this boundary; `Reports` retains a partial observation. No engine fairness or arbitrary-program termination is asserted. |
 | Validation/loading | The guest is the fixed named component body with checked Boolean arguments. Loading selects that model; no bytes, binary validation or arbitrary guest acceptance are claimed. |
 | Observation | Container events retain the export call/return; imports are hidden by linking. `returned none` records a guest trap, and wrapper exit 70 reports it. That status is not a normal guest exit. |
 

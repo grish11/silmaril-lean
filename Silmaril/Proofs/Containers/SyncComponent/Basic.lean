@@ -82,17 +82,20 @@ theorem zip_trace (trap : Bool) (t : List Event) :
     | chosen b => exact .sync _ ih
     | returned r => exact .right _ ih
 
-theorem source_simulates {host trap b} (ha : Admitted host) (hb : source host trap b) :
+theorem source_simulates {host trap b} (hb : source host trap b) :
     linked host trap b := by
-  rcases hb with ⟨t, r, hr, hh, rfl⟩ | ⟨_, hnone, _⟩
+  rcases hb with ⟨t, r, hr, hh, rfl⟩ | ⟨htrap, hb⟩
   · obtain ⟨choice, ht, hout⟩ := run_shape hr
-    refine ⟨r, ?_, ?_⟩
+    refine Or.inl ⟨r, ?_, ?_⟩
     · have hp : t.filterMap (Event.closed trap) ∈
           Silmaril.Wasi.link host (Silmaril.Wasi.ofBody body) :=
         ⟨_, hh, _, ⟨_, run_reaches hr⟩, zip_trace trap t⟩
       cases trap <;> simpa [ht, hout, completedTrace, resultOf, List.filterMap, Event.closed] using hp
     · cases trap <;> simp [report, ht, hout, completedTrace, resultOf, List.filter, Event.isExport]
-  · exact (hnone ha.2).elim
+  · subst trap
+    refine Or.inr ⟨rfl, ?_, hb⟩
+    exact ⟨[], host.nil_mem, [.inr (.ask (sampleOp false))],
+      ⟨_, Reach.nil.snoc (CStep.ask (sampleOp false))⟩, .right _ .nil⟩
 
 theorem hostPlay_loose (b : Bool) : hostPlay b ∈ looseHost := by
   constructor
@@ -124,10 +127,10 @@ theorem certificate : executor.Certificate := by
     exact ⟨b, b, hb, rfl⟩
   · intro _ host trap _ _ b hb
     obtain ⟨b₀, hs, rfl⟩ := hb
-    rcases hs with ⟨_, _, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> trivial
+    rcases hs with ⟨_, _, _, _, rfl⟩ | ⟨_, rfl⟩ <;> trivial
   · intro _ host trap _ ha b hb
     obtain ⟨b₀, hs, rfl⟩ := hb
-    exact source_simulates ha hs
+    exact source_simulates hs
 
 def ProgramOK (args : List Silmaril.Wasm.Component.Val) (p : Silmaril.Wasi.BProg world.imports) :
     Prop :=
@@ -200,17 +203,15 @@ theorem linked_good (host : ClosedHost)
   Silmaril.Wasi.link_sat component_sat ha
 
 theorem linked_returns {host trap b} (ha : Admitted host) (hb : linked host trap b) :
-    ∃ r, ReturnOK [.bool trap] (values r) ∧
-      b = .done [.call trap, .returned r] (.exited (reportCode r)) := by
-  obtain ⟨r, hp, rfl⟩ := hb
-  refine ⟨r, ?_, rfl⟩
-  exact linked_good host ha.1 _ hp (.ret sampleName [.bool trap] (values r)) (by
-    simp [Silmaril.Wasi.xtrace, Silmaril.Wasi.xev, sampleOp])
+    Reports trap b := by
+  rcases hb with ⟨r, hp, rfl⟩ | ⟨ht, _, hb⟩
+  · refine Or.inl ⟨r, ?_, rfl⟩
+    exact linked_good host ha.1 _ hp (.ret sampleName [.bool trap] (values r)) (by
+      simp [Silmaril.Wasi.xtrace, Silmaril.Wasi.xev, sampleOp])
+  · exact Or.inr ⟨ht, hb⟩
 
 theorem runtime_returns (host : ClosedHost) (trap : Bool) (ha : Admitted host) :
-    (runtime.beh ((), host, trap)).Sat (fun b => Spec.noUB b ∧
-      ∃ r, ReturnOK [.bool trap] (values r) ∧
-        b = .done [.call trap, .returned r] (.exited (reportCode r))) :=
+    (runtime.beh ((), host, trap)).Sat (fun b => Spec.noUB b ∧ Reports trap b) :=
   certificate.sat trivial ha (fun _ hb => linked_returns ha hb)
 
 theorem runtime_choice (host : ClosedHost) (choice : Bool) (hc : hostPlay choice ∈ host) :
@@ -220,16 +221,20 @@ theorem runtime_choice (host : ClosedHost) (choice : Bool) (hc : hostPlay choice
     complete_run false choice, hc, rfl⟩, ?_⟩
   rfl
 
-theorem runtime_complements (host : ClosedHost) (ha : Admitted host) :
-    (runtime.beh ((), host, false)).Sat (fun b => ∃ choice,
+theorem runtime_complements (host : ClosedHost) :
+    (runtime.beh ((), host, false)).Sat (fun b => b = .blocked [.call false] ∨ ∃ choice,
       hostPlay choice ∈ host ∧
       b = .done [.call false, .returned (some (!choice))] (.exited 0)) := by
   intro b hb
   obtain ⟨b₀, hs, rfl⟩ := hb
-  rcases hs with ⟨t, r, hr, hh, rfl⟩ | ⟨_, hn, _⟩
+  rcases hs with ⟨t, r, hr, hh, rfl⟩ | ⟨_, hb⟩
   · obtain ⟨choice, rfl, rfl⟩ := run_shape hr
-    exact ⟨choice, hh, rfl⟩
-  · exact (hn ha.2).elim
+    exact Or.inr ⟨choice, hh, rfl⟩
+  · exact Or.inl hb
+
+theorem runtime_waits (host : ClosedHost) :
+    runtime.beh ((), host, false) (.blocked [.call false]) :=
+  ⟨_, Or.inr ⟨rfl, rfl⟩, rfl⟩
 
 theorem runtime_trap (host : ClosedHost) :
     runtime.beh ((), host, true) (.done [.call true, .returned none] (.exited 70)) :=
