@@ -40,6 +40,20 @@ three seeds, preserving all 168 Core and 420 machine cases. The runner rejects
 missing/duplicate seeds, incorrect counts, child failures and timeouts, and kills
 and reaps command groups on cancellation. No-argument test commands still run all
 original seeds. This runtime work remains inside `make check` and its timing budget.
+After the complete Lake build, the runtime phase overlaps the feature phase.
+The feature phase keeps its existing order: native release, ELF, headers, logic,
+then compiler explorer (including the unchanged official serial kernel replay).
+Runtime commands only read their compiled modules and fixtures; each has its own
+temporary directory. Feature outputs use their existing separate paths. The logic
+incremental test edits only its own records and loader, outside the runtime import
+closures; the phase coordinator also restores that input on failure/cancellation.
+The coordinator records actual CPU affinity/quota and memory limits. It caps runtime
+and native release slots at four each, with one Lean thread per command and at most
+eight total slots, reducing allocations or running serially on smaller containers.
+Both phase results must succeed. Failure, timeout or a termination signal cancels
+the peer, kills command groups before reaping them, and waits for cleanup. Logs
+include phase boundaries, CPU time and sampled aggregate container memory (including
+file cache). This scheduling changes no test, theorem check or timing exemption.
 The timing check waits for all selected correctness jobs. It includes their
 setup, cache transfer, tests and publication, plus waits after the attempt
 starts. Time Lake spends compiling modules the run had to build does not count:

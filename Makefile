@@ -3,11 +3,13 @@
 .DEFAULT_GOAL := tools
 LAKE ?= lake
 PYTHON ?= python3
+RUNTIME_JOBS ?= 4
+RELEASE_JOBS ?= $$(nproc)
 CARGO ?= cargo
 PROJECT_TARGET = $(or $(CARGO_TARGET_DIR),tools/silmaril-project/target)
 WASM_TOOLS := wasm-as wasm-dis wasm-opt wasm-merge wasm-shell wasm-ctor-eval wasm-metadce
 
-.PHONY: compiler-explorer-check logic-graph-check lean-ndjson-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check header-check demo demo-process demo-sha256 help
+.PHONY: compiler-explorer-check logic-graph-check lean-ndjson-check tools stage library cache scope check check-runtime check-features release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check header-check demo demo-process demo-sha256 help
 
 tools:
 	$(LAKE) build --wfail $(WASM_TOOLS)
@@ -77,10 +79,18 @@ check:
 	elif [ -n "$(strip $(CHECK_TARGETS))" ]; then \
 		$(LAKE) build --wfail $(CHECK_TARGETS); \
 	fi
+	+$(PYTHON) -I tools/ci-checks/run.py --make "$(MAKE)" --lake "$(LAKE)" --python "$(PYTHON)" --targets "$(CHECK_TARGETS)"
+
+# Both phases start only after check's complete Lake build. Runtime commands read
+# compiled modules and immutable fixtures; their temporary directories are isolated.
+check-runtime:
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/cerberus-runtime/check.py --jobs $(RUNTIME_JOBS) --lake "$(LAKE)" --python "$(PYTHON)")
+
+# Preserve the existing feature-check order and every gate.
+check-features:
 	$(MAKE) process-gates
 	examples/layout/gen-lean.sh --check
 	$(if $(filter Silmaril,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/DrislDebug.lean)
-	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/cerberus-runtime/check.py --lake "$(LAKE)" --python "$(PYTHON)")
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
 	$(if $(filter ctv-pipeline,$(CHECK_TARGETS)),$(MAKE) c-tv-check)
 	$(if $(filter wasm-opt,$(CHECK_TARGETS)),$(LAKE) build --wfail $(RELEASE_BINARIES) && $(MAKE) release-check)
@@ -122,7 +132,7 @@ header-check:
 	$(LAKE) env .lake/build/bin/header-pages --self-test
 
 release-check:
-	$(PYTHON) tools/binaryen-lean/check-release.py --jobs $$(nproc) --report build/wasm-checks.json
+	$(PYTHON) tools/binaryen-lean/check-release.py --jobs $(RELEASE_JOBS) --report build/wasm-checks.json
 	$(MAKE) stage
 	build/bin/sil --help >/dev/null
 	build/bin/sil wasm opt --print-presets >/dev/null
