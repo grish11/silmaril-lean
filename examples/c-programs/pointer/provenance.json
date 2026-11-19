@@ -161,6 +161,35 @@
  "losses": [],
  "name": "pointer",
  "profile": "linuxX86_64",
+ "reportReplay": {
+  "command": [
+   "ctv-pipeline",
+   "run",
+   "benchmarks/cerberus-elaboration/oracle/constant-return/core.sexp.gz",
+   "4",
+   ".refresh",
+   "--observe",
+   "gcc-O0",
+   "3",
+   "native-O0.out",
+   "--observe",
+   "gcc-O2",
+   "3",
+   "native-O2.out",
+   "cerberus=cerberus.tail.sexp",
+   "clang=clang.tail.sexp"
+  ],
+  "inputs": {
+   "cerberus.tail.sexp": "891c20c72b34a04c333e3b014d2d061a36cf539d8e54c96ec1da245b574151be",
+   "clang.tail.sexp": "91e06e3a11128172bd56345c7c5db49ead992dc7ef64248e4218403ee0978fdf",
+   "native-O0.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "native-O2.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "pipelineSha256": "bbf7a200eafd2e74eeb5d4a2331c5607f2d0b64a9995b55e15829ba619a09592",
+  "repositoryRevision": "2c073d7a5b97818cfd78f18a14f4c43d16b9df28",
+  "runtimeResolvedFromRepositoryRoot": true,
+  "source": "stored typed Ail and stored native observations; no frontend or external compiler rerun"
+ },
  "repositoryRevision": "587a8dca1a25ccd0187b7079246fc2664d169593",
  "schema": "silmaril.c-tv.provenance.v1",
  "target": "x86_64-linux-gnu",
@@ -168,7 +197,7 @@
   "cerb-lean": "7388fce668288274cff2f963061052343a183f1f59e2d41a2c62f2bc3e1f60e7",
   "cfront": "3c1fa73fd49ec347703964e29b2d79b7b65c2164f2a7a5ef822f6e8c2df9032a",
   "clang": "Debian clang version 19.1.7 (3+b1)",
-  "ctv-pipeline": "bf5770e21d848c6ed224e8e938ad48fa0e0305d1dd3dc2b94c7341f39182ce93",
+  "ctv-pipeline": "bbf7a200eafd2e74eeb5d4a2331c5607f2d0b64a9995b55e15829ba619a09592",
   "gcc": "gcc (Debian 14.2.0-19) 14.2.0"
  },
  "warnings": [

@@ -1,5 +1,36 @@
 {
  "artifacts": {
+  "cerberus.core.sexp.gz": {
+   "bytes": 505983,
+   "file": "cerberus.core.sexp.gz",
+   "inputs": [
+    "dd3f6de7d0a4d0490237e0b486d0edbb8317be35da886f75da98b0eaea3924b2"
+   ],
+   "producer": {
+    "args": [
+     "benchmarks/cerberus-elaboration/oracle/constant-return/core.sexp.gz",
+     "4",
+     ".refresh",
+     "--observe",
+     "gcc-O0",
+     "3",
+     "native-O0.out",
+     "--observe",
+     "gcc-O2",
+     "3",
+     "native-O2.out",
+     "cerberus=cerberus.tail.sexp",
+     "clang=clang.tail.sexp"
+    ],
+    "sha256": "bbf7a200eafd2e74eeb5d4a2331c5607f2d0b64a9995b55e15829ba619a09592",
+    "target": "x86_64-linux-gnu",
+    "tool": "ctv-pipeline run",
+    "version": "2c073d7a5b97818cfd78f18a14f4c43d16b9df28"
+   },
+   "sha256": "720070ecda8008904865aaedb0b8a80113665ab577b0ac309b211f75a3e8ae14",
+   "sha256Of": "uncompressed",
+   "stage": "core"
+  },
   "cerberus.tail.sexp": {
    "bytes": 4496,
    "file": "cerberus.tail.sexp",
@@ -154,6 +185,14 @@
    "relation": "elaborates",
    "source": "a481d4752875e79c86386bedb9a00950cb941f5b421b9235f3dfebefd3a1b15b",
    "target": "d0824e1bdc107a2b9e861ffb2d76a31b6039f81309d226ccf10b2cd0e303ca7f"
+  },
+  {
+   "evidence": {
+    "compiled": "Silmaril.Cerberus.Elaboration.Functions.elaborate"
+   },
+   "relation": "elaborates",
+   "source": "dd3f6de7d0a4d0490237e0b486d0edbb8317be35da886f75da98b0eaea3924b2",
+   "target": "720070ecda8008904865aaedb0b8a80113665ab577b0ac309b211f75a3e8ae14"
   }
  ],
  "failures": {},
@@ -161,6 +200,35 @@
  "losses": [],
  "name": "unsequenced-ub",
  "profile": "linuxX86_64",
+ "reportReplay": {
+  "command": [
+   "ctv-pipeline",
+   "run",
+   "benchmarks/cerberus-elaboration/oracle/constant-return/core.sexp.gz",
+   "4",
+   ".refresh",
+   "--observe",
+   "gcc-O0",
+   "3",
+   "native-O0.out",
+   "--observe",
+   "gcc-O2",
+   "3",
+   "native-O2.out",
+   "cerberus=cerberus.tail.sexp",
+   "clang=clang.tail.sexp"
+  ],
+  "inputs": {
+   "cerberus.tail.sexp": "dd3f6de7d0a4d0490237e0b486d0edbb8317be35da886f75da98b0eaea3924b2",
+   "clang.tail.sexp": "d0824e1bdc107a2b9e861ffb2d76a31b6039f81309d226ccf10b2cd0e303ca7f",
+   "native-O0.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "native-O2.out": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "pipelineSha256": "bbf7a200eafd2e74eeb5d4a2331c5607f2d0b64a9995b55e15829ba619a09592",
+  "repositoryRevision": "2c073d7a5b97818cfd78f18a14f4c43d16b9df28",
+  "runtimeResolvedFromRepositoryRoot": true,
+  "source": "stored typed Ail and stored native observations; no frontend or external compiler rerun"
+ },
  "repositoryRevision": "587a8dca1a25ccd0187b7079246fc2664d169593",
  "schema": "silmaril.c-tv.provenance.v1",
  "target": "x86_64-linux-gnu",
@@ -168,7 +236,7 @@
   "cerb-lean": "7388fce668288274cff2f963061052343a183f1f59e2d41a2c62f2bc3e1f60e7",
   "cfront": "3c1fa73fd49ec347703964e29b2d79b7b65c2164f2a7a5ef822f6e8c2df9032a",
   "clang": "Debian clang version 19.1.7 (3+b1)",
-  "ctv-pipeline": "bf5770e21d848c6ed224e8e938ad48fa0e0305d1dd3dc2b94c7341f39182ce93",
+  "ctv-pipeline": "bbf7a200eafd2e74eeb5d4a2331c5607f2d0b64a9995b55e15829ba619a09592",
   "gcc": "gcc (Debian 14.2.0-19) 14.2.0"
  },
  "warnings": [

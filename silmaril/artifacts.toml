@@ -3,6 +3,15 @@
 schema = "silmaril.artifacts.v0.2"
 
 [[artifact]]
+cid = "bafkr4ia4zienww4xrm2mku33iqtgisdm6thbaptlahi56aqw4cm5sa56za"
+type = "blob"
+name = "silmaril.c_tv.corpus.signed-overflow.provenance"
+paths = ["examples/c-programs/signed-overflow/provenance.json"]
+size = 7237
+sha256 = "defe49f35a370582ec88764fdda78fd3ff4714299334843e2387730a147b5acc"
+git_sha1 = "ba8cdd6fc946db91fa91b37ac666509c236133c2"
+
+[[artifact]]
 cid = "bafkr4ia6jwwzbmhnbeenxfbdhgdympuv6m6onfey37amubyxidwm4xdsze"
 type = "blob"
 name = "silmaril.c_tv.corpus.return-constant.provenance"
@@ -46,15 +55,6 @@ paths = ["examples/c-programs/recursion/source.c"]
 size = 107
 sha256 = "35888579a50aaed36378ebeef4a1137101080c999ce2b29f5d6a70b5c955988d"
 git_sha1 = "b2fec42e0e4f488487b49e876ec764a5bb399a66"
-
-[[artifact]]
-cid = "bafkr4iajqekephunbawpb6mkffxvfj7vxvm2mgq7mq5cdintdguwprbdpu"
-type = "blob"
-name = "silmaril.c_tv.corpus.globals.provenance"
-paths = ["examples/c-programs/globals/provenance.json"]
-size = 5056
-sha256 = "8ff7184bb361f39e24ebc4a8e998b43899c38729322ca1fbe582fc225876a1b9"
-git_sha1 = "e37eb78d0769ec592bdabc4b4dbd03156c43751e"
 
 [[artifact]]
 cid = "bafkr4ialkxfgfwrnf7rx6rjx57kzqmey6jqs5536k4irxrxl3c5bfvyi4a"
@@ -358,6 +358,24 @@ sha256 = "ad8b54dcd83b0a3f3be10d7ec123d88929d4792e120c0100d21d00d877faa3c0"
 git_sha1 = "d9df15c84f03a6838d0852ab8c4e3e384669ef50"
 
 [[artifact]]
+cid = "bafkr4idbsztz2kgj6tfnrfc5v6uhnvavesbz3pmxkon72ejpufuxxyxxoi"
+type = "blob"
+name = "silmaril.c_tv.corpus.pointer.provenance"
+paths = ["examples/c-programs/pointer/provenance.json"]
+size = 6078
+sha256 = "a96ff1a1687656f2f144307270b7c2812adf7e249abc98521ea55b75b0dd0201"
+git_sha1 = "15805676620137b15725099117494da85d8d9fd7"
+
+[[artifact]]
+cid = "bafkr4idczarwkhfucltdke4xwv5sqpyvuynupbfpwrtu33rpxklduooypi"
+type = "blob"
+name = "silmaril.c_tv.corpus.globals.provenance"
+paths = ["examples/c-programs/globals/provenance.json"]
+size = 9156
+sha256 = "69412985e20712b75460adada28afd8c4d90f277c6021880af4a99712f633d62"
+git_sha1 = "bb90ba2681909297c6d4a341db0abe34356e6861"
+
+[[artifact]]
 cid = "bafkr4idoelh5kltbh4sgl4xtdy5yarjl2xzk7j232persmm6kekua6fozq"
 type = "blob"
 name = "silmaril.c_tv.corpus.unsequenced-calls.source"
@@ -444,15 +462,6 @@ sha256 = "f61fd62f57c41269c3c23f360eeaf1090b1db9c38651106674d48bc65dba88ba"
 git_sha1 = "357f72da7a0db8add83699082fd51d46bf3352fb"
 
 [[artifact]]
-cid = "bafkr4iedzdjlowmlkgeaobv4m4vzymjtwfwosnh66w7v3py4a3yxcxfeei"
-type = "blob"
-name = "silmaril.c_tv.corpus.unsequenced-calls.provenance"
-paths = ["examples/c-programs/unsequenced-calls/provenance.json"]
-size = 5067
-sha256 = "a441ab3a8dac1647551c0b9802a4b83b2b4206787aa815d0acc918a63dbc0beb"
-git_sha1 = "ceae389d6c353e9b45e7caaf8795e5ea30e39de5"
-
-[[artifact]]
 cid = "bafkr4ieet2kloi4ebyedt2hyyojenyhsfsqgzev2jm6iscm27or562q4je"
 type = "blob"
 name = "silmaril.c_tv.corpus.return-constant.source"
@@ -469,15 +478,6 @@ paths = ["examples/c-programs/compare/provenance.json"]
 size = 7360
 sha256 = "498901f3d519b02cf305e3d0d84d18cfd11343ab16fe91a08c54e475618ae35d"
 git_sha1 = "495eaa51a787839787a3977355e5de3b78a67bb1"
-
-[[artifact]]
-cid = "bafkr4iekgssc3azxaxfsxczoofus3hxqr275gvwsisnme7pd37h7jmpple"
-type = "blob"
-name = "silmaril.c_tv.corpus.unsequenced-ub.provenance"
-paths = ["examples/c-programs/unsequenced-ub/provenance.json"]
-size = 5061
-sha256 = "ff1e78ef4f043a98af07c3e4e7558fd548a3649fdee8f81b64b96c9d8c6669f0"
-git_sha1 = "db1a543266323111d11a611959b68726daa525e6"
 
 [[artifact]]
 cid = "bafkr4ielfznyl42eadtlzqokfoyapr7p6jw2incnaerll52glyyaarwtla"
@@ -514,6 +514,24 @@ paths = ["examples/c-programs/calls/provenance.json"]
 size = 7361
 sha256 = "ed8fe0118cae20335ecbf6196d4d4337cf2ad3930a7045365c04799883f7bade"
 git_sha1 = "0df99d91276dad3bf4629b3a2fba7664a453d2fb"
+
+[[artifact]]
+cid = "bafkr4ietdpjzlkbskx72csrtu6hzvil64oxfprgxxjlurfbacds2pabagm"
+type = "blob"
+name = "silmaril.c_tv.corpus.locals.provenance"
+paths = ["examples/c-programs/locals/provenance.json"]
+size = 7232
+sha256 = "6055100c6eb4cfa188d185b5b24eaa79f477e3beaab3d70af7335e8b9b583473"
+git_sha1 = "968c9a9f4c75862757ea153ec37d7f2b0bb7b0ea"
+
+[[artifact]]
+cid = "bafkr4ietfxd73n3megmp5wj3j6lwbrnhkjresqbnnyog5xgesnfkhd4t3i"
+type = "blob"
+name = "silmaril.c_tv.corpus.recursion.provenance"
+paths = ["examples/c-programs/recursion/provenance.json"]
+size = 9164
+sha256 = "70216c53a83d25516c9965bf4f0dc064cabddbc495f1941b5c64793524c49d50"
+git_sha1 = "9d2bb6b02dfcbae68bc729b072d32098942cdaa2"
 
 [[artifact]]
 cid = "bafkr4ievhrour3qagzq537r7zcil3aegafrvjybblbcjch7ulpf3n7f32e"
@@ -582,6 +600,15 @@ sha256 = "c70e1c0c264476997868b3641c981df607cec416ed3a248de5ba30173844c53d"
 git_sha1 = "8d88891791553c61de9817c2926d315a986159b8"
 
 [[artifact]]
+cid = "bafkr4ifix7wizfupn67scakm5vnnk5ns6cawgh6wcsm65ho7xf7bcsngiq"
+type = "blob"
+name = "silmaril.c_tv.corpus.unsequenced-ub.provenance"
+paths = ["examples/c-programs/unsequenced-ub/provenance.json"]
+size = 7236
+sha256 = "2cc5d41af799804a42a1af031e13d064d4785cc6ca429fad9dfe4c3e9f5c8eb2"
+git_sha1 = "488259eebea3bc58fe8ce119beeb2c2276811299"
+
+[[artifact]]
 cid = "bafkr4ifqntcol7775lg6iqy2uuw25bd3erniitm46d5fem7kj4vfw5y2am"
 type = "blob"
 name = "silmaril.c_tv.corpus.statement-expression.source"
@@ -628,15 +655,6 @@ paths = ["examples/c-programs/float/provenance.json"]
 size = 5052
 sha256 = "ad8dcf52f20105df9eb440530a152c5ac95c8aff37c28ca3acaa439d08410e1a"
 git_sha1 = "d968a2a0717d4f82b49a9e3043cd924d14ec1bd5"
-
-[[artifact]]
-cid = "bafkr4ifyw4t4afbvywnrczkvuuuiowlkysq3ip42dpj77zz4r6mx37pqvy"
-type = "blob"
-name = "silmaril.c_tv.corpus.locals.provenance"
-paths = ["examples/c-programs/locals/provenance.json"]
-size = 5053
-sha256 = "02af79910bb8b6b36c32c4d6e7cec7d45859371e6f823daad0638a721574e425"
-git_sha1 = "ead6237c1652624f5539972551c0a15ae990fb1e"
 
 [[artifact]]
 cid = "bafkr4ifzl7fqyx5nnnsxzup7onyd7mfdgmb46n6zmw5gj7dct7rmcg6bie"
@@ -686,13 +704,13 @@ git_sha1 = "e8d7b1a4b7eef943d0916d0eee09ceedc472bc8e"
 meta = { wasm = { custom = [], exports = ["func check"], imports = [], layer = "module", license = "LicenseRef-silmaril-lean", version = 1 } }
 
 [[artifact]]
-cid = "bafkr4igmis75ehxtvwtk6e5dkeflqmjahvpggrt7e74zii2oj3bamja7oq"
+cid = "bafkr4igfrqjkfjmltt3j6euye6fk5cmecxm2sqqxbqeqeg3cp2a5ws55zm"
 type = "blob"
-name = "silmaril.c_tv.corpus.signed-overflow.provenance"
-paths = ["examples/c-programs/signed-overflow/provenance.json"]
-size = 5062
-sha256 = "c9e65bfe53bbcc699376995cf6fa59e7960b104af57ad5fa5940c3f40b405a8b"
-git_sha1 = "4cf78a69c2d594d00988828cfe4091743661fd06"
+name = "silmaril.c_tv.corpus.unsequenced-calls.provenance"
+paths = ["examples/c-programs/unsequenced-calls/provenance.json"]
+size = 7246
+sha256 = "8354770f6d4ebd785585e5c052172d6d6af485728f521e985bb1f48bae13b52f"
+git_sha1 = "e16a96598b26aedffa965acf224d317ebdedd8dc"
 
 [[artifact]]
 cid = "bafkr4igmmlwgzatnkmwdqmysnnnttecnzimndc7wadauzpe7o3wzeum4ie"
@@ -724,6 +742,15 @@ derivation = "silmaril.wasm_components.gen.recipe"
 meta = { wasm = { custom = ["producers"], exports = ["func run"], imports = [], layer = "component", license = "LicenseRef-silmaril-lean", version = 13 } }
 
 [[artifact]]
+cid = "bafkr4igvjacqyylnercz7xof3qelh3u4vx2fkpjoioihgbwyb4dkpzr6z4"
+type = "blob"
+name = "silmaril.c_tv.corpus.control-flow.provenance"
+paths = ["examples/c-programs/control-flow/provenance.json"]
+size = 6085
+sha256 = "540779c07abdf1396e2a8fdae638bccf3cadc5ad72c4f0bbf6e6a87a27c9385c"
+git_sha1 = "94abf23b0b60a9d84d91e7e89c70dfce6ebb0576"
+
+[[artifact]]
 cid = "bafkr4igwf2kmhj2niyipfy4vqf2uebfabr62oxgwpxv7oonxmn32x4cli4"
 type = "blob"
 name = "silmaril.wasm_components.gen.comp_b.world.blob"
@@ -733,24 +760,6 @@ sha256 = "ba732a1b1ef96b839ced144dfc41bd9d38f924cf7bd9477c982197306c6252fc"
 git_sha1 = "2c4ff108774004d7af6ba3ec51a912e3b0e305ac"
 derivation = "silmaril.wasm_components.gen.comp_b.world.project"
 meta = { wasm = { layer = "component", version = 13, world_of = "silmaril.wasm_components.gen.comp_b.blob" } }
-
-[[artifact]]
-cid = "bafkr4ih3xh2txxzbwg7mrxlxt7otei3qruhx3w7kzz3frlc2mjubhlkw2i"
-type = "blob"
-name = "silmaril.c_tv.corpus.pointer.provenance"
-paths = ["examples/c-programs/pointer/provenance.json"]
-size = 5054
-sha256 = "10b394bee2dcd826d8b1a7ef1a85a0414f64175d1d1b53580a655903ac5cd105"
-git_sha1 = "3c69eae986273f60989169ba0a5db9bf1ab95696"
-
-[[artifact]]
-cid = "bafkr4ihahwd6o2bg4eau7btdc57nssx76qla6m5hmfgmtbzjmhc2u3nbqq"
-type = "blob"
-name = "silmaril.c_tv.corpus.recursion.provenance"
-paths = ["examples/c-programs/recursion/provenance.json"]
-size = 5058
-sha256 = "e1f4a189cccc09317ae946c143901024d624f652624a36df945a254d593dc608"
-git_sha1 = "21cdc1caba1ac9e211ab7ccdaa77e10d52e2d394"
 
 [[artifact]]
 cid = "bafkr4ihc3lsk4fcp2plsi7mwqub34h7edj6i6kssyqhezdahivctjiz7km"
@@ -798,15 +807,6 @@ paths = ["examples/compiles-to/branch/O0/branch.o"]
 size = 2768
 sha256 = "aa197ae40627c1e9b8e406993ac637210d7eb33d5c3d1f7213f5867040c840b6"
 git_sha1 = "a971203fb9c2ab64af57c738031875a0082dc251"
-
-[[artifact]]
-cid = "bafkr4ihspvimchb5kmvlxe6bbq4t3cikhtptdss5adu3jjaadpqgcrq43i"
-type = "blob"
-name = "silmaril.c_tv.corpus.control-flow.provenance"
-paths = ["examples/c-programs/control-flow/provenance.json"]
-size = 5061
-sha256 = "7014a9b13d74a43e4f9aacab520dba3ea27026ec6289b4e67234b20dce5e3015"
-git_sha1 = "310999ab704a1785714385b9d9940b5dd25287bd"
 
 [[artifact]]
 cid = "bafkr4ihvw6vj7vqvubsfcn7r3h5cioimkdv2ohe67bpce4aph6ytlrj3ke"

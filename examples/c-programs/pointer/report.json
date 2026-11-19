@@ -26,7 +26,7 @@
   "cerberus": {
    "stage": "elaborate",
    "status": "rejected",
-   "why": "Silmaril.Cerberus.Elaboration.State.Error.message \"unsupported: initialized local is not a direct arithmetic object\""
+   "why": "Silmaril.Cerberus.Elaboration.State.Error.message\n  \"unsupported: arithmetic operands must have direct scalar arithmetic types\""
   },
   "clang": {
    "stage": "elaborate",

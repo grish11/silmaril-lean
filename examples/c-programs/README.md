@@ -9,6 +9,14 @@ written by `scripts/c-tv/corpus.py`.
 documents. Its "reproduced 24 of 24" means the stored reports are reproducible, not that 24
 programs are validated. It needs neither gcc nor clang.
 
+Eight reports were replayed after the elaborator improvements on main, using the
+stored typed Ail, runtime and native observations. Their `reportReplay` records
+pin the integration revision, pipeline binary, command and input hashes; the
+original frontend/compiler provenance is retained. New Core documents and
+frontend-agreement edges record compiled model results only. Target-type
+blockers and undefined-behaviour outcomes remain explicit. Reproduce the current
+reports with `make c-tv-check` after `lake build --wfail ctv-pipeline`.
+
 | File | Stage | Producer | Evidence kind (`TV.Provenance`) |
 | --- | --- | --- | --- |
 | `source.c` | source | input (`src/<name>.c`) | — |
@@ -79,9 +87,9 @@ The statuses are disjoint: every program has exactly one, and the counts sum to 
 | Status | Meaning | Count | Programs |
 | --- | --- | ---: | --- |
 | `frontend-rejected` | no route produced typed Ail | 0 |  |
-| `elaborator-rejected` | typed Ail from some route, Core from none | 11 | `control-flow`, `division-by-zero`, `float`, `globals`, `locals`, `pointer`, `recursion`, `signed-overflow`, `statement-expression`, `unsequenced-calls`, `unsequenced-ub` |
-| `single-route` | Core from exactly one route (the other rejected at its frontend or elaborator) | 3 | `asm-label`, `attribute`, `local-if` |
-| `agreement-ub-free` | Core from both routes; each refines the other (TV.validate, compiled) with a UB-free source both ways (validateUBFree) | 9 | `arithmetic`, `calls`, `compare`, `nested-calls`, `return-constant`, `sign-extend`, `signed-narrow`, `unsigned-parameter`, `unsigned-wrap` |
+| `elaborator-rejected` | typed Ail from some route, Core from none | 5 | `control-flow`, `division-by-zero`, `float`, `pointer`, `statement-expression` |
+| `single-route` | Core from exactly one route (the other rejected at its frontend or elaborator) | 7 | `asm-label`, `attribute`, `local-if`, `locals`, `signed-overflow`, `unsequenced-calls`, `unsequenced-ub` |
+| `agreement-ub-free` | Core from both routes; each refines the other (TV.validate, compiled) with a UB-free source both ways (validateUBFree) | 11 | `arithmetic`, `calls`, `compare`, `globals`, `nested-calls`, `recursion`, `return-constant`, `sign-extend`, `signed-narrow`, `unsigned-parameter`, `unsigned-wrap` |
 | `agreement-ub-only` | Core from both routes; each refines the other, but some exploration reaches undefined behaviour | 1 | `overflow-return` |
 | `other` | Core from both routes, any other verdict (refuted, unknown, unsupported) | 0 |  |
 | **total** | | **24** | |
@@ -95,8 +103,8 @@ Each column counts every program once, so each sums to 24.
 | Stage reached | Cerberus route | Clang route |
 | --- | ---: | ---: |
 | rejected by the frontend (no typed Ail) | 2 | 1 |
-| typed Ail, rejected by the elaborator | 10 | 12 |
-| Core | 11 | 11 |
+| typed Ail, rejected by the elaborator | 4 | 10 |
+| Core | 17 | 13 |
 | Core, source correspondence blocked | 1 | 0 |
 | **total** | **24** | **24** |
 
@@ -112,19 +120,19 @@ Each column counts every program once, so each sums to 24.
 | `control-flow` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 6; gcc-O2 exit 6 |  |
 | `division-by-zero` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 signal 8; gcc-O2 signal 4 |  |
 | `float` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 3; gcc-O2 exit 3 |  |
-| `globals` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 5; gcc-O2 exit 5 |  |
+| `globals` | `agreement-ub-free` | Core: defined 5 (per-type check fails) | Core: defined 5 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 5: cerberus admitted, clang admitted; gcc-O2 exit 5: cerberus admitted, clang admitted |  |
 | `local-if` | `single-route` | Core: defined 12 (per-type check fails) | typed Ail, rejected by the elaborator | — | gcc-O0 exit 12: cerberus admitted; gcc-O2 exit 12: cerberus admitted |  |
-| `locals` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 17; gcc-O2 exit 17 |  |
+| `locals` | `single-route` | Core: defined 17 (per-type check fails) | typed Ail, rejected by the elaborator | — | gcc-O0 exit 17: cerberus admitted; gcc-O2 exit 17: cerberus admitted |  |
 | `nested-calls` | `agreement-ub-free` | Core: defined 42 (per-type check fails) | Core: defined 42 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 42: cerberus admitted, clang admitted; gcc-O2 exit 42: cerberus admitted, clang admitted |  |
 | `overflow-return` | `agreement-ub-only` | Core: ub (per-type check fails) | Core: ub (per-type check fails) | cerberus->clang: validated (only through source UB); clang->cerberus: validated (only through source UB) | gcc-O0 exit 0: cerberus admitted, clang admitted; gcc-O2 exit 0: cerberus admitted, clang admitted |  |
 | `pointer` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 3; gcc-O2 exit 3 |  |
-| `recursion` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 20; gcc-O2 exit 20 |  |
+| `recursion` | `agreement-ub-free` | Core: defined 20 (per-type check fails) | Core: defined 20 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 20: cerberus admitted, clang admitted; gcc-O2 exit 20: cerberus admitted, clang admitted |  |
 | `return-constant` | `agreement-ub-free` | Core: defined 42 (per-type check fails) | Core: defined 42 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 42: cerberus admitted, clang admitted; gcc-O2 exit 42: cerberus admitted, clang admitted |  |
 | `sign-extend` | `agreement-ub-free` | Core: defined -1 (per-type check fails) | Core: defined -1 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 255: cerberus admitted, clang admitted; gcc-O2 exit 255: cerberus admitted, clang admitted |  |
 | `signed-narrow` | `agreement-ub-free` | Core: defined -56 (per-type check fails) | Core: defined -56 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 200: cerberus admitted, clang admitted; gcc-O2 exit 200: cerberus admitted, clang admitted |  |
-| `signed-overflow` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 0; gcc-O2 exit 0 |  |
+| `signed-overflow` | `single-route` | Core: ub (per-type check fails) | typed Ail, rejected by the elaborator | — | gcc-O0 exit 0: cerberus admitted; gcc-O2 exit 0: cerberus admitted |  |
 | `statement-expression` | `elaborator-rejected` | rejected by the frontend (no typed Ail) | typed Ail, rejected by the elaborator | — | gcc-O0 exit 6; gcc-O2 exit 6 |  |
-| `unsequenced-calls` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 12; gcc-O2 exit 12 |  |
-| `unsequenced-ub` | `elaborator-rejected` | typed Ail, rejected by the elaborator | typed Ail, rejected by the elaborator | — | gcc-O0 exit 3; gcc-O2 exit 3 |  |
+| `unsequenced-calls` | `single-route` | Core: defined 12 (per-type check fails) | typed Ail, rejected by the elaborator | — | gcc-O0 exit 12: cerberus admitted; gcc-O2 exit 12: cerberus admitted |  |
+| `unsequenced-ub` | `single-route` | Core: ub (per-type check fails) | typed Ail, rejected by the elaborator | — | gcc-O0 exit 3: cerberus admitted; gcc-O2 exit 3: cerberus admitted |  |
 | `unsigned-parameter` | `agreement-ub-free` | Core: defined 1 (per-type check fails) | Core: defined 1 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 1: cerberus admitted, clang admitted; gcc-O2 exit 1: cerberus admitted, clang admitted |  |
 | `unsigned-wrap` | `agreement-ub-free` | Core: defined 2 (per-type check fails) | Core: defined 2 (per-type check fails) | cerberus->clang: validated (UB-free source); clang->cerberus: validated (UB-free source) | gcc-O0 exit 2: cerberus admitted, clang admitted; gcc-O2 exit 2: cerberus admitted, clang admitted |  |

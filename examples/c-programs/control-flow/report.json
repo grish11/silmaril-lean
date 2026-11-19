@@ -26,7 +26,7 @@
   "cerberus": {
    "stage": "elaborate",
    "status": "rejected",
-   "why": "Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
+   "why": "Silmaril.Cerberus.Elaboration.State.Error.message \"unsupported: arithmetic operator is outside add/sub/mul\""
   },
   "clang": {
    "stage": "elaborate",
