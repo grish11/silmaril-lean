@@ -1,0 +1,30 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.TinyccClosed.Octal.Thms",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/TinyccClosed/Octal/Defs.lean"
+  ],
+  "limits": [
+    "All corpus refinement obligations are stated-unproved. No semantic proof or exporter run is inferred from this display.",
+    "Exact source/Core/ELF evidence does not establish compiler correctness or full translation-unit frontend adequacy. No interactive compilation or source-to-instruction segment mapping is supplied.",
+    "Serialized Core is the recorded input to the displayed Lean core definition; any fixRet transformation remains visible in that module. This exporter does not elaborate or replay Lean.",
+    "External build/preprocessing provenance is not a full-TU semantic adequacy proof. Only the registered symbol/address is covered, not same-name clones."
+  ],
+  "source": {
+    "module_literal": "Silmaril/Elf/Corpus/TinyccClosed/Octal/Defs.lean",
+    "name": "cText"
+  },
+  "core": {
+    "module_literal": "Silmaril/Elf/Corpus/TinyccClosed/Octal/Defs.lean",
+    "marker": "core_document%"
+  },
+  "projection": {
+    "tu": "corpus/tinycc/upstream/tcc-0.9.27/tcc.h",
+    "spans": [
+      [
+        41008,
+        68
+      ]
+    ]
+  }
+}

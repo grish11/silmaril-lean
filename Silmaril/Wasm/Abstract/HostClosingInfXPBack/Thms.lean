@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Abstract.HostClosingInfXP.Defs
 public import Silmaril.Wasm.Abstract.HostClosingXP.Thms
 public import Silmaril.Wasm.Interp.PProgress.Thms
+public import Silmaril.Wasm.Abstract.BackInv.Defs
 import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Empty
 public import Silmaril.Wasm.Abstract.HostStratXP.Thms
 import Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.Handler
@@ -120,14 +121,15 @@ theorem evalDivXP_of_diverges {s : Store H} {f : Frame} {stk : List Val}
     (hd : Diverges (profile o) (fun _ _ _ _ => False)
       ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList es)⟩) :
     EvalDivXP s f stk es :=
-  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evalDivXP_of_diverges ht hd
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evalDivXP_of_diverges (J := backTyped) ht hd
 
 /-- **Host-free Core divergence of a typed invocation is `FunDivXP`** (deterministic profile),
 on a store that may hold host functions. -/
 theorem funDivXP_of_invoke_diverges {s : Store H} {a : Nat} {vs : List Val} (hs : StoreOk s)
     (hok : InvokeOk s a vs) (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s)
     (hd : Diverges (profile o) (fun _ _ _ _ => False) (invoke s a vs)) : FunDivXP s a vs :=
-  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.funDivXP_of_invoke_diverges hs hok hS hts hd
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.funDivXP_of_invoke_diverges (J := backTyped)
+    (ctxTyped_invoke hs hok) hok hS hts hd
 
 /-- **Host-free Core divergence of a typed invocation is exactly `FunDivXP`** (deterministic
 profile), on a store that may hold host functions. -/
@@ -184,7 +186,8 @@ theorem wasmEvFunDXP_of_evRun_nil {host : HostSemantics H} {s : Store H} {a : Na
     (hrun : EvRun (profile o) host (invoke s a vs) [] c')
     (hd : Diverges (profile o) (fun _ _ _ _ => False) c') :
     ([], .div) ∈ wasmEvFunDXP s (a, vs) :=
-  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_nil_div hs hok hS hts hrun hd
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_nil_div (J := backTyped) (ctxTyped_invoke hs hok)
+    hok hS hts hrun hd
 
 /-- **Splitting a handler in place**: the body diverges with the whole log, or runs to a stuck
 end that is not at a host call with a prefix of the log, and the handler around that end goes
@@ -217,7 +220,8 @@ theorem evRun_wasmEvFunDXP_div (hT : HostTyped host) (hH : HostSliceT host)
     (hrun : EvRun (profile o) host (invoke s a vs) cs c')
     (hd : Diverges (profile o) (fun _ _ _ _ => False) c') :
     (cs, .div) ∈ wasmEvFunDXP s (a, vs) :=
-  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_div hT hH hE hs hS hts hok hrun hd
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_div (J := backTyped) hT hH hE
+    (ctxTyped_invoke hs hok) hS hts hok hrun hd
 
 /-- **Divergence after exactly the log `cs`, both directions** (deterministic profile). -/
 theorem wasmEvFunDXP_div_iff (hT : HostTyped host) (hH : HostSliceT host)
@@ -253,7 +257,8 @@ theorem coreInf_wasmEvInfNXP (hT : HostTyped host) (hH : HostSliceT host)
     (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
     {ω : Nat → Silmaril.Games.Abstract.Call (wasmHostSig H)}
     (h : CoreInf (profile o) host (invoke s a vs) ω) : ω ∈ wasmEvInfNXP s (a, vs) :=
-  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.coreInf_wasmEvInfNXP' hT hH hE hs hS hts hok h
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.coreInf_wasmEvInfNXP' (J := backTyped) hT hH hE
+    (ctxTyped_invoke hs hok) hS hts hok h
 
 /-- **The productive observations are equal** (deterministic profile): the Core witness and
 `wasmEvInfNXP` have the same productive observations against the host. -/
@@ -309,3 +314,37 @@ theorem coreStratAtXP_eq_natStratAtXP (hT : HostTyped host) (hH : HostSliceT hos
 end Div
 
 end Silmaril.Wasm.Abstract
+
+/-! ## Divergent and productive runs for every invariant
+
+The backward divergence and productive statements above for every `Interp.BackInv` `J` (the
+typed ones are `J = backTyped`): a Core run from an invocation in `J.CT`, against a host in
+`J.HostOk`. -/
+
+namespace Silmaril.Wasm.Interp.BackInv
+
+open Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril.Wasm.Abstract
+open Silmaril.Wasm.Interp (HostSliceT HostSliceE TagsOk StoreChkE ehExt)
+open Silmaril.Wasm.SingleThreaded (GrowOracle profile)
+
+variable {H : Type} (J : BackInv H) {o : GrowOracle} {host : HostSemantics H} {tags : List TagInst}
+
+theorem evRun_wasmEvFunDXP_div (hT : J.HostOk host) (hH : HostSliceT host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val}
+    {cs : List (Silmaril.Games.Abstract.Call (wasmHostSig H))} {c' : Config H} (hct : J.CT (invoke s a vs))
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
+    (hrun : EvRun (profile o) host (invoke s a vs) cs c')
+    (hd : Diverges (profile o) (fun _ _ _ _ => False) c') :
+    (cs, .div) ∈ wasmEvFunDXP s (a, vs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.evRun_div (J := J) hT hH hE
+    hct hS hts hok hrun hd
+
+theorem coreInf_wasmEvInfNXP (hT : J.HostOk host) (hH : HostSliceT host)
+    (hE : HostSliceE tags host) {s : Store H} {a : Nat} {vs : List Val} (hct : J.CT (invoke s a vs))
+    (hS : StoreChkE (ehExt tags) s.funcs) (hts : TagsOk tags s) (hok : InvokeOk s a vs)
+    {ω : Nat → Silmaril.Games.Abstract.Call (wasmHostSig H)}
+    (h : CoreInf (profile o) host (invoke s a vs) ω) : ω ∈ wasmEvInfNXP s (a, vs) :=
+  Silmaril.Proofs.Wasm.Abstract.HostClosingInfXPBack.coreInf_wasmEvInfNXP' (J := J) hT hH hE
+    hct hS hts hok h
+
+end Silmaril.Wasm.Interp.BackInv

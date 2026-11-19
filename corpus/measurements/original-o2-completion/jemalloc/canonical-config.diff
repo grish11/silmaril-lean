@@ -1,0 +1,5 @@
+--- corpus/jemalloc/generated/x86_64/include/jemalloc/internal/jemalloc_internal_defs.h
++++ corpus/variants/jemalloc/5.3.0/default/x86_64/O2/generated/include/jemalloc/internal/jemalloc_internal_defs.h
+@@ -45 +45 @@
+-#define LG_VADDR 48
++#define LG_VADDR 57

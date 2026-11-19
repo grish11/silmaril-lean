@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "project": "cjson",
+  "version": "1.7.19",
+  "configuration": "default",
+  "optimization": "O2",
+  "actual_new_elf_rows": 0,
+  "retained_rows_no_new_execution_claimed": 8,
+  "profiles": [],
+  "retained_profiles": [
+    {
+      "target": "x86_64-linux-gnu",
+      "build": "corpus/variants/cjson/1.7.19/default/x86_64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+          "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+        }
+      ],
+      "included_sources_hash_checked": 6,
+      "measured_exits_passed": 12,
+      "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+      "build_wall_seconds": {
+        "build-b": 0.7383223059999864,
+        "build-a": 0.8525239140000167
+      },
+      "outputs": [
+        {
+          "object": "libcjson.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/x86_64/O2/unstripped/libcjson.so.1",
+          "size": 40816,
+          "sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 91,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/x86_64/O2/unstripped/receipt.json",
+          "receipt_sha256": "1383c172386cf2b965d59057ae4fb310df6de20eb200b69894d28096b97208f2",
+          "census": "corpus/census/variants/cjson/1.7.19/default/x86_64/O2/unstripped/libcjson.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/x86_64/O2/libcjson.so.1.pair.json",
+          "canonical_sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+          "matches_canonical": true
+        },
+        {
+          "object": "libcjson_utils.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/x86_64/O2/unstripped/libcjson_utils.so.1",
+          "size": 22208,
+          "sha256": "23f386e03d9ee4534f2557061b60dbf4c261139512f6952d9d30a6d1d273ac5f",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 26,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/x86_64/O2/unstripped/receipt.json",
+          "receipt_sha256": "1383c172386cf2b965d59057ae4fb310df6de20eb200b69894d28096b97208f2",
+          "census": "corpus/census/variants/cjson/1.7.19/default/x86_64/O2/unstripped/libcjson_utils.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/x86_64/O2/libcjson_utils.so.1.pair.json",
+          "canonical_sha256": "23f386e03d9ee4534f2557061b60dbf4c261139512f6952d9d30a6d1d273ac5f",
+          "matches_canonical": true
+        },
+        {
+          "object": "libcjson.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/x86_64/O2/stripped/libcjson.so.1",
+          "size": 34984,
+          "sha256": "4234f3ba67e7b15220d4d65803c9921d15e7f2de782c4a6b64645bf9de5bba45",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/x86_64/O2/stripped/receipt.json",
+          "receipt_sha256": "39862d6160903559c77a60c7b3c780a30ca634ca9c5c69c61fab83730a77bf33",
+          "census": "corpus/census/variants/cjson/1.7.19/default/x86_64/O2/stripped/libcjson.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/x86_64/O2/libcjson.so.1.pair.json",
+          "canonical_sha256": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+          "matches_canonical": null
+        },
+        {
+          "object": "libcjson_utils.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/x86_64/O2/stripped/libcjson_utils.so.1",
+          "size": 18544,
+          "sha256": "0165f50f1bf953dca311de8ef0dd43a6b92f6b496c7bfa8caa1b5fd3b7903fc0",
+          "elf_machine": "Advanced Micro Devices X86-64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/x86_64/O2/stripped/receipt.json",
+          "receipt_sha256": "39862d6160903559c77a60c7b3c780a30ca634ca9c5c69c61fab83730a77bf33",
+          "census": "corpus/census/variants/cjson/1.7.19/default/x86_64/O2/stripped/libcjson_utils.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/x86_64/O2/libcjson_utils.so.1.pair.json",
+          "canonical_sha256": "23f386e03d9ee4534f2557061b60dbf4c261139512f6952d9d30a6d1d273ac5f",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": false,
+      "recorded_repeat_tests_present": false,
+      "original_reproducibility_claim": "two clean workspaces in independent persistent pool containers; byte-identical outputs; independently stripped in their respective workers; byte-identical stripped outputs"
+    },
+    {
+      "target": "aarch64-linux-gnu",
+      "build": "corpus/variants/cjson/1.7.19/default/aarch64/O2/build.json",
+      "source_inputs": [
+        {
+          "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+          "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+        }
+      ],
+      "included_sources_hash_checked": 6,
+      "measured_exits_passed": 12,
+      "compiler": "aarch64-linux-gnu-gcc (Debian 14.2.0-19) 14.2.0",
+      "cflags": "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+      "build_wall_seconds": {
+        "build-b": 0.8891801490000262,
+        "build-a": 0.9779991599999676
+      },
+      "outputs": [
+        {
+          "object": "libcjson.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/aarch64/O2/unstripped/libcjson.so.1",
+          "size": 74712,
+          "sha256": "861b728675a20d7f0403e22a71670934fafdd2e7c0d54d75ba6b2d4d54031053",
+          "elf_machine": "AArch64",
+          "func_symbols": 92,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/aarch64/O2/unstripped/receipt.json",
+          "receipt_sha256": "91a79a2f3f18a723bb3e97adbcd76eefaaae67490bad4e56f84f98bf27e0a479",
+          "census": "corpus/census/variants/cjson/1.7.19/default/aarch64/O2/unstripped/libcjson.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/aarch64/O2/libcjson.so.1.pair.json",
+          "canonical_sha256": "861b728675a20d7f0403e22a71670934fafdd2e7c0d54d75ba6b2d4d54031053",
+          "matches_canonical": true
+        },
+        {
+          "object": "libcjson_utils.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/aarch64/O2/unstripped/libcjson_utils.so.1",
+          "size": 72424,
+          "sha256": "7fd00406f2c1182959f60f35ee6bf5047f9b2c63952f61ff15a077be26794604",
+          "elf_machine": "AArch64",
+          "func_symbols": 27,
+          "has_symtab": true,
+          "has_debug_info": false,
+          "stripping": "unstripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/aarch64/O2/unstripped/receipt.json",
+          "receipt_sha256": "91a79a2f3f18a723bb3e97adbcd76eefaaae67490bad4e56f84f98bf27e0a479",
+          "census": "corpus/census/variants/cjson/1.7.19/default/aarch64/O2/unstripped/libcjson_utils.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/aarch64/O2/libcjson_utils.so.1.pair.json",
+          "canonical_sha256": "7fd00406f2c1182959f60f35ee6bf5047f9b2c63952f61ff15a077be26794604",
+          "matches_canonical": true
+        },
+        {
+          "object": "libcjson.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/aarch64/O2/stripped/libcjson.so.1",
+          "size": 67720,
+          "sha256": "ec7136bcc0572017df70615efc27959ebc5ae99240a0a768d9bca398b55ec598",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/aarch64/O2/stripped/receipt.json",
+          "receipt_sha256": "7c335dcede3e5753fa80c3fd1922d5632be0f39d9f4d23de210e541c7c78741f",
+          "census": "corpus/census/variants/cjson/1.7.19/default/aarch64/O2/stripped/libcjson.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/aarch64/O2/libcjson.so.1.pair.json",
+          "canonical_sha256": "861b728675a20d7f0403e22a71670934fafdd2e7c0d54d75ba6b2d4d54031053",
+          "matches_canonical": null
+        },
+        {
+          "object": "libcjson_utils.so.1",
+          "path": "corpus/variants/cjson/1.7.19/default/aarch64/O2/stripped/libcjson_utils.so.1",
+          "size": 67648,
+          "sha256": "020c9a8a3695625f494b34493c5e5c99ee3d5177bb64044699bdec9e8a7ceead",
+          "elf_machine": "AArch64",
+          "func_symbols": 0,
+          "has_symtab": false,
+          "has_debug_info": false,
+          "stripping": "stripped",
+          "receipt": "corpus/variants/cjson/1.7.19/default/aarch64/O2/stripped/receipt.json",
+          "receipt_sha256": "7c335dcede3e5753fa80c3fd1922d5632be0f39d9f4d23de210e541c7c78741f",
+          "census": "corpus/census/variants/cjson/1.7.19/default/aarch64/O2/stripped/libcjson_utils.so.1.json",
+          "strip_pair": "corpus/variants/cjson/1.7.19/default/aarch64/O2/libcjson_utils.so.1.pair.json",
+          "canonical_sha256": "7fd00406f2c1182959f60f35ee6bf5047f9b2c63952f61ff15a077be26794604",
+          "matches_canonical": null
+        }
+      ],
+      "new_execution_this_pool": false,
+      "recorded_repeat_tests_present": false,
+      "original_reproducibility_claim": "two clean workspaces in independent persistent pool containers; byte-identical outputs; independently stripped in their respective workers; byte-identical stripped outputs"
+    }
+  ],
+  "limits": [
+    "Only completed actual outputs counted; original paths/hashes preserved.",
+    "Two independently initialized reused pinned containers; independent workspace/build/strip/runtime repeats.",
+    "Static census and runtime observations are not semantic equivalence or Lean proofs.",
+    "No exhaustive upstream test or full local make check claim."
+  ]
+}

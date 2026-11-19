@@ -265,12 +265,12 @@ theorem step_supp {c c' : Config H} (h : Step P NH c c') (hF : FuncsSupp c.store
     rw [List.forall_mem_append]
     exact ⟨asupp_vals _, asupp_expression hc⟩
   | callRefFunc _ hfi _ _ hcode =>
-    obtain ⟨hb, hbody⟩ := hF _ (List.mem_of_getElem? hfi)
+    obtain ⟨hb, hbody⟩ := hF _ (List.mem_of_getElem? hfi) _ hcode
     refine ⟨rfl, rfl, hf, ?_⟩
     rw [List.forall_mem_singleton]
     refine .frame _ (frameBelow_forCall hb _ _) ?_
     rw [List.forall_mem_singleton]
-    exact .label _ (fun _ h => nomatch h) (asupp_expression (hbody _ hcode))
+    exact .label _ (fun _ h => nomatch h) (asupp_expression hbody)
   | returnCallRefFrameAddr hc _ _ _ =>
     refine ⟨rfl, rfl, hf, ?_⟩
     simp only [List.forall_mem_append, List.forall_mem_cons]

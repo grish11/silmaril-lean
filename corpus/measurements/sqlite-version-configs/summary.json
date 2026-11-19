@@ -1,0 +1,39 @@
+{
+  "actual_new_rows": 136,
+  "unique_new_hashes": 116,
+  "version_slices": [
+    {
+      "version": "3.46.1",
+      "new_profiles": 12,
+      "actual_new_rows": 48,
+      "unique_new_hashes": 40,
+      "source_archive_sha256": "77823cb110929c2bcb0f5d48e4833b5c59a8a6e40cdea3936b99e199dbbe5784",
+      "sqlite3_c_sha256": "6c35bc5f7f85eac9c49928bacbb02bb694b547aabf69197e058cca245ad80e83",
+      "upstream_source_id": "2024-08-13 09:16:08 c9c2ab54ba1f5f46360f1b4f35d849cd3f080e6fc2b6c60e91b16c63f69a1e33",
+      "summary": "3.46.1/summary.json"
+    },
+    {
+      "version": "3.50.4",
+      "new_profiles": 12,
+      "actual_new_rows": 48,
+      "unique_new_hashes": 40,
+      "source_archive_sha256": "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032",
+      "sqlite3_c_sha256": "e3f5d6901e7492af4a1fc8c4d745cae84c264942524c3fbfc02b82a5ca8818c8",
+      "upstream_source_id": "2025-07-30 19:33:53 4d8adfb30e03f9cf27f800a2c1ba3c48fb4ca1b08b0f5ed59a4d5ecbf45e20a3",
+      "summary": "3.50.4/summary.json"
+    },
+    {
+      "version": "3.54.1",
+      "new_profiles": 10,
+      "actual_new_rows": 40,
+      "unique_new_hashes": 36,
+      "source_archive_sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9",
+      "sqlite3_c_sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+      "upstream_source_id": "2026-10-16 14:45:20 555e07ef33f69a0957d24d8e555b702464a131d6f1607f4c3c1e4551e8e6ca76",
+      "summary": "3.54.1/summary.json"
+    }
+  ],
+  "retained_existing_rows_no_new_execution_claimed": 8,
+  "combined_delivered_hierarchy_rows": 144,
+  "combined_delivered_unique_hashes": 120
+}

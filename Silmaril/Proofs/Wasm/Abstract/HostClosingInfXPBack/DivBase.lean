@@ -32,7 +32,7 @@ open Silmaril.Wasm.Abstract.CallXP
 open Silmaril.Wasm.Abstract.XRecursionP Silmaril.Wasm.Abstract.XDivergeP
 open Silmaril.Wasm.Binaryen (BExpr liftInstrs)
 
-variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H}
+variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-! ## Labelled runs then divergence -/
 
@@ -225,19 +225,19 @@ variable {o : GrowOracle}
 
 /-- **A labelled run to a configuration with no step rules out divergence after any extension
 of its log** (deterministic profile, typed start). -/
-theorem noDiv_of_evRun (hT : HostTyped host) {K X : Config H} {q : List (Call (wasmHostSig H))}
+theorem noDiv_of_evRun (hT : J.HostOk host) {K X : Config H} {q : List (Call (wasmHostSig H))}
     (hf : EvRun (profile o) host K q X) (hX : ∀ c', ¬ Step (profile o) host X c')
-    (ht : Sim.ContextTyped K) {n : Nat} {q' : List (Call (wasmHostSig H))}
+    (ht : J.CT K) {n : Nat} {q' : List (Call (wasmHostSig H))}
     (h : EvDiv (profile o) host n K (q ++ q')) : False := by
   induction hf generalizing n with
   | refl => exact evDiv_stuck hX h
   | @silent K K₁ X q hs _ ih =>
     rcases hs with hs | ⟨rfl, -⟩
-    · exact ih hX (ht.steps (.single hs)) (evDiv_through_steps (.single hs) ht h)
+    · exact ih hX (J.steps ht (.single hs)) (J.evDiv_through_steps (.single hs) ht h)
     · exact ih hX ht h
   | @event K K₁ X e q hs _ ih =>
     obtain ⟨m, hm⟩ := evDiv_event (by simpa using h) hs
-    exact ih hX (ContextTyped.steps_typed hT ht (.single (hEvStep_step hs))) hm
+    exact ih hX (J.steps_host hT ht (.single (hEvStep_step hs))) hm
 
 end Det
 
@@ -325,9 +325,9 @@ variable {o : GrowOracle} {tags : List TagInst}
 /-- **A typed call diverging host-free in Core is `FunDivXP`**, in any frame, under values. -/
 theorem funDivXP_of_call_diverges {s : Store H} {f : Frame} {pre us : List Val} {a : Nat}
     {cr : Admin} (hcr : cr.IsCallRef) (hcc : CallChkP tags s a us)
-    (hct : Sim.ContextTyped ⟨s, f, Interp.callCode pre us a cr []⟩)
+    (hct : J.CT ⟨s, f, Interp.callCode pre us a cr []⟩)
     (hd : Diverges (profile o) NH ⟨s, f, Interp.callCode pre us a cr []⟩) : FunDivXP s a us := by
-  have hctP : CallTypedP tags s a us := ⟨hcc, f, cr, pre, [], hcr, hct⟩
+  have hctP : J.CallTypedP tags s a us := ⟨hcc, f, cr, pre, [], hcr, hct⟩
   obtain ⟨hS, hts, fi, ps, rs, hfi, hty, hn⟩ := id hcc
   refine funDivXP_of_noReach hctP (fun h => ?_) (fun ⟨⟨s₂, fl⟩, hcall⟩ => ?_)
   · obtain ⟨T, hT, hdec⟩ := (hreach_core_both (P := profile o) (host := NH)).2 _ _ _ h hcc
@@ -345,10 +345,10 @@ theorem funDivXP_of_call_diverges {s : Store H} {f : Frame} {pre us : List Val} 
         (lift (hret ws hws)) (by simp [Outcome.Ends, vals])
     · cases fl with
       | trap =>
-        have hD := Silmaril.Wasm.Abstract.diverges_through_steps (o := o) (lift (htr rfl)) hct hd
+        have hD := J.diverges_through_steps (o := o) (lift (htr rfl)) hct hd
         exact trap_not_diverges (r := []) (by simpa using hD)
       | throw t =>
-        have hD := Silmaril.Wasm.Abstract.diverges_through_steps (o := o) (lift (hth t rfl)) hct hd
+        have hD := J.diverges_through_steps (o := o) (lift (hth t rfl)) hct hd
         exact throw_not_diverges (r := []) (by simpa using hD)
       | _ => exact hab.elim
 

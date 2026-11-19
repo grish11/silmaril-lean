@@ -183,6 +183,25 @@ theorem actual_call_and_cleanup :
     (translate (applied [constant 20, constant 22])).1.toOption.bind actualCallLifetime =
       some ([17,16], [17,16], wildcard (.tuple [.unit,.unit])) := by cbv
 
+-- Syntax-construction regression only; the corpus candidate separately retains
+-- and elaborates the actual suffix_object definition and pinned runtime.
+private def voidApplied : Ail.TypedExpression :=
+  .mk (.rvalue .void) [] .unknown (.call
+    (designator (.mk [] (.function (qualifiers, .mk [] .void)
+      [(qualifiers, intType, false), (qualifiers, intType, false)] false)))
+    [constant 20, constant 22])
+private def actualVoidCallLifetime (core : Effect) : Option (List Nat × List Nat × Pat) := do
+  let prepared ← afterChecks core >>= afterPreparation
+  let .mk _ (.sseq (.mk _ (.base (some result, .unit)))
+    (.mk _ (.ccall () _ _ arguments))
+    (.mk _ (.sseq killsPattern kills (.mk _ (.pure (.mk _ () (.sym returned))))))) := prepared | none
+  let arguments ← arguments.mapM pointerNumber
+  let .mk _ (.unseq actions) := kills | none
+  let killed ← actions.mapM killNumber
+  if result.key == returned.key then some (arguments, killed, killsPattern) else none
+example : (translate voidApplied).1.toOption.bind actualVoidCallLifetime =
+    some ([17,16], [17,16], wildcard (.tuple [.unit,.unit])) := by cbv
+
 /-- Exhaustion on the last creation wrapper precedes the call-result allocation. -/
 theorem parameter_wrapper_exhausts :
     (State.run (Expressions.expression Silmaril.Cerberus.Target.pinnedApple

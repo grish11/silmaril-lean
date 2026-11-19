@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "status": "inspected blockers; not formal statements or proofs",
+  "candidates": [
+    {
+      "project": "mimalloc",
+      "function": "_mi_option_get_fast",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_has_overcommit",
+      "status": "blocked",
+      "blockers": [
+        "this Boolean getter still needs its own exact closure, computed Core/ELF binding and Boolean ABI context"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics",
+      "resolved_prerequisites": [
+        "actual eight-field global layout/initializer and saved os.i recovered; page-size contexts are instantiated"
+      ]
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_has_virtual_reserve",
+      "status": "blocked",
+      "blockers": [
+        "this Boolean getter still needs its own exact closure, computed Core/ELF binding and Boolean ABI context"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics",
+      "resolved_prerequisites": [
+        "actual eight-field global layout/initializer and saved os.i recovered; page-size contexts are instantiated"
+      ]
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_page_size",
+      "status": "stated-unproved",
+      "blockers": [],
+      "evidence": "actual saved-TU closure, computed Core/global layout, ELF CodeAt, finite source/native checks; not semantic proof",
+      "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+      "function_address": 62000
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_bin_size",
+      "status": "blocked",
+      "blockers": [
+        "actual global/array/struct memory context required",
+        "this function still lacks an actual allocator-global/array layout and entry relation in the reusable Contextual framework"
+      ],
+      "evidence": "actual saved preprocessing inspected; not counted as concrete source semantics"
+    },
+    {
+      "project": "openssl",
+      "function": "OPENSSL_isservice",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "openssl",
+      "function": "ERR_load_KDF_strings",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "openssl",
+      "function": "X509V3_add_standard_extensions",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "openssl",
+      "function": "ossl_prov_is_running",
+      "status": "blocked",
+      "blockers": [
+        "canonical libcrypto whole-file parse unavailable",
+        "preprocessor configuration branch/source projection not yet bound"
+      ],
+      "evidence": "actual ELF symbol found; closed literal-return candidates in included upstream; no frontend/Core claim"
+    },
+    {
+      "project": "sqlite",
+      "function": "sqlite3MemRoundup",
+      "status": "blocked",
+      "blockers": [
+        "same source name has several mutually exclusive definitions",
+        "delivered build uses ROUND8 macro, not identity variant",
+        "bitwise macro lowering/config binding required"
+      ],
+      "evidence": "actual symbol0xff10,size7 and upstream conditional definitions inspected; identity definition deliberately not substituted"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNull",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsBool",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsNumber",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsString",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsArray",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsObject",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsInvalid",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsFalse",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsTrue",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "cjson",
+      "function": "cJSON_IsRaw",
+      "status": "contextual-statement-unproved",
+      "blockers": [
+        "semantic refinement and safety remain unproved",
+        "full translation-unit frontend acceptance unavailable outside the exact declaration closure",
+        "canonical build lacks system-header hashes; host preprocessing correspondence is provenance, not proved equivalence"
+      ],
+      "evidence": "actual preprocessed TU byte projection, computed Core with kernel elaboration success, real struct/pointer/field entries, SysV ABI and canonical ELF CodeAt; ten measured contextual statements"
+    },
+    {
+      "project": "mimalloc",
+      "function": "_mi_os_large_page_size",
+      "status": "stated-unproved",
+      "root": "Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs",
+      "function_address": 62016,
+      "evidence": "actual conditional Core executes actual source callee; canonical O2 inlines it; nonvacuous global-memory problem, not proof"
+    }
+  ],
+  "promoted": [
+    {
+      "project": "tinycc",
+      "function": "is_space",
+      "status": "stated-unproved",
+      "function_address": 29909,
+      "root": "Silmaril.Elf.Corpus.TinyccClosed.Space.Thms"
+    },
+    {
+      "project": "tinycc",
+      "function": "isid",
+      "status": "stated-unproved",
+      "function_address": 29960,
+      "root": "Silmaril.Elf.Corpus.TinyccClosed.Identifier.Thms"
+    },
+    {
+      "project": "tinycc",
+      "function": "isnum",
+      "status": "stated-unproved",
+      "function_address": 30011,
+      "root": "Silmaril.Elf.Corpus.TinyccClosed.Digit.Thms"
+    },
+    {
+      "project": "tinycc",
+      "function": "isoct",
+      "status": "stated-unproved",
+      "function_address": 30044,
+      "root": "Silmaril.Elf.Corpus.TinyccClosed.Octal.Thms"
+    },
+    {
+      "project": "tinycc",
+      "function": "toup",
+      "status": "stated-unproved",
+      "function_address": 30077,
+      "root": "Silmaril.Elf.Corpus.TinyccClosed.Upper.Thms"
+    }
+  ]
+}

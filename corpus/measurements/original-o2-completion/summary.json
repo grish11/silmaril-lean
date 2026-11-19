@@ -1,0 +1,73 @@
+{
+  "actual_new_elf_rows": 80,
+  "unique_new_hashes": 80,
+  "new_profiles": 14,
+  "measured_exits_passed": 246,
+  "unstripped_matching_canonical": 39,
+  "unstripped_canonical_mismatches": [
+    {
+      "object": "libjemalloc.so.2",
+      "path": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/unstripped/libjemalloc.so.2",
+      "size": 757944,
+      "sha256": "4f87f072a249eb62c91cea7f1eebe272a1d2f68ec563731dccaf13c05e0dee5d",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 1141,
+      "has_symtab": true,
+      "has_debug_info": false,
+      "stripping": "unstripped",
+      "receipt": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/unstripped/receipt.json",
+      "receipt_sha256": "85196c945415398f5eadfab183e9d1d7ace407ae2ddfd8bb76673ccf973b9650",
+      "census": "corpus/census/variants/jemalloc/5.3.0/default/x86_64/O2/unstripped/libjemalloc.so.2.json",
+      "strip_pair": "corpus/variants/jemalloc/5.3.0/default/x86_64/O2/libjemalloc.so.2.pair.json",
+      "canonical_sha256": "ce0ef2ae0354cbe866f229013cada094e54f8d304282b784b0528f4c349e8cd7",
+      "matches_canonical": false
+    }
+  ],
+  "projects": [
+    {
+      "project": "cjson",
+      "actual_new_elf_rows": 0,
+      "summary": "cjson/summary.json"
+    },
+    {
+      "project": "coreutils",
+      "actual_new_elf_rows": 28,
+      "summary": "coreutils/summary.json"
+    },
+    {
+      "project": "darkhttpd",
+      "actual_new_elf_rows": 4,
+      "summary": "darkhttpd/summary.json"
+    },
+    {
+      "project": "jemalloc",
+      "actual_new_elf_rows": 4,
+      "summary": "jemalloc/summary.json"
+    },
+    {
+      "project": "mimalloc",
+      "actual_new_elf_rows": 4,
+      "summary": "mimalloc/summary.json"
+    },
+    {
+      "project": "refcrypto",
+      "actual_new_elf_rows": 28,
+      "summary": "refcrypto/summary.json"
+    },
+    {
+      "project": "sqlite",
+      "actual_new_elf_rows": 0,
+      "summary": "sqlite/summary.json"
+    },
+    {
+      "project": "tcp-pingpong",
+      "actual_new_elf_rows": 8,
+      "summary": "tcp-pingpong/summary.json"
+    },
+    {
+      "project": "tinycc",
+      "actual_new_elf_rows": 4,
+      "summary": "tinycc/summary.json"
+    }
+  ]
+}

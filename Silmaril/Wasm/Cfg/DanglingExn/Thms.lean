@@ -75,7 +75,9 @@ host `instHostU hxI`. `ExampleHostExn.trapH_caught` already shows `catch_all` ca
 **5. The forward direction.** `fin_sub`, `pend_sub`, `inf_sub`: for a host in the typed host
 slice with the checker invariants (`HostSliceT`, `HostSliceE`), possibly throwing dangling
 addresses, every finished behaviour, pending call and productive stream of the native session
-triple at a question in `InvOkXP` is one of the open Core triple. No `HostTyped` is needed.
+triple at a question in `InvOkXP` is one of the open Core triple. No `HostTyped` is needed, and
+no `StoreOk` either: `fin_sub_of`, `pend_sub_of`, `inf_sub_of` take only the store check
+`StoreChkE (ehExt tags) s.funcs`, the tag invariants `TagsOk tags s` and the typed invocation.
 `cfgInstTripleU_sub`: on `InstDom`, every behaviour of the CFG instance triple at `instHostU I`
 (`cfgInstTripleU`) is one of the instance triple `instTripleS I P`.
 
@@ -268,6 +270,34 @@ open Silmaril.Wasm.Abstract.NodeBridge (coreTripleSO)
 open Silmaril.Wasm.Interp (HostSliceT HostSliceE)
 
 variable {tags : List TagInst} {q : Nat × List Val}
+
+/-- **Finished native session behaviours are open Core behaviours**, from the store check, the
+tag invariants and a typed invocation alone (no `StoreOk`, no `HostTyped`). -/
+theorem fin_sub_of (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs) (hts : Interp.TagsOk tags s)
+    (hinv : InvokeOk s q.1 q.2)
+    {x : CallBeh (Abstract.wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    (hx : x ∈ (CfgInst.openRestrict (coreHostRel host) sessionTripleXP).1 s q) :
+    x ∈ (coreTripleSO P host).1 s q :=
+  Proofs.DanglingExn.fin_sub_of hH hE hS hts hinv hx
+
+/-- **Pending native session calls are reached Core callouts**, without `StoreOk`. -/
+theorem pend_sub_of (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs) (hts : Interp.TagsOk tags s)
+    (hinv : InvokeOk s q.1 q.2)
+    {x : List (Call (Abstract.wasmHostSig H)) × (Abstract.wasmHostSig H).Op}
+    (hx : x ∈ (CfgInst.openRestrict (coreHostRel host) sessionTripleXP).2.1 s q) :
+    x ∈ (coreTripleSO P host).2.1 s q :=
+  Proofs.DanglingExn.pend_sub_of hH hE hS hts hinv hx
+
+/-- **Productive native session streams are productive Core runs**, without `StoreOk`. -/
+theorem inf_sub_of (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs) (hts : Interp.TagsOk tags s)
+    (hinv : InvokeOk s q.1 q.2)
+    {ω : Nat → Call (Abstract.wasmHostSig H)}
+    (hx : ω ∈ (CfgInst.openRestrict (coreHostRel host) sessionTripleXP).2.2 s q) :
+    ω ∈ (coreTripleSO P host).2.2 s q :=
+  Proofs.DanglingExn.inf_sub_of hH hE hS hts hinv hx
 
 /-- **Finished native session behaviours are open Core behaviours** (no `HostTyped`). -/
 theorem fin_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)

@@ -32,11 +32,15 @@ section Session
 variable {H : Type} {P : Numerics.Profile} {host : HostSemantics H} {tags : List TagInst}
   {s : Store H} {q : Nat × List Val}
 
-theorem fin_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)
+/-! The forward direction reads of `InvOkXP` only the store check, the tag invariants and the
+typed invocation (`fin_sub_of`, `pend_sub_of`, `inf_sub_of`); `StoreOk` is never used. -/
+
+theorem fin_sub_of (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs) (hts : Interp.TagsOk tags s)
+    (hinv : InvokeOk s q.1 q.2)
     {x : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
     (hx : x ∈ (openRestrict (coreHostRel host) sessionTripleXP).1 s q) :
     x ∈ (coreTripleSO P host).1 s q := by
-  obtain ⟨_, hS, hts, hinv⟩ := hok
   obtain ⟨hx, hc⟩ := hx
   obtain ⟨a, vs⟩ := q
   refine ⟨trivial, ?_⟩
@@ -52,11 +56,12 @@ theorem fin_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkX
     subst he
     exact Abstract.wasmEvFunDXP_div_evRun hH hE hts hS hinv hx hc
 
-theorem pend_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)
+theorem pend_sub_of (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs) (hts : Interp.TagsOk tags s)
+    (hinv : InvokeOk s q.1 q.2)
     {x : List (Call (wasmHostSig H)) × (wasmHostSig H).Op}
     (hx : x ∈ (openRestrict (coreHostRel host) sessionTripleXP).2.1 s q) :
     x ∈ (coreTripleSO P host).2.1 s q := by
-  obtain ⟨_, hS, hts, hinv⟩ := hok
   obtain ⟨hx, hc⟩ := hx
   obtain ⟨a, vs⟩ := q
   obtain ⟨cs, m⟩ := x
@@ -64,13 +69,32 @@ theorem pend_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOk
     rw [← Abstract.wasmEvPendXPS_eq]; exact hx
   exact Abstract.wasmEvPendXP_evRun hH hE hts hS hinv hx' hc
 
-theorem inf_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)
+theorem inf_sub_of (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (hS : Interp.StoreChkE (Interp.ehExt tags) s.funcs) (hts : Interp.TagsOk tags s)
+    (hinv : InvokeOk s q.1 q.2)
     {ω : Nat → Call (wasmHostSig H)}
     (hx : ω ∈ (openRestrict (coreHostRel host) sessionTripleXP).2.2 s q) :
     ω ∈ (coreTripleSO P host).2.2 s q := by
-  obtain ⟨_, hS, hts, hinv⟩ := hok
   obtain ⟨a, vs⟩ := q
   exact ⟨trivial, Abstract.hostObsInf_wasmEvInfNXP_coreInf hH hE hts hS hinv hx⟩
+
+theorem fin_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)
+    {x : CallBeh (wasmHostSig H) (Store H) ((List Val ⊕ Nat) ⊕ PUnit)}
+    (hx : x ∈ (openRestrict (coreHostRel host) sessionTripleXP).1 s q) :
+    x ∈ (coreTripleSO P host).1 s q :=
+  fin_sub_of hH hE hok.2.1 hok.2.2.1 hok.2.2.2 hx
+
+theorem pend_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)
+    {x : List (Call (wasmHostSig H)) × (wasmHostSig H).Op}
+    (hx : x ∈ (openRestrict (coreHostRel host) sessionTripleXP).2.1 s q) :
+    x ∈ (coreTripleSO P host).2.1 s q :=
+  pend_sub_of hH hE hok.2.1 hok.2.2.1 hok.2.2.2 hx
+
+theorem inf_sub (hH : HostSliceT host) (hE : HostSliceE tags host) (hok : InvOkXP tags s q)
+    {ω : Nat → Call (wasmHostSig H)}
+    (hx : ω ∈ (openRestrict (coreHostRel host) sessionTripleXP).2.2 s q) :
+    ω ∈ (coreTripleSO P host).2.2 s q :=
+  inf_sub_of hH hE hok.2.1 hok.2.2.1 hok.2.2.2 hx
 
 end Session
 

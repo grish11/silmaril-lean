@@ -1,0 +1,203 @@
+{
+  "package": "cjson",
+  "version": "1.7.19",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD",
+  "ldflags": "-shared",
+  "configure_args": "(none: CMake defaults reproduced as gcc commands, ENABLE_CJSON_UTILS=On)",
+  "build_commands": [
+    "gcc -O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD -c cJSON.c -o cJSON.o",
+    "gcc -shared -Wl,-soname,libcjson.so.1 -o libcjson.so.1 cJSON.o -lm",
+    "ln -sf libcjson.so.1 libcjson.so",
+    "gcc -O2 -g0 -ffile-prefix-map=/build/cjson=. -std=c89 -pedantic -Wall -fstack-protector-strong -fvisibility=hidden -DCJSON_EXPORT_SYMBOLS -DCJSON_API_VISIBILITY -DENABLE_LOCALES -fPIC -MMD -c cJSON_Utils.c -o cJSON_Utils.o",
+    "gcc -shared -Wl,-soname,libcjson_utils.so.1 -o libcjson_utils.so.1 cJSON_Utils.o -L. -lcjson"
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/cjson",
+  "inputs": [
+    {
+      "url": "https://github.com/DaveGamble/cJSON/archive/refs/tags/v1.7.19.tar.gz",
+      "sha256": "7fa616e3046edfa7a28a32d5f9eacfd23f92900fe1f8ccd988c1662f30454562"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "libcjson.so.1",
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/O2/stripped/libcjson.so.1",
+      "size": 34984,
+      "sha256": "4234f3ba67e7b15220d4d65803c9921d15e7f2de782c4a6b64645bf9de5bba45",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    },
+    {
+      "object": "libcjson_utils.so.1",
+      "path": "corpus/variants/cjson/1.7.19/default/x86_64/O2/stripped/libcjson_utils.so.1",
+      "size": 18544,
+      "sha256": "0165f50f1bf953dca311de8ef0dd43a6b92f6b496c7bfa8caa1b5fd3b7903fc0",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs; independently stripped in their respective workers; byte-identical stripped outputs",
+  "tests": [
+    {
+      "command": "cjson_test (upstream test.c linked against libcjson.so.1): exit status",
+      "result": "pass: 0"
+    },
+    {
+      "command": "cjson_test output: 47 lines, sha256 3b5c2dfae1639d493cdccbd1d16b30e31aa03eae9d4b38776016a9f518252757",
+      "result": "Version: 1.7.19 { \t\"name\":\t\"Jack (\\\"Bee\\\") Nimble\", \t\"format\":\t{ \t\t\"type\":\t\"rect\", \t\t\"width\":\t1920, \t\t\"height\":\t1080, \t\t\"interlace\":\tfalse, "
+    },
+    {
+      "command": "utils_smoke (local/utils_smoke.c against libcjson_utils.so.1 + libcjson.so.1)",
+      "result": "pass: 0 4 ok"
+    },
+    {
+      "command": "utils_smoke output",
+      "result": "ok GetPointer /tags/1: y ok GeneratePatches (cJSON sorts keys first): [{\"op\":\"add\",\"path\":\"/m\",\"value\":2},{\"op\":\"remove\",\"path\":\"/n\"},{\"op\":\"replace\",\"path\":\"/tags/1\",\"value\":\"z\"}] ok ApplyPatches rc=0 equal=1 ok MergePatch (RFC 7386 example): {\"a\":\"z\",\"c\":{\"d\":\"e\"}} cJSON_Version 1.7.19"
+    }
+  ],
+  "variant": {
+    "optimization": "O2",
+    "stripping": "stripped",
+    "configuration": "default",
+    "run_id": "7fffbc3b-9036-41fe-92be-d42beac38b1d",
+    "target": "x86_64-linux-gnu"
+  },
+  "container_pool": {
+    "pool_id": "abc3400b-91ab-48a7-b316-b3ab2b3aa1c9",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T00:05:08.892933+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "c6598d62acf376bdb371a85e89cf9cf058b7c04e773918b227b7de16fd23041e",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/cjson-o2-verified/recipes-af453b24-4f9e-429a-a128-4395367b2e46/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/cjson-o2-verified/recipes-af453b24-4f9e-429a-a128-4395367b2e46/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/cjson-o2-verified/pool-f75e5494-971c-44d3-8097-d4ddaf378523/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T00:05:09.003137+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "db87f3b37980d283d212f7b77f650c9f0f8ca916390e13258ac10dfe30164129",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/cjson-o2-verified/recipes-af453b24-4f9e-429a-a128-4395367b2e46/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/cjson-o2-verified/recipes-af453b24-4f9e-429a-a128-4395367b2e46/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/cjson-o2-verified/pool-f75e5494-971c-44d3-8097-d4ddaf378523/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T00:05:09.195608+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/cjson/1.7.19/default/x86_64/O2",
+        "sequence": 1,
+        "started_utc": "2026-11-18T00:05:09.958182+00:00",
+        "container_reused": false,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T00:05:13.587331+00:00"
+      }
+    ]
+  }
+}

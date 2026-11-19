@@ -1,0 +1,176 @@
+{
+  "schema_version": 1,
+  "run_id": "c6c99f09-88a9-475e-894c-f368ac4e33ba",
+  "stage": "lean-elaboration-and-kernel-check",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-18T13:02:51.891675+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.CjsonArraySize.Context.Defs"
+  ],
+  "cwd": "/work/isolated-frontend",
+  "target": "Silmaril.Elf.Corpus.CjsonArraySize.Context.Defs",
+  "repository": {
+    "commit": "da5a9606578eaf1e71e8ee01a1ec4556901f1ee0",
+    "dirty": true,
+    "diff_sha256": "6d32e6b08ae138a2c80faadcd0a5002ef0e53c57b2533e6ea436417507d8bd24"
+  },
+  "cache": "warm",
+  "concurrency": 1,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Assignments/Defs.lean",
+      "sha256": "ac974bc87dd2b41b33c751490845e6c5ba09002d793108598128fb290e1cb607"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Expressions/Defs.lean",
+      "sha256": "e8eb0f4374eb1764792646e1da7bf16d753383a80c0caccff3f0334531376b79"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/LocalObjects/Defs.lean",
+      "sha256": "e21086d50b851fbb932efc7125a1dc989d0b596078d806f56166313164af3842"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/LoopControl/Defs.lean",
+      "sha256": "6637a672363b876417e714c9ff6416327483265e8234b72306f236621a1571b8"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Loops/Defs.lean",
+      "sha256": "0a28fdc60366edd5527d2205576923c439e967e13d408db6755c2f879ebd201f"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Postfix/Defs.lean",
+      "sha256": "1ac0d3936b0c9be0467b46b2523680fb153e6b797a2cd1f11ef9651ff4a7bc5c"
+    },
+    {
+      "path": "Silmaril/Cerberus/Elaboration/Statements/Defs.lean",
+      "sha256": "8019eb0b359341c1e8d60abbe9ce6b252989518cedb3b077576e9eb97b0ad891"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Context/Defs.lean",
+      "sha256": "0794eef21b2fb19ce46bc97f0fffed462e352575c505b4f6c190a5b0072d45bb"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Defs.lean",
+      "sha256": "3a577d97ade36facc41caa7c660aab843b8a00c0d654e1b65749fa7cc28e1c89"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Source/Defs.lean",
+      "sha256": "3143a2478345a9eb321ca031423233cc18ade584088cc45ad43d8f8bb4fab566"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Source/Elaboration/Defs.lean",
+      "sha256": "d6478051a0e4bddcd2ef01e580902ce225812980b5dd1f00c3d57039f5f0a8c9"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Source/Elaboration/Thms.lean",
+      "sha256": "49252d5541f231f40df297243cb5c22320cc5d7083a7344ad95f4dbb23ec874b"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Source/Projection/Defs.lean",
+      "sha256": "41b9f14094f720554b7dff61033d6104c4bc7a8cf6f0c83926135836c13f4640"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Source/Projection/Thms.lean",
+      "sha256": "bc26342c04233ab26495e4fcea20ecc025249d94b0b8685ce5e40e9183d87707"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/CjsonArraySize/Thms.lean",
+      "sha256": "24a680262c17232c583ec2f0e5055703618c6761786158e60e1f1af6a8a1de84"
+    },
+    {
+      "path": "Silmaril/Project/Shapes/Contextual/Defs.lean",
+      "sha256": "098739d7e52b20f79b5c239612edd55ac25d62d52b073044b1994c2786ad057d"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonArraySize/Bindings.lean",
+      "sha256": "1db1630126a626a19f173baac3a6fd2a00d15a58f998d18de7ae10aaf72457a2"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonArraySize/Projection.lean",
+      "sha256": "b3db6bbbdd963fa90748055164cee2f45b5d79eb40330f1e233895d34925edb5"
+    },
+    {
+      "path": "Silmaril/Proofs/Elf/Corpus/CjsonArraySize/Source.lean",
+      "sha256": "055b4034e67345afbba2c3bd08fce7dbe4af4d1d436017ed5aed78975c565350"
+    },
+    {
+      "path": "Silmaril/X86/SystemV/CApi/Defs.lean",
+      "sha256": "6574f2b6b59c274b579e17a285ab8127f286a7db2cdfd26e805e732c54496930"
+    },
+    {
+      "path": "Silmaril/X86/SystemV/Defs.lean",
+      "sha256": "c0d835ce05a648f300ca61674294d16915d3f5831c3b112ec21df5b18ce3f9a9"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/README.md",
+      "sha256": "021b28702cc0a072127e3fe13d1bd011dc20488e3ac92393c28e67e93b846a10"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/context.c",
+      "sha256": "e04af85a502ef41b93c99b3622720e0b9a82c47f2514efe85e9f32c89aeabf4d"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/manifest.json",
+      "sha256": "c15bbf70e53665aba24d35c8518032a6612da31761127de7804413a63eb73dbb"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/program.sexp",
+      "sha256": "b6f3ff0c2e350da276e6b4843368347f1ed5abf4b3a8ac36b8b9cbce5f26aa03"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/projection.json",
+      "sha256": "4b209fc12504662ee40cf610bd0af40d6934cbfcffdd72469b7169a962d71a60"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/runtime.sexp",
+      "sha256": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/get-array-size/typed-ail.sexp",
+      "sha256": "04f40f4cd35d5164aea6db2f5bec658a78fcdad43ef62ae5bd712060478ac7c5"
+    },
+    {
+      "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i",
+      "sha256": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf"
+    },
+    {
+      "path": "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c",
+      "sha256": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d"
+    },
+    {
+      "path": "corpus/compiler-bindings/CjsonArraySize-Context.json",
+      "sha256": "dc551b6caaeff2e9d24c77b8e93ed4f1eef7b6a6fe840062fde182ac485b64bd"
+    },
+    {
+      "path": "tests/cerberus/CjsonArraySizeContext.lean",
+      "sha256": "2ad423d5ae7938e530f4fc08f8b712e1ed2319b0de8be653dd938e9ac29b70ec"
+    },
+    {
+      "path": "tools/corpus/CjsonArraySizeInputs.lean",
+      "sha256": "a3d92c44dd9f3649afa84eb89a91c0506b68218a45f57d450075c2bbc1ca7ea5"
+    },
+    {
+      "path": "tools/corpus/check_cjson_array_size_inputs.py",
+      "sha256": "6b30047bc90e0c8c558ae8c08a720b53bb2f2c6906cf9cd0663c566282a258d7"
+    }
+  ],
+  "wall_seconds": 209.91609693200007,
+  "exit_code": 0,
+  "user_cpu_seconds": 210.94,
+  "system_cpu_seconds": 33.16,
+  "peak_rss_kib": 12344956,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

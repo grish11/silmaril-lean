@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "run_id": "6e869c39-a1b8-452a-83d0-b62975f10c69",
+  "stage": "mimalloc-function-stripping-equivalence-statements",
+  "measurement_tool_sha256": "73b879b4211a225b213deb84986411385e6506134c39de6f42768fb60ffeb07a",
+  "started_utc": "2026-11-17T23:50:00.144547+00:00",
+  "command": [
+    "lake",
+    "build",
+    "--wfail",
+    "Silmaril.Elf.Corpus.MimallocVersion.AllVariants.Thms"
+  ],
+  "cwd": "/work/formal-integration",
+  "target": "x86_64-linux-gnu",
+  "repository": {
+    "commit": "e52a89a9fc8e36a3fae5764e8861632159647d78",
+    "dirty": true,
+    "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "cache": "warm",
+  "concurrency": 2,
+  "lean_toolchain": "leanprover/lean4:nightly-2026-11-05",
+  "runner": {
+    "hostname": "modal",
+    "platform": "Linux-4.19.0-gvisor-x86_64-with-glibc2.41",
+    "cpu_model": "unknown",
+    "visible_cpus": 24,
+    "task_cpu_budget": 8,
+    "task_memory_budget_bytes": 34359738368,
+    "cgroup": {}
+  },
+  "inputs": [
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocVersion/AllVariants/Defs.lean",
+      "sha256": "5f9edcff6ea5e71a65daa42ada6afa2161328c8d36f1ba91f6025ee30874aae6"
+    },
+    {
+      "path": "Silmaril/Elf/Corpus/MimallocVersion/AllVariants/Thms.lean",
+      "sha256": "1c3aa2baade978ba99eeb7895257408d48cc186145e2fb4119ecdc375e42e823"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/stripped/libmimalloc.so.2.1",
+      "sha256": "2811fa0abc1ecf4d6378cc1aed2e7211555403c0d5b6b1a9f2cc78f0c9e0c616"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/libmimalloc.so.2.1.pair.json",
+      "sha256": "a5d05a63adbb62b66dd98bb364742f06443c2c44a2d7382d4d5a8809cd3b51ec"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O0/unstripped/libmimalloc.so.2.1",
+      "sha256": "b89f65cbfb1a06468e1ba2b89ec908e5897a61cda109df92f112d9709e4dbf7d"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/stripped/libmimalloc.so.2.1",
+      "sha256": "58b5880abaa05d857c2008d5427c126e3a45d5b95ced48c8a4ed4fc18cf0c99a"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/libmimalloc.so.2.1.pair.json",
+      "sha256": "2763bfc25fd264922639115e1ca7f12661e6af65a4c43de4d13b0bc71b60af0a"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O1/unstripped/libmimalloc.so.2.1",
+      "sha256": "c95e5e0299d30f67eccdc106bf6cd15d2fa84bd65ccfc71a4b9c2e7757f45f21"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/stripped/libmimalloc.so.2.1",
+      "sha256": "1aba36eebc02977f9623048cf7a15734df14c181531f65f21131bec003b48a45"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/libmimalloc.so.2.1.pair.json",
+      "sha256": "49d8cc68963b14db9559193c1ad1708a548e7855d379a9a2814e0deff08548fc"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/O3/unstripped/libmimalloc.so.2.1",
+      "sha256": "d31800fec23b41fe8b9cbc2fac88762b4d4a2716b1fbe65fea1fd0aeb8b0aab3"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/stripped/libmimalloc.so.2.1",
+      "sha256": "94599d02484f5a1fca59893d0c2a675e8782257b4af967dfdb08d1175952e379"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/libmimalloc.so.2.1.pair.json",
+      "sha256": "dd88e56ed4253116af8b94b20da1b9a9ae2cccfa2ebaec8a14e067531fe525f7"
+    },
+    {
+      "path": "corpus/variants/mimalloc/2.1.9/default/x86_64/Og/unstripped/libmimalloc.so.2.1",
+      "sha256": "609c0d03494a8964e3b736dc8b8f93c2049fbdfb0df15699691292b3fe24e3f4"
+    }
+  ],
+  "wall_seconds": 4.966178935999778,
+  "exit_code": 0,
+  "user_cpu_seconds": 3.18,
+  "system_cpu_seconds": 10.28,
+  "peak_rss_kib": 2468104,
+  "measurement": "Linux wait4 child accounting; includes waited-for descendants; RSS is maximum, not sum"
+}

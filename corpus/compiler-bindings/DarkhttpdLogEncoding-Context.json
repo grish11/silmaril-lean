@@ -1,0 +1,36 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.DarkhttpdLogEncoding.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/DarkhttpdLogEncoding/Thms.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/X86/SystemV/Defs.lean",
+    "Silmaril/X86/SystemV/CApi/Defs.lean"
+  ],
+  "source": {
+    "path": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/context.c"
+  },
+  "projection": {
+    "path": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/projection.json",
+    "tu": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/darkhttpd/semantic-inputs/1.17/default/x86_64/O0/needs-logencoding/runtime.sexp"
+  },
+  "limits": [
+    "All corpus refinements remain UNPROVED; no semantic proof or interactive compilation.",
+    "Exact unchanged static C definition and current-host preprocessed TU span, using matching recorded GCC/O0 macro-affecting options. Dependency-output flag -MMD was omitted; preprocessing-only -E/-P were added. Historical image/header identity, historical compile replay and whole-TU frontend adequacy are not established. No ELF was rebuilt.",
+    "Actual pinned elaboration, procedure/ABI metadata and saved Core agree; no fixRet, default body, substitute callee or desired-refinement premise is used. Runtime comes from the pinned public Cerberus oracle, with its explicit implementation profile.",
+    "One const unsigned-char parameter object is initialized and readonly. All256 byte values are admitted. Missing allocations/read permissions, unspecified/trap values and actual Core UB remain semantic concerns, not discarded inputs. Nonvacuous source safety and first-return correspondence are obligations.",
+    "System V AMD64 INTEGER argument uses DIL low8 bits; upper register bits are unspecified. Signed-int result uses EAX low32. Actual O0 stack frame permits only12 bytes below entry RSP (RBP save and parameter spill at RSP-12); all other target memory/mapping state must be preserved.",
+    "The function has no C procedure callees, globals, heap or I/O effects. Source observation preserves every memory field except diagnostic currentLocation: allocation, byte, pointer, lifetime and output state are retained; source-location updates are not C memory effects. Finite256-input Core execution/ABI tests are regression evidence, not a contextual proof across arbitrary caller states.",
+    "This is one internal static O0 ELF function, not a public darkhttpd API guarantee, complete server semantics or whole-corpus function coverage. Existing FIPS/configuration/security/cJSON runtime/provenance limits remain."
+  ]
+}

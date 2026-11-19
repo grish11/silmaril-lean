@@ -1,0 +1,27 @@
+{
+  "files": {
+    "context.c": "e04af85a502ef41b93c99b3622720e0b9a82c47f2514efe85e9f32c89aeabf4d",
+    "typed-ail.sexp": "04f40f4cd35d5164aea6db2f5bec658a78fcdad43ef62ae5bd712060478ac7c5",
+    "program.sexp": "b6f3ff0c2e350da276e6b4843368347f1ed5abf4b3a8ac36b8b9cbce5f26aa03",
+    "runtime.sexp": "e5f04b906092c92595331d3176a2990beb797bfb0e12edc4326b07fb9454c27b",
+    "projection.json": "4b209fc12504662ee40cf610bd0af40d6934cbfcffdd72469b7169a962d71a60",
+    "README.md": "021b28702cc0a072127e3fe13d1bd011dc20488e3ac92393c28e67e93b846a10"
+  },
+  "immutable_files": {
+    "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i": "3dc319de3487c6aaed4cf1244ddfd167b66a280571c5e9651f4fb487018b97cf",
+    "corpus/cjson/semantic-inputs/linux-x86_64/predicates/preprocess-receipt.json": "a27feac4379d8f35faa94f0b7c98bf37af170ff384fc3a2e715028ea88bdace5",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.c": "298581a04a36c0165da4b0aade235c23088cb2faa58651d720ea2f3706ed0b0d",
+    "corpus/cjson/upstream/cJSON-1.7.19/cJSON.h": "25b0145150d500498e4d209cec69c18c42cf818bffcc54690be3b895a2a16dee",
+    "corpus/elf/cjson/x86_64/libcjson.so.1": "2cfb516d75b79b4ee7ba9e9645fc5f53daa4f428daf349d445d3bbd43e4576c2",
+    "corpus/elf/cjson/x86_64/receipt.json": "4370a88ff99c2ddfe6a60e565198d75921ef798e3a0111de9f7f081e963f63e1",
+    "benchmarks/cerberus-elaboration/oracle/cast-sign-extend/core.sexp.gz": "0f110b37ff5a57dfe4d99d4cf22505b7371bedb92c92acea7f9e2c397a972ccf"
+  },
+  "external_input_sha256": "5e7fae6850a59fe3714c8da56750668fac0e1a78bdee5d0aa9e6619dfab1cf40",
+  "literal_fingerprint": "ordered concatenation with independent per-file hashes",
+  "limits": [
+    "Saved TU preprocessing reused; no historical image/header identity or whole-TU adequacy proof.",
+    "Null and valid acyclic lengths0..64 only; no result/refinement/termination premise.",
+    "Outside-allocation lifetime UB mapping remains explicitly unsupported outside the chosen domain.",
+    "Actual source/Core/ELF binding and finite regressions are not semantic proofs."
+  ]
+}

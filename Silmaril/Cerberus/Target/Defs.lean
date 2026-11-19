@@ -49,6 +49,9 @@ structure Config where
   maximumAlignment : Nat
   aliases : Aliases
   cheri : Bool := false
+  /-- Explicit upstream strict-pointer-arithmetic switch. False selects its
+  non-ISO member-shift branch; this field asserts no pointer-validity law. -/
+  strictPointerArithmetic : Bool := false
 
 inductive Error where
   | unsupportedWidth (width : Nat)

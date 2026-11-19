@@ -95,9 +95,55 @@ example : ControlTests.equalZero Target.pinnedApple Target.emptyEnvironment inpu
     (.mk ControlTests.signedIntCategory [.marker 7, .std "original"] location
       (.binary input .eq (.mk category [.marker 7, .std "original"] location
         (.const (.integer (.iconstant 0 .octal none)))))) := by cbv
+private def pointerCategory : Ail.GenTypeCategory :=
+  .rvalue (.pointer ⟨false, false, false⟩ (.mk [] .void))
+private def pointerInput : Ail.TypedExpression :=
+  .mk pointerCategory [.marker 7, .std "original"] location (.const .null)
+-- Pointer truth uses the pinned null constant, never an integer stand-in.
+example : ControlTests.equalZero Target.pinnedApple Target.emptyEnvironment pointerInput =
+    .ok (.mk ControlTests.signedIntCategory [.marker 7, .std "original"] location
+      (.binary pointerInput .eq
+        (.mk pointerCategory [.marker 7, .std "original"] location (.const .null)))) := by cbv
 example : (ControlTests.equalZero Target.pinnedApple Target.emptyEnvironment
-    (.mk (.rvalue (.pointer ⟨false, false, false⟩ (.mk [] .void))) [] location (.const .null))).isOk = false := by cbv
+    (.mk (.rvalue .void) [] location (.const .null))).isOk = false := by cbv
 
 #print axioms Comparisons.booleanInteger_shape
 #print axioms Comparisons.specifiedPair_shape
 #print axioms ControlTests.equalZero_integer
+
+-- Additional scalar relations retain source-before-allocation scheduling,
+-- standard annotations, unspecified fallback and all five wrappers.
+private def relation (operator : Comparisons.RelationalOperator) :=
+  State.run (Comparisons.relational operator Target.pinnedApple Target.emptyEnvironment
+    runtime resultType leftType rightType marked right) context
+example (operator : Comparisons.RelationalOperator) :
+    leadingBinder (relation operator).1 = some 101 ∧
+    (relation operator).2.freshness.next = 106 ∧
+    fallback (relation operator).1 = some (unspecified resultType) := by
+  cases operator <;> cbv
+example (operator : Comparisons.RelationalOperator) : relationalBranch (relation operator).1 = some
+    ([.std "§6.5.8#6"], ifPure (operation operator.toCore
+      (standardPure "§6.5.8#3" (converted 103))
+      (standardPure "§6.5.8#3" (converted 104)))
+      (specified (integer 1)) (specified (integer 0))) := by
+  cases operator <;> cbv
+example (operator : Comparisons.RelationalOperator) :
+    (State.run (Comparisons.relational operator Target.pinnedApple Target.emptyEnvironment runtime
+      resultType (.mk [] (.pointer ⟨false, false, false⟩ (.mk [] .void))) rightType marked right)
+      context).1.isOk = false := by
+  cases operator <;> cbv
+example (operator : Comparisons.RelationalOperator) :
+    (State.run (Comparisons.relational operator {Target.pinnedApple with cheri := true}
+      Target.emptyEnvironment runtime resultType leftType rightType marked right) context).1.isOk = false := by
+  cases operator <;> cbv
+
+private def notEqual := State.run (Comparisons.notEqual Target.pinnedApple Target.emptyEnvironment
+  runtime resultType leftType rightType marked right) context
+example : leadingBinder notEqual.1 = some 100 ∧ notEqual.2.freshness.next = 106 := by cbv
+example : fallback notEqual.1 = some (unspecified resultType) := by cbv
+example : equalityBranch notEqual.1 = some
+    (standardPure "§6.5.9#3" (ifPure
+      (standardPure "§6.5.9#4, sentence 3" (notPure (operation .eq
+        (standardPure "§6.5.9#4, sentence 1" (converted 102))
+        (standardPure "§6.5.9#4, sentence 1" (converted 103)))))
+      (specified (integer 1)) (specified (integer 0)))) := by cbv

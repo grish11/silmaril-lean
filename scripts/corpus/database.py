@@ -6,6 +6,7 @@ the corpus tables. Never modifies the input database or overwrites output.
 """
 import argparse
 import json
+import re
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -26,11 +27,26 @@ def artifact_census(root, artifact):
     return text
 
 
+def measurement_runs(paths):
+    """Merge repeated references to one immutable run; reject conflicting writers."""
+    runs = {}
+    for path in paths:
+        run = json.loads(path.read_text())
+        key = run['run_id']
+        if key in runs and runs[key] != run:
+            raise ValueError(f'conflicting measurements for run {key}')
+        runs[key] = run
+    return runs.values()
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--base', type=Path, help='optional existing project database; disclosure restrictions carry over')
+    p.add_argument('--source-rev', help='public Git commit for immutable artifact/source links (Pages passes GITHUB_SHA)')
     a = p.parse_args()
+    if a.source_rev and not re.fullmatch(r'[0-9a-f]{40}', a.source_rev):
+        p.error('--source-rev must be a full lowercase Git commit SHA')
     a.output.touch(exist_ok=False)
     db = sqlite3.connect(a.output)
     if a.base:
@@ -39,7 +55,7 @@ def main():
         source.close()
     data = inventory(ROOT)
     formal = json.loads((ROOT / 'corpus/measurements/formal-functions/checks.json').read_text())['statements']
-    revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+    revision = a.source_rev or subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     with db:
         db.executescript('''
 CREATE TABLE corpus_meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -51,7 +67,8 @@ CREATE TABLE corpus_artifacts(
  census TEXT, sources TEXT NOT NULL);
 CREATE INDEX corpus_identity ON corpus_artifacts(project,version,target,optimization,stripping);
 CREATE INDEX corpus_hash ON corpus_artifacts(sha256);
-CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
+CREATE INDEX corpus_browser ON corpus_artifacts(project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'),json_extract(metadata,'$.build.configuration'));
+CREATE INDEX corpus_configuration_browser ON corpus_artifacts(json_extract(metadata,'$.build.configuration'),project,version,target,optimization,stripping,name,id,sha256,json_extract(metadata,'$.lean_status'),json_extract(metadata,'$.functional_equivalence_statements'),json_extract(metadata,'$.contextual_c_to_elf_statements'));
 CREATE TABLE corpus_functions(
  artifact TEXT NOT NULL, ordinal INTEGER NOT NULL, symbol TEXT NOT NULL,
  address INTEGER NOT NULL, size INTEGER NOT NULL, mapping TEXT NOT NULL,
@@ -61,6 +78,7 @@ CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT N
 ''')
         db.executemany('INSERT INTO corpus_meta VALUES(?,?)', [('schema', 'corpus.catalog.v1'), ('revision', revision),
             ('artifact_rows', str(data['artifact_rows'])), ('unique_content_hashes', str(data['unique_content_hashes'])),
+            ('binary_viewer_statements', str(data['binary_viewer_statement_count'])),
             *[(kind + '_statements', str(count)) for kind, count in data['formal_statement_counts'].items()]])
         for artifact in data['artifacts']:
             key = digest([artifact['build_id'], artifact['stripping'], artifact['path']])
@@ -99,18 +117,32 @@ CREATE TABLE corpus_timings(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT N
                  json.dumps(artifact), census, json.dumps(sources)))
             for ordinal, function in enumerate(functions):
                 concrete = [s for s in formal if s.get('function_symbol') == function.get('symbol', function.get('name'))
-                            and artifact['path'] in s['artifact_sha256']]
+                            and artifact['path'] in s['artifact_sha256']
+                            and ('function_address' not in s or function['value'] == s['function_address'])
+                            and ('function_addresses' not in s or function['value'] == s['function_addresses'][artifact['path']])
+                            and ('function_size' not in s or function['size'] == s['function_size'])]
                 if concrete:
+                    function['formal_statements'] = [{k: s[k] for k in ['kind', 'status', 'declaration', 'root', 'viewer_kind'] if k in s} for s in concrete]
+                contextual = [s for s in concrete if s['kind'] == 'contextual_c_to_elf']
+                if contextual:
                     function['tv_context'] = {
                         'status': 'concrete contextual C-to-ELF statement; stated-unproved',
-                        'statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root']} for s in concrete]}
+                        'statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root', 'viewer_kind'] if k in s} for s in contextual]}
                 db.execute('INSERT INTO corpus_functions VALUES(?,?,?,?,?,?)', (key, ordinal,
                     function.get('symbol', function.get('name')), function['value'], function['size'], json.dumps(function)))
         baseline_paths = list((ROOT / 'corpus/census/runs').glob('*.json'))
         baseline_paths += list((ROOT / 'corpus/measurements').glob('*/runs/*.json'))
-        for run_path in baseline_paths:
-            run = json.loads(run_path.read_text())
+        for run in measurement_runs(baseline_paths):
             db.execute('INSERT INTO corpus_timings VALUES(?,?,?,?)', (run['run_id'], None, run['stage'], json.dumps(run)))
+    # Keep the navigation working set independent of large input/hash receipts.
+    # Full immutable receipts remain available by run_id on explicit expansion.
+    with db:
+        db.execute("CREATE TABLE corpus_timing_summary(run_id TEXT PRIMARY KEY, build_id TEXT, stage TEXT NOT NULL, wall_seconds REAL, peak_rss_kib INTEGER, exit_code INTEGER)")
+        db.execute("CREATE INDEX corpus_timing_summary_build ON corpus_timing_summary(build_id,stage,run_id)")
+        for run_id, build_id, stage, metadata in db.execute('SELECT * FROM corpus_timings').fetchall():
+            run = json.loads(metadata)
+            db.execute('INSERT INTO corpus_timing_summary VALUES(?,?,?,?,?,?)',
+                       (run_id, build_id, stage, run.get('wall_seconds'), run.get('peak_rss_kib'), run.get('exit_code')))
     assert db.execute('PRAGMA quick_check').fetchall() == [('ok',)]
     print(json.dumps({'artifacts': data['artifact_rows'], 'unique_content_hashes': data['unique_content_hashes'],
                       'function_rows': db.execute('SELECT count(*) FROM corpus_functions').fetchone()[0],

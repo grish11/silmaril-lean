@@ -1,0 +1,513 @@
+{
+  "schema": "silmaril.binary-equivalence.v1",
+  "root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Thms",
+  "definition": "Silmaril/Elf/Corpus/SqliteBuildQueries/Equivalence/Defs.lean",
+  "endpoints": [
+    {
+      "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O0/unstripped/libsqlite3.so",
+      "sha256": "0b067388f3f4f5c644dbebd9b832ec18b16fcfa0e857b0b7fa558fb3549bd4f4",
+      "functions": {
+        "sqlite3_libversion_number": {
+          "address": 958625,
+          "size": 11,
+          "file_offset": 958625,
+          "bytes_hex": "55 48 89 e5 b8 b1 99 2e 00 5d c3",
+          "code_sha256": "16d911ecb7027d6f314157e0e9e22887c174b4da457023bcbce563d840c40827",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "defaultO0Version",
+          "symbol_section": 3,
+          "symbol_index": 311
+        },
+        "sqlite3_threadsafe": {
+          "address": 958636,
+          "size": 11,
+          "file_offset": 958636,
+          "bytes_hex": "55 48 89 e5 b8 01 00 00 00 5d c3",
+          "code_sha256": "52c7fac433fe7c364bdef1c5d3838afe227520b4bd318971b2a1bcf3b1b73e2d",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "defaultO0Threadsafe",
+          "symbol_section": 3,
+          "symbol_index": 334
+        }
+      },
+      "id": "defaultO0",
+      "module": "Silmaril.Elf.Staged.CorpusVariants.Sqlite.N3541.Default.X8664.O0.Unstripped.Libsqlite3So",
+      "receipt": {
+        "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O0/unstripped/receipt.json",
+        "sha256": "e7a150eda564bb65ef12dae1d154bc9af50bb5eefb64fb419113fdd97a57e462"
+      },
+      "build": {
+        "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O0/build.json",
+        "sha256": "848cc6d2f31dfeb60d7e9b5351cecb81b7961aac60ffe1c95676fd2230b04fff",
+        "configuration": "default",
+        "version": "3.54.1",
+        "optimization": "O0",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD",
+        "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+        "source_inputs": [
+          {
+            "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+          }
+        ]
+      },
+      "source": {
+        "path": "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c",
+        "sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+        "definitions": {
+          "sqlite3_libversion_number": {
+            "offset": 6913879,
+            "length": 79,
+            "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+            "text": "SQLITE_API int sqlite3_libversion_number(void){ return SQLITE_VERSION_NUMBER; }"
+          },
+          "sqlite3_threadsafe": {
+            "offset": 6914179,
+            "length": 68,
+            "sha256": "4ce62a79e9799c0938974159301e29e3273fae36e38e6e50ae44505cf271c1f9",
+            "text": "SQLITE_API int sqlite3_threadsafe(void){ return SQLITE_THREADSAFE; }"
+          }
+        }
+      },
+      "threadsafe_setting": 1,
+      "version_number": 3054001
+    },
+    {
+      "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O2/unstripped/libsqlite3.so",
+      "sha256": "fcdd0cd75ea98cee14f2743832c6ad2ed4dd4229e2b5093f8bce7dc33c9c17f8",
+      "functions": {
+        "sqlite3_libversion_number": {
+          "address": 79904,
+          "size": 6,
+          "file_offset": 79904,
+          "bytes_hex": "b8 b1 99 2e 00 c3",
+          "code_sha256": "3d779d39cb681720172513443573eca693b320fcee070ae5d10eb11f65a8d078",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "defaultO2Version",
+          "symbol_section": 3,
+          "symbol_index": 311
+        },
+        "sqlite3_threadsafe": {
+          "address": 79920,
+          "size": 6,
+          "file_offset": 79920,
+          "bytes_hex": "b8 01 00 00 00 c3",
+          "code_sha256": "2db31f4e09597946e56e859813bfdad7046d457c32332c3a882654d1e3ffdf67",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "defaultO2Threadsafe",
+          "symbol_section": 3,
+          "symbol_index": 334
+        }
+      },
+      "id": "defaultO2",
+      "module": "Silmaril.Elf.Staged.CorpusVariants.Sqlite.N3541.Default.X8664.O2.Unstripped.Libsqlite3So",
+      "receipt": {
+        "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O2/unstripped/receipt.json",
+        "sha256": "12a6369cf5a847f8a12f8b2e1c1a88e31675d3a94013fcd7fc6b607f3f79259b"
+      },
+      "build": {
+        "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O2/build.json",
+        "sha256": "a5de1eb37797fc993aa0f7e3c0ff0a553badcd3fcf41828cdb1fd6bb527116d5",
+        "configuration": "default",
+        "version": "3.54.1",
+        "optimization": "O2",
+        "cflags": "-O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD",
+        "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "source_inputs": [
+          {
+            "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+          }
+        ]
+      },
+      "source": {
+        "path": "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c",
+        "sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+        "definitions": {
+          "sqlite3_libversion_number": {
+            "offset": 6913879,
+            "length": 79,
+            "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+            "text": "SQLITE_API int sqlite3_libversion_number(void){ return SQLITE_VERSION_NUMBER; }"
+          },
+          "sqlite3_threadsafe": {
+            "offset": 6914179,
+            "length": 68,
+            "sha256": "4ce62a79e9799c0938974159301e29e3273fae36e38e6e50ae44505cf271c1f9",
+            "text": "SQLITE_API int sqlite3_threadsafe(void){ return SQLITE_THREADSAFE; }"
+          }
+        }
+      },
+      "threadsafe_setting": 1,
+      "version_number": 3054001
+    },
+    {
+      "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O2/stripped/libsqlite3.so",
+      "sha256": "36bec95dcf811692b3776f474f8d1b04a2f592b773f551464a7f35c268331f20",
+      "functions": {
+        "sqlite3_libversion_number": {
+          "address": 79904,
+          "size": 6,
+          "file_offset": 79904,
+          "bytes_hex": "b8 b1 99 2e 00 c3",
+          "code_sha256": "3d779d39cb681720172513443573eca693b320fcee070ae5d10eb11f65a8d078",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "defaultStrippedVersion",
+          "symbol_section": 3,
+          "symbol_index": 311
+        },
+        "sqlite3_threadsafe": {
+          "address": 79920,
+          "size": 6,
+          "file_offset": 79920,
+          "bytes_hex": "b8 01 00 00 00 c3",
+          "code_sha256": "2db31f4e09597946e56e859813bfdad7046d457c32332c3a882654d1e3ffdf67",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "defaultStrippedThreadsafe",
+          "symbol_section": 3,
+          "symbol_index": 334
+        }
+      },
+      "id": "defaultStripped",
+      "module": "Silmaril.Elf.Staged.CorpusVariants.Sqlite.N3541.Default.X8664.O2.Stripped.Libsqlite3So",
+      "receipt": {
+        "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O2/stripped/receipt.json",
+        "sha256": "d94e393116c18fb12d55f7b07cc61e5b30748fc55910a5ad14bc90d3f24821e6"
+      },
+      "build": {
+        "path": "corpus/variants/sqlite/3.54.1/default/x86_64/O2/build.json",
+        "sha256": "a5de1eb37797fc993aa0f7e3c0ff0a553badcd3fcf41828cdb1fd6bb527116d5",
+        "configuration": "default",
+        "version": "3.54.1",
+        "optimization": "O2",
+        "cflags": "-O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD",
+        "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "source_inputs": [
+          {
+            "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+          }
+        ]
+      },
+      "source": {
+        "path": "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c",
+        "sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+        "definitions": {
+          "sqlite3_libversion_number": {
+            "offset": 6913879,
+            "length": 79,
+            "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+            "text": "SQLITE_API int sqlite3_libversion_number(void){ return SQLITE_VERSION_NUMBER; }"
+          },
+          "sqlite3_threadsafe": {
+            "offset": 6914179,
+            "length": 68,
+            "sha256": "4ce62a79e9799c0938974159301e29e3273fae36e38e6e50ae44505cf271c1f9",
+            "text": "SQLITE_API int sqlite3_threadsafe(void){ return SQLITE_THREADSAFE; }"
+          }
+        }
+      },
+      "threadsafe_setting": 1,
+      "version_number": 3054001
+    },
+    {
+      "path": "corpus/variants/sqlite/3.54.1/small/x86_64/O0/unstripped/libsqlite3.so",
+      "sha256": "af80abce7b0b378838d50b84a04bc755c9fc79bd5013faf4cf5c700162f220e4",
+      "functions": {
+        "sqlite3_libversion_number": {
+          "address": 934561,
+          "size": 11,
+          "file_offset": 934561,
+          "bytes_hex": "55 48 89 e5 b8 b1 99 2e 00 5d c3",
+          "code_sha256": "16d911ecb7027d6f314157e0e9e22887c174b4da457023bcbce563d840c40827",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "smallO0Version",
+          "symbol_section": 3,
+          "symbol_index": 294
+        },
+        "sqlite3_threadsafe": {
+          "address": 934572,
+          "size": 11,
+          "file_offset": 934572,
+          "bytes_hex": "55 48 89 e5 b8 00 00 00 00 5d c3",
+          "code_sha256": "f12727971949436c373f4b61d57cdf14896304283cd7fc154a96fc83301be93e",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "smallO0Threadsafe",
+          "symbol_section": 3,
+          "symbol_index": 315
+        }
+      },
+      "id": "smallO0",
+      "module": "Silmaril.Elf.Staged.CorpusVariants.Sqlite.N3541.Small.X8664.O0.Unstripped.Libsqlite3So",
+      "receipt": {
+        "path": "corpus/variants/sqlite/3.54.1/small/x86_64/O0/unstripped/receipt.json",
+        "sha256": "8e39f1a11a54ba4259a9706551f1da0d0fba4ca2af808d42071e2c29d5a20a58"
+      },
+      "build": {
+        "path": "corpus/variants/sqlite/3.54.1/small/x86_64/O0/build.json",
+        "sha256": "d23a1ad05c252d618170897584a690c71dcee56f96a13e93860f83cc6303bebf",
+        "configuration": "small",
+        "version": "3.54.1",
+        "optimization": "O0",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -MMD",
+        "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "source_inputs": [
+          {
+            "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+          }
+        ]
+      },
+      "source": {
+        "path": "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c",
+        "sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+        "definitions": {
+          "sqlite3_libversion_number": {
+            "offset": 6913879,
+            "length": 79,
+            "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+            "text": "SQLITE_API int sqlite3_libversion_number(void){ return SQLITE_VERSION_NUMBER; }"
+          },
+          "sqlite3_threadsafe": {
+            "offset": 6914179,
+            "length": 68,
+            "sha256": "4ce62a79e9799c0938974159301e29e3273fae36e38e6e50ae44505cf271c1f9",
+            "text": "SQLITE_API int sqlite3_threadsafe(void){ return SQLITE_THREADSAFE; }"
+          }
+        }
+      },
+      "threadsafe_setting": 0,
+      "version_number": 3054001
+    },
+    {
+      "path": "corpus/variants/sqlite/3.54.1/small/x86_64/O2/unstripped/libsqlite3.so",
+      "sha256": "b349982e0cf1c01d33a9297c102069281ddd1317c589883664ea9b851c6c3d58",
+      "functions": {
+        "sqlite3_libversion_number": {
+          "address": 160048,
+          "size": 6,
+          "file_offset": 160048,
+          "bytes_hex": "b8 b1 99 2e 00 c3",
+          "code_sha256": "3d779d39cb681720172513443573eca693b320fcee070ae5d10eb11f65a8d078",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "smallO2Version",
+          "symbol_section": 3,
+          "symbol_index": 294
+        },
+        "sqlite3_threadsafe": {
+          "address": 160064,
+          "size": 3,
+          "file_offset": 160064,
+          "bytes_hex": "31 c0 c3",
+          "code_sha256": "251447ee91a9067dcd6ab96703133f617565974cd6c4819021760c4688c91abf",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "smallO2Threadsafe",
+          "symbol_section": 3,
+          "symbol_index": 315
+        }
+      },
+      "id": "smallO2",
+      "module": "Silmaril.Elf.Staged.CorpusVariants.Sqlite.N3541.Small.X8664.O2.Unstripped.Libsqlite3So",
+      "receipt": {
+        "path": "corpus/variants/sqlite/3.54.1/small/x86_64/O2/unstripped/receipt.json",
+        "sha256": "98c2a470b18f052f4e6fbced5dcd49f3ad89161658c5f366247e2b02b0e19a67"
+      },
+      "build": {
+        "path": "corpus/variants/sqlite/3.54.1/small/x86_64/O2/build.json",
+        "sha256": "4529fe1dbf73160ac272f448b5fe5fbfb81fa3a3c71975147decf82c1feb6f9e",
+        "configuration": "small",
+        "version": "3.54.1",
+        "optimization": "O2",
+        "cflags": "-O2 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION -DSQLITE_DEFAULT_MEMSTATUS=0 -MMD",
+        "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "source_inputs": [
+          {
+            "url": "https://sqlite.org/2026/sqlite-amalgamation-3540100.zip",
+            "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+          }
+        ]
+      },
+      "source": {
+        "path": "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c",
+        "sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+        "definitions": {
+          "sqlite3_libversion_number": {
+            "offset": 6913879,
+            "length": 79,
+            "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+            "text": "SQLITE_API int sqlite3_libversion_number(void){ return SQLITE_VERSION_NUMBER; }"
+          },
+          "sqlite3_threadsafe": {
+            "offset": 6914179,
+            "length": 68,
+            "sha256": "4ce62a79e9799c0938974159301e29e3273fae36e38e6e50ae44505cf271c1f9",
+            "text": "SQLITE_API int sqlite3_threadsafe(void){ return SQLITE_THREADSAFE; }"
+          }
+        }
+      },
+      "threadsafe_setting": 0,
+      "version_number": 3054001
+    },
+    {
+      "path": "corpus/variants/sqlite/3.50.4/default/x86_64/O0/unstripped/libsqlite3.so",
+      "sha256": "cda14191bda66b0161ec482d89f4322f978afa8cdaff2d9bb28b6bfd3f02e8ae",
+      "functions": {
+        "sqlite3_libversion_number": {
+          "address": 921142,
+          "size": 11,
+          "file_offset": 921142,
+          "bytes_hex": "55 48 89 e5 b8 14 8a 2e 00 5d c3",
+          "code_sha256": "59cdea1ab7d47fbe27e00774f07f280a722dacfe7d7516d34a7100ab4c6e1bb4",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "priorO0Version",
+          "symbol_section": 3,
+          "symbol_index": 305
+        },
+        "sqlite3_threadsafe": {
+          "address": 921153,
+          "size": 11,
+          "file_offset": 921153,
+          "bytes_hex": "55 48 89 e5 b8 01 00 00 00 5d c3",
+          "code_sha256": "52c7fac433fe7c364bdef1c5d3838afe227520b4bd318971b2a1bcf3b1b73e2d",
+          "identity_check": "ELF symbol + executable PT_LOAD bytes checked by Python; kernel CodeAt lives in the linked Lean modules",
+          "lean_key": "priorO0Threadsafe",
+          "symbol_section": 3,
+          "symbol_index": 328
+        }
+      },
+      "id": "priorO0",
+      "module": "Silmaril.Elf.Staged.CorpusVariants.Sqlite.N3504.Default.X8664.O0.Unstripped.Libsqlite3So",
+      "receipt": {
+        "path": "corpus/variants/sqlite/3.50.4/default/x86_64/O0/unstripped/receipt.json",
+        "sha256": "f527ef84ced2c0aba69438dc953e6cde2a0d3cda1179289038fbefb175db23ea"
+      },
+      "build": {
+        "path": "corpus/variants/sqlite/3.50.4/default/x86_64/O0/build.json",
+        "sha256": "93101fdffedfb6c9eecd19d5795e552c4718a14bfa050a04d9195db9bf3d7853",
+        "configuration": "default",
+        "version": "3.50.4",
+        "optimization": "O0",
+        "cflags": "-O0 -g0 -ffile-prefix-map=/build/sqlite=. -DSQLITE_THREADSAFE=1 -MMD",
+        "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+        "source_inputs": [
+          {
+            "url": "https://sqlite.org/2025/sqlite-amalgamation-3500400.zip",
+            "sha256": "1d3049dd0f830a025a53105fc79fd2ab9431aea99e137809d064d8ee8356b032"
+          }
+        ]
+      },
+      "source": {
+        "path": "corpus/variants/sqlite/3.50.4/default/x86_64/O0/upstream/sqlite-amalgamation-3500400/sqlite3.c",
+        "sha256": "e3f5d6901e7492af4a1fc8c4d745cae84c264942524c3fbfc02b82a5ca8818c8",
+        "definitions": {
+          "sqlite3_libversion_number": {
+            "offset": 6695161,
+            "length": 79,
+            "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+            "text": "SQLITE_API int sqlite3_libversion_number(void){ return SQLITE_VERSION_NUMBER; }"
+          },
+          "sqlite3_threadsafe": {
+            "offset": 6695461,
+            "length": 68,
+            "sha256": "4ce62a79e9799c0938974159301e29e3273fae36e38e6e50ae44505cf271c1f9",
+            "text": "SQLITE_API int sqlite3_threadsafe(void){ return SQLITE_THREADSAFE; }"
+          }
+        }
+      },
+      "threadsafe_setting": 1,
+      "version_number": 3050004
+    }
+  ],
+  "pairs": [
+    {
+      "name": "versionOptimization",
+      "function_symbol": "sqlite3_libversion_number",
+      "left": "defaultO0",
+      "right": "defaultO2",
+      "value": 3054001,
+      "left_frame": 8,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionOptimization"
+    },
+    {
+      "name": "threadsafeOptimization",
+      "function_symbol": "sqlite3_threadsafe",
+      "left": "defaultO0",
+      "right": "defaultO2",
+      "value": 1,
+      "left_frame": 8,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeOptimization"
+    },
+    {
+      "name": "versionStripping",
+      "function_symbol": "sqlite3_libversion_number",
+      "left": "defaultO2",
+      "right": "defaultStripped",
+      "value": 3054001,
+      "left_frame": 0,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionStripping"
+    },
+    {
+      "name": "threadsafeStripping",
+      "function_symbol": "sqlite3_threadsafe",
+      "left": "defaultO2",
+      "right": "defaultStripped",
+      "value": 1,
+      "left_frame": 0,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeStripping"
+    },
+    {
+      "name": "versionConfiguration",
+      "function_symbol": "sqlite3_libversion_number",
+      "left": "defaultO2",
+      "right": "smallO2",
+      "value": 3054001,
+      "left_frame": 0,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.versionConfiguration"
+    },
+    {
+      "name": "smallThreadsafeOptimization",
+      "function_symbol": "sqlite3_threadsafe",
+      "left": "smallO0",
+      "right": "smallO2",
+      "value": 0,
+      "left_frame": 8,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.smallThreadsafeOptimization"
+    },
+    {
+      "name": "threadsafeRelease",
+      "function_symbol": "sqlite3_threadsafe",
+      "left": "priorO0",
+      "right": "defaultO2",
+      "value": 1,
+      "left_frame": 8,
+      "right_frame": 0,
+      "declaration": "Silmaril.Elf.Corpus.SqliteBuildQueries.Equivalence.Task.threadsafeRelease"
+    }
+  ],
+  "excluded": [
+    {
+      "query": "sqlite3_libversion_number",
+      "pair": "3.50.4 vs 3.54.1",
+      "reason": "different version constants: 3050004 vs 3054001; no equivalence selected"
+    },
+    {
+      "query": "sqlite3_threadsafe",
+      "pair": "default vs small",
+      "reason": "different SQLITE_THREADSAFE settings: 1 vs 0; no equivalence selected"
+    }
+  ],
+  "limits": [
+    "All seven contextual binary-equivalence statements remain UNPROVED; zero semantic proofs.",
+    "Two independent nonvacuous System V total-correctness obligations; no source-refinement or equality premise.",
+    "Only private stack writes (8 bytes for O0; 0 for O2) are permitted. All other memory and callee-saved ABI state must be preserved.",
+    "No instruction-to-source correspondence, historical compiler replay or additional build is claimed.",
+    "Same-version libversion query ignores compile options in the pinned actual source; THREADSAFE query returns the build option, not mutex correctness.",
+    "Cross-release selection is only THREADSAFE=1; differing numeric versions and THREADSAFE values are excluded."
+  ]
+}

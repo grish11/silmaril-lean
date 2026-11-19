@@ -5,15 +5,15 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackGoal
 /-!
 # The logged backward simulation of a call (proofs)
 
-`callG_step`: `CallG n` from `BackG m` and `CallG m` for `m < n`. A host callee is one event
+`callG_step`: `CallG J n` from `BackG J m` and `CallG J m` for `m < n`. A host callee is one event
 (`evRunN_host_callRef`); its answer is a closed behaviour (`close_hostX`), a trap ending the run.
 A Wasm callee's only step enters its frame (`callRef_wasm_unique`); the body runs alone
-(`evRunN_frame_seq_split`) and is a resolved logged run (`BackG`). Its end leaves the frame:
+(`evRunN_frame_seq_split`) and is a resolved logged run (`BackG J`). Its end leaves the frame:
 
 * values or an exception: `exit_frame_ans`, the run going on from the answer;
 * a trap, or Core's pending null tail call: the frame traps, with no further event;
 * a pending tail call: `return_call_ref-label` and `return_call_ref-frame-addr`
-  (`frame_tail_exit`), then the tail callee in the caller's frame, by `CallG` on the strictly
+  (`frame_tail_exit`), then the tail callee in the caller's frame, by `CallG J` on the strictly
   shorter rest of the run, so a host tail callee is its one event there.
 -/
 
@@ -28,7 +28,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H}
+variable {H : Type} {P : Silmaril.Wasm.Numerics.Profile} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
 
 /-- **A `call_ref` of Wasm code on exactly its arguments has one step**: it enters the callee's
 frame. -/
@@ -109,9 +109,9 @@ variable {tags : List TagInst} {o : GrowOracle}
 
 /-- **The logged backward simulation of a call**, from the statements for strictly shorter
 runs. -/
-theorem callG_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    {n : Nat} (ihB : ∀ m < n, ∀ es, BackG tags o host m es) (ihC : ∀ m < n, CallG tags o host m) :
-    CallG tags o host n := by
+theorem callG_step (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    {n : Nat} (ihB : ∀ m < n, ∀ es, BackG J tags o host m es) (ihC : ∀ m < n, CallG J tags o host m) :
+    CallG J tags o host n := by
   intro s₁ f₁ pre us a cr rest c cs hcr hcc hct hrun hend hnd
   obtain ⟨hS, hts, fi, ps, rs, hfi, hty, hn⟩ := id hcc
   obtain ⟨ps', rs', hex, hpl, hrl⟩ := expand_of_funcType hty
@@ -164,8 +164,8 @@ theorem callG_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
         rw [hnd] at this
         cases this
     -- the body is typed
-    have hctB : TypedP tags s₁ F [] (Binaryen.liftInstrs fn.body) :=
-      callee_typedP ⟨hcc, f₁, cr, pre, rest, hcr, hct⟩ hfi hcode
+    have hctB : J.TypedP tags s₁ F [] (Binaryen.liftInstrs fn.body) :=
+      J.callee_typedP ⟨hcc, f₁, cr, pre, rest, hcr, hct⟩ hfi hcode
     have hcodeB : tcode [] (Binaryen.liftInstrs fn.body) = expression fn.body := by
       simp [tcode, Binaryen.lowerList_liftInstrs, vals]
     have h₁' : EvRunN (profile o) host N₁ ⟨s₁, F, tcode [] (Binaryen.liftInstrs fn.body)⟩ cs₁ cb := by
@@ -180,7 +180,7 @@ theorem callG_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
       refine (Relation.ReflTransGen.single (Step.of_noHost host hstep)).trans ?_
       rw [hrl]
       exact Steps.ctx pre rest (Steps.frame rs.length (Steps.label rs.length [] (evRunN_steps h₁)))
-    have hctX := ContextTyped.steps_typed hT hct hstB
+    have hctX := J.steps_host hT hct hstB
     obtain ⟨obc, hobc, hbc⟩ := body_chk (tags := tags) hS hfi hcode hty hn
     rcases hres with hq | ⟨htr, hq⟩
     swap
@@ -246,9 +246,9 @@ theorem callG_step (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
       obtain ⟨m', hm', hk'⟩ := through hst hk hend
       have hcc₂ : CallChkP tags s' a' args :=
         ⟨hinv.1.2.1 hS, t₁, fi₂, ps₂, rs₂, hfi₂, hty₂, hargs⟩
-      have hct₂ : Sim.ContextTyped ⟨s', f₁,
+      have hct₂ : J.CT ⟨s', f₁,
           Interp.callCode pre args a' (c₀.retToCallIn cb.frame.module) rest⟩ := by
-        have := ContextTyped.steps_typed hT hctX (steps_host hst)
+        have := J.steps_host hT hctX (steps_host hst)
         rw [hs'] at this
         simpa [Interp.callCode] using this
       have hk'' : EvRunN (profile o) host m' ⟨s', f₁,

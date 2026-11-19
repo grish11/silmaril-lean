@@ -1,6 +1,9 @@
 // The compiler explorer's page. Every text from the database is inserted with textContent.
 import { lineOffsets, indexEdges, edgeObligations, badge, uncovered } from "./view.js";
 
+import { initCorpus } from "./corpus.js";
+import { initEquivalence } from "./equivalence.js";
+
 const $ = (id) => document.getElementById(id);
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
@@ -21,7 +24,9 @@ async function getJSON(url) {
 function groupOf(id) { return id.split("/").slice(0, 2).join("/"); }
 
 async function init() {
-  state.list = await getJSON("api/problems");
+  if (await initEquivalence()) return;
+  if (await initCorpus()) return;
+  state.list = await getJSON("api/problems.json");
   const groups = [...new Set(state.list.map((p) => groupOf(p.id)))];
   const prog = $("program");
   for (const g of groups) prog.append(new Option(g, g));
@@ -48,7 +53,7 @@ function fillBuilds(want) {
 }
 
 async function load(id) {
-  state.problem = await getJSON("api/problems/" + encodeURIComponent(id));
+  state.problem = await getJSON(state.list.find(p => p.id === id)?.static_path || ("api/problems/" + encodeURIComponent(id)));
   state.locked = null;
   render();
 }

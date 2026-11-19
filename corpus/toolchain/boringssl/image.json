@@ -1,0 +1,11 @@
+{
+  "image_tag": "silmaril-corpus-toolchain-boringssl:trixie-20251103-go1.27.4",
+  "image_id": "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+  "parent_image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+  "base_packages": "all standard corpus package versions preserved exactly",
+  "installed_package_count": 220,
+  "go_tree_file_count": 15659,
+  "build_command": "DOCKER_BUILDKIT=0 docker build --network host --cpuset-cpus 0,1 --memory 6g --build-arg CORPUS_BASE=<verified-parent-image-id> -t silmaril-corpus-toolchain-boringssl:trixie-20251103-go1.27.4 corpus/toolchain/boringssl",
+  "inventory_collection": "docker create/cp/rm; verification container was never started; artifact pools must independently compare the lock",
+  "status": "toolchain image built; no BoringSSL artifact build claimed"
+}

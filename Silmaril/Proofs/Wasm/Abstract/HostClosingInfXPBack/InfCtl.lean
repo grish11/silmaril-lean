@@ -24,15 +24,15 @@ open Silmaril.Wasm.Abstract.CallXP (POut)
 open Silmaril.Wasm.Binaryen (BExpr liftInstrs)
 open Shape (streamAppend)
 
-variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics H}
+variable {H : Type} {tags : List TagInst} {o : GrowOracle} {host : HostSemantics H} {J : Silmaril.Wasm.Interp.BackInv H}
   {s : Store H} {f : Frame} {stk : List Val} {ω : Nat → Call (wasmHostSig H)}
 
 /-- **A block running productively alone**: in its body. -/
-theorem headInf_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    {bt : BlockType} {body es : List BExpr} (ihB : InfG tags o host body)
-    (ht : TypedP tags s f stk (.block bt body :: es))
+theorem headInf_block (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    {bt : BlockType} {body es : List BExpr} (ihB : InfG J tags o host body)
+    (ht : J.TypedP tags s f stk (.block bt body :: es))
     (hdv : CoreInf (profile o) host (pcfg s f stk [.block bt body]) ω) :
-    InfOutX tags o host s f stk (.block bt body :: es) ω := by
+    InfOutX J tags o host s f stk (.block bt body :: es) ω := by
   have ht1 := typedP_head ht
   obtain ⟨-, labels, ret, out, hS, hc, -, -, hts⟩ := id ht1
   obtain ⟨o₁, h1, -⟩ := chk_consE.mp hc
@@ -45,13 +45,13 @@ theorem headInf_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSli
     rw [xcode, code_block]
     exact steps_enter hp (step_block har) []
   have hdK := coreInf_through_dsteps henter hdv
-  have htB := block_body_typedP har ht
+  have htB := J.block_body_typedP har ht
   rcases coreInf_split_label hdK with hdb | ⟨cs₁, ω₂, cb, N₁, rfl, hb, hsb, hdc, -⟩
   · exact infOut_lift₀ (fun _ => InfLXP.block har) (fun _ _ => ReachLXP.block har)
       (link_cons ⟨_, lifts_label (stk.drop np).reverse nr [] [], henter⟩)
       (ihB s f _ ω htB hdb)
   exfalso
-  obtain ⟨l, ⟨s₁, f₁, ob⟩, hd, hres, -⟩ := evRunN_back hT hH hE htB hb hsb hdc
+  obtain ⟨l, ⟨s₁, f₁, ob⟩, hd, hres, -⟩ := J.evRunN_back hT hH hE htB hb hsb hdc
   have hw := resW_of_back hres
   cases ob with
   | tail => exact head_contraI hH hE ht1 (.blockEsc har hd trivial) hw hdv
@@ -62,12 +62,12 @@ theorem headInf_block (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSli
     · exact head_contraI hH hE ht1 (.blockEsc har hd hesc) hw hdv
 
 /-- **A conditional running productively alone**: in its condition, or in its chosen arm. -/
-theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    {bt : BlockType} {c t el es : List BExpr} (ihC : InfG tags o host c)
-    (ihA : ∀ b : Bool, InfG tags o host (if b then t else el))
-    (ht : TypedP tags s f stk (.if_ bt c t el :: es))
+theorem headInf_if (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    {bt : BlockType} {c t el es : List BExpr} (ihC : InfG J tags o host c)
+    (ihA : ∀ b : Bool, InfG J tags o host (if b then t else el))
+    (ht : J.TypedP tags s f stk (.if_ bt c t el :: es))
     (hdv : CoreInf (profile o) host (pcfg s f stk [.if_ bt c t el]) ω) :
-    InfOutX tags o host s f stk (.if_ bt c t el :: es) ω := by
+    InfOutX J tags o host s f stk (.if_ bt c t el :: es) ω := by
   have ht1 := typedP_head ht
   have hdv₀ := hdv
   have hcode : xcode stk [.if_ bt c t el] = xcode stk c ++
@@ -79,10 +79,10 @@ theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
   rw [hX] at hdv
   rcases coreInf_split_seq hdv with hdc | ⟨cs₁, ω₂, ⟨s₁, f₁, k₁⟩, n₁, ws, rfl, hr₁, hw, hd₁⟩
   · exact infOut_lift₀ (fun _ => InfLXP.cond) (fun _ _ => ReachLXP.cond)
-      (link_cons ⟨_, lifts_suffix _, rtg_of_eq hX⟩) (ihC s f stk ω (cond_typedP ht) hdc)
+      (link_cons ⟨_, lifts_suffix _, rtg_of_eq hX⟩) (ihC s f stk ω (J.cond_typedP ht) hdc)
   dsimp only at hw hd₁
   subst hw
-  obtain ⟨l₁, stk', hd, hq, rfl⟩ := evRunN_back_vals hT hH hE (cond_typedP ht) hr₁
+  obtain ⟨l₁, stk', hd, hq, rfl⟩ := J.evRunN_back_vals hT hH hE (J.cond_typedP ht) hr₁
   have hcons := consistent_of_coreInf hdv₀
   obtain ⟨-, labels, ret, out, hS, hck, -, hTM, hts⟩ := id ht1
   obtain ⟨o₁, h1, -⟩ := chk_consE.mp hck
@@ -90,11 +90,11 @@ theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
   obtain ⟨hev, -⟩ := evalLXPh_evRun (P := profile o) hH hE hd hq hcons
   obtain ⟨t₁, hA, -⟩ := Silmaril.Wasm.Interp.HostEvalP.evalOXP_host_good (P := profile o) hH hE
     hev hts
-  have hsite : Sim.ContextTyped ⟨s₁, f₁, vals stk'.reverse ++
+  have hsite : J.CT ⟨s₁, f₁, vals stk'.reverse ++
       .plain (.if_ bt (Binaryen.BExpr.lowerList t) (Binaryen.BExpr.lowerList el)) :: []⟩ := by
     have h0 := typedP_ctx' ht1
     rw [hcode] at h0
-    simpa using ContextTyped.steps_typed hT h0 (Steps.append [_] (evRunN_steps hr₁))
+    simpa using J.steps_host hT h0 (Steps.append [_] (evRunN_steps hr₁))
   have hlinkC : cs₁ = [] → Relation.ReflTransGen (Det.DStep o) (pcfg s f stk [.if_ bt c t el])
       ⟨s₁, f₁, vals stk'.reverse ++
         .plain (.if_ bt (Binaryen.BExpr.lowerList t) (Binaryen.BExpr.lowerList el)) :: []⟩ := by
@@ -104,7 +104,7 @@ theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
       (evRunN_nil_dsteps hr₁)
     rw [hX]
     simpa using this
-  obtain ⟨cv, stk₁, b, rfl, hb⟩ := truthy_progressH hsite
+  obtain ⟨cv, stk₁, b, rfl, hb⟩ := J.truthy_progress hsite
   obtain ⟨hoc, inv1⟩ := (arityE_of_arityP hA) hS hco
   obtain ⟨np, nr, ha, -, -, -, -⟩ := hk1 _ hoc
   have har : Binaryen.arity f₁ bt = some (np, nr) := by
@@ -116,17 +116,17 @@ theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
   have henter := steps_enter (P := profile o) (host := NH) (s := s₁) (f := f₁)
     (B := Binaryen.BExpr.lowerList (if b then t else el)) hp (step_block har) []
   have hpre := hif.trans henter
-  have htK := hsite.steps hpre
+  have htK := J.steps hsite hpre
   have hdK := coreInf_through_dsteps hpre (by simpa using hd₁)
-  have htA : TypedP tags s₁ f₁ (stk₁.take np) (if b then t else el) :=
+  have htA : J.TypedP tags s₁ f₁ (stk₁.take np) (if b then t else el) :=
     ⟨[], nr :: labels, ret, ob, storeChk_inv inv1 hS, by rw [take_length_of_le hp]; exact hb',
-      by simpa using Sim.ContextTyped.label htK, by rw [inv1.2.1]; exact hTM, t₁⟩
+      by simpa using J.label htK, by rw [inv1.2.1]; exact hTM, t₁⟩
   rcases coreInf_split_label hdK with hda | ⟨cs₂₁, ω₃, cb, N₁, rfl, hbr, hsb, hdc, -⟩
   · exact infOut_lift (fun _ h => InfLXP.arm hd hb har h) (fun _ _ h => ReachLXP.arm hd hb har h)
       hq (fun h0 => link_cons ⟨_, lifts_label (stk₁.drop np).reverse nr [] [],
         (hlinkC h0).trans hpre⟩) (ihA b _ _ _ _ htA hda)
   exfalso
-  obtain ⟨l₂, ⟨s₂, f₂, ob₂⟩, hd₂, hres₂, -⟩ := evRunN_back hT hH hE htA hbr hsb hdc
+  obtain ⟨l₂, ⟨s₂, f₂, ob₂⟩, hd₂, hres₂, -⟩ := J.evRunN_back hT hH hE htA hbr hsb hdc
   have hw := resW_prepend hq (resW_of_back hres₂)
   have hdv₁ : CoreInf (profile o) host (pcfg s f stk [.if_ bt c t el])
       ((cs₁ ++ cs₂₁) ++ω ω₃) := by rw [Shape.streamAppend_append]; exact hdv₀
@@ -139,11 +139,11 @@ theorem headInf_if (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
     · exact head_contraI hH hE ht1 (.ifEsc hd hb har hd₂ hesc) hw hdv₁
 
 /-- **A `try_table` running productively alone**: in its body. -/
-theorem headInf_try (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    {bt : BlockType} {cl : List Catch} {body es : List BExpr} (ihB : InfG tags o host body)
-    (ht : TypedP tags s f stk (.tryTable bt cl body :: es))
+theorem headInf_try (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    {bt : BlockType} {cl : List Catch} {body es : List BExpr} (ihB : InfG J tags o host body)
+    (ht : J.TypedP tags s f stk (.tryTable bt cl body :: es))
     (hdv : CoreInf (profile o) host (pcfg s f stk [.tryTable bt cl body]) ω) :
-    InfOutX tags o host s f stk (.tryTable bt cl body :: es) ω := by
+    InfOutX J tags o host s f stk (.tryTable bt cl body :: es) ω := by
   have ht1 := typedP_head ht
   obtain ⟨-, labels, ret, out, hS, hc, -, -, hts⟩ := id ht1
   obtain ⟨o₁, h1, -⟩ := chk_consE.mp hc
@@ -157,13 +157,13 @@ theorem headInf_try (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSlice
     rw [xcode, code_tryTable]
     exact steps_try_enter har hp []
   have hdK := coreInf_through_dsteps henter hdv
-  have htB := try_body_typedP har ht
+  have htB := J.try_body_typedP har ht
   have fin : ∀ (cb : Config H) (N₁ : Nat) (cs₁ : List (Call (wasmHostSig H)))
       (ω₂ : Nat → Call (wasmHostSig H)),
       ω = cs₁ ++ω ω₂ → EvRunN (profile o) host N₁ ⟨s, f, xcode (stk.take np) body⟩ cs₁ cb →
       (∀ c', ¬ Step (profile o) Det.noHost cb c') → decompose? cb.store cb.code = none → False := by
     rintro cb N₁ cs₁ ω₂ rfl hb hsb hdc
-    obtain ⟨l, ⟨s₁, f₁, ob⟩, hd, hres, -⟩ := evRunN_back hT hH hE htB hb hsb hdc
+    obtain ⟨l, ⟨s₁, f₁, ob⟩, hd, hres, -⟩ := J.evRunN_back hT hH hE htB hb hsb hdc
     have hw := resW_of_back hres
     cases ob with
     | tail => exact head_contraI hH hE ht1 (.tryEsc har hd trivial trivial) hw hdv

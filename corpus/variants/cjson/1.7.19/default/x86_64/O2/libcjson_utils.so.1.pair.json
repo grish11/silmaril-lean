@@ -1,0 +1,246 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 12268,
+      "sha256": "66e6f54550612182b4ad78f30b140dd08318b968db3878de2db65fef87dc04d7",
+      "size": 9
+    },
+    ".init": {
+      "address": 4096,
+      "sha256": "4d61a21a1b29651165271dca3a061d806ae3f771076e598d13bfd4956395d5df",
+      "size": 23
+    },
+    ".plt": {
+      "address": 4128,
+      "sha256": "1e55f712faa6443f0913c75ee2d72b2ea7a2641895e08578d7893a7d164ce7d9",
+      "size": 480
+    },
+    ".plt.got": {
+      "address": 4608,
+      "sha256": "34b7f099c0d1084f8df2b2b124bbbdfc849051db549a145f7830301d8050597e",
+      "size": 8
+    },
+    ".text": {
+      "address": 4672,
+      "sha256": "dec077c71e04203b6b0179468f2f64c6012ab42f2157ce424ffb8986205afc25",
+      "size": 7594
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "23f386e03d9ee4534f2557061b60dbf4c261139512f6952d9d30a6d1d273ac5f",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "0165f50f1bf953dca311de8ef0dd43a6b92f6b496c7bfa8caa1b5fd3b7903fc0",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "compare_strings",
+      "section_index": "12",
+      "size": 166,
+      "type": "FUNC",
+      "value": 4864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sort_list",
+      "section_index": "12",
+      "size": 391,
+      "type": "FUNC",
+      "value": 5040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "merge_patch",
+      "section_index": "12",
+      "size": 282,
+      "type": "FUNC",
+      "value": 5440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decode_array_index_from_pointer.constprop.0",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 5728
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_item_from_pointer",
+      "section_index": "12",
+      "size": 614,
+      "type": "FUNC",
+      "value": 5856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compare_json",
+      "section_index": "12",
+      "size": 460,
+      "type": "FUNC",
+      "value": 6480
+    },
+    {
+      "binding": "LOCAL",
+      "name": "detach_path",
+      "section_index": "12",
+      "size": 501,
+      "type": "FUNC",
+      "value": 6944
+    },
+    {
+      "binding": "LOCAL",
+      "name": "compose_patch",
+      "section_index": "12",
+      "size": 492,
+      "type": "FUNC",
+      "value": 7456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "create_patches.part.0",
+      "section_index": "12",
+      "size": 955,
+      "type": "FUNC",
+      "value": 7952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "apply_patch",
+      "section_index": "12",
+      "size": 1898,
+      "type": "FUNC",
+      "value": 8912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cJSONUtils_FindPointerFromObjectTo.localalias",
+      "section_index": "12",
+      "size": 478,
+      "type": "FUNC",
+      "value": 10816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "generate_merge_patch",
+      "section_index": "12",
+      "size": 405,
+      "type": "FUNC",
+      "value": 11840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GenerateMergePatch",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 11824
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_ApplyPatchesCaseSensitive",
+      "section_index": "12",
+      "size": 85,
+      "type": "FUNC",
+      "value": 11424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_AddPatchToArray",
+      "section_index": "12",
+      "size": 10,
+      "type": "FUNC",
+      "value": 11520
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GetPointerCaseSensitive",
+      "section_index": "12",
+      "size": 10,
+      "type": "FUNC",
+      "value": 11312
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_MergePatch",
+      "section_index": "12",
+      "size": 7,
+      "type": "FUNC",
+      "value": 11792
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_FindPointerFromObjectTo",
+      "section_index": "12",
+      "size": 478,
+      "type": "FUNC",
+      "value": 10816
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GeneratePatches",
+      "section_index": "12",
+      "size": 75,
+      "type": "FUNC",
+      "value": 11536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GenerateMergePatchCaseSensitive",
+      "section_index": "12",
+      "size": 10,
+      "type": "FUNC",
+      "value": 12256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GetPointer",
+      "section_index": "12",
+      "size": 7,
+      "type": "FUNC",
+      "value": 11296
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_MergePatchCaseSensitive",
+      "section_index": "12",
+      "size": 10,
+      "type": "FUNC",
+      "value": 11808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_SortObject",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 11696
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_SortObjectCaseSensitive",
+      "section_index": "12",
+      "size": 33,
+      "type": "FUNC",
+      "value": 11744
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_ApplyPatches",
+      "section_index": "12",
+      "size": 82,
+      "type": "FUNC",
+      "value": 11328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cJSONUtils_GeneratePatchesCaseSensitive",
+      "section_index": "12",
+      "size": 75,
+      "type": "FUNC",
+      "value": 11616
+    }
+  ]
+}

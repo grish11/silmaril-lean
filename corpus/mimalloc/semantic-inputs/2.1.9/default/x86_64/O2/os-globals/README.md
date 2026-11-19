@@ -1,0 +1,11 @@
+# Actual mimalloc global getters
+
+Five exact spans from the saved GCC `obj/os.i` in the existing canonical-matching build: `size_t`, the eight-member struct, its unchanged initializer, and both page-size getters. Original preprocessor line directives remain. The saved build ELF hashes to `3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31`, matching the canonical ELF; no new build or runtime repetition is claimed. See the original build log, source-binding receipt and system-header licences in the sibling `mi_version/system-header-licenses` directory.
+
+The closure is not full-TU acceptance. Exact byte projection and source preprocessing/build provenance are separate evidence. Contexts concern an initialized post-startup global object, with explicit page-size fields; they do not prove global-startup correctness or allocator-wide invariants. Both actual Core procedures remain present; the large-page getter executes the page-size callee in its zero branch. Canonical O2 machine code inlines this call, so no replacement callee contract or assumed refinement is supplied.
+
+Pinned exported stdlib/impl are runtime inputs; expected bodies/results are not. Contextual problems, finite runtime checks and ELF CodeAt are not semantic proofs.
+
+Replay the public inputs with `lake env lean --run tools/corpus/MimallocOsInputs.lean`, then run `python3 -I tools/corpus/check_mimalloc_os_inputs.py`. Build the contextual root with `lake build --wfail Silmaril.Elf.Corpus.MimallocOsGlobals.Context.Defs`; source execution cases run with `lake env lean --run tests/cerberus/MimallocOsContext.lean`. On x86_64, `python3 -I tools/corpus/mimalloc_os_native.py` executes the existing canonical ELF in its own process and restores the two global fields. These finite checks are separate from whole-file structure and semantic proofs.
+
+The current frontend emits zero formal parameters and `(variadic=false, prototype=false)` for these standalone lexical `(void)` definitions. Kernel lookup checks and retains those exact flags and the actual `unsigned long` return type. No successful full-TU frontend adequacy or corrected prototype metadata is claimed. The tested zero-argument Core call executes with this actual metadata.

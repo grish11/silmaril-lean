@@ -1,0 +1,33 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.SqliteBuildQueries.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/SqliteBuildQueries/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteBuildQueries/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteBuildQueries/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/SqliteBuildQueries/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/SqliteBuildQueries/Thms.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean"
+  ],
+  "limits": [
+    "All corpus refinement obligations are stated-unproved. No semantic proof or exporter run is inferred from this display.",
+    "Exact source/Core/ELF evidence does not establish compiler correctness or full translation-unit frontend adequacy. No interactive compilation or source-to-instruction segment mapping is supplied.",
+    "The unchanged SQLite 3.54.1 amalgamation was preprocessed on the current host using the matching recorded GCC version and requested flags. Historical image/header identity, a historical compile replay and whole-TU frontend adequacy are not established. No ELF was rebuilt.",
+    "These are actual zero-argument signed-int queries with no globals, pointers or callees; contexts require preserved source allocations/bytes/lifetimes/stdout, SysV stack/return behavior and real canonical ELF CodeAt. Source expression arithmetic/loop/memory UB cases do not arise in these constant definitions. General SQLite behavior is outside this slice.",
+    "sqlite3_threadsafe returns the compile-time SQLITE_THREADSAFE=1 option. This does not establish mutex implementation, initialization or concurrent caller correctness.",
+    "The actual frontend metadata for lexical (void) retains variadic=false and prototype=false. No substitute body, callee or desired-refinement assumption is supplied."
+  ],
+  "source": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/context.c"
+  },
+  "projection": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/projection.json",
+    "tu": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/runtime.sexp"
+  }
+}

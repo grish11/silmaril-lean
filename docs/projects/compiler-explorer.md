@@ -283,11 +283,24 @@ The adapter boundary is the project database schema `silmaril.project-db.v0.1`:
 * `statuses(problem, status = 'THM', tier = 'kernel', via)` gives the solving theorem;
 * `answer_axioms(decl, axiom)` gives its axioms.
 
-The adapter refuses another schema. The source↔target view itself is not a tab of the Pages
-explorer yet. That needs the manifests and artifact bytes in what Pages serves, and a view
-registered in `tools/silmaril-project/src/project/explore.rs`. Both sit on files the open C TV
-(#900, #934) and assembly-tab (#890) pull requests change. The obligations are already in the
-database; a tab would read this page's API shape (`problem_view`) from a static export.
+The adapter refuses another schema. Pages now publishes the existing read-only source↔target
+viewer at [compiler/](https://hiloopai.github.io/silmaril-lean/compiler/), linked from the
+[Compiler integration page](https://hiloopai.github.io/silmaril-lean/#/compiler) and the
+[Corpus catalog](https://hiloopai.github.io/silmaril-lean/#/corpus). `pages.py` ingests the
+committed manifests, applies this exact project-row adapter to the public deployment database,
+and writes static JSON payloads with the same `problem_view` data as the GET-only server.
+No supplied evidence file is promoted and no exporter run is invented. Missing project rows
+remain missing, even when a separate Lean development exists. The published
+[status summary](https://hiloopai.github.io/silmaril-lean/compiler/integration.json) records
+actual fixture/obligation counts for that deployment.
+
+This connects the **existing fixtures**, not every corpus function. The corpus metadata tables
+now share the Pages project database: project navigation, variants/configuration, ELF and build
+receipt links, source provenance, function-address mappings, dependency/decoder evidence,
+measurements and direct links to concrete stated Lean obligations are available. Those corpus
+functions do not automatically have compiler-explorer manifests, source/target listings,
+segment relations or kernel solutions. Source metadata is not parsed C semantics; structural
+checks and stated obligations are not semantic proofs. There is no interactive compile service.
 
 ## Fixtures and results
 
@@ -319,7 +332,7 @@ canonical-entry row. Safety from every Core entry is open everywhere.
 | per-edge vs whole mapping, coverage, counterexample | done (`Det.Counterexample.edges_not_enough`) |
 | non-vacuity | done for the C instance (`compilation_inhabited`) |
 | CI | done: `make check` runs the database and view tests, and `compiler-explorer-check` when `cexplorer-export` or `CompilesToExamples` is in scope; a broken proof fails it |
-| `sil project` | done: shapes, rows and the database adapter; the Pages tab is the remaining step (above) |
+| `sil project` | shapes, rows and database adapter; static fixture viewer and integration route are published on Pages; whole-corpus manifests/segment mappings remain incomplete |
 | decompiled and imported directions | done, with fixtures; the decompiled block's machine → C0 obligation is proved (bound to the object's bytes by a tool check, to the C text by printing); no whole-function decompilation theorem |
 | kernel replay | `leanchecker` on the evidence modules in `make compiler-explorer-check` (imports from `.olean`, same kernel) |
 | nondeterministic segment discipline, concurrent target | not done |

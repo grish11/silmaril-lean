@@ -1,0 +1,44 @@
+{
+  "comparison": "same upstream3.5.9, native x86_64, GCC14.2, O2, unstripped; file sizes/identity only, not performance or equivalence",
+  "outputs": [
+    {
+      "object": "libcrypto.so.3",
+      "no-asm": {
+        "path": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O2/unstripped/libcrypto.so.3",
+        "size_bytes": 5585688,
+        "sha256": "516a8f5ce20913ab80d03a1b195458171399a9470f2e93b075f38e634d9c866b"
+      },
+      "asm": {
+        "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O2/unstripped/libcrypto.so.3",
+        "size_bytes": 6889888,
+        "sha256": "b88e403dd6a0fc3699a9fe2dfb59b93a444faf8a43718e002d18e59e97f4ea38"
+      }
+    },
+    {
+      "object": "libssl.so.3",
+      "no-asm": {
+        "path": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O2/unstripped/libssl.so.3",
+        "size_bytes": 1216856,
+        "sha256": "cd856f63e645e38ed5698dc3e33b6f7775dbc57dff0ae37db340851787c378b2"
+      },
+      "asm": {
+        "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O2/unstripped/libssl.so.3",
+        "size_bytes": 1216880,
+        "sha256": "d86c004caa6960f945a375d6b32ed763ca21b3dff344d7f754f8b8682e2c8a7b"
+      }
+    },
+    {
+      "object": "openssl",
+      "no-asm": {
+        "path": "corpus/variants/openssl/3.5.9/no-asm/x86_64/O2/unstripped/openssl",
+        "size_bytes": 1223152,
+        "sha256": "0b52eaf61f28b5df742f6e500eaffd66594bb70bcb8784530fe2b5b856110c85"
+      },
+      "asm": {
+        "path": "corpus/variants/openssl/3.5.9/asm/x86_64/O2/unstripped/openssl",
+        "size_bytes": 1223152,
+        "sha256": "0b52eaf61f28b5df742f6e500eaffd66594bb70bcb8784530fe2b5b856110c85"
+      }
+    }
+  ]
+}

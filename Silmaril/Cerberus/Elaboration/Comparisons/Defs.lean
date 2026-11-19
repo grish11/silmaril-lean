@@ -2,12 +2,13 @@ module
 
 public import Silmaril.Cerberus.Elaboration.Arithmetic.Defs
 
-/-! Actual scalar Gt and Eq branches from pinned `translation.lem:437-499,
+/-! Actual scalar Lt/Le/Gt/Ge and Eq branches from pinned `translation.lem:437-499,
 546-587`. The helpers run supplied child computations in source order and
 retain the distinct relational/equality allocation and case constructors.
 Outer expression annotations/markers and eager construction scheduling belong
 to the caller; this slice certifies neither arbitrary source callback staging
-nor pointer-comparison branches. -/
+nor arbitrary pointer-comparison semantics. The selected non-CHERI pointer
+equality branch retains its actual effectful memory operation and UB fallback. -/
 
 @[expose] public section
 namespace Silmaril.Cerberus.Elaboration.Comparisons
@@ -76,6 +77,27 @@ def finishEqual (config : Target.Config) (env : Target.Environment) (bindings : 
     [(specified, standardPure "§6.5.9#3" (booleanInteger condition)),
      (wildcard (.tuple [.loaded objectLeft, .loaded objectRight]), unspecified resultType)]))
 
+/-- Pinned translation.lem:546–554,581–607: allocate all five wrappers
+before translating either child; pointer equality is a memory operation. The
+unspecified case retains UB, rather than becoming a Boolean answer. -/
+def pointers (config : Target.Config) (notEqual : Bool) (location : Loc)
+    (left right : State.ElabM Effect) : State.ElabM Effect := do
+  if config.cheri then throw (.message "unsupported: CHERI equality comparison")
+  let operands ← freshOperands .pointer .pointer
+  let coreLeft ← left
+  let coreRight ← right
+  let (pattern, values) ← Constants.liftResult (loadedPair operands)
+  let specified ← Constants.liftResult (specifiedPair operands)
+  let operation := memoryOperation (if notEqual then .ptrNe else .ptrEq)
+    [operands.leftObject.expression, operands.rightObject.expression]
+  let yes := weakSequence operands.comparison.pattern operation
+    (pureEffect (standardPure "§6.5.9#3" (booleanInteger operands.comparison.expression)))
+  return weakSequence pattern (unseq [coreLeft, coreRight])
+    (caseEffect values [(specified, yes),
+      (wildcard (.tuple [.loaded .pointer, .loaded .pointer]),
+        pureEffect (undefined location
+          (.UB_CERB004_unspecified .UB_unspec_equality_both_arith_or_ptr)))])
+
 /-- Scalar Gt translates both children before allocating all five wrappers. -/
 def greater (config : Target.Config) (env : Target.Environment) (bindings : List Runtime.Binding)
     (resultType leftType rightType : Ctype) (left right : State.ElabM Effect) : State.ElabM Effect := do
@@ -97,5 +119,74 @@ def equal (config : Target.Config) (env : Target.Environment) (bindings : List R
   let coreLeft ← left
   let coreRight ← right
   Constants.liftResult (finishEqual config env bindings resultType leftType rightType operands coreLeft coreRight)
+
+/-- Additional scalar relational cases from pinned `translation.lem:437-499`.
+Pointer comparisons remain unsupported; the source-order allocation schedule is
+identical to the existing greater-than branch. -/
+inductive RelationalOperator where
+  | less | lessEqual | greaterEqual
+  deriving DecidableEq, Repr
+
+def RelationalOperator.toCore : RelationalOperator → BinOp
+  | .less => .lt
+  | .lessEqual => .le
+  | .greaterEqual => .ge
+
+def finishRelational (operator : RelationalOperator) (config : Target.Config) (env : Target.Environment) (bindings : List Runtime.Binding)
+    (resultType leftType rightType : Ctype) (operands : Operands)
+    (left right : Effect) : Except String Effect := do
+  let objectLeft ← Arithmetic.scalarObjectType leftType
+  let objectRight ← Arithmetic.scalarObjectType rightType
+  let promoted ← Arithmetic.usualArithmetic config env bindings false leftType rightType
+    operands.leftObject.expression operands.rightObject.expression
+  let (promotedLeft, promotedRight) := standardPair "§6.5.8#3" promoted
+  let (pattern, values) ← loadedPair operands
+  let specified ← specifiedPair operands
+  return addStandard "§6.5.8" (weakSequence pattern (unseq [left, right])
+    (caseEffect values
+      [(specified, addStandard "§6.5.8#6" (pureEffect
+        (booleanInteger (operation operator.toCore promotedLeft promotedRight)))),
+       (wildcard (.tuple [.loaded objectLeft, .loaded objectRight]), pureEffect (unspecified resultType))]))
+
+/-- Translate scalar Lt/Le/Ge in the same source order as the pinned port.
+Both children are elaborated before allocating all five operand wrappers. -/
+def relational (operator : RelationalOperator) (config : Target.Config)
+    (env : Target.Environment) (bindings : List Runtime.Binding)
+    (resultType leftType rightType : Ctype) (left right : State.ElabM Effect) : State.ElabM Effect := do
+  if config.cheri then throw (.message "unsupported: CHERI relational comparison")
+  let objectLeft ← Constants.liftResult (Arithmetic.scalarObjectType leftType)
+  let objectRight ← Constants.liftResult (Arithmetic.scalarObjectType rightType)
+  let coreLeft ← left
+  let coreRight ← right
+  let operands ← freshOperands objectLeft objectRight
+  Constants.liftResult (finishRelational operator config env bindings resultType leftType rightType operands coreLeft coreRight)
+
+/-- Scalar Ne from pinned `translation.lem:550-584`: negate the promoted
+object equality before converting the Boolean to specified integer 1/0.
+The fallback and allocation-before-child schedule are the equality branch's. -/
+def finishNotEqual (config : Target.Config) (env : Target.Environment) (bindings : List Runtime.Binding)
+    (resultType leftType rightType : Ctype) (operands : Operands)
+    (left right : Effect) : Except String Effect := do
+  let objectLeft ← Arithmetic.scalarObjectType leftType
+  let objectRight ← Arithmetic.scalarObjectType rightType
+  let promoted ← Arithmetic.usualArithmetic config env bindings false leftType rightType
+    operands.leftObject.expression operands.rightObject.expression
+  let (promotedLeft, promotedRight) := standardPair "§6.5.9#4, sentence 1" promoted
+  let (pattern, values) ← loadedPair operands
+  let specified ← specifiedPair operands
+  let condition := standardPure "§6.5.9#4, sentence 3" (notPure (operation .eq promotedLeft promotedRight))
+  return weakSequence pattern (unseq [left, right]) (pureEffect (casePure values
+    [(specified, standardPure "§6.5.9#3" (booleanInteger condition)),
+     (wildcard (.tuple [.loaded objectLeft, .loaded objectRight]), unspecified resultType)]))
+
+def notEqual (config : Target.Config) (env : Target.Environment) (bindings : List Runtime.Binding)
+    (resultType leftType rightType : Ctype) (left right : State.ElabM Effect) : State.ElabM Effect := do
+  if config.cheri then throw (.message "unsupported: CHERI equality comparison")
+  let objectLeft ← Constants.liftResult (Arithmetic.scalarObjectType leftType)
+  let objectRight ← Constants.liftResult (Arithmetic.scalarObjectType rightType)
+  let operands ← freshOperands objectLeft objectRight
+  let coreLeft ← left
+  let coreRight ← right
+  Constants.liftResult (finishNotEqual config env bindings resultType leftType rightType operands coreLeft coreRight)
 
 end Silmaril.Cerberus.Elaboration.Comparisons

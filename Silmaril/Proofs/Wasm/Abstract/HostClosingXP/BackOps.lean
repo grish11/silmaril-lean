@@ -8,10 +8,10 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackSeq
 `case_op`: an operator tree `op i args :: es`. Its arguments are split off (`seq_part`); an
 abrupt end of the arguments ends the tree (`argsAbort`). After values, the instruction:
 
-* a flat instruction steps by `evalFlat` (`evalFlat_progressH` from typing), the trees after it
+* a flat instruction steps by `evalFlat` (`J.evalFlat_progress` from typing), the trees after it
   going on, or ending the run abruptly;
 * `call`, a resolved `call_indirect` and `call_ref` on a function reference reach a `call_ref`
-  form on the callee, which `CallG` resolves: the callee returns (`callRet`, `indRet`, `refRet`)
+  form on the callee, which `CallG J` resolves: the callee returns (`callRet`, `indRet`, `refRet`)
   or throws (`callThrow`, `indThrow`, `refThrow`) in the closure, or traps there, which is read
   as a cut call (`callCut`, `indCut`, `refCut`), the closure resolving it by
   `Shape.Subst.intTrap`;
@@ -34,7 +34,7 @@ open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallX (tailPop TailRes)
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle}
+variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle} {J : Silmaril.Wasm.Interp.BackInv H}
 
 theorem res_one {a : Nat} {us : List Val} {s₁ s₂ : Store H} {b : List Val ⊕ Nat}
     {q : List (Call (wasmHostSig H))} (hz : (q, .ret b s₂) ∈ Cl a s₁ us) :
@@ -62,28 +62,28 @@ variable {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {i : Instr}
 theorem site_code (stk : List Val) (i : Instr) (E : List Admin) :
     vals stk.reverse ++ .plain i :: E = vals stk.reverse ++ [.plain i] ++ E := by simp
 
-/-- **A call in its `call_ref` form, resolved by `CallG`**, for an operator whose arguments
+/-- **A call in its `call_ref` form, resolved by `CallG J`**, for an operator whose arguments
 completed normally: the answer read as the logged canonical rule (`hret`, `hthrow`, `hcut`). -/
-theorem op_callee (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+theorem op_callee (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {pre us : List Val} {a : Nat} {cr : Admin} {fi : FuncInst H}
     {ps rs : List Validation.CValType}
-    (ht : TypedP tags s f stk (.op i args :: es))
+    (ht : J.TypedP tags s f stk (.op i args :: es))
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk (.op i args :: es)⟩ (cs₁ ++ cs₂) c)
     (hend : ∀ c', ¬ Step (profile o) Det.noHost c c') (hnd : decompose? c.store c.code = none)
     (hq : Shape.SubstPre Cl (l.map OCall.lift) cs₁)
-    (ihk : ∀ m' ≤ n, BackG tags o host m' es) (ihC : ∀ m' ≤ n, CallG tags o host m')
+    (ihk : ∀ m' ≤ n, BackG J tags o host m' es) (ihC : ∀ m' ≤ n, CallG J tags o host m')
     (hcr : cr.IsCallRef) (hfi : s₁.funcs[a]? = some fi)
     (hty : Validation.DefType.funcType? fi.type = some (ps, rs)) (hn : us.length = ps.length)
     (hts₁ : TagsOk tags s₁) (hS₁ : StoreChkE (ehExt tags) s₁.funcs)
     (hm : m ≤ n)
     (hk : EvRunN (profile o) host m ⟨s₁, f₁, Interp.callCode pre us a cr
       (expression (Binaryen.BExpr.lowerList es))⟩ cs₂ c)
-    (hctC : Sim.ContextTyped ⟨s₁, f₁, Interp.callCode pre us a cr
+    (hctC : J.CT ⟨s₁, f₁, Interp.callCode pre us a cr
       (expression (Binaryen.BExpr.lowerList es))⟩)
     (hcont : ∀ (ws : List Val) (s₃ : Store H), ws.length = rs.length → TagsOk tags s₃ →
       FuncsGoodE (ehExt tags) s₁.funcs s₃.funcs →
-      Sim.ContextTyped ⟨s₃, f₁, tcode (ws.reverse ++ pre.reverse) es⟩ →
-      TypedP tags s₃ f₁ (ws.reverse ++ pre.reverse) es)
+      J.CT ⟨s₃, f₁, tcode (ws.reverse ++ pre.reverse) es⟩ →
+      J.TypedP tags s₃ f₁ (ws.reverse ++ pre.reverse) es)
     (hret : ∀ (ws : List Val) (s₃ : Store H) (l₂ : List (OCall H)) (r : Store H × Frame × POut),
       EvalLXPh s₃ f₁ (ws.reverse ++ pre.reverse) es l₂ r →
       EvalLXPh s f stk (.op i args :: es) (l ++ OCall.mk a us s₁ (.inl ws) s₃ :: l₂) r)
@@ -108,7 +108,7 @@ theorem op_callee (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE 
           ⟨s₃, f₁, tcode (ws.reverse ++ pre.reverse) es⟩ := by
         rw [← hcode]
         exact evRun_steps (evRun_ctx pre _ (hrunC f₁ cr hcr))
-      have htk := hcont ws s₃ hwl t₃ hfg (ContextTyped.steps_typed hT hctC hst)
+      have htk := hcont ws s₃ hwl t₃ hfg (J.steps_host hT hctC hst)
       rw [hcode] at hk₃
       obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihk m'' (by omega) s₃ f₁ _ c cs₃ htk hk₃ hend hnd
       have hres : ResX (l ++ OCall.mk a us s₁ (.inl ws) s₃ :: l₂) r₂ (cs₁ ++ (q ++ cs₃)) := by
@@ -133,8 +133,8 @@ theorem cont_typed {s₃ : Store H} {ws : List Val} {k : Nat} {rs : List Validat
       (some (stk'.length - k + rs.length)) es = some out)
     (hwl : ws.length = rs.length) (t₃ : TagsOk tags s₃)
     (hfg : FuncsGoodE (ehExt tags) s₁.funcs s₃.funcs)
-    (hct : Sim.ContextTyped ⟨s₃, f₁, tcode (ws.reverse ++ stk'.drop k) es⟩) :
-    TypedP tags s₃ f₁ (ws.reverse ++ stk'.drop k) es := by
+    (hct : J.CT ⟨s₃, f₁, tcode (ws.reverse ++ stk'.drop k) es⟩) :
+    J.TypedP tags s₃ f₁ (ws.reverse ++ stk'.drop k) es := by
   have inv2 : EvalInvE (ehExt tags) s f (s₃, f₁, .normal (ws.reverse ++ stk'.drop k)) :=
     ⟨inv1.1.trans hfg, inv1.2.1, inv1.2.2⟩
   have hlen : (ws.reverse ++ stk'.drop k).length = stk'.length - k + rs.length := by
@@ -153,17 +153,17 @@ variable {s : Store H} {f : Frame} {stk : List Val} {i : Instr} {args es : List 
   {c : Config H} {cs : List (Call (wasmHostSig H))} {n : Nat}
 
 /-- **The operator case** of the logged backward simulation. -/
-theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    (ihA : ∀ m ≤ n, BackG tags o host m args) (ihk : ∀ m ≤ n, BackG tags o host m es)
-    (ihC : ∀ m ≤ n, CallG tags o host m) :
-    BackG tags o host n (.op i args :: es) := by
+theorem case_op (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (ihA : ∀ m ≤ n, BackG J tags o host m args) (ihk : ∀ m ≤ n, BackG J tags o host m es)
+    (ihC : ∀ m ≤ n, CallG J tags o host m) :
+    BackG J tags o host n (.op i args :: es) := by
   intro s f stk c cs ht hrun hend hnd
   have hcode := code_op stk i args es
   have hrun₀ := hrun
   change EvRunN _ _ _ ⟨s, f, vals stk.reverse ++ expression (Binaryen.BExpr.lowerList
     (.op i args :: es))⟩ _ _ at hrun
   rw [hcode] at hrun
-  obtain ⟨l, r, cs₁, cs₂, rfl, hd, hres, hr⟩ := seq_part (args_typedP ht) ihA hrun hend hnd
+  obtain ⟨l, r, cs₁, cs₂, rfl, hd, hres, hr⟩ := seq_part (J.args_typedP ht) ihA hrun hend hnd
   rcases hr with hn | ⟨s₁, f₁, stk₁, m, rfl, hq, hm, hk, hst⟩
   · exact mkOut'' hH hE ht hrun₀ hend (.argsAbort hd hn) hres
   have hst' : Steps (profile o) host ⟨s, f, tcode stk (.op i args :: es)⟩
@@ -191,7 +191,7 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
     obtain ⟨-, -, h2'⟩ := arity_call_pre hS aha hfi hty hc
     refine op_callee hT hH hE ht hrun₀ hend hnd hq ihk ihC (cr := .callRefType fi.type) trivial (funcs_of_func? hfi) hty
       (take_rev_length hp) t₁ hS₁ (by omega) hk'
-      (ContextTyped.steps_typed hT hsite (steps_host hst₁)) ?_ ?_ ?_ ?_
+      (J.steps_host hT hsite (steps_host hst₁)) ?_ ?_ ?_ ?_
     · intro ws s₃ hwl t₃ hfg hct
       rw [List.reverse_reverse] at hct ⊢
       exact cont_typed hS inv1 hTM h2' hwl t₃ hfg hct
@@ -203,7 +203,7 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
     · intro ws s₃ hws
       exact .callCut hd hfi hty hws
   · -- call_indirect
-    obtain ⟨ad, j, stk', o', rfl, hres⟩ := indirect_res (.inl rfl) hsite
+    obtain ⟨ad, j, stk', o', rfl, hres⟩ := J.indirect_res (.inl rfl) hsite
     cases o' with
     | none => exact mkOut'' hH hE ht hrun₀ hend (.indRes hd hres) (.inl hq)
     | some fa =>
@@ -219,7 +219,7 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
           ⟨s₁, f₁, vals stk'.reverse ++ [.ref (.func fa), .plain (.callRef y)] ++ E⟩ := by
         rw [e]
         exact Steps.ctx _ _ (Silmaril.Wasm.Abstract.CallRes.steps_callIndirect_func hres)
-      have hct₀ := ContextTyped.steps_typed hT hsite (steps_host hst₀)
+      have hct₀ := J.steps_host hT hsite (steps_host hst₀)
       obtain ⟨ps, rs, hty⟩ := funcType_of_callRef_cfg (P := profile o)
         (by simpa only [List.append_assoc, List.cons_append, List.singleton_append] using hct₀)
         (cr := .plain (.callRef y)) trivial hfi
@@ -236,7 +236,7 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
       obtain ⟨-, -, h2'⟩ := arity_ir_preP hS aha (.inl ⟨x, rfl⟩) hy hc
       refine op_callee hT hH hE ht hrun₀ hend hnd hq ihk ihC (cr := .plain (.callRef y)) trivial hfi hty
         (take_rev_length (by omega)) t₁ hS₁ (by omega) hk'
-        (ContextTyped.steps_typed hT hsite (steps_host hst₁)) ?_ ?_ ?_ ?_
+        (J.steps_host hT hsite (steps_host hst₁)) ?_ ?_ ?_ ?_
       · intro ws s₃ hwl t₃ hfg hct
         rw [List.reverse_reverse] at hct ⊢
         exact cont_typed hS inv1 hTM h2' hwl t₃ hfg hct
@@ -248,7 +248,7 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
       · intro ws s₃ hws
         exact .indCut hd hres hfi hty hy hws
   · -- call_ref
-    obtain ⟨r, stk', rfl, hr⟩ := callRef_top hsite hTM₁
+    obtain ⟨r, stk', rfl, hr⟩ := J.callRef_top hsite hTM₁
     rcases hr with rfl | ⟨fa, fi, rfl, hfi⟩
     · exact mkOut'' hH hE ht hrun₀ hend (.refNull hd) (.inl hq)
     have e : vals (Val.ref (.func fa) :: stk').reverse ++ .plain (.callRef y) :: E =
@@ -256,7 +256,7 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
       simp [vals, Val.toAdmin]
     obtain ⟨ps, rs, hty⟩ := funcType_of_callRef_cfg (P := profile o) (e ▸ hsite)
       (cr := .plain (.callRef y)) trivial hfi
-    have hy := Abstract.CallXT.typeArity_of_callRef_site hsite hTM₁ hfi hty (hTF₁ _ _ hfi)
+    have hy := J.typeArity_of_callRef_site hsite hTM₁ hfi hty (hTF₁ _ _ hfi)
     have hf_t := hf
     rw [flatChkE_ehExt_tExt (fun _ h => by cases h) (by intro h; cases h)] at hf_t
     obtain ⟨hp, -⟩ := flatChk_irT (.inr rfl) hy hf_t
@@ -288,11 +288,11 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
     obtain ⟨⟨p, q⟩, hpq⟩ := hca
     obtain ⟨a, fi, ps, rs, hfi, hty, -, -⟩ := callArity_func? hpq
     exact mkOut'' hH hE ht hrun₀ hend (.tail hd (.direct hfi) (funcs_of_func? hfi) hty
-      (tailAnn_typed (.direct hfi) hsite (funcs_of_func? hfi) hty hTF₁ hTM₁ hf_t)) (.inl hq)
+      (J.tailAnn_typed (.direct hfi) hsite (funcs_of_func? hfi) hty hTF₁ hTM₁ hf_t)) (.inl hq)
   · -- return_call_indirect
     have hf_t := hf
     rw [flatChkE_ehExt_tExt (fun _ h => by cases h) (by intro h; cases h)] at hf_t
-    obtain ⟨ad, j, stk', o', rfl, hres⟩ := indirect_res (.inr rfl) hsite
+    obtain ⟨ad, j, stk', o', rfl, hres⟩ := J.indirect_res (.inr rfl) hsite
     cases o' with
     | none => exact mkOut'' hH hE ht hrun₀ hend (.tailRes hd (.indirectTrap hres)) (.inl hq)
     | some fa =>
@@ -300,29 +300,29 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
       obtain ⟨p, hy₀⟩ := typeArity_some_rci hf_t
       obtain ⟨ps, rs, hty⟩ := funcType_of_indRes hres hfi hTF₁ hTM₁ hy₀
       exact mkOut'' hH hE ht hrun₀ hend (.tail hd (.indirect hres) hfi hty
-        (tailAnn_typed (.indirect hres) hsite hfi hty hTF₁ hTM₁ hf_t)) (.inl hq)
+        (J.tailAnn_typed (.indirect hres) hsite hfi hty hTF₁ hTM₁ hf_t)) (.inl hq)
   · -- return_call_ref
     have hf_t := hf
     rw [flatChkE_ehExt_tExt (fun _ h => by cases h) (by intro h; cases h)] at hf_t
-    obtain ⟨r, stk', rfl, hr⟩ := returnCallRef_top hsite hTM₁
+    obtain ⟨r, stk', rfl, hr⟩ := J.returnCallRef_top hsite hTM₁
     rcases hr with rfl | ⟨fa, fi, rfl, hfi⟩
     · exact mkOut'' hH hE ht hrun₀ hend (.tailRes hd .refNull) (.inl hq)
     · obtain ⟨ps, rs, hty⟩ := funcType_of_returnCallRef_site hsite hTM₁ hfi (hTF₁ _ _ hfi)
       exact mkOut'' hH hE ht hrun₀ hend (.tail hd .ref hfi hty
-        (tailAnn_typed .ref hsite hfi hty hTF₁ hTM₁ hf_t)) (.inl hq)
+        (J.tailAnn_typed .ref hsite hfi hty hTF₁ hTM₁ hf_t)) (.inl hq)
   · -- throw
     obtain ⟨p, htf, hp⟩ := throw_chk hf
     obtain ⟨ta, ti, ts, ht', he, hlen⟩ := tag_of_tagFields t₁.1 htf
     exact mkOut'' hH hE ht hrun₀ hend (.throw hd ht' he (by omega)) (.inl hq)
   · -- throw_ref
-    obtain ⟨r, stk', rfl, hr⟩ := throwRef_top hsite
+    obtain ⟨r, stk', rfl, hr⟩ := J.throwRef_top hsite
     rcases hr with rfl | ⟨a, rfl⟩
     · exact mkOut'' hH hE ht hrun₀ hend (.throwRefNull hd) (.inl hq)
     · exact mkOut'' hH hE ht hrun₀ hend (.throwRefExn hd) (.inl hq)
   · -- a flat instruction
     have hf' : flatChk s₁.funcs f₁.module f₁.locals.length ret labels stk₁.length i = some o₁ := by
       rw [← flatChkE_eq_flatChk (ehExt tags) hx]; exact hf
-    obtain ⟨⟨s₂, f₂, fl₂⟩, hflat⟩ := evalFlat_progressH hf' hi hsite
+    obtain ⟨⟨s₂, f₂, fl₂⟩, hflat⟩ := J.evalFlat_progress hf' hi hsite
     by_cases hn₂ : fl₂.IsNormal
     swap
     · exact mkOut'' hH hE ht hrun₀ hend (.opStop hi hd hflat hn₂) (.inl hq)
@@ -335,9 +335,9 @@ theorem case_op (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE ta
     have hts : TagsOk tags s := by obtain ⟨-, -, -, -, -, -, -, -, h⟩ := ht; exact h
     obtain ⟨-, t₂, -, -⟩ := full_run (P := profile o) hH hE (.opOk (es := []) hi hd hflat .nil)
       (by simpa using substPre_mono (close_le_goodCX hH hE) hq) (cons_append.1 hcons).1 hts
-    have htk : TypedP tags s₂ f₂ stk₂ es := by
+    have htk : J.TypedP tags s₂ f₂ stk₂ es := by
       refine typedP_of (storeChk_inv inv12 hS) (labels := labels) (ret := ret) (out := out) ?_
-        (ContextTyped.steps_typed hT hsite (steps_host st)) (by rw [inv12.2.1]; exact hTM) t₂
+        (J.steps_host hT hsite (steps_host st)) (by rw [inv12.2.1]; exact hTM) t₂
       rw [← ho]
       exact chk_inv inv12 h2
     obtain ⟨l₂, r₂, hd₂, hres₂, -⟩ := ihk m' (by omega) s₂ f₂ stk₂ c cs₂ htk hk' hend hnd

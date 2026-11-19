@@ -23,7 +23,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle}
+variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle} {J : Silmaril.Wasm.Interp.BackInv H}
 
 theorem not_mem_vals' {a : Admin} (ha : a.val? = none) {ws : List Val} : a ∉ vals ws := by
   intro hm
@@ -53,9 +53,9 @@ theorem ends_vals' {o : Outcome} {ws : List Val} (h : o.Ends (vals ws)) : o = .n
     exact (not_mem_vals' (Admin.val?_of_isReturnCallRef hr) this).elim
 
 /-- **A labelled run to values is a normal logged run with exactly its log.** -/
-theorem back_vals (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+theorem back_vals (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} {s s₁ : Store H} {f f₁ : Frame} {stk ws : List Val} {es : List Binaryen.BExpr}
-    {cs : List (Call (wasmHostSig H))} (ht : TypedP tags s f stk es)
+    {cs : List (Call (wasmHostSig H))} (ht : J.TypedP tags s f stk es)
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs ⟨s₁, f₁, vals ws⟩) :
     ∃ (l : List (OCall H)) (stk₁ : List Val), EvalLXPh s f stk es l (s₁, f₁, .flow (.normal stk₁)) ∧
       Shape.SubstPre Cl (l.map OCall.lift) cs ∧ ws = stk₁.reverse := by
@@ -80,9 +80,9 @@ theorem back_vals (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE 
     · cases h
 
 /-- **A labelled run to an end is a logged run with exactly its log** (`back_all`, unfolded). -/
-theorem back_end (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+theorem back_end (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
     {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
-    {cs : List (Call (wasmHostSig H))} {c : Config H} (ht : TypedP tags s f stk es)
+    {cs : List (Call (wasmHostSig H))} {c : Config H} (ht : J.TypedP tags s f stk es)
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk es⟩ cs c)
     (hend : ∀ c', ¬ Step (profile o) Det.noHost c c') (hnd : decompose? c.store c.code = none) :
     ∃ (l : List (OCall H)) (r : Store H × Frame × POut), EvalLXPh s f stk es l r ∧

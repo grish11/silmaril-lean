@@ -7,7 +7,7 @@ public import Silmaril.Proofs.Wasm.Abstract.HostClosingXP.BackCall
 # The logged backward simulation: sequences and operator sites (proofs)
 
 * `seq_part`: a labelled run of `tcode stk A ++ B` splits at the end of `A`; `A`'s part is a
-  resolved logged run (`BackG`); if it completes normally the run goes on from its values in
+  resolved logged run (`BackG J`); if it completes normally the run goes on from its values in
   front of `B`, otherwise the log ends with `A`'s part (read off later by `mkOut'`);
 * `site_facts`: the facts at an operator's site after its arguments (the check, the arity
   invariant, typing in context, the tag invariants);
@@ -26,7 +26,7 @@ open Silmaril.Wasm.Interp
 open Silmaril.Wasm.SingleThreaded
 open Silmaril.Wasm.Abstract.CallXP (POut)
 
-variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle}
+variable {H : Type} {host : HostSemantics H} {tags : List TagInst} {o : GrowOracle} {J : Silmaril.Wasm.Interp.BackInv H}
 
 theorem vals_ne_trap' {ws : List Val} : vals ws ≠ [.trap] := by
   intro h
@@ -45,19 +45,19 @@ theorem typedP_of {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen
     {labels : List Nat} {ret : Nat} {out : Option Nat} (hS : StoreChkE (ehExt tags) s.funcs)
     (hc : chkE (ehExt tags) s.funcs f.module f.locals.length ret labels (some stk.length) es =
       some out)
-    (hct : Sim.ContextTyped ⟨s, f, tcode stk es⟩) (hTM : Abstract.CallXT.TyTypes f.module)
-    (hts : TagsOk tags s) : TypedP tags s f stk es :=
+    (hct : J.CT ⟨s, f, tcode stk es⟩) (hTM : Abstract.CallXT.TyTypes f.module)
+    (hts : TagsOk tags s) : J.TypedP tags s f stk es :=
   ⟨[], labels, ret, out, hS, hc, by simpa using hct, hTM, hts⟩
 
 theorem typedP_ctx {s : Store H} {f : Frame} {stk : List Val} {es : List Binaryen.BExpr}
-    (ht : TypedP tags s f stk es) : Sim.ContextTyped ⟨s, f, tcode stk es⟩ := by
+    (ht : J.TypedP tags s f stk es) : J.CT ⟨s, f, tcode stk es⟩ := by
   obtain ⟨rest, -, -, -, -, -, hct, -, -⟩ := ht
-  exact Sim.ContextTyped.suffix (rest := rest) (by simpa only [List.append_assoc] using hct)
+  exact J.suffix (rest := rest) (by simpa only [List.append_assoc] using hct)
 
 /-- **A labelled run of a sequence, split at the end of its first part.** -/
 theorem seq_part {n : Nat} {s : Store H} {f : Frame} {stk : List Val} {A : List Binaryen.BExpr}
     {B : List Admin} {c : Config H} {cs : List (Call (wasmHostSig H))}
-    (hA : TypedP tags s f stk A) (ihA : ∀ m ≤ n, BackG tags o host m A)
+    (hA : J.TypedP tags s f stk A) (ihA : ∀ m ≤ n, BackG J tags o host m A)
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk A ++ B⟩ cs c)
     (hend : ∀ c', ¬ Step (profile o) Det.noHost c c') (hnd : decompose? c.store c.code = none) :
     ∃ (l : List (OCall H)) (r : Store H × Frame × POut) (cs₁ cs₂ : List (Call (wasmHostSig H))),
@@ -116,8 +116,8 @@ variable {s s₁ : Store H} {f f₁ : Frame} {stk stk₁ : List Val} {i : Instr}
   {c : Config H} {n : Nat}
 
 /-- **The facts at an operator's site**, after its arguments completed normally. -/
-theorem site_facts (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE tags host)
-    (ht : TypedP tags s f stk (.op i args :: es))
+theorem site_facts (hT : J.HostOk host) (hH : HostSliceT host) (hE : HostSliceE tags host)
+    (ht : J.TypedP tags s f stk (.op i args :: es))
     (hrun : EvRunN (profile o) host n ⟨s, f, tcode stk (.op i args :: es)⟩ (cs₁ ++ cs₂) c)
     (hd : EvalLXPh s f stk args l (s₁, f₁, .flow (.normal stk₁)))
     (hq : Shape.SubstPre Cl (l.map OCall.lift) cs₁)
@@ -132,7 +132,7 @@ theorem site_facts (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
       TagsOk tags s₁ ∧
       flatChkE (ehExt tags) s₁.funcs f₁.module f₁.locals.length ret labels stk₁.length i = some o₁ ∧
       EvalInvE (ehExt tags) s f (s₁, f₁, .normal stk₁) ∧
-      Sim.ContextTyped ⟨s₁, f₁, vals stk₁.reverse ++ .plain i ::
+      J.CT ⟨s₁, f₁, vals stk₁.reverse ++ .plain i ::
         expression (Binaryen.BExpr.lowerList es)⟩ ∧
       Abstract.CallXT.TyTypes f₁.module ∧ Abstract.CallXT.TyFuncs s₁ ∧
       StoreChkE (ehExt tags) s₁.funcs := by
@@ -145,9 +145,9 @@ theorem site_facts (hT : HostTyped host) (hH : HostSliceT host) (hE : HostSliceE
   have aha : ArityGoodE (ehExt tags) s f stk args (s₁, f₁, .normal stk₁) true :=
     arityE_of_arityP a₁
   obtain ⟨hf, inv1⟩ := arity_args hS aha h1
-  have hsite := ContextTyped.steps_typed hT hct hst
+  have hsite := J.steps_host hT hct hst
   exact ⟨labels, ret, out, o₁, hS, hc, h2, aha, t₁, hf, inv1, hsite, by rw [inv1.2.1]; exact hTM,
-    tyFuncs_of_ctx hsite, storeChk_inv inv1 hS⟩
+    J.tyFuncs hsite, storeChk_inv inv1 hS⟩
 
 end Site
 

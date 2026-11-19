@@ -1,0 +1,56 @@
+{
+  "status": "frontend compiled check and kernel source projection/Core elaboration/ELF byte+symbol binding passed; contextual TV stated-unproved",
+  "canonical_elf": "corpus/elf/mimalloc/x86_64/libmimalloc.so.2.1",
+  "elf_sha256": "3e289e6c3f60e0bf53c93dcbb782cc845500c07358dc104c5a48156bf0e67f31",
+  "translation_unit": "prim_prim.i",
+  "translation_unit_sha256": "6ccabfc02fe115dc5222bfa92880fdf14522cc11310fd9ca9d916215fbdb5b0e",
+  "function": "_mi_allocator_done",
+  "flags": [
+    "arch\tx86_64",
+    "build_dir\t/build/mimalloc",
+    "input\thttps://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20",
+    "cflags\t-O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+    "ldflags\t-shared -Wl,-soname,libmimalloc.so.2 -lpthread -lrt",
+    "configure_args\t(none: CMake defaults written out as gcc commands)",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc.c -o obj/alloc.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc-aligned.c -o obj/alloc-aligned.o"
+  ],
+  "build_info": [
+    "arch\tx86_64",
+    "build_dir\t/build/mimalloc",
+    "input\thttps://github.com/microsoft/mimalloc/archive/refs/tags/v2.1.9.tar.gz dd8ff701691f19bf4e225d42ef0d3d5e6ca0e03498ee4f044a0402e4697e4a20",
+    "cflags\t-O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD",
+    "ldflags\t-shared -Wl,-soname,libmimalloc.so.2 -lpthread -lrt",
+    "configure_args\t(none: CMake defaults written out as gcc commands)",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc.c -o obj/alloc.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc-aligned.c -o obj/alloc-aligned.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/alloc-posix.c -o obj/alloc-posix.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/arena.c -o obj/arena.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/bitmap.c -o obj/bitmap.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/heap.c -o obj/heap.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/init.c -o obj/init.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/libc.c -o obj/libc.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/options.c -o obj/options.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/os.c -o obj/os.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/page.c -o obj/page.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/random.c -o obj/random.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/segment.c -o obj/segment.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/segment-map.c -o obj/segment-map.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/stats.c -o obj/stats.o",
+    "command\tgcc -O2 -g0 -ffile-prefix-map=/build/mimalloc=. -save-temps=obj -DNDEBUG -fPIC -Wall -Wextra -Wno-unknown-pragmas -fvisibility=hidden -Wstrict-prototypes -ftls-model=initial-exec -fno-builtin-malloc  -Iinclude -DMI_SHARED_LIB -DMI_SHARED_LIB_EXPORT -DMI_MALLOC_OVERRIDE -MMD -c src/prim/prim.c -o obj/prim_prim.o",
+    "command\tgcc -O2 -shared -Wl,-soname,libmimalloc.so.2 -o libmimalloc.so.2.1 obj/alloc.o obj/alloc-aligned.o obj/alloc-posix.o obj/arena.o obj/bitmap.o obj/heap.o obj/init.o obj/libc.o obj/options.o obj/os.o obj/page.o obj/random.o obj/segment.o obj/segment-map.o obj/stats.o obj/prim_prim.o -lpthread -lrt"
+  ],
+  "image_id": "sha256:80a7acbe9d5bcfc602613b941d8ac0deb2fd047dca3c1155288a1b31835089f2",
+  "upstream_definition": "corpus/mimalloc/upstream/mimalloc-2.1.9/src/options.c",
+  "upstream_definition_sha256": "b1f9cab7a0d877df83e290a01927743867e5af2c8d0131fd2af76480dbd739e0",
+  "source_semantics_scope": "Exact closed preprocessed definition, not a successful full translation-unit frontend parse. Build preprocessing/archive/image provenance is external; the extracted byte span is separately kernel checked.",
+  "projection_spans": [
+    {
+      "offset": 368357,
+      "length": 35,
+      "text": "void _mi_allocator_done(void) {\n\n}\n"
+    }
+  ],
+  "formal_input_sha256": "841fad1c24521f77fe20bfcfa422508d38bdd257acf7dfd9122d2b6796d7a531",
+  "scope": "Exact closed definition and required int typedef projected from actual saved preprocessing; full-TU parsing not claimed"
+}

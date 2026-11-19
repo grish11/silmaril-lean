@@ -1,0 +1,38 @@
+{
+  "tu": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/build-queries/translation-unit.i",
+  "tu_sha256": "31992f073781a1cdbd06ee2a00b2de14b62d87b5e81199dbb6a0fb7dfb7b6f1d",
+  "spans": [
+    {
+      "offset": 529,
+      "length": 50,
+      "sha256": "0a1aeee7b51b147b26f41f3774353db6a577df926b52e691157e4c19f858229a"
+    },
+    {
+      "offset": 3240421,
+      "length": 64,
+      "sha256": "32ddd1ff9db3a08446a1f1edfed658299919fb85f01187afcbae9e6afe96d863"
+    }
+  ],
+  "source": "corpus/sqlite/upstream/sqlite-amalgamation-3540100/sqlite3.c",
+  "source_sha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+  "original_spans": [
+    {
+      "offset": 6913035,
+      "length": 57,
+      "sha256": "fa3ab399e5b1fc38cdf5e297051b91a9fa1c61af6794524d891510d1e5b34784"
+    },
+    {
+      "offset": 6913244,
+      "length": 74,
+      "sha256": "2484065fd316e4d67f7aa28595f1e36981bfdaf5775f2a7c2509f10c417e2817"
+    },
+    {
+      "offset": 17734,
+      "length": 38,
+      "sha256": "6cbf5cc8bba9d76fcff86058bbb562016d00bc28f340c35a9e8c00a6b2354976"
+    }
+  ],
+  "closure": "corpus/sqlite/semantic-inputs/3.54.1/default/x86_64/O2/global-version/context.c",
+  "closure_sha256": "d28acc15b04eb9fe7377e76026b006d36214ad39159ee797f795bacfb0974d38",
+  "limits": "Exact saved-TU closure and original source/version-macro contextual spans. Macro expansion, historical headers/image, whole-TU and source-to-build adequacy remain unproved."
+}

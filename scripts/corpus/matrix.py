@@ -32,6 +32,14 @@ def inventory(root):
     for statement in formal:
         if statement['kind'] not in ['functional_equivalence', 'contextual_c_to_elf'] or statement['status'] != 'stated-unproved':
             raise ValueError('unsupported formal statement status')
+        if 'function_address' in statement:
+            address = statement['function_address']
+            if type(address) is not int or address < 0:
+                raise ValueError('invalid function address scope')
+        if 'function_addresses' in statement:
+            addresses = statement['function_addresses']
+            if set(addresses) != set(statement['artifact_sha256']) or any(type(a) is not int or a < 0 for a in addresses.values()):
+                raise ValueError('incomplete function address scopes')
         run = json.loads((root / statement['run_receipt']).read_text())
         if run['exit_code'] != 0 or statement['root'] not in run['command']:
             raise ValueError('formal statement check receipt mismatch')
@@ -92,12 +100,13 @@ def inventory(root):
                 'has_symtab': obj['has_symtab'], 'reproducible': receipt['reproducible'],
                 'runtime_tests': receipt['tests'],
                 'lean_status': lean_status,
-                'formal_statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root']} for s in formal if obj['path'] in s['artifact_sha256']],
+                'formal_statements': [{k: s[k] for k in ['kind', 'status', 'declaration', 'root', 'viewer_kind'] if k in s} for s in formal if obj['path'] in s['artifact_sha256']],
                 'contextual_c_to_elf_statements': sum(s['kind'] == 'contextual_c_to_elf' and obj['path'] in s['artifact_sha256'] for s in formal),
                 'functional_equivalence_statements': sum(s['kind'] == 'functional_equivalence' and obj['path'] in s['artifact_sha256'] for s in formal)})
     return {'schema_version': 1,
             'hierarchy': ['project', 'version_components', 'source_id', 'build.configuration',
                           'build.target', 'build.compiler', 'build.cflags', 'stripping', 'sha256'],
+            'binary_viewer_statement_count': sum(s.get('viewer_kind') == 'binary_equivalence' for s in formal),
             'formal_statement_counts': {kind: sum(s['kind'] == kind for s in formal) for kind in ['contextual_c_to_elf', 'functional_equivalence']},
             'artifact_rows': len(artifacts), 'unique_content_hashes': len({a['sha256'] for a in artifacts}),
             'limits': ['Only completed hash-checked outputs are indexed; no planned builds count as artifacts.',

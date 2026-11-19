@@ -1,0 +1,30 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.CjsonTypePredicates.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonTypePredicates/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonTypePredicates/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonTypePredicates/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonTypePredicates/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonTypePredicates/Thms.lean"
+  ],
+  "limits": [
+    "All corpus refinement obligations are stated-unproved. No semantic proof or exporter run is inferred from this display.",
+    "Exact source/Core/ELF evidence does not establish compiler correctness or full translation-unit frontend adequacy. No interactive compilation or source-to-instruction segment mapping is supplied.",
+    "Actual cJSON layout:64 bytes/align8; signed int type field at offset24. Null and initialized-object cases, pointer provenance, reads and preservation are explicit obligations.",
+    "The preprocessing receipt does not establish that host system headers match the canonical build. Historical cJSON repeat-runtime gaps remain disclosed."
+  ],
+  "source": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/context.c"
+  },
+  "projection": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/projection.json",
+    "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/runtime.sexp"
+  }
+}

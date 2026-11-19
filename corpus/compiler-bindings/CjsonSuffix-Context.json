@@ -1,0 +1,42 @@
+{
+  "schema": "silmaril.corpus-view.v1",
+  "registry_root": "Silmaril.Elf.Corpus.CjsonSuffix.Context.Defs",
+  "context_modules": [
+    "Silmaril/Elf/Corpus/CjsonSuffix/Context/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonSuffix/Source/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonSuffix/Source/Elaboration/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonSuffix/Source/Elaboration/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonSuffix/Source/Projection/Defs.lean",
+    "Silmaril/Elf/Corpus/CjsonSuffix/Source/Projection/Thms.lean",
+    "Silmaril/Elf/Corpus/CjsonSuffix/Thms.lean",
+    "Silmaril/Cerberus/Elaboration/Assignments/Defs.lean",
+    "Silmaril/Project/Shapes/Contextual/Defs.lean",
+    "Silmaril/X86/SystemV/Defs.lean",
+    "Silmaril/X86/SystemV/CApi/Defs.lean",
+    "Silmaril/Process/Memory.lean"
+  ],
+  "source": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/suffix-object/context.c"
+  },
+  "projection": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/suffix-object/projection.json",
+    "tu": "corpus/cjson/semantic-inputs/linux-x86_64/predicates/translation-unit.i"
+  },
+  "core": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/suffix-object/program.sexp"
+  },
+  "runtime": {
+    "path": "corpus/cjson/semantic-inputs/linux-x86_64/suffix-object/runtime.sexp"
+  },
+  "limits": [
+    "All contextual obligations remain UNPROVED;0 corpus semantic proofs; no interactive compilation.",
+    "Actual static suffix_object from unchanged cJSON1.7.19 source; exact saved TU/struct/function spans and separately pinned upstream function. Existing O0 local symbol s25_40 at0x55ad,size38, not a manufactured out-of-line symbol.",
+    "Restricted four-case disjoint live-object domain: two writable64-byte align8 cJSON objects plus one unrelated readonly object; actual next offset0 and prev offset8. Old fields vary independently between null and the third object. Null/alias/dead arguments are outside the stated context.",
+    "Actual two-pointer/void source procedure metadata, computed Core, SysV RDI/RSI ABI and real ELF CodeAt. No stub/default body/callee or assumed source refinement.",
+    "No desired final-heap/result/refinement/safety/termination premise occurs at entry. Source observation demands exactly both typed pointer stores, preserving the complete memory record including allocation/exposure/lifetime/stdout and pointer provenance. ONLY diagnostic currentLocation is normalized. The actual two lifted negative actions must advance nextExcluded by2; that accounting is an explicit postcondition, never discarded.",
+    "Target footprint contains ONLY the two eight-byte written fields plus24 private stack bytes. Both actual stored pointer words are observed; every unrelated byte and all region metadata must be preserved. Initial192 caller bytes correspond, including old pointer words; stack/code/heap disjointness and all return/frame obligations remain unproved.",
+    "All4 actual Core executions match the complete-record two-store postcondition. Negatives reject missing writes, unrelated-byte/provenance/lifetime/stdout/counter mutations, readonly stores and missing allocations. Outside-allocation lifetime mapping remains explicitly Unsupported. Finite regressions are not contextual proofs.",
+    "Native four-case regressions invoke the exact existing38-byte body, with complete192-byte caller-memory checks and mutation negatives. Native object addresses differ from the formal fixed addresses; no machine ABI/frame theorem follows from these executions.",
+    "Saved preprocessing reused without new artifact build; historical image/header identity, original O0 TU/build correspondence and whole-TU/frontend adequacy remain unproved. Existing upstream-security, unsupported FIPS, cJSON runtime/provenance and distinct jemalloc configuration limits remain. Broad corpus function/equivalence coverage is unfinished."
+  ]
+}

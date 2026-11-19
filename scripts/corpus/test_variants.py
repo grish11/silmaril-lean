@@ -18,6 +18,15 @@ class VariantContracts(unittest.TestCase):
         unchanged = module_parts({'path': 'corpus/variants/mimalloc/2.1.9/default/x86_64/O0/stripped/libmimalloc.so.2.1'})
         self.assertEqual(unchanged[-1], 'LibmimallocSo21')
 
+    def test_explicit_o2_profile_is_accepted_without_launching_docker(self):
+        # Invalid configuration selection stops before Docker inspection; O2 must pass argparse.
+        result = subprocess.run(['python3', 'scripts/corpus/variants.py', '--package', 'cjson',
+            '--level', 'O2', '--configuration', 'asm', '--work', '/unused'], cwd=ROOT,
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('--configuration requires exactly --package openssl', result.stderr)
+        self.assertNotIn('invalid choice', result.stderr)
+
     def test_resource_and_flag_guards(self):
         script = '. corpus/common.sh; printf "%s %s" "$JOBS" "$CORPUS_OPT_LEVEL"'
         for jobs, level, expected in [('8', 'O0', 0), ('1', 'Og', 0), ('9', 'O2', 2), ('0', 'O2', 2), ('8', 'fast', 2)]:

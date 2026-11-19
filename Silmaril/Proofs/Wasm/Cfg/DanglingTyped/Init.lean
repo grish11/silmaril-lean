@@ -86,14 +86,23 @@ theorem not_reach_beyond_s {s : Store H} {a : Nat} (ha : s.exns.length ≤ a) {u
     omega
   | _ => intro he; cases he
 
-/-- **A typed store with supported functions satisfies the relaxed store invariant.** -/
-theorem storeOkD_of_storeOk {s : Store H} (hs : StoreOk s) (hF : FuncsSupp s) : StoreOkD s := by
-  let p : ExnInst := ⟨s.tags.length, []⟩
-  have hw : Widen s (gst s (s.tags ++ [padTag]) (s.exns ++ [p])) :=
-    ⟨rfl, List.prefix_append _ _, fun a y hy => ⟨y, by
-      show (s.exns ++ [p])[a]? = _
-      rw [List.getElem?_append_left (List.getElem?_eq_some_iff.1 hy).1]; exact hy⟩⟩
-  refine ⟨hF, heapBelow_of_storeOk hs, s.tags ++ [padTag], s.exns ++ [p], ⟨List.prefix_append _ _,
+/-- The exception pad of the padded witness of a store. -/
+def padExn (s : Store H) : ExnInst := ⟨s.tags.length, []⟩
+
+theorem padWiden (s : Store H) :
+    Widen s (gst s (s.tags ++ [padTag]) (s.exns ++ [padExn s])) :=
+  ⟨rfl, List.prefix_append _ _, fun a y hy => ⟨y, by
+    show (s.exns ++ [padExn s])[a]? = _
+    rw [List.getElem?_append_left (List.getElem?_eq_some_iff.1 hy).1]; exact hy⟩⟩
+
+/-- **The padded witness of a typed store**: one fresh tag, one pad exception; it is a typing
+witness and it is `StoreOk`. -/
+theorem padWitness_ok {s : Store H} (hs : StoreOk s) :
+    GhostOk s (s.tags ++ [padTag]) (s.exns ++ [padExn s]) ∧
+      StoreOk (gst s (s.tags ++ [padTag]) (s.exns ++ [padExn s])) := by
+  let p : ExnInst := padExn s
+  have hw : Widen s (gst s (s.tags ++ [padTag]) (s.exns ++ [p])) := padWiden s
+  refine ⟨⟨List.prefix_append _ _,
     by simp, fun a e he => ⟨e, ?_, rfl, ?_⟩, fun a e' ha he' => ?_⟩, ?_⟩
   · rw [List.getElem?_append_left (List.getElem?_eq_some_iff.1 he).1]; exact he
   · have := forall₂_map_self (S := ValApprox (s.exns ++ [p]).length) (g := id) (l := e.fields)
@@ -121,7 +130,7 @@ theorem storeOkD_of_storeOk {s : Store H} (hs : StoreOk s) (hF : FuncsSupp s) : 
       · obtain ⟨ti, ts, h1, h2, h3⟩ := hs.exns x h
         exact ⟨ti, ts, hw.tag? h1, h2, h3.imp fun _ _ h => hw.valOk h⟩
       · rw [List.mem_singleton.1 h]
-        refine ⟨padTag, Ty.ofList [], ?_, padTy_expand, by simp [p]⟩
+        refine ⟨padTag, Ty.ofList [], ?_, padTy_expand, by simp [padExn]⟩
         show (s.tags ++ [padTag])[s.tags.length]? = some padTag
         simp
     · intro a ha hr
@@ -129,6 +138,10 @@ theorem storeOkD_of_storeOk {s : Store H} (hs : StoreOk s) (hF : FuncsSupp s) : 
       rcases Nat.lt_or_ge a s.exns.length with hlt | hge
       · exact hs.acyclicExns a hlt hr'
       · exact not_reach_beyond_s hge hr' rfl
+
+/-- **A typed store with supported functions satisfies the relaxed store invariant.** -/
+theorem storeOkD_of_storeOk {s : Store H} (hs : StoreOk s) (hF : FuncsSupp s) : StoreOkD s :=
+  ⟨hF, heapBelow_of_storeOk hs, _, _, (padWitness_ok hs).1, (padWitness_ok hs).2⟩
 
 /-- **A typed invocation from a relaxed store satisfies the relaxed invariant.** The invocation is
 typed on a witness of the store. -/
@@ -147,5 +160,14 @@ theorem configOkD_invoke {s : Store H} {T : List TagInst} {X : List ExnInst} (hF
   · exact asupp_vals vs x hx
   · exact .ref _
   · exact .callRefType _
+
+/-- **A typed invocation in a typed store with supported functions enters the relaxed
+invariant**, typed on the padded witness. -/
+theorem configOkD_invoke_of_storeOk {s : Store H} (hs : StoreOk s) (hF : FuncsSupp s) {a : Nat}
+    {vs : List Val} (hok : InvokeOk s a vs) : ConfigOkD (invoke s a vs) := by
+  obtain ⟨fi, ps, rs, hfi, he, hvs⟩ := hok
+  have hw := padWiden s
+  exact configOkD_invoke hF (heapBelow_of_storeOk hs) (padWitness_ok hs).1 (padWitness_ok hs).2
+    ⟨fi, ps, rs, by rw [hw.funcs]; exact hfi, he, hvs.imp fun _ _ h => hw.valOk h⟩
 
 end Silmaril.Wasm.Cfg.Proofs.DanglingTyped

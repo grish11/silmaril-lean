@@ -1,0 +1,4817 @@
+{
+  "evidence": "paired artifacts: all executable sections have equal names, addresses, sizes and bytes",
+  "executable_sections": {
+    ".fini": {
+      "address": 709520,
+      "sha256": "a723fce1ad95646a6431b7b50f8cba4df6ab3ca80b4dcdf16ec3f4a09e47c6fa",
+      "size": 24
+    },
+    ".init": {
+      "address": 262568,
+      "sha256": "00d2462ebb4fa21a90a88bd7c6f06a9699c212f888dbd0b865f5171210e2d4b2",
+      "size": 28
+    },
+    ".plt": {
+      "address": 262608,
+      "sha256": "7834b76b5482c975693b08312f918e856f5e4aca9acc5b4bceff33e4d489ed93",
+      "size": 26912
+    },
+    ".text": {
+      "address": 289536,
+      "sha256": "1a70d5df3cb940e2f21aecdb37e3eb7c743ec112bdebf7fd0dd173bb091b577f",
+      "size": 419984
+    }
+  },
+  "limits": "Tool-derived address mapping from this exact pair; not recovered symbols in arbitrary stripped files, source binding, a Lean decomposition or functional equivalence proof.",
+  "original_sha256": "36e2bef070c841c20b39b075196f7cf879dcf190c17fcf6b6cd6d378aebb2e25",
+  "readelf": "GNU readelf (GNU Binutils for Debian) 2.44",
+  "schema_version": 1,
+  "strip": "GNU strip (GNU Binutils for Debian) 2.44",
+  "stripped_sha256": "4bff3b156559c29250d28c0736c68ba07d57b608ed0fd87f7061bdb8becdcfcb",
+  "unstripped_function_symbols": [
+    {
+      "binding": "LOCAL",
+      "name": "call_weak_fn",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 290420
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_FUNCTION_hfn_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 447552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_FUNCTION_cfn_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 447560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_FUNCTION_doall_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 447568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_FUNCTION_doall_arg_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 447584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "function_cmp",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 447592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "function_hash",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 447616
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_cmd",
+      "section_index": "12",
+      "size": 508,
+      "type": "FUNC",
+      "value": 447624
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SortFnByName",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 448132
+    },
+    {
+      "binding": "LOCAL",
+      "name": "prog_init",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 448168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_pollReq",
+      "section_index": "12",
+      "size": 336,
+      "type": "FUNC",
+      "value": 290688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "delayed_delivery",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 291024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_certConf",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 291232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_genm",
+      "section_index": "12",
+      "size": 1212,
+      "type": "FUNC",
+      "value": 291560
+    },
+    {
+      "binding": "LOCAL",
+      "name": "refcert_cmp",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 292772
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_rr",
+      "section_index": "12",
+      "size": 316,
+      "type": "FUNC",
+      "value": 292932
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_cert_request",
+      "section_index": "12",
+      "size": 1136,
+      "type": "FUNC",
+      "value": 293248
+    },
+    {
+      "binding": "LOCAL",
+      "name": "clean_transaction",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 294384
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_error.part.0",
+      "section_index": "12",
+      "size": 400,
+      "type": "FUNC",
+      "value": 294500
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process_error",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 294912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mock_srv_ctx_free.part.0",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 295048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_revoke",
+      "section_index": "12",
+      "size": 1580,
+      "type": "FUNC",
+      "value": 299872
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lookup_conf",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 301452
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_body.constprop.0",
+      "section_index": "12",
+      "size": 4448,
+      "type": "FUNC",
+      "value": 301568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "certify.constprop.0",
+      "section_index": "12",
+      "size": 524,
+      "type": "FUNC",
+      "value": 306016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "make_revoked",
+      "section_index": "12",
+      "size": 444,
+      "type": "FUNC",
+      "value": 307600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "dummy_psk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 319136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_to_bio_err",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 320448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_to_bio_out",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 320496
+    },
+    {
+      "binding": "LOCAL",
+      "name": "opt_str",
+      "section_index": "12",
+      "size": 264,
+      "type": "FUNC",
+      "value": 320544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "truststore_set_host_etc",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 320808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_trusted",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 320972
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cmp_server",
+      "section_index": "12",
+      "size": 712,
+      "type": "FUNC",
+      "value": 321164
+    },
+    {
+      "binding": "LOCAL",
+      "name": "write_PKIMESSAGE",
+      "section_index": "12",
+      "size": 432,
+      "type": "FUNC",
+      "value": 321888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "read_PKIMESSAGE",
+      "section_index": "12",
+      "size": 552,
+      "type": "FUNC",
+      "value": 322320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "read_write_req_resp",
+      "section_index": "12",
+      "size": 936,
+      "type": "FUNC",
+      "value": 322880
+    },
+    {
+      "binding": "LOCAL",
+      "name": "transform_opts",
+      "section_index": "12",
+      "size": 864,
+      "type": "FUNC",
+      "value": 323816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_name",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 324680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_itavs",
+      "section_index": "12",
+      "size": 584,
+      "type": "FUNC",
+      "value": 324928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "save_free_certs",
+      "section_index": "12",
+      "size": 800,
+      "type": "FUNC",
+      "value": 325512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "prev_item.part.0",
+      "section_index": "12",
+      "size": 432,
+      "type": "FUNC",
+      "value": 326312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "delete_file",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 326752
+    },
+    {
+      "binding": "LOCAL",
+      "name": "save_cert_or_delete",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 326952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "read_config",
+      "section_index": "12",
+      "size": 1508,
+      "type": "FUNC",
+      "value": 327172
+    },
+    {
+      "binding": "LOCAL",
+      "name": "setup_ssl_ctx",
+      "section_index": "12",
+      "size": 1840,
+      "type": "FUNC",
+      "value": 328680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "setup_protection_ctx",
+      "section_index": "12",
+      "size": 1924,
+      "type": "FUNC",
+      "value": 330528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "setup_client_ctx",
+      "section_index": "12",
+      "size": 13340,
+      "type": "FUNC",
+      "value": 332452
+    },
+    {
+      "binding": "LOCAL",
+      "name": "setup_srv_ctx",
+      "section_index": "12",
+      "size": 2792,
+      "type": "FUNC",
+      "value": 345792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cms_cb",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 360640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_content_info",
+      "section_index": "12",
+      "size": 300,
+      "type": "FUNC",
+      "value": 360720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "make_names_stack",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 361024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cms_set_pkey_param",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 361280
+    },
+    {
+      "binding": "LOCAL",
+      "name": "save_certs",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 361472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "gnames_stack_print",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 361612
+    },
+    {
+      "binding": "LOCAL",
+      "name": "show_digests",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 376864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_out",
+      "section_index": "12",
+      "size": 640,
+      "type": "FUNC",
+      "value": 377120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_fp_oneshot_sign",
+      "section_index": "12",
+      "size": 544,
+      "type": "FUNC",
+      "value": 377760
+    },
+    {
+      "binding": "LOCAL",
+      "name": "dsa_to_dh",
+      "section_index": "12",
+      "size": 440,
+      "type": "FUNC",
+      "value": 382688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "show_ciphers",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 392544
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_hex",
+      "section_index": "12",
+      "size": 296,
+      "type": "FUNC",
+      "value": 392740
+    },
+    {
+      "binding": "LOCAL",
+      "name": "append_buf",
+      "section_index": "12",
+      "size": 396,
+      "type": "FUNC",
+      "value": 398176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "util_store_cap",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 398572
+    },
+    {
+      "binding": "LOCAL",
+      "name": "util_do_cmds.constprop.0",
+      "section_index": "12",
+      "size": 388,
+      "type": "FUNC",
+      "value": 398688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "self_test_events",
+      "section_index": "12",
+      "size": 436,
+      "type": "FUNC",
+      "value": 402400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_mac",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 402848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_mac",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 403052
+    },
+    {
+      "binding": "LOCAL",
+      "name": "write_config_fips_section.constprop.0",
+      "section_index": "12",
+      "size": 1536,
+      "type": "FUNC",
+      "value": 403172
+    },
+    {
+      "binding": "LOCAL",
+      "name": "alloc_kdf_algorithm_name",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 415776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "provider_cmp",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 417344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "display_random",
+      "section_index": "12",
+      "size": 448,
+      "type": "FUNC",
+      "value": 417408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_providers",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 417856
+    },
+    {
+      "binding": "LOCAL",
+      "name": "md_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 417896
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_digests",
+      "section_index": "12",
+      "size": 560,
+      "type": "FUNC",
+      "value": 417960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_digests",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 425824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "legacy_md_fn",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 425712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "kdf_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 418528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_kdfs",
+      "section_index": "12",
+      "size": 512,
+      "type": "FUNC",
+      "value": 418592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_kdfs",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 425996
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mac_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 419104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_macs",
+      "section_index": "12",
+      "size": 512,
+      "type": "FUNC",
+      "value": 419168
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_macs",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 426176
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_type",
+      "section_index": "12",
+      "size": 552,
+      "type": "FUNC",
+      "value": 419680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cipher_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 420232
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_ciphers",
+      "section_index": "12",
+      "size": 560,
+      "type": "FUNC",
+      "value": 420296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_ciphers",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 426336
+    },
+    {
+      "binding": "LOCAL",
+      "name": "legacy_cipher_fn",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 426508
+    },
+    {
+      "binding": "LOCAL",
+      "name": "encoder_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 420864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_encoders",
+      "section_index": "12",
+      "size": 476,
+      "type": "FUNC",
+      "value": 420928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_encoders",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 426688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "decoder_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 421408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_decoders",
+      "section_index": "12",
+      "size": 476,
+      "type": "FUNC",
+      "value": 421472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_decoders",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 426860
+    },
+    {
+      "binding": "LOCAL",
+      "name": "keymanager_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 421952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_keymanagers",
+      "section_index": "12",
+      "size": 548,
+      "type": "FUNC",
+      "value": 422016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_keymanagers",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 427040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "skeymanager_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 422564
+    },
+    {
+      "binding": "LOCAL",
+      "name": "signature_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 422628
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_signatures",
+      "section_index": "12",
+      "size": 496,
+      "type": "FUNC",
+      "value": 422692
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_signatures",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 427372
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_tls_sigalg_caps",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 423200
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_provider_tls_sigalgs",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 423244
+    },
+    {
+      "binding": "LOCAL",
+      "name": "asymcipher_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 423400
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_asymciphers",
+      "section_index": "12",
+      "size": 496,
+      "type": "FUNC",
+      "value": 423464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_asymciph",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 427552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "kex_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 423968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_keyexchanges",
+      "section_index": "12",
+      "size": 496,
+      "type": "FUNC",
+      "value": 424032
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_kex",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 427724
+    },
+    {
+      "binding": "LOCAL",
+      "name": "kem_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 424528
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_kems",
+      "section_index": "12",
+      "size": 496,
+      "type": "FUNC",
+      "value": 424592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_kem",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 427904
+    },
+    {
+      "binding": "LOCAL",
+      "name": "list_store_loaders",
+      "section_index": "12",
+      "size": 388,
+      "type": "FUNC",
+      "value": 425088
+    },
+    {
+      "binding": "LOCAL",
+      "name": "store_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 425476
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_store_loaders",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 428076
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_rands",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 425540
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_skeymanagers",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 427212
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rand_cmp",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 428160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "alloc_mac_algorithm_name",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 436800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "md5crypt",
+      "section_index": "12",
+      "size": 1264,
+      "type": "FUNC",
+      "value": 448960
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_passwd.constprop.0",
+      "section_index": "12",
+      "size": 4340,
+      "type": "FUNC",
+      "value": 450224
+    },
+    {
+      "binding": "LOCAL",
+      "name": "jdk_trust",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 455680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "alg_print.isra.0",
+      "section_index": "12",
+      "size": 724,
+      "type": "FUNC",
+      "value": 455788
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_keyop",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 471968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "str_free",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 480704
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sk_strcmp",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 480720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "add_entry",
+      "section_index": "12",
+      "size": 768,
+      "type": "FUNC",
+      "value": 480736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "handle_symlink",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 481504
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_dir",
+      "section_index": "12",
+      "size": 2408,
+      "type": "FUNC",
+      "value": 481832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_OPENSSL_STRING_hash_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 484768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_OPENSSL_STRING_comp_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 484776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_OPENSSL_STRING_doall_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 484784
+    },
+    {
+      "binding": "LOCAL",
+      "name": "lh_OPENSSL_STRING_doall_arg_thunk",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 484800
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ext_name_cmp",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 484808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "exts_cleanup",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 484812
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ext_name_hash",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 484832
+    },
+    {
+      "binding": "LOCAL",
+      "name": "join",
+      "section_index": "12",
+      "size": 204,
+      "type": "FUNC",
+      "value": 484836
+    },
+    {
+      "binding": "LOCAL",
+      "name": "build_data.constprop.0",
+      "section_index": "12",
+      "size": 568,
+      "type": "FUNC",
+      "value": 485040
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ocsp_resp_cb",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 501408
+    },
+    {
+      "binding": "LOCAL",
+      "name": "new_session_cb",
+      "section_index": "12",
+      "size": 208,
+      "type": "FUNC",
+      "value": 501664
+    },
+    {
+      "binding": "LOCAL",
+      "name": "serverinfo_cli_parse_cb",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 501872
+    },
+    {
+      "binding": "LOCAL",
+      "name": "next_proto_cb",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 502048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "psk_client_cb",
+      "section_index": "12",
+      "size": 504,
+      "type": "FUNC",
+      "value": 502304
+    },
+    {
+      "binding": "LOCAL",
+      "name": "psk_use_session_cb",
+      "section_index": "12",
+      "size": 460,
+      "type": "FUNC",
+      "value": 502816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "checked_uint8",
+      "section_index": "12",
+      "size": 232,
+      "type": "FUNC",
+      "value": 503276
+    },
+    {
+      "binding": "LOCAL",
+      "name": "tlsa_import_rrset",
+      "section_index": "12",
+      "size": 428,
+      "type": "FUNC",
+      "value": 503520
+    },
+    {
+      "binding": "LOCAL",
+      "name": "hexdecode",
+      "section_index": "12",
+      "size": 316,
+      "type": "FUNC",
+      "value": 503948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ldap_ExtendedResponse_parse",
+      "section_index": "12",
+      "size": 492,
+      "type": "FUNC",
+      "value": 504264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "user_data_execute",
+      "section_index": "12",
+      "size": 692,
+      "type": "FUNC",
+      "value": 504768
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_stuff",
+      "section_index": "12",
+      "size": 2792,
+      "type": "FUNC",
+      "value": 505472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ssl_servername_cb",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 508264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "user_data_process",
+      "section_index": "12",
+      "size": 1116,
+      "type": "FUNC",
+      "value": 508416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "next_proto_cb",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 528608
+    },
+    {
+      "binding": "LOCAL",
+      "name": "not_resumable_sess_cb",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 528640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_stats",
+      "section_index": "12",
+      "size": 540,
+      "type": "FUNC",
+      "value": 528648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "count_reads_callback",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 529188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_connection_info",
+      "section_index": "12",
+      "size": 968,
+      "type": "FUNC",
+      "value": 529448
+    },
+    {
+      "binding": "LOCAL",
+      "name": "www_body",
+      "section_index": "12",
+      "size": 3356,
+      "type": "FUNC",
+      "value": 530416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "rev_body",
+      "section_index": "12",
+      "size": 1128,
+      "type": "FUNC",
+      "value": 533772
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ssl_servername_cb",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 534912
+    },
+    {
+      "binding": "LOCAL",
+      "name": "psk_find_session_cb",
+      "section_index": "12",
+      "size": 412,
+      "type": "FUNC",
+      "value": 535236
+    },
+    {
+      "binding": "LOCAL",
+      "name": "psk_server_cb",
+      "section_index": "12",
+      "size": 608,
+      "type": "FUNC",
+      "value": 535648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "alpn_cb",
+      "section_index": "12",
+      "size": 336,
+      "type": "FUNC",
+      "value": 536256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "generate_session_id",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 536592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "init_session_cache_ctx",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 536776
+    },
+    {
+      "binding": "LOCAL",
+      "name": "add_session",
+      "section_index": "12",
+      "size": 480,
+      "type": "FUNC",
+      "value": 537344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_session",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 537120
+    },
+    {
+      "binding": "LOCAL",
+      "name": "del_session",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 536864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cert_status_cb",
+      "section_index": "12",
+      "size": 1468,
+      "type": "FUNC",
+      "value": 537824
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sv_body",
+      "section_index": "12",
+      "size": 4088,
+      "type": "FUNC",
+      "value": 539296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "doConnection",
+      "section_index": "12",
+      "size": 436,
+      "type": "FUNC",
+      "value": 552736
+    },
+    {
+      "binding": "LOCAL",
+      "name": "smime_cb",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 561344
+    },
+    {
+      "binding": "LOCAL",
+      "name": "alarmed",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 567552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "have_cipher",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 567592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "RAND_bytes_loop",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 567720
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SIG_keygen_loop",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 567848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "KEM_keygen_loop",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 568000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "FFDH_derive_key_loop",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 568192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ECDH_EVP_derive_key_loop",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 568352
+    },
+    {
+      "binding": "LOCAL",
+      "name": "KEM_encaps_loop",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 568496
+    },
+    {
+      "binding": "LOCAL",
+      "name": "KEM_decaps_loop",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 568712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SIG_verify_loop",
+      "section_index": "12",
+      "size": 300,
+      "type": "FUNC",
+      "value": 568928
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SM2_verify_loop",
+      "section_index": "12",
+      "size": 340,
+      "type": "FUNC",
+      "value": 569228
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SM2_sign_loop",
+      "section_index": "12",
+      "size": 372,
+      "type": "FUNC",
+      "value": 569568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EdDSA_verify_loop",
+      "section_index": "12",
+      "size": 304,
+      "type": "FUNC",
+      "value": 569952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EdDSA_sign_loop",
+      "section_index": "12",
+      "size": 328,
+      "type": "FUNC",
+      "value": 570256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ECDSA_verify_loop",
+      "section_index": "12",
+      "size": 228,
+      "type": "FUNC",
+      "value": 570592
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ECDSA_sign_loop",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 570820
+    },
+    {
+      "binding": "LOCAL",
+      "name": "DSA_verify_loop",
+      "section_index": "12",
+      "size": 228,
+      "type": "FUNC",
+      "value": 571056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "DSA_sign_loop",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 571296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "RSA_decrypt_loop",
+      "section_index": "12",
+      "size": 248,
+      "type": "FUNC",
+      "value": 571532
+    },
+    {
+      "binding": "LOCAL",
+      "name": "RSA_encrypt_loop",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 571780
+    },
+    {
+      "binding": "LOCAL",
+      "name": "RSA_verify_loop",
+      "section_index": "12",
+      "size": 228,
+      "type": "FUNC",
+      "value": 572016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "RSA_sign_loop",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 572256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Update_loop_aead_enc",
+      "section_index": "12",
+      "size": 556,
+      "type": "FUNC",
+      "value": 572492
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_result",
+      "section_index": "12",
+      "size": 240,
+      "type": "FUNC",
+      "value": 573056
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SIG_sign_loop",
+      "section_index": "12",
+      "size": 296,
+      "type": "FUNC",
+      "value": 573296
+    },
+    {
+      "binding": "LOCAL",
+      "name": "GHASH_loop",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 573600
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Update_loop",
+      "section_index": "12",
+      "size": 464,
+      "type": "FUNC",
+      "value": 573792
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Update_loop_aead_dec",
+      "section_index": "12",
+      "size": 720,
+      "type": "FUNC",
+      "value": 574256
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Cipher_loop",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 574976
+    },
+    {
+      "binding": "LOCAL",
+      "name": "signatures_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 575200
+    },
+    {
+      "binding": "LOCAL",
+      "name": "kems_cmp",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 575264
+    },
+    {
+      "binding": "LOCAL",
+      "name": "have_md",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 575328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "init_evp_cipher_ctx",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 575440
+    },
+    {
+      "binding": "LOCAL",
+      "name": "check_block_size",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 575624
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mac_setup",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 575808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_message",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 576000
+    },
+    {
+      "binding": "LOCAL",
+      "name": "pkey_print_message",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 576136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "kskey_print_message",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 576272
+    },
+    {
+      "binding": "LOCAL",
+      "name": "mac_teardown",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 576416
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_ecdsa",
+      "section_index": "12",
+      "size": 556,
+      "type": "FUNC",
+      "value": 576512
+    },
+    {
+      "binding": "LOCAL",
+      "name": "run_benchmark",
+      "section_index": "12",
+      "size": 1140,
+      "type": "FUNC",
+      "value": 577068
+    },
+    {
+      "binding": "LOCAL",
+      "name": "Time_F",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 578208
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_signatures",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 578284
+    },
+    {
+      "binding": "LOCAL",
+      "name": "collect_kem",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 578464
+    },
+    {
+      "binding": "LOCAL",
+      "name": "strtoint.constprop.0",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 578636
+    },
+    {
+      "binding": "LOCAL",
+      "name": "sstrsep.constprop.0",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 578816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_multi",
+      "section_index": "12",
+      "size": 2296,
+      "type": "FUNC",
+      "value": 579008
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_MAC_loop.isra.0",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 581312
+    },
+    {
+      "binding": "LOCAL",
+      "name": "HMAC_loop",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 581548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "CMAC_loop",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 581552
+    },
+    {
+      "binding": "LOCAL",
+      "name": "KMAC128_loop",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 581568
+    },
+    {
+      "binding": "LOCAL",
+      "name": "KMAC256_loop",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 581572
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Digest_loop.isra.0",
+      "section_index": "12",
+      "size": 412,
+      "type": "FUNC",
+      "value": 581576
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Digest_MD2_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 581988
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Digest_MDC2_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582016
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Digest_MD4_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582032
+    },
+    {
+      "binding": "LOCAL",
+      "name": "MD5_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA1_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582064
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA256_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582080
+    },
+    {
+      "binding": "LOCAL",
+      "name": "SHA512_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582096
+    },
+    {
+      "binding": "LOCAL",
+      "name": "WHIRLPOOL_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582112
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Digest_RMD160_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "EVP_Digest_md_loop",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 582144
+    },
+    {
+      "binding": "LOCAL",
+      "name": "multiblock_speed",
+      "section_index": "12",
+      "size": 1516,
+      "type": "FUNC",
+      "value": 582160
+    },
+    {
+      "binding": "LOCAL",
+      "name": "srp_verify_user",
+      "section_index": "12",
+      "size": 400,
+      "type": "FUNC",
+      "value": 615648
+    },
+    {
+      "binding": "LOCAL",
+      "name": "srp_create_user",
+      "section_index": "12",
+      "size": 372,
+      "type": "FUNC",
+      "value": 616048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_index",
+      "section_index": "12",
+      "size": 268,
+      "type": "FUNC",
+      "value": 616420
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_entry.part.0.isra.0",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 616688
+    },
+    {
+      "binding": "LOCAL",
+      "name": "print_user.part.0",
+      "section_index": "12",
+      "size": 148,
+      "type": "FUNC",
+      "value": 616816
+    },
+    {
+      "binding": "LOCAL",
+      "name": "indent_printf",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 621472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "process",
+      "section_index": "12",
+      "size": 1392,
+      "type": "FUNC",
+      "value": 621696
+    },
+    {
+      "binding": "LOCAL",
+      "name": "verify_cb",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 624640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "next_serial",
+      "section_index": "12",
+      "size": 344,
+      "type": "FUNC",
+      "value": 624644
+    },
+    {
+      "binding": "LOCAL",
+      "name": "create_digest.constprop.0",
+      "section_index": "12",
+      "size": 388,
+      "type": "FUNC",
+      "value": 624992
+    },
+    {
+      "binding": "LOCAL",
+      "name": "serial_cb",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 625380
+    },
+    {
+      "binding": "LOCAL",
+      "name": "cb",
+      "section_index": "12",
+      "size": 396,
+      "type": "FUNC",
+      "value": 629952
+    },
+    {
+      "binding": "LOCAL",
+      "name": "check",
+      "section_index": "12",
+      "size": 860,
+      "type": "FUNC",
+      "value": 630348
+    },
+    {
+      "binding": "LOCAL",
+      "name": "warn_copying",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 633376
+    },
+    {
+      "binding": "LOCAL",
+      "name": "callb",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 633472
+    },
+    {
+      "binding": "LOCAL",
+      "name": "provider_free",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 645024
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_prov_param",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 645028
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_x509_ctrl_string",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 646848
+    },
+    {
+      "binding": "LOCAL",
+      "name": "x509_ctrl",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 647136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "x509_req_ctrl",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 647328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "index_name_qual",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 647584
+    },
+    {
+      "binding": "LOCAL",
+      "name": "index_serial_LHASH_COMP",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 647616
+    },
+    {
+      "binding": "LOCAL",
+      "name": "warn_cert_msg",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 647680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "warn_cert",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 647808
+    },
+    {
+      "binding": "LOCAL",
+      "name": "index_name_LHASH_HASH",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 648004
+    },
+    {
+      "binding": "LOCAL",
+      "name": "index_serial_LHASH_HASH",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 648012
+    },
+    {
+      "binding": "LOCAL",
+      "name": "adapt_keyid_ext",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 648048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_multi_opts.part.0",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 648872
+    },
+    {
+      "binding": "LOCAL",
+      "name": "nodes_print",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 649152
+    },
+    {
+      "binding": "LOCAL",
+      "name": "index_name_LHASH_COMP",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 653100
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_sign_init",
+      "section_index": "12",
+      "size": 332,
+      "type": "FUNC",
+      "value": 657444
+    },
+    {
+      "binding": "LOCAL",
+      "name": "crls_http_cb",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 667748
+    },
+    {
+      "binding": "LOCAL",
+      "name": "bio_open_default_",
+      "section_index": "12",
+      "size": 504,
+      "type": "FUNC",
+      "value": 661104
+    },
+    {
+      "binding": "LOCAL",
+      "name": "app_get_pass",
+      "section_index": "12",
+      "size": 864,
+      "type": "FUNC",
+      "value": 662864
+    },
+    {
+      "binding": "LOCAL",
+      "name": "load_crl_crldp",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 667424
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ui_prompt_construct",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 673888
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ui_close",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 673968
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ui_write",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 674048
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ui_read",
+      "section_index": "12",
+      "size": 168,
+      "type": "FUNC",
+      "value": 674188
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ui_open",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 674368
+    },
+    {
+      "binding": "LOCAL",
+      "name": "engine_expect",
+      "section_index": "12",
+      "size": 40,
+      "type": "FUNC",
+      "value": 676640
+    },
+    {
+      "binding": "LOCAL",
+      "name": "engine_eof",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 676680
+    },
+    {
+      "binding": "LOCAL",
+      "name": "engine_error",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 676704
+    },
+    {
+      "binding": "LOCAL",
+      "name": "engine_close",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 676712
+    },
+    {
+      "binding": "LOCAL",
+      "name": "engine_load",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 676804
+    },
+    {
+      "binding": "LOCAL",
+      "name": "engine_open",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 677128
+    },
+    {
+      "binding": "LOCAL",
+      "name": "noteterm",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 677664
+    },
+    {
+      "binding": "LOCAL",
+      "name": "killall",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 677676
+    },
+    {
+      "binding": "LOCAL",
+      "name": "opt_number_error",
+      "section_index": "12",
+      "size": 188,
+      "type": "FUNC",
+      "value": 683136
+    },
+    {
+      "binding": "LOCAL",
+      "name": "valtype2param.isra.0",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 683328
+    },
+    {
+      "binding": "LOCAL",
+      "name": "get_sigtype",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 691456
+    },
+    {
+      "binding": "LOCAL",
+      "name": "set_cert_cb",
+      "section_index": "12",
+      "size": 536,
+      "type": "FUNC",
+      "value": 691656
+    },
+    {
+      "binding": "LOCAL",
+      "name": "security_callback_debug",
+      "section_index": "12",
+      "size": 1128,
+      "type": "FUNC",
+      "value": 692192
+    },
+    {
+      "binding": "LOCAL",
+      "name": "keylog_callback",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 693320
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ssl_excert_prepend.isra.0",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 693420
+    },
+    {
+      "binding": "LOCAL",
+      "name": "do_print_sigalgs.isra.0",
+      "section_index": "12",
+      "size": 660,
+      "type": "FUNC",
+      "value": 693548
+    },
+    {
+      "binding": "LOCAL",
+      "name": "dummy_srp",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 707936
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ssl_srp_verify_param_cb",
+      "section_index": "12",
+      "size": 624,
+      "type": "FUNC",
+      "value": 707948
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ssl_give_srp_client_pwd_cb",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 708576
+    },
+    {
+      "binding": "LOCAL",
+      "name": "ssl_srp_server_param_cb",
+      "section_index": "12",
+      "size": 232,
+      "type": "FUNC",
+      "value": 708720
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_providers_cleanup",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 645120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkeyparam_main",
+      "section_index": "12",
+      "size": 796,
+      "type": "FUNC",
+      "value": 471168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_create_libctx",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 643840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "index_index",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 654500
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_X509_REQ_verify",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 659460
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_load_config_internal",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 661608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_key_certs_crls",
+      "section_index": "12",
+      "size": 2564,
+      "type": "FUNC",
+      "value": 664224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_up_srp_verifier_file",
+      "section_index": "12",
+      "size": 228,
+      "type": "FUNC",
+      "value": 709196
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_http_tls_cb",
+      "section_index": "12",
+      "size": 568,
+      "type": "FUNC",
+      "value": 648304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_legacy_pkey_id",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 676296
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_csr",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 670056
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "check_cert_time_string",
+      "section_index": "12",
+      "size": 124,
+      "type": "FUNC",
+      "value": 671648
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_base_ui_method",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 674440
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set_sendError",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 296524
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_new",
+      "section_index": "12",
+      "size": 200,
+      "type": "FUNC",
+      "value": 297184
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkeyutl_main",
+      "section_index": "12",
+      "size": 6560,
+      "type": "FUNC",
+      "value": 472076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "make_engine_uri",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 676044
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setup_engine_loader",
+      "section_index": "12",
+      "size": 196,
+      "type": "FUNC",
+      "value": 677408
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_X509_REQ_sign",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 658956
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "list_main",
+      "section_index": "12",
+      "size": 8500,
+      "type": "FUNC",
+      "value": 428292
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_check_md",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 686604
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "srp_main",
+      "section_index": "12",
+      "size": 4492,
+      "type": "FUNC",
+      "value": 616964
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_csr_autofmt",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 670308
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_access",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 660720
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crl2pkcs7_main",
+      "section_index": "12",
+      "size": 1312,
+      "type": "FUNC",
+      "value": 375552
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "hex_prin",
+      "section_index": "12",
+      "size": 88,
+      "type": "FUNC",
+      "value": 465732
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ciphers_main",
+      "section_index": "12",
+      "size": 1292,
+      "type": "FUNC",
+      "value": 319144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_X509_CRL_sign",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 659112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_format_error",
+      "section_index": "12",
+      "size": 380,
+      "type": "FUNC",
+      "value": 685536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "req_main",
+      "section_index": "12",
+      "size": 11784,
+      "type": "FUNC",
+      "value": 485608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_ssl_summary",
+      "section_index": "12",
+      "size": 900,
+      "type": "FUNC",
+      "value": 701984
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_get0_propq",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 643808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "nseq_main",
+      "section_index": "12",
+      "size": 680,
+      "type": "FUNC",
+      "value": 438432
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_cert_certs",
+      "section_index": "12",
+      "size": 436,
+      "type": "FUNC",
+      "value": 668688
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_passwd",
+      "section_index": "12",
+      "size": 268,
+      "type": "FUNC",
+      "value": 663728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "wait_for_async",
+      "section_index": "12",
+      "size": 276,
+      "type": "FUNC",
+      "value": 671340
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_set_propq",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 643776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cmp_main",
+      "section_index": "12",
+      "size": 12036,
+      "type": "FUNC",
+      "value": 348584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "tlsext_cb",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 699456
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "make_uppercase",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 672516
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_int",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 687168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_serial",
+      "section_index": "12",
+      "size": 388,
+      "type": "FUNC",
+      "value": 654112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_cert_pass",
+      "section_index": "12",
+      "size": 324,
+      "type": "FUNC",
+      "value": 666788
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_provider_option_given",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 645928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dgst_main",
+      "section_index": "12",
+      "size": 3632,
+      "type": "FUNC",
+      "value": 379056
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_ca_names",
+      "section_index": "12",
+      "size": 280,
+      "type": "FUNC",
+      "value": 704164
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rotate_index",
+      "section_index": "12",
+      "size": 700,
+      "type": "FUNC",
+      "value": 655168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_oldWithNew",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 296224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ctx_set_verify_locations",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 649328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_cert_times",
+      "section_index": "12",
+      "size": 412,
+      "type": "FUNC",
+      "value": 671776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "verify_cookie_callback",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 700416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "destroy_ui_method",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 674688
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "bio_open_default",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 670048
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "help_main",
+      "section_index": "12",
+      "size": 528,
+      "type": "FUNC",
+      "value": 448416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "verify_main",
+      "section_index": "12",
+      "size": 1428,
+      "type": "FUNC",
+      "value": 631208
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "parse_name",
+      "section_index": "12",
+      "size": 908,
+      "type": "FUNC",
+      "value": 656064
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_digest_from_engine",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 676496
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "x509_req_ctrl_string",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 647552
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_print_point_formats",
+      "section_index": "12",
+      "size": 292,
+      "type": "FUNC",
+      "value": 696368
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "save_index",
+      "section_index": "12",
+      "size": 448,
+      "type": "FUNC",
+      "value": 654720
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ts_main",
+      "section_index": "12",
+      "size": 4352,
+      "type": "FUNC",
+      "value": 625600
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "verify_stateless_cookie_callback",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 700224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_load_config_bio",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 649856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "main",
+      "section_index": "12",
+      "size": 808,
+      "type": "FUNC",
+      "value": 289536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_keyOut",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 295424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_attribs",
+      "section_index": "12",
+      "size": 440,
+      "type": "FUNC",
+      "value": 457128
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_unknown",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 689356
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "next_protos_parse",
+      "section_index": "12",
+      "size": 304,
+      "type": "FUNC",
+      "value": 657920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_http_get_asn1",
+      "section_index": "12",
+      "size": 548,
+      "type": "FUNC",
+      "value": 659752
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "spkac_main",
+      "section_index": "12",
+      "size": 1344,
+      "type": "FUNC",
+      "value": 614304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "genrsa_main",
+      "section_index": "12",
+      "size": 1616,
+      "type": "FUNC",
+      "value": 413696
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_bignum_var",
+      "section_index": "12",
+      "size": 320,
+      "type": "FUNC",
+      "value": 651904
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_newWithNew",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 295944
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_up_srp_arg",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 708960
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_index",
+      "section_index": "12",
+      "size": 676,
+      "type": "FUNC",
+      "value": 662120
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_string",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 686820
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "raw_write_stdout",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 660832
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "http_server_send_status",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 679584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cert_load",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 456512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "gendsa_main",
+      "section_index": "12",
+      "size": 996,
+      "type": "FUNC",
+      "value": 409824
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_excert_free",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 700448
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_help",
+      "section_index": "12",
+      "size": 768,
+      "type": "FUNC",
+      "value": 689728
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_isdir",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 660736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "http_server_init",
+      "section_index": "12",
+      "size": 492,
+      "type": "FUNC",
+      "value": 678736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_crls",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 669864
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_check_rest_arg",
+      "section_index": "12",
+      "size": 252,
+      "type": "FUNC",
+      "value": 689472
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "raw_read_stdin",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 660784
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_progname",
+      "section_index": "12",
+      "size": 64,
+      "type": "FUNC",
+      "value": 683648
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "destroy_engine_loader",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 677604
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ocsp_main",
+      "section_index": "12",
+      "size": 8112,
+      "type": "FUNC",
+      "value": 439424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "errstr_main",
+      "section_index": "12",
+      "size": 284,
+      "type": "FUNC",
+      "value": 402112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_RAND_load_conf",
+      "section_index": "12",
+      "size": 184,
+      "type": "FUNC",
+      "value": 645952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fileno_stdout",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 660768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_rest",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 689388
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "x509_ctrl_string",
+      "section_index": "12",
+      "size": 20,
+      "type": "FUNC",
+      "value": 647520
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_certs_multifile",
+      "section_index": "12",
+      "size": 264,
+      "type": "FUNC",
+      "value": 669124
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_int_arg",
+      "section_index": "12",
+      "size": 44,
+      "type": "FUNC",
+      "value": 687272
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_crl_nextupdate",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 672336
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "log_get_verbosity",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 682368
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "engine_main",
+      "section_index": "12",
+      "size": 3020,
+      "type": "FUNC",
+      "value": 399076
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_chainOut",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 295680
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "sess_id_main",
+      "section_index": "12",
+      "size": 1068,
+      "type": "FUNC",
+      "value": 555232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_X509_verify",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 659268
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "bio_open_owner",
+      "section_index": "12",
+      "size": 456,
+      "type": "FUNC",
+      "value": 670632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_newWithOld",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 296080
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "save_serial",
+      "section_index": "12",
+      "size": 372,
+      "type": "FUNC",
+      "value": 653104
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "finish_engine",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 676040
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkcs12_main",
+      "section_index": "12",
+      "size": 6404,
+      "type": "FUNC",
+      "value": 459328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_set_unknown_name",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 683820
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_begin",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 687872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_format",
+      "section_index": "12",
+      "size": 1692,
+      "type": "FUNC",
+      "value": 683840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ca_main",
+      "section_index": "12",
+      "size": 11080,
+      "type": "FUNC",
+      "value": 308044
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "bio_to_mem",
+      "section_index": "12",
+      "size": 332,
+      "type": "FUNC",
+      "value": 656972
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fileno_stdin",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 660740
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_up_dummy_srp",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 709184
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_cipher_silent",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 685920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_num_rest",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 689412
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "index_name_cmp",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 653088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_param_value",
+      "section_index": "12",
+      "size": 376,
+      "type": "FUNC",
+      "value": 644640
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_verify",
+      "section_index": "12",
+      "size": 1084,
+      "type": "FUNC",
+      "value": 688256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "corrupt_signature",
+      "section_index": "12",
+      "size": 28,
+      "type": "FUNC",
+      "value": 671616
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_key",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 668000
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_excert",
+      "section_index": "12",
+      "size": 296,
+      "type": "FUNC",
+      "value": 700544
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "unbuffer",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 662856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "parse_yesno",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 655952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_keygen",
+      "section_index": "12",
+      "size": 292,
+      "type": "FUNC",
+      "value": 673184
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_attribute",
+      "section_index": "12",
+      "size": 488,
+      "type": "FUNC",
+      "value": 456640
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "http_server_get_asn1_req",
+      "section_index": "12",
+      "size": 2568,
+      "type": "FUNC",
+      "value": 679776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkey_ctrl_string",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 657312
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_RAND_write",
+      "section_index": "12",
+      "size": 120,
+      "type": "FUNC",
+      "value": 646512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_keyparams_suppress",
+      "section_index": "12",
+      "size": 232,
+      "type": "FUNC",
+      "value": 668448
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkcs7_main",
+      "section_index": "12",
+      "size": 1136,
+      "type": "FUNC",
+      "value": 465824
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "lookup_srp_user",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 709424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_crl",
+      "section_index": "12",
+      "size": 308,
+      "type": "FUNC",
+      "value": 667112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_nameopt",
+      "section_index": "12",
+      "size": 36,
+      "type": "FUNC",
+      "value": 649580
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_malloc",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 650572
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "storeutl_main",
+      "section_index": "12",
+      "size": 1536,
+      "type": "FUNC",
+      "value": 623088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_array",
+      "section_index": "12",
+      "size": 244,
+      "type": "FUNC",
+      "value": 652224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_server",
+      "section_index": "12",
+      "size": 1348,
+      "type": "FUNC",
+      "value": 706464
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_provider",
+      "section_index": "12",
+      "size": 612,
+      "type": "FUNC",
+      "value": 645316
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_params_free",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 672580
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "version_main",
+      "section_index": "12",
+      "size": 724,
+      "type": "FUNC",
+      "value": 632640
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_name",
+      "section_index": "12",
+      "size": 232,
+      "type": "FUNC",
+      "value": 651564
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "_start",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 290368
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_arg",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 688240
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "prime_main",
+      "section_index": "12",
+      "size": 896,
+      "type": "FUNC",
+      "value": 478656
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_nameopt",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 650980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_certs",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 669708
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dsaparam_main",
+      "section_index": "12",
+      "size": 1448,
+      "type": "FUNC",
+      "value": 386784
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_updatedb",
+      "section_index": "12",
+      "size": 360,
+      "type": "FUNC",
+      "value": 306540
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dump_certs_pkeys_bags",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 458608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_load_stores",
+      "section_index": "12",
+      "size": 548,
+      "type": "FUNC",
+      "value": 703308
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "x509_main",
+      "section_index": "12",
+      "size": 10108,
+      "type": "FUNC",
+      "value": 633664
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "s_time_main",
+      "section_index": "12",
+      "size": 2032,
+      "type": "FUNC",
+      "value": 553184
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "socket_timeout",
+      "section_index": "12",
+      "size": 32,
+      "type": "FUNC",
+      "value": 677824
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ecparam_main",
+      "section_index": "12",
+      "size": 2476,
+      "type": "FUNC",
+      "value": 390048
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "init_gen_str",
+      "section_index": "12",
+      "size": 260,
+      "type": "FUNC",
+      "value": 410848
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_uintmax",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 687520
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_ctx_security_debug",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 703856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "http_server_send_asn1_resp",
+      "section_index": "12",
+      "size": 352,
+      "type": "FUNC",
+      "value": 679232
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "s_client_main",
+      "section_index": "12",
+      "size": 19048,
+      "type": "FUNC",
+      "value": 509536
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "crl_main",
+      "section_index": "12",
+      "size": 2600,
+      "type": "FUNC",
+      "value": 372928
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_cert_key_stuff",
+      "section_index": "12",
+      "size": 376,
+      "type": "FUNC",
+      "value": 695436
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mac_main",
+      "section_index": "12",
+      "size": 1404,
+      "type": "FUNC",
+      "value": 437008
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "collect_names",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 682860
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_caPubsOut",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 295812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_conf_try_number",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 649736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_appname",
+      "section_index": "12",
+      "size": 96,
+      "type": "FUNC",
+      "value": 683712
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "asn1parse_main",
+      "section_index": "12",
+      "size": 2424,
+      "type": "FUNC",
+      "value": 297440
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_ext_copy",
+      "section_index": "12",
+      "size": 132,
+      "type": "FUNC",
+      "value": 651140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_tminterval",
+      "section_index": "12",
+      "size": 112,
+      "type": "FUNC",
+      "value": 660608
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_print_sigalgs",
+      "section_index": "12",
+      "size": 556,
+      "type": "FUNC",
+      "value": 695812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_certOut",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 295276
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "genpkey_main",
+      "section_index": "12",
+      "size": 2576,
+      "type": "FUNC",
+      "value": 411108
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set_statusInfo",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 296360
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set_pollCount",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 296744
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_print_groups",
+      "section_index": "12",
+      "size": 432,
+      "type": "FUNC",
+      "value": 696672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "next_item",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 650672
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set_useBadProtection",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 296640
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setup_engine_methods",
+      "section_index": "12",
+      "size": 444,
+      "type": "FUNC",
+      "value": 675584
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_init",
+      "section_index": "12",
+      "size": 336,
+      "type": "FUNC",
+      "value": 687904
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_ulong",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 687692
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "config_ctx",
+      "section_index": "12",
+      "size": 280,
+      "type": "FUNC",
+      "value": 702884
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_next",
+      "section_index": "12",
+      "size": 892,
+      "type": "FUNC",
+      "value": 690560
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_printf_stderr",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 673760
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "passwd_main",
+      "section_index": "12",
+      "size": 1112,
+      "type": "FUNC",
+      "value": 454564
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_crl_lastupdate",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 672192
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_ui_method",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 674736
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cms_main",
+      "section_index": "12",
+      "size": 11096,
+      "type": "FUNC",
+      "value": 361828
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_long",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 686980
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_cipher_from_engine",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 676556
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "wrap_password_callback",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 649616
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_cipher",
+      "section_index": "12",
+      "size": 172,
+      "type": "FUNC",
+      "value": 686176
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_passwd",
+      "section_index": "12",
+      "size": 216,
+      "type": "FUNC",
+      "value": 664000
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ec_main",
+      "section_index": "12",
+      "size": 1772,
+      "type": "FUNC",
+      "value": 388256
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "store_setup_crl_download",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 659680
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_ssl_shutdown",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 707812
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_cipher_any",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 686084
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_load_config_modules",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 662016
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "bio_open_default_quiet",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 671088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_verify_detail",
+      "section_index": "12",
+      "size": 672,
+      "type": "FUNC",
+      "value": 701312
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_refCert",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 295140
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_pubkey",
+      "section_index": "12",
+      "size": 268,
+      "type": "FUNC",
+      "value": 668176
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "spawn_loop",
+      "section_index": "12",
+      "size": 880,
+      "type": "FUNC",
+      "value": 677856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_rand",
+      "section_index": "12",
+      "size": 192,
+      "type": "FUNC",
+      "value": 646632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ctx_set_ctlog_list_file",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 649568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "speed_main",
+      "section_index": "12",
+      "size": 29892,
+      "type": "FUNC",
+      "value": 584384
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "calculate_columns",
+      "section_index": "12",
+      "size": 144,
+      "type": "FUNC",
+      "value": 675424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "skeyutl_main",
+      "section_index": "12",
+      "size": 904,
+      "type": "FUNC",
+      "value": 556320
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "init_engine",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 676036
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setup_ui_method",
+      "section_index": "12",
+      "size": 176,
+      "type": "FUNC",
+      "value": 674500
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cleanse",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 650336
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "unpack_revinfo",
+      "section_index": "12",
+      "size": 688,
+      "type": "FUNC",
+      "value": 306912
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "args_excert",
+      "section_index": "12",
+      "size": 460,
+      "type": "FUNC",
+      "value": 700840
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_ctx_set_excert",
+      "section_index": "12",
+      "size": 16,
+      "type": "FUNC",
+      "value": 700424
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_paramgen",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 673476
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dup_bio_in",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 660880
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "clear_free",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 650384
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_X509_sign",
+      "section_index": "12",
+      "size": 268,
+      "type": "FUNC",
+      "value": 658688
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "password_callback",
+      "section_index": "12",
+      "size": 652,
+      "type": "FUNC",
+      "value": 674752
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_param_types",
+      "section_index": "12",
+      "size": 668,
+      "type": "FUNC",
+      "value": 643968
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dump_cert_text",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 651808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "info_main",
+      "section_index": "12",
+      "size": 436,
+      "type": "FUNC",
+      "value": 415328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dup_bio_out",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 660940
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "free_index",
+      "section_index": "12",
+      "size": 80,
+      "type": "FUNC",
+      "value": 655872
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "verify_callback",
+      "section_index": "12",
+      "size": 972,
+      "type": "FUNC",
+      "value": 694208
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set_checkAfterTime",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 296908
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_keylog_file",
+      "section_index": "12",
+      "size": 212,
+      "type": "FUNC",
+      "value": 703952
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_name_ex",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 650880
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_certstore",
+      "section_index": "12",
+      "size": 320,
+      "type": "FUNC",
+      "value": 669388
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "copy_extensions",
+      "section_index": "12",
+      "size": 292,
+      "type": "FUNC",
+      "value": 651272
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "do_fp",
+      "section_index": "12",
+      "size": 752,
+      "type": "FUNC",
+      "value": 378304
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rehash_main",
+      "section_index": "12",
+      "size": 512,
+      "type": "FUNC",
+      "value": 484240
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "process_responder",
+      "section_index": "12",
+      "size": 288,
+      "type": "FUNC",
+      "value": 439136
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_print_secure_renegotiation_notes",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 704448
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_server_perform",
+      "section_index": "12",
+      "size": 148,
+      "type": "FUNC",
+      "value": 297024
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_ctx_add_crls",
+      "section_index": "12",
+      "size": 140,
+      "type": "FUNC",
+      "value": 703168
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rsautl_main",
+      "section_index": "12",
+      "size": 1664,
+      "type": "FUNC",
+      "value": 499744
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_md",
+      "section_index": "12",
+      "size": 92,
+      "type": "FUNC",
+      "value": 686512
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dsa_main",
+      "section_index": "12",
+      "size": 1676,
+      "type": "FUNC",
+      "value": 385088
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "check_cert_attributes",
+      "section_index": "12",
+      "size": 392,
+      "type": "FUNC",
+      "value": 658224
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "progress_cb",
+      "section_index": "12",
+      "size": 116,
+      "type": "FUNC",
+      "value": 704588
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_RAND_load",
+      "section_index": "12",
+      "size": 368,
+      "type": "FUNC",
+      "value": 646144
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_set1_crlOut",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 295552
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "generate_stateless_cookie_callback",
+      "section_index": "12",
+      "size": 584,
+      "type": "FUNC",
+      "value": 699632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rotate_serial",
+      "section_index": "12",
+      "size": 404,
+      "type": "FUNC",
+      "value": 653476
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "add_oid_section",
+      "section_index": "12",
+      "size": 220,
+      "type": "FUNC",
+      "value": 650112
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "release_engine",
+      "section_index": "12",
+      "size": 4,
+      "type": "FUNC",
+      "value": 676032
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "name_cmp",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 682848
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_dateopt",
+      "section_index": "12",
+      "size": 100,
+      "type": "FUNC",
+      "value": 651040
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_get0_libctx",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 643820
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "msg_cb",
+      "section_index": "12",
+      "size": 912,
+      "type": "FUNC",
+      "value": 698532
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "report_server_accept",
+      "section_index": "12",
+      "size": 372,
+      "type": "FUNC",
+      "value": 706080
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ssl_print_tmp_key",
+      "section_index": "12",
+      "size": 448,
+      "type": "FUNC",
+      "value": 697104
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_legacy_okay",
+      "section_index": "12",
+      "size": 76,
+      "type": "FUNC",
+      "value": 673664
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dhparam_main",
+      "section_index": "12",
+      "size": 1940,
+      "type": "FUNC",
+      "value": 383136
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "print_names",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 682880
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "s_server_main",
+      "section_index": "12",
+      "size": 9344,
+      "type": "FUNC",
+      "value": 543392
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_params_new_from_opts",
+      "section_index": "12",
+      "size": 468,
+      "type": "FUNC",
+      "value": 672704
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rand_serial",
+      "section_index": "12",
+      "size": 224,
+      "type": "FUNC",
+      "value": 653888
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_dsa",
+      "section_index": "12",
+      "size": 692,
+      "type": "FUNC",
+      "value": 583680
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "cert_matches_key",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 658624
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_init",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 649320
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_conf_try_string",
+      "section_index": "12",
+      "size": 104,
+      "type": "FUNC",
+      "value": 649632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "apps_ssl_info_callback",
+      "section_index": "12",
+      "size": 340,
+      "type": "FUNC",
+      "value": 698192
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "reset_unknown",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 689376
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "get_sock_info_address",
+      "section_index": "12",
+      "size": 156,
+      "type": "FUNC",
+      "value": 705920
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkey_main",
+      "section_index": "12",
+      "size": 1848,
+      "type": "FUNC",
+      "value": 469312
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dump_certs_pkeys_bag",
+      "section_index": "12",
+      "size": 1040,
+      "type": "FUNC",
+      "value": 457568
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "policies_print",
+      "section_index": "12",
+      "size": 136,
+      "type": "FUNC",
+      "value": 657776
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "fipsinstall_main",
+      "section_index": "12",
+      "size": 5096,
+      "type": "FUNC",
+      "value": 404708
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "mem_bio_to_file",
+      "section_index": "12",
+      "size": 236,
+      "type": "FUNC",
+      "value": 671104
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_bail_out",
+      "section_index": "12",
+      "size": 128,
+      "type": "FUNC",
+      "value": 650444
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_isdir",
+      "section_index": "12",
+      "size": 56,
+      "type": "FUNC",
+      "value": 690496
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rsa_main",
+      "section_index": "12",
+      "size": 2312,
+      "type": "FUNC",
+      "value": 497408
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_md_silent",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 686348
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "generate_cookie_callback",
+      "section_index": "12",
+      "size": 52,
+      "type": "FUNC",
+      "value": 700352
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "smime_main",
+      "section_index": "12",
+      "size": 6136,
+      "type": "FUNC",
+      "value": 561416
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_flag",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 689344
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_http_post_asn1",
+      "section_index": "12",
+      "size": 308,
+      "type": "FUNC",
+      "value": 660300
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_cert_stuff",
+      "section_index": "12",
+      "size": 256,
+      "type": "FUNC",
+      "value": 695180
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_pair",
+      "section_index": "12",
+      "size": 164,
+      "type": "FUNC",
+      "value": 686656
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "setup_verify",
+      "section_index": "12",
+      "size": 608,
+      "type": "FUNC",
+      "value": 652480
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "bio_dump_callback",
+      "section_index": "12",
+      "size": 640,
+      "type": "FUNC",
+      "value": 697552
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "log_set_verbosity",
+      "section_index": "12",
+      "size": 72,
+      "type": "FUNC",
+      "value": 682764
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_getprog",
+      "section_index": "12",
+      "size": 12,
+      "type": "FUNC",
+      "value": 683808
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "kdf_main",
+      "section_index": "12",
+      "size": 1332,
+      "type": "FUNC",
+      "value": 415984
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "enc_main",
+      "section_index": "12",
+      "size": 5116,
+      "type": "FUNC",
+      "value": 393036
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_intmax",
+      "section_index": "12",
+      "size": 180,
+      "type": "FUNC",
+      "value": 687328
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "trace_log_message",
+      "section_index": "12",
+      "size": 384,
+      "type": "FUNC",
+      "value": 682380
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "init_client",
+      "section_index": "12",
+      "size": 1212,
+      "type": "FUNC",
+      "value": 704704
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "rand_main",
+      "section_index": "12",
+      "size": 1132,
+      "type": "FUNC",
+      "value": 479552
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "opt_path_end",
+      "section_index": "12",
+      "size": 84,
+      "type": "FUNC",
+      "value": 683564
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "APP_HTTP_TLS_INFO_free",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 659692
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "ossl_cmp_mock_srv_free",
+      "section_index": "12",
+      "size": 48,
+      "type": "FUNC",
+      "value": 297384
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "set_cert_ex",
+      "section_index": "12",
+      "size": 24,
+      "type": "FUNC",
+      "value": 650848
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dup_bio_err",
+      "section_index": "12",
+      "size": 60,
+      "type": "FUNC",
+      "value": 662796
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_load_config_verbose",
+      "section_index": "12",
+      "size": 108,
+      "type": "FUNC",
+      "value": 661740
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "load_keyparams",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 668680
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_load_modules",
+      "section_index": "12",
+      "size": 160,
+      "type": "FUNC",
+      "value": 661856
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "dump_certs_keys_p12",
+      "section_index": "12",
+      "size": 548,
+      "type": "FUNC",
+      "value": 458768
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "FMT_istext",
+      "section_index": "12",
+      "size": 8,
+      "type": "FUNC",
+      "value": 677632
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "pkcs8_main",
+      "section_index": "12",
+      "size": 2324,
+      "type": "FUNC",
+      "value": 466976
+    },
+    {
+      "binding": "GLOBAL",
+      "name": "app_provider_load",
+      "section_index": "12",
+      "size": 148,
+      "type": "FUNC",
+      "value": 645168
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "project": "boringssl",
+  "upstream_commit": "ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6",
+  "archive_sha256": "75ee588268ae3d7552f5be7e0849bdcc8e4159f22547dbfb4aae997784fdd345",
+  "configuration": "asm",
+  "target": "x86_64-linux-gnu",
+  "optimization": "O0",
+  "actual_elf_rows": 6,
+  "outputs": [
+    {
+      "object": "bssl",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/bssl",
+      "size": 391384,
+      "sha256": "a9894e066f31e4a6afb214eb42f6cebc4826d9cfc85216d3c8f2fceeed593d90",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 1370,
+      "has_symtab": true,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/receipt.json",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/bssl.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/bssl.pair.json"
+    },
+    {
+      "object": "libcrypto.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/libcrypto.so",
+      "size": 4267848,
+      "sha256": "7cef67aeb7e046e24c0d5eb3fe227f8bbc4d283c5b6d61835cefc900122ce7fb",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 12480,
+      "has_symtab": true,
+      "has_debug_info": true,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/receipt.json",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/libcrypto.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/libcrypto.so.pair.json"
+    },
+    {
+      "object": "libssl.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/libssl.so",
+      "size": 1751264,
+      "sha256": "8e901cd31fce1c885cbad5a1100e79e11b5b5814ca2cf38045106ae5b392001e",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 6721,
+      "has_symtab": true,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/receipt.json",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/unstripped/libssl.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/libssl.so.pair.json"
+    },
+    {
+      "object": "bssl",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/bssl",
+      "size": 234008,
+      "sha256": "098805641123774c743744a05e7b62a81965fa2afba5e5ff5519a0d6671ef182",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/receipt.json",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/bssl.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/bssl.pair.json"
+    },
+    {
+      "object": "libcrypto.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/libcrypto.so",
+      "size": 3009504,
+      "sha256": "e03b310d1c3ae5bdce51a1d952a26bbc7a431fe26246013b9c93400a629f17e5",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/receipt.json",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/libcrypto.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/libcrypto.so.pair.json"
+    },
+    {
+      "object": "libssl.so",
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/libssl.so",
+      "size": 1062256,
+      "sha256": "7d2137fa08225991a0c3c91d0e2f7e4d40b251bdb6456a1b66218cae265088ae",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 0,
+      "has_symtab": false,
+      "has_debug_info": false,
+      "receipt": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/receipt.json",
+      "census": "corpus/census/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/stripped/libssl.so.json",
+      "strip_pair": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/libssl.so.pair.json"
+    }
+  ],
+  "supplementary": [
+    {
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/supplementary/boringcrypto-bcm.o",
+      "sha256": "a5df95a1591187df2baaf103a3ad8c6a5991ef3bcf68b3bdf9dd38cb828f3b3c",
+      "kind": "ET_REL",
+      "stripping": "not stripped; no strip-all linkability claim",
+      "reproducibility": "byte-identical independent workspace repeats"
+    },
+    {
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/supplementary/boringcrypto-bcm.readelf.txt",
+      "sha256": "4f451b2b856b723f6805285b5470ea6f6ed388c33b328670227708bcb367a4cd",
+      "kind": "module provenance",
+      "stripping": "not stripped; no strip-all linkability claim",
+      "reproducibility": "byte-identical independent workspace repeats"
+    },
+    {
+      "path": "corpus/variants/boringssl/git.ebd922adc708a48b0cccfcdf81e854a3fdc1b7b6/asm/x86_64/O0/supplementary/boringcrypto-bcm.undefined.txt",
+      "sha256": "37ca837c1b4a74ca403d7156de31e96e5214d42f0e7805b794f65062c185bf56",
+      "kind": "module provenance",
+      "stripping": "not stripped; no strip-all linkability claim",
+      "reproducibility": "byte-identical independent workspace repeats"
+    }
+  ],
+  "source_files_hash_checked": 1307,
+  "measured_commands_passed": 18,
+  "build_wall_seconds": {
+    "build-a": 61.132467206999536,
+    "build-b": 44.80750176299989
+  },
+  "image_id": "sha256:80149c077dcc11f2063158a39721652a4039f5afabfcda4303715160345a8f2b",
+  "image_lock_verification": "both workers independently checked complete220package lock,tool hashes and15659file Go tree",
+  "module": "repository-authored ld-r packaging of actual upstream non-FIPS CMake fipsmodule objects; not upstream FIPS_SHARED bcm.o",
+  "source_assembly_inventory": "source-assembly.json",
+  "limits": [
+    "Only six library/CLI stripping rows are counted; ET_REL module remains supplementary and unstripped.",
+    "No FIPS validation/certification or FIPS_SHARED build claim.",
+    "Upstream committed pregenerated assembly source lists are compiled by upstream CMake; no local perlasm regeneration claimed; conservative inventory includes unselected platform inputs.",
+    "Runtime observations do not establish source semantics or formal equivalence.",
+    "Census decoder coverage/gaps remain explicit; no Lean registry generated or checked."
+  ]
+}

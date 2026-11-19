@@ -4,6 +4,7 @@ public import Silmaril.Logic.Consequence.Theory.Defs
 public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Institution.Defs
 public import Silmaril.Logic.TypeTheory.IntensionalMLTT.OriginalInstitution.Defs
 public import Silmaril.Logic.TypeTheory.LambdaPi.Institution.Defs
+public import Silmaril.Logic.TypeTheory.ExtensionalMLTT.Finite.Logic.Defs
 
 /-!
 # Martin-Löf type theories as consequence systems
@@ -54,6 +55,22 @@ def extensionalDerives : System (List ExtensionalMLTT.EJdg) ExtensionalMLTT.EJdg
 `u`), read on the judgments themselves. -/
 def extensionalEntails : System (List ExtensionalMLTT.EJdg) ExtensionalMLTT.EJdg :=
   (roomSeq ExtensionalMLTT.Institution.room.{u}).pullback (List.map ULift.up) ULift.up
+
+/-- **Extensional MLTT with `levels` universe levels**: the bounded rules (`ECtx.JEqB`, every
+universe index below `levels`), with judgment hypotheses, on the bounded judgments. -/
+def boundedDerives (levels : ℕ) :=
+  LogicalSystem.listSys (ExtensionalMLTT.Finite.logic.{u} levels) ⟨⟨⟩⟩
+
+/-- **The finite-tower interpretation** of extensional MLTT with `levels` universe levels: the
+bounded institution's own semantics, where a model is a tower of `levels` ZFSet universes (in Lean
+universe `u`) with an environment, and a list of judgments is satisfied when each is. This is the
+standard set-theoretic interpretation at fixed low universes. -/
+def boundedTowers (levels : ℕ) :
+    Satisfaction (List ((ExtensionalMLTT.Finite.logic.{u} levels).I.obj ⟨⟨⟩⟩).Sen)
+      ((ExtensionalMLTT.Finite.logic.{u} levels).I.obj ⟨⟨⟩⟩).Sen :=
+  ⟨((ExtensionalMLTT.Finite.logic.{u} levels).I.obj ⟨⟨⟩⟩).Mod,
+   fun M Γ => ∀ φ ∈ Γ, ((ExtensionalMLTT.Finite.logic.{u} levels).I.obj ⟨⟨⟩⟩).Sat M φ,
+   ((ExtensionalMLTT.Finite.logic.{u} levels).I.obj ⟨⟨⟩⟩).Sat⟩
 
 /-! ## Intensional MLTT (original rules) -/
 

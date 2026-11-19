@@ -1,0 +1,368 @@
+{
+  "package": "coreutils",
+  "version": "9.12",
+  "arch": "x86_64",
+  "image": {
+    "tag": "silmaril-corpus-toolchain:trixie-20251103",
+    "id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "base": "debian:trixie-20251103@sha256:01a723bf5bfb21b9dda0c9a33e0538106e4d02cce8f557e118dd61259553d598"
+  },
+  "compiler": "gcc (Debian 14.2.0-19) 14.2.0",
+  "binutils": "GNU ld (GNU Binutils for Debian) 2.44",
+  "cflags": "-O2 -g0 -ffile-prefix-map=/build/coreutils=.",
+  "ldflags": "",
+  "configure_args": "FORCE_UNSAFE_CONFIGURE=1 ./configure --build=x86_64-linux-gnu --host=x86_64-linux-gnu --disable-nls --without-selinux --without-openssl --without-libgmp --disable-acl --disable-xattr --disable-libcap --disable-libsmack --without-systemd --disable-rpath CC=gcc CFLAGS='-O2 -g0 -ffile-prefix-map=/build/coreutils=.'",
+  "build_commands": [
+    "gcc -std=gnu23  -I. -I./lib  -Ilib -I./lib -Isrc -I./src    -O2 -g0 -ffile-prefix-map=/build/coreutils=. -MT src/wc.o -MD -MP -MF $depbase.Tpo -c -o src/wc.o src/wc.c",
+    "gcc -std=gnu23   -O2 -g0 -ffile-prefix-map=/build/coreutils=. -Wl,--as-needed  -o src/wc src/wc.o src/libver.a lib/libcoreutils.a   lib/libcoreutils.a src/libwc_avx512.a src/libwc_avx2.a  "
+  ],
+  "SOURCE_DATE_EPOCH": 1762128000,
+  "build_dir": "/build/coreutils",
+  "inputs": [
+    {
+      "url": "https://ftp.gnu.org/gnu/coreutils/coreutils-9.12.tar.xz",
+      "sha256": "a480198559733e9b3da999e90543ac6f888a2caa544d8d664c5a1f17e528e210"
+    }
+  ],
+  "outputs": [
+    {
+      "object": "cat",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/cat",
+      "size": 60024,
+      "sha256": "33a83f8f603faa6db72cadec652fc485676efa7c0887656d34064210706bc9a6",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 123,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "echo",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/echo",
+      "size": 53440,
+      "sha256": "d4d20a9047da096e84a82afce6d3794e620c3d198be9fbaf06fe551a14ffbf48",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 107,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "head",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/head",
+      "size": 63184,
+      "sha256": "0f8ddd05f7759c269977433f5e0e9941ccbe22780243508eb73f51b164a08bdf",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 119,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sha256sum",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/sha256sum",
+      "size": 80416,
+      "sha256": "ee7e676e3d344ef1dad99168a838a1ab893825a69c08aa414cbb204c344071aa",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 131,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "sort",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/sort",
+      "size": 154376,
+      "sha256": "1bb4467523dc10fb94e032d2c50fdca30c71f9ded8dc3e1fb14874632eda74f7",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 267,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "true",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/true",
+      "size": 53296,
+      "sha256": "61e1ce58c3d0827e2c9ea27ae0972be4457df1e1a567fb1ed65dee0de225eef9",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 105,
+      "has_symtab": true,
+      "has_debug_info": false
+    },
+    {
+      "object": "wc",
+      "path": "corpus/variants/coreutils/9.12/default/x86_64/O2/unstripped/wc",
+      "size": 83280,
+      "sha256": "7bd3d83522a9426ad78f793ba8cb49ca77f49f00bb0a8d65ce3a01d7a44385fd",
+      "elf_machine": "Advanced Micro Devices X86-64",
+      "func_symbols": 152,
+      "has_symtab": true,
+      "has_debug_info": false
+    }
+  ],
+  "reproducible": true,
+  "reproducibility_check": "two clean workspaces in independent persistent pool containers; byte-identical outputs",
+  "tests": [
+    {
+      "command": "true --version | head -1",
+      "result": "pass: true (GNU coreutils) 9.12"
+    },
+    {
+      "command": "echo --version | head -1",
+      "result": "pass: echo (GNU coreutils) 9.12"
+    },
+    {
+      "command": "cat --version | head -1",
+      "result": "pass: cat (GNU coreutils) 9.12"
+    },
+    {
+      "command": "wc --version | head -1",
+      "result": "pass: wc (GNU coreutils) 9.12"
+    },
+    {
+      "command": "head --version | head -1",
+      "result": "pass: head (GNU coreutils) 9.12"
+    },
+    {
+      "command": "sort --version | head -1",
+      "result": "pass: sort (GNU coreutils) 9.12"
+    },
+    {
+      "command": "sha256sum --version | head -1",
+      "result": "pass: sha256sum (GNU coreutils) 9.12"
+    },
+    {
+      "command": "true; echo $?",
+      "result": "pass: 0"
+    },
+    {
+      "command": "echo -e 'a\\tb'",
+      "result": "pass: a\tb"
+    },
+    {
+      "command": "cat -n in.txt | tail -1",
+      "result": "pass:      5\tbanana"
+    },
+    {
+      "command": "wc in.txt",
+      "result": "pass:  5  5 23 /tmp/tmp.tQB3xgpSQr/in.txt"
+    },
+    {
+      "command": "head -n 2 in.txt",
+      "result": "pass: pear\napple"
+    },
+    {
+      "command": "sort in.txt",
+      "result": "pass: 10\n9\napple\nbanana\npear"
+    },
+    {
+      "command": "sort -n in.txt | tail -2",
+      "result": "pass: 9\n10"
+    },
+    {
+      "command": "printf abc | sha256sum",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  -"
+    },
+    {
+      "command": "sha256sum 1e6 zero bytes",
+      "result": "pass: d29751f2649b32ff572b5e0a9f541ea660a50f94ff0beedfb0b692b924cc8025  /tmp/tmp.tQB3xgpSQr/zero"
+    }
+  ],
+  "notes": [
+    "configure: 26 checks guessed (cross compilation: no); see generated/x86_64/configure-cross-guesses.txt"
+  ],
+  "variant": {
+    "optimization": "O2",
+    "stripping": "unstripped",
+    "configuration": "default",
+    "run_id": "04e5dc73-e842-48b5-8b80-20a9e9b60fba",
+    "target": "x86_64-linux-gnu"
+  },
+  "container_pool": {
+    "toolchain": "corpus/toolchain",
+    "pool_id": "9efe74fb-b55e-49f1-8e87-9d7898502570",
+    "image_id": "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+    "lifecycle": "two independently initialized persistent containers; reused across profiles",
+    "isolation": "read-only root; private /build, /tmp, /root tmpfs; separate writable output mounts",
+    "reset": [
+      "bash",
+      "-eu",
+      "-c",
+      "find /build /tmp /root /dev/shm -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; test -z \"$(find /build /tmp /root /dev/shm -mindepth 1 -print -quit)\""
+    ],
+    "environment": {
+      "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+      "HOME": "/root",
+      "LC_ALL": "C",
+      "TZ": "UTC",
+      "SOURCE_DATE_EPOCH": "1762128000",
+      "JOBS": "3"
+    },
+    "resources": {
+      "containers": 2,
+      "cpu_per_container": 3,
+      "memory_bytes_per_container": 12884901888,
+      "execution": "serial builds, strips and tests; no third container"
+    },
+    "started_utc": "2026-11-18T02:28:55.540405+00:00",
+    "workers": [
+      {
+        "slot": 0,
+        "container_id": "126d0c14947d86b41b777a7853b8c21e9dc0739a62fdeaab251c8b53f7fb655c",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/0:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.667852+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      },
+      {
+        "slot": 1,
+        "container_id": "8a6c2e29fb4922229be80f1529fbad7f09c44cf0e362bf36ad932010679ef0e8",
+        "creation_command": [
+          "docker",
+          "run",
+          "--network",
+          "host",
+          "--pull=never",
+          "--detach",
+          "--read-only",
+          "--cpus",
+          "3",
+          "--memory",
+          "12g",
+          "--memory-swap",
+          "12g",
+          "--pids-limit",
+          "256",
+          "--workdir",
+          "/",
+          "--tmpfs",
+          "/build:rw,exec,size=8g",
+          "--tmpfs",
+          "/tmp:rw,exec,size=1g",
+          "--tmpfs",
+          "/root:rw,size=64m",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/corpus:/corpus:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/recipes-6bffd3b7-be92-4f86-bbf4-35463719101c/scripts:/scripts:ro",
+          "-v",
+          "/root/.cache/silmaril-corpus:/cache:ro",
+          "-v",
+          "/work/out/container-pool/remaining-o2/pool-42e0a125-8ee7-4228-86ce-1ef87b462e78/1:/out",
+          "sha256:e73131e3a3d3d30961f85398597532548b39d4dc708ce071d77e2637049fb5f2",
+          "sleep",
+          "infinity"
+        ],
+        "initialized_utc": "2026-11-18T02:28:55.879578+00:00",
+        "package_lock_sha256": "411431e6926d2b85231a8cec57405c824a45fd2fa21978aecc7e373fcd8b907f"
+      }
+    ],
+    "profiles": [
+      {
+        "identity": "corpus/variants/coreutils/9.12/default/x86_64/O2",
+        "sequence": 13,
+        "started_utc": "2026-11-18T02:33:22.117495+00:00",
+        "container_reused": true,
+        "workspace_reset_verified": true,
+        "status": "passed",
+        "finished_utc": "2026-11-18T02:37:10.096280+00:00"
+      }
+    ]
+  },
+  "independent_repeat_tests": [
+    {
+      "command": "true --version | head -1",
+      "result": "pass: true (GNU coreutils) 9.12"
+    },
+    {
+      "command": "echo --version | head -1",
+      "result": "pass: echo (GNU coreutils) 9.12"
+    },
+    {
+      "command": "cat --version | head -1",
+      "result": "pass: cat (GNU coreutils) 9.12"
+    },
+    {
+      "command": "wc --version | head -1",
+      "result": "pass: wc (GNU coreutils) 9.12"
+    },
+    {
+      "command": "head --version | head -1",
+      "result": "pass: head (GNU coreutils) 9.12"
+    },
+    {
+      "command": "sort --version | head -1",
+      "result": "pass: sort (GNU coreutils) 9.12"
+    },
+    {
+      "command": "sha256sum --version | head -1",
+      "result": "pass: sha256sum (GNU coreutils) 9.12"
+    },
+    {
+      "command": "true; echo $?",
+      "result": "pass: 0"
+    },
+    {
+      "command": "echo -e 'a\\tb'",
+      "result": "pass: a\tb"
+    },
+    {
+      "command": "cat -n in.txt | tail -1",
+      "result": "pass:      5\tbanana"
+    },
+    {
+      "command": "wc in.txt",
+      "result": "pass:  5  5 23 /tmp/tmp.DTz7c1QAAK/in.txt"
+    },
+    {
+      "command": "head -n 2 in.txt",
+      "result": "pass: pear\napple"
+    },
+    {
+      "command": "sort in.txt",
+      "result": "pass: 10\n9\napple\nbanana\npear"
+    },
+    {
+      "command": "sort -n in.txt | tail -2",
+      "result": "pass: 9\n10"
+    },
+    {
+      "command": "printf abc | sha256sum",
+      "result": "pass: ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  -"
+    },
+    {
+      "command": "sha256sum 1e6 zero bytes",
+      "result": "pass: d29751f2649b32ff572b5e0a9f541ea660a50f94ff0beedfb0b692b924cc8025  /tmp/tmp.DTz7c1QAAK/zero"
+    }
+  ]
+}
