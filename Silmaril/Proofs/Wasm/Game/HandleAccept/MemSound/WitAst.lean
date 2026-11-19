@@ -117,7 +117,8 @@ theorem witNode_eq {o : Callout} {tg pp cp n : BitVec 32} {t : S.Tag} {bs cs : L
     (h1 : o.segment pp.toNat (valsWidth (S.params t)) = some bs)
     (h2 : readVals o.segment (S.params t) bs = some a) (h3 : o.segment cp.toNat (4 * n.toNat) = some cs)
     (h4 : le32s cs = some hs) (h5 : (S.arity t).Admits hs.length = true)
-    (hal : pp.toNat % valsAlign (S.params t) = 0 ∧ cp.toNat % 4 = 0 := by decide) :
+    (hal : pp.toNat % valsAlign (S.params t) = 0 ∧ cp.toNat % 4 = 0 := by decide)
+    (hshape : checkPTys .memoryOnly (S.params t) = .ok () := by rfl) :
     Callout.witNode S tagOf o = some (⟨t, a⟩, hs) := by
   unfold Callout.witNode
   rw [ha]
@@ -125,7 +126,8 @@ theorem witNode_eq {o : Callout} {tg pp cp n : BitVec 32} {t : S.Tag} {bs cs : L
   refine Option.bind_eq_some_iff.2 ⟨t, ht, ?_⟩
   split
   swap
-  · exact absurd hal ‹_›
+  · rename_i rejected
+    exact (rejected ⟨hal.1, hal.2, by rw [hshape]; rfl⟩).elim
   refine Option.bind_eq_some_iff.2 ⟨bs, h1, ?_⟩
   refine Option.bind_eq_some_iff.2 ⟨a, h2, ?_⟩
   refine Option.bind_eq_some_iff.2 ⟨cs, h3, ?_⟩

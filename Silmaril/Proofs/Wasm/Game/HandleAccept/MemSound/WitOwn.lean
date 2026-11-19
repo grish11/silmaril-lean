@@ -159,7 +159,7 @@ theorem resolveOp_some {rt rt' : RT} {rop : ROp S} {op : Op S}
   split at h
   · simp only [Option.map_eq_some_iff, Prod.mk.injEq] at h
     obtain ⟨a, ha, rfl, rfl⟩ := h
-    exact ⟨‹_›, rfl, a, ha, rfl⟩
+    exact ⟨‹_ ∧ _›.2, rfl, a, ha, rfl⟩
   · cases h
 
 /-- **Resolution reads the table only at the moved handles**, and the table after the move is
@@ -182,8 +182,13 @@ theorem resolveOp_mono {rt rt₀ rt' : RT} {rop : ROp S} {op : Op S} (hle : rt.L
     (h : resolveOp S rt rop = some (op, rt')) :
     resolveOp S rt₀ rop = some (op, rt₀.killAll (movedOp S rop)) := by
   obtain ⟨hnd, -, a, ha, rfl⟩ := resolveOp_some h
+  have hadmitted : checkPTys .ownFields (S.params rop.1) = .ok () := by
+    unfold resolveOp at h
+    split at h
+    · exact ‹_ ∧ _›.1
+    · cases h
   unfold resolveOp
-  simp only [hnd, ↓reduceIte, resolveVals_mono hle ha, Option.map_some]
+  simp only [hadmitted, hnd, and_self, ↓reduceIte, resolveVals_mono hle ha, Option.map_some]
 
 /-- **A move consumes its handles.** -/
 theorem resolveOp_dead {rt rt' : RT} {rop : ROp S} {op : Op S}

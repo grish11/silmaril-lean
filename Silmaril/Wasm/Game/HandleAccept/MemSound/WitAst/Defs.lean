@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.MemSound.Ast.Defs
 public import Silmaril.Wasm.Game.HandleAccept.MemSound.WordAtom.Defs
+public import Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst.Support.Defs
 public import Silmaril.Wasm.Component.Reference.ABI.Layout.Defs
 public import Silmaril.Wasm.Component.Reference.ABI.FloatChar.Defs
 public import Silmaril.Wasm.Logic.Memory.Defs
@@ -459,12 +460,14 @@ structure WitImports where
 `payload` (the canonical ABI tuple of `S.params t`: `payload` aligned to `valsAlign`, the
 `valsWidth` bytes in bounds) and the `n` little-endian child handles at
 `[children, children + 4n)` (a `list<u32>` range: `children` aligned to four), when the tag
-admits that many children. -/
+admits that many children. This success projection rejects unsupported schemas; runtime
+hosts use `Checked.Defs` for typed rejection. -/
 def Callout.witNode (o : Callout) : Option ((Σ t, S.toAstSig.Arg t) × List (BitVec 32)) :=
   match o.args with
   | [.num ⟨.int .i32, tg⟩, .num ⟨.int .i32, pp⟩, .num ⟨.int .i32, cp⟩, .num ⟨.int .i32, n⟩] =>
       (tagOf tg).bind fun t =>
-        if pp.toNat % valsAlign (S.params t) = 0 ∧ cp.toNat % 4 = 0 then
+        if pp.toNat % valsAlign (S.params t) = 0 ∧ cp.toNat % 4 = 0 ∧
+            (checkPTys .memoryOnly (S.params t)).isOk = true then
           (o.segment pp.toNat (valsWidth (S.params t))).bind fun bs =>
             (readVals o.segment (S.params t) bs).bind fun a =>
               (o.segment cp.toNat (4 * n.toNat)).bind fun cs => (le32s cs).bind fun hs =>

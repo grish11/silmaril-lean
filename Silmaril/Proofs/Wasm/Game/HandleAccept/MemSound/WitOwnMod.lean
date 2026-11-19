@@ -58,7 +58,8 @@ theorem movedOp_res : movedOp ownSig (rawRes 1) = [1] := rfl
 theorem resolve_res {rt₀ : RT} {rep : Nat} (h : rt₀.lookup 0 1 = some rep) :
     resolveOp ownSig rt₀ (rawRes 1) = some (⟨OwnTag.res, (rep, ())⟩, rt₀.killAll [1]) := by
   unfold resolveOp
-  simp only [movedOp_res, List.nodup_singleton, ↓reduceIte]
+  simp only [show checkPTys .ownFields (ownSig.params (rawRes 1).1) = .ok () from rfl,
+    movedOp_res, List.nodup_singleton, and_self, ↓reduceIte]
   show Option.map _ (resolveVals rt₀ [.own 0] ((1 : UInt32), ())) = _
   rw [resolveVals_res, h]
   rfl
@@ -66,7 +67,8 @@ theorem resolve_res {rt₀ : RT} {rep : Nat} (h : rt₀.lookup 0 1 = some rep) :
 theorem resolve_res_none {rt₀ : RT} (h : rt₀.lookup 0 1 = none) :
     resolveOp ownSig rt₀ (rawRes 1) = none := by
   unfold resolveOp
-  simp only [movedOp_res, List.nodup_singleton, ↓reduceIte]
+  simp only [show checkPTys .ownFields (ownSig.params (rawRes 1).1) = .ok () from rfl,
+    movedOp_res, List.nodup_singleton, and_self, ↓reduceIte]
   show Option.map _ (resolveVals rt₀ [.own 0] ((1 : UInt32), ())) = _
   rw [resolveVals_res, h]
   rfl

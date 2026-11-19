@@ -34,8 +34,8 @@ signature `S` is therefore read through its **raw signature** `rawSig S`: every 
 canonical ABI. The raw payload is then resolved in a table:
 
 * `resolve1 rt t v`, `resolveVals rt ps vs`: every `own r` field looked up (`RT.lookup`); other
-  fields unchanged. An `own` nested inside a list, option, record, … is not resolved: it stays
-  `own` in the raw signature, where `readVal` reads no value, so its call is no event;
+  fields unchanged. An `own` nested inside a list, option, record, … is not resolved.
+  `resolveOp` checks the entire original schema, including inactive cases and empty lists;
 * `movedVals ps vs`: the handles a raw payload moves, in field order;
 * `resolveOp S rt op`: the resolved operation and the table after the move; none when a handle
   does not resolve or **the payload moves the same handle twice** (the canonical ABI lifts the
@@ -176,10 +176,11 @@ abbrev Op := Σ t : S.Tag, PTy.Vals (S.params t)
 /-- The handles a raw operation moves. -/
 def movedOp (op : ROp S) : List (BitVec 32) := movedVals (S.params op.1) op.2
 
-/-- **A raw operation resolved in the table**, with the table after the move: none when a
-handle does not resolve or the payload moves a handle twice. -/
+/-- **A raw operation resolved in the table**, with the table after the move: none when the
+schema is unsupported, a handle does not resolve, or the payload moves a handle twice.
+`Checked.Defs` exposes typed errors for these cases. -/
 def resolveOp (rt : RT) (op : ROp S) : Option (Op S × RT) :=
-  if (movedOp S op).Nodup then
+  if checkPTys .ownFields (S.params op.1) = .ok () ∧ (movedOp S op).Nodup then
     (resolveVals rt (S.params op.1) op.2).map fun a => (⟨op.1, a⟩, rt.killAll (movedOp S op))
   else none
 
