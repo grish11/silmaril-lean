@@ -1,5 +1,6 @@
 """Native entry ABI, Lake dependency invalidation and process cleanup regressions."""
 import os
+import io
 import shlex
 from pathlib import Path
 import shutil
@@ -81,6 +82,8 @@ class RuntimeValidationTest(unittest.TestCase):
 
 class CleanupTest(unittest.TestCase):
     def run_measured(self,code,directory,**kw):
+        kw.setdefault('tee_stdout',io.BytesIO())
+        kw.setdefault('tee_stderr',io.BytesIO())
         return measure([sys.executable,'-c',code],stdout=directory/'out',stderr=directory/'err',
                        cpus=1,memory_gib=1,**kw)
 

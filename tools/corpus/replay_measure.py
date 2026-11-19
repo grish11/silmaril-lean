@@ -41,7 +41,7 @@ def process_tree_memory(pid, *, proc=Path('/proc'), page_kib=None):
     return rss,virtual,len(groups)
 
 
-def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None, timeout_seconds=None):
+def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None, timeout_seconds=None, tee_stdout=None, tee_stderr=None):
     allowed=sorted(os.sched_getaffinity(0))[:cpus]
     if len(allowed)!=cpus: raise ValueError('insufficient CPUs for affinity')
     page_kib=os.sysconf('SC_PAGE_SIZE')//1024
@@ -54,7 +54,26 @@ def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None, timeout
         # physical memory. The guard below observes RSS instead of RLIMIT_AS.
     with stdout.open('wb') as out,stderr.open('wb') as err:
         began=time.monotonic()
-        process=subprocess.Popen(command,stdout=out,stderr=err,env=env,preexec_fn=child_setup)
+        process=subprocess.Popen(command,stdout=subprocess.PIPE if tee_stdout is not None else out,
+                                 stderr=subprocess.PIPE if tee_stderr is not None else err,
+                                 env=env,preexec_fn=child_setup)
+        relays=[]
+        def relay(source,log,sink,stream):
+            try:
+                while chunk:=os.read(source.fileno(),65536):
+                    log.write(chunk);log.flush()
+                    sink.write(chunk);sink.flush()
+            except Exception as error:
+                sampled['output_relay_error']=stream+':'+type(error).__name__
+                try: os.killpg(process.pid,signal.SIGKILL)
+                except ProcessLookupError: pass
+            finally:
+                source.close()
+        for source,log,sink,stream in [(process.stdout,out,tee_stdout,'stdout'),
+                                       (process.stderr,err,tee_stderr,'stderr')]:
+            if sink is not None:
+                thread=threading.Thread(target=relay,args=(source,log,sink,stream),daemon=True)
+                thread.start();relays.append(thread)
         def sample():
             while not stop.is_set():
                 if timeout_seconds is not None and time.monotonic()-began >= timeout_seconds:
@@ -94,6 +113,7 @@ def measure(command, *, stdout, stderr, cpus=8, memory_gib=32, env=None, timeout
             try: os.killpg(process.pid,signal.SIGKILL)
             except ProcessLookupError: pass
             stop.set();watcher.join()
+            for thread in relays:thread.join()
         elapsed=time.monotonic()-began
     sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
     return {'argv':command,'wall_seconds':elapsed,'exit':process.returncode,

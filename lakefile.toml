@@ -680,7 +680,7 @@ name = "ci_corpus_cjson_array_item_core"
 root = "tests.cerberus.CjsonArrayItemContext"
 supportInterpreter = true
 # Lake hashes these inputs; driver/import/toolchain facets remain ordinary Lake dependencies.
-needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler", "corpusReplayNativeTests", "corpusReplayMemoryTests"]
+needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler", "corpusReplayNativeTests", "corpusReplayMemoryTests", "corpusReplayOutputTests"]
 moreLinkObjs = ["corpusReplayBootstrap"]
 moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_tests_cerberus_CjsonArrayItemContext", "-Wl,--wrap=main"]
 
@@ -689,7 +689,7 @@ name = "ci_corpus_cjson_array_item_machine"
 root = "tests.cerberus.CjsonArrayItemMachine"
 supportInterpreter = true
 # Lake hashes these inputs; driver/import/toolchain facets remain ordinary Lake dependencies.
-needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler", "corpusReplayNativeTests", "corpusReplayMemoryTests"]
+needs = ["corpusReplayPlanner", "corpusReplayRunner", "corpusReplaySampler", "corpusReplayNativeTests", "corpusReplayMemoryTests", "corpusReplayOutputTests"]
 moreLinkObjs = ["corpusReplayBootstrap"]
 moreLinkArgs = ["-Werror", "-fstack-clash-protection", "-ffp-contract=off", "-fdata-sections", "-ffunction-sections", "-fPIC", "-fvisibility=hidden", "-O3", "-DNDEBUG", "-DLEAN_EXPORTING", "-iwithsysroot", "/include/clang", "-DREPLAY_INITIALIZE=initialize_silmaril_tests_cerberus_CjsonArrayItemMachine", "-Wl,--wrap=main"]
 
@@ -722,6 +722,11 @@ text = false
 [[input_file]]
 name = "corpusReplayMemoryTests"
 path = "tools/corpus/test_replay_measure.py"
+text = false
+
+[[input_file]]
+name = "corpusReplayOutputTests"
+path = "tools/corpus/test_replay_output.py"
 text = false
 
 # Separate per-case transcript audit. Generate these instrumentation-only copies

@@ -17,6 +17,8 @@ import subprocess
 import sys
 import time
 
+sys.path.insert(0,str(Path(__file__).resolve().parent))
+
 DRIVERS = {
     "core": ("tests/cerberus/CjsonArrayItemContext.lean", "ci_corpus_cjson_array_item_core", 168),
     "machine": ("tests/cerberus/CjsonArrayItemMachine.lean", "ci_corpus_cjson_array_item_machine", 420),

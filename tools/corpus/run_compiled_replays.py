@@ -14,6 +14,9 @@ import shlex
 import signal
 import sys
 
+# Import only the script's own resolved repository directory, including under
+# Python -P/-I. Do not re-enable cwd/PYTHONPATH or relax the host's safe-path mode.
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 from replay_measure import measure
 from replay_native_bootstrap import inspect_initializer, sha
 
@@ -65,16 +68,13 @@ def main():
         (args.out/'summary.json').write_text(json.dumps(summary,indent=2)+'\n')
     def run(name,command):
         row=measure(command,stdout=args.out/(name+'.stdout'),stderr=args.out/(name+'.stderr'),
-                    cpus=cpus,memory_gib=32,env=env,timeout_seconds=900)
+                    cpus=cpus,memory_gib=32,env=env,timeout_seconds=900,
+                    tee_stdout=sys.stdout.buffer,tee_stderr=sys.stderr.buffer)
         row['name']=name;summary['steps'].append(row);save()
-        # Preserve actual build output (including normal Lake accounting output),
-        # without fabricating compilation/timing markers or excluding startup.
-        for stream in ('stdout','stderr'):
-            data=(args.out/(name+'.'+stream)).read_bytes()
-            dest=sys.stdout.buffer if stream=='stdout' else sys.stderr.buffer
-            dest.write(data);dest.flush()
+        # Genuine child bytes are teed as they arrive, never replayed after exit.
+        # GitHub's arrival timestamps delimit the unchanged parser's intervals.
         print(json.dumps(row),flush=True)
-        if row['exit'] or row['resource'].get('sampler_error') or row['resource'].get('timeout_triggered') or row['resource']['rss_guard_triggered']:
+        if row['exit'] or row['resource'].get('sampler_error') or row['resource'].get('timeout_triggered') or row['resource'].get('output_relay_error') or row['resource']['rss_guard_triggered']:
             raise RuntimeError(f'{name} failed; see retained logs')
     def cancel(signum,frame):
         raise InterruptedError(f'replay runner received signal {signum}')

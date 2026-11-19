@@ -13,6 +13,21 @@ source/generated-C/executable/link-response hashes and per-step resources under
 `build/compiled-replay-results`. A failure stops the command with a nonzero
 exit. Success still requires the original168/420 count summaries.
 
+Both child streams are teed live to their normal output streams while retaining
+byte-identical logs and hashes. No timestamps or compilation markers are added.
+The existing CI parser reconstructs compile intervals from each genuine Lake
+line's arrival timestamp minus its reported duration. Re-emitting a complete
+build log after exit would shift these intervals and collapse their union; the
+runner therefore drains and joins both output relays before reporting a phase
+or starting the next one. Relay errors fail closed and stop the child group.
+Focused tests use an in-memory logical clock and child acknowledgements to
+check live delivery, the unchanged parser's interval union, and zero compilation
+credit throughout runtime. Synthetic fixture lines never reach real CI output.
+
+The CLI resolves sibling imports from its own repository directory, including
+under Python `-P`/`-I`; it does not enable cwd/PYTHONPATH lookup or disable the
+worker's safe-path behavior.
+
 The ordinary Lean driver/import/object/toolchain dependencies belong to Lake.
 The bootstrap C file is an actual `input_file` in `moreLinkObjs`, so Lake tracks
 its content as a link input and compiles it during the normal link invocation,
