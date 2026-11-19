@@ -52,6 +52,12 @@ def Body.scoped (slots : Nat) : Body → Bool
   | .bind init next => init.scoped slots && next.scoped (slots + 1)
   | .branch test yes no => test.scoped slots && yes.scoped slots && no.scoped slots
 
+/-- Sufficient C0 loop fuel with the first statement already in focus. -/
+def Body.fuel : Body → Nat
+  | .ret value => value.depth + 2
+  | .bind init next => max (init.depth + 2) (next.fuel + 2)
+  | .branch test yes no => max (test.depth + 2) (max yes.fuel no.fuel + 1)
+
 def Op.eval (op : Op) (left right : Int) : Except C0.Stop Int :=
   let lhs := C0.wrap 4 true left
   let rhs := C0.wrap 4 true right
@@ -67,16 +73,17 @@ def Expr.eval (read : Nat → Except C0.Stop Int) : Expr → Except C0.Stop Int
   | .slot index => read index
   | .bin op left right => do op.eval (← left.eval read) (← right.eval read)
 
+def readSlot (slots : Array Int) (index : Nat) : Except C0.Stop Int :=
+  match slots[index]? with
+  | some value => .ok value
+  | none => .error (.unsupported "compact slot outside the initialized scope")
+
 /-- Only the chosen branch runs. Bindings extend the store after the initializer succeeds. -/
 def Body.run (slots : Array Int) : Body → Except C0.Stop Int
-  | .ret value => value.eval read
-  | .bind init next => do next.run (slots.push (← init.eval read))
+  | .ret value => value.eval (readSlot slots)
+  | .bind init next => do next.run (slots.push (← init.eval (readSlot slots)))
   | .branch test yes no => do
-    if (← test.eval read) != 0 then yes.run slots else no.run slots
-where
-  read index := match slots[index]? with
-    | some value => .ok value
-    | none => .error (.unsupported "compact slot outside the initialized scope")
+    if (← test.eval (readSlot slots)) != 0 then yes.run slots else no.run slots
 
 /-- Signed `int` arguments must already be in range. No memory, globals, output or calls. -/
 def Function.run (fn : Function) (args : Array Int) : Except C0.Stop Int :=
@@ -167,40 +174,115 @@ def symbolName (symbol : Sym) : String := match symbol.description with
 
 def exprOrigins (locations : List Loc) : List Origin := locations.map fun loc => ⟨loc, none⟩
 
+/-- Ail's terminal statement trees have no continuation after a leaf return. -/
+inductive TerminalProjects (scope : List Sym) : Body → TypedStatement → Prop where
+  | ret {value ail} {loc desug attrs} (matched : Projects scope value ail) :
+      TerminalProjects scope (.ret value) (.mk loc desug attrs (.return_ ail))
+  | branch {test yes no ailTest ailYes ailNo} {loc desug attrs}
+      (testMatch : Projects scope test ailTest) (yesMatch : TerminalProjects scope yes ailYes)
+      (noMatch : TerminalProjects scope no ailNo) :
+      TerminalProjects scope (.branch test yes no) (.mk loc desug attrs (.if_ ailTest ailYes ailNo))
+
+/-- Match compact bindings, in order, to single initialized Ail declarations. Numeric
+symbol freshness is needed because C0's local store uses symbol numbers as keys. -/
+inductive BlockProjects : List Sym → List Sym → Body → List TypedStatement → Prop where
+  | terminal {scope body ail} (matched : TerminalProjects scope body ail) :
+      BlockProjects scope [] body [ail]
+  | bind {scope : List Sym} {symbol : Sym} {rest init next ailInit ailNext} {loc desug attrs}
+      (fresh : ∀ previous ∈ scope, previous.number ≠ symbol.number)
+      (valueMatch : Projects scope init ailInit)
+      (nextMatch : BlockProjects (scope ++ [symbol]) rest next ailNext) :
+      BlockProjects scope (symbol :: rest) (.bind init next)
+        (.mk loc desug attrs (.declaration [(symbol, some ailInit)]) :: ailNext)
+
+structure TerminalProjection (scope : List Sym) (ail : TypedStatement) where
+  body : Body
+  origins : List Origin
+  projects : TerminalProjects scope body ail
+
+structure BlockProjection (scope bindings : List Sym) (ail : List TypedStatement) where
+  body : Body
+  origins : List Origin
+  projects : BlockProjects scope bindings body ail
+
+/-- The result of extraction describes the sole original Ail function body, not a
+reconstructed statement. This witness concerns tree structure, not the Core semantics. -/
+structure FunctionProjects (ail : TypedProgram) (fn : Function) : Prop where
+  shape : ∃ (symbol : Sym) (source : FunctionDefinition GenTypeCategory)
+    (loc : Loc) (bindings : Bindings) (statements : List TypedStatement) (locals : List Sym),
+    ail.2.functionDefinitions = [(symbol, source)] ∧
+    source.body = .mk loc ⟨false, none⟩ (.mk []) (.block bindings statements) ∧
+    fn.arity = source.params.length ∧ locals = bindings.map Prod.fst ∧
+    BlockProjects source.params locals fn.body statements
+  wellScoped : fn.body.scoped fn.arity = true
+
+structure CheckedProjection (ail : TypedProgram) where
+  value : Projection
+  projects : FunctionProjects ail value.fn
+
+/-- Every compact slot denotes an initialized, in-range local in the current C0 activation. -/
+structure SlotState (scope : List Sym) (slots : Array Int) (env : C0.Env) : Prop where
+  size : slots.size = scope.length
+  initialized : ∀ (index : Nat) (symbol : Sym), scope[index]? = some symbol →
+    ∃ value, slots[index]? = some value ∧ env.locals[symbol.number]? = some value ∧
+      C0.inRange 4 true value = true
+
+/-- A return is a signed `int`; the only allowed stop is checked signed addition overflow. -/
+def IntOutcome : Except C0.Stop Int → Prop
+  | .ok value => C0.inRange 4 true value = true
+  | .error stop => stop = .undefined "signed integer overflow"
+
+/-- Observe a finished C0 activation as its caller would: private locals are discarded,
+but globals, output, return and stops are retained. -/
+def observeActivation (caller : C0.Env) : Except C0.Stop (Option Int × C0.Env) →
+    Except C0.Stop (Option Int × C0.Env) :=
+  Except.map fun (returned, env) => (returned, { env with locals := caller.locals })
+
 /-- Branches are terminal: both arms must themselves return or branch. -/
-def projectTerminal (scope : List Sym) : Nat → TypedStatement → Except String (Body × List Origin)
+def projectTerminal (scope : List Sym) : Nat → (ail : TypedStatement) →
+    Except String (TerminalProjection scope ail)
   | 0, _ => .error "compact statement depth exceeded"
-  | fuel + 1, .mk loc ⟨false, none⟩ (.mk []) node =>
-    match node with
+  | fuel + 1, .mk loc ⟨false, none⟩ (.mk []) node => do
+    match (dependent := true) node with
     | .return_ value => do
       let item ← projectExpr scope 256 value
-      return (.ret item.expr, ⟨loc, none⟩ :: exprOrigins item.origins)
+      return ⟨.ret item.expr, ⟨loc, none⟩ :: exprOrigins item.origins, .ret item.projects⟩
     | .if_ test yes no => do
       let cond ← projectExpr scope 256 test
       let lhs ← projectTerminal scope fuel yes
       let rhs ← projectTerminal scope fuel no
-      return (.branch cond.expr lhs.1 rhs.1,
-        ⟨loc, none⟩ :: exprOrigins cond.origins ++ lhs.2 ++ rhs.2)
+      return ⟨.branch cond.expr lhs.body rhs.body,
+        ⟨loc, none⟩ :: exprOrigins cond.origins ++ lhs.origins ++ rhs.origins,
+        .branch cond.projects lhs.projects rhs.projects⟩
     | _ => .error "expected return or terminal if"
   | _, _ => .error "unsupported statement attributes or desugaring"
 
-def projectBlock (scope : List Sym) : List Sym → List TypedStatement →
-    Except String (Body × List Origin)
-  | [], [last] => projectTerminal scope 256 last
+def projectBlock (scope : List Sym) : (bindings : List Sym) → (ail : List TypedStatement) →
+    Except String (BlockProjection scope bindings ail)
+  | [], [last] => do
+    let item ← projectTerminal scope 256 last
+    return ⟨item.body, item.origins, .terminal item.projects⟩
   | symbol :: bindings, .mk loc ⟨false, none⟩ (.mk []) (.declaration [(actual, some init)]) :: rest => do
-    unless symbol = actual do throw "declarations do not match block bindings in order"
-    let value ← projectExpr scope 256 init
-    let next ← projectBlock (scope ++ [symbol]) bindings rest
-    return (.bind value.expr next.1,
-      ⟨loc, some (symbolName symbol)⟩ :: exprOrigins value.origins ++ next.2)
+    if same : symbol = actual then
+      if allFresh : symbol.number ∉ scope.map Sym.number then
+        let value ← projectExpr scope 256 init
+        let next ← projectBlock (scope ++ [symbol]) bindings rest
+        have fresh : ∀ (previous : Sym), previous ∈ scope → previous.number ≠ symbol.number := by
+          intro previous mem equal
+          exact allFresh (List.mem_map.mpr ⟨previous, mem, equal⟩)
+        return ⟨.bind value.expr next.body,
+          ⟨loc, some (symbolName symbol)⟩ :: exprOrigins value.origins ++ next.origins,
+          by subst actual; exact .bind fresh value.projects next.projects⟩
+      else throw "duplicate object identity"
+    else throw "declarations do not match block bindings in order"
   | _, _ => .error "expected initialized local declarations followed by a terminal statement"
 
 /-- Accept one function definition and one matching declaration in a translation unit.
 The discarded Ail environment is not needed to evaluate this fragment. The original Ail,
 not a reconstructed surrogate, remains the input to Cerberus elaboration. -/
-def project (ail : TypedProgram) : Except String Projection := do
+def projectFunction (ail : TypedProgram) (symbol : Sym) (fn : FunctionDefinition GenTypeCategory)
+    (functions : ail.2.functionDefinitions = [(symbol, fn)]) : Except String (CheckedProjection ail) := do
   let sigma := ail.2
-  let [(symbol, fn)] := sigma.functionDefinitions | throw "expected exactly one function body"
   let [(decl, (_, .mk [], .function _ (quals, result) args false false false))] := sigma.declarations
     | throw "expected a single non-variadic function declaration without attributes"
   unless symbol = decl && plainInt quals result && args.length = fn.params.length &&
@@ -213,16 +295,28 @@ def project (ail : TypedProgram) : Except String Projection := do
       sigma.cnDatatypes.isEmpty && sigma.cnDeclSpecs.isEmpty && sigma.cnIdents.isEmpty do
     throw "unsupported top-level declarations"
   let .mk [] := fn.attrs | throw "unsupported function attributes"
-  let .mk _ ⟨false, none⟩ (.mk []) (.block bindings statements) := fn.body
-    | throw "expected a single function block"
-  let locals ← bindings.mapM fun (binder, (_, align, qual, ctype)) =>
-    if align.isNone && plainInt qual ctype then .ok binder else .error "unsupported local type"
-  unless bindings.all (fun (_, ((_, dur, reg), _)) => dur == .automatic && !reg) do
-    throw "non-automatic or register binding"
-  let numbers := (fn.params ++ locals).map (·.number)
-  unless numbers.eraseDups.length == numbers.length do throw "duplicate object identity"
-  let (body, origins) ← projectBlock fn.params locals statements
-  unless body.scoped fn.params.length do throw "invalid compact body"
-  return ⟨⟨fn.params.length, body⟩, symbolName symbol, fn.params.map symbolName, origins⟩
+  match outer : fn.body with
+  | .mk loc ⟨false, none⟩ (.mk []) (.block bindings statements) => do
+    unless bindings.all (fun (_, (_, align, qual, ctype)) => align.isNone && plainInt qual ctype) do
+      throw "unsupported local type"
+    let locals := bindings.map Prod.fst
+    unless bindings.all (fun (_, ((_, dur, reg), _)) => dur == .automatic && !reg) do
+      throw "non-automatic or register binding"
+    let numbers := fn.params.map (·.number)
+    unless numbers.eraseDups.length == numbers.length do throw "duplicate object identity"
+    let block ← projectBlock fn.params locals statements
+    if valid : block.body.scoped fn.params.length = true then
+      return ⟨⟨⟨fn.params.length, block.body⟩, symbolName symbol, fn.params.map symbolName, block.origins⟩,
+        ⟨⟨symbol, fn, loc, bindings, statements, locals, functions, outer, rfl, rfl, block.projects⟩, valid⟩⟩
+    else throw "invalid compact body"
+  | _ => throw "expected a single function block"
+
+def projectChecked (ail : TypedProgram) : Except String (CheckedProjection ail) :=
+  match functions : ail.2.functionDefinitions with
+  | [(symbol, fn)] => projectFunction ail symbol fn functions
+  | _ => .error "expected exactly one function body"
+
+def project (ail : TypedProgram) : Except String Projection :=
+  (projectChecked ail).map (·.value)
 
 end Silmaril.Compiler.C.Compact

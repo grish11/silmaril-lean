@@ -27,6 +27,8 @@ modules=(
   Silmaril.Compiler.Explorer.Text.Thms
   CompilesToExamples.Explorer.TypeError
   Silmaril.Proofs.Compiler.C.Compact
+  Silmaril.Proofs.Compiler.C.CompactBody
+  Silmaril.Compiler.C.Compact.Thms
   CompilesToExamples.Explorer.Compact.Checks
   CompilesToExamples.Explorer.Compact.Core
 )

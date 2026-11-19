@@ -20,6 +20,9 @@ attribute [local cbv_eval] Std.HashMap.isEmpty_emptyWithCapacity
 theorem add3_project : project Straight.ail = .ok add3 := by cbv
 theorem max2_project : project Branch.ail = .ok max2 := by cbv
 
+theorem add3_extraction : FunctionProjects Straight.ail add3.fn := project_sound add3_project
+theorem max2_extraction : FunctionProjects Branch.ail max2.fn := project_sound max2_project
+
 theorem add3_observes : add3.fn.run #[1, 2, 3] = .ok 6 ∧
     observeAil Straight.ail [1, 2, 3] = some 6 := by constructor <;> cbv
 

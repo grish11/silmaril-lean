@@ -454,13 +454,38 @@ aliasing, global state or I/O in the model. The function checks argument count, 
 and slot scope; signed addition overflow stops with UB, including in initialization.
 Evaluation reads left to right without side effects. Only the chosen branch runs.
 
-The stage badge checks equality of the **projection** and binds both exact byte streams.
-`ExprProjection.eval_eq` relates the independent evaluator to C0 on the original Ail expression:
-with sufficient fuel and a related slot state, results and stops agree, and successful
-evaluation leaves the C0 environment unchanged. `add3_agrees` and `max2_agrees` check the
-compact and C0 returns, exact Cerberus elaboration, and forced Core return on the named
-canonical inputs. These closed examples are not a statement-level or whole-program Core
-simulation. C text → Ail remains a compiled frontend evaluation, not a parser theorem.
+The evidence has four distinct scopes:
+
+- **Extraction.** The badge checks equality of the projection and binds both exact byte
+  streams. `project_sound` shows that every successful recognizer result is scoped and
+  structurally corresponds to the sole original Ail function body.
+- **Generic C0 semantics.** `ExprProjection.eval_eq` preserves expression results and stops.
+  `FunctionProjects.activation` extends this compositionally to declarations, branches and
+  returns for the original body. It starts after argument setup, with related initialized
+  in-range parameter slots and the matching C0 body, local types and return type. For fuel
+  at least `body.fuel + 2`, it gives the same in-range return without observable effects on
+  globals or output, or the same signed overflow stop. No other stop or exhaustion occurs
+  in that model under those hypotheses. This does not prove that `C0.prepare` or `callFn`
+  establish those hypotheses for every accepted program.
+- **Elaboration.** The existing exact Ail → Core equalities bind each original typed Ail
+  program to its Core result; the compact tree is not an input to that elaborator.
+- **Concrete Core behavior.** `add3_agrees` and `max2_agrees` compare compact and C0
+  returns to a forced Core run on `add3(1,2,3)` and `max2(1,2)` respectively. To generalize
+  this would require a relation between initialized slots and Core object state, showing
+  that all admissible executions of the elaborated body preserve returns/effects and
+  safe termination on compact success, with a separate account of overflow and stops.
+  Neither elaboration equality nor the closed runs supply that result.
+
+C text → Ail remains a compiled frontend evaluation, not a parser theorem.
+
+**Design and provenance.** Earlier MiniC work uses named state and checked arithmetic,
+and separates shape recognition of elaborated Core from closed validation. This view
+adapts those ideas, not that language or implementation. It projects directly from typed
+Ail and reuses C0's integer domain and stop model; a second named-state interpreter or
+the unsigned wrapping WordC representation would not provide that bridge. Dense slots
+and a separate origin table remove repeated metadata without conflating node identity
+with storage identity. Arena allocation and interning are deferred: the example trees
+are small, and sharing repeated metadata in larger programs needs separate measurements.
 
 ```sh
 lake build Silmaril.Compiler.C.Compact.Codec
@@ -477,9 +502,11 @@ make compiler-explorer-check
 constructor occurrences, and exact and formatted UTF-8 bytes. For `add3`, exact Ail/Core
 files are 6,101/21,231 bytes and compact tree + origins are 99 + 735 bytes. For `max2` they
 are 4,024/17,927 and 85 + 573 bytes. This removes repeated metadata and narrows scope;
-it does not measure shared heap objects or compress the full Ail or Core AST. For a loop
-baseline, run `compact_baseline.lean` on `examples/compiles-to/loop/loop.c` and pass the output
-directory to `compact_sizes.mjs`. `compact_fixture.lean bench <typed-ail.sexp> <calls>` compares
+it does not measure shared heap objects or compress the full Ail or Core AST. `sum_to`
+is 8,664/36,729 Ail/Core bytes; the `callee`/`caller` unit is 4,867/18,619. Both elaborate
+but have no compact projection. For these baselines, run `compact_baseline.lean` on
+`examples/compiles-to/loop/loop.c` or a caller/callee source and pass the output directory to
+`compact_sizes.mjs`. `compact_fixture.lean bench <typed-ail.sexp> <calls>` compares
 warm evaluator calls with checked equal returns, not parser, elaborator or native build times.
 
 ## More general problems, and negative results
