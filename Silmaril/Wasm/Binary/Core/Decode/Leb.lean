@@ -59,8 +59,8 @@ theorem readBytes_ok {n : Nat} {c c' : Cursor} {ba : ByteArray}
   · rename_i hp
     simp only [StateT.run_bind, StateT.run_set, StateT.run_pure, pure_bind] at h
     cases h
-    simp only [Cursor.rest, ByteArray.data_extract, Array.toList_extract, List.extract_eq_take_drop,
-      Nat.add_sub_cancel_left, List.length_take, List.length_drop, Array.length_toList,
+    simp only [Cursor.rest, extractForKernel_eq, ByteArray.data_extract, Array.toList_extract,
+      List.extract_eq_take_drop, Nat.add_sub_cancel_left, List.length_take, List.length_drop, Array.length_toList,
       ByteArray.size_data]
     refine ⟨trivial, ?_, by simp at hp ⊢; omega⟩
     rw [← List.drop_drop, List.take_append_drop]

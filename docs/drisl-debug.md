@@ -78,8 +78,14 @@ representable as binary64. It does not round (`0.5` succeeds; `0.1` fails).
 
 `Debug/Text/Defs.lean` uses the existing RFC JSON reader/printer; the text
 languages additionally enforce Unicode, wrapper, number and duplicate rules.
-The proven codec inverse is on debug ASTs. The byte-level printer/reader
-roundtrips are regression tested, not claimed as a universal printer theorem.
+`JsonWire.parse_encode` recovers the exact ordered wire AST from printer bytes,
+including UTF-16 code units and exact decimal fields. `Debug.ofWire_toWire`
+then recovers the scalar-Unicode debug tree. The byte-level left inverse in
+`Debug/Text/Thms.lean` applies to every duplicate-free tree in either escaped
+policy. No-escape additionally requires `CollisionFree .none`. The image
+right inverse is for printer outputs, not arbitrary accepted JSON spellings.
+The printers agree byte-for-byte on the overlapping DRISL/ATProto/i64 profiles
+and across escape policies on trees without dollar-prefixed object names.
 `Model/Defs.lean` interprets CBOR values separately from bytes. Canonical bytes
 must decode as one complete item, reproduce the input bytes on deterministic
 re-encoding, and have strict bytewise order of encoded keys. The CBOR value
@@ -88,6 +94,35 @@ language to this interpretation and the CBOR reader. `renderJsonWithBytesCbor?`
 checks DRISL representability; `parseJsonWithBytesCbor?` lifts link-free DRISL
 into exact decimals. The latter accepts, for example, integral doubles; the
 preferred integer-first lowering is not an inverse for their CBOR kind.
+The CBOR theorems characterize the accepted bytes via the existing decoder and
+the value model; they do not prove that the canonical writer and reader are
+inverses or identify the model byte language with the older `Drisl.language`
+profiles. A writer/reader law would compare against recursively sorted object
+members (or an order-insensitive view), since the writer sorts map keys.
+
+### Compatibility with the named CBOR languages
+
+`Model/Thms.lean` proves byte-language equality for DRISL with either exact
+DASL or exact BDASL CIDs and for the signed-i64, no-float ATProto core with
+either CID rule. The proof compares the two real readers on every decoded
+item; `Cbor.encodable_of_decode` supplies the head and size bounds and strict
+encoded-key ordering rules out duplicate decoded names.
+
+These equalities are for exact boundaries and the corresponding link rules:
+the legacy CID-prefix reader accepts a digest followed by an extra byte,
+which the exact reader rejects. Conversely, the default `.any` reader can
+accept a canonical two-byte CID codec varint that neither fixed rule accepts.
+The legacy “no floats” profile alone is not ATProto: it still accepts the
+unsigned argument `2^63`. The theorem header checks these distinctions.
+
+For all three built-in CID profiles, rendering any successful DRISL or ATProto
+read returns the original bytes. Reading after rendering preserves the exact
+ordered AST if its unsorted CBOR emission is encodable and already has strictly
+ordered keys throughout; these guards do not assume any parser equality.
+Exact AST recovery without the order guard is false: the writer sorts `b, a`
+to `a, b`. The general writer is partial, and arbitrary caller-supplied
+numeric/CID codecs are not assumed to be inverses. No theorem about equality
+modulo key order for arbitrary input order is claimed here.
 
 Run the targeted checks with:
 

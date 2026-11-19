@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.Cbor.Drisl.Debug.Text.Defs
 public import Silmaril.Formats.Cbor.Drisl.Number.Thms
 public import Silmaril.Formats.JsonWire.Thms
+public import Silmaril.Formats.JsonWire.Ast.Thms
 public import Silmaril.Formats.JsonWithBytes.Traverse.Thms
 
 @[expose] public section
@@ -10,6 +11,24 @@ public import Silmaril.Formats.JsonWithBytes.Traverse.Thms
 namespace Silmaril.Proofs.Formats.Cbor.Drisl.DebugText
 
 open Silmaril.Formats Silmaril.Formats.Cbor.Drisl Silmaril.Formats.Cbor.Drisl.Debug
+
+theorem ofWire_toWire {index : JsonIx} (value : RawSyn String (Atom JsonWire.Decimal) index) :
+    JsonWithBytes.traverse? JsonWire.unitsString? (fun
+      | none => some .null
+      | some (.bool flag) => some (.bool flag)
+      | some (.number number) => some (.number number)
+      | some (.string text) => Option.map Atom.string (JsonWire.unitsString? text)) (toWire value) = some value := by
+  induction value with
+  | scalar atom => cases atom <;> simp [toWire, JsonWithBytes.traverse?, JsonWire.unitsString_stringUnits]
+  | list _ ih | map _ ih => simp [toWire, JsonWithBytes.traverse?, ih]
+  | nil | objNil => rfl
+  | cons _ _ ih tailIH | objCons _ _ _ ih tailIH =>
+    simp [toWire, JsonWithBytes.traverse?, ih, tailIH, JsonWire.unitsString_stringUnits]
+
+theorem wellFormed_mapScalar {Input Output : Type} {index : JsonIx}
+    (transform : Input → Output) (value : RawSyn String Input index) :
+    (value.mapScalar transform).WellFormed ↔ value.WellFormed := by
+  induction value <;> simp_all
 
 theorem textLanguage_le_json {Input Link : Type} (codec : Codec Input JsonWire.Decimal Link)
     (policy : Escape) : textLanguage codec policy ≤ JsonBytes.language .rfc8259 := by

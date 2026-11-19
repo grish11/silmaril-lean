@@ -7,6 +7,11 @@ import Silmaril.Proofs.Formats.Cbor.Drisl.Convert
 
 namespace Silmaril.Formats.Cbor.Drisl
 
+theorem removeLinks_mapScalar_data {Numeric Link : Type} {index : JsonIx}
+    (value : RawSyn String (JsonWithBytes.Scalar Numeric) index) :
+    removeLinks? (value.mapScalar (Scalar.data (Cid := Link))) = some value :=
+  Proofs.Formats.Cbor.Drisl.Convert.remove_embed value
+
 theorem removeLinks_embedI64 {Link : Type} (value : JsonWithBytes.OrderedI64) :
     removeLinks? (embedI64 (Cid := Link) value) = some value :=
   Proofs.Formats.Cbor.Drisl.Convert.remove_embed value
