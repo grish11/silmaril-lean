@@ -1,3 +1,24 @@
+c2c/add3_double  [imported]  add3 => add3_double (C => C): bug: returns (a + b + c) + (a + b + c); refuted on add3(1, 2, 3)
+  translation            refuted      CompilesToExamples.Explorer.C2C.double_refuted
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  target_core_elaboration proved       CompilesToExamples.Explorer.C2C.elab_eq
+c2c/add3_drop  [imported]  add3 => add3_drop (C => C): bug: returns a + b, dropping c; refuted on add3(1, 2, 3)
+  translation            refuted      CompilesToExamples.Explorer.C2C.drop_refuted
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  target_core_elaboration proved       CompilesToExamples.Explorer.C2C.elab_eq
+c2c/add3_op  [imported]  add3 => add3_op (C => C): s - c instead of s + c; no checked counterexample recorded
+  translation            open         
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  target_core_elaboration proved       CompilesToExamples.Explorer.C2C.elab_eq
+c2c/add3_operand  [imported]  add3 => add3_operand (C => C): bug: s + a instead of s + c; refuted on add3(1, 2, 3)
+  translation            refuted      CompilesToExamples.Explorer.C2C.operand_refuted
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  target_core_elaboration proved       CompilesToExamples.Explorer.C2C.elab_eq
+c2c/add3_reassoc  [imported]  add3 => add3_reassoc (C => C): reassociation changes where signed overflow can occur; refinement open
+  translation            open         
+  equivalence            open         
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  target_core_elaboration proved       CompilesToExamples.Explorer.C2C.elab_eq
 compiles-to/branch/O0/max2  [compiled]  branch.c, gcc 13.3.0 -O0, max2 (object code)
   edge/0                 proved       CompilesToExamples.Explorer.BranchO0.edge_0
   point/0                proved       CompilesToExamples.Branch.O0.max2_point_0
@@ -15,6 +36,8 @@ compiles-to/branch/O0/max2  [compiled]  branch.c, gcc 13.3.0 -O0, max2 (object c
   abi                    proved       CompilesToExamples.Explorer.BranchO0.abi
   nonvacuity             proved       CompilesToExamples.Explorer.BranchO0.inhabited
   elaboration            proved       CompilesToExamples.Explorer.BranchO0.elaboration
+  core_elaboration       proved       CompilesToExamples.Branch.elab_eq
+  decoding               proved       CompilesToExamples.Explorer.BranchO0.decoding
   artifact               proved       CompilesToExamples.Explorer.branch_O0_code
   nonvacuity/canonical   proved       CompilesToExamples.Explorer.BranchO0.canonical
   nonvacuity/universal   open         
@@ -27,6 +50,8 @@ compiles-to/branch/O2/max2  [compiled]  branch.c, gcc 13.3.0 -O2, max2 (object c
   abi                    proved       CompilesToExamples.Explorer.BranchO2.abi
   nonvacuity             proved       CompilesToExamples.Explorer.BranchO2.inhabited
   elaboration            proved       CompilesToExamples.Explorer.BranchO2.elaboration
+  core_elaboration       proved       CompilesToExamples.Branch.elab_eq
+  decoding               proved       CompilesToExamples.Explorer.BranchO2.decoding
   artifact               proved       CompilesToExamples.Explorer.branch_O2_code
   nonvacuity/canonical   open         
   nonvacuity/universal   open         
@@ -59,6 +84,8 @@ compiles-to/straight/O0/add3  [compiled]  straight.c, gcc 13.3.0 -O0, add3 (obje
   abi                    proved       CompilesToExamples.Explorer.StraightO0.abi
   nonvacuity             proved       CompilesToExamples.Explorer.StraightO0.inhabited
   elaboration            proved       CompilesToExamples.Explorer.StraightO0.elaboration
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  decoding               proved       CompilesToExamples.Explorer.StraightO0.decoding
   artifact               proved       CompilesToExamples.Explorer.straight_O0_code
   nonvacuity/canonical   proved       CompilesToExamples.Explorer.StraightO0.canonical
   nonvacuity/universal   open         
@@ -71,6 +98,8 @@ compiles-to/straight/O2/add3  [compiled]  straight.c, gcc 13.3.0 -O2, add3 (obje
   abi                    proved       CompilesToExamples.Explorer.StraightO2.abi
   nonvacuity             proved       CompilesToExamples.Explorer.StraightO2.inhabited
   elaboration            proved       CompilesToExamples.Explorer.StraightO2.elaboration
+  core_elaboration       proved       CompilesToExamples.Straight.elab_eq
+  decoding               proved       CompilesToExamples.Explorer.StraightO2.decoding
   artifact               proved       CompilesToExamples.Explorer.straight_O2_code
   nonvacuity/canonical   proved       CompilesToExamples.Explorer.StraightO2.canonical
   nonvacuity/universal   open         
@@ -143,3 +172,6 @@ programs/msort/O2  [compiled]  msort.c, gcc 13.3.0 -O2 (assembly)
   mapping                unsupported  
   refinement             unsupported  
   test run               passed
+typeerror/addp  [none]  addp.c: does pointer + pointer typecheck?
+  typing                 refuted      CompilesToExamples.Explorer.TypeError.addp_type_error
+  operand_types          proved       CompilesToExamples.Explorer.TypeError.addp_parses

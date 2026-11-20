@@ -1,0 +1,1 @@
+{"architecture":"amd64","os":"linux","config":{"Entrypoint":["/http-ok"],"ExposedPorts":{"8080/tcp":{}}},"rootfs":{"type":"layers","diff_ids":["sha256:a97c6a7d6320f73a7c3d34f17546070a24be9a33f9d62d64f40358ace9ec4280"]}}

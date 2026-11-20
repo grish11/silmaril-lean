@@ -1,0 +1,18 @@
+-- CompilesToExamples.Straight.O0.add3Listing: the decoder's listing, checked by the kernel (decodesAs)
+-- offset, length, instruction (Repr, with Silmaril.X86.Ext. and Silmaril.X86. dropped)
+0x0	1	Instr.push (Reg.rbp)
+0x1	3	Instr.mov (Sz.q) (RM.reg (Reg.rbp)) (Reg.rsp)
+0x4	3	Instr.mov (Sz.d) (RM.mem { base := Base.reg (Reg.rbp), index := none, disp := 0xffffffec#32 }) (Reg.rdi)
+0x7	3	Instr.mov (Sz.d) (RM.mem { base := Base.reg (Reg.rbp), index := none, disp := 0xffffffe8#32 }) (Reg.rsi)
+0xa	3	Instr.mov (Sz.d) (RM.mem { base := Base.reg (Reg.rbp), index := none, disp := 0xffffffe4#32 }) (Reg.rdx)
+0xd	3	Instr.load (Sz.d) (Reg.rdx) { base := Base.reg (Reg.rbp), index := none, disp := 0xffffffec#32 }
+0x10	3	Instr.load (Sz.d) (Reg.rax) { base := Base.reg (Reg.rbp), index := none, disp := 0xffffffe8#32 }
+0x13	2	Instr.alu (Sz.d) (AluOp.add) (RM.reg (Reg.rax)) (Reg.rdx)
+0x15	3	Instr.mov (Sz.d) (RM.mem { base := Base.reg (Reg.rbp), index := none, disp := 0xfffffffc#32 }) (Reg.rax)
+0x18	3	Instr.load (Sz.d) (Reg.rdx) { base := Base.reg (Reg.rbp), index := none, disp := 0xfffffffc#32 }
+0x1b	3	Instr.load (Sz.d) (Reg.rax) { base := Base.reg (Reg.rbp), index := none, disp := 0xffffffe4#32 }
+0x1e	2	Instr.alu (Sz.d) (AluOp.add) (RM.reg (Reg.rax)) (Reg.rdx)
+0x20	3	Instr.mov (Sz.d) (RM.mem { base := Base.reg (Reg.rbp), index := none, disp := 0xfffffff8#32 }) (Reg.rax)
+0x23	3	Instr.load (Sz.d) (Reg.rax) { base := Base.reg (Reg.rbp), index := none, disp := 0xfffffff8#32 }
+0x26	1	Instr.pop (Reg.rbp)
+0x27	1	Instr.ret

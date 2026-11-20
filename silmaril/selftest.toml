@@ -52,7 +52,7 @@ children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.self
   "silmaril.compiles_to.all", "silmaril.compiler_explorer.all", "silmaril.selftest.languages",
   "formats.examples",
   "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors",
-  "silmaril.elf.cli", "containers", "silmaril.wasm_wast"]
+  "silmaril.elf.cli", "silmaril.component_tests", "containers", "silmaril.wasm_wast"]
 
 # The container shapes and the instances over the minimal machine (docs/projects/containers.md).
 [[group]]
@@ -66,7 +66,17 @@ children = ["silmaril.shapes.containers.vpre", "silmaril.shapes.containers.wlp",
   "containers.mini.thread_spawn_wlp_assume_no_ub", "containers.mini.tcp_then_thread_wlp_enforce",
   "containers.mini.no_ub_check_sound", "containers.mini.restrict_preserves_ub",
   "containers.monitor_correct_stdio", "containers.mini.vsys_sound_raw",
-  "containers.mini.raw_sound_vsys", "containers.mini.check_sound_vsys", "containers.noop.oci_wp"]
+  "containers.mini.raw_sound_vsys", "containers.mini.check_sound_vsys", "containers.noop.oci_wp",
+  "containers.http_once.oci_wp", "containers.http_serve.oci_wlp", "containers.examples"]
+
+# The worked examples, in the order of docs/projects/containers-examples.md and the explorer's
+# Containers tab.
+[[group]]
+name = "containers.examples"
+title = "Containers: worked examples (experimental)"
+children = ["containers.noop.oci_wp", "containers.http_serve.oci_wlp", "containers.examples.crash_wlp",
+  "containers.examples.crash_wp",
+  "containers.mini.thread_spawn_wlp", "containers.examples.http", "containers.examples.vsock"]
 
 [[group]]
 name = "silmaril.selftest.formats"

@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.SExp.Family.Defs
 import Silmaril.Proofs.Formats.SExp.Family.Basic
+import Silmaril.Proofs.Formats.SExp.Family.PTyEq
 
 /-!
 # Tree families: laws
@@ -13,7 +14,8 @@ import Silmaril.Proofs.Formats.SExp.Family.Basic
 * dotted versus proper: `SExp2.toSExp?` is a partial inverse of `SExp.toSExp2`
   (`toSExp?_toSExp2`, `toSExp2_of_toSExp?`) defined exactly on the proper expressions
   (`isProper_iff_toSExp?`); improper lists `(a . b)` have no proper part;
-* `HintedSExp.toSpki` is injective: hinted S-expressions embed in the RFC 9804 data model.
+* `HintedSExp.toSpki` is injective: hinted S-expressions embed in the RFC 9804 data model;
+* `PTy.beq_iff`: boolean equality of payload types is equality, hence `DecidableEq PTy`.
 -/
 
 @[expose] public section
@@ -21,6 +23,15 @@ import Silmaril.Proofs.Formats.SExp.Family.Basic
 namespace Silmaril.Formats
 
 variable {α : Type}
+
+/-- **Boolean equality of payload types is equality.** -/
+theorem PTy.beq_iff (a b : PTy) : PTy.beq a b = true ↔ a = b :=
+  Silmaril.Proofs.Formats.SExp.Family.beq_iff a b
+
+instance : DecidableEq PTy := fun a b => decidable_of_iff _ (PTy.beq_iff a b)
+
+example : PTy.tuple [.u8, .option .s8] ≠ PTy.tuple [.u8, .option .u8] ∧
+    PTy.list .u8 = PTy.bytes := by decide
 
 @[simp] theorem SExp.toSExp_toAST (e : SExp α) : (SExp.toAST e).toSExp = e :=
   Silmaril.Proofs.Formats.SExp.Family.toSExp_toAST e

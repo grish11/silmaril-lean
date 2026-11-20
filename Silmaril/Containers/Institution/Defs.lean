@@ -8,6 +8,8 @@ public import Mathlib.CategoryTheory.Category.Preorder
 /-!
 # The behaviour institution of containers
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 The specifications of `Silmaril.Containers.Behaviour` form an institution in the sense of Goguen
 and Burstall (1992), presented as a functor into rooms as in `Silmaril.Servers.Core` and
 `Silmaril.Cli.Institution`:

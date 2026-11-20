@@ -5,6 +5,8 @@ public import Silmaril.Containers.Env.Defs
 /-!
 # Behaviours of a containerised process, and what specifications say about them
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 **Behaviours.** One run of a process, as its environment sees it (`Beh E`, events `E`):
 
 * `done t s`: the events `t`, then the process stopped (`Stop`): it exited with a status, was

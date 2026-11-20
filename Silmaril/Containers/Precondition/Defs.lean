@@ -5,6 +5,8 @@ public import Silmaril.Containers.Runtime.Defs
 /-!
 # Preconditions on image contents, relative to a runtime model
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 Given a runtime model `R` and a specification `φ` (from an interface: a profile, ports, an HTTP
 or exit-status contract), which images satisfy `φ` when started under `R`? The baseline answer
 is semantic and always exists:

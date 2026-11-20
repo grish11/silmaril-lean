@@ -89,70 +89,70 @@ mutual
   theorem liftFlatAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (t : WIT.ClosedType RtId) → (vi : FlatCursor) →
       P.InvW I W (Canon.liftFlatAt lim q cx p t vi : P E σ _)
-    | .prim prim, vi => by rw [Canon.liftFlatAt]; exact liftFlatPrim _ _ _ _ _ _
+    | .prim prim, vi => by rw [Canon.liftFlatAt, Canon.liftFlatAtWith]; exact liftFlatPrim _ _ _ _ _ _
     | .ref r, _ => nomatch r
     | .list t, vi => by
-      rw [Canon.liftFlatAt]; exact liftFlatListWith _ _ _ _ (loadAt h lim q cx p t) _
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]; exact liftFlatListWith _ _ _ _ (loadAt h lim q cx p t) _
     | .fixedList t n, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact bind (liftFlatN (liftFlatAt h lim q cx p t) _ _) fun _ => pure _
     | .record fields, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact bind (liftFlatFields h lim q cx p fields vi) fun _ => pure _
     | .tuple ts, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact bind (liftFlatTypes h lim q cx p ts vi) fun _ => pure _
     | .variant cases, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact liftFlatVariantWith _ _ _ (liftFlatCaseAt h lim q cx p cases) _
     | .enum labels, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact liftFlatVariantWith _ _ _ (fun _ _ => pure _) _
     | .flags labels, vi => by
-      rw [Canon.liftFlatAt]; exact bind (next _ _) fun _ => pure _
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]; exact bind (next _ _) fun _ => pure _
     | .option t, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       refine liftFlatVariantWith _ _ _ (fun i _ => ?_) _
       rcases i with _ | _ | _
       · exact pure _
       · exact bind (liftFlatAt h lim q cx p t _) fun _ => pure _
       · exact pure _
     | .result ok err, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       refine liftFlatVariantWith _ _ _ (fun i _ => ?_) _
       rcases i with _ | _ | _
       · exact liftFlatOpt h lim q cx p ok _
       · exact liftFlatOpt h lim q cx p err _
       · exact pure _
     | .map k v, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact liftFlatListWith _ _ _ _
         (loadMapEntryWith _ _ _ _ _ _ (loadAt h lim q cx p v)) _
     | .own rt, vi => by
-      rw [Canon.liftFlatAt]
-      exact bind (next _ _) fun _ => bind (liftOwn h.remove _ _ _ _) fun _ => pure _
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
+      exact bind (next _ _) fun _ => bind (map (liftOwn h.remove _ _ _ _)) fun _ => pure _
     | .borrow rt, vi => by
-      rw [Canon.liftFlatAt]
-      exact bind (next _ _) fun _ => bind (liftBorrow h.lender _ _ _ _) fun _ => pure _
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
+      exact bind (next _ _) fun _ => bind (map (liftBorrow h.lender _ _ _ _)) fun _ => pure _
     | .stream t, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact bind (next _ _) fun _ =>
-        bind (liftAsyncValue h.remove h.release _ _ _ _ _) fun _ => pure _
+        bind (map (liftAsyncValue h.remove h.release _ _ _ _ _)) fun _ => pure _
     | .future t, vi => by
-      rw [Canon.liftFlatAt]
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
       exact bind (next _ _) fun _ =>
-        bind (liftAsyncValue h.remove h.release _ _ _ _ _) fun _ => pure _
+        bind (map (liftAsyncValue h.remove h.release _ _ _ _ _)) fun _ => pure _
     | .errorContext, vi => by
-      rw [Canon.liftFlatAt]
-      exact bind (next _ _) fun _ => bind (liftErrorContext _ _ _) fun _ => pure _
+      rw [Canon.liftFlatAt, Canon.liftFlatAtWith]
+      exact bind (next _ _) fun _ => bind (map (liftErrorContext _ _ _)) fun _ => pure _
 
   theorem liftFlatFields (h : LoadPres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (fields : List (String × WIT.ClosedType RtId)) → (vi : FlatCursor) →
       P.InvW I W (Canon.liftFlatFields lim q cx p fields vi : P E σ _)
-    | [], _ => by rw [Canon.liftFlatFields]; exact pure _
+    | [], _ => by rw [Canon.liftFlatFields, Canon.liftFlatFieldsWith]; exact pure _
     | (_, t) :: fields, vi => by
-      rw [Canon.liftFlatFields]
+      rw [Canon.liftFlatFields, Canon.liftFlatFieldsWith]
       exact bind (liftFlatAt h lim q cx p t _) fun _ =>
         bind (liftFlatFields h lim q cx p fields _) fun _ => pure _
 
@@ -160,9 +160,9 @@ mutual
       (cx : LiftLowerContext E) (p : AddrType) :
       (ts : List (WIT.ClosedType RtId)) → (vi : FlatCursor) →
       P.InvW I W (Canon.liftFlatTypes lim q cx p ts vi : P E σ _)
-    | [], _ => by rw [Canon.liftFlatTypes]; exact pure _
+    | [], _ => by rw [Canon.liftFlatTypes, Canon.liftFlatTypesWith]; exact pure _
     | t :: ts, vi => by
-      rw [Canon.liftFlatTypes]
+      rw [Canon.liftFlatTypes, Canon.liftFlatTypesWith]
       exact bind (liftFlatAt h lim q cx p t _) fun _ =>
         bind (liftFlatTypes h lim q cx p ts _) fun _ => pure _
 
@@ -171,18 +171,18 @@ mutual
       (cases : List (String × Option (WIT.ClosedType RtId))) → (i : Nat) →
       (vi : FlatCursor) →
       P.InvW I W (Canon.liftFlatCaseAt lim q cx p cases i vi : P E σ _)
-    | [], _, _ => by rw [Canon.liftFlatCaseAt]; exact pure _
-    | (_, t) :: _, 0, vi => by rw [Canon.liftFlatCaseAt]; exact liftFlatOpt h lim q cx p t vi
+    | [], _, _ => by rw [Canon.liftFlatCaseAt, Canon.liftFlatCaseAtWith]; exact pure _
+    | (_, t) :: _, 0, vi => by rw [Canon.liftFlatCaseAt, Canon.liftFlatCaseAtWith]; exact liftFlatOpt h lim q cx p t vi
     | _ :: cases, i + 1, vi => by
-      rw [Canon.liftFlatCaseAt]; exact liftFlatCaseAt h lim q cx p cases i vi
+      rw [Canon.liftFlatCaseAt, Canon.liftFlatCaseAtWith]; exact liftFlatCaseAt h lim q cx p cases i vi
 
   theorem liftFlatOpt (h : LoadPres I) (lim : Limits) (q : Quirks)
       (cx : LiftLowerContext E) (p : AddrType) :
       (t : Option (WIT.ClosedType RtId)) → (vi : FlatCursor) →
       P.InvW I W (Canon.liftFlatOpt lim q cx p t vi : P E σ _)
-    | none, _ => by rw [Canon.liftFlatOpt]; exact pure _
+    | none, _ => by rw [Canon.liftFlatOpt, Canon.liftFlatOptWith]; exact pure _
     | some t, vi => by
-      rw [Canon.liftFlatOpt]; exact bind (liftFlatAt h lim q cx p t vi) fun _ => pure _
+      rw [Canon.liftFlatOpt, Canon.liftFlatOptWith]; exact bind (liftFlatAt h lim q cx p t vi) fun _ => pure _
 end
 
 theorem liftFlatValues (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)

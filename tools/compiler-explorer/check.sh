@@ -8,7 +8,7 @@
 #    is not evidence: missing, another statement, other axioms);
 # 4. fail unless the statuses are examples/compiler-explorer/expected-status.txt;
 # 5. replay the kernel on the evidence modules (`replay.sh`, leanchecker);
-# 6. run the database and view tests.
+# The Make target also runs the database and view tests.
 # Docker is not needed: the builds and listings are committed (fixtures.py build|listings).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -18,11 +18,30 @@ out="${1:-.lake/compiler-explorer}"
 mkdir -p "$out"
 "$LAKE" build --wfail cexplorer-export Silmaril.Compiler.Explorer.Det.Thms \
   Silmaril.Project.Shapes.CompilesTo.Explorer.Thms CompilesToExamples.Explorer.Builds \
-  CompilesToExamples.Explorer.Code CompilesToExamples.Explorer.Rows CompilesToExamples.Explorer.Decompiled
+  CompilesToExamples.Explorer.Code CompilesToExamples.Explorer.Rows CompilesToExamples.Explorer.Decompiled \
+  CompilesToExamples.Explorer.C2C.Runs CompilesToExamples.Explorer.TypeError CompilesToExamples.Explorer.Blocks \
+  CompilesToExamples.Explorer.C2C.Elaborates \
+  Silmaril.Compiler.Explorer.Text.Thms
 regen="$(mktemp -d)"
-trap 'rm -rf "$regen"' EXIT
+replay_pid=
+cleanup() {
+  local status=$?
+  # Always join the independent replay, including after a foreground failure.
+  if [ -n "$replay_pid" ]; then
+    if ! wait "$replay_pid"; then status=1; fi
+  fi
+  rm -rf "$regen"
+  trap - EXIT
+  exit "$status"
+}
+trap cleanup EXIT
+# Replay reads the completed build; manifest/exporter checks and temporary negative
+# fixtures do not modify its oleans. Keep all bounded workers and join their verdict.
+LAKE="$LAKE" tools/compiler-explorer/replay.sh &
+replay_pid=$!
 "$PYTHON" -I tools/compiler-explorer/fixtures.py manifests --out "$regen" > /dev/null
 "$PYTHON" -I tools/compiler-explorer/fixtures.py rows --check
+"$PYTHON" -I tools/compiler-explorer/fixtures.py stages --check
 if ! diff -r "$regen" examples/compiler-explorer/manifests > /dev/null; then
   diff -r "$regen" examples/compiler-explorer/manifests | head -20 >&2
   echo "error: the committed manifests are not what fixtures.py writes" >&2
@@ -36,7 +55,7 @@ if ! diff -u examples/compiler-explorer/expected-status.txt "$out/status.txt"; t
   echo "error: the statuses differ from examples/compiler-explorer/expected-status.txt" >&2
   exit 1
 fi
-LAKE="$LAKE" tools/compiler-explorer/replay.sh
-"$PYTHON" -I tools/compiler-explorer/tests/test_cexplorer.py
-node --test tools/compiler-explorer/tests/view.test.mjs
+"$LAKE" env "$PYTHON" -I tools/compiler-explorer/tests/test_replay.py
+wait "$replay_pid"
+replay_pid=
 echo "compiler explorer: ok ($(grep -c ' proved ' "$out/status.txt") proved obligations)"

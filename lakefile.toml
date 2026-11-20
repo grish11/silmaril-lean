@@ -86,7 +86,7 @@ globs = [
   "Silmaril.Raw.Libc.+",
   "Silmaril.Problems.+", "Silmaril.Process.+",
   # Project, except `Project.WasmComponents` and `Project.WasmP3Rust` (`SilmarilWasmProject` below).
-  "Silmaril.Project.Defs", "Silmaril.Project.CompilesTo.+", "Silmaril.Project.Components.+",
+  "Silmaril.Project.Defs", "Silmaril.Project.CompilesTo.+", "Silmaril.Project.Components.+", "Silmaril.Project.ComponentTests.+",
   "Silmaril.Project.ConsequenceSystems.+",
   "Silmaril.Project.Core.+", "Silmaril.Project.Formats.+", "Silmaril.Project.Languages.+",
   "Silmaril.Project.Registry.+",
@@ -97,7 +97,7 @@ globs = [
   "Silmaril.Proofs.Games.+", "Silmaril.Proofs.Sim.+", "Silmaril.Proofs.Logic.+", "Silmaril.Raw.Logic.+", "Silmaril.Proofs.Problems.+",
   "Silmaril.Proofs.Process.+", "Silmaril.Proofs.Project.+", "Silmaril.Proofs.ProofFormats.+", "Silmaril.Proofs.SSA.+",
   "Silmaril.Proofs.Wasm.Abstract.+", "Silmaril.Proofs.Wasm.Acceptor.+", "Silmaril.Proofs.Wasm.Auto.+", "Silmaril.Proofs.Wasm.Auto2.+",
-  "Silmaril.Proofs.Wasm.Behaviour.+", "Silmaril.Proofs.Wasm.Binaryen.+",
+  "Silmaril.Proofs.Wasm.Behaviour.+", "Silmaril.Proofs.Wasm.Binary.+", "Silmaril.Proofs.Wasm.Binaryen.+",
   "Silmaril.Proofs.Wasm.Examples.+", "Silmaril.Proofs.Wasm.Execution.+",
   "Silmaril.Proofs.Wasm.FX.+", "Silmaril.Proofs.Wasm.FnInst.+",
   "Silmaril.Proofs.Wasm.Game.+", "Silmaril.Proofs.Wasm.Interp.+", "Silmaril.Proofs.Wasm.Logic.+",
@@ -125,7 +125,7 @@ globs = [
   "Silmaril.Proofs.Wasm.Instantiation.+", "Silmaril.Proofs.Wasm.Jco.+",
   "Silmaril.Proofs.Wasm.JcoTool.+", "Silmaril.Proofs.Wasm.LimeCompile.+",
   "Silmaril.Proofs.Wasm.Models.+", "Silmaril.Proofs.Wasm.Perf.+",
-  "Silmaril.Proofs.Wasm.Resource.+", "Silmaril.Proofs.Wasm.Wac.+", "Silmaril.Proofs.Wasm.Wit.+",
+  "Silmaril.Proofs.Wasm.Resource.+", "Silmaril.Proofs.Wasm.Validation.+", "Silmaril.Proofs.Wasm.Wac.+", "Silmaril.Proofs.Wasm.Wit.+",
   "Silmaril.Raw.Wasm.Component.+", "Silmaril.Raw.Wasm.Tools.+", "Silmaril.Raw.Wasm.Versions.+",
   "Silmaril.Raw.Wasm.Wit.+", "Silmaril.Raw.Wasm.Logic.+", "Silmaril.Wasm.Atlas.+", "Silmaril.Wasm.Category.+",
   "Silmaril.Wasm.InstObs.+", "Silmaril.Wasm.Instantiation.+", "Silmaril.Wasm.Jco.+",
@@ -627,6 +627,20 @@ srcDir = "tools/cli-core-trace"
 [[lean_lib]]
 name = "CerberusTests"
 globs = ["tests.cerberus.+"]
+
+# Run the large finite CJSON observations natively. The same main functions and
+# assertions remain in CerberusTests; interpretation dominates the CI time budget.
+[[lean_exe]]
+name = "ci_cjson_array_size_context"
+root = "tests.cerberus.CjsonArraySizeContext"
+
+[[lean_exe]]
+name = "ci_cjson_array_item_context"
+root = "tests.cerberus.CjsonArrayItemContext"
+
+[[lean_exe]]
+name = "ci_cjson_array_item_machine"
+root = "tests.cerberus.CjsonArrayItemMachine"
 
 [[lean_exe]]
 name = "cerb-lean"

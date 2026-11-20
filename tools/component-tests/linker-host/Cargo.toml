@@ -1,0 +1,14 @@
+# The Rust-embedder host of tools/component-tests/paramname.py: wasmtime 50.0.0's `Linker`
+# supplies the root import `f` with `func_wrap` (a host function typed by its Rust parameter
+# types, `(u32,) -> ()`), instantiates the component and calls `get`. Evidence, not a proof;
+# not run in CI.
+[package]
+name = "linker-host"
+version = "0.1.0"
+edition = "2021"
+publish = false
+license = "MIT"
+
+[dependencies]
+anyhow = "1"
+wasmtime = { version = "=50.0.0", default-features = false, features = ["cranelift", "runtime", "std", "component-model", "anyhow"] }

@@ -141,8 +141,8 @@ def loadPrim (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (prim : WIT.P
 /-- REF `load_list_from_valid_range(cx, ptr, length, elem_type)` (L1389-1393) with element
 loader `f` and element size `sz`: load elements `0, …, length - 1` at `ptr + i * sz`, in
 order, with no check. -/
-def loadListFromValidRangeWith (f : Nat → P E σ Val) (ptr length sz : Nat) :
-    P E σ (List Val) :=
+def loadListFromValidRangeWith {α : Type} (f : Nat → P E σ α) (ptr length sz : Nat) :
+    P E σ (List α) :=
   Prog.mapM (fun i => f (ptr + i * sz)) (List.range length)
 
 /-- REF `load_list_from_range(cx, ptr, length, elem_type)` (L1383-1387) with element layout
@@ -150,8 +150,8 @@ def loadListFromValidRangeWith (f : Nat → P E σ Val) (ptr length sz : Nat) :
 bound `lim.maxListBytes`), `trap_if(ptr != align_to(ptr, alignment))` (`unalignedPointer`),
 `trap_if(ptr + length * elem_size > len(memory))` (`outOfBounds`), in this order; then
 `loadListFromValidRangeWith`. -/
-def loadListFromRangeWith (lim : Limits) (cx : LiftLowerContext E) (l : Layout)
-    (f : Nat → P E σ Val) (ptr length : Nat) : P E σ (List Val) := do
+def loadListFromRangeWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (l : Layout)
+    (f : Nat → P E σ α) (ptr length : Nat) : P E σ (List α) := do
   trapIf (decide (length * l.size > lim.maxListBytes)) .listTooLong
   trapIf (decide (ptr ≠ alignTo ptr l.alignment)) .unalignedPointer
   checkInBounds cx ptr (length * l.size)
@@ -159,8 +159,8 @@ def loadListFromRangeWith (lim : Limits) (cx : LiftLowerContext E) (l : Layout)
 
 /-- REF `load_list(cx, ptr, elem_type, None)` (L1376-1381): load the pointer-sized `begin`
 and `length` words at `ptr` and `ptr + ptr_size`, then `loadListFromRangeWith`. -/
-def loadListWith (lim : Limits) (cx : LiftLowerContext E) (p : AddrType) (l : Layout)
-    (f : Nat → P E σ Val) (ptr : Nat) : P E σ (List Val) := do
+def loadListWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType) (l : Layout)
+    (f : Nat → P E σ α) (ptr : Nat) : P E σ (List α) := do
   let begin ← loadPtrWord cx p ptr
   let length ← loadPtrWord cx p (ptr + ptrSizeOf p)
   loadListFromRangeWith lim cx l f begin length
@@ -170,13 +170,17 @@ maximal alignment `caseAlign`, with payload loader `payload i ptr'` for case `i 
 `case_index = load_int(cx, ptr, disc_size)` (`disc_size` =
 `(discriminantAlignment n).bytes`, D-b), `trap_if(case_index >= len(cases))`
 (`invalidDiscriminant`), then the payload at `align_to(ptr + disc_size, caseAlign)`. -/
-def loadVariantWith (cx : LiftLowerContext E) (n : Nat) (caseAlign : Alignment)
-    (payload : Nat → Nat → P E σ (Option Val)) (ptr : Nat) : P E σ Val := do
+def loadVariantUsing {α : Type} (cx : LiftLowerContext E) (n : Nat) (caseAlign : Alignment)
+    (variant : Nat → Option α → α)
+    (payload : Nat → Nat → P E σ (Option α)) (ptr : Nat) : P E σ α := do
   let discSize := (discriminantAlignment n).bytes
   let caseIndex := (← loadInt cx ptr discSize).toNat
   trapIf (decide (caseIndex ≥ n)) .invalidDiscriminant
   let v ← payload caseIndex (alignTo (ptr + discSize) caseAlign)
-  return .variant caseIndex v
+  return variant caseIndex v
+
+abbrev loadVariantWith (cx : LiftLowerContext E) (n : Nat) (caseAlign : Alignment) :=
+  loadVariantUsing (σ := σ) cx n caseAlign Val.variant
 
 /-- REF `unpack_flags_from_int(i, labels)` (L1418-1423): one `bool(i & 1)` per label, shifting
 `i` right after each; bits above the label count are ignored. -/
@@ -193,101 +197,152 @@ def loadFlags (cx : LiftLowerContext E) (ptr : Nat) (labels : List String) : P E
 /-- The element loader of a despecialized `map k v` (REF `load_record` on the entry record
 `{"0": k, "1": v}`, L1395-1401): the key (a primitive) at `align_to(ptr, alignment(k))`,
 the value, of layout `lv`, at `align_to(key_ptr + elem_size(k), alignment(v))`. -/
-def loadMapEntryWith (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType)
-    (k : WIT.KeyType) (lv : Layout) (fv : Nat → P E σ Val) (ptr : Nat) : P E σ Val := do
+def loadMapEntryUsing {α : Type} (p : AddrType) (k : WIT.KeyType) (lv : Layout)
+    (record : List α → α) (key : Nat → P E σ α) (fv : Nat → P E σ α)
+    (ptr : Nat) : P E σ α := do
   let lk := layout (Resource := RtId) p (.prim k.toPrimitive)
   let kptr := alignTo ptr lk.alignment
-  let kv ← loadPrim lim q cx k.toPrimitive kptr
+  let kv ← key kptr
   let vv ← fv (alignTo (kptr + lk.size) lv.alignment)
-  return .record [kv, vv]
+  return record [kv, vv]
+
+abbrev loadMapEntryWith (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType)
+    (k : WIT.KeyType) (lv : Layout) :=
+  loadMapEntryUsing (σ := σ) p k lv Val.record (loadPrim lim q cx k.toPrimitive)
+
+/-- The value operations of canonical memory lifting. The traversal controls the address
+checks and order of loads; an interpretation can retain information at a leaf that the
+ordinary reference `Val` deliberately projects away. -/
+structure LoadCarrier (E : CoreEngine) (σ α : Type) where
+  prim : WIT.Primitive → Nat → P E σ α
+  flags : List String → Nat → P E σ α
+  own : RtId → Nat → P E σ α
+  borrow : RtId → Nat → P E σ α
+  stream : Option (WIT.ClosedType RtId) → Nat → P E σ α
+  future : Option (WIT.ClosedType RtId) → Nat → P E σ α
+  errorContext : Nat → P E σ α
+  list : List α → α
+  record : List α → α
+  variant : Nat → Option α → α
+
+/-- The canonical reference interpretation, in which `own` carries the representation. -/
+def LoadCarrier.reference (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) :
+    LoadCarrier E σ Val where
+  prim := loadPrim lim q cx
+  flags := fun labels ptr => loadFlags cx ptr labels
+  own := fun resource ptr => do return .own (← liftOwn lim cx resource (← loadInt cx ptr 4).toNat)
+  borrow := fun resource ptr => do return .borrow (← liftBorrow lim cx resource (← loadInt cx ptr 4).toNat)
+  stream := fun type ptr => do return .stream (← liftStream lim cx type (← loadInt cx ptr 4).toNat)
+  future := fun type ptr => do return .future (← liftFuture lim cx type (← loadInt cx ptr 4).toNat)
+  errorContext := fun ptr => do return .errorContext (← liftErrorContext lim cx (← loadInt cx ptr 4).toNat)
+  list := Val.list
+  record := Val.record
+  variant := Val.variant
 
 /-! ## The recursive loader -/
 
 mutual
   /-- REF `load(cx, ptr, t)` (L1256-1281) for pointer width `p`, by structural recursion on
   `t` (specialized types handled as their despecialization, see the module docstring). -/
-  def loadAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      WIT.ClosedType RtId → Nat → P E σ Val
-    | .prim prim, ptr => loadPrim lim q cx prim ptr
+  def loadAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : LoadCarrier E σ α) : WIT.ClosedType RtId → Nat → P E σ α
+    | .prim prim, ptr => carrier.prim prim ptr
     | .ref r, _ => nomatch r
     | .list t, ptr => do
-      return .list (← loadListWith lim cx p (layout p t) (loadAt lim q cx p t) ptr)
+      return carrier.list (← loadListWith lim cx p (layout p t) (loadAtWith lim cx p carrier t) ptr)
     | .fixedList t n, ptr => do
-      return .list (← loadListFromValidRangeWith (loadAt lim q cx p t) ptr n (layout p t).size)
-    | .record fields, ptr => do return .record (← loadFieldsAt lim q cx p fields ptr)
-    | .tuple ts, ptr => do return .record (← loadTypesAt lim q cx p ts ptr)
+      return carrier.list (← loadListFromValidRangeWith (loadAtWith lim cx p carrier t) ptr n
+        (layout p t).size)
+    | .record fields, ptr => do return carrier.record (← loadFieldsAtWith lim cx p carrier fields ptr)
+    | .tuple ts, ptr => do return carrier.record (← loadTypesAtWith lim cx p carrier ts ptr)
     | .variant cases, ptr =>
-      loadVariantWith cx cases.length (maxCaseAlignment (layoutCases p cases))
-        (loadCaseAt lim q cx p cases) ptr
+      loadVariantUsing cx cases.length (maxCaseAlignment (layoutCases p cases)) carrier.variant
+        (loadCaseAtWith lim cx p carrier cases) ptr
     | .enum labels, ptr =>
-      loadVariantWith cx labels.length (maxCaseAlignment (labels.map fun _ => none))
+      loadVariantUsing cx labels.length (maxCaseAlignment (labels.map fun _ => none)) carrier.variant
         (fun _ _ => pure none) ptr
-    | .flags labels, ptr => loadFlags cx ptr labels
+    | .flags labels, ptr => carrier.flags labels ptr
     | .option t, ptr =>
-      loadVariantWith cx 2 (maxCaseAlignment [none, some (layout p t)])
+      loadVariantUsing cx 2 (maxCaseAlignment [none, some (layout p t)]) carrier.variant
         (fun i ptr' => match i with
           | 0 => pure none
-          | 1 => do return some (← loadAt lim q cx p t ptr')
+          | 1 => do return some (← loadAtWith lim cx p carrier t ptr')
           | _ + 2 => pure none)
         ptr
     | .result ok err, ptr =>
-      loadVariantWith cx 2 (maxCaseAlignment [layoutOption p ok, layoutOption p err])
+      loadVariantUsing cx 2 (maxCaseAlignment [layoutOption p ok, layoutOption p err]) carrier.variant
         (fun i ptr' => match i with
-          | 0 => loadOptAt lim q cx p ok ptr'
-          | 1 => loadOptAt lim q cx p err ptr'
+          | 0 => loadOptAtWith lim cx p carrier ok ptr'
+          | 1 => loadOptAtWith lim cx p carrier err ptr'
           | _ + 2 => pure none)
         ptr
     | .map k v, ptr => do
-      return .list (← loadListWith lim cx p (layout p (.record (mapEntryFields k v)))
-        (loadMapEntryWith lim q cx p k (layout p v) (loadAt lim q cx p v)) ptr)
-    | .own rt, ptr => do return .own (← liftOwn lim cx rt (← loadInt cx ptr 4).toNat)
-    | .borrow rt, ptr => do return .borrow (← liftBorrow lim cx rt (← loadInt cx ptr 4).toNat)
-    | .stream t, ptr => do return .stream (← liftStream lim cx t (← loadInt cx ptr 4).toNat)
-    | .future t, ptr => do return .future (← liftFuture lim cx t (← loadInt cx ptr 4).toNat)
-    | .errorContext, ptr => do
-      return .errorContext (← liftErrorContext lim cx (← loadInt cx ptr 4).toNat)
+      return carrier.list (← loadListWith lim cx p (layout p (.record (mapEntryFields k v)))
+        (loadMapEntryUsing p k (layout p v) carrier.record (carrier.prim k.toPrimitive)
+          (loadAtWith lim cx p carrier v)) ptr)
+    | .own rt, ptr => carrier.own rt ptr
+    | .borrow rt, ptr => carrier.borrow rt ptr
+    | .stream t, ptr => carrier.stream t ptr
+    | .future t, ptr => carrier.future t ptr
+    | .errorContext, ptr => carrier.errorContext ptr
   termination_by structural t => t
 
   /-- REF `load_record(cx, ptr, fields)` (L1395-1401): for each field,
   `ptr = align_to(ptr, alignment(f.t))`, load it, `ptr += elem_size(f.t)`. -/
-  def loadFieldsAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      List (String × WIT.ClosedType RtId) → Nat → P E σ (List Val)
+  def loadFieldsAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : LoadCarrier E σ α) : List (String × WIT.ClosedType RtId) → Nat → P E σ (List α)
     | [], _ => pure []
     | (_, t) :: fields, ptr => do
       let fptr := alignTo ptr (layout p t).alignment
-      let v ← loadAt lim q cx p t fptr
-      let vs ← loadFieldsAt lim q cx p fields (fptr + (layout p t).size)
+      let v ← loadAtWith lim cx p carrier t fptr
+      let vs ← loadFieldsAtWith lim cx p carrier fields (fptr + (layout p t).size)
       return v :: vs
   termination_by structural fields => fields
 
   /-- `loadFieldsAt` for the fields of a despecialized tuple (labels are irrelevant). -/
-  def loadTypesAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      List (WIT.ClosedType RtId) → Nat → P E σ (List Val)
+  def loadTypesAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : LoadCarrier E σ α) : List (WIT.ClosedType RtId) → Nat → P E σ (List α)
     | [], _ => pure []
     | t :: ts, ptr => do
       let fptr := alignTo ptr (layout p t).alignment
-      let v ← loadAt lim q cx p t fptr
-      let vs ← loadTypesAt lim q cx p ts (fptr + (layout p t).size)
+      let v ← loadAtWith lim cx p carrier t fptr
+      let vs ← loadTypesAtWith lim cx p carrier ts (fptr + (layout p t).size)
       return v :: vs
   termination_by structural ts => ts
 
   /-- The payload of case `i` of `cases` at `ptr` (REF `load_variant`'s
   `c = cases[case_index]; None if c.t is None else load(cx, ptr, c.t)`); `none` past the
   end (unreachable after the discriminant check). -/
-  def loadCaseAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      List (String × Option (WIT.ClosedType RtId)) → Nat → Nat → P E σ (Option Val)
+  def loadCaseAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : LoadCarrier E σ α) :
+      List (String × Option (WIT.ClosedType RtId)) → Nat → Nat → P E σ (Option α)
     | [], _, _ => pure none
-    | (_, t) :: _, 0, ptr => loadOptAt lim q cx p t ptr
-    | _ :: cases, i + 1, ptr => loadCaseAt lim q cx p cases i ptr
+    | (_, t) :: _, 0, ptr => loadOptAtWith lim cx p carrier t ptr
+    | _ :: cases, i + 1, ptr => loadCaseAtWith lim cx p carrier cases i ptr
   termination_by structural cases => cases
 
   /-- An optional payload: `None` for an absent type, `load(cx, ptr, t)` otherwise. -/
-  def loadOptAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      Option (WIT.ClosedType RtId) → Nat → P E σ (Option Val)
+  def loadOptAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : LoadCarrier E σ α) : Option (WIT.ClosedType RtId) → Nat → P E σ (Option α)
     | none, _ => pure none
-    | some t, ptr => do return some (← loadAt lim q cx p t ptr)
+    | some t, ptr => do return some (← loadAtWith lim cx p carrier t ptr)
   termination_by structural t => t
 end
+
+abbrev loadAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  loadAtWith lim cx p (LoadCarrier.reference (σ := σ) lim q cx)
+
+abbrev loadFieldsAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  loadFieldsAtWith lim cx p (LoadCarrier.reference (σ := σ) lim q cx)
+
+abbrev loadTypesAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  loadTypesAtWith lim cx p (LoadCarrier.reference (σ := σ) lim q cx)
+
+abbrev loadCaseAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  loadCaseAtWith lim cx p (LoadCarrier.reference (σ := σ) lim q cx)
+
+abbrev loadOptAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  loadOptAtWith lim cx p (LoadCarrier.reference (σ := σ) lim q cx)
 
 /-! ## REF entry points -/
 
@@ -344,7 +399,7 @@ theorem loadAt_option (t : WIT.ClosedType RtId) :
           | 0 => pure none
           | 1 => do return some (← loadAt lim q cx p t ptr')
           | _ + 2 => pure none) ptr := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_result (ok err : Option (WIT.ClosedType RtId)) :
     (loadAt lim q cx p (.result ok err) ptr : P E σ Val) =
@@ -353,7 +408,7 @@ theorem loadAt_result (ok err : Option (WIT.ClosedType RtId)) :
           | 0 => loadOptAt lim q cx p ok ptr'
           | 1 => loadOptAt lim q cx p err ptr'
           | _ + 2 => pure none) ptr := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 end Equations
 

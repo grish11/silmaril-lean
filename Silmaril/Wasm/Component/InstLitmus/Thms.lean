@@ -4,6 +4,8 @@ public import Silmaril.Wasm.Component.InstLitmus.Defs
 public import Silmaril.Wasm.Component.InstSem.Thms
 public import Silmaril.Wasm.SingleThreaded.Interface
 import Silmaril.Proofs.Wasm.Component.InstLitmus.Neg
+import Silmaril.Proofs.Wasm.Component.InstLitmus.Export
+public import Silmaril.Wasm.Component.InstExport.Defs
 
 /-!
 # Instantiation litmus components: theorems
@@ -35,7 +37,24 @@ scripts, so the components by handlers):
   succeeds), `trapC_no_host_calls` (no host call happens: the second instance's start function
   `f(2)` never runs) and `trapC_no_exports` (the exported `get` is never answered).
 
-Not shown: plays of the export phase after instantiation for these components, and the
+**The export phase** (proofs in `Silmaril.Proofs.Wasm.Component.InstLitmus.Export`; `getQ` is
+`get()`, `a42` the answer `42`):
+
+* (e) `globC_get` (every profile): `globMod`'s start function writes `42` into a global; after
+  `[inst, ready]` the exported `get()` is answered `42`; `globC_denX_get`: the same play in the
+  export phase `Comp.denX`;
+* (e) `globMod_get_det` (deterministic profiles, the module alone): after a successful
+  instantiation `get()` is answered `42` **only** (by the converse
+  `Param.core3_after_start_iff` and the uniqueness of normal forms);
+* (f) `callGlobC_get` (every profile): `callMod 1`'s start function calls `f(1)`, then
+  `globMod`'s start function runs, then the instantiation is ready and the exported `get()`
+  is answered `42`;
+* (g) `trap1C_inst_fails` (every profile): a trapping start function fails the
+  instantiation; `trapC_denX` (deterministic profiles): the export phase of `trapC` is `⊥`, it
+  never answers an export call.
+
+Not shown: the deterministic-profile *component-level* uniqueness of the export answers of
+`globC` and `callGlobC` (only the module-level `globMod_get_det` is proved), and the
 deterministic-profile statements at other profiles (they use the uniqueness of normal forms of
 Core 3.0 runs, `Silmaril.Wasm.Game.reach_normal_unique`).
 -/
@@ -116,5 +135,46 @@ theorem hiddenC_inst (P : Profile) :
     ([askInst, .inl (.ask (fQ 1)), .inl (.ans (fQ 1) unitA), ansInst .ready] :
       List (Move sigU sigUI)) ∈ hiddenC.denI (core3SemI P) :=
   Silmaril.Proofs.Wasm.Component.InstLitmus.hiddenC_inst P
+
+/-! ## The export phase -/
+
+/-- **(e) A start function's write is seen by the export**: after `[inst, ready]`, `get()` is
+answered `42`. -/
+theorem globC_get (P : Profile) :
+    ([askInst, ansInst .ready, askEx getQ, ansEx getQ a42] : List (Move sigU sigUI)) ∈
+      globC.denI (core3SemI P) :=
+  Silmaril.Proofs.Wasm.Component.InstLitmus.globC_play P
+
+/-- **(e) In the export phase of `globC`, `get()` is answered `42`.** -/
+theorem globC_denX_get (P : Profile) :
+    ([.inr (.ask getQ), .inr (.ans getQ a42)] : List (Move sigU sigU)) ∈
+      globC.denX (core3SemI P) :=
+  Strategy.subset_generate ⟨[], globC_get P⟩ ⟨_, .cons (.ask _) (.cons (.ret _ _) (.nil _))⟩
+
+/-- **(e) Only `42`, at a deterministic profile**: after a successful instantiation of `globMod`,
+`get()` is answered `42` and nothing else. -/
+theorem globMod_get_det (o : GrowOracle) {cs : List (Σ _ : (sigN 0).Op, Option Payload)}
+    {r : Option Payload}
+    (h : instPlay (F := sigN 1) cs .ready ++ ([askEx getM, ansEx getM r] :
+      List (Move (sigN 0) ((sigN 1).withInst Unit))) ∈ (core3SemI (profile o)).sem globMod) :
+    r = a42 :=
+  Silmaril.Proofs.Wasm.Component.InstLitmus.globMod_get_det (o := o) h
+
+/-- **(f) Two start functions in order, then the export**: `callMod 1`'s start function calls
+`f(1)`, `globMod`'s writes `42`, the instantiation is ready, and `get()` is answered `42`. -/
+theorem callGlobC_get (P : Profile) :
+    ([askInst, .inl (.ask (fQ 1)), .inl (.ans (fQ 1) unitA), ansInst .ready, askEx getQ,
+      ansEx getQ a42] : List (Move sigU sigUI)) ∈ callGlobC.denI (core3SemI P) :=
+  Silmaril.Proofs.Wasm.Component.InstLitmus.callGlobC_play P
+
+/-- **(g) A trapping start function fails the instantiation of `trap1C`.** -/
+theorem trap1C_inst_fails (P : Profile) :
+    ([askInst, ansInst (.fail ())] : List (Move sigU sigUI)) ∈ trap1C.denI (core3SemI P) :=
+  Silmaril.Proofs.Wasm.Component.InstLitmus.trap1C_inst P
+
+/-- **(c) After a start trap, no export is ever answered**: the export phase of `trapC` is `⊥`,
+at a deterministic profile. -/
+theorem trapC_denX (o : GrowOracle) : trapC.denX (core3SemI (profile o)) = ⊥ :=
+  Silmaril.Proofs.Wasm.Component.InstLitmus.trapC_denX
 
 end Silmaril.Wasm.Component.InstLitmus

@@ -38,7 +38,8 @@ are reused, not redefined.
     through resources, which the interpretation reaches only through handles. The repository's
     WIT types have no recursive (`μ`) form, and `ClosedType` (`Ref = Empty`), the canonical
     ABI's input, has no names at all (`Env.closed`).
-  * `future` and `stream`, outside the simple types, are interpreted as `Empty`.
+  * `future<T>` and `stream<T>` have separate, element-indexed carriers. The synchronous
+    environments leave both carriers `Empty`.
 * **Value acceptor sets** (`ValLang E t := Lang (t.Interp E)`). The byte languages are the
   acceptor sets of `list<u8>` (`ValType.bytes`), definitionally `Language UInt8`.
 
@@ -106,20 +107,31 @@ structure Env (Ref : Type u) (Resource : Type v) where
   borrow : Resource → Type
   /-- The values of `error-context`. -/
   errorContext : Type
+  /-- The readable end of a `future`, parameterized by the declared element type. -/
+  futureEnd : Option (ValType Ref Resource) → Type := fun _ => Empty
+  /-- The readable end of a `stream`, parameterized by the declared element type. -/
+  streamEnd : Option (ValType Ref Resource) → Type := fun _ => Empty
 
 namespace Env
 
 /-- Handles named by their canonical-ABI table index (`u32`), as core code and the WASI traces
 see them. -/
-def handles (named : Ref → Type) : Env Ref Resource := ⟨named, fun _ => UInt32, fun _ => UInt32, UInt32⟩
+def handles (named : Ref → Type) : Env Ref Resource :=
+  { named, own := fun _ => UInt32, borrow := fun _ => UInt32, errorContext := UInt32 }
 
 /-- Handles named by their representation (`Nat`), as `Value.Val.own`/`borrow` carry them. -/
-def reps (named : Ref → Type) : Env Ref Resource := ⟨named, fun _ => Nat, fun _ => Nat, Nat⟩
+def reps (named : Ref → Type) : Env Ref Resource :=
+  { named, own := fun _ => Nat, borrow := fun _ => Nat, errorContext := Nat }
 
 /-- Owned and borrowed handles of resource `r` as values of an arbitrary carrier `R r`. -/
 def abstract (named : Ref → Type) (R : Resource → Type) (errorContext : Type) :
     Env Ref Resource :=
-  ⟨named, R, R, errorContext⟩
+  { named, own := R, borrow := R, errorContext }
+
+/-- Extend an environment without changing its primitive, named or resource values. -/
+def withEndpoints (E : Env Ref Resource)
+    (futureEnd streamEnd : Option (ValType Ref Resource) → Type) : Env Ref Resource :=
+  { E with futureEnd, streamEnd }
 
 /-- The closed environment (no names), with handles as table indices. -/
 abbrev closed (Resource : Type v) : Env Empty Resource := handles Empty.elim
@@ -155,7 +167,8 @@ mutual
   | .own r => E.own r
   | .borrow r => E.borrow r
   | .errorContext => E.errorContext
-  | .future _ | .stream _ => Empty
+  | .future element => E.futureEnd element
+  | .stream element => E.streamEnd element
 
 /-- Record fields: a right-nested product. -/
 @[reducible] def ValType.InterpFields (E : Env Ref Resource) :

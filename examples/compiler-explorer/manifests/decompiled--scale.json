@@ -105,6 +105,7 @@
   ],
   "id": "decompiled/scale",
   "lean": {
+    "definitions": [],
     "family": "decompiled-word-block",
     "modules": [
       "CompilesToExamples.Explorer.Decompiled"

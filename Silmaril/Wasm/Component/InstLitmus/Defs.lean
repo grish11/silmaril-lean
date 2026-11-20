@@ -15,6 +15,8 @@ Modules (`Reference.ImpModule`):
 * `trapMod`: no imports; its start function is `unreachable`; it exports `get: [] → [i32]`
   returning `7`.
 * `getMod`: no imports, no start function; it exports `get: [] → [i32]` returning `7`.
+* `globMod`: no imports, a mutable global initialised to `0`; its start function stores `42`
+  into it; it exports `get: [] → [i32]` returning the global.
 
 Components, all importing one host function `f: func(u32)` (index `0`):
 
@@ -24,6 +26,11 @@ Components, all importing one host function `f: func(u32)` (index `0`):
   (litmus (c));
 * `hiddenC`: `callMod 1` wired to `f`, which exports nothing and is never called, then
   `getMod`, whose `get` is exported (litmus (d)).
+* `globC`: `globMod`, exporting its `get` (export-phase litmus (e): the start function's write
+  is seen by the export);
+* `callGlobC`: `callMod 1` wired to `f`, then `globMod`, exporting `globMod`'s `get`
+  (export-phase litmus (f): both start functions run in order, then the export is answered);
+* `trap1C`: `trapMod` alone, exporting its `get` (export-phase litmus (g)).
 
 Moves: `fQ k` is the host question `f(k)` (flat `i32 k`), `unitA` the answer `()`.
 -/
@@ -69,6 +76,18 @@ def getCore3 : Silmaril.Wasm.Module where
 /-- `getCore3` with its interfaces. -/
 def getMod : ImpModule := ⟨getCore3, [], [("get", getFt)]⟩
 
+/-- `(global (mut i32) (i32.const 0)) (func $s i32.const 42 global.set 0)
+(func (export "get") (result i32) global.get 0) (start $s)`. -/
+def globCore3 : Silmaril.Wasm.Module where
+  types := [⟨[⟨true, [], .func ⟨[], []⟩⟩]⟩, ⟨[⟨true, [], .func ⟨[], [.i32]⟩⟩]⟩]
+  globals := [⟨⟨.var, .i32⟩, [.intConst .i32 0]⟩]
+  funcs := [⟨⟨0⟩, [], [.intConst .i32 42, .globalSet ⟨0⟩]⟩, ⟨⟨1⟩, [], [.globalGet ⟨0⟩]⟩]
+  exports := [⟨"get", .func ⟨1⟩⟩]
+  start := some ⟨0⟩
+
+/-- `globCore3` with its interfaces. -/
+def globMod : ImpModule := ⟨globCore3, [], [("get", getFt)]⟩
+
 /-- The host import `f: func(u32)`. -/
 def hostI : Iface := [("f", ⟨[.u32], []⟩)]
 
@@ -88,6 +107,26 @@ def trapC : Comp ImpModule := .mk hostI [.core trapMod [], .core (callMod 2) [Im
 /-- (d) An instance without exports that nothing calls, then an instance whose `get` is
 exported. -/
 def hiddenC : Comp ImpModule := .mk hostI [.core (callMod 1) [Impl.fwd 0], .core getMod []] [getX 1]
+
+/-- (e) An instance whose start function writes a global that its exported `get` reads. -/
+def globC : Comp ImpModule := .mk [] [.core globMod []] [getX 0]
+
+/-- (f) `callMod 1`, whose start function calls `f(1)`, then `globMod`, whose `get` is
+exported. -/
+def callGlobC : Comp ImpModule :=
+  .mk hostI [.core (callMod 1) [Impl.fwd 0], .core globMod []] [getX 1]
+
+/-- (g) A trapping start function; its instance's `get` is exported. -/
+def trap1C : Comp ImpModule := .mk [] [.core trapMod []] [getX 0]
+
+/-- The export question `get()`, at the component's interface. -/
+def getQ : sigU.Op := (0, .flat [])
+
+/-- The question `get()`, at the interface of `globMod`. -/
+def getM : (sigN 1).Op := (⟨0, Nat.zero_lt_one⟩, .flat [])
+
+/-- The answer `42` of `get`. -/
+def a42 : Option Payload := some (.flat [Flat.i32 42])
 
 /-- The host question `f(k)`. -/
 def fQ (k : BitVec 32) : sigU.Op := (0, .flat [Flat.i32 k])

@@ -119,76 +119,76 @@ variable (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) (p
 
 theorem loadAt_prim (prim : WIT.Primitive) :
     (loadAt lim q cx p (.prim prim) ptr : P E σ Val) = loadPrim lim q cx prim ptr := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_list (t : WIT.ClosedType RtId) :
     (loadAt lim q cx p (.list t) ptr : P E σ Val) =
       (do return .list (← loadListWith lim cx p (layout p t) (loadAt lim q cx p t) ptr)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_fixedList (t : WIT.ClosedType RtId) (n : Nat) :
     (loadAt lim q cx p (.fixedList t n) ptr : P E σ Val) =
       (do
         let vs ← loadListFromValidRangeWith (loadAt lim q cx p t) ptr n (layout p t).size
         return .list vs) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_record (fields : List (String × WIT.ClosedType RtId)) :
     (loadAt lim q cx p (.record fields) ptr : P E σ Val) =
       (do return .record (← loadFieldsAt lim q cx p fields ptr)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_variant (cases : List (String × Option (WIT.ClosedType RtId))) :
     (loadAt lim q cx p (.variant cases) ptr : P E σ Val) =
       loadVariantWith cx cases.length (maxCaseAlignment (layoutCases p cases))
         (loadCaseAt lim q cx p cases) ptr := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_flags (labels : List String) :
     (loadAt lim q cx p (.flags labels) ptr : P E σ Val) = loadFlags cx ptr labels := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_tuple (ts : List (WIT.ClosedType RtId)) :
     (loadAt lim q cx p (.tuple ts) ptr : P E σ Val) =
       (do return .record (← loadTypesAt lim q cx p ts ptr)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_enum (labels : List String) :
     (loadAt lim q cx p (.enum labels) ptr : P E σ Val) =
       loadVariantWith cx labels.length (maxCaseAlignment (labels.map fun _ => none))
         (fun _ _ => pure none) ptr := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_map (k : WIT.KeyType) (v : WIT.ClosedType RtId) :
     (loadAt lim q cx p (.map k v) ptr : P E σ Val) =
       (do return .list (← loadListWith lim cx p (layout p (.record (mapEntryFields k v)))
         (loadMapEntryWith lim q cx p k (layout p v) (loadAt lim q cx p v)) ptr)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_own (rt : RtId) :
     (loadAt lim q cx p (.own rt) ptr : P E σ Val) =
       (do return .own (← liftOwn lim cx rt (← loadInt cx ptr 4).toNat)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_borrow (rt : RtId) :
     (loadAt lim q cx p (.borrow rt) ptr : P E σ Val) =
       (do return .borrow (← liftBorrow lim cx rt (← loadInt cx ptr 4).toNat)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_stream (t : Option (WIT.ClosedType RtId)) :
     (loadAt lim q cx p (.stream t) ptr : P E σ Val) =
       (do return .stream (← liftStream lim cx t (← loadInt cx ptr 4).toNat)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_future (t : Option (WIT.ClosedType RtId)) :
     (loadAt lim q cx p (.future t) ptr : P E σ Val) =
       (do return .future (← liftFuture lim cx t (← loadInt cx ptr 4).toNat)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 theorem loadAt_errorContext :
     (loadAt lim q cx p .errorContext ptr : P E σ Val) =
       (do return .errorContext (← liftErrorContext lim cx (← loadInt cx ptr 4).toNat)) := by
-  rw [loadAt]
+  simp only [loadAt, loadAtWith]; rfl
 
 /-- A `list` arm of `loadAt` is REF `load_list(cx, ptr, t, None)`. -/
 theorem load_list (t : WIT.ClosedType RtId) :
@@ -233,19 +233,19 @@ theorem loadFieldsAt_tupleFieldsFrom (ts : List (WIT.ClosedType RtId)) (i ptr : 
     (loadFieldsAt lim q cx p (tupleFieldsFrom i ts) ptr : P E σ (List Val)) =
       loadTypesAt lim q cx p ts ptr := by
   induction ts generalizing i ptr with
-  | nil => rw [tupleFieldsFrom, loadFieldsAt, loadTypesAt]
-  | cons t ts ih => rw [tupleFieldsFrom, loadFieldsAt, loadTypesAt]; simp only [ih]
+  | nil => simp only [tupleFieldsFrom, loadFieldsAt, loadFieldsAtWith, loadTypesAt, loadTypesAtWith]
+  | cons t ts ih => simp only [tupleFieldsFrom, loadFieldsAt, loadFieldsAtWith, loadTypesAt, loadTypesAtWith]; simp only [ih]
 
 /-- Every case of a despecialized `enum` has no payload. -/
 theorem loadCaseAt_enum (labels : List String) (i ptr : Nat) :
     (loadCaseAt lim q cx p (labels.map fun l => (l, none)) i ptr : P E σ (Option Val)) =
       pure none := by
   induction labels generalizing i with
-  | nil => rw [List.map_nil, loadCaseAt]
+  | nil => simp only [List.map_nil, loadCaseAt, loadCaseAtWith]
   | cons l ls ih =>
     cases i with
-    | zero => rw [List.map_cons, loadCaseAt, loadOptAt]
-    | succ i => rw [List.map_cons, loadCaseAt, ih]
+    | zero => simp only [List.map_cons, loadCaseAt, loadCaseAtWith, loadOptAtWith]
+    | succ i => simp only [List.map_cons, loadCaseAt, loadCaseAtWith]; exact ih _
 
 theorem maxCaseAlignment_map_none {α : Type} (xs : List α) :
     maxCaseAlignment (xs.map fun _ => none) = .one := by
@@ -258,10 +258,10 @@ theorem maxCaseAlignment_map_none {α : Type} (xs : List α) :
 theorem loadAt_mapEntry (k : WIT.KeyType) (v : WIT.ClosedType RtId) (ptr : Nat) :
     (loadAt lim q cx p (.record (mapEntryFields k v)) ptr : P E σ Val) =
       loadMapEntryWith lim q cx p k (layout p v) (loadAt lim q cx p v) ptr := by
-  rw [loadAt, mapEntryFields]
-  simp only [loadFieldsAt]
-  rw [loadAt_prim, loadMapEntryWith]
-  simp only [bind_assoc, pure_bind]
+  rw [loadAt_record]
+  simp only [mapEntryFields, loadFieldsAt, loadFieldsAtWith, loadAtWith, LoadCarrier.reference,
+    loadMapEntryWith, loadMapEntryUsing, bind_assoc, pure_bind]
+  rfl
 
 /-- Loading a specialized type is loading its REF despecialization (L1101-1108): the
 hand-inlined `tuple`/`enum`/`option`/`result`/`map` arms of `loadAt` agree with the
@@ -269,28 +269,28 @@ hand-inlined `tuple`/`enum`/`option`/`result`/`map` arms of `loadAt` agree with 
 theorem loadAt_despecialize (t : WIT.ClosedType RtId) (ptr : Nat) :
     (loadAt lim q cx p (despecialize t) ptr : P E σ Val) = loadAt lim q cx p t ptr := by
   cases t with
-  | tuple ts => rw [despecialize, loadAt, loadAt, loadFieldsAt_tupleFieldsFrom]
+  | tuple ts => rw [despecialize, loadAt_record, loadAt_tuple, loadFieldsAt_tupleFieldsFrom]
   | enum labels =>
     have hc : (loadCaseAt lim q cx p (labels.map fun l => (l, none)) : _ → _ → P E σ _) =
         fun _ _ => pure none := funext fun i => funext fun ptr => loadCaseAt_enum ..
-    rw [despecialize, loadAt, loadAt, hc, layoutCases_enum, List.length_map,
+    rw [despecialize, loadAt_variant, loadAt_enum, hc, layoutCases_enum, List.length_map,
       maxCaseAlignment_replicate_none, maxCaseAlignment_map_none]
   | option t =>
-    rw [despecialize, loadAt, loadAt, layoutCases, layoutCases, layoutCases, layoutOption,
+    rw [despecialize, loadAt_variant, loadAt_option, layoutCases, layoutCases, layoutCases, layoutOption,
       layoutOption]
     congr 1
     funext i ptr'
-    rcases i with _ | _ | i <;> simp only [loadCaseAt, loadOptAt]
+    rcases i with _ | _ | i <;> simp only [loadCaseAt, loadCaseAtWith, loadOptAtWith]
   | result ok err =>
-    rw [despecialize, loadAt, loadAt, layoutCases, layoutCases, layoutCases]
+    rw [despecialize, loadAt_variant, loadAt_result, layoutCases, layoutCases, layoutCases]
     congr 1
     funext i ptr'
-    rcases i with _ | _ | i <;> simp only [loadCaseAt]
+    rcases i with _ | _ | i <;> simp only [loadCaseAt, loadCaseAtWith]
   | map k v =>
     have hm : (loadAt lim q cx p (.record (mapEntryFields k v)) : _ → P E σ Val) =
         loadMapEntryWith lim q cx p k (layout p v) (loadAt lim q cx p v) :=
       funext (loadAt_mapEntry lim q cx p k v)
-    rw [despecialize, loadAt, loadAt, hm]
+    rw [despecialize, loadAt_list, loadAt_map, hm]
   | _ => rfl
 
 end Despecialize

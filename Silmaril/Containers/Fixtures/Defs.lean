@@ -5,6 +5,8 @@ public import Silmaril.Containers.Precondition.Defs
 /-!
 # Fixtures: the smallest containers, under an explicit small runtime model
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 **The model.** Programs are a tiny language (`Tiny`) whose semantics is given directly as sets
 of runs (`Tiny.sem`), and image contents are such programs or data (`Blob`). The runtime model
 `small` reads the executable file at the entry point (`Shape.entry`), refuses any image without
@@ -184,6 +186,20 @@ def crash : Flat Blob := image (.crash 11)
 def spin : Flat Blob := image .spin
 def http : Flat Blob := image (.httpServe httpPort okResponse) [⟨.tcp, httpPort⟩]
 def nitro : Flat Blob := image (.vsockCompute nitroPort .reverse)
+
+/-- **The specification of the HTTP example**: every event is a TCP socket event, everything sent
+is the fixed `HTTP/1.1 200 OK` response, and every bound port is a valid port the image declares. -/
+def httpSpec : Spec Ev := fun b =>
+  Spec.always (fun e => Profile.tcpOnly e.cap = true ∧ ∀ s bs, e = .send s bs → bs = okResponse) b ∧
+    Spec.safe (BindsDeclared http.config) b
+
+/-- **The specification of the vsock example**: every event is a vsock event, and, when the
+environment supplies the awaited input, the service exits 0 having answered each request with it
+reversed. -/
+def vsockSpec : Spec Ev := fun b =>
+  Spec.always (fun e => Profile.vsockOnly e.cap = true) b ∧
+    Spec.under Beh.notBlocked (Spec.totalCorrect fun t c =>
+      c = 0 ∧ ∀ x, Ev.recv (csock .vsock) x ∈ t → Ev.send (csock .vsock) x.reverse ∈ t) b
 
 /-- **A checker on contents**: the entry point is the program `exit 0`. A decidable,
 concrete sufficient precondition for "exit 0 with no events" (`Thms.noopCheck_sufficient`);

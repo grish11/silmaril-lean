@@ -102,7 +102,7 @@ table.elf-dis tr.hit td { background:#fff1b8; }
   // ---------- index ----------
   async function elfIndex() {
     let ix, ds;
-    try { ix = await elfJson("index.json"); ds = await Promise.all(ix.files.map((f) => elfJson(`f/${enc(f.slug)}.json`))); } catch (e) { return elfMissing(e); }
+    try { ix = await elfJson("index.json"); ds = await Promise.all(ix.files.map((f) => elfJson(`f/${enc(f.slug)}.json`))); } catch (e) { return elfMissing(e) + await compilerArtifactIndex("elf"); }
     let h = "<h2>ELF</h2><p>Pinned ELF files, read by the Lean ELF specification (<code>Silmaril.Elf.read</code>) part by part on kernel bytes. " +
       "Each part (header, program and section headers, section names and bodies, the loader's view, zero padding) is a theorem checked by the kernel " +
       "on the exact bytes of the file (<code>include_bytes</code>); the byte coverage of each file is derived from those theorems' statements.</p>";
@@ -112,7 +112,7 @@ table.elf-dis tr.hit td { background:#fff1b8; }
         `<td>${f.kernelOnly ? '<span class="prov prov-lean">kernel-only</span>' : '<span class="st st-bad">other</span>'}</td>` +
         `<td style="min-width:260px">${covBar(f.slug, f.size, ds[i].coverage)}${covKey(f.coverageSummary)}</td>` +
         `<td><code title="${esc(f.sha256)}">${esc(f.sha256.slice(0, 16))}…</code></td></tr>`).join("") + "</tbody></table></div>";
-    return h;
+    return h + await compilerArtifactIndex("elf");
   }
 
   // ---------- one file: overview and theorems ----------

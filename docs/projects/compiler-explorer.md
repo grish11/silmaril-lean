@@ -1,8 +1,46 @@
 # A verified compiler explorer: problems, mappings, comorphisms
 
+## Open the explorer
+
+From this repository, `gh pr checkout 1067` selects the working branch. Use the default database
+location for the verified quickstart:
+
+```sh
+make compiler-explorer-check
+make compiler-explorer-serve
+```
+
+Open <http://127.0.0.1:8765/?problem=compiles-to%2Fstraight%2FO2%2Fadd3>. The first command
+rebuilds `.lake/compiler-explorer/explorer.sqlite` with exporter evidence for the exact manifest
+and model bytes from this checkout. After switching revisions or changing a fixture, stop the
+viewer, run both commands again, then reload. To browse without building Lean, skip the first
+command: the viewer shows **not loaded** where no exact evidence is available and preserves only
+matching evidence. C, typed Ail and Core are separate selections; the Ail pane shows the evaluated
+frontend result, while Core has its own checked elaboration equality. Stop the server with Ctrl-C.
+
+On a generated Pages site, click **Compiler → Open the source ↔ target viewer**; on a clean
+checkout with the project libraries built, `make pages` writes `_site/`. Serve it locally with
+the same Range-aware server as the Pages browser tests:
+
+```sh
+python3 -I tools/silmaril-project/tests/explore/pages_server.py --root _site --port 8000 \
+  --log .lake/pages-preview-requests.jsonl
+```
+
+Open <http://127.0.0.1:8000/compiler/> and stop the server with Ctrl-C. Plain `python3 -m
+http.server` does not provide the Range responses the main explorer needs to open a large
+`project.sqlite` automatically when following C or ELF tab links. A generated site is not a
+deployment; use the viewer, `project.sqlite`, and artifact catalog from the same checkout.
+The generated viewer only imports project rows with matching shape and arguments. A database
+without the expected row says **evidence unavailable**; the wrong row shape or arguments says
+**incompatible evidence**. Neither is a theorem rejection or a refutation. Rebuild the site and
+database together to refresh those rows, or use the standalone quickstart to run the exact Lean
+exporter. The standalone local API can still use that site's artifact catalog with
+`cexplorer.py serve … --viewer http://127.0.0.1:8000/` without importing its evidence.
+
 A compiler explorer puts a source program beside the target code a compiler made from it and
-links fragments of the two. This page describes a vertical slice of one whose links and claims
-are Lean statements, each with a status decided from the Lean build:
+links fragments of the two. This page describes a vertical slice that keeps navigation links
+separate from Lean statements with statuses decided from the Lean build:
 
 * a **generic** Lean API (`Silmaril.Compiler.Explorer`): compilation problems over relational
   semantics with a backward refinement statement, segment mappings, segment disciplines, and the
@@ -238,8 +276,9 @@ A status comes from one of three origins. Only the first two can make an obligat
     - the imports themselves are not replayed (no `--fresh`, which would include Mathlib);
     - it is the same kernel as the build, not an independent checker.
 
-    Locally, all 9 modules replay in 16–19 s each (`leanchecker-paranoid` on `Builds`: same
-    result).
+    The script runs one `leanchecker` process per module, with bounded parallelism. The exporter
+    reuses an environment only for manifests with the same module list, while retaining separate
+    snapshots, render checks and verdicts for each manifest.
 
 **Conditional and unconditional.**
 * The translation holds from every related entry whose Core state is safe: no Core run from it
@@ -252,9 +291,10 @@ A status comes from one of three origins. Only the first two can make an obligat
 
 ## Database
 
-The schema is at version 3 (`schema_migrations`). Migration 2 records the origin of evidence;
-migration 3 records the `sil project` row of each obligation. Tests migrate a version-1 database
-with its data.
+The schema is at version 6 (`schema_migrations`). Migrations 2–5 record evidence origin,
+project rows, refutations and declaration locations, and judgments without a translation
+direction. Migration 6 records the exporter run's model-artifact binding and declaration
+locations. Tests migrate a version-1 database with its data.
 
 The tables:
 * `artifacts`: bytes by SHA-256, insert-only.
@@ -283,24 +323,222 @@ The adapter boundary is the project database schema `silmaril.project-db.v0.1`:
 * `statuses(problem, status = 'THM', tier = 'kernel', via)` gives the solving theorem;
 * `answer_axioms(decl, axiom)` gives its axioms.
 
-The adapter refuses another schema. Pages now publishes the existing read-only source↔target
-viewer at [compiler/](https://hiloopai.github.io/silmaril-lean/compiler/), linked from the
-[Compiler integration page](https://hiloopai.github.io/silmaril-lean/#/compiler) and the
-[Corpus catalog](https://hiloopai.github.io/silmaril-lean/#/corpus). `pages.py` ingests the
-committed manifests, applies this exact project-row adapter to the public deployment database,
-and writes static JSON payloads with the same `problem_view` data as the GET-only server.
-No supplied evidence file is promoted and no exporter run is invented. Missing project rows
-remain missing, even when a separate Lean development exists. The published
-[status summary](https://hiloopai.github.io/silmaril-lean/compiler/integration.json) records
-actual fixture/obligation counts for that deployment.
+The adapter refuses another schema. `make pages` builds the same two-pane viewer at `compiler/`
+and links it from the main explorer's Compiler and Corpus tabs. `pages.py` ingests committed
+manifests, applies the exact project-row adapter, and writes static problem JSON. Missing
+rows remain missing; no exporter run or interactive compile service is supplied. These are
+existing fixtures, not source-to-target proofs for every corpus function.
 
-This connects the **existing fixtures**, not every corpus function. The corpus metadata tables
-now share the Pages project database: project navigation, variants/configuration, ELF and build
-receipt links, source provenance, function-address mappings, dependency/decoder evidence,
-measurements and direct links to concrete stated Lean obligations are available. Those corpus
-functions do not automatically have compiler-explorer manifests, source/target listings,
-segment relations or kernel solutions. Source metadata is not parsed C semantics; structural
-checks and stated obligations are not semantic proofs. There is no interactive compile service.
+## Files first: problem forms, stages, environments
+
+The primary problem is about **text files** (`Silmaril.Compiler.Explorer.Text`):
+* `Files`: a map from names to bytes.
+* `IncludeEnv`: the files a preprocessor may read, the search order, the predefined macros and
+  the options.
+* `RelProblem`: an arbitrary relation between a source and a target. `RelProblem.Segments`
+  relates chosen fragments with separate membership relations, with no execution or coverage
+  requirement. A morphism maps the pair and preserves the relation; it transports proofs
+  forward and refutations backward. Identity and composition obey the usual laws.
+  `RelProblem.Refines` is pointwise implication (reflexive and transitive).
+* `Verdict`: proved, refuted or unknown.
+* `Stage`: a named partial function with a trust tag (`verified`, `evaluated`, `trusted`).
+  - `Stage.comp` composes stages.
+  - `Stage.validated R` says that every successful output is related to its input by `R`.
+    Validation composes; it does not establish that a stage succeeds.
+  - `Stage.pullback` interprets any relation through independent source and target stages;
+    refining that relation refines its pullback.
+
+A relation may have **no operational semantics** and still have a Lean statement. When there
+is only a receipt, the presentation uses `Semantics.none`. The `programs/*` problems are of that kind:
+"gcc compiled this C to this assembly", recorded by a receipt and tested by one run. The page
+labels them "relation · no semantics" and shows no semantic question for them. No comorphism is
+fabricated for them.
+
+`Reading` is the semantic specialisation: parse each side with a stage and relate the parses by
+a compilation `Problem`. `Reading.toRel` is the relation that induces on files. A manifest
+records its form as `semantic`, `relation` or `judgment`. Stage views, segment-link mode, each
+side's model, and the comorphism are presented independently. Switching a view never changes
+the theorem. Choosing a different model or comorphism for a new problem requires a new manifest
+and new evidence, not a client-side toggle that carries evidence forward.
+
+**Stages and their exact outputs.** Each side of a problem can show its source or a stage's
+output (the "show" selector).
+
+| problem | source side | target side |
+| --- | --- | --- |
+| compiles-to | C text, typed Ail (`typed-ail.sexp`), or model Core (`core.sexp`) for supported functions | raw ELF bytes; `objdump`; Lean decoder for supported functions (`decoded.txt`) |
+| C ⇒ C | C text, typed Ail, or Core | C text, typed Ail, or Core (independent of the source selector) |
+| restricted typing | C text | extracted operand types; separate frontend diagnostic |
+
+The Ail and Core views indent their own stored S-expressions for reading and mark the result
+as display-only. **Exact text** switches back to the selected stage's original serialization;
+its artifact download always returns the original bytes. The pane names that stage's input,
+output and model and links to its evidence and Lean definitions when available. Fragment links
+are hidden unless both panes show their primary representations: C or listing positions are
+not Ail or Core positions. If a fixture has no bound Ail or Core artifact, it offers no such view.
+
+The trust of each stage:
+
+| stage | trust | checked by |
+| --- | --- | --- |
+| C text → typed Ail (Lean frontend) | evaluated | `#guard` (compiled evaluation) |
+| typed Ail → Core | verified for these inputs | `ElabAil ail = .ok core` (`elab_eq`, kernel; independently on both C ⇒ C sides) |
+| `objdump` | trusted | nothing: a receipt only |
+| Lean decoder | verified | obligation `decoding`, `decodesAs` (kernel) |
+
+`fixtures.py stages` materializes the two standalone artifacts from the captured probe payloads.
+Before recording evidence, `verify` separately compares their bytes, and the C and decoder
+views, against renderings of the actual Lean declarations. This is a compiled rendering/identity
+check, not a kernel proof about a printer. A Core equality proves neither the evaluation that
+produced typed Ail nor a compilation relation. Without exact renderer binding and evidence, a
+generated or freshly ingested view shows the stage as unchecked. `decodesAs` proves the
+listing value for the function's code; the separate object-binding obligation links that code to
+ELF bytes. `objdump` instructions are not proved correct by either check.
+
+**Preprocessor environment** (`fixtures.py env`). It records:
+* the main file under its build working-directory path, by SHA-256;
+* observed headers (`gcc -M`), by path, SHA-256 and size, for each program and optimization profile;
+* ordered active include directives (`gcc -E -dI`), paired with enter/return line markers and
+  cross-checked against the ordered opened headers and depths (`-H`);
+* include search order (`gcc -E -v`), predefined macros (`gcc -dM -E`), and their probe flags;
+* the actual build command and pinned image.
+
+The table uses the operand spelling inside quotes or brackets and labels **direct** (from the
+main file), **indirect** (from a header), and **implicit** (no source directive). Open a name
+for its resolved path, including-file position, and ordered occurrences; open a fingerprint
+for the full digest. Repeats group for display only, retaining the identities of their parent
+file entries; aliases and the same spelling resolving to different paths stay separate. A
+source line that matches the emitted operand confirms a literal spelling. `-dI` can report a
+macro-expanded operand; if not matched, the original spelling is not claimed. An emitted
+directive with no file entry is shown as **not entered**: the resolved bytes and reason (guard,
+once-only behavior, etc.) are not emitted by this probe. Inactive conditional branches do not
+appear. A fixture without a dependency probe does not establish that it has no headers.
+
+`fixtures.py include-map MANIFEST OUT` materializes the observed filename → byte map as
+`files_hex` in JSON, reading headers from the pinned image and refusing mismatched size or
+SHA-256. The receipt binds the probe flags and main-file hash. This is a trusted observation,
+not a complete preprocessor trace, a formal preprocessor, or a verified general C parser.
+
+**Extension point:** the occurrence trace and its parent indices can feed a Lean
+`Includes(Name, Name*)` judgment or graph viewer later. Spelling, path, entered occurrence,
+and content hash are different projections, not interchangeable node keys. A later model can ask
+whether a given file tree and search list realize the graph, or whether any compatible tree and
+search list exist. Neither compatibility claim follows from today's trace.
+
+**Debug information → problems.** Each compiles-to problem lists the facts c-tv extracted from
+the object's DWARF with `gimli`, which is not verified. There are three kinds of fact:
+* line ranges, used by navigation links only;
+* point placements, used by the segment, mapping and translation statements;
+* frame slots, used by the location relation and the segment statements.
+
+Each fact links to the obligations that depend on it. The view supplies the input ELF and
+recorded `correspondence.json` bytes, compiler profile and function. A wrong offset can change
+the statement or the relation it proves; proving a statement about the chosen offsets does not
+validate the extractor. Facts are shown as "extracted", never as checked.
+
+## More general problems, and negative results
+
+**C ⇒ C translations** (`Silmaril.Project.Shapes.CompilesTo.Translate`).
+`CanonicalRefines F G`: from the canonical entries, wherever the source is safe, every outcome
+the target halts with is one the source halts with. `CanonicalEquivalent` is refinement in both
+directions. This is inclusion of terminating outcomes, not a target progress or liveness theorem.
+
+`CanonicalRefines.refuted_of_ends` refutes a translation from two evaluated runs on the same
+arguments. The source's forced run is its only run (`Forced.terminal_unique`). The target's run
+reaches an outcome the source cannot reach. The fixture
+(`examples/compiler-explorer/c2c/translations.c`, `CompilesToExamples.Explorer.C2C`) has these
+translations of `add3`:
+
+| translation | `add3(1, 2, 3)` | status |
+| --- | --- | --- |
+| `add3_reassoc` (reassociated) | 6 | open: different intermediate signed overflow is possible |
+| `add3_double` (returns twice the sum) | 12 | **disproved** |
+| `add3_operand` (`s + a` for `s + c`) | 4 | **disproved** |
+| `add3_drop` (drops `c`) | 3 | **disproved** |
+| `add3_op` (`s - c`) | no checked run | open |
+
+"Disproved" means a theorem of the statement's negation, checked by the kernel and recorded as
+`refuted`. "Open" means unknown. A failed check of a named proof is "rejected". The three are
+never conflated.
+
+**A type error under a restricted judgment** (`Silmaril.Project.Shapes.C.AdditionFragment`).
+This judgment is the constraint of C11 §6.5.6¶2 on the operand types of `+`, over Cerberus's
+`Ctype`. It is the only typing judgment stated here; struct completeness is not modelled.
+
+`examples/compiler-explorer/typeerror/addp.c` adds two `int *`.
+`addp_parses` kernel-checks that a small source recognizer extracts two `int *` operands from the
+exact source literal, and `addp_type_error` proves that the recognized source does not satisfy
+the additive constraint. `addp_int_accepted` checks a pointer-plus-integer counterpart under
+the same judgment. The recognizer does not preprocess, parse arbitrary C or check the rest of
+the program. The general frontend's "typing not yet ported" message is a separate evaluated
+artifact and supplies no proof.
+
+## The page
+
+* **Highlighting.** C, assembly and Core S-expressions are highlighted. Highlighting produces
+  tokens, which are inserted as text spans, never as HTML; the tests check that every character
+  survives and that markup stays literal.
+* **Questions.** Each question is a status badge, a short title, an info button (hover shows the
+  text as a tooltip; click or keyboard toggles it, with `aria-expanded`) and links. Linked code
+  lines can be focused and activated with Enter or Space.
+* **Statuses.** "proved", "disproved" and "open" (unknown) have distinct styles. "unsupported"
+  means no statement. A relation with no semantics shows no questions at all.
+* **Links.** Every obligation, including individual edges and points, is reachable from the
+  questions panel. Proofs and exact model definitions link to their Lean files and lines at the
+  clean commit recorded by `verify`:
+  - the silmaril explorer's routes on main: `#/problem/<row>`, `#/artifact/<registered name>`,
+    and `#/source/<decl>` for a row's solving theorem;
+  - immutable exact-byte downloads, including artifacts with no Lean evidence;
+  - the C (`#/c-artifact/<sha>`) and ELF (`#/elf-artifact/<sha>`) tabs on sites generated by
+    `make pages`. Both verify the full SHA-256 in the browser. ELF sections are labeled as
+    unverified; this route neither needs nor extends the pinned-file ELF theorems.
+
+  The server checks the deployed catalog at startup and only emits C/ELF links for a matching
+  SHA-256, size, media kind and path. `--viewer URL` can point it at a locally served Pages build.
+  Before the updated site is deployed the public Pages site will not advertise these routes.
+  The C-program (#900) and Assembly (#890/#851) features remain separate.
+
+## Blocks on one side, fragments on the other
+
+The usual shape is **target block ↔ source fragments** (or the reverse for another problem).
+It is an arbitrary `RelProblem.Segments` relation: choose a block or region model's membership
+on one side and artifact byte ranges on the other. Neither side has to use the other's model.
+Zero, one, or many associations are allowed; fragment ranges may be discontiguous and shared
+by multiple blocks. There is no implicit totality, instruction correspondence, same execution
+model, or graph isomorphism. The API's optional `extra.blocks` records the modeled side; a
+navigation edge does not acquire an operational interpretation by being listed there.
+
+The `add3 -O2` example instantiates `Silmaril.Machine.Region.X86.Candidate` and `propose`
+from [#1048](https://github.com/hiloopai/silmaril-lean/pull/1048), on the existing checked decoded
+listing, not on `objdump`. `CompilesToExamples.Explorer.add3Block_shape` checks the selected
+entry and instruction starts at the compilation model's placement `0x401000`, and the
+candidate's `Top` exit allowance (`ret`). `verify` also byte-compares the displayed placement
+with a rendering of the candidate's entry. The ET_REL symbol's section-relative range `[0,6)`
+and file slice have a different coordinate system from that modeled placement. A content
+address combines the ELF hash, section and exact ranges, symbol, model placement and named
+model/decoder. The opposite side records source bytes and the exact parse-stage input and output
+when present. The generated ELF tab can open that block's exact bytes and return to its
+source-fragment associations. There is no supported full ELF CFG graph route on main.
+
+| Layer | Claim in the example |
+| --- | --- |
+| File bytes and decoder | Separate existing `ObjectFn` and `decodesAs` obligations, with their individual evidence statuses. The certificate adapter requires the selected symbol to fill `.text`; smaller slices need their own symbol-offset binding. The ELF browser checks the raw artifact hash; its locator is not a Lean loader. |
+| Block membership and boundary | A chosen contiguous candidate with exact instruction starts and `Top` allowance; no recovery or local `Valid` claim. |
+| CFG adjacency and coverage | Not certified or used to justify the associations. A candidate or valid local region does not prove graph coverage. |
+| Local semantic validity | [#1048's `jump_valid`](https://github.com/hiloopai/silmaril-lean/blob/8300ad003/Silmaril/Machine/Region/Examples/Thms.lean) is a separate checked `EB 00` loaded-byte fixture, at entry zero and exit two under its declared state assumptions. It is not a certificate for `add3` or for ELF placement. |
+| Source attribution | Three DWARF navigation links to exact C byte fragments; the extraction is unverified. No C CFG is assumed or built. |
+| Cross-side correctness | The existing `add3` function-entry segment and conditional compilation refinement are separate questions in the Semantic view. They do not certify the DWARF links. |
+
+When both sides have interpreted models, compare each admitted boundary and its observations
+using a declared relation: specify inputs, exits, faults/divergence, observations, invariants and
+placement assumptions, then ask for inclusion of corresponding behaviours, or inclusion both
+ways for equivalence. The existing `Problem.Refines`, `SegmentDiscipline`, and semi-comorphism
+specialization can express such a claim; `RelProblem.Refines` remains available without
+execution. Region ↔ region is an optional later instantiation, not a prerequisite or a shipping
+graph-equivalence feature. The proposed placement/fetch and first-return adapters in open
+[#1070](https://github.com/hiloopai/silmaril-lean/pull/1070) are not dependencies. An end-to-end
+bridge would need the exact ELF/load context, code-preservation and fetch/decode agreement,
+CFG and exit coverage (including returns), and an explicit cross-side observation theorem.
 
 ## Fixtures and results
 
@@ -335,6 +573,14 @@ canonical-entry row. Safety from every Core entry is open everywhere.
 | `sil project` | shapes, rows and database adapter; static fixture viewer and integration route are published on Pages; whole-corpus manifests/segment mappings remain incomplete |
 | decompiled and imported directions | done, with fixtures; the decompiled block's machine → C0 obligation is proved (bound to the object's bytes by a tool check, to the C text by printing); no whole-function decompilation theorem |
 | kernel replay | `leanchecker` on the evidence modules in `make compiler-explorer-check` (imports from `.olean`, same kernel) |
+| syntax highlighting (C, assembly, Core) | done, as text tokens (tested for escaping) |
+| jump to Lean source, explorer routes, artifact files | Lean definitions and evidence; exact C and ELF routes tested on generated site, public links after Pages deployment |
+| toggle source / trusted stage output | checked artifact renderings; raw ELF, objdump and Lean decoder are distinct |
+| short questions, hover and keyboard info | done |
+| text-file and segment problems, stages, morphisms, optional semantics | relation and refinement API; receipt-only examples; observed include bytes materializable, no verified C preprocessor |
+| C ⇒ C translations, equivalence | canonical outcome inclusion and equivalence stated; three translations disproved; reassociation and subtraction variant open |
+| type error under a named judgment | exact source → operand types and rejection of the additive constraint, checked for the restricted grammar |
+| DWARF → problem mapping | exact extract linked to its object and dependents; extractor itself unverified |
 | nondeterministic segment discipline, concurrent target | not done |
 | interactive compilation (choose compiler, flags, source; compile on demand) | not done: a remaining goal. It needs a sandboxed compile service (resource limits, no network, pinned images, receipts written by the service) with an API the database can trust; the repository has none, and this page must not run compilers itself |
 
@@ -345,4 +591,34 @@ tools/compiler-explorer/check.sh                 # or: make compiler-explorer-ch
 python3 -I tools/compiler-explorer/cexplorer.py serve .lake/compiler-explorer/explorer.sqlite
 python3 -I tools/compiler-explorer/fixtures.py build|listings|decompile   # Docker (and Lean)
 python3 -I tools/compiler-explorer/fixtures.py manifests|rows             # deterministic
+```
+
+
+## Kernel replay driver
+
+`replay.sh` keeps the nine evidence targets and their descendants, discovers that
+set once, then runs each selected module in an isolated process with at most four
+workers (`LEAN_REPLAY_JOBS=1` selects serial execution). A discovery failure, empty
+selection, missing module, kernel error, timeout or signalled worker fails the check.
+
+The executable-only `tools/compiler-explorer/Replay.lean` calls the pinned
+[LeanChecker.replayFromImports](https://github.com/leanprover/lean4/blob/67dafde474fbaf278d6d7f822068549bf6e532fa/src/LeanChecker.lean#L17)
+operation directly. It uses the stock normal-mode target-prefix selection, search
+path and kernel operation: declarations in each target are replayed from its loaded
+imports; imported declarations are not themselves replayed (`--fresh` is a separate
+stronger check). No import-only or cached-success path replaces kernel replay.
+The driver intentionally omits `module` because the pinned `LeanChecker` is a legacy
+module; this is an explicit compatibility exception for this leaf only, which no
+library imports. No proof or axiom policy exception applies.
+
+The stock CLI scans every installed olean for each target. The driver resolves those
+paths once; workers call the same kernel operation without repeating discovery.
+Separate processes also avoid the pinned multi-target CLI crash observed in CI.
+`tests/test_replay.py` compares stock and driver selection and outcomes on positive,
+unknown, corrupt and malformed-proof fixtures, including the normal-mode import
+boundary. Scheduler tests cover bounded concurrency, discovery failure and worker
+failure/signals. Run the equivalence checks with the pinned toolchain:
+
+```sh
+lake env python3 -I tools/compiler-explorer/tests/test_replay.py
 ```

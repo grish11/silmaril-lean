@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasi.Component.Accept.Acceptor.Defs
 public import Silmaril.Wasm.Game.Accept.Consequence.Defs
 public import Silmaril.Wasm.Component.Binary.Lower.Defs
+public import Silmaril.Wasm.Component.Binary.Lower.Sem.Defs
 
 /-! # Component acceptors, and acceptors of either shape, as consequence systems
 
@@ -31,6 +32,13 @@ import and export names (`Layout.ofComp`) and the world-level `accept` function;
 semantics `C` is required. `Silmaril.Wasm.Game.Accept.moduleBytesSystem` is the module-only
 counterpart. The parser reads `list<u8>`, but the lowering into the IR does not, so only
 fixed-arity `accept(tuple<u8, …>)` components reach it (see `componentBytesSystem`).
+
+**Execution-based default.** `componentBytesSystemCore3 P` fixes `C := Binary.coreModSem P`,
+which runs each lowered core module on the Core 3.0 engine. The loosest `topSem` is no longer
+the only choice. Under `coreModSem` a lowered module with a start function has no instance (it
+traps on every question); the instantiation-aware entry points, with start functions run at
+instantiation, are `componentBytesSystemI` and `componentBytesSystemCore3I`
+(`Silmaril.Wasi.Component.Accept.Inst`).
 
 **Either shape.** `ByteAcceptor.decode` reads bytes as a core module (`decode?`) or, failing
 that, as a component. The two binary formats differ in their header's layer field, so at most
@@ -114,6 +122,14 @@ module may play any legal play.
 def componentBytesSystem (C : CoreSem Silmaril.Wasm.Component.Binary.CoreMod)
     (mode : Mode := .imp) : System ByteArray (List UInt8) :=
   System.ofDecoder ComponentAcceptor.decodeBinary fun c => ComponentAcceptor.ofComp C c mode
+
+/-- **Component binaries, executing their core modules**: `componentBytesSystem` at the
+execution-based core semantics `Binary.coreModSem P` (Core 3.0 at profile `P`, the reference
+machine's engine), not at an arbitrary `C`. -/
+noncomputable def componentBytesSystemCore3
+    (P : Silmaril.Wasm.Numerics.Profile := Silmaril.Wasm.Numerics.Profile.spec)
+    (mode : Mode := .imp) : System ByteArray (List UInt8) :=
+  componentBytesSystem (Silmaril.Wasm.Component.Binary.coreModSem P) mode
 
 namespace ByteAcceptor
 

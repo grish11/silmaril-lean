@@ -5,6 +5,8 @@ public import Silmaril.Crypto.Interface.Defs
 /-!
 # Content-addressed stores: digests, contents and integrity
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 A container image names everything it contains by digest: the manifest names the configuration
 and the layers, and a runtime fetches each blob from a registry or a local store by that name.
 This module separates three things that are easy to conflate:

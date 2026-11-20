@@ -1,0 +1,214 @@
+{
+  "schema": "silmaril.component-tests.oracle.v1",
+  "note": "wasmtime is an independent oracle for these two binaries only; not a proof, not run in CI",
+  "tools": {
+    "wasm-tools": {
+      "version": "1.262.0",
+      "sha256": "fe6a056dc03269b06f53e0cff926101c17d4f4ea37fbaa077d049c0d18acb211"
+    },
+    "wasmtime": {
+      "version": "50.0.0",
+      "sha256": "f95e5beba6d176b447c2939607bae968ea47f87b156ddf559762f1bb3c00e9b7"
+    },
+    "wac": {
+      "version": "0.12.0",
+      "sha256": "7cd490edbd452221ef89e6750fc43eacc9b71b1242095eb577cb9a3bf0d3beda"
+    }
+  },
+  "binaries": {
+    "starts": {
+      "wac": [
+        "package oracle:starts;",
+        "let h = new host:log {};",
+        "let s = new test:starts { f: h.f };",
+        "export s.get;",
+        "export h.trace;",
+        "export h.calls;"
+      ],
+      "binary": "examples/component-tests/starts.wasm",
+      "sha256": "ff543e050721e1620c89fa540559e12c9b28d9b22333942ad7e74b12ed02665f",
+      "composed_sha256": "0c49a6f732af13316bc2f82c7121aba10bb9dd5b9ff333832a402763ab21ffe6",
+      "embedded_verbatim": true,
+      "alone": {
+        "argv": [
+          "wasmtime",
+          "run",
+          "--invoke",
+          "get()",
+          "examples/component-tests/starts.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "Error: failed to run main module `examples/component-tests/starts.wasm`",
+          "",
+          "Caused by:",
+          "0: component imports function `f`, but a matching implementation was not found in the linker",
+          "1: function implementation is missing"
+        ]
+      },
+      "invocations": {
+        "get()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "get()",
+            "$TMP/starts.composed.wasm"
+          ],
+          "exit": 0,
+          "stdout": "42",
+          "stderr": []
+        },
+        "trace()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "trace()",
+            "$TMP/starts.composed.wasm"
+          ],
+          "exit": 0,
+          "stdout": "12",
+          "stderr": []
+        },
+        "calls()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "calls()",
+            "$TMP/starts.composed.wasm"
+          ],
+          "exit": 0,
+          "stdout": "2",
+          "stderr": []
+        }
+      },
+      "observed": {
+        "instantiates": true,
+        "import_trace": [
+          1,
+          2
+        ],
+        "calls": 2,
+        "get": 42
+      },
+      "expected": {
+        "instantiates": true,
+        "import_trace": [
+          1,
+          2
+        ],
+        "calls": 2,
+        "get": 42
+      },
+      "agrees": true
+    },
+    "trap": {
+      "wac": [
+        "package oracle:trap;",
+        "let h = new host:log {};",
+        "let s = new test:trap { f: h.f };",
+        "export s.get;",
+        "export h.trace;",
+        "export h.calls;"
+      ],
+      "binary": "examples/component-tests/trap.wasm",
+      "sha256": "1cccda32d6da9ffcf4dff1f944d95836e9800656bc1ffd21817c416038649d20",
+      "composed_sha256": "d00c20cd2073db295ced61558181688ce39d20fc1356cbef32594b459f24a851",
+      "embedded_verbatim": true,
+      "alone": {
+        "argv": [
+          "wasmtime",
+          "run",
+          "--invoke",
+          "get()",
+          "examples/component-tests/trap.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "Error: failed to run main module `examples/component-tests/trap.wasm`",
+          "",
+          "Caused by:",
+          "0: component imports function `f`, but a matching implementation was not found in the linker",
+          "1: function implementation is missing"
+        ]
+      },
+      "invocations": {
+        "get()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "get()",
+            "$TMP/trap.composed.wasm"
+          ],
+          "exit": 134,
+          "stdout": "",
+          "stderr": [
+            "Error: failed to run main module `$TMP/trap.composed.wasm`",
+            "",
+            "Caused by:",
+            "0: error while executing at wasm backtrace:",
+            "0:    0x173 - <unknown>!<wasm function 0>",
+            "1: wasm trap: wasm `unreachable` instruction executed"
+          ]
+        },
+        "trace()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "trace()",
+            "$TMP/trap.composed.wasm"
+          ],
+          "exit": 134,
+          "stdout": "",
+          "stderr": [
+            "Error: failed to run main module `$TMP/trap.composed.wasm`",
+            "",
+            "Caused by:",
+            "0: error while executing at wasm backtrace:",
+            "0:    0x173 - <unknown>!<wasm function 0>",
+            "1: wasm trap: wasm `unreachable` instruction executed"
+          ]
+        },
+        "calls()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "calls()",
+            "$TMP/trap.composed.wasm"
+          ],
+          "exit": 134,
+          "stdout": "",
+          "stderr": [
+            "Error: failed to run main module `$TMP/trap.composed.wasm`",
+            "",
+            "Caused by:",
+            "0: error while executing at wasm backtrace:",
+            "0:    0x173 - <unknown>!<wasm function 0>",
+            "1: wasm trap: wasm `unreachable` instruction executed"
+          ]
+        }
+      },
+      "observed": {
+        "instantiates": false,
+        "trap": true
+      },
+      "expected": {
+        "instantiates": false,
+        "trap": true
+      },
+      "agrees": true
+    }
+  },
+  "host": {
+    "source": "tools/component-tests/host.wat",
+    "sha256": "494697ef06ad7152034285437cdc2099b027a890bcd652d4c7e818f2b860ba97",
+    "f": "trace := trace * 10 + x; calls := calls + 1"
+  }
+}

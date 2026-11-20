@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Component.Reference.HostWrite.Defs
 public import Silmaril.Wasm.Component.Reference.HLinkedSession.Defs
+import Silmaril.Proofs.Wasm.Component.Reference.HostWrite.Prog
 import Silmaril.Proofs.Wasm.Component.Reference.HostWrite.Runs
 
 /-!
@@ -63,6 +64,12 @@ open Silmaril.Wasm.Numerics (Profile)
 section General
 
 variable {E : CoreEngine} {σ : Type} {Ext : σ → σ → Prop}
+
+/-- Host-safe continuations compose without passing a pending host read across the bind. -/
+theorem HostWrite.bind {Value Result : Type} {pending : Option σ} {program : P E σ Value}
+    {next : Value → P E σ Result} (safe : HostSafe Ext pending program)
+    (thenSafe : ∀ value, HostSafe Ext none (next value)) : HostSafe Ext pending (program >>= next) :=
+  Canon.HostSafe.bind safe thenSafe
 
 /-- **Programs that never write the host state are host-safe** (proved). -/
 theorem HostWrite.hostSafe_of_invW {α : Type} {I : CStore E → Prop} {p : P E σ α}
