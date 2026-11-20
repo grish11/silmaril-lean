@@ -6,6 +6,7 @@ import Silmaril.Wasm.ModuleParts.Thms
 import Silmaril.Wasm.Component.Reference.Thms
 import Silmaril.Wasm.Component.Reference.Embedding.Thms
 import Silmaril.Wasm.Component.Reference.Example.Defs
+import Silmaril.Wasm.Component.Reference.DirectLift.Init.Thms
 import Silmaril.Wasm.Execution.Core.Entry.Thms
 import Silmaril.Wasm.Execution.Core.Exec.InstantiateIff
 import Silmaril.Wasm.Execution.Core.Exec.ValCheck
@@ -280,6 +281,107 @@ private theorem gameObservation : [.inr (.ask question), .inr (.ans question ans
     gameInstance.strategy selected gameInstance.store :=
   gameInstance.append_mem_of gameActivation (gameInstance.mem_strategy_iff.2 ⟨_, .nil _⟩)
 
+open DirectLift
+open Silmaril.Proofs.Wasm.Component.Reference (D Store.mapH)
+open Silmaril.Wasm.Numerics (Profile)
+
+private def wire : DirectWire := ⟨provider, consumer, "env", "run", "run", [], some .u32⟩
+
+private theorem wireErasure : linkedClosed.2.val.erase = wire.component := by with_unfolding_all rfl
+
+private abbrev ProfileHost (P : Profile) := CanonHost (core3P P)
+
+private noncomputable def preparations (P : Profile) :
+    wire.Prepared P (coreConsumer (ProfileHost P)).store 1 where
+  providerStore := (coreProvider (ProfileHost P)).store
+  providerInst := (coreProvider (ProfileHost P)).frame.module
+  consumerInst := (coreConsumer (ProfileHost P)).frame.module
+  resolvedImports := [.func 0]
+  providerImports := by with_unfolding_all rfl
+  provide := by with_unfolding_all rfl
+  resolve := by with_unfolding_all rfl
+  consume := by with_unfolding_all rfl
+  lookup := by with_unfolding_all rfl
+
+private theorem wrongWire (P : Profile) :
+    Component.Instantiate.coreImportsFor? (preparations P).providerStore consumer [("wrong", 0)]
+      (wire.providerFrame (preparations P).providerInst) = none := by with_unfolding_all rfl
+
+private theorem relationalInstantiation (P : Profile) (prof : ProfileKind) :
+    Instantiates prof (refHost P).hr (D P) (initConfig ()) linkedClosed.2.val.erase []
+      (wire.ready (coreConsumer (ProfileHost P)).store 1) ⟨0⟩ [("run", ⟨0⟩)] := by
+  rw [wireErasure]
+  exact (wire.instantiates_iff (preparations P)).2 ⟨rfl, rfl, rfl⟩
+
+private def wireExport : SimpleExport := ⟨"run", ⟨[], [.u32]⟩, 0⟩
+
+private theorem boundary (P : Profile) :
+    Boundary gameInstance (P := P) (coreConsumer (ProfileHost P)).store wireExport [] question where
+  wellFormed := by
+    change gameInstance.WellFormed gameInstance.store
+    refine ⟨consumerReady.1, rfl, ?_, ?_⟩
+    · rintro ⟨idx, bound⟩
+      have zero : idx = 0 := Nat.eq_zero_of_le_zero (Nat.le_of_lt_succ bound)
+      subst idx
+      exact ⟨_, by with_unfolding_all rfl, Expand.iff.2 (by with_unfolding_all rfl)⟩
+    · intro addr fi host lookup code
+      obtain ⟨bound, _⟩ := List.getElem?_eq_some_iff.mp lookup
+      change addr < 2 at bound
+      have which : addr = 0 ∨ addr = 1 := by omega
+      rcases which with rfl | rfl
+      all_goals
+        rw [show gameInstance.store.funcs[_]? = some _ by with_unfolding_all rfl] at lookup
+        subst fi
+        cases code
+  noImports := rfl
+  signature := rfl
+  arguments := rfl
+  typed := rfl
+  floatFreeParams := rfl
+  floatFreeResults := rfl
+  flatParams := by decide +kernel
+  oneResult := by decide +kernel
+  flatResults := by decide +kernel
+
+private theorem linkedForward :
+    ∃ final, Calls oracle.prof (refHost selected).hr (D selected)
+      (wire.ready (coreConsumer (ProfileHost selected)).store 1) ⟨7⟩ ⟨0⟩ [] final
+      (.resolved (some [.u32 42])) ∧
+      (coreTerminal Nat).store = Store.mapH (fun _ => 0) final.store.core := by
+  have init := relationalInstantiation selected oracle.prof
+  rw [wireErasure] at init
+  exact (wire.terminalObservationIff (preparations selected) (boundary selected) rfl init (by rfl)).2
+    ⟨coreTerminal Nat, .values [.i32 42], executeRun, ⟨[Flat.i32 42], [.u32 42], rfl, rfl, rfl⟩, rfl⟩
+
+private theorem linkedReadback {final : Component.Machine.Config (core3P selected) Unit} {out : CallOutcome}
+    (ran : Calls oracle.prof (refHost selected).hr (D selected)
+      (wire.ready (coreConsumer (ProfileHost selected)).store 1) ⟨0⟩ ⟨0⟩ [] final out) :
+    out = .resolved (some [.u32 42]) ∧
+    Store.mapH (fun _ => 0) final.store.core = (coreTerminal Nat).store := by
+  have entry := relationalInstantiation selected oracle.prof
+  rw [wireErasure] at entry
+  obtain ⟨core, result, ans, finished, _, reports, storeEq, _⟩ := wire.terminalReadbackOfInstantiation
+    (out := out) (preparations selected) (boundary selected) rfl entry (by rfl) ran
+  obtain ⟨rfl, rfl⟩ := coreReturnUnique finished
+  refine ⟨?_, storeEq.symm⟩
+  cases out with
+  | resolved values =>
+    cases values with
+    | none => exact False.elim reports
+    | some values =>
+      obtain ⟨flats, lifted, hflats, hlifted, rfl⟩ := reports
+      have : flats = [Flat.i32 42] := (Option.some.inj hflats).symm
+      subst flats
+      have : lifted = [.u32 42] := (Option.some.inj hlifted).symm
+      subst lifted
+      rfl
+  | trap =>
+    obtain ⟨flats, hflats, rejects⟩ := reports
+    have : flats = [Flat.i32 42] := (Option.some.inj hflats).symm
+    subst flats
+    cases rejects
+  | deadlock => exact False.elim reports
+
 #print axioms consumerReady
 #print axioms coreNamedEntry
 #print axioms coreReturnUnique
@@ -288,6 +390,15 @@ private theorem gameObservation : [.inr (.ask question), .inr (.ans question ans
 #print axioms gameStores
 #print axioms gameActivation
 #print axioms gameObservation
+#print axioms DirectWire.instantiates_iff
+#print axioms DirectWire.terminalReadbackOfInstantiation
+#print axioms Reach.of_steps
+#print axioms DirectWire.terminalForwardOfInstantiation
+#print axioms DirectWire.terminalObservationIff
+#print axioms relationalInstantiation
+#print axioms wrongWire
+#print axioms linkedForward
+#print axioms linkedReadback
 
 end Runtime
 

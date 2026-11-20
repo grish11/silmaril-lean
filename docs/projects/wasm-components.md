@@ -104,8 +104,20 @@ resumption after lockdown, other owners, host moves or arbitrary prefixes.
 The stock `Simple.adequacy` identifies only trap-last plays; observing the
 retained store after a trap would distinguish its existing witnesses.
 
+For the start-free two-module direct wire, `DirectWire.instantiates_iff`
+derives the ready configuration from the stock preparation and resolution
+checks. `DirectWire.terminalForwardOfInstantiation` follows a given finite
+Core `Entry.Finishes` from the resolved address and constructs a stock
+reference `Calls` derivation at the named lift, without fuel or a Core
+determinism hypothesis. It keeps the mapped final Core store even when the
+ABI rejects a normal Core result. Together with readback,
+`DirectWire.terminalObservationIff` equates the reachable pairs of reported
+ABI outcome and mapped final Core store on this boundary. It does not equate
+Core results with component values or identify complete traces; host imports,
+divergence, and nested component links are outside this theorem.
+
 ```sh
-make check CHECK_TARGETS='+Silmaril.Wasm.Component.IntrinsicWiring.Lift.Observation.Thms +Silmaril.Wasm.Component.Reference.DirectLift.Thms'
+make check CHECK_TARGETS='+Silmaril.Wasm.Component.Reference.DirectLift.Init.Thms +Silmaril.Wasm.Component.Reference.DirectLift.Thms'
 ```
 
 ## What ships

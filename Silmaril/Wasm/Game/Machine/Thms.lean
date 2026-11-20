@@ -64,6 +64,12 @@ theorem Reach.steps {P : Profile} {host : HostSemantics Nat} {x y : Store Nat ×
     (h : Reach P x y) : Steps P host (x.2.config x.1) (y.2.config y.1) :=
   Silmaril.Proofs.Wasm.Game.Reach.steps h
 
+/-- A host-free Core run lifts to a thread run with the exact final configuration. -/
+theorem Reach.of_steps {P : Profile} {s : Store Nat} {t : Thread} {d : Config Nat}
+    (h : Steps P (Det.noHost : HostSemantics Nat) (t.config s) d) :
+    ∃ s' t', Reach P (s, t) (s', t') ∧ t'.config s' = d :=
+  Silmaril.Proofs.Wasm.Game.reach_of_steps h
+
 /-- A callout answered by the host is one Core step. -/
 theorem calloutAt_step {P : Profile} {host : HostSemantics Nat} {s s' : Store Nat}
     {t : Thread} {h : Nat} {args : List Val} {r : Result} (hc : CalloutAt s t h args)
