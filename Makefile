@@ -7,7 +7,7 @@ CARGO ?= cargo
 PROJECT_TARGET = $(or $(CARGO_TARGET_DIR),tools/silmaril-project/target)
 WASM_TOOLS := wasm-as wasm-dis wasm-opt wasm-merge wasm-shell wasm-ctor-eval wasm-metadce
 
-.PHONY: compiler-explorer-check logic-graph-check lean-ndjson-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check demo demo-process demo-sha256 help
+.PHONY: compiler-explorer-check compiler-explorer-unit-check compiler-explorer-evidence-check compiler-explorer-serve logic-graph-check lean-ndjson-check tools stage library cache scope check release-check process-check process-gates project-lean project-tool project-registry project-check acceptor-report pages elf-check demo demo-process demo-sha256 help
 
 tools:
 	$(LAKE) build --wfail $(WASM_TOOLS)
@@ -30,7 +30,7 @@ library:
 # The Cerberus tests and executables (docs/projects/cerberus.md).
 CERBERUS_TARGETS := CerberusTests cerb-lean ail-lean core-lean core-elab cfront \
 	ci_cerberus_genuine_oracle ci_cerberus_elaboration_oracle ci_cerberus_integer_cast \
-	ci_cerberus_parameter_call
+	ci_cerberus_parameter_call ci_cjson_array_size_context ci_cjson_array_item_context ci_cjson_array_item_machine
 # The C compiler's executables (docs/projects/ccomp.md).
 CCOMP_TARGETS := ccomp ccomp-legacy ccomp-verified csem decompile
 CHECK_TARGETS ?= Silmaril SilmarilSpecTec SilmarilSpecTecMeta SilmarilWasiWit SilmarilWasmProject SilmarilLogicGraphData ProjectSelfTest wasm-pages elf-pages wasm-region-map $(WASM_TOOLS) wasm-shell-lean $(CERBERUS_TARGETS) SysVTvExample CompilesToExamples cexplorer-export $(CCOMP_TARGETS)
@@ -70,14 +70,23 @@ check:
 	$(PYTHON) -I scripts/check-wasm-checkers.py
 	node examples/wasm-checkers/test-lrat.mjs
 	$(PYTHON) -I scripts/check-wasm-sim.py
-	$(PYTHON) -I tools/compiler-explorer/tests/test_cexplorer.py
-	node --test tools/compiler-explorer/tests/view.test.mjs
+	$(if $(filter cexplorer-export CompilesToExamples,$(CHECK_TARGETS)),,$(MAKE) compiler-explorer-unit-check)
 	@if [ -n "$(LAKE_CACHE_RECORD)" ]; then \
 		cov-lake-cache build --repository hiloopai/silmaril-lean --record "$(LAKE_CACHE_RECORD)" -- $(CHECK_TARGETS); \
 	elif [ -n "$(strip $(CHECK_TARGETS))" ]; then \
 		$(LAKE) build --wfail $(CHECK_TARGETS); \
 	fi
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) build --wfail ci_cjson_array_size_context ci_cjson_array_item_context ci_cjson_array_item_machine)
+	$(MAKE) -j2 check-runtime check-integrations
+
+# Runtime observations read the completed build. Integration suites own their separate
+# generated outputs; overlap the two bounded groups and propagate either failure.
+.PHONY: check-runtime check-integrations
+check-runtime:
 	$(MAKE) process-gates
+	$(if $(filter Silmaril,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/formats/DrislDebug.lean)
+	$(if $(filter Silmaril +Silmaril.Wasm.Validation.Generic.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/inductive-generic/Regression.lean)
+	$(if $(filter Silmaril +Silmaril.Wasm.Validation.Generic.SSA.Thms +Silmaril.Wasm.Validation.Generic.Signature.Lowering,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/inductive-generic/TypeBoundary.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/NullPointerEquality.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/BitwiseRuntime.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/MemberRuntime.lean)
@@ -90,14 +99,14 @@ check:
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/SqliteGlobalVersionExecution.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/SqliteGlobalVersionMachine.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/DarkhttpdLogEncodingContext.lean)
-	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonArraySizeContext.lean)
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),.lake/build/bin/ci_cjson_array_size_context)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonSuffixContext.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/corpus/check_cjson_suffix_native.py)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonDetachContext.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonDetachMachine.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/cerberus/CjsonArrayItemObservation.lean)
-	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonArrayItemContext.lean)
-	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonArrayItemMachine.lean)
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),.lake/build/bin/ci_cjson_array_item_context)
+	$(if $(filter CerberusTests,$(CHECK_TARGETS)),.lake/build/bin/ci_cjson_array_item_machine)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/corpus/check_cjson_array_item_native.py)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/cerberus/CjsonInsertObservation.lean)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/CjsonInsertContext.lean)
@@ -110,7 +119,10 @@ check:
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/corpus/check_cjson_detach_equivalence_native.py)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(PYTHON) -I tools/corpus/check_cjson_detach_native.py)
 	$(if $(filter CerberusTests,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true --run tests/cerberus/LoopControl.lean)
+
+check-integrations:
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)
+	$(if $(filter Silmaril +Silmaril.Wasm.Component.IntrinsicWiring.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/inductive-component/Regression.lean)
 	$(if $(filter wasm-opt,$(CHECK_TARGETS)),$(LAKE) build --wfail $(RELEASE_BINARIES) && $(MAKE) release-check)
 	$(if $(filter elf-pages,$(CHECK_TARGETS)),$(MAKE) elf-check)
 	$(if $(filter SilmarilLogicGraphData,$(CHECK_TARGETS)),$(MAKE) logic-graph-check)
@@ -124,7 +136,20 @@ lean-ndjson-check:
 # examples/compiler-explorer/expected-status.txt, the database and view tests
 # (docs/projects/compiler-explorer.md).
 compiler-explorer-check:
+	$(MAKE) -j2 compiler-explorer-unit-check compiler-explorer-evidence-check
+
+compiler-explorer-evidence-check:
 	LAKE="$(LAKE)" PYTHON="$(PYTHON)" tools/compiler-explorer/check.sh
+
+compiler-explorer-unit-check:
+	$(PYTHON) -I tools/compiler-explorer/tests/test_cexplorer.py
+	node --test tools/compiler-explorer/tests/view.test.mjs
+
+COMPILER_EXPLORER_DB ?= .lake/compiler-explorer/explorer.sqlite
+compiler-explorer-serve:
+	@mkdir -p "$(dir $(COMPILER_EXPLORER_DB))"
+	$(PYTHON) -I tools/compiler-explorer/cexplorer.py ingest "$(COMPILER_EXPLORER_DB)" examples/compiler-explorer/manifests/*.json
+	$(PYTHON) -I tools/compiler-explorer/cexplorer.py serve "$(COMPILER_EXPLORER_DB)"
 
 # The logic graph's records files: editing a records file
 # rebuilds its loader incrementally (docs/projects/logic-graph.md).
@@ -271,12 +296,19 @@ pages: project-tool
 	  $(if $(PAGES_SOURCE_REV),--source-rev $(PAGES_SOURCE_REV))
 	build/bin/silmaril-project explore --db _site/project.sqlite --out _site/index.html \
 	  $(if $(PAGES_SOURCE_REV),--source-url $(PAGES_SOURCE_URL) --source-rev $(PAGES_SOURCE_REV))
-	$(PYTHON) tools/compiler-explorer/pages.py --project _site/project.sqlite --out _site/compiler
+	# The component-test page reads the binaries, their WAT, the report and the oracle's results.
+	mkdir -p _site/component-tests
+	cp examples/component-tests/*.wasm examples/component-tests/*.wat examples/component-tests/*.json _site/component-tests/
+	$(PYTHON) -I tools/compiler-explorer/fixtures.py viewer --out _site
+	$(PYTHON) -I tools/compiler-explorer/pages.py --project _site/project.sqlite --out _site/compiler
 	# The Wasm component, module and function pages read static files next to the page.
 	lake build wasm-pages
 	.lake/build/bin/wasm-pages silmaril/artifacts.toml _site
 	# The acceptor section reads the committed Wasmtime harness report (make acceptor-report).
 	cp tools/wasm-acceptor-harness/report.json _site/acceptor-runs.json
+	# The Containers tab reads the descriptions of the worked examples (docs/projects/containers-examples.md).
+	lake build --wfail Silmaril.Containers.Noop.Thms Silmaril.Containers.Fixtures.Thms Silmaril.Containers.Mini.Thms Silmaril.Containers.Http.Thms Silmaril.Containers.HttpServe.Thms
+	lake env lean --run examples/containers/Examples.lean --json _site/containers-examples.json
 	# The ELF pages read the checked theorem modules of the pinned files (tools/elf-pages).
 	lake build --wfail elf-pages $(ELF_PINNED) Silmaril.Elf.Staged.Pinned.ZlibChecksums.Contracts
 	lake env .lake/build/bin/elf-pages _site
@@ -312,6 +344,7 @@ help:
 	@echo 'make check    Build library, tools and proof roots; run native regressions'
 	@echo 'make project-tool   Build sil project (Cargo) and stage it in build/bin'
 	@echo 'make project-registry  Run the sil project checks that need no Lean: init, lock, lint'
+	@echo 'make compiler-explorer-serve  Browse compiler fixtures locally (127.0.0.1:8765)'
 	@echo 'make project-check  Run the sil project self-test: init, lock, lint, dump, check, explore'
 	@echo 'make acceptor-report  Run the Wasm acceptor suites under Wasmtime and write tools/wasm-acceptor-harness/report.json'
 	@echo 'make pages    Write the explorer page and its database to _site (needs the project libraries built)'

@@ -202,8 +202,8 @@ def liftFlatPrim (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : Addr
     | none => internal "lift_flat: integer primitive without kind"
 
 /-- REF `lift_flat_list` with a fixed length (L1913-1917): `n` successive element lifts. -/
-def liftFlatN (f : FlatCursor → P E σ (Val × FlatCursor)) :
-    Nat → FlatCursor → P E σ (List Val × FlatCursor)
+def liftFlatN {α : Type} (f : FlatCursor → P E σ (α × FlatCursor)) :
+    Nat → FlatCursor → P E σ (List α × FlatCursor)
   | 0, vi => pure ([], vi)
   | n + 1, vi => do
     let (v, vi) ← f vi
@@ -212,11 +212,15 @@ def liftFlatN (f : FlatCursor → P E σ (Val × FlatCursor)) :
 
 /-- The pointer and length of a variable-length list (REF `lift_flat_list`, L1918-1920) and
 REF `load_list_from_range` on them, with element layout `l` and element loader `f`. -/
-def liftFlatListWith (lim : Limits) (cx : LiftLowerContext E) (p : AddrType) (l : Layout)
-    (f : Nat → P E σ Val) (vi : FlatCursor) : P E σ (Val × FlatCursor) := do
+def liftFlatListUsing {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+    (l : Layout) (list : List α → α) (f : Nat → P E σ α)
+    (vi : FlatCursor) : P E σ (α × FlatCursor) := do
   let (ptr, vi) ← vi.next (pointerType p)
   let (len, vi) ← vi.next (pointerType p)
-  return (.list (← loadListFromRangeWith lim cx l f (flatNat ptr) (flatNat len)), vi)
+  return (list (← loadListFromRangeWith lim cx l f (flatNat ptr) (flatNat len)), vi)
+
+abbrev liftFlatListWith (lim : Limits) (cx : LiftLowerContext E) (p : AddrType) (l : Layout) :=
+  liftFlatListUsing (σ := σ) lim cx p l Val.list
 
 /-- The `CoerceValueIter` of REF `lift_flat_variant` (L1934-1942) applied to the read payload
 slots `xs` of joined types `haves`, where the case's own flattening wants `wants`: each slot
@@ -231,15 +235,19 @@ flat types `joined` (`flatten_variant` without the discriminant), case flat type
 and payload lifter `payload i` (run on a cursor over the coerced slots):
 `case_index = vi.next('i32')`, `trap_if(case_index >= len(cases))` (`invalidDiscriminant`),
 then the payload (see the module docstring for the read order). -/
-def liftFlatVariantWith (n : Nat) (joined : List CoreType) (wants : Nat → List CoreType)
-    (payload : Nat → FlatCursor → P E σ (Option Val × FlatCursor)) (vi : FlatCursor) :
-    P E σ (Val × FlatCursor) := do
+def liftFlatVariantUsing {α : Type} (n : Nat) (joined : List CoreType)
+    (wants : Nat → List CoreType) (variant : Nat → Option α → α)
+    (payload : Nat → FlatCursor → P E σ (Option α × FlatCursor)) (vi : FlatCursor) :
+    P E σ (α × FlatCursor) := do
   let (d, vi) ← vi.next (.int .i32)
   let caseIndex := flatNat d
   trapIf (decide (caseIndex ≥ n)) .invalidDiscriminant
   let (xs, vi) ← vi.nextN joined
   let (v, _) ← payload caseIndex (.ofList (coerceLiftSlots joined (wants caseIndex) xs))
-  return (.variant caseIndex v, vi)
+  return (variant caseIndex v, vi)
+
+abbrev liftFlatVariantWith (n : Nat) (joined : List CoreType) (wants : Nat → List CoreType) :=
+  liftFlatVariantUsing (E := E) (σ := σ) n joined wants Val.variant
 
 /-- The case flat types of a despecialized `option t` (`[none, some t]`). -/
 def optionWants (p : AddrType) (t : WIT.ClosedType RtId) : Nat → List CoreType
@@ -254,107 +262,153 @@ def resultWants (p : AddrType) (ok err : Option (WIT.ClosedType RtId)) : Nat →
 
 /-! ## Lifting -/
 
+/-- The flat operand interpretation paired with its memory interpretation for indirect
+lists and maps. Slot reads, variant coercion, and traversal order remain canonical. -/
+structure FlatLoadCarrier (E : CoreEngine) (σ α : Type) where
+  memory : LoadCarrier E σ α
+  prim : WIT.Primitive → FlatCursor → P E σ (α × FlatCursor)
+  flags : List Bool → α
+  own : RtId → Nat → P E σ α
+  borrow : RtId → Nat → P E σ α
+  stream : Option (WIT.ClosedType RtId) → Nat → P E σ α
+  future : Option (WIT.ClosedType RtId) → Nat → P E σ α
+  errorContext : Nat → P E σ α
+
+def FlatLoadCarrier.reference (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
+    (p : AddrType) : FlatLoadCarrier E σ Val where
+  memory := .reference lim q cx
+  prim := liftFlatPrim lim q cx p
+  flags := Val.flags
+  own := fun rt i => Val.own <$> liftOwn lim cx rt i
+  borrow := fun rt i => Val.borrow <$> liftBorrow lim cx rt i
+  stream := fun t i => Val.stream <$> liftStream lim cx t i
+  future := fun t i => Val.future <$> liftFuture lim cx t i
+  errorContext := fun i => Val.errorContext <$> liftErrorContext lim cx i
+
 mutual
   /-- REF `lift_flat(cx, vi, t)` (L1869-1892) for pointer width `p`, by structural recursion
   on `t` (specialized types as their despecialization). -/
-  def liftFlatAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      WIT.ClosedType RtId → FlatCursor → P E σ (Val × FlatCursor)
-    | .prim prim, vi => liftFlatPrim lim q cx p prim vi
+  def liftFlatAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : FlatLoadCarrier E σ α) : WIT.ClosedType RtId → FlatCursor → P E σ (α × FlatCursor)
+    | .prim prim, vi => carrier.prim prim vi
     | .ref r, _ => nomatch r
-    | .list t, vi => liftFlatListWith lim cx p (layout p t) (loadAt lim q cx p t) vi
+    | .list t, vi =>
+      liftFlatListUsing lim cx p (layout p t) carrier.memory.list
+        (loadAtWith lim cx p carrier.memory t) vi
     | .fixedList t n, vi => do
-      let (vs, vi) ← liftFlatN (liftFlatAt lim q cx p t) n vi
-      return (.list vs, vi)
+      let (vs, vi) ← liftFlatN (liftFlatAtWith lim cx p carrier t) n vi
+      return (carrier.memory.list vs, vi)
     | .record fields, vi => do
-      let (vs, vi) ← liftFlatFields lim q cx p fields vi
-      return (.record vs, vi)
+      let (vs, vi) ← liftFlatFieldsWith lim cx p carrier fields vi
+      return (carrier.memory.record vs, vi)
     | .tuple ts, vi => do
-      let (vs, vi) ← liftFlatTypes lim q cx p ts vi
-      return (.record vs, vi)
+      let (vs, vi) ← liftFlatTypesWith lim cx p carrier ts vi
+      return (carrier.memory.record vs, vi)
     | .variant cases, vi =>
-      liftFlatVariantWith cases.length (variantPayload (flattenCases p cases)) (caseFlat p cases)
-        (liftFlatCaseAt lim q cx p cases) vi
+      liftFlatVariantUsing cases.length (variantPayload (flattenCases p cases)) (caseFlat p cases)
+        carrier.memory.variant (liftFlatCaseAtWith lim cx p carrier cases) vi
     | .enum labels, vi =>
-      liftFlatVariantWith labels.length [] (fun _ => []) (fun _ c => pure (none, c)) vi
+      liftFlatVariantUsing labels.length [] (fun _ => []) carrier.memory.variant
+        (fun _ c => pure (none, c)) vi
     | .flags labels, vi => do
       let (v, vi) ← vi.next (.int .i32)
-      return (.flags (unpackFlagsFromInt (flatNat v) labels), vi)
+      return (carrier.flags (unpackFlagsFromInt (flatNat v) labels), vi)
     | .option t, vi =>
-      liftFlatVariantWith 2 (flatten p t) (optionWants p t)
+      liftFlatVariantUsing 2 (flatten p t) (optionWants p t) carrier.memory.variant
         (fun i c => match i with
           | 1 => do
-            let (v, c) ← liftFlatAt lim q cx p t c
+            let (v, c) ← liftFlatAtWith lim cx p carrier t c
             return (some v, c)
           | _ => pure (none, c))
         vi
     | .result ok err, vi =>
-      liftFlatVariantWith 2 (joinFlat (flattenOption p ok) (flattenOption p err))
-        (resultWants p ok err)
+      liftFlatVariantUsing 2 (joinFlat (flattenOption p ok) (flattenOption p err))
+        (resultWants p ok err) carrier.memory.variant
         (fun i c => match i with
-          | 0 => liftFlatOpt lim q cx p ok c
-          | 1 => liftFlatOpt lim q cx p err c
+          | 0 => liftFlatOptWith lim cx p carrier ok c
+          | 1 => liftFlatOptWith lim cx p carrier err c
           | _ => pure (none, c))
         vi
     | .map k v, vi =>
-      liftFlatListWith lim cx p (layout p (.record (mapEntryFields k v)))
-        (loadMapEntryWith lim q cx p k (layout p v) (loadAt lim q cx p v)) vi
+      liftFlatListUsing lim cx p (layout p (.record (mapEntryFields k v))) carrier.memory.list
+        (loadMapEntryUsing p k (layout p v) carrier.memory.record (carrier.memory.prim k.toPrimitive)
+          (loadAtWith lim cx p carrier.memory v)) vi
     | .own rt, vi => do
       let (i, vi) ← vi.next (.int .i32)
-      return (.own (← liftOwn lim cx rt (flatNat i)), vi)
+      return (← carrier.own rt (flatNat i), vi)
     | .borrow rt, vi => do
       let (i, vi) ← vi.next (.int .i32)
-      return (.borrow (← liftBorrow lim cx rt (flatNat i)), vi)
+      return (← carrier.borrow rt (flatNat i), vi)
     | .stream t, vi => do
       let (i, vi) ← vi.next (.int .i32)
-      return (.stream (← liftStream lim cx t (flatNat i)), vi)
+      return (← carrier.stream t (flatNat i), vi)
     | .future t, vi => do
       let (i, vi) ← vi.next (.int .i32)
-      return (.future (← liftFuture lim cx t (flatNat i)), vi)
+      return (← carrier.future t (flatNat i), vi)
     | .errorContext, vi => do
       let (i, vi) ← vi.next (.int .i32)
-      return (.errorContext (← liftErrorContext lim cx (flatNat i)), vi)
+      return (← carrier.errorContext (flatNat i), vi)
   termination_by structural t => t
 
   /-- REF `lift_flat_record(cx, vi, fields)` (L1922-1926): the fields in order. -/
-  def liftFlatFields (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      List (String × WIT.ClosedType RtId) → FlatCursor → P E σ (List Val × FlatCursor)
+  def liftFlatFieldsWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : FlatLoadCarrier E σ α) :
+      List (String × WIT.ClosedType RtId) → FlatCursor → P E σ (List α × FlatCursor)
     | [], vi => pure ([], vi)
     | (_, t) :: fields, vi => do
-      let (v, vi) ← liftFlatAt lim q cx p t vi
-      let (vs, vi) ← liftFlatFields lim q cx p fields vi
+      let (v, vi) ← liftFlatAtWith lim cx p carrier t vi
+      let (vs, vi) ← liftFlatFieldsWith lim cx p carrier fields vi
       return (v :: vs, vi)
   termination_by structural fields => fields
 
   /-- `liftFlatFields` for the fields of a despecialized tuple; also the direct path of REF
   `lift_flat_values` (`[lift_flat(cx, vi, t) for t in ts]`). -/
-  def liftFlatTypes (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      List (WIT.ClosedType RtId) → FlatCursor → P E σ (List Val × FlatCursor)
+  def liftFlatTypesWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : FlatLoadCarrier E σ α) :
+      List (WIT.ClosedType RtId) → FlatCursor → P E σ (List α × FlatCursor)
     | [], vi => pure ([], vi)
     | t :: ts, vi => do
-      let (v, vi) ← liftFlatAt lim q cx p t vi
-      let (vs, vi) ← liftFlatTypes lim q cx p ts vi
+      let (v, vi) ← liftFlatAtWith lim cx p carrier t vi
+      let (vs, vi) ← liftFlatTypesWith lim cx p carrier ts vi
       return (v :: vs, vi)
   termination_by structural ts => ts
 
   /-- The payload of case `i` of `cases` (REF `lift_flat_variant`'s `c = cases[case_index]`;
   `None` if `c.t is None`); `none` past the end (unreachable after the discriminant check). -/
-  def liftFlatCaseAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
+  def liftFlatCaseAtWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : FlatLoadCarrier E σ α) :
       List (String × Option (WIT.ClosedType RtId)) → Nat → FlatCursor →
-        P E σ (Option Val × FlatCursor)
+        P E σ (Option α × FlatCursor)
     | [], _, vi => pure (none, vi)
-    | (_, t) :: _, 0, vi => liftFlatOpt lim q cx p t vi
-    | _ :: cases, i + 1, vi => liftFlatCaseAt lim q cx p cases i vi
+    | (_, t) :: _, 0, vi => liftFlatOptWith lim cx p carrier t vi
+    | _ :: cases, i + 1, vi => liftFlatCaseAtWith lim cx p carrier cases i vi
   termination_by structural cases => cases
 
   /-- An optional payload: `None` for an absent type, `lift_flat(cx, vi, t)` otherwise. -/
-  def liftFlatOpt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :
-      Option (WIT.ClosedType RtId) → FlatCursor → P E σ (Option Val × FlatCursor)
+  def liftFlatOptWith {α : Type} (lim : Limits) (cx : LiftLowerContext E) (p : AddrType)
+      (carrier : FlatLoadCarrier E σ α) :
+      Option (WIT.ClosedType RtId) → FlatCursor → P E σ (Option α × FlatCursor)
     | none, vi => pure (none, vi)
     | some t, vi => do
-      let (v, vi) ← liftFlatAt lim q cx p t vi
+      let (v, vi) ← liftFlatAtWith lim cx p carrier t vi
       return (some v, vi)
   termination_by structural t => t
 end
+
+abbrev liftFlatAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  liftFlatAtWith (σ := σ) lim cx p (.reference lim q cx p)
+
+abbrev liftFlatFields (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  liftFlatFieldsWith (σ := σ) lim cx p (.reference lim q cx p)
+
+abbrev liftFlatTypes (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  liftFlatTypesWith (σ := σ) lim cx p (.reference lim q cx p)
+
+abbrev liftFlatCaseAt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  liftFlatCaseAtWith (σ := σ) lim cx p (.reference lim q cx p)
+
+abbrev liftFlatOpt (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType) :=
+  liftFlatOptWith (σ := σ) lim cx p (.reference lim q cx p)
 
 /-- REF `lift_flat(cx, vi, t)` (L1869-1892). -/
 def liftFlat (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (vi : FlatCursor)

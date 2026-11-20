@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.Cbor.Value.Defs
 public import Silmaril.Formats.Cbor.WellFormed.Thms
 import Silmaril.Proofs.Formats.Cbor.Value
+import Silmaril.Proofs.Formats.Cbor.Value.Decode
 
 /-!
 # CBOR values and the definite-length codec: lemmas
@@ -27,6 +28,10 @@ theorem head_encodeHead {mt n : Nat} (hn : n < 2 ^ 64) : Head mt n (encodeHead m
 /-- Decoding inverts the deterministic definite-length encoding. -/
 theorem decode_encode (v : Value) (hv : v.Encodable) : decode v.encode = some v :=
   Silmaril.Proofs.Formats.Cbor.Value.decode_encode v hv
+
+theorem encodable_of_decode {bytes : List UInt8} {value : Value}
+    (read : decode bytes = some value) : value.Encodable :=
+  Silmaril.Proofs.Formats.Cbor.Value.encodable_of_decode read
 
 theorem encode_injective {v w : Value} (hv : v.Encodable) (hw : w.Encodable)
     (h : v.encode = w.encode) : v = w :=

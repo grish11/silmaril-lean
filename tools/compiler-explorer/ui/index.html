@@ -12,22 +12,34 @@
   <h1>Compiler explorer <span class="sub">source ↔ target, with what is proved about each link</span></h1>
   <p><a href="?">Compiler fixtures</a> · <label>Registered corpus statement <select id="corpus-statement"><option value="">Choose a statement</option></select></label> · <label>Binary-equivalence problem <select id="binary-statement"><option value="">Choose a pair</option></select></label></p>
   <div class="pickers">
-    <label>Program <select id="program"></select></label>
+    <label>Problem <select id="program"></select></label>
     <label>Build <select id="build"></select></label>
     <label>Links <select id="mode">
-      <option value="navigation">navigation (debug info, decompiler)</option>
-      <option value="semantic">semantic (program points)</option>
+      <option value="navigation">navigation</option>
+      <option value="semantic">semantic</option>
     </select></label>
   </div>
-  <p class="note">Builds are precompiled by pinned compilers (see Provenance); this page cannot compile.
-    A status is "proved" only when the exporter run by this database found a theorem of that exact statement, for these exact artifacts.</p>
+  <p class="note">Precompiled builds only: this page compiles nothing. "proved" and "disproved" come from Lean, for these exact files.</p>
 </header>
 <main>
-  <section class="pane" aria-label="source"><h2 id="src-title">Source</h2><div id="src" class="code"></div></section>
-  <section class="pane" aria-label="target"><h2 id="tgt-title">Target</h2><div id="tgt" class="code"></div></section>
+  <section class="pane" aria-label="source">
+    <div class="pane-head"><h2 id="source-title">Source</h2><label>show <select id="source-show"></select></label><label id="source-exact-label" hidden><input type="checkbox" id="source-exact"> Exact text</label><span id="source-links"></span></div>
+    <div id="source-stage" aria-live="polite"></div>
+    <div id="source" class="code"></div>
+  </section>
+  <section class="pane" aria-label="target">
+    <div class="pane-head"><h2 id="target-title">Target</h2><label>show <select id="target-show"></select></label><label id="target-exact-label" hidden><input type="checkbox" id="target-exact"> Exact text</label><span id="target-links"></span></div>
+    <div id="target-stage" aria-live="polite"></div>
+    <div id="target" class="code"></div>
+  </section>
   <aside id="side">
-    <section id="selection"><h2>Selection</h2><p class="muted">Hover or click a line.</p></section>
+    <section id="problem"></section>
     <section id="questions"></section>
+    <section id="selection"></section>
+    <section id="stages"></section>
+    <section id="blocks" hidden></section>
+    <section id="dwarf"></section>
+    <section id="env"></section>
     <section id="provenance"></section>
     <section id="assumptions"></section>
   </aside>

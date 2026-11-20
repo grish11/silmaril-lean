@@ -87,6 +87,10 @@ theorem refines_dwarf (k0 : List Frame) :
 theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Straight.ail "add3" F.cfn :=
   Straight.elaborates_add3
 
+/-- The trusted disassembly stage: the decoder's listing of `F`'s bytes (`decodesAs`). -/
+theorem decoding : decodesAs F.code 0 Straight.O0.add3Listing = true :=
+  Straight.O0.add3_decodes
+
 end StraightO0
 
 /-! ## `straight.c`, `-O2`, `add3` (1 point) -/
@@ -129,6 +133,10 @@ theorem refines_dwarf (k0 : List Frame) :
 /-- The C function elaborates to the Core of `F` (`c.elaborates_to`). -/
 theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Straight.ail "add3" F.cfn :=
   Straight.elaborates_add3
+
+/-- The trusted disassembly stage: the decoder's listing of `F`'s bytes (`decodesAs`). -/
+theorem decoding : decodesAs F.code 0 Straight.O2.add3Listing = true :=
+  Straight.O2.add3_decodes
 
 end StraightO2
 
@@ -185,6 +193,10 @@ theorem refines_dwarf (k0 : List Frame) :
 theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Branch.ail "max2" F.cfn :=
   Branch.elaborates_max2
 
+/-- The trusted disassembly stage: the decoder's listing of `F`'s bytes (`decodesAs`). -/
+theorem decoding : decodesAs F.code 0 Branch.O0.max2Listing = true :=
+  Branch.O0.max2_decodes
+
 end BranchO0
 
 /-! ## `branch.c`, `-O2`, `max2` (1 point, its segment open) -/
@@ -211,6 +223,10 @@ theorem refines_dwarf (k0 : List Frame) :
 /-- The C function elaborates to the Core of `F` (`c.elaborates_to`). -/
 theorem elaboration : Silmaril.Project.Shapes.C.ElaboratesTo Branch.ail "max2" F.cfn :=
   Branch.elaborates_max2
+
+/-- The trusted disassembly stage: the decoder's listing of `F`'s bytes (`decodesAs`). -/
+theorem decoding : decodesAs F.code 0 Branch.O2.max2Listing = true :=
+  Branch.O2.max2_decodes
 
 end BranchO2
 

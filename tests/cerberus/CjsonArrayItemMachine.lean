@@ -1,7 +1,6 @@
 module
-public meta import Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs
-public meta import Silmaril.X86.Open.Thms
-public meta section
+public import Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs
+public import Silmaril.X86.Open.Thms
 open Silmaril.X86
 open Silmaril.Elf.Corpus.CjsonArrayItem
 private def sample (n : Fin 65) (index : Int) (seed : Fin 3) (isNull : Bool) : Context.Input where

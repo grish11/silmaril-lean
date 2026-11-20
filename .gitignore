@@ -12,4 +12,5 @@ __pycache__/
 /tools/x86-difftest/out/
 /target/
 /tools/wasm-vc/target/
+/tools/component-tests/linker-host/target/
 /tools/wasm-spec-fuzz/target/

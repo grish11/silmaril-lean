@@ -1,5 +1,35 @@
 {
   "artifacts": {
+    "ail": {
+      "media": "text/x-lisp",
+      "path": "examples/compiles-to/straight/typed-ail.sexp",
+      "sha256": "87439ae537d09b428a316998ef9d07b223b1b03c12b6b66fe667ef70599c6ad5",
+      "size": 6101
+    },
+    "core": {
+      "media": "text/x-lisp",
+      "path": "examples/compiles-to/straight/core.sexp",
+      "sha256": "48a8ad0e2c76b8d7ed6ee906c783214ec9af86a8b5539936a5eb5bd16b3fc4c6",
+      "size": 21231
+    },
+    "decoded": {
+      "media": "text/plain",
+      "path": "examples/compiler-explorer/compiles-to/straight/O0/decoded.txt",
+      "sha256": "e05a042dff420e8075e14a4ab48fa287b5daeb2abca5fd4f9c715e7b677a41be",
+      "size": 1521
+    },
+    "dwarf_extract": {
+      "media": "application/json",
+      "path": "examples/compiles-to/straight/correspondence.json",
+      "sha256": "be3a092e76c513b8cf657be5d072684873872760bfaaf8fd8311a34f29b5e1be",
+      "size": 7247
+    },
+    "include_search": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/env/compiles-to-O0.search.json",
+      "sha256": "b596281e0ecea9b73e974147374a1b83ff3822411ebb5ebe5eedbdc61f320bb5",
+      "size": 558
+    },
     "listing": {
       "media": "text/x-objdump",
       "path": "examples/compiler-explorer/compiles-to/straight/O0/listing.txt",
@@ -11,6 +41,12 @@
       "path": "examples/compiler-explorer/compiles-to/straight/O0/RECEIPT.json",
       "sha256": "06f81ebf2d2a4544a174784315401a11e957a62de6a4cd03129421c87b4a4929",
       "size": 555
+    },
+    "macros": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/env/compiles-to-O0.macros.txt",
+      "sha256": "6f0a7a9b00c01c21221ccfcfac4a101be87d9568b19515f889ca9e0e904e0854",
+      "size": 13177
     },
     "receipt": {
       "media": "application/json",
@@ -69,6 +105,271 @@
     "version": "gcc (GCC) 13.3.0"
   },
   "direction": "compiled",
+  "dwarf_extraction": {
+    "function": "add3",
+    "input": "target",
+    "output": "dwarf_extract",
+    "profile": "O0",
+    "tool": "c-tv (gimli)",
+    "trust": "trusted"
+  },
+  "dwarf_facts": [
+    {
+      "fact": "line 3 <- .text [0x0, 0xd)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 4 <- .text [0xd, 0x18)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 5 <- .text [0x18, 0x23)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 6 <- .text [0x23, 0x26)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 7 <- .text [0x26, 0x28)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "point 0 at offset 0x0, line 3",
+      "if_wrong": "the segment statements refer to these selected points, not to correctness of the extraction",
+      "kind": "point",
+      "origin": "DWARF line table (c-tv): point placement",
+      "used_by": [
+        "edge/0",
+        "point/0",
+        "mapping",
+        "translation"
+      ]
+    },
+    {
+      "fact": "point 1 at offset 0xd, line 4",
+      "if_wrong": "the segment statements refer to these selected points, not to correctness of the extraction",
+      "kind": "point",
+      "origin": "DWARF line table (c-tv): point placement",
+      "used_by": [
+        "edge/1",
+        "point/1",
+        "mapping",
+        "translation"
+      ]
+    },
+    {
+      "fact": "point 1: a (line 2) at CFA-36, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/1",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 1: b (line 2) at CFA-40, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/1",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 1: c (line 2) at CFA-44, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/1",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 1: s (line 4) at CFA-20, 4 bytes",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/1",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 1: t (line 5) at CFA-24, 4 bytes",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/1",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 2 at offset 0x18, line 5",
+      "if_wrong": "the segment statements refer to these selected points, not to correctness of the extraction",
+      "kind": "point",
+      "origin": "DWARF line table (c-tv): point placement",
+      "used_by": [
+        "edge/2",
+        "point/2",
+        "mapping",
+        "translation"
+      ]
+    },
+    {
+      "fact": "point 2: a (line 2) at CFA-36, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/2",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 2: b (line 2) at CFA-40, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/2",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 2: c (line 2) at CFA-44, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/2",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 2: s (line 4) at CFA-20, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/2",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 2: t (line 5) at CFA-24, 4 bytes",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/2",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 3 at offset 0x23, line 6",
+      "if_wrong": "the segment statements refer to these selected points, not to correctness of the extraction",
+      "kind": "point",
+      "origin": "DWARF line table (c-tv): point placement",
+      "used_by": [
+        "edge/3",
+        "point/3",
+        "mapping",
+        "translation"
+      ]
+    },
+    {
+      "fact": "point 3: a (line 2) at CFA-36, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/3",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 3: b (line 2) at CFA-40, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/3",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 3: c (line 2) at CFA-44, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/3",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 3: s (line 4) at CFA-20, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/3",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 3: t (line 5) at CFA-24, 4 bytes, defined",
+      "if_wrong": "the chosen location relation changes; proving a theorem about it does not establish that this is the source variable's actual DWARF slot",
+      "kind": "frame_slot",
+      "origin": "DWARF DW_AT_location (c-tv, gimli: unverified)",
+      "used_by": [
+        "edge/3",
+        "refinement"
+      ]
+    },
+    {
+      "fact": "point 4 at offset 0x26, line 7",
+      "if_wrong": "the segment statements refer to these selected points, not to correctness of the extraction",
+      "kind": "point",
+      "origin": "DWARF line table (c-tv): point placement",
+      "used_by": [
+        "edge/4",
+        "point/4",
+        "mapping",
+        "translation"
+      ]
+    }
+  ],
   "edges": [
     {
       "function": "add3",
@@ -324,11 +625,92 @@
     }
   ],
   "id": "compiles-to/straight/O0/add3",
+  "include_env": {
+    "dependencies": null,
+    "files": [
+      {
+        "artifact": "source",
+        "name": "/src/straight.c",
+        "sha256": "8b49538da88e3926f7c457e54fff82234e5ef0efb3c81372537b8f690f38b4b6",
+        "size": 155,
+        "where": "examples/compiles-to/straight/straight.c"
+      }
+    ],
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "macros": "macros",
+    "note": "Main file and observed headers by content; macros/search come from a separate probe. Header dependencies, when present, are from the recorded gcc -M flags, not a replay of every build. This is not a complete include map or a verified preprocessor.",
+    "options": [
+      "gcc",
+      "-O0",
+      "-g",
+      "-c",
+      "-fdebug-prefix-map=/src=.",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-fcf-protection=none",
+      "-mgeneral-regs-only",
+      "-fno-pic",
+      "-fno-pie",
+      "-fno-asynchronous-unwind-tables",
+      "-fno-unwind-tables",
+      "-fno-ident",
+      "straight.c",
+      "-o",
+      "O0/straight.o"
+    ],
+    "probe_flags": "-O0 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident",
+    "search": [
+      "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include",
+      "/usr/local/include",
+      "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include-fixed",
+      "/usr/include/x86_64-linux-gnu",
+      "/usr/include"
+    ],
+    "search_receipt": "include_search",
+    "workdir": "/src"
+  },
   "lean": {
+    "bindings": [
+      [
+        "source",
+        "CompilesToExamples.Straight.cText"
+      ],
+      [
+        "ail",
+        "Silmaril.Project.CompilesTo.Probe.ailText CompilesToExamples.Straight.ail"
+      ],
+      [
+        "core",
+        "Silmaril.Project.CompilesTo.Probe.document CompilesToExamples.Straight.core"
+      ],
+      [
+        "decoded",
+        "Silmaril.Project.CompilesTo.Probe.listingText CompilesToExamples.Straight.O0.add3Listing \"CompilesToExamples.Straight.O0.add3Listing\""
+      ]
+    ],
+    "definitions": [
+      "CompilesToExamples.Straight.O0.add3",
+      "CompilesToExamples.Straight.O0.add3Listing",
+      "CompilesToExamples.Straight.ail",
+      "CompilesToExamples.Straight.cText",
+      "CompilesToExamples.Straight.core",
+      "CompilesToExamples.Straight.elab_eq",
+      "Silmaril.Project.CompilesTo.FnData.Holds",
+      "Silmaril.Project.CompilesTo.FnData.mapping",
+      "Silmaril.Project.CompilesTo.FnData.source",
+      "Silmaril.Project.CompilesTo.dwarf",
+      "Silmaril.Project.Shapes.C.ElabAil",
+      "Silmaril.Project.Shapes.C.FrontendAil",
+      "Silmaril.X86.Open.isa",
+      "silmaril.compiles_to.straight.o0.obj"
+    ],
     "family": "c-function-x86",
     "modules": [
       "CompilesToExamples.Explorer.Builds",
-      "CompilesToExamples.Explorer.Code"
+      "CompilesToExamples.Explorer.Code",
+      "Silmaril.Project.CompilesTo.Probe.Defs"
     ],
     "registry": {
       "source": "silmaril.compiles_to.straight.source",
@@ -340,6 +722,7 @@
       "comorphism": "Silmaril.Project.CompilesTo.dwarf",
       "fn": "CompilesToExamples.Straight.O0.add3",
       "isa": "Silmaril.X86.Open.isa",
+      "listing": "CompilesToExamples.Straight.O0.add3Listing",
       "target_value": "silmaril.compiles_to.straight.o0.obj"
     }
   },
@@ -460,6 +843,18 @@
       "statement": "Silmaril.Project.Shapes.C.ElaboratesTo CompilesToExamples.Straight.ail \"add3\" CompilesToExamples.Straight.O0.add3.cfn"
     },
     {
+      "decl": "CompilesToExamples.Straight.elab_eq",
+      "id": "core_elaboration",
+      "kind": "core_elaboration",
+      "statement": "Silmaril.Project.Shapes.C.ElabAil CompilesToExamples.Straight.ail = .ok CompilesToExamples.Straight.core"
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.StraightO0.decoding",
+      "id": "decoding",
+      "kind": "decoding",
+      "statement": "Silmaril.Project.CompilesTo.decodesAs CompilesToExamples.Straight.O0.add3.code 0 CompilesToExamples.Straight.O0.add3Listing = true"
+    },
+    {
       "decl": "CompilesToExamples.Explorer.straight_O0_code",
       "id": "artifact",
       "kind": "artifact",
@@ -479,10 +874,87 @@
       "statement": "CompilesToExamples.Straight.O0.add3.cfn.meaning.Inhabited"
     }
   ],
+  "problem_form": "semantic",
+  "relation": {
+    "description": "the deterministic C/x86-64 compilation problem of FnData",
+    "semantics": "stated"
+  },
   "schema": "silmaril.compiler-explorer.problem/1",
+  "stages": [
+    {
+      "evidence": "Compiled #guard compares FrontendAil's typed Ail with this value; not a parser theorem.",
+      "input": "source",
+      "input_decl": "CompilesToExamples.Straight.cText",
+      "model": "Silmaril.Project.Shapes.C.FrontendAil",
+      "name": "C → typed Ail",
+      "output": "ail",
+      "output_decl": "CompilesToExamples.Straight.ail",
+      "side": "source",
+      "trust": "evaluated"
+    },
+    {
+      "evidence": "Kernel equality for these exact Ail and Core values; not evidence for the preceding frontend.",
+      "input": "ail",
+      "input_decl": "CompilesToExamples.Straight.ail",
+      "model": "Silmaril.Project.Shapes.C.ElabAil",
+      "name": "Typed Ail → Core",
+      "obligation": "core_elaboration",
+      "output": "core",
+      "output_decl": "CompilesToExamples.Straight.core",
+      "side": "source",
+      "trust": "verified"
+    },
+    {
+      "evidence": "receipt only",
+      "input": "target",
+      "name": "objdump -d (binutils 2.40)",
+      "output": "listing",
+      "side": "target",
+      "trust": "trusted"
+    },
+    {
+      "evidence": "function bytes, not an ELF parser; decodesAs checks the listing's Lean value",
+      "input": "target",
+      "name": "Lean x86 decoder (Silmaril.X86.Ext.decode)",
+      "obligation": "decoding",
+      "output": "decoded",
+      "side": "target",
+      "trust": "verified"
+    }
+  ],
   "tests": [],
   "title": "straight.c, gcc 13.3.0 -O0, add3 (object code)",
   "view": {
+    "alternatives": {
+      "source": [
+        {
+          "label": "C source",
+          "role": "source"
+        },
+        {
+          "label": "Typed Ail",
+          "role": "ail"
+        },
+        {
+          "label": "Core",
+          "role": "core"
+        }
+      ],
+      "target": [
+        {
+          "label": "objdump (unverified)",
+          "role": "listing"
+        },
+        {
+          "label": "Raw ELF bytes",
+          "role": "target"
+        },
+        {
+          "label": "Lean decoder listing",
+          "role": "decoded"
+        }
+      ]
+    },
     "source": "source",
     "target": "listing",
     "target_map": [

@@ -13,8 +13,11 @@ import http.client
 import importlib.util
 import json
 import pathlib
+import os
+import subprocess
 import shutil
 import sqlite3
+import struct
 import tempfile
 import threading
 import unittest
@@ -27,6 +30,7 @@ spec.loader.exec_module(cx)
 ROOT = cx.ROOT
 MANIFESTS = ROOT / "examples" / "compiler-explorer" / "manifests"
 STRAIGHT_O0 = MANIFESTS / "compiles-to--straight--O0--add3.json"
+STRAIGHT_O2 = MANIFESTS / "compiles-to--straight--O2--add3.json"
 BRANCH_O2 = MANIFESTS / "compiles-to--branch--O2--max2.json"
 MSORT_O2 = MANIFESTS / "programs--msort--O2.json"
 LOOP_O0 = MANIFESTS / "compiles-to--loop--O0--sum_to.json"
@@ -80,6 +84,84 @@ class Base(unittest.TestCase):
 
 
 class Ingest(Base):
+    def test_optional_block_identity_and_exact_viewer_entry(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O2)
+        pid = "compiles-to/straight/O2/add3"
+        problem = cx.problem_view(self.db, pid)
+        block, = problem["extra"]["blocks"]
+        self.assertEqual(block["side"], "target")
+        self.assertEqual(block["elf_sha256"], problem["artifacts"]["target"]["sha256"])
+        self.assertEqual(block["section_range"], [0, 6])
+        self.assertEqual(block["file_range"], [64, 70])
+        self.assertEqual(block["parse_stage"]["output_sha256"], problem["artifacts"]["ail"]["sha256"])
+        self.assertEqual(block["dependencies"], ["artifact", "decoding"])
+        self.assertEqual(len(block["attribution"]), 3)
+        self.assertNotIn("viewer", block)
+        entry = {**block, "problem": pid}
+        catalog = ("../", {block["elf_sha256"]: {"blocks": {block["id"]: entry}}})
+        self.assertTrue(cx.problem_view(self.db, pid, catalog)["extra"]["blocks"][0]["viewer"].endswith(block["id"]))
+        entry["model_base"] += 1
+        self.assertNotIn("viewer", cx.problem_view(self.db, pid, catalog)["extra"]["blocks"][0])
+
+    def test_block_does_not_make_a_semantic_attribution(self):
+        manifest = json.loads(STRAIGHT_O2.read_bytes())
+        manifest["blocks"][0]["attribution"] = ["seg/add3/0"]
+        with self.assertRaisesRegex(cx.Rejected, "must be navigation"):
+            cx.ingest_manifest(self.db, self.write("invalid-block.json", manifest))
+        manifest = json.loads(STRAIGHT_O2.read_bytes())
+        manifest["blocks"][0]["section_range"] = [0, 5]
+        with self.assertRaisesRegex(cx.Rejected, "does not match the decoded listing"):
+            cx.ingest_manifest(self.db, self.write("truncated-block.json", manifest))
+        manifest = json.loads(STRAIGHT_O2.read_bytes())
+        manifest["blocks"][0]["model_base"] += 1
+        with self.assertRaisesRegex(cx.Rejected, "must refer to the bound listing and symbol"):
+            cx.ingest_manifest(self.db, self.write("shifted-model-entry.json", manifest))
+
+    def test_block_cannot_reuse_function_evidence_for_an_unbound_section_slice(self):
+        manifest = json.loads(STRAIGHT_O2.read_bytes())
+        blobs = {role: cx.read_artifact(ROOT, ref) for role, ref in manifest["artifacts"].items()}
+        elf = bytearray(blobs["target"])
+        section, _, size = cx.elf_text_location(elf)
+        table, = struct.unpack_from("<Q", elf, 0x28)
+        struct.pack_into("<Q", elf, table + 64 * section + 32, size + 1)
+        blobs["target"] = bytes(elf)
+        with self.assertRaisesRegex(ValueError, "smaller slices need a symbol-offset binding"):
+            cx.block_endpoints(manifest, blobs)
+
+    def test_block_can_be_on_the_left_without_semantics_or_a_parse(self):
+        manifest = json.loads(STRAIGHT_O2.read_bytes())
+        opposite = {"source": "target", "target": "source"}
+        arts = manifest["artifacts"]
+        arts["source"], arts["target"] = arts["target"], arts["source"]
+        manifest["id"] = "test/reversed-block"
+        manifest["direction"] = "imported"
+        manifest["derivation"] = None
+        manifest["context"] = {}
+        manifest["relation"] = {"semantics": "none"}
+        manifest["lean"] = {"family": None, "modules": []}
+        manifest["obligations"] = []
+        manifest["view"] = {"source": "listing", "target": "target"}
+        for frag in manifest["fragments"]:
+            frag["artifact"] = opposite[frag["artifact"]]
+        manifest["edges"] = [e for e in manifest["edges"] if e["kind"] == "navigation"]
+        for edge in manifest["edges"]:
+            edge["source"], edge["target"] = edge["target"], edge["source"]
+        arts.pop("listing_receipt")
+        for field in ("dwarf_extraction", "dwarf_facts", "include_env"):
+            manifest.pop(field)
+        block, = manifest["blocks"]
+        block["side"] = "source"
+        for field in ("object_obligation", "render", "parse"):
+            block.pop(field)
+        manifest["stages"] = [{"side": "source", "input": "source", "output": "decoded", "trust": "trusted"}]
+        cx.ingest_manifest(self.db, self.write("reversed.json", manifest))
+        problem = cx.problem_view(self.db, manifest["id"])
+        block, = problem["extra"]["blocks"]
+        self.assertEqual(block["side"], "source")
+        self.assertFalse(block["dependencies"])
+        self.assertIsNone(block["parse_stage"])
+        self.assertFalse(problem["obligations"])
+
     def test_proved_only_with_evidence(self):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         before = self.statuses("compiles-to/straight/O0/add3")
@@ -129,7 +211,7 @@ class Ingest(Base):
         b = cx.ingest_manifest(self.db, STRAIGHT_O0)
         self.assertEqual(a, b)
         cx.migrate(self.db)
-        self.assertEqual([r[0] for r in self.db.execute("SELECT version FROM schema_migrations")], [1, 2, 3])
+        self.assertEqual([r[0] for r in self.db.execute("SELECT version FROM schema_migrations")], [1, 2, 3, 4, 5, 6])
 
     def test_migration_keeps_existing_data(self):
         path = str(self.tmp / "old.sqlite")
@@ -139,7 +221,7 @@ class Ingest(Base):
         old.close()
         db = cx.connect(path)  # migrates 2 and 3
         vid = cx.ingest_manifest(db, STRAIGHT_O0)
-        self.assertEqual([r[0] for r in db.execute("SELECT version FROM schema_migrations")], [1, 2, 3])
+        self.assertEqual([r[0] for r in db.execute("SELECT version FROM schema_migrations")], [1, 2, 3, 4, 5, 6])
         self.assertTrue(db.execute("SELECT row FROM obligations WHERE version_id = ? AND id = 'translation'",
                                    (vid,)).fetchone()[0])
         db.close()
@@ -351,6 +433,12 @@ class Project(Base):
         translation = next(o for o in view['obligations'] if o['kind'] == 'translation')
         self.assertEqual(translation['status'], 'proved')
         self.assertEqual(view['manifest_sha256'], cx.sha256(STRAIGHT_O0.read_bytes()))
+        other = views['compiles-to/straight/O2/add3']
+        absent = next(o for o in other['obligations'] if o['kind'] == 'translation')
+        self.assertEqual(absent['status'], 'unavailable')
+        self.assertNotIn('evidence', absent)
+        self.assertFalse(absent['links'])
+        self.assertNotIn('rejected', [o['status'] for o in other['obligations']])
         missing = views['programs/msort/O2']
         self.assertNotIn('proved', [o['status'] for o in missing['obligations']])
         self.assertIn('not every corpus function', (output / 'index.html').read_text())
@@ -386,7 +474,13 @@ class Project(Base):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         cx.ingest_project(self.db, self.project_db(edit))
         st = self.statuses("compiles-to/straight/O0/add3")
-        self.assertEqual(st["translation"], "rejected")
+        self.assertEqual(st["translation"], "incompatible")
+
+    def test_local_evidence_is_not_superseded_by_a_later_incompatible_project(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        self.trusted(self.write("ev.json", evidence_for(STRAIGHT_O0)))
+        cx.ingest_project(self.db, self.project_db(lambda pdb: pdb.execute("DELETE FROM problems")))
+        self.assertEqual(self.statuses("compiles-to/straight/O0/add3")["translation"], "proved")
 
     def test_open_row_and_other_axioms(self):
         def edit(pdb):
@@ -404,6 +498,47 @@ class Project(Base):
         cx.ingest_manifest(self.db, STRAIGHT_O0)
         with self.assertRaises(cx.Rejected):
             cx.ingest_project(self.db, self.project_db(edit))
+
+
+class IncludeTrace(Base):
+    def test_program_profiles_load_exact_distinct_trace_receipts(self):
+        for opt in ("O0", "O2"):
+            path = MANIFESTS / f"programs--msort--{opt}.json"
+            cx.ingest_manifest(self.db, path)
+            view = cx.problem_view(self.db, f"programs/msort/{opt}")
+            env = view["extra"]["include_env"]
+            self.assertEqual(env["dependencies"]["flags"].split()[0], f"-{opt}")
+            implicit, direct, indirect, *_ = env["trace"]["occurrences"]
+            self.assertEqual(implicit["directive"], "implicit")
+            self.assertEqual((direct["operand"], direct["literal"], direct["parent"], direct["line"]),
+                             ("<stdio.h>", True, None, 2))
+            self.assertEqual(indirect["parent"], 1)
+            self.assertEqual(indirect["operand"], "<bits/libc-header-start.h>")
+            self.assertNotEqual(indirect["operand"].strip("<>"), indirect["resolved"].split("/")[-1])
+            self.assertTrue(any(event["resolved"] is None for event in env["trace"]["occurrences"]))
+
+    def test_trace_requires_active_parent_and_exact_dependency_paths(self):
+        path = ROOT / "examples/compiler-explorer/env/msort-O2.includes.json"
+        receipt = json.loads(path.read_bytes())
+        files = {record["path"] for record in receipt["files"]}
+        with self.assertRaisesRegex(ValueError, "dependency files"):
+            cx.check_include_trace(receipt["trace"], "/src/msort.c", files | {"/elsewhere"})
+        receipt["trace"]["occurrences"][2]["parent"] = 0
+        with self.assertRaisesRegex(ValueError, "active header entry"):
+            cx.check_include_trace(receipt["trace"], "/src/msort.c", files)
+
+    def test_trace_is_tied_to_the_exact_source_and_optimization_profile(self):
+        manifest = json.loads(MSORT_O2.read_bytes())
+        arts = manifest["artifacts"]
+        blobs = {role: cx.read_artifact(ROOT, ref) for role, ref in arts.items()}
+        wrong = ROOT / "examples/compiler-explorer/env/msort-O0.includes.json"
+        blobs["includes"] = wrong.read_bytes()
+        env = manifest["include_env"]
+        env["dependencies"]["flags"] = json.loads(blobs["includes"])["flags"]
+        env["files"][1:] = [{"name": row["path"], "sha256": row["sha256"], "size": row["size"]}
+                            for row in json.loads(blobs["includes"])["files"]]
+        with self.assertRaisesRegex(ValueError, "build input and options"):
+            cx.check_include_env(env, json.loads(blobs["receipt"]), arts, blobs)
 
 
 class Directions(Base):
@@ -461,10 +596,194 @@ class Directions(Base):
             cx.ingest_manifest(self.db, self.write("m.json", m))
 
 
+class Polish(Base):
+    C2C_DROP = MANIFESTS / "c2c--add3_drop.json"
+    C2C_REASSOC = MANIFESTS / "c2c--add3_reassoc.json"
+    TYPEERR = MANIFESTS / "typeerror--addp.json"
+
+    def test_refuted_open_and_claimed_are_distinct(self):
+        cx.ingest_manifest(self.db, self.C2C_DROP)
+        cx.ingest_manifest(self.db, self.C2C_REASSOC)
+        st = self.statuses("c2c/add3_drop")
+        self.assertEqual(st["translation"], "unchecked")  # a refutation is named, not yet checked
+        ev = evidence_for(self.C2C_DROP)
+        ev["obligations"] = [{"id": "translation", "statement": o["statement"], "decl": None,
+                              "refutation": o["refutation"], "status": "refuted",
+                              "axioms": ["propext", "Classical.choice", "Quot.sound"],
+                              "module": "CompilesToExamples.Explorer.C2C.Runs", "line": 91}
+                             for o in json.loads(self.C2C_DROP.read_bytes())["obligations"] if o["id"] == "translation"]
+        cx.ingest_evidence(self.db, self.write("file.json", ev))
+        self.assertEqual(self.statuses("c2c/add3_drop")["translation"], "claimed")  # a file, not a run
+        self.trusted(self.write("ev.json", ev))
+        self.assertEqual(self.statuses("c2c/add3_drop")["translation"], "refuted")
+        self.trusted(self.write("ev2.json", evidence_for(self.C2C_REASSOC)))
+        st = self.statuses("c2c/add3_reassoc")
+        self.assertEqual((st["translation"], st["equivalence"]), ("open", "open"))  # unknown, not refuted
+
+    def test_refutation_cannot_prove_and_proof_cannot_refute(self):
+        cx.ingest_manifest(self.db, self.C2C_DROP)
+        m = json.loads(self.C2C_DROP.read_bytes())
+        o = m["obligations"][0]
+        bad = [{"id": o["id"], "statement": o["statement"], "decl": None, "refutation": o["refutation"],
+                "status": "kernel", "axioms": []}]
+        ev = evidence_for(self.C2C_DROP, edit=lambda e: e.update(obligations=bad))
+        with self.assertRaises(cx.Rejected):
+            self.trusted(self.write("ev.json", ev))
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        ev = evidence_for(STRAIGHT_O0, edit=lambda e: e["obligations"][0].update(status="refuted"))
+        with self.assertRaises(cx.Rejected):
+            self.trusted(self.write("ev2.json", ev))
+
+    def test_type_error_certificate_is_a_restricted_refutation(self):
+        cx.ingest_manifest(self.db, self.TYPEERR)
+        v = cx.problem_view(self.db, "typeerror/addp")
+        self.assertEqual(v["direction"], "none")
+        self.assertEqual(v["extra"]["problem_form"], "judgment")
+        typing = next(o for o in v["obligations"] if o["kind"] == "typing")
+        self.assertIn("AdditionFragment.Accepts", typing["statement"])
+        self.assertIn(cx.lean_str(v["texts"]["source"]), typing["statement"])
+        self.assertTrue(typing["refutation"].endswith("addp_type_error"))
+        link = next(o for o in v["obligations"] if o["kind"] == "operand_types")
+        self.assertIn("AdditionFragment.operands", link["statement"])
+        self.assertTrue(link["decl"].endswith("addp_parses"))
+
+    def test_no_semantics_relation(self):
+        cx.ingest_manifest(self.db, MSORT_O2)
+        v = cx.problem_view(self.db, "programs/msort/O2")
+        self.assertEqual(v["extra"]["problem_form"], "relation")
+        self.assertEqual(v["extra"]["relation"]["semantics"], "none")
+        self.assertTrue(all(o["status"] == "unsupported" for o in v["obligations"]))
+        env = v["extra"]["include_env"]
+        self.assertTrue(any(f["name"].endswith("stdio.h") and len(f["sha256"]) == 64 for f in env["files"]))
+        self.assertTrue(env["search"])
+        self.assertIn("macros", v["artifacts"])
+
+    def test_alternative_views_and_stages(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        v = cx.problem_view(self.db, "compiles-to/straight/O0/add3")
+        alts = {a["role"] for side in ("source", "target") for a in v["view"]["alternatives"][side]}
+        self.assertEqual(alts, {"source", "ail", "core", "target", "listing", "decoded"})
+        self.assertTrue(v["alt_texts"]["ail"].startswith("($tuple "))
+        self.assertTrue(v["alt_texts"]["core"].startswith("($document "))
+        self.assertNotEqual(v["artifacts"]["ail"]["sha256"], v["artifacts"]["core"]["sha256"])
+        self.assertIn("decodesAs", v["alt_texts"]["decoded"])
+        self.assertTrue(v["alt_texts"]["target"].startswith("00000000  7f 45 4c 46"))
+        trusts = {s["name"]: s["trust"] for s in v["extra"]["stages"]}
+        self.assertEqual(trusts["objdump -d (binutils 2.40)"], "trusted")
+        self.assertIn("verified", trusts.values())
+        stages = {stage["output"]: stage for stage in v["extra"]["stages"]}
+        self.assertEqual((stages["ail"]["input"], stages["ail"]["trust"]), ("source", "evaluated"))
+        self.assertNotIn("obligation", stages["ail"])
+        self.assertEqual((stages["core"]["input"], stages["core"]["trust"]), ("ail", "verified"))
+        equality = next(obl for obl in v["obligations"] if obl["id"] == stages["core"]["obligation"])
+        self.assertEqual(equality["statement"], cx.core_equality("CompilesToExamples.Straight"))
+        facts = v["extra"]["dwarf_facts"]
+        self.assertTrue(any(f["kind"] == "frame_slot" and "refinement" in f["used_by"] for f in facts))
+
+    def test_executed_rendering_must_match_every_named_artifact(self):
+        manifest = json.loads(STRAIGHT_O0.read_bytes())
+        bindings = {role: cx.read_artifact(ROOT, manifest["artifacts"][role]).decode()
+                    for role, _ in manifest["lean"]["bindings"]}
+        cx.check_rendered_artifacts(self.db, STRAIGHT_O0, manifest, {"artifacts": bindings})
+        swapped = {**bindings, "ail": bindings["core"], "core": bindings["ail"]}
+        with self.assertRaisesRegex(cx.Rejected, "ail: artifact bytes differ"):
+            cx.check_rendered_artifacts(self.db, STRAIGHT_O0, manifest, {"artifacts": swapped})
+        bindings["decoded"] += "\n"
+        with self.assertRaisesRegex(cx.Rejected, "decoded: artifact bytes differ"):
+            cx.check_rendered_artifacts(self.db, STRAIGHT_O0, manifest, {"artifacts": bindings})
+        with self.assertRaisesRegex(cx.Rejected, "exactly the named artifact bindings"):
+            cx.check_rendered_artifacts(self.db, STRAIGHT_O0, manifest, {"artifacts": {}})
+
+    def test_c2c_assigns_each_stage_its_own_values_and_equality(self):
+        cx.ingest_manifest(self.db, self.C2C_DROP)
+        problem = cx.problem_view(self.db, "c2c/add3_drop")
+        for side, prefix, namespace in [("source", "", "CompilesToExamples.Straight"),
+                                        ("target", "target_", "CompilesToExamples.Explorer.C2C")]:
+            stages = [stage for stage in problem["extra"]["stages"] if stage["side"] == side]
+            roles = [side, prefix + "ail", prefix + "core"]
+            self.assertEqual([alt["role"] for alt in problem["view"]["alternatives"][side]], roles)
+            self.assertEqual([(stage["input"], stage["output"]) for stage in stages], list(zip(roles, roles[1:])))
+            self.assertEqual(stages[0]["output_decl"], namespace + ".ail")
+            equality = next(obl for obl in problem["obligations"] if obl["id"] == stages[1]["obligation"])
+            self.assertEqual(equality["statement"], cx.core_equality(namespace))
+            self.assertEqual(equality["status"], "unchecked")
+        self.assertEqual(len({artifact["sha256"] for artifact in problem["artifacts"].values()}), 6)
+
+    def test_stage_and_dependency_metadata_cannot_reference_another_input(self):
+        for path, change, reason in [
+            (STRAIGHT_O0, lambda m: m["stages"][0].update(output="missing"), "not a manifest artifact"),
+            (STRAIGHT_O0, lambda m: m["stages"][0].update(trust="verified", obligation="core_elaboration"), "scoped evidence"),
+            (STRAIGHT_O0, lambda m: m["stages"][1].update(input="source"), "scoped evidence"),
+            (STRAIGHT_O0, lambda m: m["stages"][1].update(obligation="elaboration"), "scoped evidence"),
+            (self.C2C_DROP, lambda m: m["stages"][3].update(obligation="core_elaboration"), "scoped evidence"),
+            (self.C2C_DROP, lambda m: m["view"]["alternatives"]["target"].append({"role": "ail"}), "only on its own side"),
+            (STRAIGHT_O0, lambda m: m["dwarf_extraction"].update(profile="O2"), "target and profile"),
+            (STRAIGHT_O0, lambda m: m["dwarf_facts"][0].update(used_by=["missing"]), "not an obligation"),
+            (MSORT_O2, lambda m: m["include_env"]["files"][1].update(sha256="0" * 64), "dependency receipt"),
+            (MSORT_O2, lambda m: m["include_env"].update(search=["/tmp"]), "search receipt"),
+        ]:
+            with self.subTest(reason=reason):
+                manifest = json.loads(path.read_bytes())
+                change(manifest)
+                with self.assertRaisesRegex(cx.Rejected, reason):
+                    cx.ingest_manifest(self.db, self.write("changed.json", manifest))
+
+    def test_catalog_routes_are_for_published_exact_bytes(self):
+        fixtures_spec = importlib.util.spec_from_file_location("fixtures", HERE.parent / "fixtures.py")
+        fixtures = importlib.util.module_from_spec(fixtures_spec)
+        fixtures_spec.loader.exec_module(fixtures)
+        fixtures.viewer_assets(self.tmp)
+        dest = self.tmp / "compiler-artifacts"
+        catalog = json.loads((dest / "index.json").read_text())["artifacts"]
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        base = "http://localhost:8991/"
+        pid = "compiles-to/straight/O0/add3"
+        view = cx.problem_view(self.db, pid, (base, catalog))
+        for role, tab in (("source", "c"), ("target", "elf")):
+            ref = view["artifacts"][role]
+            sha = ref["sha256"]
+            self.assertEqual((dest / "bytes" / sha).read_bytes(), (ROOT / ref["path"]).read_bytes())
+            self.assertEqual(view["artifact_links"][role][0]["url"], f"{base}#/{tab}-artifact/{sha}")
+            catalog[sha]["size"] += 1
+        view = cx.problem_view(self.db, pid, (base, catalog))
+        self.assertFalse(any(link["kind"] == "viewer" for links in view["artifact_links"].values() for link in links))
+
+    def test_links_only_to_existing_routes_and_clean_commits(self):
+        cx.ingest_manifest(self.db, STRAIGHT_O0)
+        ev = evidence_for(STRAIGHT_O0)
+        for o in ev["obligations"]:
+            o.update(module="CompilesToExamples.Explorer.Builds", line=62)
+        ev["git_commit"] = "a" * 40
+        self.trusted(self.write("ev.json", ev))
+        v = cx.problem_view(self.db, "compiles-to/straight/O0/add3")
+        tr = next(o for o in v["obligations"] if o["id"] == "translation")
+        urls = [l["url"] for l in tr["links"]]
+        self.assertIn("https://github.com/hiloopai/silmaril-lean/blob/" + "a" * 40 +
+                      "/examples/compiles-to/CompilesToExamples/Explorer/Builds.lean#L62", urls)
+        self.assertTrue(any(u.endswith("#/problem/silmaril.compiler_explorer.straight.o0.add3.translation")
+                            for u in urls))
+        src_links = [l["url"] for l in v["artifact_links"]["source"]]
+        self.assertIn("https://github.com/hiloopai/silmaril-lean/blob/" + "a" * 40 +
+                      "/examples/compiles-to/straight/straight.c", src_links)
+        self.assertTrue(any(u.endswith("#/artifact/silmaril.compiles_to.straight.source") for u in src_links))
+        self.assertFalse(any("#/c-program/" in u or "#/elf-file/" in u for u in src_links))
+        # a dirty or unknown commit gives no Lean link
+        ev["git_commit"] = "a" * 40 + "-dirty"
+        self.trusted(self.write("ev2.json", ev))
+        v = cx.problem_view(self.db, "compiles-to/straight/O0/add3")
+        tr = next(o for o in v["obligations"] if o["id"] == "translation")
+        self.assertFalse(any(l["kind"] == "lean" for l in tr["links"]))
+
+    def test_lean_paths(self):
+        self.assertEqual(cx.lean_path("Silmaril.Compiler.Explorer.Defs"), "Silmaril/Compiler/Explorer/Defs.lean")
+        self.assertIsNone(cx.lean_path("Mathlib.Logic.Basic"))
+        self.assertIsNone(cx.lean_path("../etc"))
+
+
 class Binding(Base):
     def test_function_of_another_build_is_unbound(self):
         """The branch -O2 problem, its statements about straight.c's add3: theorems exist for
-        them, but the add3 bytes are not branch.o's, so nothing is shown proved."""
+        them, but the add3 bytes are not branch.o's, so its machine obligations are unbound."""
         m = json.loads(BRANCH_O2.read_bytes())
         straight = json.loads(STRAIGHT_O0.read_bytes())
         m["lean"]["vars"]["fn"] = straight["lean"]["vars"]["fn"]
@@ -474,7 +793,8 @@ class Binding(Base):
             e = next((e for e in m["edges"] if e["id"] == o.get("edge")), None)
             o["statement"] = cx.statement_for("c-function-x86", m["lean"]["vars"], o["kind"],
                                               e and e["point"], e and e.get("line"))
-            o["decl"] = decls.get(o["id"])
+            if o["kind"] != "core_elaboration":
+                o["decl"] = decls.get(o["id"])
         p = self.write("m.json", m)
         cx.ingest_manifest(self.db, p)
         # the exporter would find every theorem but the artifact one (add3 is not in branch.o)
@@ -483,7 +803,7 @@ class Binding(Base):
         st = self.statuses("compiles-to/branch/O2/max2")
         self.assertEqual(st["artifact"], "rejected")
         self.assertEqual(st["translation"], "unbound")
-        self.assertNotIn("proved", st.values())
+        self.assertEqual([key for key, status in st.items() if status == "proved"], ["core_elaboration"])
 
 
 class Evidence(Base):
@@ -597,6 +917,85 @@ class Server(Base):
         with self.assertRaises(sqlite3.OperationalError):
             ro.execute("DELETE FROM evidence")
         ro.close()
+
+
+class ReplayTests(unittest.TestCase):
+    """Exercise scheduling and failure propagation without substituting for kernel replay."""
+
+    def run_replay(self, jobs="4", fail=""):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp = pathlib.Path(tmp)
+            lake = tmp / "lake"
+            lake.write_text("""#!/usr/bin/env python3
+import os, signal, sys, time
+assert sys.argv[1:4] == ["env", "lean", "-DwarningAsError=true"]
+if "SILMARIL_REPLAY_TARGETS" in os.environ:
+    if os.environ["REPLAY_FAIL"] == "discovery": sys.exit(1)
+    if os.environ["REPLAY_FAIL"] != "empty":
+        print(os.environ["SILMARIL_REPLAY_TARGETS"].replace(" ", "\\n"))
+    sys.exit(0)
+module = os.environ["SILMARIL_REPLAY_MODULE"]
+fd = os.open(os.environ["REPLAY_LOG"], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+os.write(fd, ("start " + module + "\\n").encode())
+time.sleep(0.05)
+os.write(fd, ("stop " + module + "\\n").encode())
+if os.environ["REPLAY_FAIL"] == "signal": os.kill(os.getpid(), signal.SIGTERM)
+sys.exit(1 if module == os.environ["REPLAY_FAIL"] else 0)
+""")
+            lake.chmod(0o755)
+            log = tmp / "log"
+            result = subprocess.run(["bash", str(HERE.parent / "replay.sh")],
+                                    env={**os.environ, "LAKE": str(lake),
+                                         "LEAN_REPLAY_JOBS": jobs, "REPLAY_LOG": str(log),
+                                         "REPLAY_FAIL": fail}, capture_output=True, text=True,
+                                    timeout=15)
+            lines = log.read_text().splitlines() if log.exists() else []
+            return result, lines
+
+    def test_replay_bound_and_serial_mode(self):
+        for jobs in ("1", "4"):
+            result, lines = self.run_replay(jobs)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            active = peak = 0
+            starts, stops = [], []
+            for line in lines:
+                kind, module = line.split()
+                if kind == "start":
+                    starts.append(module)
+                    active += 1
+                    peak = max(peak, active)
+                else:
+                    stops.append(module)
+                    active -= 1
+            self.assertEqual(len(set(starts)), 18)
+            self.assertCountEqual(starts, stops)
+            self.assertEqual(active, 0)
+            self.assertLessEqual(peak, int(jobs))
+            if jobs == "4":
+                self.assertGreater(peak, 1)
+
+    def test_replay_failure_is_not_hidden(self):
+        failed = "Silmaril.Proofs.Compiler.Explorer.Basic"
+        result, lines = self.run_replay(fail=failed)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("leanchecker " + failed + ": ok", result.stdout)
+        self.assertEqual(sum(line.startswith("stop ") for line in lines), 18)
+
+    def test_replay_rejects_invalid_concurrency(self):
+        for jobs in ("0", "-1", "oops"):
+            result, lines = self.run_replay(jobs)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(lines, [])
+
+    def test_discovery_failure_or_empty_selection_starts_no_workers(self):
+        for fail in ("discovery", "empty"):
+            result, lines = self.run_replay(fail=fail)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(lines, [])
+
+    def test_signalled_worker_fails_the_replay(self):
+        result, _ = self.run_replay(fail="signal")
+        self.assertNotEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

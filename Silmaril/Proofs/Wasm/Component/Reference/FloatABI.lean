@@ -308,7 +308,8 @@ theorem liftAt_f32 (ys : List Flat) (n : Nat) (ht : Typed (ValTy.flat .f32) (ys.
   have hrest : rest = ys.drop (n + 1) := (drop_succ_of hd).symm
   rw [hd]
   refine ⟨?_, hrest⟩
-  simp only [toClosed, liftFlatAt, liftFlatPrim, next_eq hd, pure_bind, wrap_f32]
+  simp only [toClosed, liftFlatAt, liftFlatAtWith, FlatLoadCarrier.reference,
+    liftFlatPrim, next_eq hd, pure_bind, wrap_f32]
   rfl
 
 /-- An `f64` lifts canonicalised. -/
@@ -323,7 +324,8 @@ theorem liftAt_f64 (ys : List Flat) (n : Nat) (ht : Typed (ValTy.flat .f64) (ys.
   have hrest : rest = ys.drop (n + 1) := (drop_succ_of hd).symm
   rw [hd]
   refine ⟨?_, hrest⟩
-  simp only [toClosed, liftFlatAt, liftFlatPrim, next_eq hd, pure_bind, bits64_f64]
+  simp only [toClosed, liftFlatAt, liftFlatAtWith, FlatLoadCarrier.reference,
+    liftFlatPrim, next_eq hd, pure_bind, bits64_f64]
   rfl
 
 /-- A record lifts as its fields. -/
@@ -399,7 +401,7 @@ theorem liftFields_float : ∀ (ts : List ValTy) (fs : List (String × WIT.Close
       simpa only [ValTy.flatList] using ht
     have ih₁ := liftAt_float t ys n hf'.1 ht'.left
     rw [hfs'.1]
-    simp only [liftFlatFields, ValTy.liftList, ValTy.flatList, List.length_append]
+    simp only [liftFlatFields, liftFlatFieldsWith, ValTy.liftList, ValTy.flatList, List.length_append]
     revert ih₁
     cases ValTy.lift t (ys.drop n) with
     | none => intro ih₁; exact ih₁.bind _
@@ -411,6 +413,7 @@ theorem liftFields_float : ∀ (ts : List ValTy) (fs : List (String × WIT.Close
         have h₂ := ht'.right
         rwa [List.drop_drop] at h₂
       have ih₂ := liftFields_float ts fs ys (n + t.flat.length) hfs'.2 hf'.2 ht₂
+      unfold liftFlatAt at hp
       rw [hp, pure_bind, hr]
       exact liftsRelC_cons ih₂
 end
@@ -429,7 +432,8 @@ theorem liftFlatTypes_float (ts : List ValTy) (ys : List Flat) (n : Nat)
     | cons f fs ih =>
       intro c
       obtain ⟨nm, u⟩ := f
-      simp only [liftFlatFields, liftFlatTypes, List.map_cons, ih]
+      simp only [liftFlatFields, liftFlatFieldsWith, liftFlatTypes, liftFlatTypesWith,
+        List.map_cons, ih]
   rwa [heq, labels_map_snd] at h
 
 /-- **The direct lift path with floats relates to `liftArgs`**: the canonicalised results, or a

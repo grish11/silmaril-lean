@@ -1,0 +1,215 @@
+{
+  "schema": "silmaril.component-tests.report.v1",
+  "semantics": "Binary.parseComponent, then Comp.denI over Binary.coreModSemI P: each core module decoded and run on the Core 3.0 engine at profile P, its start function at instantiation; core instances instantiated in program order (the reading of componentBytesSystemCore3I P before its export phase)",
+  "assumptions": [
+    "existence: one play at every profile P",
+    "exclusion: every finite play at every deterministic profile profile o (every GrowOracle o)",
+    "divergence is not observed: a start function or export call that never returns makes no move",
+    "typed host: f is answered () (unitHost); the import-call clauses hold whatever the host answers",
+    "no async, resources, streams or futures (the lowering rejects them)"
+  ],
+  "shapes": [
+    {
+      "name": "silmaril.shapes.component.test.instantiates",
+      "lean": "Silmaril.Project.Shapes.ComponentTest.Instantiates"
+    },
+    {
+      "name": "silmaril.shapes.component.test.inst_traps",
+      "lean": "Silmaril.Project.Shapes.ComponentTest.InstTraps"
+    },
+    {
+      "name": "silmaril.shapes.component.test.export_returns_after_inst",
+      "lean": "Silmaril.Project.Shapes.ComponentTest.ExportReturnsAfterInst"
+    }
+  ],
+  "binaries": [
+    {
+      "name": "starts",
+      "wasm": "starts.wasm",
+      "wat": "starts.wat",
+      "sha256": "ff543e050721e1620c89fa540559e12c9b28d9b22333942ad7e74b12ed02665f",
+      "size": 256,
+      "lean": "Silmaril.Wasm.Component.InstTests.startsBytes",
+      "imports": [
+        "f: func(x: u32)"
+      ],
+      "exports": [
+        "get: func() -> u32"
+      ],
+      "core_instances": [
+        "call1: start function calls f(1)",
+        "call2: start function calls f(2)",
+        "glob: start function writes 42 into a global (initially 0); exports get, which reads it"
+      ],
+      "expected": {
+        "instantiation": "ready",
+        "trace": [
+          "f(1) -> ()",
+          "f(2) -> ()"
+        ],
+        "exports": [
+          [
+            "get()",
+            "42"
+          ]
+        ]
+      },
+      "rows": [
+        {
+          "name": "silmaril.component_tests.starts.instantiates",
+          "shape": "silmaril.shapes.component.test.instantiates",
+          "theorem": "Silmaril.Project.ComponentTests.starts_instantiates"
+        },
+        {
+          "name": "silmaril.component_tests.starts.get_after_inst",
+          "shape": "silmaril.shapes.component.test.export_returns_after_inst",
+          "theorem": "Silmaril.Project.ComponentTests.starts_get_after_inst"
+        }
+      ],
+      "strength": "proved (kernel-checked): the play [inst, f(1), (), f(2), (), ready, get(), 42] at every profile; at every deterministic profile every play's host calls are a prefix of f(1), f(2), a complete instantiation under the typed host is exactly that trace then ready, and every answer to get() is 42",
+      "ref": {
+        "theorem": "Silmaril.Wasm.Component.InstTestsRef.starts_agree",
+        "strength": "one executed reference-machine run (decide +kernel on its drivers) on the component Conformance.decodeRef reads from these bytes (kernel_rfl; validated by check?): host log f(1), f(2); get() returns 42. Example agreement only, not a general binary-to-REF equivalence"
+      },
+      "bridge": {
+        "theorem": "Silmaril.Wasm.Component.DecoderBridge.starts_rel",
+        "strength": "structural, proved for every binary (DecoderBridge.rel_of_decode): when Binary.parseComponent and Conformance.decodeRef both succeed, they read the same Binary.parse AST and agree on core instantiations (the same core modules, decoded from the same bytes, instantiated in the same order); this binary is an instance"
+      },
+      "bridge_wiring": {
+        "theorem": "Silmaril.Wasm.Component.DecoderBridge.starts_relW",
+        "strength": "wiring and types, proved for every binary whose REF reading is in the decidable fragment DecoderBridge.InFrag (DecoderBridge.relW_of_decode): the IR's imports, exports (names, types, lift/lower chains) and each node's module interface and wiring are those the reference component's definitions name, resolved as the reference machine resolves names (DecoderBridge.refRead); this binary is in the fragment (starts_inFrag, decide +kernel). Syntax only: that the reference machine's run follows refRead is not proved"
+      },
+      "bridge_semantic": "open: behavioural adequacy of Comp.denI against the reference machine is the open goal DecoderBridge.Task.startAdequacy (this binary is an instance of it: DecoderBridge.starts_of); this binary is import-wired (DecoderBridge.starts_hostWired), so the instantiation part of every such IR play is node by node (DecoderBridge.nodesInst_of_startPlay, proved); its first core node is in the decidable fragment FirstImpFrag (DecoderBridge.starts_firstImpFrag: the module call1 imports exactly the canon lower of f), on which the reference half of a first node that is ready after host calls t is proved up to the return of its start function (DecoderBridge.firstImp_ready_ref); it is in the decidable fragment MultiImpFrag (DecoderBridge.starts_multiImpFrag), on which Task.startAdequacy is proved (DecoderBridge.startAdequacyFrag): the IR's node calls (DecoderBridge.nodeCallsIR) and the whole reference instantiation (DecoderBridge.nodesRef: the first node with its start epilogue, the two later nodes call2 and glob in the shared core store, each node's IR store mapped into it with its imports kept at the trampoline, then the remaining definitions and the end of the instantiation) are proved, the instantiation also yields the invariant NodesInv (DecoderBridge.nodesRefX), and the export call over it follows from Task.exportIR, which is proved (DecoderBridge.exportIR: the IR play taken apart node by node with one export call, the first export the option-less lift of glob's get, run host-free from the store its start function left), Task.coreRunShared, which is proved (DecoderBridge.coreRunShared: the node's run of the lifted function relocated into the shared core store, given its typing), and Task.callLift, which is proved (DecoderBridge.callLift: the session call through the option-less canon lift from a configuration at nesting depth 0, recorded by NodesInv); DecoderBridge.starts_ref_of_ir' derives the reference half of this binary from its IR run without hypothesis (DecoderBridge.starts_ref_of_ir from Task.exportIR), and the execution of both machines (starts_agree) stays as a kernel cross-check"
+    },
+    {
+      "name": "trap",
+      "wasm": "trap.wasm",
+      "wat": "trap.wat",
+      "sha256": "1cccda32d6da9ffcf4dff1f944d95836e9800656bc1ffd21817c416038649d20",
+      "size": 188,
+      "lean": "Silmaril.Wasm.Component.InstTests.trapBytes",
+      "imports": [
+        "f: func(x: u32)"
+      ],
+      "exports": [
+        "get: func() -> u32"
+      ],
+      "core_instances": [
+        "trap: start function is unreachable; exports get (returns 7)",
+        "call2: start function would call f(2)"
+      ],
+      "expected": {
+        "instantiation": "fail ()",
+        "trace": [],
+        "exports": []
+      },
+      "rows": [
+        {
+          "name": "silmaril.component_tests.trap.inst_traps",
+          "shape": "silmaril.shapes.component.test.inst_traps",
+          "theorem": "Silmaril.Project.ComponentTests.trap_inst_traps"
+        }
+      ],
+      "strength": "proved (kernel-checked): the play [inst, fail ()] at every profile; at every deterministic profile every play is a prefix of it (plus at most one unanswered Opponent move): never ready, no host call (f(2) never runs), no export answered, export phase empty",
+      "ref": {
+        "theorem": "Silmaril.Wasm.Component.InstTestsRef.trap_agree",
+        "strength": "one executed reference-machine run on the component Conformance.decodeRef reads from these bytes (kernel_rfl; validated by check?): the instantiation traps. Example agreement only, not a general binary-to-REF equivalence"
+      },
+      "bridge": {
+        "theorem": "Silmaril.Wasm.Component.DecoderBridge.trap_rel",
+        "strength": "structural, proved for every binary (DecoderBridge.rel_of_decode): when Binary.parseComponent and Conformance.decodeRef both succeed, they read the same Binary.parse AST and agree on core instantiations (the same core modules, decoded from the same bytes, instantiated in the same order); this binary is an instance"
+      },
+      "bridge_wiring": {
+        "theorem": "Silmaril.Wasm.Component.DecoderBridge.trap_relW",
+        "strength": "wiring and types, proved for every binary whose REF reading is in the decidable fragment DecoderBridge.InFrag (DecoderBridge.relW_of_decode): the IR's imports, exports (names, types, lift/lower chains) and each node's module interface and wiring are those the reference component's definitions name, resolved as the reference machine resolves names (DecoderBridge.refRead); this binary is in the fragment (trap_inFrag, decide +kernel). Syntax only: that the reference machine's run follows refRead is not proved"
+      },
+      "bridge_semantic": "open: behavioural adequacy of Comp.denI against the reference machine is the open goal DecoderBridge.Task.failAdequacy (this binary is an instance of it: DecoderBridge.trap_of); on import-wired binaries, this one included (DecoderBridge.trap_hostWired), its IR half is proved and it reduces to the reference half DecoderBridge.Task.failRefWired (DecoderBridge.failAdequacyWired_of), whose first-node case is proved on the decidable fragment FirstCoreFrag (DecoderBridge.firstCore_fail_ref; this binary is in it, trap_firstCoreFrag), so the reference trap of this binary is derived from its IR run without executing the reference machine (DecoderBridge.trap_of_firstCore); the case of a first module importing canon lower trampolines is proved too (DecoderBridge.firstImp_fail_ref, fragment FirstImpFrag), and the remaining cases DecoderBridge.Task.failRefWiredRest' are open"
+    }
+  ],
+  "regressions": [
+    {
+      "name": "instexport",
+      "wasm": "instexport.wasm",
+      "wat": "instexport.wat",
+      "sha256": "8ba16937335f45a0115304ee7c4feed05f727ea42d1ae4bbcad70178f62039c5",
+      "size": 117,
+      "lean": "Silmaril.Wasm.Component.DecoderBridge.instExportBytes",
+      "what": "an exported instance: the core get (returning 42) is lifted and exported through an inline instance i; the component also imports f: func(x: u32), unused",
+      "facts": [
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.parse_instExport",
+          "statement": "the IR reading (Binary.parseComponent) is instExportComp; its only export is named i#get (instExport_ir_exports)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.decodeRef_instExport",
+          "statement": "the REF reading (Conformance.decodeRef) is instExportRef, which exports the instance i; it is valid (instExport_valid) and not in the fragment InFrag (instExport_not_inFrag)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.instExport_ref_run",
+          "statement": "an executed reference run (logging host, hostConfigX, decide +kernel on instantiateRun) instantiates it with no function export, so the lookup of i#get fails on that run"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.instExport_not_noInstExport",
+          "statement": "it is outside the decidable restriction NoInstExport (no definition exports an instance); InFrag implies the restriction (inFrag_noInstExport)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.instExport_names",
+          "statement": "the export names differ: the IR's are [i#get], the reference reading's function export names (refFuncExportNames) are []; the named IR reading has the export i#get too (parseN_instExport)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.exportNames_of_decode",
+          "statement": "for every binary whose two readings succeed and whose REF reading exports no instance (NoInstExport), the named IR export names are the REF reading's function export names, in order; on InFrag so are the IR's (exportNames_ir_of_inFrag)"
+        }
+      ],
+      "status": "demonstrated mismatch of the two readings' export names (kernel runs), not a disproof of the first statement of Task.startAdequacy (the IR's answer to i#get and the absence of i#get from every reference run are not proved); excluded by the fragment hypothesis InFrag now in Task.startAdequacy; comparing instance-exported functions needs a reference export-path lookup, which is open",
+      "resolution": "restricted, not fixed: the lowering still flattens an exported instance i into a function export i#f, which is not a valid component export name and not an export the reference machine reports; the comparison is restricted by the decidable predicate NoInstExport, under which the export names agree for every binary (exportNames_of_decode); this binary is outside it (instExport_not_noInstExport). Keeping instance exports structurally (export paths) and comparing them through a reference export-path lookup is open"
+    },
+    {
+      "name": "paramname",
+      "wasm": "paramname.wasm",
+      "wat": "paramname.wat",
+      "sha256": "347583e4905a48fa04934184282b78d208ab5d430b01de4d6b797dadc3113da2",
+      "size": 256,
+      "lean": "Silmaril.Wasm.Component.DecoderBridge.paramNameBytes",
+      "disproof": "Silmaril.Wasm.Component.DecoderBridge.not_startAdequacy",
+      "what": "starts with the import declared f: func(y: u32) instead of f: func(x: u32); the binary differs from starts.wasm in that one byte",
+      "facts": [
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.parse_paramName",
+          "statement": "the IR reading (Binary.parseComponent) is startsComp: parameter names are dropped, so the IR plays are those of starts.wasm"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.decodeRef_paramName",
+          "statement": "the REF reading (Conformance.decodeRef) is paramNameRef, valid (paramName_valid) and in InFrag (paramName_inFrag)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.not_rootChecked_paramName",
+          "statement": "the root certificate RootChecked (the reference machine's own root checks against the host f: func(x: u32)) rejects it; starts.wasm passes it (starts_rootChecked)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.paramName_not_instantiates",
+          "statement": "no reference run (logging host, hostConfigX, first.prof) finishes the instantiation; it traps (paramName_traps)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.not_startAdequacy",
+          "statement": "Task.startAdequacy is false"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.parseN_paramName",
+          "statement": "the named IR reading (Binary.parseComponentN: Binary.parseComponent with the named signature Binary.Lower.lowerSig) imports f: func(y: u32), so not hostIN (paramName_not_hostIN): paramname.wasm is not a counterexample to Task.startAdequacyNamed"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.named_of_decode",
+          "statement": "for every binary whose readings succeed, the named IR imports and exports, parameter names included, are those of the named REF reading (refReadN, which succeeds on InFrag: refReadN_of_inFrag); on InFrag they erase to the IR's (erase_of_decode)"
+        },
+        {
+          "theorem": "Silmaril.Wasm.Component.DecoderBridge.rootChecked_of_named",
+          "statement": "on InFrag, the IR's own named import typing n.imports = hostIN gives RootChecked; so Task.startAdequacyChecked implies Task.startAdequacyNamed (startAdequacyNamed_of_checked), which is proved on MultiImpFrag (startAdequacyNamed_of_multiImpFrag)"
+        }
+      ],
+      "status": "counterexample proved: Task.startAdequacy is false; corrected goal Task.startAdequacyChecked (hypothesis RootChecked, open in general); outside RootChecked the reference instantiation traps and has no run (traps_of_not_rootChecked, not_instantiates_of_not_rootChecked); MultiImpFrag passes RootChecked (rootChecked_of_multiImpFrag), so the corrected goal is proved there (startAdequacyChecked_of_multiImpFrag); the parameter names are kept by the named IR reading, see resolution",
+      "cause": "the IR reading drops function parameter names; the specification keeps them in the function type (Explainer functype, Binary.md paramlist) and compares function types by equality (Explainer, Type Checking), as the reference does against its host typed f: func(x: u32). Tool evidence (paramname.json, not a proof): wasm-tools 1.262.0 validates the binary alone and rejects instantiating it with a component function f: func(x: u32) (expected parameter named `y`, found `x`), as do wac 0.12.0 and wasmtime 50.0.0; a wasmtime Linker host function (func_wrap, typed by parameter types only) instantiates it, host log [1, 2], get() = 42",
+      "resolution": "fixed on the named IR: Binary.parseComponentN keeps parameter names in the import and export function types (NFuncTy; Comp and FuncTy unchanged), and the start goal on it, Task.startAdequacyNamed (hypothesis n.imports = hostIN, no certificate), is open in general, follows from Task.startAdequacyChecked and is proved on MultiImpFrag; Task.startAdequacy (unnamed IR) stays false"
+    }
+  ]
+}

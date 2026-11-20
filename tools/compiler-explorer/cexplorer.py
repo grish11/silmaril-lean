@@ -6,7 +6,7 @@
     python3 -I tools/compiler-explorer/cexplorer.py evidence DB EVIDENCE... # an exporter file (recorded as a claim)
     python3 -I tools/compiler-explorer/cexplorer.py project DB PROJECT.sqlite # statuses of `sil project` rows
     python3 -I tools/compiler-explorer/cexplorer.py status DB [PROBLEM]     # a text report
-    python3 -I tools/compiler-explorer/cexplorer.py serve DB [--host 127.0.0.1] [--port 8765]
+    python3 -I tools/compiler-explorer/cexplorer.py serve DB [--host 127.0.0.1] [--port 8765] [--viewer URL]
 
 docs/projects/compiler-explorer.md describes the model. In short:
 
@@ -43,21 +43,29 @@ import sys
 import tempfile
 import tomllib
 import urllib.parse
+import urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 UI = pathlib.Path(__file__).resolve().parent / "ui"
 
 PROBLEM_SCHEMA = "silmaril.compiler-explorer.problem/1"
 EVIDENCE_SCHEMA = "silmaril.compiler-explorer.evidence/1"
-DIRECTIONS = ("compiled", "decompiled", "imported")
+DIRECTIONS = ("compiled", "decompiled", "imported", "none")
 ALLOWED_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
-EXPORT_STATUSES = {"kernel", "open", "missing", "not_theorem", "mismatch", "bad_axioms", "elab_error"}
+EXPORT_STATUSES = {"kernel", "refuted", "open", "missing", "not_theorem", "mismatch", "bad_axioms", "elab_error"}
 MAX_TEXT = 1 << 20  # the largest artifact the API returns as text
+VIEWER_SCHEMA = "silmaril.compiler-artifacts/1"
+VIEWER_MEDIA = {"text/x-c": "c", "application/x-elf-relocatable": "elf", "application/x-elf": "elf"}
+VIEWER_ROUTES = {"c": "c-artifact", "elf": "elf-artifact"}
+PROBE = "Silmaril.Project.CompilesTo.Probe"
 
 # ------------------------------------------------------------------------------------------------
 # Statement templates
 
 K0 = "∀ k0 : List Silmaril.Cerberus.Core.Dynamics.Frame,"
+
+def core_equality(namespace: str) -> str:
+    return f"Silmaril.Project.Shapes.C.ElabAil {namespace}.ail = .ok {namespace}.core"
 
 # Per family, per obligation kind: the Lean statement, from the manifest's `lean.vars` and the
 # obligation's point (`k`) and line. `None` for kinds the family does not state.
@@ -78,8 +86,10 @@ TEMPLATES = {
             f"Silmaril.Project.Shapes.SysV.Enterable {v['isa']} {v['fn']}.placement "
             f"{v['fn']}.sig {v['fn']}.frame"),
         "point": lambda v, k, line: f"Silmaril.Project.Shapes.CompilesTo.PointOf {v['fn']} {k} {line}",
+        "decoding": lambda v, k, line: f"Silmaril.Project.CompilesTo.decodesAs {v['fn']}.code 0 {v['listing']} = true",
         "elaboration": lambda v, k, line: (
             f"Silmaril.Project.Shapes.C.ElaboratesTo {v['ail']} \"{v['cname']}\" {v['fn']}.cfn"),
+        "core_elaboration": lambda v, k, line: core_equality(v["ail"].rsplit(".", 1)[0]),
         "nonvacuity_canonical": lambda v, k, line: (
             f"Silmaril.Project.Shapes.CompilesTo.CompilesToCanonical {v['isa']} {v['fn']}.placement "
             f"{v['fn']}.frame {v['fn']}.cfn"),
@@ -103,6 +113,19 @@ def decompiled_block(v: dict, source: str) -> str:
             f'{v["n"]} [{inputs}] {lean_str(source)}')
 
 
+TEMPLATES["c-to-c"] = {
+    "core_elaboration": lambda v, k, line: core_equality(v["source_fn"].rsplit(".", 1)[0]),
+    "target_core_elaboration": lambda v, k, line: core_equality(v["target_fn"].rsplit(".", 1)[0]),
+    "c2c_refines": lambda v, k, line: (
+        f"Silmaril.Project.Shapes.CompilesTo.CanonicalRefines {v['source_fn']} {v['target_fn']}"),
+    "c2c_equivalent": lambda v, k, line: (
+        f"Silmaril.Project.Shapes.CompilesTo.CanonicalEquivalent {v['source_fn']} {v['target_fn']}"),
+}
+TEMPLATES["c-additive"] = {
+    "typing": lambda v, k, line, source: f"Silmaril.Project.Shapes.C.AdditionFragment.Accepts {lean_str(source)}",
+    "operand_types": lambda v, k, line, source: (
+        f"Silmaril.Project.Shapes.C.AdditionFragment.operands {lean_str(source)} = some ({v['t1']}, {v['t2']})"),
+}
 TEMPLATES["decompiled-word-block"] = {
     # the decompiler's checked block, its printed C text (this problem's source artifact), and
     # WordC.checked_output_c0 for the block's rax
@@ -132,22 +155,109 @@ def check_decompiled_vars(v: dict, blobs: dict, m: dict) -> None:
         raise ValueError("the block's bytes are not the decompiler's input")
 
 
-def elf_text(data: bytes) -> bytes:
-    """The `.text` section of a little-endian ELF64 file."""
+def elf_text_location(data: bytes) -> tuple[int, int, int]:
+    """Section index, file offset and size of file-backed ELF64 `.text`."""
     import struct
-    if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+    if len(data) < 64 or data[:6] != b"\x7fELF\x02\x01":
         raise ValueError("the target is not a little-endian ELF64 file")
     shoff, = struct.unpack_from("<Q", data, 0x28)
     shentsize, shnum, shstrndx = struct.unpack_from("<HHH", data, 0x3A)
+    if shentsize != 64 or shstrndx >= shnum or shoff + shentsize * shnum > len(data):
+        raise ValueError("invalid ELF section table")
     def header(i):
         return struct.unpack_from("<IIQQQQ", data, shoff + i * shentsize)
     _, _, _, _, stroff, strsize = header(shstrndx)
     names = data[stroff:stroff + strsize]
     for i in range(shnum):
-        name, _, _, _, off, size = header(i)
-        if names[name:names.index(b"\0", name)] == b".text":
-            return data[off:off + size]
+        name, kind, flags, _, off, size = header(i)
+        if names[name:names.find(b"\0", name)] == b".text":
+            if kind != 1 or not flags & 4 or off + size > len(data):
+                raise ValueError("invalid file-backed executable .text section")
+            return i, off, size
     raise ValueError("the target has no .text section")
+
+
+def elf_text(data: bytes) -> bytes:
+    _, offset, size = elf_text_location(data)
+    return data[offset:offset + size]
+
+
+def block_endpoints(m: dict, blobs: dict) -> list[dict]:
+    """Bind optional block candidates to exact ELF, decoder and opposite-side fragments.
+
+    This adapter handles section-relative x86-64 ET_REL only. Neither a geometry check
+    nor an attribution edge asserts a CFG, an ELF load, or a semantic correspondence.
+    """
+    arts = m["artifacts"]
+    fragments = {f["id"]: f for f in m["fragments"]}
+    edges = {e["id"]: e for e in m["edges"]}
+    stages = {(s["side"], s["output"]): s for s in m.get("stages", [])}
+    bindings = dict(m.get("lean", {}).get("bindings", []))
+    obligations = {o["id"]: o for o in m["obligations"]}
+    result = []
+    for block in m.get("blocks", []):
+        side = block["side"]
+        if side not in ("source", "target") or arts[side]["media"] != "application/x-elf-relocatable":
+            raise ValueError("a block endpoint must name a relocatable ELF side")
+        other = "target" if side == "source" else "source"
+        data = blobs[side]
+        section, offset, size = elf_text_location(data)
+        if data[16:20] != b"\x01\x00\x3e\x00":
+            raise ValueError("a block endpoint requires x86-64 ET_REL")
+        lo, hi = block["section_range"]
+        if not 0 <= lo < hi <= size or type(block["model_base"]) is not int or block["model_base"] < 0:
+            raise ValueError("invalid block extent or model placement")
+        decoder = stages[side, block["decoder"]]
+        parse = stages[other, block["parse"]] if "parse" in block else None
+        if decoder["input"] != side or (parse and parse["input"] != other) or not block["symbol"]:
+            raise ValueError("block decoder and parse must name the exact artifact sides")
+        if not IDENT.fullmatch(block["model_decl"]):
+            raise ValueError("invalid block model identity")
+        dependencies = []
+        if "object_obligation" in block:
+            dependencies = [block["object_obligation"], decoder["obligation"]]
+            if [obligations[dep]["kind"] for dep in dependencies] != ["artifact", "decoding"]:
+                raise ValueError("block dependencies must be the byte-binding and decoding obligations")
+            variables = m.get("lean", {}).get("vars", {})
+            if (bindings.get(block["decoder"]) != block["render"] or variables.get("cname") != block["symbol"] or
+                    variables.get("block_model") != block["model_decl"] or
+                    blobs.get("block_entry") != f"{block['model_base']}\n".encode()):
+                raise ValueError("block certificate must refer to the bound listing and symbol")
+        cursor = 0
+        for row in blobs[block["decoder"]].decode().splitlines():
+            if row.startswith("--"):
+                continue
+            start, length, _ = row.split("\t", 2)
+            if int(start, 16) != cursor or int(length) <= 0:
+                raise ValueError("noncontiguous block decoder listing")
+            cursor += int(length)
+        if cursor != hi - lo:
+            raise ValueError("block extent does not match the decoded listing")
+        if dependencies and (lo != 0 or hi != size):
+            raise ValueError("certified block dependencies require the whole .text section; smaller slices need a symbol-offset binding")
+        if len(set(block["attribution"])) != len(block["attribution"]):
+            raise ValueError("block attribution must name distinct navigation edges")
+        for edge_id in block["attribution"]:
+            edge = edges[edge_id]
+            if edge["kind"] != "navigation" or edge.get("function") != block["symbol"] or not edge[side] or not edge[other]:
+                raise ValueError("block attribution must be navigation for this symbol")
+            for fid in edge[side]:
+                f = fragments[fid]
+                if f["space"] != "text-offset" or not all(lo <= start < end <= hi for start, end in f["ranges"]):
+                    raise ValueError("navigation range outside the block")
+            if any(fragments[fid]["space"] != "bytes" for fid in edge[other]):
+                raise ValueError("block attribution requires exact opposite-side byte ranges")
+        identity = {"side": side, "elf_sha256": arts[side]["sha256"], "section": section,
+                    "section_range": [lo, hi], "file_range": [offset + lo, offset + hi],
+                    "symbol": block["symbol"], "model_base": block["model_base"],
+                    "model_decl": block["model_decl"], "decoder_sha256": arts[block["decoder"]]["sha256"]}
+        result.append({**identity, "id": sha256(canonical(identity)), "dependencies": dependencies,
+                       "attribution": block["attribution"], "parse_stage": {
+                           "name": parse["name"], "output": block["parse"], "input_sha256": arts[other]["sha256"],
+                           "output_sha256": arts[block["parse"]]["sha256"], "trust": parse["trust"]} if parse else None})
+    if len({b["id"] for b in result}) != len(result):
+        raise ValueError("duplicate block endpoint")
+    return result
 
 
 # The `sil project` shape of each obligation kind that has one, and its arguments (by position):
@@ -165,13 +275,15 @@ ROW_SHAPES = {
     },
 }
 
-# The obligation that ties the Lean names to the target artifact, per family: until it is proved,
-# no other obligation of the problem is shown as proved (`unbound`).
+# Machine-dependent obligations need this target byte binding. An Ail/Core equality does not.
 BINDING = {"c-function-x86": "artifact"}
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_']*(\.[A-Za-z_][A-Za-z0-9_']*)*$")
+CORE_ELABORATION_KINDS = ("core_elaboration", "target_core_elaboration")
 KINDS = ("translation", "mapping", "edge", "refinement", "abi", "point", "elaboration", "decompilation",
-         "nonvacuity", "nonvacuity_canonical", "nonvacuity_universal", "artifact")
-FAMILY_VARS = {"c-function-x86": ("fn", "ail", "cname", "isa", "comorphism", "target_value"),
+         "decoding", "c2c_refines", "c2c_equivalent", "typing", "operand_types",
+         "nonvacuity", "nonvacuity_canonical", "nonvacuity_universal", "artifact", *CORE_ELABORATION_KINDS)
+FAMILY_VARS = {"c-function-x86": ("fn", "ail", "cname", "isa", "comorphism", "target_value", "listing"),
+               "c-to-c": ("source_fn", "target_fn"), "c-additive": ("t1", "t2"),
                "decompiled-word-block": ("name", "bytes", "n", "inputs")}
 
 
@@ -195,7 +307,49 @@ def statement_for(family: str, vars_: dict, kind: str, point, line, source: str 
     t = TEMPLATES.get(family, {}).get(kind)
     if t is None:
         return None
-    return t(vars_, point, line, source) if kind == "decompilation" else t(vars_, point, line)
+    return t(vars_, point, line, source) if family in ("decompiled-word-block", "c-additive") else t(vars_, point, line)
+
+
+def frontend_models(family: str, vars_: dict) -> dict[str, str]:
+    if family == "c-function-x86":
+        return {"source": vars_["ail"].rsplit(".", 1)[0]}
+    if family == "c-to-c":
+        return {side: vars_[f"{side}_fn"].rsplit(".", 1)[0] for side in ("source", "target")}
+    return {}
+
+
+def frontend_stages(family: str, vars_: dict) -> list[dict]:
+    stages = []
+    for side, namespace in frontend_models(family, vars_).items():
+        prefix = "target_" if side == "target" else ""
+        stages.extend([
+            {"side": side, "name": "C → typed Ail", "trust": "evaluated",
+             "input": side, "output": prefix + "ail", "model": "Silmaril.Project.Shapes.C.FrontendAil",
+             "input_decl": f"{namespace}.cText", "output_decl": f"{namespace}.ail",
+             "evidence": "Compiled #guard compares FrontendAil's typed Ail with this value; not a parser theorem."},
+            {"side": side, "name": "Typed Ail → Core", "trust": "verified",
+             "input": prefix + "ail", "output": prefix + "core", "model": "Silmaril.Project.Shapes.C.ElabAil",
+             "input_decl": f"{namespace}.ail", "output_decl": f"{namespace}.core",
+             "obligation": prefix + "core_elaboration",
+             "evidence": "Kernel equality for these exact Ail and Core values; not evidence for the preceding frontend."},
+        ])
+    return stages
+
+
+def model_bindings(family: str, vars_: dict) -> dict[str, str]:
+    bound = {}
+    for side, namespace in frontend_models(family, vars_).items():
+        prefix = "target_" if side == "target" else ""
+        bound.update({side: f"{namespace}.cText", prefix + "ail": f"{PROBE}.ailText {namespace}.ail",
+                      prefix + "core": f"{PROBE}.document {namespace}.core"})
+    if family == "c-function-x86":
+        listing = vars_["listing"]
+        bound["decoded"] = f"{PROBE}.listingText {listing} {lean_str(listing)}"
+        if block := vars_.get("block_model"):
+            if not isinstance(block, str) or not IDENT.fullmatch(block):
+                raise ValueError("block model must name a Lean declaration")
+            bound["block_entry"] = f"toString {block}.entry ++ {lean_str(chr(10))}"
+    return bound
 
 
 # ------------------------------------------------------------------------------------------------
@@ -318,6 +472,41 @@ MIGRATIONS = [
     ALTER TABLE obligations ADD COLUMN row TEXT;
     ALTER TABLE evidence ADD COLUMN row TEXT;
     """,
+    # 4: refutations (a theorem of the statement's negation), and where evidence is written
+    """
+    ALTER TABLE obligations ADD COLUMN refutation TEXT;
+    ALTER TABLE evidence ADD COLUMN module TEXT;
+    ALTER TABLE evidence ADD COLUMN line INTEGER;
+    """,
+    # 5: problems with no translation (a judgment about one file): direction `none`. SQLite cannot
+    # change a CHECK constraint, so the table is rebuilt with its rows.
+    """
+    CREATE TABLE problem_versions_5 (
+      id INTEGER PRIMARY KEY,
+      problem_id TEXT NOT NULL,
+      manifest_sha256 TEXT NOT NULL UNIQUE,
+      context_hash TEXT NOT NULL,
+      title TEXT NOT NULL,
+      direction TEXT NOT NULL CHECK (direction IN ('compiled', 'decompiled', 'imported', 'none')),
+      family TEXT,
+      derivation TEXT,
+      context TEXT NOT NULL,
+      lean TEXT NOT NULL,
+      view TEXT NOT NULL,
+      extra TEXT NOT NULL
+    );
+    INSERT INTO problem_versions_5 SELECT id, problem_id, manifest_sha256, context_hash, title, direction,
+      family, derivation, context, lean, view, extra FROM problem_versions;
+    DROP TABLE problem_versions;
+    ALTER TABLE problem_versions_5 RENAME TO problem_versions;
+    """,
+    """
+    CREATE TABLE verification (
+      version_id INTEGER PRIMARY KEY REFERENCES problem_versions(id),
+      git_commit TEXT NOT NULL,
+      definitions TEXT NOT NULL
+    );
+    """,
 ]
 
 
@@ -412,6 +601,17 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
     for side in ("source", "target"):
         if view.get(side) not in arts:
             raise ValueError(f"the view's {side} is not an artifact of the manifest")
+        if any(alt["role"] not in arts for alt in view.get("alternatives", {}).get(side, [])):
+            raise ValueError(f"an alternative view of {side} is not a manifest artifact")
+    for stage in m.get("stages", []):
+        if stage["side"] not in ("source", "target") or stage["trust"] not in ("trusted", "evaluated", "verified"):
+            raise ValueError("invalid stage side or trust")
+        if stage["input"] not in arts or stage["output"] not in arts:
+            raise ValueError("a stage input or output is not a manifest artifact")
+    if "listing_receipt" in blobs:
+        listing = json.loads(blobs["listing_receipt"])
+        if listing["object"]["sha256"] != shas["target"] or listing["listing"]["sha256"] != shas["listing"]:
+            raise ValueError("the listing receipt is about other object or listing bytes")
     # the derivation, by direction. compiled: the receipt of a compiler run (in a pinned image)
     # read the source and wrote the target. decompiled: the receipt of a decompiler run read the
     # target and wrote the source. imported: no derivation is claimed as checked; whatever the
@@ -425,8 +625,10 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         made = {rec.get(k, {}).get("sha256") for k in ("object", "assembly", "output")} - {None}
         if shas["source"] not in about or shas["target"] not in made:
             raise ValueError("the receipt is about other bytes than the source and target artifacts")
-        if rec.get("image") != d["image"]:
-            raise ValueError("the receipt's image is not the derivation's")
+        if rec.get("image") != d["image"] or rec.get("command") != d["command"]:
+            raise ValueError("the receipt's image or command is not the derivation's")
+        if env := m.get("include_env"):
+            check_include_env(env, rec, arts, blobs)
     elif m["direction"] == "decompiled":
         if not d or not all(d.get(k) for k in ("tool", "version", "receipt")):
             raise ValueError("a decompiled problem records its decompiler, version and receipt")
@@ -471,6 +673,13 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
     lean = m.get("lean", {})
     family = lean.get("family")
     vars_ = lean.get("vars", {})
+    relation = m.get("relation", {})
+    if relation.get("semantics") == "none" and (family is not None or any(e["kind"] == "semantic" for e in edges.values())):
+        raise ValueError("a receipt without semantic interpretation cannot have a model family or semantic edges")
+    bindings = lean.get("bindings", [])
+    if len(bindings) != len({role for role, _ in bindings}) or any(
+            role not in arts or not isinstance(term, str) or not term for role, term in bindings):
+        raise ValueError("Lean artifact bindings need distinct manifest roles and render terms")
     if family is not None:
         if family not in TEMPLATES:
             raise ValueError(f"unknown family {family!r}")
@@ -485,6 +694,26 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         bad = [k for k in FAMILY_VARS[family] if not IDENT.match(str(vars_[k]))]
         if bad:
             raise ValueError(f"the Lean names {bad} are not identifiers")
+    if dict(bindings) != model_bindings(family, vars_):
+        raise ValueError(f"{family} needs exact text and model artifact bindings")
+    expected_stages = frontend_stages(family, vars_)
+    stage_outputs = {stage["output"] for stage in expected_stages}
+    actual_stages = [stage for stage in m.get("stages", []) if stage["output"] in stage_outputs]
+    obligations_by_id = {obligation["id"]: obligation for obligation in m["obligations"]}
+    if (len(actual_stages) != len(expected_stages) or any(stage not in actual_stages for stage in expected_stages)
+            or any(obligations_by_id.get(stage["obligation"], {}).get("kind") != stage["obligation"]
+                   for stage in expected_stages if "obligation" in stage)):
+        raise ValueError("frontend stages need exact inputs, outputs and scoped evidence")
+    for stage in expected_stages:
+        sides = [side for side, alts in view.get("alternatives", {}).items()
+                 for alt in alts if alt["role"] == stage["output"]]
+        if sides != [stage["side"]]:
+            raise ValueError("a frontend artifact must be selectable only on its own side")
+    if family == "c-additive" and blobs["target"] != f"some ({vars_['t1']}, {vars_['t2']})\n".encode():
+        raise ValueError("the displayed operand types differ from the judgment's output")
+    if family == "c-function-x86":
+        if vars_["ail"] != frontend_models(family, vars_)["source"] + ".ail":
+            raise ValueError("the function's Ail must be the frontend stage value")
         ctx = m.get("context") or {}
         if vars_["isa"] != (ctx.get("target_model") or {}).get("decl"):
             raise ValueError("the statements' target model is not the context's")
@@ -506,7 +735,7 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
         if o.get("statement") is None:
             if not o.get("unsupported"):
                 raise ValueError(f"obligation {o['id']}: no statement and no reason")
-            if o.get("decl"):
+            if o.get("decl") or o.get("refutation"):
                 raise ValueError(f"obligation {o['id']}: a declaration without a statement")
             continue
         if family is None:
@@ -525,10 +754,84 @@ def check_manifest(root: pathlib.Path, m: dict, blobs: dict[str, bytes]) -> None
     for role, name in lean.get("registry", {}).items():
         if registry_sha(root, name) != shas.get(role):
             raise ValueError(f"the registry's {name} is not the {role} artifact")
+    if extraction := m.get("dwarf_extraction"):
+        if extraction["input"] != "target" or extraction["profile"] != d["opt"]:
+            raise ValueError("DWARF extraction does not name this target and profile")
+        if extraction["trust"] != "trusted" or not any(
+            fn["name"] == extraction["function"] for fn in json.loads(blobs[extraction["output"]])[extraction["profile"]]
+        ):
+            raise ValueError("DWARF extraction is not a recorded input to this function")
+        if any(dep not in ids and dep != "navigation links" for fact in m["dwarf_facts"] for dep in fact["used_by"]):
+            raise ValueError("a DWARF dependency is not an obligation of this problem")
+    block_endpoints(m, blobs)
 
 
-def ingest_manifest(db: sqlite3.Connection, path: pathlib.Path, root: pathlib.Path = ROOT) -> int:
-    raw = path.read_bytes()
+def check_include_env(env: dict, receipt: dict, arts: dict, blobs: dict) -> None:
+    if "trace" in env:
+        raise ValueError("include traces belong in the dependency receipt")
+    search = json.loads(blobs[env["search_receipt"]])
+    main = env["files"][0]
+    if (main.get("artifact") != "source" or main["sha256"] != arts["source"]["sha256"]
+            or main["size"] != len(blobs["source"]) or env["workdir"] != receipt["workdir"]
+            or main["name"] != f"{receipt['workdir']}/{receipt['source']['path']}"
+            or env["image"] != receipt["image"] or search["image"] != env["image"]
+            or env["search"] != search["angle_search"] or env["probe_flags"] != search["flags"]
+            or env["options"] != receipt["command"].split() or env["macros"] not in arts):
+        raise ValueError("include environment differs from its source, build or search receipt")
+    files = [(entry["name"], entry["sha256"], entry["size"]) for entry in env["files"][1:]]
+    dependencies = env["dependencies"]
+    if dependencies:
+        captured = json.loads(blobs[dependencies["artifact"]])
+        if (captured["source"] != receipt["source"]["path"] or captured["image"] != env["image"]
+                or captured["flags"] != dependencies["flags"]
+                or files != [(entry["path"], entry["sha256"], entry["size"]) for entry in captured["files"]]):
+            raise ValueError("include environment differs from its dependency receipt")
+        if "trace" in captured:
+            command = env["options"]
+            if (captured["source_sha256"] != arts["source"]["sha256"]
+                    or command[0] != "gcc" or command[-3:-1] != [captured["source"], "-o"]
+                    or captured["flags"].split() != [flag for flag in command[1:-3] if flag != "-S"]):
+                raise ValueError("include trace does not match the build input and options")
+            check_include_trace(captured["trace"], main["name"], {entry[0] for entry in files})
+    elif files:
+        raise ValueError("header entries need a dependency receipt")
+
+
+def check_include_trace(trace: dict, main: str, files: set[str]) -> None:
+    events = trace["occurrences"]
+    if trace["method"] != "gcc -E -dI -H" or not isinstance(events, list):
+        raise ValueError("unrecognized include trace method")
+    chain = []
+    observed = set()
+    for index, event in enumerate(events):
+        parent, dest = event["parent"], event["resolved"]
+        if parent is None:
+            chain.clear()
+        elif type(parent) is not int or parent not in chain:
+            raise ValueError("include trace parent does not name an active header entry")
+        else:
+            del chain[chain.index(parent) + 1:]
+        if event["directive"] == "implicit":
+            if parent is not None or dest is None or "operand" in event:
+                raise ValueError("malformed implicit include trace entry")
+        else:
+            operand = event["operand"]
+            if (event["directive"] not in ("include", "include_next", "import")
+                    or not re.fullmatch(r'<[^>\n]+>|"[^"\n]+"', operand)
+                    or event["from"] != (main if parent is None else events[parent]["resolved"])
+                    or type(event["line"]) is not int or event["line"] < 1
+                    or type(event["literal"]) is not bool):
+                raise ValueError("malformed include directive or its provenance")
+        if dest is not None:
+            observed.add(dest)
+            chain.append(index)
+    if observed != files:
+        raise ValueError("include trace does not match the dependency files")
+
+
+def ingest_manifest(db: sqlite3.Connection, path: pathlib.Path, root: pathlib.Path = ROOT,
+                    raw: bytes | None = None) -> int:
+    raw = path.read_bytes() if raw is None else raw
     msha = sha256(raw)
     try:
         m = json.loads(raw)
@@ -542,10 +845,14 @@ def ingest_manifest(db: sqlite3.Connection, path: pathlib.Path, root: pathlib.Pa
     lean = m.get("lean", {})
     context = {"artifacts": {r: a["sha256"] for r, a in sorted(m["artifacts"].items())},
                "derivation": m.get("derivation"), "context": m["context"],
+               **{k: m[k] for k in ("problem_form", "relation", "stages", "include_env", "dwarf_facts",
+                                    "dwarf_extraction", "blocks") if k in m},
                "lean": {"family": lean.get("family"), "vars": lean.get("vars", {}),
-                        "modules": lean.get("modules", [])}}
+                        "modules": lean.get("modules", []), "bindings": lean.get("bindings", [])}}
     ctx_hash = sha256(canonical(context))
-    extra = {k: m[k] for k in ("navigation_stats", "tests") if k in m}
+    extra = {k: m[k] for k in ("navigation_stats", "tests", "problem_form", "relation", "stages",
+                                "include_env", "dwarf_facts", "dwarf_extraction") if k in m}
+    extra["blocks"] = block_endpoints(m, blobs)
     with db:
         for data in blobs.values():
             store_artifact(db, data)
@@ -571,9 +878,9 @@ def ingest_manifest(db: sqlite3.Connection, path: pathlib.Path, root: pathlib.Pa
                     db.execute("INSERT INTO edge_ends VALUES (?,?,?,?)", (vid, e["id"], side, fid))
         for o in m["obligations"]:
             db.execute("INSERT INTO obligations (version_id, id, kind, statement, decl, edge_id, unsupported,"
-                       " row) VALUES (?,?,?,?,?,?,?,?)",
+                       " row, refutation) VALUES (?,?,?,?,?,?,?,?,?)",
                        (vid, o["id"], o["kind"], o.get("statement"), o.get("decl"), o.get("edge"),
-                        o.get("unsupported"), o.get("row")))
+                        o.get("unsupported"), o.get("row"), o.get("refutation")))
         for t in m.get("tests", []):
             rec_bytes = blobs[t["artifact"]]
             rec = json.loads(rec_bytes)
@@ -627,7 +934,8 @@ def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path, origin: str = "f
         o = obls.get(r.get("id"))
         if o is None:
             raise reject(db, what, f"obligation {r.get('id')!r} is not in the manifest")
-        if o["statement"] is None or r.get("statement") != o["statement"] or r.get("decl") != o["decl"]:
+        if (o["statement"] is None or r.get("statement") != o["statement"] or r.get("decl") != o["decl"]
+                or r.get("refutation") != o["refutation"]):
             raise reject(db, what, f"obligation {o['id']}: statement or declaration differs from the manifest")
         status = r.get("status")
         if status not in EXPORT_STATUSES:
@@ -635,16 +943,20 @@ def ingest_evidence(db: sqlite3.Connection, path: pathlib.Path, origin: str = "f
         axioms = r.get("axioms") or []
         if status == "kernel" and (o["decl"] is None or not set(axioms) <= ALLOWED_AXIOMS):
             raise reject(db, what, f"obligation {o['id']}: a kernel status needs a declaration and the standard axioms")
-        if status == "open" and o["decl"] is not None:
+        if status == "refuted" and (o["refutation"] is None or not set(axioms) <= ALLOWED_AXIOMS):
+            raise reject(db, what, f"obligation {o['id']}: a refuted status needs a refutation and the standard axioms")
+        if status == "kernel" and o["refutation"] is not None and o["decl"] is None:
+            raise reject(db, what, f"obligation {o['id']}: a refutation cannot prove the statement")
+        if status == "open" and (o["decl"] is not None or o["refutation"] is not None):
             raise reject(db, what, f"obligation {o['id']}: open, yet the manifest names a declaration")
         rows.append((ver["id"], o["id"], "lean-export", status, ver["manifest_sha256"], ver["context_hash"],
-                     o["statement"], o["decl"], json.dumps(axioms), ev["lean_version"], ev["git_commit"],
-                     esha, r.get("detail"), origin))
+                     o["statement"], o["decl"] or o["refutation"], json.dumps(axioms), ev["lean_version"],
+                     ev["git_commit"], esha, r.get("detail"), origin, r.get("module"), r.get("line")))
     with db:
         db.execute("DELETE FROM evidence WHERE version_id = ? AND evidence_sha256 = ?", (ver["id"], esha))
         db.executemany("INSERT INTO evidence (version_id, obligation_id, kind, status, manifest_sha256,"
                        " context_hash, statement, decl, axioms, lean_version, git_commit, evidence_sha256,"
-                       " detail, origin) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+                       " detail, origin, module, line) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     return len(rows)
 
 
@@ -656,8 +968,11 @@ STATUS_TEXT = {
     "claimed": "an exporter result handed in as a file: not run here, so not counted as proved",
     "open": "stated in Lean, not proved",
     "unchecked": "a proof is claimed but no checked evidence is recorded",
+    "unavailable": "this project database does not contain the required row; no theorem was checked",
+    "incompatible": "this project database row has different shape or arguments; no theorem was checked",
     "rejected": "the claimed proof was checked and does not prove the statement",
     "stale": "proved for another version of this problem only",
+    "refuted": "disproved: a theorem of the statement's negation, checked when Lean built it",
     "unbound": "a theorem proves it, but the Lean function is not shown to be the target's code",
     "unsupported": "not stated: no model covers it",
 }
@@ -666,7 +981,7 @@ STATUS_TEXT = {
 def obligation_status(db, ver, o) -> dict:
     st = raw_status(db, ver, o)
     binding = BINDING.get(ver["family"])
-    if st["status"] == "proved" and binding and o["kind"] != binding:
+    if st["status"] == "proved" and binding and o["kind"] not in (binding, *CORE_ELABORATION_KINDS):
         b = db.execute("SELECT * FROM obligations WHERE version_id = ? AND kind = ?",
                        (ver["id"], binding)).fetchone()
         if b is None or raw_status(db, ver, b)["status"] != "proved":
@@ -677,33 +992,42 @@ def obligation_status(db, ver, o) -> dict:
 def raw_status(db, ver, o) -> dict:
     if o["unsupported"]:
         return {"status": "unsupported", "reason": o["unsupported"]}
-    evs = db.execute("SELECT * FROM evidence WHERE version_id = ? AND obligation_id = ? ORDER BY id DESC",
+    evs = db.execute("SELECT * FROM evidence WHERE version_id = ? AND obligation_id = ? "
+                     "ORDER BY CASE origin WHEN 'exporter-run' THEN 0 WHEN 'sil-project' THEN 1 ELSE 2 END, id DESC",
                      (ver["id"], o["id"])).fetchall()
     evs = [e for e in evs if e["context_hash"] == ver["context_hash"]
            and e["manifest_sha256"] == ver["manifest_sha256"] and e["statement"] == o["statement"]
-           and ((e["kind"] == "lean-export" and e["decl"] == o["decl"])
+           and ((e["kind"] == "lean-export" and e["decl"] == (o["decl"] or o["refutation"]))
                 or (e["kind"] == "sil-project" and o["row"] is not None and e["row"] == o["row"]))]
     if evs:
         e = evs[0]
+        checked = e["origin"] in ("exporter-run", "sil-project")
         if e["status"] == "kernel":
-            status = "proved" if e["origin"] in ("exporter-run", "sil-project") else "claimed"
+            status = "proved" if checked else "claimed"
+        elif e["status"] == "refuted":
+            status = "refuted" if checked else "claimed"
         elif e["status"] == "open":
             status = "open"
+        elif e["kind"] == "sil-project" and e["status"] in ("missing", "mismatch"):
+            status = "unavailable" if e["status"] == "missing" else "incompatible"
         else:
             status = "rejected"
+        if status in ("unavailable", "incompatible"):
+            return {"status": status, "reason": e["detail"]}
         return {"status": status, "evidence": {
             "kind": e["kind"], "export_status": e["status"], "decl": e["decl"],
             "axioms": json.loads(e["axioms"] or "[]"), "lean_version": e["lean_version"],
             "git_commit": e["git_commit"], "evidence_sha256": e["evidence_sha256"],
-            "detail": e["detail"], "origin": e["origin"], "row": e["row"]}}
+            "detail": e["detail"], "origin": e["origin"], "row": e["row"],
+            "module": e["module"], "line": e["line"]}}
     older = db.execute(
         "SELECT pv.manifest_sha256 FROM evidence ev JOIN problem_versions pv ON pv.id = ev.version_id "
-        "WHERE pv.problem_id = ? AND ev.obligation_id = ? AND ev.status = 'kernel' AND ev.origin != 'file' "
-        "AND pv.id != ?",
+        "WHERE pv.problem_id = ? AND ev.obligation_id = ? AND ev.status IN ('kernel', 'refuted') "
+        "AND ev.origin != 'file' AND pv.id != ? ORDER BY pv.id DESC LIMIT 1",
         (ver["problem_id"], o["id"], ver["id"])).fetchone()
-    if older is not None and o["decl"] is not None:
+    if older is not None and (o["decl"] is not None or o["refutation"] is not None):
         return {"status": "stale", "older_manifest": older[0]}
-    return {"status": "open" if o["decl"] is None else "unchecked"}
+    return {"status": "open" if o["decl"] is None and o["refutation"] is None else "unchecked"}
 
 
 def artifact_text(db, sha: str) -> str | None:
@@ -715,6 +1039,16 @@ def artifact_text(db, sha: str) -> str | None:
     except UnicodeDecodeError:
         return None
 
+
+def artifact_display(db, artifact: dict) -> str | None:
+    if not artifact["media"].startswith("application/x-elf"):
+        return artifact_text(db, artifact["sha256"])
+    row = db.execute("SELECT content FROM artifacts WHERE sha256 = ? AND size <= ?",
+                     (artifact["sha256"], MAX_TEXT)).fetchone()
+    if row is None:
+        return None
+    data = row["content"]
+    return "".join(f"{off:08x}  {data[off:off + 16].hex(' ')}\n" for off in range(0, len(data), 16))
 
 def problem_list(db) -> list[dict]:
     out = []
@@ -730,7 +1064,90 @@ def problem_list(db) -> list[dict]:
     return out
 
 
-def problem_view(db, pid: str) -> dict | None:
+LINKS = {
+    "repo": "https://github.com/hiloopai/silmaril-lean",
+    "explorer": "https://hiloopai.github.io/silmaril-lean/",
+    "routes": {"problem": "#/problem/{}", "artifact": "#/artifact/{}", "source": "#/source/{}"},
+}
+# Lean source directories of the libraries whose modules hold evidence (lakefile.toml).
+SRC_DIRS = {"CompilesToExamples": "examples/compiles-to", "Silmaril": ""}
+HEX40 = re.compile(r"^[0-9a-f]{40}$")
+
+
+def lean_path(module: str) -> str | None:
+    root = module.split(".")[0]
+    if root not in SRC_DIRS or not IDENT.match(module):
+        return None
+    base = SRC_DIRS[root]
+    return (base + "/" if base else "") + module.replace(".", "/") + ".lean"
+
+
+def explorer_link(route: str, key: str) -> str | None:
+    pattern = LINKS["routes"].get(route)
+    if pattern is None:
+        return None
+    return LINKS["explorer"] + pattern.format(urllib.parse.quote(key, safe=""))
+
+
+def definition_link(decl: str, loc: dict, commit: str) -> dict | None:
+    path = lean_path(loc["module"]) if loc.get("module") else None
+    line = loc.get("line")
+    if path and isinstance(line, int) and line > 0 and HEX40.fullmatch(commit or ""):
+        return {"kind": "lean", "label": decl, "url": f"{LINKS['repo']}/blob/{commit}/{path}#L{line}"}
+    return None
+
+
+def obligation_links(o: dict) -> list[dict]:
+    """Links for an obligation: its proof's Lean source at the commit the evidence was computed at
+    (only a clean 40-hex commit), the `sil project` row, and the explorer's source page of the
+    row's solving theorem."""
+    out = []
+    ev = o.get("evidence") or {}
+    if ev.get("origin") == "exporter-run" and ev.get("decl"):
+        link = definition_link(ev["decl"], ev, ev.get("git_commit"))
+        if link:
+            out.append(link)
+    if o.get("row") and o["status"] not in ("unavailable", "incompatible"):
+        out.append({"kind": "explorer", "label": f"row {o['row']} (silmaril explorer)",
+                    "url": explorer_link("problem", o["row"])})
+        if ev.get("origin") == "sil-project" and ev.get("decl"):
+            out.append({"kind": "explorer", "label": f"{ev['decl']} (explorer source view)",
+                        "url": explorer_link("source", ev["decl"])})
+    return [x for x in out if x["url"]]
+
+
+def viewer_catalog(base: str) -> tuple[str, dict]:
+    """Discover deployed tab entries, not inferred slugs. A pre-deployment site has no catalog."""
+    with urllib.request.urlopen(base + "compiler-artifacts/index.json", timeout=4) as res:
+        doc = json.loads(res.read(MAX_TEXT + 1))
+    if doc.get("schema") != VIEWER_SCHEMA or not isinstance(doc.get("artifacts"), dict):
+        raise ValueError("unrecognized compiler artifact catalog")
+    return base, doc["artifacts"]
+
+
+def artifact_links(arts: dict, lean: dict, commit: str | None, catalog: tuple[str, dict] | None = None) -> dict:
+    """Link exact blob downloads, registry targets, and known entries of the deployed catalog."""
+    out = {}
+    registry = lean.get("registry", {})
+    for role, a in arts.items():
+        links = ([{"kind": "repo", "label": a["path"], "url": f"{LINKS['repo']}/blob/{commit}/{a['path']}"}]
+                 if commit else [])
+        links.append({"kind": "download", "label": "Exact bytes", "url": f"api/artifacts/{a['sha256']}"})
+        if role in registry:
+            links.append({"kind": "explorer", "label": f"artifact {registry[role]} (silmaril explorer)",
+                          "url": explorer_link("artifact", registry[role])})
+        if catalog:
+            tab = VIEWER_MEDIA.get(a["media"])
+            entry = catalog[1].get(a["sha256"], {})
+            if (tab and isinstance(entry, dict) and entry.get("tab") == tab and entry.get("size") == a["size"]
+                    and a["path"] in entry.get("paths", [])):
+                links.insert(0, {"kind": "viewer", "label": f"{tab.upper()} tab",
+                                 "url": f"{catalog[0]}#/{VIEWER_ROUTES[tab]}/{a['sha256']}"})
+        out[role] = [x for x in links if x["url"]]
+    return out
+
+
+def problem_view(db, pid: str, catalog: tuple[str, dict] | None = None) -> dict | None:
     ver = db.execute("SELECT pv.* FROM problems p JOIN problem_versions pv ON pv.id = p.current_version "
                      "WHERE p.id = ?", (pid,)).fetchone()
     if ver is None:
@@ -740,6 +1157,9 @@ def problem_view(db, pid: str) -> dict | None:
             for r in db.execute("SELECT * FROM version_artifacts WHERE version_id = ?", (ver["id"],))}
     view = json.loads(ver["view"])
     texts = {side: artifact_text(db, arts[view[side]]["sha256"]) for side in ("source", "target")}
+    alt_texts = {alt["role"]: artifact_display(db, arts[alt["role"]])
+                 for side in ("source", "target") for alt in view.get("alternatives", {}).get(side, [])
+                 if alt["role"] in arts}
     frags = {r["id"]: {"id": r["id"], "role": r["role"], "space": r["space"],
                        "ranges": json.loads(r["ranges"]), "label": r["label"]}
              for r in db.execute("SELECT * FROM fragments WHERE version_id = ?", (ver["id"],))}
@@ -754,9 +1174,11 @@ def problem_view(db, pid: str) -> dict | None:
     obligations = []
     for o in db.execute("SELECT * FROM obligations WHERE version_id = ? ORDER BY rowid", (ver["id"],)):
         st = obligation_status(db, ver, o)
-        obligations.append({"id": o["id"], "kind": o["kind"], "statement": o["statement"],
-                            "decl": o["decl"], "edge": o["edge_id"], "row": o["row"], **st,
-                            "status_text": STATUS_TEXT[st["status"]]})
+        ob = {"id": o["id"], "kind": o["kind"], "statement": o["statement"], "decl": o["decl"],
+              "refutation": o["refutation"], "edge": o["edge_id"], "row": o["row"], **st,
+              "status_text": STATUS_TEXT[st["status"]]}
+        ob["links"] = obligation_links(ob)
+        obligations.append(ob)
     tests = [{"id": t["id"], "kind": t["kind"], "about_sha256": t["about_sha256"], "status": t["status"],
               "record": json.loads(t["record"])}
              for t in db.execute("SELECT * FROM tests WHERE version_id = ?", (ver["id"],))]
@@ -765,13 +1187,35 @@ def problem_view(db, pid: str) -> dict | None:
                 for r in db.execute("SELECT * FROM problem_versions WHERE problem_id = ? ORDER BY id", (pid,))]
     by_kind = {o["kind"]: o for o in obligations if o["kind"] not in ("edge", "point")}
     edge_obls = [o for o in obligations if o["kind"] == "edge"]
+    verification = None
+    if db.execute("SELECT 1 FROM schema_migrations WHERE version = 6").fetchone():
+        verification = db.execute("SELECT * FROM verification WHERE version_id = ?", (ver["id"],)).fetchone()
+    definitions = [link for decl, loc in json.loads(verification["definitions"]).items()
+                   if (link := definition_link(decl, loc, verification["git_commit"]))] if verification else []
+    extra = json.loads(ver["extra"])
+    if extra.get("include_env") and (dependencies := extra["include_env"].get("dependencies")):
+        captured = artifact_text(db, arts[dependencies["artifact"]]["sha256"])
+        if captured and (trace := json.loads(captured).get("trace")):
+            extra["include_env"]["trace"] = trace
+    for block in extra.get("blocks", []):
+        if catalog:
+            entry = catalog[1].get(block["elf_sha256"], {})
+            published = entry.get("blocks", {}) if isinstance(entry, dict) else {}
+            if isinstance(published, dict) and published.get(block["id"]) == {**block, "problem": pid}:
+                block["viewer"] = f"{catalog[0]}#/elf-artifact/{block['elf_sha256']}/{block['id']}"
     return {
         "id": pid, "title": ver["title"], "direction": ver["direction"], "family": ver["family"],
         "manifest_sha256": ver["manifest_sha256"], "context_hash": ver["context_hash"],
         "derivation": json.loads(ver["derivation"]), "context": json.loads(ver["context"]),
         "lean": json.loads(ver["lean"]), "artifacts": arts, "view": view, "texts": texts,
+        "alt_texts": alt_texts,
+        "definitions": definitions, "bindings_checked": verification is not None,
+        "artifact_links": artifact_links(arts, json.loads(ver["lean"]), next(
+            (o["evidence"]["git_commit"] for o in obligations
+             if o.get("evidence", {}).get("origin") == "exporter-run"
+             and HEX40.fullmatch(o["evidence"].get("git_commit") or "")), None), catalog),
         "fragments": frags, "edges": edges, "obligations": obligations, "tests": tests,
-        "versions": versions, "extra": json.loads(ver["extra"]),
+        "versions": versions, "extra": extra,
         "questions": {
             "translation": by_kind.get("translation"),
             "nonvacuity": by_kind.get("nonvacuity"),
@@ -779,6 +1223,9 @@ def problem_view(db, pid: str) -> dict | None:
             "abi": by_kind.get("abi"),
             "mapping": by_kind.get("mapping"),
             "refinement": by_kind.get("refinement"),
+            "c2c_refines": by_kind.get("c2c_refines"),
+            "c2c_equivalent": by_kind.get("c2c_equivalent"),
+            "typing": by_kind.get("typing"),
             "edges": {"proved": sum(o["status"] == "proved" for o in edge_obls), "listed": len(edge_obls),
                       "note": ("individually proved edges do not prove the mapping: coverage of the "
                                "points nobody listed is part of the mapping obligation only")},
@@ -791,10 +1238,13 @@ def problem_view(db, pid: str) -> dict | None:
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
+    catalog = None
     db_path = ""
     server_version = "silmaril-compiler-explorer"
     STATIC = {"/": ("index.html", "text/html; charset=utf-8"),
               "/app.js": ("app.js", "text/javascript; charset=utf-8"),
+              "/corpus.js": ("corpus.js", "text/javascript; charset=utf-8"),
+              "/equivalence.js": ("equivalence.js", "text/javascript; charset=utf-8"),
               "/style.css": ("style.css", "text/css; charset=utf-8"),
               "/view.js": ("view.js", "text/javascript; charset=utf-8")}
 
@@ -826,8 +1276,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.json(200, problem_list(db))
             elif path.startswith("/api/problems/"):
                 pid = urllib.parse.unquote(path[len("/api/problems/"):])
-                v = problem_view(db, pid)
+                v = problem_view(db, pid, self.catalog)
                 self.json(200 if v else 404, v or {"error": "no such problem"})
+            elif path.startswith("/api/artifacts/"):
+                sha = path.rsplit("/", 1)[-1]
+                row = db.execute("SELECT content FROM artifacts WHERE sha256 = ?", (sha,)).fetchone()
+                if row is None:
+                    self.json(404, {"error": "no such artifact"})
+                else:
+                    self.send(200, row["content"], "application/octet-stream")
             else:
                 self.json(404, {"error": "not found"})
         finally:
@@ -844,8 +1301,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
         sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
 
 
-def serve(db_path: str, host: str, port: int) -> None:
+def serve(db_path: str, host: str, port: int, viewer: str = LINKS["explorer"]) -> None:
     connect(db_path, readonly=True).close()
+    if not urllib.parse.urlsplit(viewer).scheme in ("http", "https"):
+        raise ValueError("viewer URL must be HTTP(S)")
+    try:
+        Handler.catalog = viewer_catalog(viewer.rstrip("/") + "/")
+    except (OSError, ValueError) as exc:
+        print(f"No deployed C/ELF catalog at {viewer}: {exc}", file=sys.stderr)
+        Handler.catalog = None
     Handler.db_path = db_path
     srv = http.server.ThreadingHTTPServer((host, port), Handler)
     print(f"serving {db_path} on http://{host}:{port}/", flush=True)
@@ -876,7 +1340,7 @@ def ingest_project(db: sqlite3.Connection, project: pathlib.Path) -> int:
                             "WHERE o.version_id = ? AND o.row IS NOT NULL", (ver["id"],)):
             shape, args = ROW_SHAPES[family][o["kind"]]
             prob = pdb.execute("SELECT * FROM problems WHERE name = ?", (o["row"],)).fetchone()
-            status, detail, decl, axioms = "missing", "no such row in the project database", None, []
+            status, detail, decl, axioms = "missing", "Required row absent from this project database", None, []
             if prob is not None:
                 parent = pdb.execute("SELECT parent FROM edges WHERE kind = 'instance' AND child = ?",
                                      (o["row"],)).fetchone()
@@ -923,24 +1387,58 @@ def git_commit() -> str:
         return os.environ.get("GITHUB_SHA", "unknown")
 
 
-def verify(db: sqlite3.Connection, manifest: pathlib.Path, lake: str = "lake") -> int:
-    """Ingest the manifest, run the exporter on it (from the Lean build in this checkout), and
-    record its result as checked evidence. Returns the exporter's exit code (non-zero when a named
-    proof is not evidence)."""
-    ingest_manifest(db, manifest)
-    m = json.loads(manifest.read_bytes())
-    if not m.get("lean", {}).get("modules"):
-        return 0
+def verify(db: sqlite3.Connection, manifests: list[pathlib.Path], lake: str = "lake") -> int:
+    """Record evidence against exact snapshots; reuse the loaded environment within each group."""
+    status = 0
+    jobs = []
     with tempfile.TemporaryDirectory() as tmp:
-        out = pathlib.Path(tmp) / "evidence.json"
-        env = dict(os.environ, EXPLORER_MANIFEST_SHA256=sha256(manifest.read_bytes()),
-                   EXPLORER_GIT_COMMIT=git_commit())
+        for index, path in enumerate(manifests):
+            try:
+                raw = path.read_bytes()
+                version = ingest_manifest(db, path, raw=raw)
+            except Rejected as exc:
+                print(f"rejected: {exc}", file=sys.stderr)
+                status = 1
+                continue
+            manifest = json.loads(raw)
+            if manifest.get("lean", {}).get("modules"):
+                snapshot = pathlib.Path(tmp) / f"manifest-{index}.json"
+                out = pathlib.Path(tmp) / f"evidence-{index}.json"
+                snapshot.write_bytes(raw)
+                jobs.append((path, snapshot, out, version, manifest, sha256(raw)))
+        if not jobs:
+            return status
+        jobs.sort(key=lambda job: tuple(job[4]["lean"]["modules"]))
+        args = [arg for _, snapshot, out, _, _, digest in jobs for arg in (str(snapshot), str(out), digest)]
+        env = dict(os.environ, EXPLORER_GIT_COMMIT=git_commit())
         proc = subprocess.run([lake, "env", str(ROOT / ".lake" / "build" / "bin" / "cexplorer-export"),
-                               str(manifest.resolve()), str(out)], cwd=ROOT, env=env)
-        if not out.exists():
-            raise reject(db, f"verify {manifest}", f"the exporter produced no output (exit {proc.returncode})")
-        ingest_evidence(db, out, origin="exporter-run")
-        return proc.returncode
+                               "--batch", *args], cwd=ROOT, env=env, timeout=300)
+        for path, _, out, version, manifest, digest in jobs:
+            try:
+                if not out.exists():
+                    raise reject(db, f"verify {path}", f"the exporter produced no output (exit {proc.returncode})")
+                ev = json.loads(out.read_bytes())
+                if ev.get("manifest_sha256") != digest:
+                    raise reject(db, f"verify {path}", "the exporter returned evidence for another manifest")
+                check_rendered_artifacts(db, path, manifest, ev)
+                ingest_evidence(db, out, origin="exporter-run")
+                with db:
+                    db.execute("INSERT OR REPLACE INTO verification VALUES (?, ?, ?)",
+                               (version, ev["git_commit"], json.dumps(ev.get("definitions", {}))))
+            except Rejected as exc:
+                print(f"rejected: {exc}", file=sys.stderr)
+                status = 1
+        return status or proc.returncode
+
+
+def check_rendered_artifacts(db, path: pathlib.Path, manifest: dict, evidence: dict) -> None:
+    rendered = evidence.get("artifacts", {})
+    expected = {role: manifest["artifacts"][role]["sha256"] for role, _ in manifest["lean"].get("bindings", [])}
+    if set(rendered) != set(expected):
+        raise reject(db, f"verify {path}", "the exporter did not render exactly the named artifact bindings")
+    for role, text in rendered.items():
+        if not isinstance(text, str) or sha256(text.encode()) != expected[role]:
+            raise reject(db, f"verify {path}", f"{role}: artifact bytes differ from its Lean rendering")
 
 
 def status_report(db, pid: str | None) -> str:
@@ -951,7 +1449,7 @@ def status_report(db, pid: str | None) -> str:
         v = problem_view(db, p["id"])
         lines.append(f"{p['id']}  [{v['direction']}]  {v['title']}")
         for o in v["obligations"]:
-            lines.append(f"  {o['id']:<22} {o['status']:<12} {o.get('decl') or ''}")
+            lines.append(f"  {o['id']:<22} {o['status']:<12} {o.get('decl') or o.get('refutation') or ''}")
         for t in v["tests"]:
             lines.append(f"  test {t['id']:<17} {t['status']}")
     return "\n".join(lines)
@@ -968,18 +1466,13 @@ def main(argv: list[str]) -> int:
             host = rest[rest.index("--host") + 1]
         if "--port" in rest:
             port = int(rest[rest.index("--port") + 1])
-        serve(db_path, host, port)
+        viewer = rest[rest.index("--viewer") + 1] if "--viewer" in rest else LINKS["explorer"]
+        serve(db_path, host, port, viewer)
         return 0
     db = connect(db_path)
     status = 0
     if cmd == "verify":
-        for f in rest:
-            try:
-                rc = verify(db, pathlib.Path(f), os.environ.get("LAKE", "lake"))
-                status = status or rc
-            except Rejected as exc:
-                print(f"rejected: {exc}", file=sys.stderr)
-                status = 1
+        status = verify(db, [pathlib.Path(path) for path in rest], os.environ.get("LAKE", "lake"))
     elif cmd == "project":
         try:
             print(f"{rest[0]}: {ingest_project(db, pathlib.Path(rest[0]))} rows read")

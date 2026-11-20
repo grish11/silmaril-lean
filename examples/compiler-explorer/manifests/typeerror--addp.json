@@ -1,0 +1,147 @@
+{
+  "artifacts": {
+    "frontend": {
+      "media": "text/plain",
+      "path": "examples/compiler-explorer/typeerror/frontend.txt",
+      "sha256": "a6397adb748fe3a81c8115d4c943001bdddca7cec7216a41f47e774d7762f11e",
+      "size": 74
+    },
+    "source": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/typeerror/addp.c",
+      "sha256": "5090365be4f6e300028fa82be5735afb7cfca0189ae1b2bff6735eec767e323d",
+      "size": 46
+    },
+    "target": {
+      "media": "text/plain",
+      "path": "examples/compiler-explorer/typeerror/operand-types.txt",
+      "sha256": "33ce7c74224592e12c900f9c1e04ba4c29e6c6fe1c63bf20aa6006f47b818835",
+      "size": 84
+    }
+  },
+  "context": {
+    "abi": null,
+    "comorphism": null,
+    "mapping_relation": null,
+    "source_model": null,
+    "target_model": null
+  },
+  "derivation": null,
+  "direction": "none",
+  "edges": [
+    {
+      "function": "addp",
+      "id": "nav/addp/plus",
+      "kind": "navigation",
+      "note": "the operator the restricted typing certificate is about",
+      "origin": "author: the expression p + q",
+      "source": [
+        "cfccef9017d166ee3aea"
+      ],
+      "target": [
+        "588822da33f665ab20ec"
+      ]
+    }
+  ],
+  "fragments": [
+    {
+      "artifact": "target",
+      "id": "588822da33f665ab20ec",
+      "label": "the extracted operand types",
+      "ranges": [
+        [
+          0,
+          83
+        ]
+      ],
+      "space": "bytes"
+    },
+    {
+      "artifact": "source",
+      "id": "cfccef9017d166ee3aea",
+      "label": "line 3",
+      "ranges": [
+        [
+          28,
+          43
+        ]
+      ],
+      "space": "bytes"
+    }
+  ],
+  "id": "typeerror/addp",
+  "lean": {
+    "definitions": [
+      "CompilesToExamples.Explorer.TypeError.cText",
+      "Silmaril.Project.Shapes.C.AdditionFragment.Accepts",
+      "Silmaril.Project.Shapes.C.AdditionFragment.operands",
+      "Silmaril.Project.Shapes.C.intPtrCtype"
+    ],
+    "family": "c-additive",
+    "modules": [
+      "CompilesToExamples.Explorer.TypeError"
+    ],
+    "vars": {
+      "t1": "Silmaril.Project.Shapes.C.intPtrCtype",
+      "t2": "Silmaril.Project.Shapes.C.intPtrCtype"
+    }
+  },
+  "obligations": [
+    {
+      "decl": null,
+      "id": "typing",
+      "kind": "typing",
+      "refutation": "CompilesToExamples.Explorer.TypeError.addp_type_error",
+      "statement": "Silmaril.Project.Shapes.C.AdditionFragment.Accepts \"int *addp(int *p, int *q)\\n{\\n  return p + q;\\n}\\n\""
+    },
+    {
+      "decl": "CompilesToExamples.Explorer.TypeError.addp_parses",
+      "id": "operand_types",
+      "kind": "operand_types",
+      "statement": "Silmaril.Project.Shapes.C.AdditionFragment.operands \"int *addp(int *p, int *q)\\n{\\n  return p + q;\\n}\\n\" = some (Silmaril.Project.Shapes.C.intPtrCtype, Silmaril.Project.Shapes.C.intPtrCtype)"
+    }
+  ],
+  "problem_form": "judgment",
+  "relation": {
+    "description": "The exact source is recognized by AdditionFragment and violates the C11 6.5.6p2 additive constraint. This is not a whole-C typing judgment.",
+    "semantics": "stated"
+  },
+  "schema": "silmaril.compiler-explorer.problem/1",
+  "stages": [
+    {
+      "evidence": "Kernel equality for this text; independent of the general frontend",
+      "input": "source",
+      "name": "Restricted operand extraction",
+      "obligation": "operand_types",
+      "output": "target",
+      "side": "source",
+      "trust": "verified"
+    },
+    {
+      "evidence": "#guard checks its unsupported-feature message, not a type error",
+      "input": "source",
+      "name": "General Lean C frontend (typing)",
+      "output": "frontend",
+      "side": "source",
+      "trust": "evaluated"
+    }
+  ],
+  "tests": [],
+  "title": "addp.c: does pointer + pointer typecheck?",
+  "view": {
+    "alternatives": {
+      "target": [
+        {
+          "label": "Lean operand types",
+          "role": "target"
+        },
+        {
+          "label": "Separate frontend diagnostic",
+          "role": "frontend"
+        }
+      ]
+    },
+    "source": "source",
+    "target": "target"
+  }
+}

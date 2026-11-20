@@ -1,0 +1,1 @@
+{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[{"mediaType":"application/vnd.oci.image.manifest.v1+json","digest":"sha256:a709755a1d1efe78a39205ba1832ac25f83de6fc41f732823d954b6e864f9ed5","size":397,"annotations":{"org.opencontainers.image.ref.name":"silmaril-http-once:pinned"}}]}

@@ -1,0 +1,6 @@
+-- CompilesToExamples.Branch.O2.max2Listing: the decoder's listing, checked by the kernel (decodesAs)
+-- offset, length, instruction (Repr, with Silmaril.X86.Ext. and Silmaril.X86. dropped)
+0x0	2	Instr.alu (Sz.d) (AluOp.cmp) (RM.reg (Reg.rsi)) (Reg.rdi)
+0x2	2	Instr.mov (Sz.d) (RM.reg (Reg.rax)) (Reg.rdi)
+0x4	3	Instr.cmov (Sz.d) (Cond.ge) (Reg.rax) (RM.reg (Reg.rsi))
+0x7	1	Instr.ret

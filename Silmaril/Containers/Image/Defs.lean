@@ -6,6 +6,8 @@ public import Silmaril.Net.Ip.Addr.Defs
 /-!
 # Container images: data models, levels of refinement, and shapes
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 An image is described at three levels, each a refinement of the one above:
 
 1. **Flat** (`Flat C`): a configuration and a root file tree whose files hold contents of an

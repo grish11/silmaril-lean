@@ -145,4 +145,12 @@ theorem coin_not_det :
 theorem run_sound (p : Tiny) (inputs : List (List UInt8)) : Tiny.sem p (Tiny.run p inputs) :=
   Silmaril.Proofs.Containers.Fixtures.run_sound p inputs
 
+/-- **The HTTP example, verified**: no undefined behaviour, TCP only, only the HTTP/1.1 200
+response, only declared ports. -/
+theorem http_vpre : vpre small httpSpec http := Silmaril.Proofs.Containers.Fixtures.http_vpre
+
+/-- **The vsock example, verified**: no undefined behaviour, vsock only, and total correctness
+when the environment supplies the input. -/
+theorem nitro_vpre : vpre small vsockSpec nitro := Silmaril.Proofs.Containers.Fixtures.nitro_vpre
+
 end Silmaril.Containers.Fixtures

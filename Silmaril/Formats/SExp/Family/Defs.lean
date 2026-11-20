@@ -44,9 +44,11 @@ embed with no hint (`Thms`).
 A signature `AstSig` has tags, a payload type `Arg t` per tag and an arity per tag (`Arity`: a
 natural number, or `star` for any number of children). Its trees are
 `AST S := TExpr1 (Σ t, S.Arg t)`: tagged expressions whose tag is a tag with its payload; the
-arity is the predicate `WellArity`. `WitSig` gives payloads as vectors of WIT-like value types
-(`PTy`: `bool`, `s32`, `u32`, `s64`, `u64`, `string`, `list<u8>`, `list<T>`), so the import
-`tag(args…, children…)` of a tag has typed, heterogeneous arguments (`PTy.Vals`).
+arity is the predicate `WellArity`. `WitSig` gives payloads as vectors of WIT value types
+(`PTy`: `bool`, the eight integer types, `f32`, `f64`, `char`, `string`, `list<T>` (so
+`list<u8>`), `list<T, N>`, records, tuples, variants, enums, options, results, flags and the
+handles `own<R>` (a resource representation) and `borrow<R>` (no value in a stored tree)), so
+the import `tag(args…, children…)` of a tag has typed, heterogeneous arguments (`PTy.Vals`).
 
 The S-expression signature `sexpSig α` has **one** payload-free variadic branch tag and one
 nullary leaf tag carrying an atom. Proper S-expressions are exactly its well-arity trees
@@ -105,7 +107,22 @@ abbrev HintedSExp := SExp Hinted
 
 /-! ## Payload types -/
 
-/-- WIT-like payload value types. -/
+/-- **WIT payload value types**: the WIT value types with a canonical-ABI memory representation
+and no asynchronous semantics, and the resource handles `own<r>`, `borrow<r>` of resource type
+number `r` (`Silmaril.Wasm.Game.HandleAccept.Wit.toWit` maps them injectively onto
+`WIT.ValType _ Nat`). Field, case and label names are kept, as in WIT; `bytes` is `list<u8>`
+(`PTy.bytes`). Not payload types: `future`, `stream`, `error-context` (asynchronous endpoints,
+unsupported pending async semantics) and `map` (a despecialised list of pairs: use
+`list (tuple [k, v])`).
+
+**Handles in stored trees.** A tree outlives the call that built it, so its payload values
+cannot be handle indices of the module's table:
+
+* `own r`: the value is the resource's **representation** (`Nat`, as `Value.Val.own` carries
+  it), read from an explicit resource table at the call that moves the handle into the tree
+  (`Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst.Own`): the owned handle is consumed once;
+* `borrow r`: **no value** (`Empty`). A borrow lives only for one call, so a tree cannot store
+  one: a payload with a `borrow` field has no value and decodes to no event. -/
 inductive PTy where
   | bool
   | s32
@@ -113,11 +130,38 @@ inductive PTy where
   | s64
   | u64
   | string
-  | bytes
   | list (t : PTy)
-  deriving DecidableEq, Repr
+  | s8
+  | u8
+  | s16
+  | u16
+  | f32
+  | f64
+  | char
+  | fixedList (t : PTy) (n : Nat)
+  | record (fields : List (String × PTy))
+  | tuple (ts : List PTy)
+  | variant (cases : List (String × Option PTy))
+  | enum (cases : List String)
+  | option (t : PTy)
+  | result (ok err : Option PTy)
+  | flags (labels : List String)
+  | own (r : Nat)
+  | borrow (r : Nat)
+  deriving Repr
 
-/-- The values of a payload type. -/
+/-- `list<u8>`: byte strings. -/
+abbrev PTy.bytes : PTy := .list .u8
+
+mutual
+/-- **The values of a payload type** (the Lean interpretation `WIT.ValType.Interp` of its WIT
+type): integers as Lean's fixed-width integers, floats as their IEEE 754 bit patterns
+(`BitVec 32`, `BitVec 64`; the canonical ABI canonicalises NaNs on lift), `char` as a Unicode
+scalar value (`Char`), records and tuples as right-nested products ending in `Unit` (names
+dropped), variants as right-nested sums ending in `Empty` (a case without payload carries
+`Unit`), `enum` with `n` cases as `Fin n`, `flags` with `n` labels as `BitVec n` (bit `i` is
+label `i`), `result` as `ok ⊕ err`, `own r` as the resource's representation `Nat` (never
+the handle index), `borrow r` as `Empty` (no stored tree holds a borrow). -/
 def PTy.Val : PTy → Type
   | .bool => Bool
   | .s32 => Int32
@@ -125,13 +169,94 @@ def PTy.Val : PTy → Type
   | .s64 => Int64
   | .u64 => UInt64
   | .string => String
-  | .bytes => List UInt8
   | .list t => List t.Val
+  | .s8 => Int8
+  | .u8 => UInt8
+  | .s16 => Int16
+  | .u16 => UInt16
+  | .f32 => BitVec 32
+  | .f64 => BitVec 64
+  | .char => Char
+  | .fixedList t n => Vector t.Val n
+  | .record fs => PTy.FieldVals fs
+  | .tuple ts => PTy.Vals ts
+  | .variant cs => PTy.CaseVals cs
+  | .enum cs => Fin cs.length
+  | .option t => Option t.Val
+  | .result ok err => PTy.OptVal ok ⊕ PTy.OptVal err
+  | .flags ls => BitVec ls.length
+  | .own _ => Nat
+  | .borrow _ => Empty
 
-/-- The values of a vector of payload types. -/
+/-- The values of a vector of payload types: a right-nested product. -/
 def PTy.Vals : List PTy → Type
   | [] => Unit
   | t :: ts => t.Val × PTy.Vals ts
+
+/-- The values of record fields: a right-nested product. -/
+def PTy.FieldVals : List (String × PTy) → Type
+  | [] => Unit
+  | (_, t) :: fs => t.Val × PTy.FieldVals fs
+
+/-- The values of variant cases: a right-nested sum. -/
+def PTy.CaseVals : List (String × Option PTy) → Type
+  | [] => Empty
+  | (_, o) :: cs => PTy.OptVal o ⊕ PTy.CaseVals cs
+
+/-- An optional payload: `Unit` when absent. -/
+def PTy.OptVal : Option PTy → Type
+  | none => Unit
+  | some t => t.Val
+end
+
+mutual
+/-- Boolean equality of payload types (`DecidableEq PTy` in `Thms`: the derived handler does
+not cover the nesting through `List (String × _)`). -/
+def PTy.beq : PTy → PTy → Bool
+  | .bool, .bool | .s32, .s32 | .u32, .u32 | .s64, .s64 | .u64, .u64 | .string, .string
+  | .s8, .s8 | .u8, .u8 | .s16, .s16 | .u16, .u16 | .f32, .f32 | .f64, .f64
+  | .char, .char => true
+  | .list a, .list b => PTy.beq a b
+  | .fixedList a n, .fixedList b m => PTy.beq a b && n == m
+  | .record fs, .record gs => PTy.beqFields fs gs
+  | .tuple ts, .tuple us => PTy.beqList ts us
+  | .variant cs, .variant ds => PTy.beqCases cs ds
+  | .enum cs, .enum ds => cs == ds
+  | .option a, .option b => PTy.beq a b
+  | .result a b, .result c d => PTy.beqOpt a c && PTy.beqOpt b d
+  | .flags ls, .flags ms => ls == ms
+  | .own r, .own q | .borrow r, .borrow q => r == q
+  | _, _ => false
+  termination_by structural a _ => a
+
+/-- `PTy.beq` on lists. -/
+def PTy.beqList : List PTy → List PTy → Bool
+  | [], [] => true
+  | a :: as, b :: bs => PTy.beq a b && PTy.beqList as bs
+  | _, _ => false
+  termination_by structural as _ => as
+
+/-- `PTy.beq` on record fields (names included). -/
+def PTy.beqFields : List (String × PTy) → List (String × PTy) → Bool
+  | [], [] => true
+  | (n, a) :: as, (m, b) :: bs => n == m && PTy.beq a b && PTy.beqFields as bs
+  | _, _ => false
+  termination_by structural as _ => as
+
+/-- `PTy.beq` on variant cases (names included). -/
+def PTy.beqCases : List (String × Option PTy) → List (String × Option PTy) → Bool
+  | [], [] => true
+  | (n, a) :: as, (m, b) :: bs => n == m && PTy.beqOpt a b && PTy.beqCases as bs
+  | _, _ => false
+  termination_by structural as _ => as
+
+/-- `PTy.beq` on optional types. -/
+def PTy.beqOpt : Option PTy → Option PTy → Bool
+  | none, none => true
+  | some a, some b => PTy.beq a b
+  | _, _ => false
+  termination_by structural a _ => a
+end
 
 /-! ## Signatures -/
 

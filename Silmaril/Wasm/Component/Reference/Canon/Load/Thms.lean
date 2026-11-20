@@ -84,95 +84,99 @@ mutual
   theorem loadAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (t : WIT.ClosedType RtId) → (ptr : Nat) →
       P.InvW I W (Canon.loadAt lim q cx p t ptr : P E σ Val)
-    | .prim prim, ptr => by rw [Canon.loadAt]; exact loadPrim _ _ _ _ _
+    | .prim prim, ptr => by simp only [Canon.loadAt, Canon.loadAtWith]; exact loadPrim _ _ _ _ _
     | .ref r, _ => nomatch r
     | .list t, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadListWith _ _ _ _ (loadAt h lim q cx p t) _) fun _ => pure _
     | .fixedList t n, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadListFromValidRangeWith (loadAt h lim q cx p t) _ _ _) fun _ => pure _
     | .record fields, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadFieldsAt h lim q cx p fields ptr) fun _ => pure _
     | .tuple ts, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadTypesAt h lim q cx p ts ptr) fun _ => pure _
     | .variant cases, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact loadVariantWith _ _ _ (loadCaseAt h lim q cx p cases) _
     | .enum labels, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact loadVariantWith _ _ _ (fun _ _ => pure _) _
-    | .flags labels, ptr => by rw [Canon.loadAt]; exact loadFlags _ _ _
+    | .flags labels, ptr => by simp only [Canon.loadAt, Canon.loadAtWith]; exact loadFlags _ _ _
     | .option t, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       refine loadVariantWith _ _ _ (fun i _ => ?_) _
       rcases i with _ | _ | _
       · exact pure _
       · exact bind (loadAt h lim q cx p t _) fun _ => pure _
       · exact pure _
     | .result ok err, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       refine loadVariantWith _ _ _ (fun i _ => ?_) _
       rcases i with _ | _ | _
       · exact loadOptAt h lim q cx p ok _
       · exact loadOptAt h lim q cx p err _
       · exact pure _
     | .map k v, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadListWith _ _ _ _
         (loadMapEntryWith _ _ _ _ _ _ (loadAt h lim q cx p v)) _) fun _ => pure _
     | .own rt, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadInt _ _ _ _) fun _ => bind (liftOwn h.remove _ _ _ _) fun _ => pure _
     | .borrow rt, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadInt _ _ _ _) fun _ => bind (liftBorrow h.lender _ _ _ _) fun _ => pure _
     | .stream t, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadInt _ _ _ _) fun _ =>
         bind (liftAsyncValue h.remove h.release _ _ _ _ _) fun _ => pure _
     | .future t, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadInt _ _ _ _) fun _ =>
         bind (liftAsyncValue h.remove h.release _ _ _ _ _) fun _ => pure _
     | .errorContext, ptr => by
-      rw [Canon.loadAt]
+      simp only [Canon.loadAt, Canon.loadAtWith]
       exact bind (loadInt _ _ _ _) fun _ => bind (liftErrorContext _ _ _) fun _ => pure _
 
   theorem loadFieldsAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (fields : List (String × WIT.ClosedType RtId)) → (ptr : Nat) →
       P.InvW I W (Canon.loadFieldsAt lim q cx p fields ptr : P E σ (List Val))
-    | [], _ => by rw [Canon.loadFieldsAt]; exact pure _
+    | [], _ => by simp only [Canon.loadFieldsAt, Canon.loadFieldsAtWith]; exact pure _
     | (_, t) :: fields, ptr => by
-      rw [Canon.loadFieldsAt]
+      simp only [Canon.loadFieldsAt, Canon.loadFieldsAtWith]
       exact bind (loadAt h lim q cx p t _) fun _ =>
         bind (loadFieldsAt h lim q cx p fields _) fun _ => pure _
 
   theorem loadTypesAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (ts : List (WIT.ClosedType RtId)) → (ptr : Nat) →
       P.InvW I W (Canon.loadTypesAt lim q cx p ts ptr : P E σ (List Val))
-    | [], _ => by rw [Canon.loadTypesAt]; exact pure _
+    | [], _ => by simp only [Canon.loadTypesAt, Canon.loadTypesAtWith]; exact pure _
     | t :: ts, ptr => by
-      rw [Canon.loadTypesAt]
+      simp only [Canon.loadTypesAt, Canon.loadTypesAtWith]
       exact bind (loadAt h lim q cx p t _) fun _ =>
         bind (loadTypesAt h lim q cx p ts _) fun _ => pure _
 
   theorem loadCaseAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (cases : List (String × Option (WIT.ClosedType RtId))) → (i ptr : Nat) →
       P.InvW I W (Canon.loadCaseAt lim q cx p cases i ptr : P E σ (Option Val))
-    | [], _, _ => by rw [Canon.loadCaseAt]; exact pure _
-    | (_, t) :: _, 0, ptr => by rw [Canon.loadCaseAt]; exact loadOptAt h lim q cx p t ptr
+    | [], _, _ => by simp only [Canon.loadCaseAt, Canon.loadCaseAtWith]; exact pure _
+    | (_, t) :: _, 0, ptr => by
+      simp only [Canon.loadCaseAt, Canon.loadCaseAtWith]
+      exact loadOptAt h lim q cx p t ptr
     | _ :: cases, i + 1, ptr => by
-      rw [Canon.loadCaseAt]; exact loadCaseAt h lim q cx p cases i ptr
+      simp only [Canon.loadCaseAt, Canon.loadCaseAtWith]
+      exact loadCaseAt h lim q cx p cases i ptr
 
   theorem loadOptAt (h : LoadPres I) (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
       (p : AddrType) : (t : Option (WIT.ClosedType RtId)) → (ptr : Nat) →
       P.InvW I W (Canon.loadOptAt lim q cx p t ptr : P E σ (Option Val))
-    | none, _ => by rw [Canon.loadOptAt]; exact pure _
+    | none, _ => by simp only [Canon.loadOptAt, Canon.loadOptAtWith]; exact pure _
     | some t, ptr => by
-      rw [Canon.loadOptAt]; exact bind (loadAt h lim q cx p t ptr) fun _ => pure _
+      simp only [Canon.loadOptAt, Canon.loadOptAtWith]
+      exact bind (loadAt h lim q cx p t ptr) fun _ => pure _
 end
 
 theorem loadListFromValidRange (h : LoadPres I) (lim : Limits) (q : Quirks)

@@ -448,7 +448,8 @@ theorem runs_lift_make {th : Option ThreadId} (t : TaskId) {m : Machine.Config (
       (.own c, ⟨[.int .i32 (BitVec.ofNat 32 j)], 1⟩)
       { m with store := { m.store with insts := [ι₂] } } := by
     intro p
-    rw [liftFlatAt.eq_def]
+    simp only [liftFlatAt, liftFlatAtWith, FlatLoadCarrier.reference, map_eq_pure_bind,
+      bind_assoc, pure_bind]
     refine RunsQ.bind (RunsQ.pure _ _) ?_
     show RunsQ _ _ (liftOwn Limits.spec _ ⟨0⟩ (flatNat (.int .i32 (BitVec.ofNat 32 j))) >>= _) _ _ _ _
     rw [hjn]
@@ -457,10 +458,9 @@ theorem runs_lift_make {th : Option ThreadId} (t : TaskId) {m : Machine.Config (
   show RunsQ _ _ (liftFlatTypes Limits.spec Quirks.none _ (ptrTypeIn (CoreEngine.view _ m.core)
     ({ opts := {}, inst := ⟨0⟩, scope := .task t } : LiftLowerContext (E3 P))) [.own ⟨0⟩]
     (.ofList [.int .i32 (BitVec.ofNat 32 j)])) _ _ _ _
-  unfold liftFlatTypes
+  simp only [liftFlatTypes, liftFlatTypesWith]
   apply RunsQ.of_tr
   · refine RunsQ.bind (tr₂ := [] ++ []) (hat _) ?_
-    unfold liftFlatTypes
     exact RunsQ.bind (.pure _ _) (.pure _ _)
   · rfl
 
@@ -489,9 +489,8 @@ theorem traps_lift_make {th : Option ThreadId} (t : TaskId) {m : Machine.Config 
     show TrapsQ _ _ (liftFlatTypes Limits.spec Quirks.none _ (ptrTypeIn (CoreEngine.view _ m.core)
       ({ opts := {}, inst := ⟨0⟩, scope := .task t } : LiftLowerContext (E3 P))) [.own ⟨0⟩]
       (.ofList [.int .i32 (BitVec.ofNat 32 j)])) _ _ _
-    unfold liftFlatTypes
-    rw [liftFlatAt.eq_def]
-    dsimp only
-    exact TrapsQ.left (TrapsQ.bind (RunsQ.pure _ _) (TrapsQ.left (hjn ▸ h₂))))⟩
+    simp only [liftFlatTypes, liftFlatTypesWith, liftFlatAtWith, FlatLoadCarrier.reference,
+      map_eq_pure_bind, bind_assoc, pure_bind]
+    exact TrapsQ.bind (RunsQ.pure _ _) (TrapsQ.left (hjn ▸ h₂)))⟩
 
 end Silmaril.Wasm.Resource.CompToy

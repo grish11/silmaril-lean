@@ -206,7 +206,8 @@ theorem liftVariantV : ∀ (cs : List (Option ValTy)) (ys : List Flat) (n : Nat)
     have hjoin : variantPayload (flattenCases p (labels "c" (toClosedCases cs))) =
         ValTy.flatCases cs := flattenCases_toClosed p cs _ (labels_map_snd "c" _)
     rw [hd]
-    simp only [ValTy.lift, flatTake_eq _ _ htr, toClosed, liftFlatAt, liftFlatVariantWith,
+    simp only [ValTy.lift, flatTake_eq _ _ htr, toClosed, liftFlatAt, liftFlatAtWith,
+      liftFlatVariantUsing, FlatLoadCarrier.reference, LoadCarrier.reference,
       next_eq hd, pure_bind, flatNat, hlen, hjoin]
     by_cases hlt : db.toNat < cs.length
     · obtain ⟨c, hc⟩ : ∃ c, cs[db.toNat]? = some c := ⟨_, List.getElem?_eq_getElem hlt⟩
@@ -246,7 +247,8 @@ theorem liftVariantV : ∀ (cs : List (Option ValTy)) (ys : List Flat) (n : Nat)
           intro ih hcan
           obtain ⟨cur, hcur⟩ := ih
           refine ⟨?_, ?_⟩
-          · rw [hcur, pure_bind]
+          · simp only [liftFlatCaseAt, FlatLoadCarrier.reference, LoadCarrier.reference] at hcur
+            rw [hcur, pure_bind]
             simp only [List.length_cons, toRefVal, canonAtV, canonAtVCase_some hc]
             congr 3
             · exact congrArg _ (hcan : canonAtVOpt c o = canonAtVOpt c o').symm
@@ -287,7 +289,7 @@ theorem liftCaseV : ∀ (cs : List (Option ValTy))
       rw [List.drop_zero, ← hlen, List.take_length, hz]
     have ih := liftAtV t zs 0 ht
     rw [List.drop_zero] at ih
-    simp only [liftFlatCaseAt, liftFlatOpt, ValTy.liftOpt]
+    simp only [liftFlatCaseAt, liftFlatCaseAtWith, liftFlatOptWith, ValTy.liftOpt]
     revert ih
     cases ValTy.lift t zs with
     | none => intro ih; exact ih.bind _
@@ -297,12 +299,13 @@ theorem liftCaseV : ∀ (cs : List (Option ValTy))
       obtain ⟨hp, hr⟩ := ih
       have hr' : r = [] := by rw [hr, Nat.zero_add, ← hlen, List.drop_length]
       subst hr'
+      unfold liftFlatAt at hp
       exact ⟨_, by rw [hp, pure_bind]; rfl⟩
   | c' :: cs, (nm, u) :: fs, i + 1, c, zs, hfs, hc, hz => by
     have hfs' : fs.map Prod.snd = toClosedCases cs := by
       cases c' <;> simp only [List.map_cons, toClosedCases, List.cons.injEq] at hfs <;> exact hfs.2
     simp only [List.getElem?_cons_succ] at hc
-    simp only [liftFlatCaseAt]
+    simp only [liftFlatCaseAt, liftFlatCaseAtWith]
     exact liftCaseV cs fs i c zs hfs' hc hz
 
 /-- `liftAtV` on record fields. -/
@@ -320,7 +323,7 @@ theorem liftFieldsV : ∀ (ts : List ValTy) (fs : List (String × WIT.ClosedType
       simpa only [ValTy.flatList] using ht
     have ih₁ := liftAtV t ys n ht'.left
     rw [hfs'.1]
-    simp only [liftFlatFields, ValTy.liftList, ValTy.flatList, List.length_append]
+    simp only [liftFlatFields, liftFlatFieldsWith, ValTy.liftList, ValTy.flatList, List.length_append]
     revert ih₁
     cases ValTy.lift t (ys.drop n) with
     | none => intro ih₁; exact ih₁.bind _
@@ -332,6 +335,7 @@ theorem liftFieldsV : ∀ (ts : List ValTy) (fs : List (String × WIT.ClosedType
         have h₂ := ht'.right
         rwa [List.drop_drop] at h₂
       have ih₂ := liftFieldsV ts fs ys (n + t.flat.length) hfs'.2 ht₂
+      unfold liftFlatAt at hp
       rw [hp, pure_bind, hr]
       exact liftsRelCV_cons ih₂
 end
@@ -350,7 +354,8 @@ theorem liftFlatTypesV (ts : List ValTy) (ys : List Flat) (n : Nat)
     | cons f fs ih =>
       intro c
       obtain ⟨nm, u⟩ := f
-      simp only [liftFlatFields, liftFlatTypes, List.map_cons, ih]
+      simp only [liftFlatFields, liftFlatFieldsWith, liftFlatTypes, liftFlatTypesWith,
+        List.map_cons, ih]
   rwa [heq, labels_map_snd] at h
 
 /-- **The direct lift path with floats at every type relates to `liftArgs`**: the

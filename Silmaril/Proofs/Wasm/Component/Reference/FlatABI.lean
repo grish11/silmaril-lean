@@ -737,7 +737,8 @@ theorem liftChar {ys : List Flat} {n : Nat} {rest : List Flat}
       (ValTy.lift .char (⟨.int .i32, b⟩ :: rest)) ys (n + 1) := by
   have hp : (liftFlatAt (σ := σ) lim q cx p (toClosed .char) ⟨ys, n⟩) =
       (do let c ← orTrap .invalidChar (charOfBits b); pure (Value.Val.char c, ⟨ys, n + 1⟩)) := by
-    simp only [toClosed, liftFlatAt, liftFlatPrim, next_eq hd, pure_bind, wrap_i32,
+    simp only [toClosed, liftFlatAt, liftFlatAtWith, FlatLoadCarrier.reference, liftFlatPrim,
+      next_eq hd, pure_bind, wrap_i32,
       convertI32ToChar, convertI32ToChar?_eq]
   rw [hp]
   cases hc : charOfBits b with
@@ -766,7 +767,8 @@ theorem liftPrim_toClosed (t : ValTy) (ys : List Flat) (n : Nat) (y : Flat) (res
          subst hty
          first
            | (refine ⟨?_, hrest⟩
-              simp only [toClosed, liftFlatAt, liftFlatPrim, Value.IntKind.ofPrimitive, next_eq hd,
+              simp only [toClosed, liftFlatAt, liftFlatAtWith, FlatLoadCarrier.reference,
+                liftFlatPrim, Value.IntKind.ofPrimitive, next_eq hd,
                 pure_bind, toRefVal, intKindCore]
               first
                 | (rw [liftFlatBool_eq])
@@ -817,7 +819,7 @@ theorem liftFlatAt_toClosed : ∀ (t : ValTy) (ys : List Flat) (n : Nat), floatF
     have ih := liftFlatFields_toClosed ts (labels "f" (toClosedList ts)) ys n
       (labels_map_snd "f" _) (by simpa only [floatFree] using hf) (by simpa only [ValTy.flat] using ht)
     simp only [ValTy.flat]
-    simp only [toClosed, liftFlatAt, ValTy.lift]
+    simp only [toClosed, liftFlatAt, liftFlatAtWith, ValTy.lift]
     revert ih
     cases ValTy.liftList ts (ys.drop n) with
     | none => intro ih; exact ih.bind _
@@ -825,6 +827,7 @@ theorem liftFlatAt_toClosed : ∀ (t : ValTy) (ys : List Flat) (n : Nat), floatF
       intro ih
       obtain ⟨hp, hr⟩ := ih
       refine ⟨?_, hr⟩
+      unfold liftFlatFields at hp
       rw [hp]
       rfl
   | .variant cs, ys, n, hf, ht => liftVariant_toClosed cs ys n (by simpa only [floatFree] using hf) ht
@@ -861,7 +864,8 @@ theorem liftVariant_toClosed : ∀ (cs : List (Option ValTy)) (ys : List Flat) (
     have hjoin : variantPayload (flattenCases p (labels "c" (toClosedCases cs))) =
         ValTy.flatCases cs := flattenCases_toClosed p cs _ (labels_map_snd "c" _)
     rw [hd]
-    simp only [ValTy.lift, flatTake_eq _ _ htr, toClosed, liftFlatAt, liftFlatVariantWith,
+    simp only [ValTy.lift, flatTake_eq _ _ htr, toClosed, liftFlatAt, liftFlatAtWith,
+      liftFlatVariantUsing, FlatLoadCarrier.reference, LoadCarrier.reference,
       next_eq hd, pure_bind, flatNat, hlen, hjoin]
     by_cases hlt : db.toNat < cs.length
     · obtain ⟨c, hc⟩ : ∃ c, cs[db.toNat]? = some c := ⟨_, List.getElem?_eq_getElem hlt⟩
@@ -890,7 +894,8 @@ theorem liftVariant_toClosed : ∀ (cs : List (Option ValTy)) (ys : List Flat) (
         intro ih
         obtain ⟨cur, hcur⟩ := ih
         refine ⟨?_, ?_⟩
-        · rw [hcur, pure_bind]
+        · simp only [liftFlatCaseAt, FlatLoadCarrier.reference, LoadCarrier.reference] at hcur
+          rw [hcur, pure_bind]
           simp only [List.length_cons, toRefVal]
           congr 3
           omega
@@ -930,7 +935,7 @@ theorem liftFlatCase_toClosed : ∀ (cs : List (Option ValTy))
       rw [List.drop_zero, ← hlen, List.take_length, hz]
     have ih := liftFlatAt_toClosed t zs 0 hf.1 ht
     rw [List.drop_zero] at ih
-    simp only [liftFlatCaseAt, liftFlatOpt, ValTy.liftOpt]
+    simp only [liftFlatCaseAt, liftFlatCaseAtWith, liftFlatOptWith, ValTy.liftOpt]
     revert ih
     cases ValTy.lift t zs with
     | none => intro ih; exact ih.bind _
@@ -940,6 +945,7 @@ theorem liftFlatCase_toClosed : ∀ (cs : List (Option ValTy))
       obtain ⟨hp, hr⟩ := ih
       have hr' : r = [] := by rw [hr, Nat.zero_add, ← hlen, List.drop_length]
       subst hr'
+      unfold liftFlatAt at hp
       exact ⟨_, by rw [hp, pure_bind]; rfl⟩
   | c' :: cs, (nm, u) :: fs, i + 1, c, zs, hfs, hf, hc, hz => by
     have hfs' : fs.map Prod.snd = toClosedCases cs := by
@@ -947,7 +953,7 @@ theorem liftFlatCase_toClosed : ∀ (cs : List (Option ValTy))
     have hf' : floatFreeCases cs = true := by
       cases c' <;> simp only [floatFreeCases, Bool.and_eq_true] at hf <;> first | exact hf | exact hf.2
     simp only [List.getElem?_cons_succ] at hc
-    simp only [liftFlatCaseAt]
+    simp only [liftFlatCaseAt, liftFlatCaseAtWith]
     exact liftFlatCase_toClosed cs fs i c zs hfs' hf' hc hz
 
 theorem liftFlatFields_toClosed : ∀ (ts : List ValTy) (fs : List (String × WIT.ClosedType RtId))
@@ -963,7 +969,7 @@ theorem liftFlatFields_toClosed : ∀ (ts : List ValTy) (fs : List (String × WI
     simp only [floatFreeList, Bool.and_eq_true] at hf
     simp only [ValTy.flatList] at ht
     have ih₁ := liftFlatAt_toClosed t ys n hf.1 ht.left
-    simp only [liftFlatFields, ValTy.liftList, ValTy.flatList, List.length_append]
+    simp only [liftFlatFields, liftFlatFieldsWith, ValTy.liftList, ValTy.flatList, List.length_append]
     revert ih₁
     cases ValTy.lift t (ys.drop n) with
     | none => intro ih₁; exact ih₁.bind _
@@ -976,6 +982,7 @@ theorem liftFlatFields_toClosed : ∀ (ts : List ValTy) (fs : List (String × WI
         have := ht.right
         rwa [List.drop_drop] at this
       have ih₂ := liftFlatFields_toClosed ts fs ys (n + t.flat.length) hfs hf.2 ht₂
+      unfold liftFlatAt at hp
       rw [hp, pure_bind]
       dsimp only
       revert ih₂
@@ -985,6 +992,7 @@ theorem liftFlatFields_toClosed : ∀ (ts : List ValTy) (fs : List (String × WI
         intro ih₂
         obtain ⟨hp₂, hr₂⟩ := ih₂
         refine ⟨?_, by rw [hr₂, Nat.add_assoc]⟩
+        unfold liftFlatFields at hp₂
         rw [hp₂, pure_bind, Nat.add_assoc]
         rfl
 end
@@ -1004,7 +1012,8 @@ theorem liftFlatTypes_toClosed : ∀ (ts : List ValTy) (ys : List Flat) (n : Nat
       | cons f fs ih =>
         intro c
         obtain ⟨nm, u⟩ := f
-        simp only [liftFlatFields, liftFlatTypes, List.map_cons, ih]
+        simp only [liftFlatFields, liftFlatFieldsWith, liftFlatTypes, liftFlatTypesWith,
+          List.map_cons, ih]
     rwa [heq, hfs] at h
 
 /-- **Reference `lift_flat_values` on IR result types is `liftArgs`** (after reading the pointer

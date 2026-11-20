@@ -24,6 +24,27 @@ the parser accepts them in every dialect. The RFC 8259 lexer never produces iden
 
 namespace Silmaril.Formats.JsonWire.Internal
 
+/-- Token encoding of ordered JSON, including exact decimals, UTF-16 units and names. -/
+def printedTokens : {index : JsonIx} → Syn Decimal index → List Token
+  | _, .scalar none => [.null]
+  | _, .scalar (some (.bool flag)) => [.bool flag]
+  | _, .scalar (some (.string units)) => [.string units]
+  | _, .scalar (some (.number number)) => [.number (.finite number)]
+  | _, .list items => .arrayOpen :: (printedTokens items ++ [.arrayClose])
+  | _, .map fields => .objectOpen :: (printedTokens fields ++ [.objectClose])
+  | _, .nil => []
+  | _, .cons value tail => printedTokens value ++ (match tail with | .nil => [] | _ => [.comma]) ++ printedTokens tail
+  | _, .objNil => []
+  | _, .objCons key value tail => .string key :: .colon :: (printedTokens value ++
+      (match tail with | .objNil => [] | _ => [.comma]) ++ printedTokens tail)
+
+/-- Embed finite JSON scalars in the token reader's number type. -/
+def addFinite : Scalar Decimal → Scalar Number
+  | none => none
+  | some (.bool flag) => some (.bool flag)
+  | some (.string units) => some (.string units)
+  | some (.number number) => some (.number (.finite number))
+
 /-- The tokens the parser reads as a scalar value. -/
 def Token.IsScalar : Token → Prop
   | .null | .bool _ | .string _ | .number _ => True

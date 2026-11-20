@@ -6,6 +6,33 @@ command-line specification API, and the program generator API. The core `wasm-to
 Binaryen tooling are described in [wasm-binaryen-tooling.md](wasm-binaryen-tooling.md) and
 [wasm-tools-trust.md](wasm-tools-trust.md).
 
+## Checked Declaration Wiring
+
+`Silmaril.Wasm.Component.IntrinsicWiring` is an indexed builder for a flat
+fragment of the reference component AST. Each step advances the actual
+`DefState`. Core payloads supply the named module interface; instantiation,
+aliasing, function type, canonical ABI, and re-export commands use the existing
+reference checker. `Program.then` composes only fragments whose intermediate
+scope agrees. `erase_nil` and `erase_then` give identity and composition in
+the reference syntax; `erase_map` and `map_then` let a payload transformation
+commute with erasure and composition when it preserves the accepted named
+Core interface. `Program.sound` proves the actual `ValidComponent` judgment.
+
+The regression links a typed provider exporting `get` to a typed consumer
+importing `env.get`, then canonically lifts and exposes the consumer's `run`.
+The erased program passes the reference Core 3.0 component checker. A missing
+argument name and an out-of-scope provider instance are rejected. This is
+scope-indexed **declaration** composition, not WAC composition of separately
+closed components. Reference validation, not a new engine, supplies the
+typing premises. This builder does not cover nested binders, resource
+declarations, general component link equivalence, or runtime observations.
+
+```sh
+lake build --wfail +Silmaril.Wasm.Component.IntrinsicWiring.Thms \
+  +Silmaril.Wasm.Validation.Intrinsic.ReifyThms
+lake env lean -DwarningAsError=true tests/wasm/inductive-component/Regression.lean
+```
+
 ## What ships
 
 | Part | Modules | What it is |

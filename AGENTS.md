@@ -29,6 +29,11 @@ Working rules for agents in silmaril-lean. The design is in [docs/design.md](doc
 - **Courses** are self-contained leaf views: their proofs may stay inline when
   that helps readers follow the course. No library region imports `Courses`.
 - Use the module system (`module`, `public import`) everywhere.
+  The executable-only leaf `tools/compiler-explorer/Replay.lean` is a narrow
+  compatibility exception: the pinned toolchain's legacy `LeanChecker` cannot be
+  imported from a `module` file. It calls that checker's public kernel replay
+  operation, and no library may import the driver. See
+  [the tool contract](docs/projects/compiler-explorer.md#kernel-replay-driver).
 
 ## Executables and existing implementation modules
 - One root Lake project builds the library and tools. Shared compiler, semantics,

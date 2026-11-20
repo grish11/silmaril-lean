@@ -1,7 +1,6 @@
 module
-public meta import Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs
-public meta import Silmaril.Cerberus.Core.Outcome.Defs
-public meta section
+public import Silmaril.Elf.Corpus.CjsonArrayItem.Context.Defs
+public import Silmaril.Cerberus.Core.Outcome.Defs
 open Silmaril.Cerberus Silmaril.Cerberus.Core Silmaril.Cerberus.Core.Dynamics
 open Silmaril.Elf.Corpus.CjsonArrayItem
 private def sample (n : Fin 65) (index : Int) (seed : Fin 3) (isNull : Bool) : Context.Input where

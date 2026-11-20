@@ -1,0 +1,485 @@
+{
+  "files": [
+    {
+      "path": "/usr/include/features-time64.h",
+      "sha256": "f204758482abaeaf9a9c49f0054c1ac19c5804c82b6d4d249ae0329ec293c973",
+      "size": 1409
+    },
+    {
+      "path": "/usr/include/features.h",
+      "sha256": "a43c1fcf40f4585ab05a92a262d06417e4711474b2a2d6b3205f15cc2a7a07eb",
+      "size": 18047
+    },
+    {
+      "path": "/usr/include/stdc-predef.h",
+      "sha256": "cb08cd5d4cc059a90833ac48a284d25016e8d56ded8ad4cd98d8ac59cc5053f3",
+      "size": 2462
+    },
+    {
+      "path": "/usr/include/stdio.h",
+      "sha256": "cf8eec642c164a95d6ffcdbea90db9e277c204532989492b0e9c0b4f55659d57",
+      "size": 31526
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+      "sha256": "34470310bc42f4ed4a8790ca3f33d1a11878a583561d51ad324ef5fb925d5493",
+      "size": 10325
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+      "sha256": "3d4345a5968836e9223ecb41753075921bedbfd20785b13bee4482dee7c7bbc5",
+      "size": 4508
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+      "sha256": "2f1c081f8d5940640addc9daaf9552f65e38f86eac744e6d7c76bddb0f7969f2",
+      "size": 4286
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+      "sha256": "de8ef43fbb73a2525346914ce91fd9e72bb5c1040ae2ac739569001220e2da8d",
+      "size": 970
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h",
+      "sha256": "31afdb7f07448d50082123a6a4c6bdf104d841b48038a79fbf85507476466acf",
+      "size": 1213
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+      "sha256": "5f423dcbb2c2969085506456ff16788d8d7d0a430d994fc18fec4780e68dba39",
+      "size": 1340
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+      "sha256": "b675674807d56aa8b0c97ce136e70bfc27bf49c72ec49f4de9f273202604c0ef",
+      "size": 1109
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types.h",
+      "sha256": "cd152b6a5b70db5ff301e428b13e7a02d64dde93c4ae0a7879378dc04fd4fbcd",
+      "size": 8806
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/FILE.h",
+      "sha256": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+      "size": 180
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h",
+      "sha256": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+      "size": 110
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+      "sha256": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+      "size": 410
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+      "sha256": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+      "size": 381
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h",
+      "sha256": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+      "size": 564
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+      "sha256": "c746e2ecb48cc2a1b7b4c63ff30e471569ad5bde1464a72c4aa1cadddb4dc113",
+      "size": 4104
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+      "sha256": "5663fc72923363ef9bffe3fbbafa3ca9b94da2d5aadae781dd6f6da5e435a9c6",
+      "size": 3737
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+      "sha256": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+      "size": 398
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+      "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+      "size": 481
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+      "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+      "size": 384
+    },
+    {
+      "path": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+      "sha256": "6b6f6ebc94fed6ad6cee59558f803c3d436ca97f0a4fcc72a9a30cfef99ca87c",
+      "size": 26665
+    },
+    {
+      "path": "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include/stdarg.h",
+      "sha256": "5a443943e67d7bab17203591b4ccb508757587d9b955ee883a053d755ed09321",
+      "size": 4303
+    },
+    {
+      "path": "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include/stddef.h",
+      "sha256": "9efc696d6c7eb8bb1831b149c6a92f88a775809cd63e4007312b617915f81188",
+      "size": 13735
+    }
+  ],
+  "flags": "-O0 -g -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=.",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+  "source": "hello.c",
+  "source_sha256": "fa0082bb81c671967198902abe06f2ab917586e769c8ef452a9257921749d1b2",
+  "trace": {
+    "method": "gcc -E -dI -H",
+    "occurrences": [
+      {
+        "directive": "implicit",
+        "parent": null,
+        "resolved": "/usr/include/stdc-predef.h"
+      },
+      {
+        "directive": "include",
+        "from": "/src/hello.c",
+        "line": 2,
+        "literal": true,
+        "operand": "<stdio.h>",
+        "parent": null,
+        "resolved": "/usr/include/stdio.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 27,
+        "literal": true,
+        "operand": "<bits/libc-header-start.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+        "line": 33,
+        "literal": true,
+        "operand": "<features.h>",
+        "parent": 2,
+        "resolved": "/usr/include/features.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/features.h",
+        "line": 392,
+        "literal": true,
+        "operand": "<features-time64.h>",
+        "parent": 3,
+        "resolved": "/usr/include/features-time64.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/features-time64.h",
+        "line": 20,
+        "literal": true,
+        "operand": "<bits/wordsize.h>",
+        "parent": 4,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/wordsize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/features-time64.h",
+        "line": 21,
+        "literal": true,
+        "operand": "<bits/timesize.h>",
+        "parent": 4,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/timesize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+        "line": 19,
+        "literal": true,
+        "operand": "<bits/wordsize.h>",
+        "parent": 6,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/wordsize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/features.h",
+        "line": 467,
+        "literal": true,
+        "operand": "<stdc-predef.h>",
+        "parent": 3,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/features.h",
+        "line": 489,
+        "literal": true,
+        "operand": "<sys/cdefs.h>",
+        "parent": 3,
+        "resolved": "/usr/include/x86_64-linux-gnu/sys/cdefs.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+        "line": 561,
+        "literal": true,
+        "operand": "<bits/wordsize.h>",
+        "parent": 9,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/wordsize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+        "line": 562,
+        "literal": true,
+        "operand": "<bits/long-double.h>",
+        "parent": 9,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/long-double.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/features.h",
+        "line": 513,
+        "literal": true,
+        "operand": "<gnu/stubs.h>",
+        "parent": 3,
+        "resolved": "/usr/include/x86_64-linux-gnu/gnu/stubs.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+        "line": 10,
+        "literal": true,
+        "operand": "<gnu/stubs-64.h>",
+        "parent": 12,
+        "resolved": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 33,
+        "literal": true,
+        "operand": "<stddef.h>",
+        "parent": 1,
+        "resolved": "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include/stddef.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 36,
+        "literal": true,
+        "operand": "<stdarg.h>",
+        "parent": 1,
+        "resolved": "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include/stdarg.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 38,
+        "literal": true,
+        "operand": "<bits/types.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types.h",
+        "line": 26,
+        "literal": true,
+        "operand": "<features.h>",
+        "parent": 16,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types.h",
+        "line": 27,
+        "literal": true,
+        "operand": "<bits/wordsize.h>",
+        "parent": 16,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/wordsize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types.h",
+        "line": 28,
+        "literal": true,
+        "operand": "<bits/timesize.h>",
+        "parent": 16,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/timesize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+        "line": 19,
+        "literal": true,
+        "operand": "<bits/wordsize.h>",
+        "parent": 19,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/wordsize.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types.h",
+        "line": 141,
+        "literal": true,
+        "operand": "<bits/typesizes.h>",
+        "parent": 16,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/typesizes.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types.h",
+        "line": 142,
+        "literal": true,
+        "operand": "<bits/time64.h>",
+        "parent": 16,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/time64.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 39,
+        "literal": true,
+        "operand": "<bits/types/__fpos_t.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+        "line": 4,
+        "literal": true,
+        "operand": "<bits/types.h>",
+        "parent": 23,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+        "line": 5,
+        "literal": true,
+        "operand": "<bits/types/__mbstate_t.h>",
+        "parent": 23,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 40,
+        "literal": true,
+        "operand": "<bits/types/__fpos64_t.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+        "line": 4,
+        "literal": true,
+        "operand": "<bits/types.h>",
+        "parent": 26,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+        "line": 5,
+        "literal": true,
+        "operand": "<bits/types/__mbstate_t.h>",
+        "parent": 26,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 41,
+        "literal": true,
+        "operand": "<bits/types/__FILE.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 42,
+        "literal": true,
+        "operand": "<bits/types/FILE.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types/FILE.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 43,
+        "literal": true,
+        "operand": "<bits/types/struct_FILE.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+        "line": 33,
+        "literal": true,
+        "operand": "<bits/types.h>",
+        "parent": 31,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 133,
+        "literal": true,
+        "operand": "<bits/stdio_lim.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/stdio.h",
+        "line": 430,
+        "literal": true,
+        "operand": "<bits/floatn.h>",
+        "parent": 1,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/floatn.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+        "line": 22,
+        "literal": true,
+        "operand": "<features.h>",
+        "parent": 34,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+        "line": 120,
+        "literal": true,
+        "operand": "<bits/floatn-common.h>",
+        "parent": 34,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h"
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+        "line": 23,
+        "literal": true,
+        "operand": "<features.h>",
+        "parent": 36,
+        "resolved": null
+      },
+      {
+        "directive": "include",
+        "from": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+        "line": 24,
+        "literal": true,
+        "operand": "<bits/long-double.h>",
+        "parent": 36,
+        "resolved": "/usr/include/x86_64-linux-gnu/bits/long-double.h"
+      }
+    ]
+  }
+}

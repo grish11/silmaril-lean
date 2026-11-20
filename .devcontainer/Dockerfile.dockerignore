@@ -2,3 +2,4 @@
 !lean-toolchain
 !.devcontainer/
 !.devcontainer/install-tools.sh
+!.devcontainer/ubuntu-archive-https.sh

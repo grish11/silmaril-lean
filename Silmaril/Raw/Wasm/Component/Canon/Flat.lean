@@ -142,7 +142,8 @@ variable (lim : Limits) (q : Quirks) (cx : LiftLowerContext E) (p : AddrType)
 
 theorem liftFlatAt_prim (prim : WIT.Primitive) (vi : FlatCursor) :
     (liftFlatAt lim q cx p (.prim prim) vi : P E σ _) = liftFlatPrim lim q cx p prim vi := by
-  rw [liftFlatAt]
+  rw [liftFlatAt, liftFlatAtWith]
+  rfl
 
 theorem lowerFlatAt_prim (pt : WIT.Primitive) (v : Val) :
     (lowerFlatAt lim q cx p v (.prim pt) : P E σ _) = lowerFlatPrim lim q cx p pt v := by
