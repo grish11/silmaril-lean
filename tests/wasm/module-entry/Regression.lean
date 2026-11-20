@@ -2,6 +2,7 @@ module
 
 import Silmaril.Wasm.Execution.Core.Entry.Program.Thms
 import Silmaril.Wasm.Execution.Core.Exec.InstantiateIff
+import Silmaril.Wasm.Execution.Core.Intrinsic.Pure.Thms
 import Silmaril.Wasm.Execution.Core.Soundness
 import Silmaril.Wasm.Validation.Check.Validate
 import Silmaril.Wasm.Validation.Intrinsic.Thms
@@ -91,23 +92,31 @@ private def divide : DirectCall world [.i32, .i32] [.i32] :=
   ⟨⟨0⟩, 0, function, [], ⟨0⟩, body, frameContext, readyModuleOk, rfl, rfl, Expand.iff.mpr rfl, rfl⟩
 private def named : ResolvedExport divide := ⟨"divide", rfl⟩
 
-example : divide.runFor (args 7) 2 = none := rfl
-example : divide.runFor (args 7) 3 = some (some (.cons 12 .nil)) := rfl
-example : divide.runFor (args 0) 3 = some none := rfl
-
 example (divisor : BitVec 32) : named.opSem.Equivalent (args divisor) (rawExport selected noHost [.i32])
-    (named.rawInput (args divisor)) := named.equivalent_pure (oracle := neverFail) _
+    (named.rawInput (args divisor)) := named.equivalent (oracle := neverFail) _
+
+private theorem evaluated (divisor : BitVec 32) :
+    divide.runFor (args divisor) (Pure.budget body) = some (Pure.denotes (declared := []) body (args divisor)) :=
+  Pure.run_eval ⟨(args divisor).append (Values.zeros divide.declaredLocals)⟩ divide.body .nil
+
+private theorem rawDivision (divisor : BitVec 32) :
+    (rawExport selected noHost [.i32]).May (named.rawInput (args divisor))
+      (observeResult (invokeResult (Pure.denotes (declared := []) body (args divisor)))) :=
+  ⟨_, (named.raw_initial_iff (args divisor) _ (types := [.i32])).mpr rfl,
+    (invoke_may_iff divide (args divisor) (evaluated divisor) _).mpr rfl⟩
 
 example : (rawExport selected noHost [.i32]).May (named.rawInput (args 7)) (.returned (.ok [.i32 12])) :=
-  ⟨_, (named.raw_initial_iff (args 7) _ (types := [.i32])).mpr rfl,
-    (invoke_may_iff divide (args 7) (fuel := 3) (answer := some (.cons 12 .nil)) rfl _).mpr rfl⟩
+  rawDivision 7
 
 example : named.opSem.May (args 0) .trap :=
-  ⟨_, rfl, (named.may_iff (oracle := neverFail) (args 0) (fuel := 3) (answer := none) rfl _).mpr
-    ((invoke_may_iff divide (args 0) (fuel := 3) (answer := none) rfl _).mpr rfl)⟩
+  (named.equivalent (oracle := neverFail) (args 0)).2.2 (rawDivision 0)
 
 example : (rawExport selected noHost [.i32]).semantics.SafeAt (invoke ready.store 0 (args 0).erase) :=
   invoke_noUB divide (args 0)
+
+example : divide.runFor (args 7) 2 = none := rfl
+example : divide.runFor (args 7) 3 = some (some (.cons 12 .nil)) := rfl
+example : divide.runFor (args 0) 3 = some none := rfl
 
 private def registered : NumInstance :=
   ⟨⟨[], [⟨[.num (.int .i32), .num (.int .i32)], [.num (.int .i32)]⟩],
@@ -137,13 +146,12 @@ example : (scalarInstance neverFail registered.inst [.i32]).initial (ready.store
 
 example : (typedInstance registered.inst divide registeredOk).May (question 7) (.returned (.ok [.i32 12])) :=
   ⟨_, ⟨args 7, rfl, rfl, rfl⟩,
-    (typedInstance_may_iff divide registeredOk (args 7) (question 7) rfl rfl
-      (fuel := 3) (answer := some (.cons 12 .nil)) rfl (oracle := neverFail) _).mpr
-      ((invoke_may_iff divide (args 7) (fuel := 3) (answer := some (.cons 12 .nil)) rfl _).mpr rfl)⟩
+    (typedInstance_may_iff divide registeredOk (args 7) (question 7) rfl rfl (evaluated 7) (oracle := neverFail) _).mpr
+      ((invoke_may_iff divide (args 7) (evaluated 7) _).mpr rfl)⟩
 
 example : ([], .ret (.inr ()) ready.store) ∈ instFinS registered.inst selected ready.store (question 0) :=
   (session_finishes_iff divide (args 0) (question := question 0) rfl rfl rfl
-    (fuel := 3) (answer := none) rfl (typedAnswer := .trap) rfl [] _).mpr rfl
+    (evaluated 0) (typedAnswer := .trap) rfl [] _).mpr rfl
 
 private def answer : registered.inst.F.Ar (question 7) := .values ⟨[.i32 12], .cons ⟨12, rfl⟩ .nil⟩
 
@@ -153,7 +161,7 @@ example : ([], .ret (sAns (question 7) answer) ready.store) ∈
       (invokeResult (some (.cons (kind := .i32) 12 .nil))) = some answer :=
     Answer.ofResult?_toResult answer
   exact (session_finishes_iff divide (args 7) (question := question 7) rfl rfl rfl
-    (fuel := 3) rfl readback [] _).mpr rfl
+    (evaluated 7) readback [] _).mpr rfl
 
 #print axioms typedModule_lift
 #print axioms typedModule_may
@@ -162,6 +170,7 @@ example : ([], .ret (sAns (question 7) answer) ready.store) ∈
 #print axioms ResolvedExport.may_iff
 #print axioms typedModule_equivalent_raw
 #print axioms typedModule_equivalent_checked
-#print axioms ResolvedExport.equivalent_pure
+#print axioms ResolvedExport.equivalent
+#print axioms ResolvedExport.equivalent_of_runFor
 #print axioms typedInstance_may_iff
 #print axioms session_finishes_iff

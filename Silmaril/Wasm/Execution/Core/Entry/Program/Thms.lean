@@ -48,15 +48,17 @@ variable {context : Context} {world : World H context} {parameters results : Lis
 /-- For a resolved typed integer call with a finite answer, compare the
 intrinsic body machine to the actual ready-store named export under the
 existing Core result observer. This is not a primitive simulation theorem. -/
-theorem ResolvedExport.equivalent (entry : ResolvedExport call) (args : Values parameters)
+theorem ResolvedExport.equivalent_of_runFor (entry : ResolvedExport call) (args : Values parameters)
     {fuel : Nat} {answer : Option (Values results)} (ran : call.runFor args fuel = some answer) :
     entry.opSem.Equivalent args (rawExport (profile oracle) noHost (stackTypes results)) (entry.rawInput args) :=
   Proofs.Wasm.Execution.Core.Entry.Program.resolved_equivalent entry args ran
 
-/-- This particular integer/local body language has a checked structural
-budget. It needs no external finite-answer witness. -/
-theorem ResolvedExport.equivalent_pure (entry : ResolvedExport call) (args : Values parameters) :
+/-- The intrinsic integer/local body and the actual named Core invocation
+agree on finite observations and reachable UB. The proof supplies its own
+checked structural budget; clients compare the unfuelled relations. -/
+theorem ResolvedExport.equivalent (entry : ResolvedExport call) (args : Values parameters) :
     entry.opSem.Equivalent args (rawExport (profile oracle) noHost (stackTypes results)) (entry.rawInput args) :=
-  entry.equivalent args (Intrinsic.Pure.run_eval ⟨args.append (Values.zeros call.declaredLocals)⟩ call.body .nil)
+  entry.equivalent_of_runFor args (Intrinsic.Pure.run_eval
+    ⟨args.append (Values.zeros call.declaredLocals)⟩ call.body .nil)
 
 end Silmaril.Wasm.Execution.Core.Entry
