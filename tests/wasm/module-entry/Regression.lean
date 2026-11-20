@@ -1,6 +1,6 @@
 module
 
-import Silmaril.Wasm.Execution.Core.Entry.Thms
+import Silmaril.Wasm.Execution.Core.Entry.Program.Thms
 import Silmaril.Wasm.Execution.Core.Exec.InstantiateIff
 import Silmaril.Wasm.Execution.Core.Soundness
 import Silmaril.Wasm.Validation.Check.Validate
@@ -32,6 +32,8 @@ private theorem hostOk : HostOk host := by
   exact ⟨⟨.diverged, rfl⟩, fun outcome equal => by cases equal; trivial⟩
 
 private def input : ModuleInput Nat := ⟨initialStore, sourceModule, []⟩
+private def checkedInput : { raw : ModuleInput Nat // raw.CheckedAt interface } :=
+  ⟨input, moduleOk, initialStoreOk, .nil⟩
 private def allocated : Config Nat := (instantiate? evalConst? initialStore sourceModule []).getD ⟨{}, {}, []⟩
 private theorem initializes : (rawModule selected host).initial input allocated :=
   (instantiate?_iff ⟨interface.exports, [], moduleOk, .nil⟩).mp rfl
@@ -39,6 +41,18 @@ private theorem initializes : (rawModule selected host).initial input allocated 
 private def ready : Ready Nat := ⟨allocated.store, allocated.frame.module⟩
 
 example : ReadyAfter selected host input ready := ⟨allocated, allocated, initializes, ⟨.refl, rfl⟩, rfl⟩
+
+example : (checkedModule selected host interface).May checkedInput (.returned (.ok [])) :=
+  ⟨allocated, initializes, allocated, .refl, Instantiate.ok hostOk initialStoreOk initializes, .values [], rfl, rfl⟩
+
+example : ∃ typed : TypedModuleInput Nat interface, typed.erase = input ∧
+    (typedModule selected host interface).Equivalent typed (checkedModule selected host interface) checkedInput := by
+  obtain ⟨typed, erases⟩ := checkedModule_lift checkedInput.property
+  change typed.erase = input at erases
+  refine ⟨typed, erases, ?_⟩
+  change (typedModule selected host interface).Equivalent typed (rawModule selected host) input
+  rw [← erases]
+  exact typedModule_equivalent_raw hostOk typed
 
 example : ∃ typed : TypedModuleInput Nat interface, typed.erase = input ∧
     (typedModule selected host interface).May typed (.returned (.ok [])) := by
@@ -52,9 +66,8 @@ example : ∃ typed : TypedModuleInput Nat interface, typed.erase = input ∧
 
 private def args (divisor : BitVec 32) : Values [.i32, .i32] := .cons 84 (.cons divisor .nil)
 
-example (state : Config Nat) :
-    ¬ (rawExport selected noHost [.i32]).initial ⟨ready, "missing", (args 7).erase⟩ state := by
-  rintro ⟨address, found, _⟩
+example : (rawExport selected noHost [.i32]).NoEntry ⟨ready, "missing", (args 7).erase⟩ := by
+  rintro ⟨_, address, found, _⟩
   change none = some address at found
   cases found
 
@@ -81,6 +94,9 @@ private def named : ResolvedExport divide := ⟨"divide", rfl⟩
 example : divide.runFor (args 7) 2 = none := rfl
 example : divide.runFor (args 7) 3 = some (some (.cons 12 .nil)) := rfl
 example : divide.runFor (args 0) 3 = some none := rfl
+
+example (divisor : BitVec 32) : named.opSem.Equivalent (args divisor) (rawExport selected noHost [.i32])
+    (named.rawInput (args divisor)) := named.equivalent_pure (oracle := neverFail) _
 
 example : (rawExport selected noHost [.i32]).May (named.rawInput (args 7)) (.returned (.ok [.i32 12])) :=
   ⟨_, (named.raw_initial_iff (args 7) _ (types := [.i32])).mpr rfl,
@@ -144,5 +160,8 @@ example : ([], .ret (sAns (question 7) answer) ready.store) ∈
 #print axioms invoke_noUB
 #print axioms invoke_finishes_iff
 #print axioms ResolvedExport.may_iff
+#print axioms typedModule_equivalent_raw
+#print axioms typedModule_equivalent_checked
+#print axioms ResolvedExport.equivalent_pure
 #print axioms typedInstance_may_iff
 #print axioms session_finishes_iff
