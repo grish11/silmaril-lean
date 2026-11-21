@@ -1314,6 +1314,28 @@ theorem AllocatorMark.classified_worker_tail {callees : List (ComponentCall.Call
           (checkTrace ++ added) (canonTrace ++ added) left right reached) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyAllocatorTail tracked paired run
 
+open ReturnFrame.Occurrence in
+/-- Accumulate the enclosing traversal's occurrences and the new allocator
+mark through the same reached worker cut. A save, switch, or loss is traced
+as such; the cut does not require either occurrence to return. -/
+theorem ComparedAllocatorPaths.classified_worker_tail {callees : List (ComponentCall.Callee sig)}
+    {checkEntry canonEntry leftStart rightStart : Config (core3 grow) (HostState sig)}
+    {checkTrace canonTrace seen : Trace grow sig} {offset : Nat}
+    {mark : Option Location} {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (enclosing : ComparedAllocatorPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      leftStart rightStart seen start incoming offset)
+    (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ClassifiedWorkerTail profile ready bindings callees (ReturnFrame.Extend older first second) start incoming labels finish
+      (fun added left right => (∃ reached,
+        AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
+          (checkTrace ++ added) (canonTrace ++ added) left right reached) ∧
+        ComparedAllocatorPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+          leftStart rightStart (seen ++ PayloadPrefix.visible added) left right offset) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyEnclosingAllocatorTail tracked enclosing paired run
+
 /-- Execute the intervening delivery on the reached journals and classify
 the next Core cut. The next selector runs against the updated journals; an
 event may have been consumed or replaced before that selector is reached. -/

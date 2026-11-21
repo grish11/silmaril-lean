@@ -487,6 +487,47 @@ theorem appendComparedPaths {leftStart rightStart left right lhs rhs : Config (c
     (List.filter_append ..).trans (congrArg₂ List.append checkSeen leftSeen),
     (List.filter_append ..).trans (congrArg₂ List.append canonSeen rightSeen), same⟩
 
+theorem appendAllocatorPaths {leftStart rightStart left right lhs rhs : Config (core3 grow) (HostState sig)}
+    {before after : Trace grow sig} {offset : Nat}
+    (leading : ComparedSlots profile ready base bindings leftStart rightStart before left right offset)
+    (trailing : ComparedAllocatorPaths profile ready base bindings left right after lhs rhs) :
+    ComparedAllocatorPaths profile ready base bindings leftStart rightStart (before ++ after) lhs rhs offset := by
+  obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
+  obtain ⟨leftLabels, rightLabels, movement, leftSeen, rightSeen, same⟩ := trailing
+  refine ⟨checkLabels ++ leftLabels, canonLabels ++ rightLabels, ?_,
+    (List.filter_append ..).trans (congrArg₂ List.append checkSeen leftSeen),
+    (List.filter_append ..).trans (congrArg₂ List.append canonSeen rightSeen), same⟩
+  intro depth
+  obtain ⟨reached, leftTrail, rightTrail⟩ := movement depth
+  exact ⟨reached, (checkTracks depth).toTrail.append leftTrail, (canonTracks depth).toTrail.append rightTrail⟩
+
+theorem allocatorPaths {left right checkEntry canonEntry : Config (core3 grow) (HostState sig)}
+    {checkFront canonFront checkLabels canonLabels observed : Trace grow sig} {mark : Option Location}
+    (installedCheck : ∀ depth, Prefix profile ready (specDispatch ready base) left (.active 0 depth) checkFront
+      checkEntry (.active 0 (depth + 1)))
+    (installedCanon : ∀ depth, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right
+      (.active 0 depth) canonFront canonEntry (.active 0 (depth + 1)))
+    (tracked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels finish incoming mark)
+    (checkSeen : PayloadPrefix.visible (checkFront ++ checkLabels) = observed)
+    (canonSeen : PayloadPrefix.visible (canonFront ++ canonLabels) = observed) (same : finish.store = incoming.store) :
+    ComparedAllocatorPaths profile ready base bindings left right observed finish incoming := by
+  refine ⟨_, _, ?_, checkSeen, canonSeen, same⟩
+  intro depth
+  obtain ⟨reached, leftTrail, rightTrail⟩ := tracked.movement (some (.active 0 (depth + 1)))
+  exact ⟨reached, (installedCheck depth).toTrail.append leftTrail, (installedCanon depth).toTrail.append rightTrail⟩
+
+theorem allocatorSteps {left right : Config (core3 grow) (HostState sig)} {offset : Nat}
+    (paths : ComparedAllocatorPaths profile ready base bindings left right seen finish incoming offset) :
+    ComparedPaths profile ready base bindings left right seen finish incoming := by
+  have run {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))} {left right front back labels}
+      (trail : Trail profile ready dispatch left front labels right back) : Steps profile ready dispatch left labels right := by
+    induction trail with
+    | done => exact .refl _
+    | step step _ ih => exact .cons step ih
+  obtain ⟨checkLabels, canonLabels, movement, lhs, rhs, same⟩ := paths
+  obtain ⟨_, checked, canonical⟩ := movement 0
+  exact ⟨checkLabels, canonLabels, run checked, run canonical, lhs, rhs, same⟩
+
 theorem visibleLeaf {Result : Type} {outcome : Except TrapReason Result} {labels : Trace grow sig}
     (classified : LocalLeafLabels outcome labels) :
     PayloadPrefix.visible labels = (match outcome with | .ok _ => [] | .error reason => [.trap reason]) := by
@@ -591,11 +632,14 @@ theorem stringPaths {cx : LiftLowerContext (core3 grow)}
       | done pointer => exact ⟨reached, next pointer _ _ _ _ seen matched reached⟩
       | call ptr oldSize alignment size rest shorter =>
         intro observed reachedCall path
-        obtain ⟨checkLabels, canonLabels, reference, mark, lhs, rhs, checkSeen, canonSeen, paired,
+        obtain ⟨checkLabels, canonLabels, reference, mark, _, _, checkSeen, canonSeen, paired,
           _, _, _, marked, returning⟩ := matched path
         have sameStore := HostFrame.Related.Paired.data paired |>.1
-        refine ⟨checkLabels, canonLabels, reference, mark, marked, paired, appendComparedPaths reached
-          ⟨_, _, lhs, rhs, checkSeen, canonSeen, sameStore⟩, ?_⟩
+        have live := allocatorPaths
+          (stringInstallTracks _ cx ptr oldSize alignment size rest checkNext _ check rfl)
+          (stringInstallTracks _ cx ptr oldSize alignment size rest canonNext _ canon rfl)
+          marked checkSeen canonSeen sameStore
+        refine ⟨checkLabels, canonLabels, reference, mark, marked, paired, appendAllocatorPaths reached live, ?_⟩
         intro value cursor atMark focus
         obtain ⟨peer, checked, canonical, tail⟩ := returning value cursor atMark focus
         have checkPopped : PayloadPrefix.visible (.tau :: checkLabels ++ [.tau]) = observed := by

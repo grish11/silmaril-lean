@@ -166,19 +166,19 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
     generalize reached.host = observer at paired
     cases paired
     rfl
-  refine ⟨lhs, rhs, reached, mark, marked, paired,
-    CallbackPrefix.appendComparedPaths leading ⟨_, _, checkRun, canonRun, checkObserved, canonObserved, sameStore⟩, ?_⟩
-  intro pointer cursor atTop returning
-  subst mark
-  have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
-    checkNext canonNext marked paired returning (frame.store ▸ width) growth
-  have ⟨peer, capacity, liveWidth, liveSize, frameAtReturn, outcomes⟩ := cut
   have leftInstall := fun depth => (PayloadPrefix.collection_install_tracks (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) destination inst type element entries output index start incoming check canon
     checkNext canonNext width prepared checkAt canonAt depth).1
   have rightInstall := fun depth => (PayloadPrefix.collection_install_tracks (profile := profile) (ready := ready)
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) destination inst type element entries output index
     start incoming check canon checkNext canonNext width prepared checkAt canonAt depth).2
+  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading
+    (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), ?_⟩
+  intro pointer cursor atTop returning
+  subst mark
+  have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
+    checkNext canonNext marked paired returning (frame.store ▸ width) growth
+  have ⟨peer, capacity, liveWidth, liveSize, frameAtReturn, outcomes⟩ := cut
   have slotsAfter {left right : Config (core3 grow) (HostState sig)} {checkTail canonTail : Trace grow sig}
       (checkTau : ∀ label ∈ checkTail, label = .tau) (canonTau : ∀ label ∈ canonTail, label = .tau)
       (checkTracks : RetainsBelowTop profile ready (specDispatch ready base) finish checkTail left)
@@ -3464,7 +3464,7 @@ private theorem liftLinkedCollectionFailures {route : GiveEffectRoute} (site : P
   intro area mode first second checkedEntry canonEntry seen checked callback
   obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, returns⟩ := paths callback
   refine ⟨lhs, rhs, canonical, mark, marked, ?_, ?_⟩
-  · simpa only [List.nil_append] using compared
+  · simpa only [List.nil_append] using CallbackPrefix.allocatorSteps compared
   intro pointer cursor active returned
   obtain ⟨range, _, _⟩ := returns pointer cursor active returned
   have initial : Record.prepare site.checked.store site.checked.host.writer (Field.listObjects entries) = .ok () := by

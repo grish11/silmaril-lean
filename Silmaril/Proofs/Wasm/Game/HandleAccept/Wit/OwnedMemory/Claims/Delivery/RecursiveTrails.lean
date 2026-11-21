@@ -71,7 +71,7 @@ theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type 
       left right check canon path start incoming seen offset sink := by
   intro suffix finish steps
   obtain ⟨lhs, rhs, reached, mark, marked, paired, compared, returns⟩ := run steps
-  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendComparedPaths leading compared, ?_⟩
+  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading compared, ?_⟩
   intro pointer cursor top returning
   obtain ⟨range, failed, children⟩ := returns pointer cursor top returning
   refine ⟨range, rangePathsFrom covers admitted leading failed, ?_⟩

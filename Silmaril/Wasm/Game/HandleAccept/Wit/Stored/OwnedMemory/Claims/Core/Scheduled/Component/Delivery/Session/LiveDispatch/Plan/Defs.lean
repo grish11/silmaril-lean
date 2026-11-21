@@ -159,6 +159,22 @@ def ComparedSlots (profile : ProfileKind) (ready : HostReady (HostState sig))
       rightStart (.active 0 (depth + offset)) canonLabels right (.active 0 depth)) ∧
     PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen
 
+/-- A finite allocation endpoint preserves the trajectory of every enclosing
+active occurrence from traversal entry, not just the latest installed frame.
+After installation an enclosing occurrence can move to a saved slot or be
+lost; neither outcome is an allocator return. -/
+def ComparedAllocatorPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (leftStart rightStart : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) (offset : Nat := 0) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∃ checkLabels canonLabels,
+    (∀ depth, ∃ reached,
+      Trail profile ready (specDispatch ready base) leftStart (some (.active 0 (depth + offset))) checkLabels left reached ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        rightStart (some (.active 0 (depth + offset))) canonLabels right reached) ∧
+    PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧ left.store = right.store
+
 /-- A continuation receives the visible history at its actual reached pair. -/
 abbrev TrailFinish (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
   Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig
@@ -310,7 +326,7 @@ def LiveStringPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
         ∃ checkLabels canonLabels reference mark,
           AllocatorMark profile ready base bindings older firstEntry secondEntry checkLabels canonLabels reached reference mark ∧
           HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached reference ∧
-          ComparedPaths profile ready base bindings leftStart rightStart (seen ++ observed) reached reference ∧
+          ComparedAllocatorPaths profile ready base bindings leftStart rightStart (seen ++ observed) reached reference offset ∧
           ∀ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)), mark = some (.active 0 0) →
             reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat value)) →
             ∃ peer : Cursor (E := core3 grow) (HostState sig),
@@ -434,7 +450,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
     ∃ checkLabels canonLabels reached mark,
       AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
-      ComparedPaths profile ready base bindings leftStart rightStart (leading ++ seen) finish reached ∧
+      ComparedAllocatorPaths profile ready base bindings leftStart rightStart (leading ++ seen) finish reached offset ∧
       ∀ pointer cursor, mark = some (.active 0 0) →
         finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
         CollectionRangeCut profile ready base bindings older finish reached cursor destination area entries.length pointer

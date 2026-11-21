@@ -1047,14 +1047,30 @@ theorem classifyWithOccurrence {callees : List (ComponentCall.Callee sig)} {mark
 
 private theorem mapWorkerTrack {callees : List (ComponentCall.Callee sig)} {track next}
     (path : ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish track)
-    (carry : ∀ trace left right, track trace left right → next trace left right) :
+    (carry : ∀ trace left right, HostFrame.Related.Paired older left right → track trace left right → next trace left right) :
     ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish next := by
   cases path with
-  | complete live paired trail => exact .complete live paired (carry _ _ _ trail)
+  | complete live paired trail => exact .complete live paired (carry _ _ _ paired trail)
   | request split checked live paired trail install cut tail =>
-    exact .request split checked live paired (carry _ _ _ trail) install cut tail
+    exact .request split checked live paired (carry _ _ _ paired trail) install cut tail
   | boundary split checked live paired trail cut lhs rhs tail =>
-    exact .boundary split checked live paired (carry _ _ _ trail) cut lhs rhs tail
+    exact .boundary split checked live paired (carry _ _ _ paired trail) cut lhs rhs tail
+
+open ReturnFrame.Occurrence in
+private theorem extendMark {callees : List (ComponentCall.Callee sig)}
+    {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {mark : Option Location} {added : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
+    (tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (trails : WorkerOccurrencePrefix profile ready bindings callees older start incoming mark added left right) :
+    ∃ reached, AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
+      (checkTrace ++ added) (canonTrace ++ added) left right reached := by
+  obtain ⟨reached, checked, live, outside, movement⟩ := trails
+  refine ⟨reached, outside, tracked.checkedTrail.append checked, tracked.canonicalTrail.append live, ?_⟩
+  intro cursor
+  obtain ⟨middle, checkFront, canonFront⟩ := tracked.movement cursor
+  obtain ⟨target, checkTail, canonTail⟩ := movement middle
+  exact ⟨target, checkFront.append checkTail, canonFront.append canonTail⟩
 
 open ReturnFrame.Occurrence in
 theorem classifyAllocatorTail {callees : List (ComponentCall.Callee sig)}
@@ -1067,15 +1083,38 @@ theorem classifyAllocatorTail {callees : List (ComponentCall.Callee sig)}
     ClassifiedWorkerTail profile ready bindings callees (ReturnFrame.Extend older first second) start incoming labels finish
       (fun added left right => ∃ reached,
         AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
-          (checkTrace ++ added) (canonTrace ++ added) left right reached) := by
+          (checkTrace ++ added) (canonTrace ++ added) left right reached) :=
+  mapWorkerTrack (classifyWithOccurrence run paired tracked.outside) (fun _ _ _ _ => extendMark tracked)
+
+open ReturnFrame.Occurrence in
+theorem classifyEnclosingAllocatorTail {callees : List (ComponentCall.Callee sig)}
+    {checkEntry canonEntry leftStart rightStart : Config (core3 grow) (HostState sig)}
+    {checkTrace canonTrace seen : Trace grow sig} {offset : Nat}
+    {mark : Option Location} {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (enclosing : ComparedAllocatorPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      leftStart rightStart seen start incoming offset)
+    (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ClassifiedWorkerTail profile ready bindings callees (ReturnFrame.Extend older first second) start incoming labels finish
+      (fun added left right => (∃ reached,
+        AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
+          (checkTrace ++ added) (canonTrace ++ added) left right reached) ∧
+        ComparedAllocatorPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+          leftStart rightStart (seen ++ PayloadPrefix.visible added) left right offset) := by
   refine mapWorkerTrack (classifyWithOccurrence run paired tracked.outside) ?_
-  intro _ _ _ trails
-  obtain ⟨reached, checked, live, outside, movement⟩ := trails
-  refine ⟨reached, outside, tracked.checkedTrail.append checked, tracked.canonicalTrail.append live, ?_⟩
-  intro cursor
-  obtain ⟨middle, checkFront, canonFront⟩ := tracked.movement cursor
-  obtain ⟨target, checkTail, canonTail⟩ := movement middle
-  exact ⟨target, checkFront.append checkTail, canonFront.append canonTail⟩
+  intro added left right aligned trails
+  refine ⟨extendMark tracked trails, ?_⟩
+  obtain ⟨checkLeading, canonLeading, front, checkSeen, canonSeen, _⟩ := enclosing
+  obtain ⟨_, _, _, _, back⟩ := trails
+  refine ⟨checkLeading ++ added, canonLeading ++ added, ?_,
+    (visibleAppend ..).trans (congrArg (· ++ PayloadPrefix.visible added) checkSeen),
+    (visibleAppend ..).trans (congrArg (· ++ PayloadPrefix.visible added) canonSeen), (HostFrame.Related.Paired.data aligned).1⟩
+  intro depth
+  obtain ⟨middle, leftFront, rightFront⟩ := front depth
+  obtain ⟨reached, leftBack, rightBack⟩ := back middle
+  exact ⟨reached, leftFront.append leftBack, rightFront.append rightBack⟩
 
 theorem classifyAfterDelivery {callees : List (ComponentCall.Callee sig)}
     (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)
