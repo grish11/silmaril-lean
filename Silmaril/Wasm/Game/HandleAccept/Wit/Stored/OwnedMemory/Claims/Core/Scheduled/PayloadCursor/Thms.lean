@@ -93,6 +93,25 @@ theorem RecordDestination.listRange_body (destination : RecordDestination) (inst
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_body
     destination inst area count pointer store host thread
 
+/-- The real allocator pop tracks every active and saved occurrence through the
+live range check. Only a reached trap clears the remaining active occurrences. -/
+theorem RecordDestination.listRange_resume_tracks (destination : RecordDestination) (inst : InstId) (area : Layout)
+    (count pointer : Nat) (finish : Nat → P (core3 grow) Host (Ret (core3 grow)))
+    (resume : Ret (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
+    (resumes : resume (.nat pointer) = (validateListRange (destination.context inst) area count pointer >>= finish))
+    {thread segments rest}
+    (returned : after.ctl = ⟨thread, .prog (.pure (.nat pointer)), .prog resume :: segments⟩ :: rest) :
+    let body := validateListRange (destination.context inst) area count pointer
+    match (Plain.runBody body after.store after.host (some thread)).2.2 with
+    | .ok value => ∃ labels, (∀ label ∈ labels, label = .tau) ∧
+        RangeReturnTrails profile ready dispatch after labels
+          { after with ctl := ⟨thread, .prog (finish value), segments⟩ :: rest }
+    | .error (.trapped reason) => ∃ count, RangeReturnTrails profile ready dispatch after
+        (List.replicate count .tau ++ [.trap reason]) (Machine.StepDefs.trapCfg after) true
+    | .error _ => False :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_resume
+    destination inst area count pointer finish resume resumes returned
+
 /-- From a reached allocator return, the actual scheduler resumes the range
 check. It either reaches the continuation with the callback's store and host
 still in place or traps from that reached state without running the continuation. -/
@@ -110,7 +129,7 @@ theorem RecordDestination.listRange_resume (destination : RecordDestination) (in
     | .error (.trapped reason) => ∃ count, Machine.Steps profile ready dispatch after
         (List.replicate count .tau ++ [.trap reason]) (Machine.StepDefs.trapCfg after)
     | .error _ => False :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_resume
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_resume_retains
     destination inst area count pointer finish resume resumes returned
 
 /-- A valid allocator return reaches the live checked collection plan. The
@@ -118,6 +137,28 @@ check reads the allocator's reached store and writer without updating either.
 The continuation receives a fresh result even when the dry run before realloc
 succeeded. A refusal branch can therefore stop before any element or descriptor
 write without losing an earlier transfer or callback effect. -/
+theorem RecordDestination.listRange_recheck_tracks {sig : Stored.Signature} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (reached : Machine.Config (core3 grow) (HostState sig)) (destination : RecordDestination)
+    (inst : InstId) (area : Layout) (count pointer : Nat) (plan : List Object)
+    (finish : Nat → Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (resume : Ret (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (resumes : resume (.nat pointer) = (do
+      let address ← validateListRange (destination.context inst) area count pointer
+      let verdict ← (Record.authority recordClaims Limits.spec (destination.context inst)).prepare plan
+      finish address verdict))
+    {thread segments rest}
+    (returned : reached.ctl = ⟨thread, .prog (.pure (.nat pointer)), .prog resume :: segments⟩ :: rest)
+    (aligned : pointer = alignTo pointer area.alignment) {bytes : Nat}
+    (sized : (core3 grow).memSize? reached.store.core destination.memory = some bytes)
+    (bounds : pointer + count * area.size ≤ bytes) :
+    ∃ labels, (∀ label ∈ labels, label = .tau) ∧
+      RangeReturnTrails profile ready dispatch reached labels
+        { reached with ctl := ⟨thread, .prog (finish pointer
+          (Record.prepare reached.store reached.host.writer plan)), segments⟩ :: rest } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_recheck
+    reached destination inst area count pointer plan finish resume resumes returned aligned sized bounds
+
 theorem RecordDestination.listRange_recheck {sig : Stored.Signature} {ready : HostReady (HostState sig)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (reached : Machine.Config (core3 grow) (HostState sig)) (destination : RecordDestination)
@@ -136,9 +177,9 @@ theorem RecordDestination.listRange_recheck {sig : Stored.Signature} {ready : Ho
     ∃ labels, (∀ label ∈ labels, label = .tau) ∧
       RetainsBelowTop profile ready dispatch reached labels
         { reached with ctl := ⟨thread, .prog (finish pointer
-          (Record.prepare reached.store reached.host.writer plan)), segments⟩ :: rest } :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_recheck
-    reached destination inst area count pointer plan finish resume resumes returned aligned sized bounds
+          (Record.prepare reached.store reached.host.writer plan)), segments⟩ :: rest } := by
+  obtain ⟨labels, silent, tracks⟩ := destination.listRange_recheck_tracks reached inst area count pointer plan finish resume resumes returned aligned sized bounds
+  exact ⟨labels, silent, Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.range_return_retains tracks⟩
 
 /-- Start the shared memory/flat emitter from its successful compilation. The
 canonical value, recursive layout, and ordered receipts all refer to the very

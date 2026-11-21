@@ -136,6 +136,55 @@ theorem body_steps_at {E : CoreEngine} {Host Result : Type} (body : P E Host Res
     profile ready dispatch focused activation matchesThread success
   exact ⟨labels, silent, (Machine.ReturnFrame.Occurrence.prefix_survives (tracking (.active 0 0))).1⟩
 
+open Machine.ReturnFrame.Occurrence in
+theorem body_trap_tracks {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+    (start : Machine.Config E Host) (updated : CStore E) (host : Host) (reason : TrapReason)
+    (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
+    (segs : List (Machine.Seg E Host)) (rest : List (Machine.Activation E Host))
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
+    (failed : Plain.runBody body start.store start.host (some thread) = (updated, host, .error (.trapped reason))) :
+    ∃ count, ∀ mark, Trail profile ready dispatch start mark (List.replicate count .tau ++ [.trap reason])
+      (Machine.StepDefs.trapCfg { start with store := updated, host }) (mark.bind (Edit.clear : Edit E Host).follow) := by
+  have prepend {before middle ended : Machine.Config E Host} {labels : List (Machine.Label E Host)}
+      (step : Machine.Step profile ready dispatch before .tau middle) (same : transitionEdit before .tau = .same)
+      {mark reached : Option Location} (tail : Trail profile ready dispatch middle mark labels ended reached) :
+      Trail profile ready dispatch before mark (.tau :: labels) ended reached := by
+    refine .step (mark := mark) step ?_
+    rw [same]
+    cases mark with
+    | none => exact tail
+    | some _ => exact tail
+  induction body generalizing start with
+  | pure _ => cases failed
+  | op op next ih =>
+    cases op <;> simp only [Plain.runBody] at failed
+    case get =>
+      obtain ⟨count, tail⟩ := ih start.store
+        { start with ctl := ⟨thread, .prog (next start.store >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.get focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case modify update =>
+      obtain ⟨count, tail⟩ := ih ()
+        { start with store := update start.store, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
+        rfl failed
+      exact ⟨count + 1, fun mark => prepend (.modify focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case hostGet =>
+      obtain ⟨count, tail⟩ := ih start.host
+        { start with ctl := ⟨thread, .prog (next start.host >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.hostGet focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case hostSet newHost =>
+      obtain ⟨count, tail⟩ := ih ()
+        { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.hostSet focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case currentThread =>
+      obtain ⟨count, tail⟩ := ih thread
+        { start with ctl := ⟨thread, .prog (next thread >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.currentThread focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case trap actual =>
+      cases failed
+      exact ⟨0, fun _ => .step (.trap focused) (.done _ _)⟩
+    all_goals cases failed
+
 theorem body_trap_steps {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     (start : Machine.Config E Host) (updated : CStore E) (host : Host) (reason : TrapReason)
     (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
@@ -145,35 +194,8 @@ theorem body_trap_steps {E : CoreEngine} {Host Result : Type} (body : P E Host R
     (failed : Plain.runBody body start.store start.host (some thread) = (updated, host, .error (.trapped reason))) :
     ∃ count, Machine.Steps profile ready dispatch start (List.replicate count .tau ++ [.trap reason])
       (Machine.StepDefs.trapCfg { start with store := updated, host }) := by
-  induction body generalizing start with
-  | pure _ => cases failed
-  | op op next ih =>
-    cases op <;> simp only [Plain.runBody] at failed
-    case get =>
-      obtain ⟨count, tail⟩ := ih start.store
-        { start with ctl := ⟨thread, .prog (next start.store >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.get focused) tail⟩
-    case modify update =>
-      obtain ⟨count, tail⟩ := ih ()
-        { start with store := update start.store, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
-        rfl failed
-      exact ⟨count + 1, .cons (.modify focused) tail⟩
-    case hostGet =>
-      obtain ⟨count, tail⟩ := ih start.host
-        { start with ctl := ⟨thread, .prog (next start.host >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.hostGet focused) tail⟩
-    case hostSet newHost =>
-      obtain ⟨count, tail⟩ := ih ()
-        { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.hostSet focused) tail⟩
-    case currentThread =>
-      obtain ⟨count, tail⟩ := ih thread
-        { start with ctl := ⟨thread, .prog (next thread >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.currentThread focused) tail⟩
-    case trap actual =>
-      cases failed
-      exact ⟨0, .cons (.trap focused) (.refl _)⟩
-    all_goals cases failed
+  obtain ⟨count, trails⟩ := body_trap_tracks body start updated host reason finish thread segs rest profile ready dispatch focused failed
+  exact ⟨count, Machine.ReturnFrame.Occurrence.Trail.steps (trails none)⟩
 
 private theorem read_thread {E : CoreEngine} {Host Result : Type}
     (next : Option ThreadId → P E Host Result) (store : CStore E) (host : Host)

@@ -92,6 +92,21 @@ theorem runBody_thread_tracks {E : CoreEngine} {Host Result : Type} (body : P E 
   obtain ⟨labels, silent, tracks⟩ := runBody_thread_tracks_all body start updated host result finish thread segs rest profile ready dispatch focused success
   exact ⟨labels, silent, fun depth => tracks (.active 0 depth)⟩
 
+open Machine.ReturnFrame.Occurrence in
+/-- Local evaluation preserves occurrence coordinates until the actual trap
+clears active storage. Its saved occurrences and reached effects remain. -/
+theorem runBody_trap_tracks {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+    (start : Machine.Config E Host) (updated : CStore E) (host : Host) (reason : TrapReason)
+    (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
+    (segs : List (Machine.Seg E Host)) (rest : List (Machine.Activation E Host))
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
+    (failed : runBody body start.store start.host (some thread) = (updated, host, .error (.trapped reason))) :
+    ∃ count, ∀ mark, Trail profile ready dispatch start mark (List.replicate count .tau ++ [.trap reason])
+      (Machine.StepDefs.trapCfg { start with store := updated, host }) (mark.bind (Edit.clear : Edit E Host).follow) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.body_trap_tracks
+    body start updated host reason finish thread segs rest profile ready dispatch focused failed
+
 /-- A canonical trap in a non-suspending body locks down the reached store, not
 the entry store. Earlier host effects survive, and no continuation is resumed.
 Interpreter capability errors are not canonical traps. -/
