@@ -744,7 +744,7 @@ theorem local_map_key_then_between {reference : Call (core3 grow) → Session gr
     (growth : Core3.Grows origin.core right.store.core) (same : left.store = right.store)
     (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
     (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (refFollowing : Unit → Session grow sig (Ret (core3 grow))) :
+    (refFollowing : Unit → Session grow sig (Ret (core3 grow))) (trackOccurrences : Bool := false) :
     let cx := destination.context inst
     let type : TypeOf := .record (mapEntryFields key element)
     let addr := base + index * (layout destination.width type).size
@@ -759,10 +759,10 @@ theorem local_map_key_then_between {reference : Call (core3 grow) → Session gr
       (fun store => Core3.Grows origin.core store.core) left right check canon
       (fun (_ : Unit) => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr) >>=
         fun result => checkNext (result.mapError (.nested issueIndex)))
-      refFollowing :=
+      refFollowing trackOccurrences :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localMapKeyThen
     destination inst key element keyData keyPayload valField origin base bytes count index width sized aligned bounds entry
-    issueIndex left right growth same check canon thread checkNext refFollowing
+    issueIndex left right growth same check canon thread checkNext refFollowing trackOccurrences
 
 theorem local_data_map_objects {key : WIT.KeyType} {element : TypeOf} {entries : List Field}
     (data : LocalDataType element)

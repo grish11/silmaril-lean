@@ -2265,15 +2265,16 @@ private theorem localDataAt {reference : Call (core3 grow) → Session grow sig 
     (payload : Payload type) (index pointer : Nat) (origin : CStore (core3 grow))
     (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
     (placed : ptrTypeIn right.store (destination.context inst) = destination.width ∧
-      placement destination right.store (layout destination.width type) pointer = .ok ()) :
+      placement destination right.store (layout destination.width type) pointer = .ok ()) (trackOccurrences : Bool := false) :
     CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference
       (fun store => Core3.Grows origin.core store.core) left right
       (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
         (.data type payload) index (.memory pointer))
-      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width (.data type payload) (.memory pointer)) := by
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width (.data type payload) (.memory pointer))
+      trackOccurrences := by
   intro same
   exact localDataLeafFrameBetween destination inst type data payload index (.memory pointer) origin left right growth
-    (same ▸ placed.1) (same ▸ placed.2) (trackOccurrences := false) same
+    (same ▸ placed.1) (same ▸ placed.2) (trackOccurrences := trackOccurrences) same
 
 theorem mapKeyPlacement
     (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
@@ -2363,7 +2364,7 @@ theorem localMapKeyThen {reference : Call (core3 grow) → Session grow sig (Ret
     (growth : Core3.Grows origin.core right.store.core) (same : left.store = right.store)
     (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
     (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (refFollowing : Unit → Session grow sig (Ret (core3 grow))) :
+    (refFollowing : Unit → Session grow sig (Ret (core3 grow))) (trackOccurrences : Bool := false) :
     let cx := destination.context inst
     let type : TypeOf := .record (mapEntryFields key element)
     let addr := base + index * (layout destination.width type).size
@@ -2378,7 +2379,7 @@ theorem localMapKeyThen {reference : Call (core3 grow) → Session grow sig (Ret
       (fun store => Core3.Grows origin.core store.core) left right check canon
       (fun (_ : Unit) => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr) >>=
         fun result => checkNext (result.mapError (.nested issueIndex)))
-      refFollowing := by
+      refFollowing trackOccurrences := by
   intro cx type addr keyArea keyPtr valPtr keyField checkAt canonAt
   let following := fun verdict : Except RecordLower.Issue Unit => (match verdict with
     | .error issue => pure (.error issue)
@@ -2392,9 +2393,8 @@ theorem localMapKeyThen {reference : Call (core3 grow) → Session grow sig (Ret
   obtain ⟨typed, keyPlaced, _⟩ := mapEntryPlacement destination inst key element growth width sized aligned bounds entry
   have first := localDataAt (reference := reference) (profile := profile) (scheduledReady := scheduledReady)
     (scheduledDispatch := scheduledDispatch) destination inst (.prim key.toPrimitive) keyData keyPayload 0 keyPtr origin entered
-    right growth ⟨typed, keyPlaced⟩ same check canon thread following refFollowing rfl canonAt
-  apply prependLocalCut (fun depth => guard (.active 0 depth)) rfl
-  exact first
+    right growth ⟨typed, keyPlaced⟩ true same check canon thread following refFollowing rfl canonAt
+  exact prependLocalOccurrenceCut guard rfl first trackOccurrences
 
 private theorem localMapEntry {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
@@ -2425,7 +2425,7 @@ private theorem localMapEntry {reference : Call (core3 grow) → Session grow si
   have first := localMapKeyThen (profile := profile) (scheduledReady := scheduledReady) (scheduledDispatch := scheduledDispatch)
     (reference := reference) destination inst key element keyData keyPayload valField origin base bytes count index width sized aligned bounds
     entry index left right growth same check canon thread checkNext
-    (fun _ => CanonicalTree.field Limits.spec Quirks.none cx destination.width valField (.memory valPtr) >>= canonNext)
+    (fun _ => CanonicalTree.field Limits.spec Quirks.none cx destination.width valField (.memory valPtr) >>= canonNext) false
     checkAt (by
       let keyBody : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width keyField (.memory keyPtr)
       let valueBody : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width valField (.memory valPtr)
@@ -2439,7 +2439,7 @@ private theorem localMapEntry {reference : Call (core3 grow) → Session grow si
         valField 1 (.memory valPtr) >>= fun result => checkNext (result.mapError (.nested index))) }
     { right with store, ctl := canon.control (CanonicalTree.field Limits.spec Quirks.none cx destination.width
         valField (.memory valPtr) >>= canonNext) }
-    grown ⟨typed, valuePlaced⟩ rfl check canon thread (fun result => checkNext (result.mapError (.nested index))) canonNext rfl rfl
+    grown ⟨typed, valuePlaced⟩ false rfl check canon thread (fun result => checkNext (result.mapError (.nested index))) canonNext rfl rfl
 
 private theorem localMapElements {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)

@@ -558,6 +558,16 @@ theorem appendComparedOccurrences {leftStart rightStart left right lhs rhs : Con
   obtain ⟨reached, leftTrail, rightTrail⟩ := afterPaths middle
   exact ⟨reached, checkTrail.append leftTrail, canonTrail.append rightTrail⟩
 
+theorem appendQuietCanonicalRead {leftStart rightStart left right reached : Config (core3 grow) (HostState sig)}
+    {seen labels : Trace grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right)
+    (tracks : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place labels reached place)
+    (quiet : PayloadPrefix.visible labels = []) (same : left.store = reached.store) :
+    ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left reached := by
+  have result := appendComparedOccurrences (after := []) leading
+    ⟨[], labels, fun mark => ⟨mark, .done _ _, unchangedTrail tracks mark⟩, rfl, quiet, same⟩
+  simpa only [List.append_nil] using result
+
 theorem appendComparedPaths {leftStart rightStart left right lhs rhs : Config (core3 grow) (HostState sig)}
     {before after : Trace grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings leftStart rightStart before left right offset)
@@ -1356,7 +1366,7 @@ theorem stringMapEntryPaths {destination : RecordDestination} {inst : InstId} {e
   obtain ⟨key, keyField, body⟩ := run
   refine ⟨key, keyField, stringValuePaths leading body ?_⟩
   intro pointer lhs rhs cursor peer observed descriptors path
-  obtain ⟨store, result, labels, kind, lhsRun, rhsRun, tail⟩ := descriptors
+  obtain ⟨store, result, labels, kind, lhsRun, rhsRun, _, tail⟩ := descriptors
   cases result with
   | error reason =>
     have trace : PayloadPrefix.visible labels = [.trap reason] := visibleLeaf kind
@@ -1366,8 +1376,43 @@ theorem stringMapEntryPaths {destination : RecordDestination} {inst : InstId} {e
     obtain ⟨lhsTrack, rhsTrack, widthRead, widthSilent, widthTrack, valueRun⟩ := tail
     have silent : PayloadPrefix.visible labels = [] := visibleLeaf kind
     have reached := appendComparedSlots path ⟨labels, labels ++ widthRead, lhsTrack,
-      fun depth => (rhsTrack depth).append (widthTrack depth), silent,
+      fun depth => (rhsTrack depth).append (widthTrack (.active 0 depth)), silent,
       (List.filter_append ..).trans (congrArg₂ List.append silent widthSilent)⟩
     exact .inr ⟨[], _, _, cursor, peer, reached, rfl, next _ _ _ _ _ _ reached rfl valueRun⟩
+
+theorem stringMapEntryOccurrences {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {output : Stored.Lower.Output} {field value : Field} {index slot : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {compare : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig} {sink : RefusalSink grow sig}
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming compare paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveStringMapEntryThen profile ready base bindings older destination inst element output
+      field value index slot compare checkNext canonNext finish left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    stringMapEntryOccurrencePaths profile ready base bindings older destination inst element output start incoming paths
+      field value index slot checkNext canonNext visit seen left right check canon := by
+  obtain ⟨key, keyField, body⟩ := run
+  refine ⟨key, keyField, stringValueOccurrencePaths leading body ?_⟩
+  intro pointer observed lhs rhs cursor peer descriptors history
+  obtain ⟨store, result, labels, kind, _, _, occurrences, tail⟩ := descriptors
+  cases result with
+  | error reason =>
+    have traps : PayloadPrefix.visible labels = [.trap reason] := visibleLeaf kind
+    exact .inl ⟨reason, [], _, _, appendComparedOccurrences history
+      ⟨labels, labels, occurrences, traps, traps, rfl⟩, rfl, rfl⟩
+  | ok result =>
+    cases result
+    obtain ⟨_, _, widthRead, widthSilent, widthTracks, valueRun⟩ := tail
+    have quiet : PayloadPrefix.visible labels = [] := visibleLeaf kind
+    have descriptorPath := appendComparedOccurrences (after := []) history
+      ⟨labels, labels, occurrences, quiet, quiet, rfl⟩
+    have reached := appendQuietCanonicalRead descriptorPath widthTracks widthSilent rfl
+    exact .inr ⟨[], _, _, cursor, peer, reached,
+      lift value 1 _ _ _ cursor peer _ canonNext finish visit _ valueRun reached rfl (sink.nested _ admitted index) next⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix

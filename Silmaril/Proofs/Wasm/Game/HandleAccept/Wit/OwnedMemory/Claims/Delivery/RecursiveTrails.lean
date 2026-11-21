@@ -239,8 +239,8 @@ theorem mapEntryPaths {destination : RecordDestination} {inst : InstId} {key : W
         lift value 1 address lhs rhs cursor peer _ canonNext finish visit observed body tracks same (sink.nested _ admitted index) next)
   · rename_i notString
     simp only [notString, ↓reduceIte]
-    obtain ⟨keyRead, keyQuiet, keyTracks, store, result, lhsLabels, rhsLabels, lhs, rhs, same, tail⟩ := run
-    have atKey := canonicalRead leading keyTracks keyQuiet
+    obtain ⟨keyRead, keyQuiet, keyTracks, store, result, lhsLabels, rhsLabels, lhs, rhs, same, _, tail⟩ := run
+    have atKey := canonicalRead leading (fun depth => keyTracks (.active 0 depth)) keyQuiet
     cases result with
     | error reason =>
       obtain ⟨before, trapped⟩ := tail
@@ -250,7 +250,7 @@ theorem mapEntryPaths {destination : RecordDestination} {inst : InstId} {key : W
       cases done
       obtain ⟨lhsTracks, rhsTracks, valueRead, valueQuiet, valueTracks, body⟩ := tail
       have atValue := canonicalRead (CallbackPrefix.appendComparedSlots atKey
-        ⟨lhsLabels, rhsLabels, lhsTracks, rhsTracks, rfl, same.symm⟩) valueTracks valueQuiet
+        ⟨lhsLabels, rhsLabels, lhsTracks, rhsTracks, rfl, same.symm⟩) (fun depth => valueTracks (.active 0 depth)) valueQuiet
       exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, atValue, rfl,
         lift value 1 _ _ _ check canon _ canonNext finish visit _ body atValue rfl (sink.nested _ admitted index) next⟩
 
@@ -458,6 +458,99 @@ theorem listOccurrencePaths {destination : RecordDestination} {inst : InstId} {e
   intro _ _ _ _ _ historyAtDescriptor _ published
   exact descriptorOccurrences historyAtDescriptor published next
 
+private theorem mapEntryOccurrences {destination : RecordDestination} {inst : InstId} {key : WIT.KeyType}
+    {element : Stored.TypeOf} {output : Stored.Lower.Output} {field value : Field} {index pointer : Nat}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : liveCollectionMapEntry profile ready base bindings older destination inst key element output field value index pointer
+      child checkNext canonNext finish left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    mapEntryOccurrencePaths profile ready base bindings older destination inst key element output start incoming paths
+      field value index pointer checkNext canonNext visit seen left right check canon := by
+  unfold liveCollectionMapEntry at run
+  unfold mapEntryOccurrencePaths
+  split at run
+  · rename_i stringKey
+    subst key
+    exact CallbackPrefix.stringMapEntryOccurrences lift leading run admitted next
+  · rename_i notString
+    simp only [notString, ↓reduceIte]
+    obtain ⟨_, keyQuiet, keyTracks, store, result, lhsLabels, rhsLabels, _, _, same, occurrences, tail⟩ := run
+    have shared : left.store = right.store := by
+      obtain ⟨_, _, _, _, _, shared⟩ := leading
+      exact shared
+    have atKey := CallbackPrefix.appendQuietCanonicalRead leading keyTracks keyQuiet shared
+    cases result with
+    | error reason =>
+      obtain ⟨prior, trapped⟩ := tail
+      exact .inl ⟨reason, prior, _, _, CallbackPrefix.appendComparedOccurrences atKey
+        ⟨lhsLabels, rhsLabels, occurrences, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+    | ok complete =>
+      cases complete
+      obtain ⟨_, _, _, valueQuiet, valueTracks, body⟩ := tail
+      have written := CallbackPrefix.appendComparedOccurrences (after := PayloadPrefix.visible lhsLabels) atKey
+        ⟨lhsLabels, rhsLabels, occurrences, rfl, same.symm, rfl⟩
+      have atValue := CallbackPrefix.appendQuietCanonicalRead written valueTracks valueQuiet rfl
+      exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, atValue,
+        lift value 1 _ _ _ check canon _ canonNext finish visit _ body atValue rfl (sink.nested _ admitted index) next⟩
+
+private theorem mapElementsOccurrences {destination : RecordDestination} {inst : InstId} {key : WIT.KeyType}
+    {element : Stored.TypeOf} {output : Stored.Lower.Output} {entries : List Field} {index pointer : Nat}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : liveMapElementsWith (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
+      destination inst key element output child checkNext canonNext finish entries index pointer left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveMapElementsPaths (mapEntryOccurrencePaths profile ready base bindings older destination inst key element output start incoming paths)
+      destination inst key element output checkNext canonNext visit entries index pointer seen left right check canon := by
+  induction entries generalizing index pointer seen left right check canon with
+  | nil => exact next seen left right check canon leading run
+  | cons item rest ih =>
+    obtain ⟨payload, value, shape, entry⟩ := run
+    exact ⟨payload, value, shape, mapEntryOccurrences lift leading entry admitted
+      (fun _ _ _ _ _ history _ tail => ih history tail)⟩
+
+theorem mapOccurrencePaths {destination : RecordDestination} {inst : InstId} {key : WIT.KeyType} {element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {finish : ValueFinish grow sig output} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst (.map key element)
+      (.record (ABI.mapEntryFields key element)) entries index output checkNext canonNext left right check canon
+      (fun pointer bytes _ => liveMapTailWith profile ready base bindings
+        (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
+        destination inst key element entries index output child checkNext canonNext finish pointer bytes))
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map key element)
+      (.record (ABI.mapEntryFields key element)) entries index output checkNext canonNext start incoming left right seen check canon
+      (liveMapTailPaths (mapEntryOccurrencePaths profile ready base bindings older destination inst key element output start incoming paths)
+        destination inst key element entries index output checkNext canonNext
+        (fun observed _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming observed visit)) sink := by
+  apply collectionEntryOccurrences covers admitted leading run
+  intro pointer bytes observed lhs rhs cursor peer history body
+  refine mapElementsOccurrences lift history body (sink.nested _ admitted index) ?_
+  intro _ _ _ _ _ atDescriptor published
+  exact descriptorOccurrences atDescriptor published next
+
 private theorem fixedOccurrencePaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
     {entries : List Field} {index address : Nat} {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
     {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
@@ -539,18 +632,24 @@ theorem structuralFieldOccurrences {destination : RecordDestination} {inst : Ins
       (liveCollectionField profile ready base bindings older destination inst type)
       (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink := by
   induction family with
-  | leaf leaf =>
-    have lifted := CallbackPrefix.leafOccurrenceLift (destination := destination) (inst := inst) (older := older) covers leaf
-    rcases leaf with nominal | data | rfl
-    · cases nominal <;> exact lifted
-    · cases data with
-      | @primitive primitive notString => cases primitive <;> exact lifted
-      | enum | flags => exact lifted
-    · exact lifted
+  | leaf nominal =>
+    have lifted := CallbackPrefix.leafOccurrenceLift (destination := destination) (inst := inst) (older := older) covers (.inl nominal)
+    cases nominal <;> exact lifted
+  | data data =>
+    have lifted := CallbackPrefix.leafOccurrenceLift (destination := destination) (inst := inst) (older := older) covers (.inr (.inl data))
+    cases data with
+    | @primitive primitive notString => cases primitive <;> exact lifted
+    | enum | flags => exact lifted
+  | string =>
+    exact CallbackPrefix.leafOccurrenceLift (destination := destination) (inst := inst) (older := older) covers (.inr (.inr rfl))
   | list _ child =>
     intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
     obtain ⟨entries, shape, body⟩ := run
     exact ⟨entries, shape, listOccurrencePaths covers child leading body admitted (fun () => next)⟩
+  | map _ child =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨entries, shape, body⟩ := run
+    exact ⟨entries, shape, mapOccurrencePaths covers child leading body admitted (fun () => next)⟩
   | fixed _ child =>
     intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
     obtain ⟨entries, shape, body⟩ := run

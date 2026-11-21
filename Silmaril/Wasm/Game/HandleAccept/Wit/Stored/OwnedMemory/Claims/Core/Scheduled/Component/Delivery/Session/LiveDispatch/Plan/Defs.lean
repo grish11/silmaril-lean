@@ -869,12 +869,13 @@ def LiveMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     let valCheck := fun () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width value 1 (.memory valPtr) >>= report
     let valCanon := fun () => mapValueProgram destination inst mode value afterKey canonNext
     let atKey := { right with ctl := canon.control (mapKeyBody destination inst slot mode key value canonNext destination.width) }
-    ∃ keyRead, visible keyRead = [] ∧ RetainsActiveSlots profile ready canonical right keyRead atKey ∧
+    ∃ keyRead, visible keyRead = [] ∧ (∀ place, Prefix profile ready canonical right place keyRead atKey place) ∧
     ∃ (store : CStore (core3 grow)) (result : Except TrapReason Unit) (checkLabels canonLabels : Trace grow sig),
       let lhs := localLeafEnd left left.host store check.thread check.frames check.rest valCheck result
       let rhs := localLeafEnd atKey right.host store canon.thread canon.frames canon.rest valCanon result
       Steps profile ready checked left checkLabels lhs ∧ LocalSteps profile ready canonical atKey canonLabels rhs ∧
       visible checkLabels = visible canonLabels ∧
+      CoupledOccurrencePaths profile ready base bindings left atKey checkLabels canonLabels lhs rhs ∧
       match result with
       | .error reason => ∃ leading, visible canonLabels = leading ++ [.trap reason]
       | .ok () =>
@@ -882,7 +883,7 @@ def LiveMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState sig))
           (.memory valPtr) >>= canonNext) }
         RetainsActiveSlots profile ready checked left checkLabels lhs ∧
         RetainsActiveSlots profile ready canonical atKey canonLabels rhs ∧
-        ∃ valueRead, visible valueRead = [] ∧ RetainsActiveSlots profile ready canonical rhs valueRead atValue ∧
+        ∃ valueRead, visible valueRead = [] ∧ (∀ place, Prefix profile ready canonical rhs place valueRead atValue place) ∧
           compare value 1 valPtr lhs atValue check canon report canonNext finish
 
 abbrev MapEntryComparison (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
@@ -1298,7 +1299,7 @@ abbrev StringKeyReplay (profile : ProfileKind) (ready : HostReady (HostState sig
       LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧ Core3.Grows origin.core lhs.store.core ∧
       PayloadPrefix.StringLocalCutBetween profile ready (specDispatch ready base)
         (specDispatch ready (LiveDispatch.host bindings base)) lhs rhs cursor peer
-        (fun result => checkNext (.ok result)) canonNext)
+        (fun result => checkNext (.ok result)) canonNext true)
 
 /-- A string-key plan may suspend. Its actual descriptor writes must finish
 before entering the value at the reached map slot. -/
@@ -1330,6 +1331,7 @@ def LiveStringMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState
             let canonEnd := localLeafEnd rhs rhs.host store peer.thread peer.frames peer.rest canonical result
             LocalLeafLabels result labels ∧ CoreGrowthSteps profile ready checkDispatch lhs labels checkEnd ∧
             CoreGrowthSteps profile ready canonDispatch rhs labels canonEnd ∧
+            CoupledOccurrencePaths profile ready base bindings lhs rhs labels labels checkEnd canonEnd ∧
             match result with
             | .error _ => True
             | .ok () =>
@@ -1337,7 +1339,7 @@ def LiveStringMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState
               RetainsActiveSlots profile ready canonDispatch rhs labels canonEnd ∧
               let atValue := { canonEnd with ctl := peer.control (CanonicalTree.field Limits.spec Quirks.none cx
                 destination.width value (.memory valuePtr) >>= canonNext) }
-              ∃ widthRead, visible widthRead = [] ∧ RetainsActiveSlots profile ready canonDispatch canonEnd widthRead atValue ∧
+              ∃ widthRead, visible widthRead = [] ∧ (∀ place, Prefix profile ready canonDispatch canonEnd place widthRead atValue place) ∧
                 compare value 1 valuePtr checkEnd atValue cursor peer report canonNext finish)
 
 /-- Track a string-key entry from the original caller pair through key
@@ -1383,6 +1385,47 @@ abbrev MapEntryTrail (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
   Stored.Endpoints.RecordLower.Field → Stored.Endpoints.RecordLower.Field → Nat → Nat →
     LinkedCallback.MemorySequence.CheckNext grow sig → LinkedCallback.MemorySequence.CanonNext grow sig →
     TrailFinish grow sig → TrailFinish grow sig
+
+/-- The string-key plan, real descriptor stores, and live value placement.
+The value visitor is entered only at the reached continuation. -/
+def stringMapEntryOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (element : Stored.TypeOf) (output : Stored.Lower.Output) (start incoming : Config (core3 grow) (HostState sig))
+    (child : TrailFieldComparison grow sig) : MapEntryTrail grow sig :=
+  open Stored.Endpoints.RecordLower ABI LinkedCallback.MemorySequence in
+  fun field value index slot checkNext canonNext finish before left right check canon =>
+    ∃ key : LinkedCallback.StringField, field = key.field ∧
+      let cx := destination.context inst
+      let mode := CanonicalTree.EntryMode.forOutput destination.width (.map .string element) output
+      let keyArea := layout destination.width key.field.type
+      let address := alignTo slot keyArea.alignment
+      let afterKey := address + keyArea.size
+      let valuePtr := alignTo afterKey (layout destination.width value.type).alignment
+      let report := aggregateNext index checkNext
+      let checked := fun verdict : Except Stored.Endpoints.RecordLower.Issue Unit => (match verdict with
+        | .error issue => pure (.error issue)
+        | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width value 1 (.memory valuePtr)) >>= report
+      let canonical := fun () => mapValueProgram destination inst mode value afterKey canonNext
+      StringValueOccurrencePaths profile ready base bindings older destination inst key (.memory address)
+        start incoming left right check canon checked canonical (fun _ observed _ _ _ _ =>
+          LocalOccurrenceThen profile ready base bindings start incoming observed
+            (child value 1 valuePtr report canonNext finish)) before
+
+def mapEntryOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (key : WIT.KeyType) (element : Stored.TypeOf) (output : Stored.Lower.Output)
+    (start incoming : Config (core3 grow) (HostState sig)) (child : TrailFieldComparison grow sig) : MapEntryTrail grow sig :=
+  if key = .string then
+    stringMapEntryOccurrencePaths profile ready base bindings older destination inst element output start incoming child
+  else
+    open ABI LinkedCallback.MemorySequence in
+    fun field value index slot checkNext canonNext finish before _ _ _ _ =>
+      let keyArea := layout destination.width field.type
+      let valuePtr := alignTo (alignTo slot keyArea.alignment + keyArea.size) (layout destination.width value.type).alignment
+      LocalOccurrenceThen profile ready base bindings start incoming before
+        (child value 1 valuePtr (aggregateNext index checkNext) canonNext finish)
 
 /-- Select the reached map key program before the recursive value. The
 canonical entry mode is fixed by the allocation's output, not the value. -/
@@ -1764,21 +1807,9 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
 termination_by structural types => types
 end
 
-/-- Memory shapes covered by the cumulative occurrence fold. This is a proof
-fragment: it adds no runtime condition on collection admission. -/
-inductive StructuralMemoryOccurrenceType : Stored.TypeOf → Prop where
-  | leaf {type} : TrailLeafType type → StructuralMemoryOccurrenceType type
-  | list {element} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.list element)
-  | fixed {element length} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.fixedList element length)
-  | option {element} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.option element)
-  | result {success failure} : (∀ type, success = some type → StructuralMemoryOccurrenceType type) →
-      (∀ type, failure = some type → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.result success failure)
-  | variant {cases : List (String × Option Stored.TypeOf)} :
-      (∀ name type, (name, some type) ∈ cases → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.variant cases)
-  | record {fields : List (String × Stored.TypeOf)} :
-      (∀ name type, (name, type) ∈ fields → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.record fields)
-  | tuple {types : List Stored.TypeOf} :
-      (∀ type, type ∈ types → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.tuple types)
+/-- The cumulative memory fold covers the same fragment as the compiled
+recursive visitor, with no additional runtime admission condition. -/
+abbrev StructuralMemoryOccurrenceType := RecursiveCollectionType
 
 mutual
 def structuralMemoryOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1793,6 +1824,16 @@ def structuralMemoryOccurrencePaths (profile : ProfileKind) (ready : HostReady (
         (liveListTailPaths destination inst element entries index (.memory address)
           (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element)
           checkNext canonNext (fun observed _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming observed finish)) sink
+  | .map key element => fun item index address checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
+    let output := Stored.Lower.Output.memory address
+    ∃ entries, item = .dynamic (.map key element) entryType entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map key element) entryType entries index
+        output checkNext canonNext start incoming left right before check canon
+        (liveMapTailPaths (mapEntryOccurrencePaths profile ready base bindings older destination inst key element output start incoming
+          (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element))
+          destination inst key element entries index output checkNext canonNext
+          (fun observed _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming observed finish)) sink
   | .fixedList element length => fun item index address checkNext canonNext finish before left right check canon =>
     ∃ entries, item = .fixed element length entries ∧
       liveFixedPaths profile ready base bindings destination inst

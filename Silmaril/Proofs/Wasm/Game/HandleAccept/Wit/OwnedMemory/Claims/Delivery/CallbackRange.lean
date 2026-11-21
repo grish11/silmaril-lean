@@ -1198,7 +1198,7 @@ theorem stringMapKey (destination : RecordDestination) (inst : InstId) (element 
     · rfl
     · intro pointer lhs rhs cursor peer frame grew checkAt canonAt
       refine ⟨frame, grew, ?_⟩
-      exact string_descriptor_cut_between cx destination.width keyOutput _ pointer lhs rhs cursor peer
+      exact string_descriptor_occurrences cx destination.width keyOutput _ pointer lhs rhs cursor peer
         (fun result => following (.ok result)) (afterKey destination.width) frame.store checkAt canonAt
 
 private theorem nominalMapValue (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType)
@@ -1274,7 +1274,7 @@ theorem stringKeyNominalValue (origin : CStore (core3 grow)) (destination : Reco
   obtain ⟨leftLabels, rightLabels, seenLeft, seenRight, tracksLeft, tracksRight, paired, replay⟩ := reached
   refine ⟨leftLabels, rightLabels, seenLeft, seenRight, tracksLeft, tracksRight, paired, CallbackPrefix.stringReplayMap ?_ replay⟩
   intro pointer lhs rhs cursor peer done
-  obtain ⟨frame, growth, store, result, labels, observed, leftRun, rightRun, tracks⟩ := done
+  obtain ⟨frame, growth, store, result, labels, observed, leftRun, rightRun, tracks, _⟩ := done
   cases result with
   | error reason =>
     exact ⟨peer, .trapped reason, _, _, _, _, leftRun.steps, rightRun.steps, rfl, rfl, rfl, rfl, [], leafTrap observed⟩
@@ -1335,7 +1335,7 @@ private theorem nominalMapEntry (destination : RecordDestination) (inst : InstId
     local_map_key_then_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst key element keyData keyPayload value
       origin basePtr bytes count entryIndex width sized aligned bounds entry issueIndex left canonKeyStart growth frame.store
-      check canon frame.thread checkNext (afterKey destination.width) checkAt rfl
+      check canon frame.thread checkNext (afterKey destination.width) false checkAt rfl
   have keyRun := appendRun (prefix_survives (headTracks 0)).1 runCanonKey.steps
   have keySeen : visible checkKey = visible (headLabels ++ canonKey) := by
     rw [appendVisible, headQuiet, List.nil_append, keyLabels]
@@ -1694,14 +1694,14 @@ private theorem liveMapEntry (destination : RecordDestination) (inst : InstId) (
   let report := aggregateNext idx checkNext
   let pending := fun () => mapValueProgram destination inst mode value afterKey canonNext
   let atKey := { right with ctl := canon.control (mapKeyBody destination inst ptr mode keyField value canonNext destination.width) }
-  obtain ⟨keyRead, quiet, tracks⟩ := mapPlacement (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+  obtain ⟨keyRead, quiet, tracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
     destination inst key element output right canon _ (growth.memAddrType width) canonAt
-  obtain ⟨store, result, lhs, rhs, checkRun, canonRun, observed, keyResult⟩ :=
+  obtain ⟨store, result, lhs, rhs, checkRun, canonRun, observed, keyResult, occurrences⟩ :=
     local_map_key_then_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst key element keyData keyPayload value
       origin basePtr bytes count idx width sized aligned bounds entry idx left atKey growth frame.store
-      check canon frame.thread checkNext pending checkAt rfl
-  refine ⟨keyRead, quiet, tracks, store, result, lhs, rhs, checkRun, canonRun, observed, ?_⟩
+      check canon frame.thread checkNext pending true checkAt rfl
+  refine ⟨keyRead, quiet, tracks, store, result, lhs, rhs, checkRun, canonRun, observed, fun mark => ⟨_, occurrences mark⟩, ?_⟩
   cases result with
   | error reason => exact keyResult
   | ok data =>
@@ -1710,7 +1710,7 @@ private theorem liveMapEntry (destination : RecordDestination) (inst : InstId) (
     let beforeValue := { right with store, ctl := canon.control (pending ()) }
     let valueBody := fun reached => CanonicalTree.field Limits.spec Quirks.none cx destination.width value
       (.memory (alignTo afterKey (layout reached value.type).alignment)) >>= canonNext
-    obtain ⟨valueRead, silent, valueTracks⟩ := mapPlacement (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+    obtain ⟨valueRead, silent, valueTracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
       destination inst key element output beforeValue canon valueBody (grown.memAddrType width) rfl
     refine ⟨checked, canonical, valueRead, silent, valueTracks, ?_⟩
     apply rule address 1 report canonNext
@@ -1991,8 +1991,8 @@ private theorem stringMapSlotRule (destination : RecordDestination) (inst : Inst
       width sized aligned bounds valid checkNext canonNext frame growth embedder checkAt canonAt
     refine ⟨key, rfl, mapStringKeyFinish _ _ _ _ _ _ ?_ keyRun⟩
     intro address lhs rhs cursor peer reached
-    obtain ⟨related, kept, store, result, labels, observed, checkRun, canonRun, tracks⟩ := reached
-    refine ⟨store, result, labels, observed, checkRun, canonRun, ?_⟩
+    obtain ⟨related, kept, store, result, labels, observed, checkRun, canonRun, tracks, occurrences⟩ := reached
+    refine ⟨store, result, labels, observed, checkRun, canonRun, fun mark => ⟨_, occurrences mark⟩, ?_⟩
     cases result with
     | error reason => exact True.intro
     | ok valueDone =>
@@ -2001,7 +2001,7 @@ private theorem stringMapSlotRule (destination : RecordDestination) (inst : Inst
       let valueBody := fun reached => CanonicalTree.field Limits.spec Quirks.none cx destination.width value
         (.memory (alignTo keyEnd (layout reached value.type).alignment)) >>= canonNext
       have grew := kept.trans checkRun.grows
-      obtain ⟨widthRead, silent, placed⟩ := mapPlacement (profile := profile) (ready := ready) (base := base)
+      obtain ⟨widthRead, silent, placed⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base)
         (bindings := bindings) destination inst .string element output beforeValue peer valueBody (grew.memAddrType width) rfl
       refine ⟨fun depth => (tracks () rfl depth).1, fun depth => (tracks () rfl depth).2, widthRead, silent, placed, ?_⟩
       apply rule valuePtr 1 (aggregateNext idx checkNext) canonNext
