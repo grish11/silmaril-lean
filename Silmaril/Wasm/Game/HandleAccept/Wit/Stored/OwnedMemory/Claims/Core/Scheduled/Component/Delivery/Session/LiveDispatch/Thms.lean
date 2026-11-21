@@ -46,6 +46,20 @@ theorem LiveDispatch.entry_paired (site : Site grow sig route) (linked : site.Li
       HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedEntry site linked paired selected
 
+/-- Track the actual parked Core entry to the selected body. The new reply
+frame shifts older slots on its activation without moving saved slots. -/
+theorem LiveDispatch.entry_paired_tracks (site : Site grow sig route) (linked : site.Linked bindings)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start other)
+    (selected : Stored.Endpoints.Core.childFromHistory other.host.writer.accepted site.handle = some site.tree) :
+    ∃ labels entered,
+      labels.all (· matches .tau) = true ∧
+      (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        other place labels entered
+        (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+      HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedEntryTracks site linked paired selected
+
 /-- A same-instance public give reached in a confined allocator callback
 returns boundary refusal words without consulting the canonical host's
 journal. Both active and saved older frames remain paired. -/

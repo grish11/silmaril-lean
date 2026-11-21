@@ -519,7 +519,9 @@ def LinkedCollectionBody (profile : ProfileKind) (ready : HostReady (HostState s
     (visit : List Stored.Endpoints.RecordLower.Field → Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig) : Prop :=
   ∃ entries leading entered peer,
     site.field = .dynamic type element entries ∧ PayloadPrefix.visible leading = [] ∧
-    Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming leading entered ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place leading entered
+      (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
     entered.host = incoming.host ∧
     LiveCollectionPaths profile ready base bindings older site.destination site.inst type element entries 0
       route.output site.reply site.referenceReply site.checked entered site.cursor peer (visit entries)

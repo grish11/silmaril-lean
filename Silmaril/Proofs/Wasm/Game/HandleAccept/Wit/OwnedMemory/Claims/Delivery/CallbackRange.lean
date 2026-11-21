@@ -2789,7 +2789,7 @@ private theorem linkedCollection {route : GiveEffectRoute} (site : PayloadRoot.S
       older site.checked.store (visit entries)) :
     LinkedCollectionBody profile ready base bindings older site type element incoming visit := by
   obtain ⟨leading, entered, quiet, installed, framePaired, enteredHost⟩ :=
-    LiveDispatch.entry_paired (profile := profile) (ready := ready) (base := base) site linked paired selected
+    LiveDispatch.entry_paired_tracks (profile := profile) (ready := ready) (base := base) site linked paired selected
   have bodyAt := site.reference_at linked site.referenceReply
   rw [field] at bodyAt
   obtain ⟨peer, frame, canonAt⟩ := referenceFrame site bodyAt framePaired
