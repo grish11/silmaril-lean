@@ -44,7 +44,8 @@ theorem sequenceTrack {compare : FieldComparison grow sig} (child : CarriesFinis
   | cons item rest ih =>
     unfold Replay at run ⊢
     rw [ReplayBetween] at run ⊢
-    refine ⟨run.1, child item index _ _ _ check canon _ _ (leading.append (canonicalSilent mode run.1)) run.2 ?_⟩
+    refine ⟨run.1, child item index _ _ _ check canon _ _
+      (leading.append (canonicalSilent mode (fun depth => run.1 (.active 0 depth)))) run.2 ?_⟩
     intro lhs rhs check canon path tail
     exact ih path tail
 
@@ -141,7 +142,8 @@ theorem listTreeTracks {older : ReturnFrame.Substitutions (core3 grow) (HostStat
     rcases run with leaf | aggregate | list | map | sum | fixed
     · exact .inl (leafTrack item index address left right check canon checkNext canonNext leading leaf next)
     · obtain ⟨type, children, shape, placed, tail⟩ := aggregate
-      exact .inr (.inl ⟨type, children, shape, placed, sequenceTrack ih (leading.append (checkedSilent placed)) tail next⟩)
+      exact .inr (.inl ⟨type, children, shape, placed,
+        sequenceTrack ih (leading.append (checkedSilent (fun depth => placed (.active 0 depth)))) tail next⟩)
     · right; right; left
       obtain ⟨element, entries, shape, run⟩ := list
       refine ⟨element, entries, shape, ?_⟩

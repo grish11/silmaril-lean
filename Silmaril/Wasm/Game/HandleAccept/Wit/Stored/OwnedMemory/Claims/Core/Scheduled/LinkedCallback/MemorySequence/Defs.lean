@@ -126,7 +126,7 @@ def ReplayBetween (profile : ProfileKind) (ready : HostReady (HostState sig))
     let nextCheck := checkTail mode destination inst rest (index + 1) slot.2 checkNext
     let nextCanon := canonTail mode destination inst rest slot.2 canonNext
     let reference := focus mode destination inst item cursor right canon nextCanon
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right mode.readLabels reference ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch right place mode.readLabels reference place) ∧
     compare item index slot.1 left reference check canon nextCheck nextCanon
       (ReplayBetween profile ready dispatch mode destination inst compare checkNext canonNext finish rest (index + 1) slot.2)
 
@@ -161,7 +161,7 @@ def nested (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings
     mixed profile ready bindings older destination inst item index address left right check canon checkNext canonNext finish ∨
       ∃ type children, item = .aggregate type children ∧
         let entered := enterAggregate destination inst children index address left check checkNext
-        ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (host bindings)) left [.tau] entered ∧
+        (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) left place [.tau] entered place) ∧
           Replay profile ready bindings .fields destination inst (nested profile ready bindings older destination inst depth)
             (aggregateNext index checkNext) canonNext finish children 0 address entered right check canon
 
@@ -343,7 +343,7 @@ def listTree (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindin
     memoryLeaf profile ready bindings older destination inst item index address left right check canon checkNext canonNext finish ∨
       (∃ type children, item = .aggregate type children ∧
         let entered := enterAggregate destination inst children index address left check checkNext
-        ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (host bindings)) left [.tau] entered ∧
+        (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) left place [.tau] entered place) ∧
           Replay profile ready bindings .fields destination inst child (aggregateNext index checkNext) canonNext finish
             children 0 address entered right check canon) ∨
       (∃ element entries, item = .dynamic (.list element) element entries ∧

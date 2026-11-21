@@ -679,9 +679,14 @@ theorem replayBetweenPathsFrom {mode : LinkedCallback.MemorySequence.Track} {des
     rw [replayBetweenPaths]
     obtain ⟨read, body⟩ := run
     have quiet : PayloadPrefix.visible (mode.readLabels (grow := grow) (sig := sig)) = [] := by cases mode <;> rfl
-    have reached := appendComparedSlots (after := []) leading ⟨[], _, (fun _ => .done _ _), read, rfl, quiet⟩
+    have reached := appendComparedSlots (after := []) leading
+      ⟨[], _, (fun _ => .done _ _), (fun depth => read (.active 0 depth)), rfl, quiet⟩
     rw [List.append_nil] at reached
-    exact ⟨read, lift _ _ _ _ _ _ _ _ _ _ _ _ body reached same admitted
+    have occurrenceCut : ComparedOccurrencePaths profile ready base bindings left right [] left
+        (LinkedCallback.MemorySequence.focus mode destination inst item address right canon
+          (LinkedCallback.MemorySequence.canonTail mode destination inst rest (mode.slot destination.width item address).2 canonNext)) :=
+      ⟨[], _, fun mark => ⟨mark, .done _ _, unchangedTrail read mark⟩, rfl, quiet, same⟩
+    exact ⟨occurrenceCut, lift _ _ _ _ _ _ _ _ _ _ _ _ body reached same admitted
       (fun _ _ _ _ _ tracks shared tail => ih tracks shared tail)⟩
 
 theorem liveElementsPathsFrom {destination : RecordDestination} {inst : InstId} {stride : Nat}
@@ -924,9 +929,11 @@ theorem aggregatePathsFrom {destination : RecordDestination} {inst : InstId}
     liveAggregatePaths profile ready base bindings destination inst paths items index address checkNext canonNext visit
       seen left right check canon := by
   obtain ⟨read, body⟩ := run
-  have reached := appendComparedSlots (after := []) leading ⟨[.tau], [], read, (fun _ => .done _ _), rfl, rfl⟩
+  have reached := appendComparedSlots (after := []) leading
+    ⟨[.tau], [], (fun depth => read (.active 0 depth)), (fun _ => .done _ _), rfl, rfl⟩
   rw [List.append_nil] at reached
-  exact ⟨read, replayBetweenPathsFrom lift reached same body (sink.nested _ admitted index) next⟩
+  exact ⟨⟨[.tau], [], fun mark => ⟨mark, unchangedTrail read mark, .done _ _⟩, rfl, rfl, same⟩,
+    replayBetweenPathsFrom lift reached same body (sink.nested _ admitted index) next⟩
 
 theorem recordTable (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf)) :
     liveRecordFields profile ready base bindings older destination inst fields =

@@ -343,8 +343,7 @@ def replayBetweenPaths (profile : ProfileKind) (ready : HostReady (HostState sig
     let nextCheck := checkTail mode destination inst rest (index + 1) slot.2 checkNext
     let nextCanon := canonTail mode destination inst rest slot.2 canonNext
     let reference := focus mode destination inst item cursor right canon nextCanon
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base))
-      right mode.readLabels reference ∧
+    ComparedOccurrencePaths profile ready base bindings left right [] left reference ∧
     child item index slot.1 nextCheck nextCanon
       (replayBetweenPaths profile ready base bindings mode destination inst child checkNext canonNext finish
         rest (index + 1) slot.2) before left reference check canon
@@ -1340,7 +1339,7 @@ def LiveAggregateThen (profile : ProfileKind) (ready : HostReady (HostState sig)
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
   open LinkedCallback.MemorySequence ReturnFrame.Occurrence in
   let entered := enterAggregate destination inst items index address left check checkNext
-  RetainsActiveSlots profile ready (specDispatch ready base) left [.tau] entered ∧
+  (∀ place, Prefix profile ready (specDispatch ready base) left place [.tau] entered place) ∧
     ReplayBetween profile ready (specDispatch ready (LiveDispatch.host bindings base)) .fields destination inst child
       (aggregateNext index checkNext) canonNext finish items 0 address entered right check canon
 
@@ -1359,7 +1358,7 @@ def liveAggregatePaths (profile : ProfileKind) (ready : HostReady (HostState sig
   open LinkedCallback.MemorySequence ReturnFrame.Occurrence in
   fun before left right check canon =>
     let entered := enterAggregate destination inst items index address left check checkNext
-    RetainsActiveSlots profile ready (specDispatch ready base) left [.tau] entered ∧
+    ComparedOccurrencePaths profile ready base bindings left right [] entered right ∧
       replayBetweenPaths profile ready base bindings .fields destination inst child
         (aggregateNext index checkNext) canonNext finish items 0 address before entered right check canon
 

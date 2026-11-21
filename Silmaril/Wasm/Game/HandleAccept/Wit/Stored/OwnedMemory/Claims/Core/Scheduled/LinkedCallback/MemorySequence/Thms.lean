@@ -95,8 +95,8 @@ theorem aggregate_replay {older : ReturnFrame.Substitutions (core3 grow) (HostSt
       destination.width (.aggregate type items) index (.memory address) >>= checkNext))
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
       destination.width (.aggregate type items) (.memory address) >>= canonNext)) :
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (host bindings)) left [.tau]
-      (enterAggregate destination inst items index address left check checkNext) ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) left place [.tau]
+      (enterAggregate destination inst items index address left check checkNext) place) ∧
       Replay profile ready bindings .fields destination inst compare (aggregateNext index checkNext) canonNext finish
         items 0 address (enterAggregate destination inst items index address left check checkNext) right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.aggregateReplayBetween
@@ -123,8 +123,8 @@ theorem aggregate_replay_between {older : ReturnFrame.Substitutions (core3 grow)
       destination.width (.aggregate type items) index (.memory address) >>= checkNext))
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
       destination.width (.aggregate type items) (.memory address) >>= canonNext)) :
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready checked left [.tau]
-      (enterAggregate destination inst items index address left check checkNext) ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready checked left place [.tau]
+      (enterAggregate destination inst items index address left check checkNext) place) ∧
       ReplayBetween profile ready reference .fields destination inst compare (aggregateNext index checkNext) canonNext finish
         items 0 address (enterAggregate destination inst items index address left check checkNext) right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.aggregateReplayBetween

@@ -1231,6 +1231,26 @@ theorem check_placement_tracks {World : Type} {placementReady : HostReady World}
     destination inst start area ptr cursor finish focused
 
 open ReturnFrame.Occurrence in
+/-- The actual placement read preserves every occurrence on success. A trap
+clears active occurrences without popping any saved occurrence. -/
+theorem check_placement_occurrences {World : Type} {placementReady : HostReady World}
+    {placementDispatch : Call (core3 grow) → P (core3 grow) World (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (start : Config (core3 grow) World)
+    (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) World)
+    (finish : P (core3 grow) World (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ∀ place, Prefix profile placementReady placementDispatch start place [.tau]
+        { start with ctl := cursor.control finish } place
+    | .error reason => ∃ count, ∀ place, Trail profile placementReady placementDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) World).follow place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.checkPlacementRunAll
+    destination inst start area ptr cursor finish focused
+
+open ReturnFrame.Occurrence in
 /-- Enter the actual compiled root body, or trap before any child runs. A
 flat output has no placement steps; a memory output uses its reached store. -/
 theorem root_placement_tracks (destination : RecordDestination) (inst : InstId) (type : TypeOf)
