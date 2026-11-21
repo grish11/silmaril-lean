@@ -125,6 +125,24 @@ theorem ClosedCallbackPrefix.collection_alloc (destination : RecordDestination) 
 /-- Compare a nested dynamic child's live admission and classified callbacks.
 Refusal before allocation takes no canonical step. Advance to the recursive
 bodies only after the marked return, live range checks and fresh reservation. -/
+theorem collection_paths_from (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+    (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (checkAt : start.ctl = check.control (OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {leftStart rightStart : Config (core3 grow) (HostState sig)} {offset : Nat}
+    (leading : ComparedSlots profile ready base bindings leftStart rightStart labels start incoming offset) :
+    LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming check canon (fun _ _ _ _ _ _ => True) leftStart rightStart labels offset :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.collectionEntryPathsFrom
+    destination inst type element entries index output checkNext canonNext frame checkAt canonAt embedder leading
+
 theorem collection_paths (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -138,8 +156,8 @@ theorem collection_paths (destination : RecordDestination) (inst : InstId) (type
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
       start incoming check canon :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.collectionEntryPaths
-    destination inst type element entries index output checkNext canonNext frame checkAt canonAt embedder
+  collection_paths_from destination inst type element entries index output checkNext canonNext frame checkAt canonAt embedder
+    ⟨[], [], fun _ => .done _ _, fun _ => .done _ _, rfl, rfl⟩
 
 /-- For either actual public give route, the successful admission branch
 compares lists of arbitrary depth ending in nominal leaves. The compiler

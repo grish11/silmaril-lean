@@ -109,6 +109,10 @@ private theorem appendRun {dispatch : Call (core3 grow) → Session grow sig (Re
 private theorem appendVisible (first second : Trace grow sig) :
     visible (first ++ second) = visible first ++ visible second := List.filter_append ..
 
+private theorem initialSlots (left right : Config (core3 grow) (HostState sig)) :
+    ComparedSlots profile ready base bindings left right [] left right :=
+  ⟨[], [], fun _ => .done _ _, fun _ => .done _ _, rfl, rfl⟩
+
 private def CollectionVisitor (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -126,7 +130,7 @@ private def CollectionVisitor (destination : RecordDestination) (inst : InstId) 
     rhs.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
     visit pointer bytes lhs rhs check canon
 
-private theorem collectionPaths (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+private theorem collectionPathsFrom (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
@@ -141,9 +145,11 @@ private theorem collectionPaths (destination : RecordDestination) (inst : InstId
       (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (visit : Nat → Nat → Finish grow sig)
-    (children : CollectionVisitor destination inst type element entries index output checkNext canonNext older start.store visit) :
+    (children : CollectionVisitor destination inst type element entries index output checkNext canonNext older start.store visit)
+    {leftStart rightStart : Config (core3 grow) (HostState sig)} {before : Trace grow sig} {offset : Nat}
+    (leading : ComparedSlots profile ready base bindings leftStart rightStart before start incoming offset) :
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon visit := by
+      start incoming check canon visit leftStart rightStart before offset := by
   unfold LiveCollectionPaths
   intro area mode first second leftEntry rightEntry seen finish path
   obtain ⟨lhs, rhs, reached, mark, checkRun, canonRun, paired, checkSeen, canonSeen, growth, _, _, marked⟩ :=
@@ -158,7 +164,8 @@ private theorem collectionPaths (destination : RecordDestination) (inst : InstId
     generalize reached.host = observer at paired
     cases paired
     rfl
-  refine ⟨lhs, rhs, reached, mark, marked, paired, ⟨_, _, checkRun, canonRun, checkObserved, canonObserved, sameStore⟩, ?_⟩
+  refine ⟨lhs, rhs, reached, mark, marked, paired,
+    CallbackPrefix.appendComparedPaths leading ⟨_, _, checkRun, canonRun, checkObserved, canonObserved, sameStore⟩, ?_⟩
   intro pointer cursor atTop returning
   subst mark
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
@@ -182,7 +189,8 @@ private theorem collectionPaths (destination : RecordDestination) (inst : InstId
       cursor peer :=
     ⟨frameAtReturn.store, frameAtReturn.pending, frameAtReturn.results, frameAtReturn.cancels, frameAtReturn.blocked,
       frameAtReturn.thread, frameAtReturn.frames, frameAtReturn.rest⟩
-  refine ⟨_, _, peer, ⟨[.tau, .tau, .tau] ++ (lhs ++ checkTail), [.tau, .tau] ++ (rhs ++ canonTail),
+  refine ⟨_, _, peer, CallbackPrefix.appendComparedSlots leading
+    ⟨[.tau, .tau, .tau] ++ (lhs ++ checkTail), [.tau, .tau] ++ (rhs ++ canonTail),
     marked.checkedTrail.through_return_suffix leftInstall checkTracks, marked.canonicalTrail.through_return_suffix rightInstall canonTracks,
     ?_, ?_⟩, frameAfter, liveWidth, sized, aligned, bounds, growth, rfl, rfl,
       children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
@@ -202,15 +210,17 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
       (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (visit : Nat → Nat → Finish grow sig)
-    (children : CollectionVisitor destination inst type element entries index output checkNext canonNext older start.store visit) :
+    (children : CollectionVisitor destination inst type element entries index output checkNext canonNext older start.store visit)
+    {leftStart rightStart : Config (core3 grow) (HostState sig)} {before : Trace grow sig} {offset : Nat}
+    (leading : ComparedSlots profile ready base bindings leftStart rightStart before start incoming offset) :
     LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon visit := by
+      start incoming check canon visit leftStart rightStart before offset := by
   unfold LiveCollectionEntry
   cases prepared : Record.prepare start.store start.host.writer (Field.listObjects entries) with
   | ok result =>
     cases result
-    exact fun width => collectionPaths destination inst type element entries index output checkNext canonNext
-      frame width prepared checkAt canonAt embedder visit children
+    exact fun width => collectionPathsFrom destination inst type element entries index output checkNext canonNext
+      frame width prepared checkAt canonAt embedder visit children leading
   | error issue =>
     let entered := fun verdict : Except RecordLower.Issue Unit => (match verdict with
       | .error (.preflight issue) => pure (.error (.field index (.beforeAllocation issue)))
@@ -233,9 +243,12 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
         rfl
       · rw [prepared]
         exact .done _ _
-    cases issue <;> exact ⟨[.tau, .tau], [], track, fun depth => .done incoming (.active 0 depth), rfl, rfl⟩
+    have reached := CallbackPrefix.appendComparedSlots leading
+      ⟨[.tau, .tau], [], track, fun depth => .done incoming (.active 0 depth), rfl, rfl⟩
+    rw [show visible ([.tau, .tau] : Trace grow sig) = [] from rfl, List.append_nil] at reached
+    cases issue <;> exact reached
 
-theorem collectionEntryPaths (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+theorem collectionEntryPathsFrom (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
@@ -246,11 +259,13 @@ theorem collectionEntryPaths (destination : RecordDestination) (inst : InstId) (
       (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
     (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
       (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {leftStart rightStart : Config (core3 grow) (HostState sig)} {before : Trace grow sig} {offset : Nat}
+    (leading : ComparedSlots profile ready base bindings leftStart rightStart before start incoming offset) :
     LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon :=
+      start incoming check canon (fun _ _ _ _ _ _ => True) leftStart rightStart before offset :=
   collectionEntryVisiting destination inst type element entries index output checkNext canonNext frame checkAt canonAt embedder
-    (fun _ _ _ _ _ _ => True) (by unfold CollectionVisitor; intros; exact True.intro)
+    (fun _ _ _ _ _ _ => True) (by unfold CollectionVisitor; intros; exact True.intro) leading
 
 private theorem leafSilent {Result : Type} {value : Result} {labels : Trace grow sig}
     (quiet : LocalLeafLabels (.ok value) labels) : visible labels = [] := by
@@ -875,7 +890,7 @@ private theorem nominalListRule (destination : RecordDestination) (inst : InstId
           (liveListVisitor destination inst element entries index (.memory address) _ older origin left.store growth
             shapes (fun child member _ slot => placedFieldOfRule
               (ih family child slot (entries_match_of_mem shapes member) (compiled child member)))
-            checkNext canonNext (fun () => finish) (fun _ => ends))⟩
+            checkNext canonNext (fun () => finish) (fun _ => ends)) (initialSlots left right)⟩
 
 private theorem mapPlacement (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType)
     (element : Stored.TypeOf) (output : Stored.Lower.Output)
@@ -2255,7 +2270,8 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
       checkNext canonNext frame checkAt canonAt embedder _
         (liveListVisitor destination inst element entries index (.memory address) _ older origin left.store growth
           shapes (fun child member _ slot => ih child slot (entries_match_of_mem shapes member) (compiled child member)
-            (path.trans (.dynamic member (.self _)))) checkNext canonNext (fun () => finish) (fun _ => ends))⟩
+            (path.trans (.dynamic member (.self _)))) checkNext canonNext (fun () => finish) (fun _ => ends))
+        (initialSlots left right)⟩
   | @map key element _ ih =>
     obtain ⟨entries, rfl, shapes⟩ := mapCompiled matched emitted
     intro index checkNext canonNext left right check canon frame growth _ _ checkAt canonAt finish ends
@@ -2263,7 +2279,7 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
       entries index (.memory address) checkNext canonNext frame checkAt canonAt embedder _
         (liveCompiledMapVisitor destination inst key element entries index (.memory address) _ older left.store source path shapes
           (fun value ancestry layout compiled _ slot => ih value slot layout compiled ancestry) embedder
-          checkNext canonNext (fun () => finish) ?_)⟩
+          checkNext canonNext (fun () => finish) ?_) (initialSlots left right)⟩
     intro _ lhs rhs cursor peer paired kept leftAt rightAt
     exact ends lhs rhs cursor peer paired (growth.trans kept) leftAt rightAt
   | @fixed element length _ ih =>
@@ -2785,8 +2801,8 @@ private theorem linkedCollection {route : GiveEffectRoute} (site : PayloadRoot.S
     simpa only [field, Field.objects] using prepared
   have width := site.destination.check_width site.start.store linked.destination
   refine ⟨entries, leading, entered, peer, field, silent ?_, installed, enteredHost,
-    collectionPaths site.destination site.inst type element entries 0 route.output site.reply site.referenceReply frame
-      (frame.store ▸ width) live checkAt canonAt embedder (visit entries) children⟩
+    collectionPathsFrom site.destination site.inst type element entries 0 route.output site.reply site.referenceReply frame
+      (frame.store ▸ width) live checkAt canonAt embedder (visit entries) children (initialSlots site.checked entered)⟩
   intro label member
   have tau := List.all_eq_true.mp quiet label member
   cases label <;> simp_all

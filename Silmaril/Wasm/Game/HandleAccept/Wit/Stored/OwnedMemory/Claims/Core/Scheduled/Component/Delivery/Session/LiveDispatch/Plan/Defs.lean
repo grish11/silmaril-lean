@@ -234,12 +234,14 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig)) (pointer bytes : Nat)
     (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (observed : Trace grow sig)
-    (visit : LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ => True) : Prop :=
+    (visit : LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ => True)
+    (leftStart : Config (core3 grow) (HostState sig) := start)
+    (rightStart : Config (core3 grow) (HostState sig) := incoming) (offset : Nat := 0) : Prop :=
   open Stored.Endpoints.RecordLower ABI PayloadPrefix in
   let area := layout destination.width element
   let mode := CanonicalTree.EntryMode.forOutput destination.width type output
   ∃ left right canon,
-    ComparedSlots profile ready base bindings start incoming observed left right ∧
+    ComparedSlots profile ready base bindings leftStart rightStart observed left right offset ∧
     LinkedCallback.ChildFrameOver older left right check canon ∧
     (core3 grow).memAddrType? left.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? left.store.core destination.memory = some bytes ∧
@@ -261,7 +263,9 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ _ _ => True) : Prop :=
+    (visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ _ _ => True)
+    (leftStart : Config (core3 grow) (HostState sig) := start)
+    (rightStart : Config (core3 grow) (HostState sig) := incoming) (leading : Trace grow sig := []) (offset : Nat := 0) : Prop :=
   open Stored.Endpoints.RecordLower ABI PayloadPrefix in
   let area := layout destination.width element
   let mode := CanonicalTree.EntryMode.forOutput destination.width type output
@@ -275,7 +279,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
     ∃ checkLabels canonLabels reached mark,
       AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
-      ComparedPaths profile ready base bindings start incoming seen finish reached ∧
+      ComparedPaths profile ready base bindings leftStart rightStart (leading ++ seen) finish reached ∧
       ∀ pointer cursor, mark = some (.active 0 0) →
         finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
         CollectionRangeCut profile ready base bindings older finish reached cursor destination area entries.length pointer
@@ -286,7 +290,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
           pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
           OwnedMemory.Claims.Record.prepare finish.store finish.host.writer (Field.listObjects entries) = .ok () →
           LiveCollectionChildren profile ready base bindings older destination inst type element entries index output checkNext
-            canonNext start incoming pointer bytes cursor seen (visit pointer bytes)
+            canonNext start incoming pointer bytes cursor (leading ++ seen) (visit pointer bytes) leftStart rightStart offset
 
 /-- The live dry run before a nested allocation either reaches the typed
 checked continuation alone or admits the finite allocator comparison. The
@@ -300,18 +304,20 @@ def LiveCollectionEntry (profile : ProfileKind) (ready : HostReady (HostState si
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ _ _ => True) : Prop :=
+    (visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ _ _ => True)
+    (leftStart : Config (core3 grow) (HostState sig) := start)
+    (rightStart : Config (core3 grow) (HostState sig) := incoming) (leading : Trace grow sig := []) (offset : Nat := 0) : Prop :=
   open Stored.Endpoints.RecordLower in
   match OwnedMemory.Claims.Record.prepare start.store start.host.writer (Field.listObjects entries) with
   | .error issue =>
     let refusal := match issue with
       | .preflight reason => Issue.field index (.beforeAllocation reason)
       | reason => Issue.nested index reason
-    ComparedSlots profile ready base bindings start incoming []
-      { start with ctl := check.control (checkNext (.error refusal)) } incoming
+    ComparedSlots profile ready base bindings leftStart rightStart leading
+      { start with ctl := check.control (checkNext (.error refusal)) } incoming offset
   | .ok () => (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width →
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon visit
+      start incoming check canon visit leftStart rightStart leading offset
 
 /-- A reached collection segment. The slot offset counts removed frames.
 On checked refusal, the canonical program is the actual unexecuted suffix
