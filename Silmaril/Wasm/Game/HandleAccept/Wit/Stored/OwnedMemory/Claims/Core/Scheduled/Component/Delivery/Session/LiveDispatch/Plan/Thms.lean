@@ -221,6 +221,21 @@ theorem LiveListPublish.rejoin {route : GiveEffectRoute} (site : PayloadRoot.Sit
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.rejoinPublished
     site caller leading publish
 
+/-- On either linked public give route, derive the cumulative list-body trail
+from the actual compiler output and reached callbacks, then rejoin the
+original caller at descriptor publication. This leaf fragment covers scalar,
+allocating string and nominal-handle element types. A finite suspended
+callback, a typed stop or a trap need not reach publication. -/
+theorem linked_list_rejoin_paths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {element : Stored.TypeOf} (leaf : TrailLeafType element)
+    (schema : sig.payload site.tag = .list element)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedListRejoinPaths profile ready base bindings older site element incoming) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedListRejoinPaths
+    site linked leaf schema paired selected embedder
+
 /-- Both public routes finish the actual allocating string key before
 entering its recursively allocating map/list value. The same compiler
 evidence discharges both the key plan and the value recursion. -/

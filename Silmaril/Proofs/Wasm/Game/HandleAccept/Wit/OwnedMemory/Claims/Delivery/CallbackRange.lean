@@ -149,7 +149,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
     {leftStart rightStart : Config (core3 grow) (HostState sig)} {before : Trace grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings leftStart rightStart before start incoming offset) :
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon visit leftStart rightStart before offset := by
+      start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart before offset := by
   unfold LiveCollectionPaths
   intro area mode first second leftEntry rightEntry seen finish path
   obtain ⟨lhs, rhs, reached, mark, checkRun, canonRun, paired, checkSeen, canonSeen, growth, _, _, marked⟩ :=
@@ -2787,7 +2787,7 @@ private theorem linkedCollection {route : GiveEffectRoute} (site : PayloadRoot.S
     (visit : List Field → Nat → Nat → Finish grow sig)
     (children : CollectionVisitor site.destination site.inst type element entries 0 route.output site.reply site.referenceReply
       older site.checked.store (visit entries)) :
-    LinkedCollectionBody profile ready base bindings older site type element incoming visit := by
+    LinkedCollectionBody profile ready base bindings older site type element incoming (fun _ entries pointer bytes _ => visit entries pointer bytes) := by
   obtain ⟨leading, entered, quiet, installed, framePaired, enteredHost⟩ :=
     LiveDispatch.entry_paired_tracks (profile := profile) (ready := ready) (base := base) site linked paired selected
   have bodyAt := site.reference_at linked site.referenceReply
@@ -2902,6 +2902,41 @@ theorem linkedStringRecursiveMapBody {route : GiveEffectRoute} (site : PayloadRo
     PayloadRoot.Cut site profile ready bindings (LinkedStringRecursiveMapBody profile ready base bindings older site element incoming)
       base :=
   linkedRecursiveCollectionBody site linked (.map family) True.intro schema paired selected embedder
+
+theorem linkedListRejoinPaths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {element : Stored.TypeOf} (leaf : TrailLeafType element)
+    (schema : sig.payload site.tag = .list element)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedListRejoinPaths profile ready base bindings older site element incoming) base := by
+  have family : RecursiveCollectionType element := by
+    rcases leaf with nominal | data | rfl
+    · exact .leaf nominal
+    · exact .data data
+    · exact .string
+  have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
+    (.list family) True.intro schema paired selected embedder
+  cases cut with
+  | refused issue quiet run => exact .refused issue quiet run
+  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
+  | placed silent verdict prepared path body =>
+    refine .placed silent verdict prepared path ?_
+    obtain ⟨entries, leading, entered, peer, shape, quiet, entry, host, paths⟩ := body
+    refine ⟨entries, leading, entered, peer, shape, quiet, entry, host, ?_⟩
+    intro seen finish path
+    obtain ⟨lhs, rhs, reached, mark, marked, aligned, compared, returned⟩ := paths path
+    refine ⟨lhs, rhs, reached, mark, marked, aligned, compared, ?_⟩
+    intro pointer cursor top returning
+    obtain ⟨range, children⟩ := returned pointer cursor top returning
+    refine ⟨range, ?_⟩
+    intro bytes sized aligned bounds fresh
+    obtain ⟨left, right, canon, tracks, frame, width, size, align, bound, growth, checkAt, canonAt, elements⟩ :=
+      children bytes sized aligned bounds fresh
+    refine ⟨left, right, canon, tracks, frame, width, size, align, bound, growth, checkAt, canonAt, ?_⟩
+    exact CallbackPrefix.liveElementsPathsFrom (CallbackPrefix.leafFieldLift leaf) tracks frame.store elements
+      (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
 
 theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (nominal : NominalElement element)

@@ -495,6 +495,28 @@ theorem replayBetweenPathsFrom {mode : LinkedCallback.MemorySequence.Track} {des
     exact ⟨read, lift _ _ _ _ _ _ _ _ _ _ _ _ body reached same
       (fun _ _ _ _ _ tracks shared tail => ih tracks shared tail)⟩
 
+theorem liveElementsPathsFrom {destination : RecordDestination} {inst : InstId} {stride : Nat}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {entries : List Field} {index address offset : Nat} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldPaths profile ready base bindings start incoming offset child paths)
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (same : left.store = right.store)
+    (run : liveElements destination inst stride child checkNext canonNext finish entries index address left right check canon)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveElementsPaths destination inst stride paths checkNext canonNext visit entries index address seen left right check canon := by
+  induction entries generalizing index address seen left right check canon with
+  | nil => exact next seen left right check canon leading same run
+  | cons item rest ih =>
+    rw [liveElements] at run
+    rw [liveElementsPaths]
+    exact lift _ _ _ _ _ _ _ _ _ _ _ _ run leading same
+      (fun _ _ _ _ _ tracks shared tail => ih tracks shared tail)
+
 theorem stringPaths {cx : LiftLowerContext (core3 grow)}
     {checkNext canonNext : Nat → Session grow sig (Ret (core3 grow))}
     {leftStart rightStart : Config (core3 grow) (HostState sig)}

@@ -308,7 +308,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ _ _ => True)
+    (visit : Nat → Nat → TrailFinish grow sig := fun _ _ _ _ _ _ _ => True)
     (leftStart : Config (core3 grow) (HostState sig) := start)
     (rightStart : Config (core3 grow) (HostState sig) := incoming) (leading : Trace grow sig := []) (offset : Nat := 0) : Prop :=
   open Stored.Endpoints.RecordLower ABI PayloadPrefix in
@@ -335,7 +335,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
           pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
           OwnedMemory.Claims.Record.prepare finish.store finish.host.writer (Field.listObjects entries) = .ok () →
           LiveCollectionChildren profile ready base bindings older destination inst type element entries index output checkNext
-            canonNext start incoming pointer bytes cursor (leading ++ seen) (visit pointer bytes) leftStart rightStart offset
+            canonNext start incoming pointer bytes cursor (leading ++ seen) (visit pointer bytes (leading ++ seen)) leftStart rightStart offset
 
 /-- The live dry run before a nested allocation either reaches the typed
 checked continuation alone or admits the finite allocator comparison. The
@@ -362,7 +362,7 @@ def LiveCollectionEntry (profile : ProfileKind) (ready : HostReady (HostState si
       { start with ctl := check.control (checkNext (.error refusal)) } incoming offset
   | .ok () => (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width →
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon visit leftStart rightStart leading offset
+      start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart leading offset
 
 /-- A reached collection segment. The slot offset counts removed frames.
 On checked refusal, the canonical program is the actual unexecuted suffix
@@ -456,6 +456,21 @@ def liveElements (destination : RecordDestination) (inst : InstId) (stride : Nat
       (canonTail (.elements stride) destination inst rest (pointer + stride) canonNext)
       (liveElements destination inst stride child checkNext canonNext finish rest (index + 1) (pointer + stride))
 
+/-- Allocated elements already enter their canonical child at the placed
+address. There is no additional per-element width read. -/
+def liveElementsPaths (destination : RecordDestination) (inst : InstId) (stride : Nat)
+    (child : TrailFieldComparison grow sig) (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig)
+    (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig) (finish : TrailFinish grow sig) :
+    List Stored.Endpoints.RecordLower.Field → Nat → Nat → TrailFinish grow sig
+  | [], _, _, before, left, right, check, canon => finish before left right check canon
+  | item :: rest, index, pointer, before, left, right, check, canon =>
+    open LinkedCallback.MemorySequence in
+    child item index pointer
+      (checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext)
+      (canonTail (.elements stride) destination inst rest (pointer + stride) canonNext)
+      (liveElementsPaths destination inst stride child checkNext canonNext finish rest (index + 1) (pointer + stride))
+      before left right check canon
+
 /-- The real descriptor program executes only after every element returns.
 The two paths share the descriptor result or canonical trap, not an assumed
 rollback of either descriptor write. -/
@@ -516,7 +531,7 @@ def LinkedCollectionBody (profile : ProfileKind) (ready : HostReady (HostState s
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) (type element : Stored.TypeOf)
     (incoming : Config (core3 grow) (HostState sig))
-    (visit : List Stored.Endpoints.RecordLower.Field → Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig) : Prop :=
+    (visit : Config (core3 grow) (HostState sig) → List Stored.Endpoints.RecordLower.Field → Nat → Nat → TrailFinish grow sig) : Prop :=
   ∃ entries leading entered peer,
     site.field = .dynamic type element entries ∧ PayloadPrefix.visible leading = [] ∧
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
@@ -524,17 +539,17 @@ def LinkedCollectionBody (profile : ProfileKind) (ready : HostReady (HostState s
       (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
     entered.host = incoming.host ∧
     LiveCollectionPaths profile ready base bindings older site.destination site.inst type element entries 0
-      route.output site.reply site.referenceReply site.checked entered site.cursor peer (visit entries)
+      route.output site.reply site.referenceReply site.checked entered site.cursor peer (visit entered entries)
 
 abbrev LinkedNominalListBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) (depth : Nat) (element : Stored.TypeOf)
     (incoming : Config (core3 grow) (HostState sig)) : Prop :=
-  LinkedCollectionBody profile ready base bindings older site (.list element) element incoming (fun entries =>
+  LinkedCollectionBody profile ready base bindings older site (.list element) element incoming (fun _ entries pointer bytes _ =>
     liveListTail profile ready base bindings site.destination site.inst element entries 0 route.output
       (liveNominalList profile ready base bindings older site.destination site.inst depth)
-      site.reply site.referenceReply (fun _ _ _ _ _ => True))
+      site.reply site.referenceReply (fun _ _ _ _ _ => True) pointer bytes)
 
 /-- Stop at fresh preparation or at a reached element; neither executes the
 remaining canonical elements or publishes a descriptor. -/
@@ -667,9 +682,9 @@ abbrev LinkedMapListBody (profile : ProfileKind) (ready : HostReady (HostState s
     (site : PayloadRoot.Site grow sig route) (key : WIT.KeyType) (depth : Nat) (element : Stored.TypeOf)
     (incoming : Config (core3 grow) (HostState sig)) : Prop :=
   LinkedCollectionBody profile ready base bindings older site (.map key element) (.record (ABI.mapEntryFields key element)) incoming
-    (fun entries => liveMapTail profile ready base bindings site.destination site.inst key element entries 0 route.output
+    (fun _ entries pointer bytes _ => liveMapTail profile ready base bindings site.destination site.inst key element entries 0 route.output
       (liveNominalList profile ready base bindings older site.destination site.inst depth)
-      site.reply site.referenceReply (fun _ _ _ _ _ => True))
+      site.reply site.referenceReply (fun _ _ _ _ _ => True) pointer bytes)
 
 /-- The current proof fragment, not the runtime support predicate. -/
 inductive RecursiveCollectionType : Stored.TypeOf → Prop where
@@ -1097,17 +1112,17 @@ def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (Ho
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) (incoming : Config (core3 grow) (HostState sig)) : Stored.TypeOf → Prop
   | .list element =>
-    LinkedCollectionBody profile ready base bindings older site (.list element) element incoming (fun entries =>
+    LinkedCollectionBody profile ready base bindings older site (.list element) element incoming (fun _ entries pointer bytes _ =>
       liveListTail profile ready base bindings site.destination site.inst element entries 0 route.output
         (liveCollectionField profile ready base bindings older site.destination site.inst element)
-        site.reply site.referenceReply (fun _ => LinkedCallback.ChildFrameOver older))
+        site.reply site.referenceReply (fun _ => LinkedCallback.ChildFrameOver older) pointer bytes)
   | .map key element =>
     LinkedCollectionBody profile ready base bindings older site (.map key element) (.record (ABI.mapEntryFields key element)) incoming
-      (fun entries => liveMapTailWith profile ready base bindings
+      (fun _ entries pointer bytes _ => liveMapTailWith profile ready base bindings
         (liveCollectionMapEntry profile ready base bindings older site.destination site.inst key element route.output)
         site.destination site.inst key element entries 0 route.output
         (liveCollectionField profile ready base bindings older site.destination site.inst element)
-        site.reply site.referenceReply (fun _ => LinkedCallback.ChildFrameOver older))
+        site.reply site.referenceReply (fun _ => LinkedCallback.ChildFrameOver older) pointer bytes)
   | _ => False
 
 abbrev LinkedStringRecursiveMapBody (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1318,6 +1333,24 @@ def CollectionSegmentReplies (profile : ProfileKind) (ready : HostReady (HostSta
         left.host = before.host.record (route.reply site.destination site.start.host.nextTicket (.error issue)).1 ∧
         (∀ dispatch, Steps profile ready dispatch before [.tau, .tau, .tau] left) ∧ right.ctl = canon.control stop
     | .trapped reason => left.ctl = [] ∧ right.ctl = [] ∧ ∃ leading, PayloadPrefix.visible canonLabels = leading ++ [.trap reason]
+
+/-- From actual list allocation and placement, visit the reached elements
+in order. At the descriptor continuation, the accumulated trail suffices
+to rejoin the original public caller or prove the actual descriptor trap. -/
+def LinkedListRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (element : Stored.TypeOf)
+    (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  LinkedCollectionBody profile ready base bindings older site (.list element) element incoming
+    fun entered entries pointer _ =>
+      open LinkedCallback.MemorySequence in
+      liveElementsPaths site.destination site.inst (ABI.layout site.destination.width element).size
+        (liveLeafPaths profile ready base bindings older site.destination site.inst site.checked entered 0 element)
+        (publishChecked site.destination site.inst pointer entries.length 0 route.output site.reply)
+        (publishCanonical site.destination site.inst pointer entries.length route.output site.referenceReply)
+        (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+        entries 0 pointer
 
 /-- A marked string-key map return either traps or refuses before any entry,
 or reaches the recursive body with the original checked caller still tracked. -/
