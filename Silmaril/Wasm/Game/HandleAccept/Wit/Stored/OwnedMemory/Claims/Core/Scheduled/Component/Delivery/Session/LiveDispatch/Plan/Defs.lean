@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Correspondence.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Dispatch.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Defs
 
@@ -1744,7 +1745,8 @@ def CollectionSegmentReplies (profile : ProfileKind) (ready : HostReady (HostSta
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) (checked canonical : Config (core3 grow) (HostState sig))
-    (stopsAt : Session grow sig (Ret (core3 grow)) → Prop) (offset : Nat := 1) : Prop :=
+    (stopsAt : Session grow sig (Ret (core3 grow)) → Prop) (offset : Nat := 1)
+    (afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True) : Prop :=
   ∃ (outcome : PayloadPrefix.Outcome route.output.Result) (checkLabels canonLabels : Trace grow sig)
     (left right : Config (core3 grow) (HostState sig)),
     Steps profile ready (specDispatch ready base) checked checkLabels left ∧
@@ -1758,7 +1760,7 @@ def CollectionSegmentReplies (profile : ProfileKind) (ready : HostReady (HostSta
         (∀ dispatch, Steps profile ready dispatch before [.tau, .tau, .tau] left) ∧
         (∀ dispatch, Steps profile ready dispatch canonBefore [.tau] right) ∧
         left.host = before.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
-        right.host = canonBefore.host ∧ HostFrame.Related.Paired older left right
+        right.host = canonBefore.host ∧ HostFrame.Related.Paired older left right ∧ afterReturn left right
     | .refused issue => ∃ (before : Config (core3 grow) (HostState sig)) (checkBody : Trace grow sig)
         (canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
         (stop : Session grow sig (Ret (core3 grow))), stopsAt stop ∧
@@ -1843,7 +1845,8 @@ original caller, while trap and allocator cuts stay at their reached sites. -/
 def LinkedMemoryRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
-    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig))
+    (afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True) : Prop :=
   ∃ leading entered peer, PayloadPrefix.visible leading = [] ∧
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place leading entered
@@ -1852,7 +1855,7 @@ def LinkedMemoryRejoinPaths (profile : ProfileKind) (ready : HostReady (HostStat
     liveRecursivePaths profile ready base bindings older site.destination site.inst site.checked entered 0
       (publicRefusalSink profile ready base bindings site entered) (sig.payload site.tag)
       site.field 0 (flatNat pointer) site.reply site.referenceReply
-      (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+      (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0 afterReturn)
       [] site.checked entered site.cursor peer
 
 /-- The original flat public entry and cumulative traversal. Only successful
@@ -1860,7 +1863,8 @@ children contribute words; a typed refusal runs the checked reply alone. -/
 def LinkedFlatAggregateRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {type : Stored.TypeOf}
-    (site : PayloadRoot.Site grow sig (.flat type)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+    (site : PayloadRoot.Site grow sig (.flat type)) (incoming : Config (core3 grow) (HostState sig))
+    (afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True) : Prop :=
   ∃ leading entered peer, PayloadPrefix.visible leading = [] ∧
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place leading entered
@@ -1869,7 +1873,7 @@ def LinkedFlatAggregateRejoinPaths (profile : ProfileKind) (ready : HostReady (H
     liveFlatPaths profile ready base bindings older site.destination site.inst site.checked entered 0
       (publicRefusalSink profile ready base bindings site entered) (sig.payload site.tag)
       site.field 0 site.reply site.referenceReply
-      (fun _ _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+      (fun _ _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0 afterReturn)
       [] site.checked entered site.cursor peer
 
 /-- The actual range verdict after an allocator return. A late reservation
@@ -2310,14 +2314,36 @@ inductive ReachedGiveAdmission (profile : ProfileKind) (ready : HostReady (HostS
       (linked : (selection.site tag payload arity children field).Linked bindings)
       (exit : LinkedRootExit bindings profile ready callees route (selection.site tag payload arity children field))
 
+/-- At the real returned callers, replay a finite checked suffix under the
+fixed dispatcher. Stop at reached nested installs, unequal reads, or
+substituted returns. Without older substitutions, closed delivery can
+continue from the actual scheduler records and the reached live journal. -/
+structure RejoinedWorkerTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) : Prop where
+  replay : ∀ {labels finish}, Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+    checked labels finish →
+    PairedReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees) older checked canonical labels finish
+  delivery : (∀ first second, ¬ older first second) → ∀ {actions labels finish outgoing},
+    JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      checked canonical.host actions labels finish outgoing →
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) checked labels finish ∧
+    Steps profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      canonical labels (HostFrame.replace finish outgoing) ∧
+    (canonical.host.writer.accepted = checked.host.writer.accepted → outgoing.writer.accepted = finish.host.writer.accepted)
+
 /-- The recursive body and caller paths for whichever ABI the live selector
-chose. This does not require an allocator return or a caller reply. -/
+chose. A reached reply carries its next worker comparison, but neither a
+reply nor an allocator return is required. -/
 def RecursiveGivePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (incoming : Config (core3 grow) (HostState sig)) : (route : GiveEffectRoute) → PayloadRoot.Site grow sig route → Prop
   | .memory _, site => LinkedMemoryRejoinPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+    (RejoinedWorkerTail profile ready bindings callees older)
   | .flat _, site => LinkedFlatAggregateRejoinPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+    (RejoinedWorkerTail profile ready bindings callees older)
 
 /-- Compare a give at its actual Core installation. A compiler refusal
 can rejoin only the checked caller; the canonical body has not executed.
@@ -2378,6 +2404,7 @@ inductive RecursiveRequestCut (profile : ProfileKind) (ready : HostReady (HostSt
       (paired : HostFrame.Related.Paired older checked canonical)
       (checkedHost : checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1)
       (canonicalHost : canonical.host = incoming.host)
+      (tail : RejoinedWorkerTail profile ready bindings callees older checked canonical)
   | admitted {route} (selection : request.Selected route)
       (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
       (body : RecursiveGiveDomain selection → ReachedRecursiveGive profile ready callees selection older incoming)

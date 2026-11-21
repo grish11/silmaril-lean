@@ -85,6 +85,12 @@ theorem Paired.clear_control {left right : Config E Host} (paired : Paired chang
   cases paired with
   | mk _ blocked => exact .mk .nil blocked
 
+/-- If no substitution can relate a pair of saved frames then all active
+and blocked continuations, as well as the scheduler data, agree. -/
+theorem Paired.without_substitution {left right : Config E Host} (paired : Paired changes left right)
+    (empty : ∀ first second, ¬ changes first second) : left = right :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.withoutSubstitution paired empty
+
 theorem Returned.left_input {left right leftAfter rightAfter : Config E Host} {label : Label E Host}
     (popped : Returned changes left right label leftAfter rightAfter) :
     ∃ resume otherResume thread value frames rest, changes resume otherResume ∧

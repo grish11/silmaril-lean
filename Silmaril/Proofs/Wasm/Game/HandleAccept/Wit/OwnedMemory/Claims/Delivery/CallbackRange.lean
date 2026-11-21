@@ -667,8 +667,10 @@ theorem replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig rout
     {checked canonical : Config (core3 grow) (HostState sig)} {check : Cursor (E := core3 grow) (HostState sig)}
     {callerLabels stopsAt offset}
     (caller : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) callerLabels checked (.active 0 offset))
-    (cut : CollectionSegment profile ready base bindings older checked canonical check site.reply site.referenceReply offset stopsAt) :
-    CollectionSegmentReplies profile ready base bindings older site checked canonical stopsAt offset := by
+    (cut : CollectionSegment profile ready base bindings older checked canonical check site.reply site.referenceReply offset stopsAt)
+    (afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True)
+    (next : ∀ left right, HostFrame.Related.Paired older left right → afterReturn left right := by intros; trivial) :
+    CollectionSegmentReplies profile ready base bindings older site checked canonical stopsAt offset afterReturn := by
   obtain ⟨canon, outcome, lhs, rhs, left, right, checkedRun, canonRun, same, seen, result⟩ := cut
   have silentTail (trace suffix : Trace grow sig) (tau : visible suffix = []) : visible (trace ++ suffix) = visible trace := by
     change List.filter _ (trace ++ suffix) = _
@@ -684,7 +686,7 @@ theorem replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig rout
         (caller.append (by simpa only [Nat.zero_add] using tracks 0)) checkAt canonAt
     exact ⟨.returned value, _, _, checkEnd, canonEnd, appendRun checkedRun (checkReply _), appendRun canonRun (canonReply _),
       stores, by rw [silentTail _ _ rfl, silentTail _ _ rfl, seen], left, right, lhs, rhs, rfl, rfl,
-      checkedRun, canonRun, checkReply, canonReply, checkHost, canonHost, paired⟩
+      checkedRun, canonRun, checkReply, canonReply, checkHost, canonHost, paired, next _ _ paired⟩
   | refused issue =>
     obtain ⟨stop, stopped, checkAt, canonAt, tracks, canonTracks⟩ := result
     obtain ⟨segments, callerAt⟩ := site.reached_caller checkAt (caller.append (by simpa only [Nat.zero_add] using tracks 0))
@@ -3327,22 +3329,26 @@ private theorem rejoinReady {route : GiveEffectRoute} (site : PayloadRoot.Site g
     (leading : ComparedSlots profile ready base bindings site.checked entered observed left right)
     (value : route.output.Result) (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (checkAt : left.ctl = check.control (site.reply (.ok value)))
-    (canonAt : right.ctl = canon.control (site.referenceReply value)) :
-    CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0 := by
+    (canonAt : right.ctl = canon.control (site.referenceReply value))
+    {afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    (next : ∀ first second, HostFrame.Related.Paired older first second → afterReturn first second) :
+    CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0 afterReturn := by
   obtain ⟨lhs, rhs, checked, canonical, seenLeft, seenRight⟩ := leading
   have terminal : CollectionSegment profile ready base bindings older left right check site.reply site.referenceReply 0
       (fun _ => False) :=
     ⟨canon, .returned value, [], [], left, right, .refl _, .refl _, frame.store, rfl, frame, checkAt, canonAt,
       fun _ => .done _ _, fun _ => .done _ _, trivial⟩
-  exact replies site (.done _ _) (prependSegment checked canonical (seenLeft.trans seenRight.symm) terminal)
+  exact replies site (.done _ _) (prependSegment checked canonical (seenLeft.trans seenRight.symm) terminal) afterReturn next
 
 theorem linkedMemoryRejoinPaths {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    PayloadRoot.Cut site profile ready bindings (LinkedMemoryRejoinPaths profile ready base bindings older site incoming) base := by
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True)
+    (next : ∀ left right, HostFrame.Related.Paired older left right → afterReturn left right := by intros; trivial) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryRejoinPaths profile ready base bindings older site incoming afterReturn) base := by
   refine site.parked_after_admission linked _ (fun fits placed _ => ?_) base embedder
   obtain ⟨plan, compiled⟩ := linked.compiled
   have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
@@ -3367,15 +3373,17 @@ theorem linkedMemoryRejoinPaths {pointer : FlatValue} (site : PayloadRoot.Site g
   · exact RecursiveTrails.fieldPaths (publicRefusalCovers site entered) family site.field 0 (flatNat pointer) _ _ _ _
       site.reply site.referenceReply _ _ [] body (initialSlots site.checked entered) frame.store
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ tracks _ ⟨paired, checkAt, canonAt⟩ =>
-        rejoinReady site tracks () paired checkAt canonAt)
+        rejoinReady site tracks () paired checkAt canonAt next)
 
 theorem linkedFlatAggregateRejoinPaths {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    PayloadRoot.Cut site profile ready bindings (LinkedFlatAggregateRejoinPaths profile ready base bindings older site incoming) base := by
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (afterReturn : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True)
+    (next : ∀ left right, HostFrame.Related.Paired older left right → afterReturn left right := by intros; trivial) :
+    PayloadRoot.Cut site profile ready bindings (LinkedFlatAggregateRejoinPaths profile ready base bindings older site incoming afterReturn) base := by
   refine site.parked_after_admission linked _ (fun fits _ _ => ?_) base embedder
   obtain ⟨plan, compiled⟩ := linked.compiled
   have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
@@ -3394,7 +3402,7 @@ theorem linkedFlatAggregateRejoinPaths {type : Stored.TypeOf} (site : PayloadRoo
     cases label <;> simp_all
   · exact traversal 0 site.reply site.referenceReply _ [] site.checked entered site.cursor peer frame (Core3.Grows.refl _)
       (initialSlots site.checked entered) (fun issue => ⟨issue, rfl⟩) rfl canonAt
-      (fun words _ _ _ _ _ paired _ tracks lhs rhs => rejoinReady site tracks words paired lhs rhs)
+      (fun words _ _ _ _ _ paired _ tracks lhs rhs => rejoinReady site tracks words paired lhs rhs next)
 
 private theorem collectionReturnFailure {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (type element : Stored.TypeOf) (entries : List Field) (pointer : Nat)

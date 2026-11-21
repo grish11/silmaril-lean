@@ -856,6 +856,16 @@ theorem pairedLocalDataGive {route : GiveEffectRoute} (site : PayloadRoot.Site g
   · rw [visibleAppend, visibleAppend, silent, silentVisible silentEntry, List.nil_append, List.nil_append, seen]
   · rw [checkRoots, bodyHost, entryHost, roots]
 
+private theorem rejoinedTail {callees : List (ComponentCall.Callee sig)}
+    {left right : Config (core3 grow) (HostState sig)} (paired : HostFrame.Related.Paired older left right) :
+    RejoinedWorkerTail profile ready bindings callees older left right := by
+  refine ⟨fun run => LiveDispatch.paired_replay paired run, ?_⟩
+  intro empty _ _ _ _ between
+  have replace : HostFrame.replace left right.host = right :=
+    ReturnFrame.Related.Paired.without_substitution paired empty
+  exact ⟨between.runs.1.steps, replace ▸ LiveDispatch.interleaving_steps between,
+    fun roots => (LiveDispatch.interleaving_paired_roots between roots).2⟩
+
 theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)}
     (family : RecursiveGiveDomain selection)
@@ -883,10 +893,16 @@ theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveReques
     have liveRoot : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted
         (selection.site tag payload arity children field).handle = some (selection.site tag payload arity children field).tree :=
       selected.trans (congrArg some picked)
+    have tail (left right : Config (core3 grow) (HostState sig)) (aligned : HostFrame.Related.Paired older left right) :
+        RejoinedWorkerTail profile ready bindings callees older left right := rejoinedTail aligned
     refine .compiled preflight picked linked ?_
     cases route with
-    | memory pointer => exact CallbackRange.linkedMemoryRejoinPaths _ linked supported paired liveRoot rfl
-    | flat schema => exact CallbackRange.linkedFlatAggregateRejoinPaths _ linked supported paired liveRoot rfl
+    | memory pointer =>
+      exact CallbackRange.linkedMemoryRejoinPaths (profile := profile) (ready := ready)
+        (base := ComponentCall.hostWithComponent bindings callees) _ linked supported paired liveRoot rfl _ tail
+    | flat schema =>
+      exact CallbackRange.linkedFlatAggregateRejoinPaths (profile := profile) (ready := ready)
+        (base := ComponentCall.hostWithComponent bindings callees) _ linked supported paired liveRoot rfl _ tail
 
 theorem recursiveGiveAfterCallback {route : GiveEffectRoute} {request : CoreGiveRequest bindings finish}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {protectedReturn}
@@ -947,7 +963,7 @@ theorem recursiveRequestCut (request : CoreGiveRequest bindings start) {callees 
         obtain ⟨_, _, _, _, left, right, aligned, checkedHost, canonicalHost⟩ := request.paired_admission_refusal
           (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees)
           (ComponentCall.hostWithComponent bindings callees) rfl paired evaluated reads
-        exact .refused evaluated left right aligned checkedHost canonicalHost
+        exact .refused evaluated left right aligned checkedHost canonicalHost (rejoinedTail aligned)
       | ok result =>
         obtain ⟨route, ⟨selection⟩⟩ := request.selected_of_return evaluated
         have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected

@@ -26,6 +26,30 @@ private theorem listSame {Item : Type} {relation : Item → Item → Prop}
   | nil => exact .nil
   | cons item _ tail => exact .cons (same item) tail
 
+private theorem listEqOfRelated {Item : Type} {relation : Item → Item → Prop}
+    (equal : ∀ {left right}, relation left right → left = right) {left right : List Item}
+    (paired : List.Forall₂ relation left right) : left = right := by
+  induction paired with
+  | nil => rfl
+  | cons head _ tail => rw [equal head, tail]
+
+theorem withoutSubstitution {left right : Config E Host} (paired : PairedOf changes left right)
+    (empty : ∀ first second, ¬ changes first second) : left = right := by
+  have segment {left right : Seg E Host} (paired : SegmentOf changes left right) : left = right := by
+    cases paired with
+    | same => rfl
+    | swap changed => exact (empty _ _ changed).elim
+  have active {left right : Activation E Host} (paired : ActiveOf changes left right) : left = right := by
+    cases paired with
+    | mk frames => rw [listEqOfRelated segment frames]
+  have saved {left right : Option (Activation E Host)} (paired : SavedOf changes left right) : left = right := by
+    cases paired with
+    | none => rfl
+    | some slot => rw [active slot]
+  cases paired with
+  | mk control blocked =>
+    rw [← listEqOfRelated active control, ← listEqOfRelated saved blocked]
+
 private theorem prependShared {left right : List (Seg E Host)}
     (shared : List (Seg E Host)) (paired : List.Forall₂ (SegmentOf changes) left right) :
     List.Forall₂ (SegmentOf changes) (shared ++ left) (shared ++ right) := by
