@@ -7,6 +7,7 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.Fl
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCollection.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.CollectionVisit.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Public.Thms
@@ -99,6 +100,148 @@ private theorem silent {labels : Trace grow sig} (tau : ∀ label ∈ labels, la
     have tail := ih (fun other member => tau other (List.mem_cons_of_mem _ member))
     subst label
     exact tail
+
+private theorem trapVisible (count : Nat) (reason : TrapReason) :
+    visible (List.replicate count (.tau : Label (core3 grow) (HostState sig)) ++ [.trap reason]) = [.trap reason] := by
+  have quiet : visible (List.replicate count (.tau : Label (core3 grow) (HostState sig))) = [] :=
+    silent (fun _ member => List.eq_of_mem_replicate member)
+  rw [show visible (List.replicate count .tau ++ [.trap reason] : Trace grow sig) =
+    visible (List.replicate count .tau) ++ visible [.trap reason] from List.filter_append .., quiet]
+  rfl
+
+private theorem comparedRange {checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
+    {leftLabels rightLabels seen : Trace grow sig} {trapped : Bool}
+    (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
+    (right : RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      canonical rightLabels rhs trapped)
+    (leftSeen : visible leftLabels = seen) (rightSeen : visible rightLabels = seen) (same : lhs.store = rhs.store) :
+    ComparedOccurrencePaths profile ready base bindings checked canonical seen lhs rhs :=
+  ⟨leftLabels, rightLabels, fun mark => ⟨_, left mark, right mark⟩, leftSeen, rightSeen, same⟩
+
+theorem collectionRangeOccurrences (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+    (entries : List Field) (output : Stored.Lower.Output) (index pointer : Nat)
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    {older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {leftStart rightStart start canonStart checked canonical : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry cursor : Cursor (E := core3 grow) (HostState sig)} {checkTrace canonTrace seen} :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width type output
+    let first := checkedCollectionResume destination inst entries area index output checkNext
+    let second := canonicalCollectionResume destination inst entries area output canonNext mode
+    AllocatorMark profile ready base bindings older
+      (collectionEntry destination inst area entries.length (specDispatch ready base) start checkEntry first)
+      (collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
+        canonStart canonEntry second) checkTrace canonTrace checked canonical (some (.active 0 0)) →
+    HostFrame.Related.Paired wider checked canonical →
+    checked.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
+    (core3 grow).memAddrType? start.store.core destination.memory = some destination.width →
+    Core3.Grows start.store.core checked.store.core →
+    ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen checked canonical →
+    CollectionRangeOccurrences profile ready base bindings older leftStart rightStart checked canonical seen
+      cursor destination area entries.length pointer (Field.listObjects entries)
+      (fun addr verdict => checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext)
+      (fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext) := by
+  intro area mode first second marked paired returning present growth leading
+  obtain ⟨place, origin, trail⟩ := marked.canonicalTrail.survives
+  cases origin
+  have top : segmentAt (segmentStorage canonical) (.active 0 0) = some (.prog second) :=
+    (prefix_survives trail).2.trans rfl
+  obtain ⟨canon, frame, canonAt⟩ := LinkedCallback.marked_pop_frame paired marked.outside returning top
+  have width : (core3 grow).memAddrType? checked.store.core destination.memory = some destination.width := growth.memAddrType present
+  have hasSize : ((core3 grow).memSize? checked.store.core destination.memory).isSome := by
+    apply Core3.memAddrType?_isSome_iff.mp
+    change ((core3 grow).memAddrType? checked.store.core destination.memory).isSome = true
+    rw [width]
+    rfl
+  obtain ⟨bytes, sized⟩ := Option.isSome_iff_exists.mp hasSize
+  have canonSize : (core3 grow).memSize? canonical.store.core destination.memory = some bytes := by
+    rw [← frame.store]
+    exact sized
+  let lhs := fun addr verdict => checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext
+  let rhs := fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext
+  have checkedAt : checked.ctl = ⟨cursor.thread, .prog (.pure (.nat pointer)), .prog first :: cursor.frames⟩ :: cursor.rest := returning
+  have canonicalAt : canonical.ctl = ⟨canon.thread, .prog (.pure (.nat pointer)), .prog second :: canon.frames⟩ :: canon.rest := canonAt
+  have checkedRange := destination.listRange_resume_tracks (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    inst area entries.length pointer (fun ptr => do
+      let verdict ← (Record.authority recordClaims Limits.spec (destination.context inst)).prepare (Field.listObjects entries)
+      lhs ptr verdict) first rfl checkedAt
+  have canonicalRange := destination.listRange_resume_tracks (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) inst area entries.length pointer rhs second rfl canonicalAt
+  dsimp only at checkedRange canonicalRange
+  rw [destination.listRange_body, sized] at checkedRange
+  rw [destination.listRange_body, canonSize] at canonicalRange
+  refine ⟨bytes, width, sized, ?_⟩
+  have traps (reason : TrapReason)
+      (left : ∃ count, RangeReturnTrails profile ready (specDispatch ready base) checked
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg checked) true)
+      (right : ∃ count, RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg canonical) true) :
+      ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ [.trap reason])
+        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) := by
+    obtain ⟨leftCount, left⟩ := left
+    obtain ⟨rightCount, right⟩ := right
+    exact CallbackPrefix.appendComparedOccurrences leading (comparedRange left right (trapVisible leftCount reason)
+      (trapVisible rightCount reason) (congrArg StepDefs.lockdownSt frame.store))
+  by_cases misaligned : pointer ≠ alignTo pointer area.alignment
+  · simp only [ite_eq_left misaligned] at checkedRange canonicalRange ⊢
+    exact traps .unalignedPointer checkedRange canonicalRange
+  · simp only [ite_eq_right misaligned] at checkedRange canonicalRange ⊢
+    by_cases bounds : pointer + entries.length * area.size ≤ bytes
+    · simp only [ite_eq_left bounds] at canonicalRange ⊢
+      obtain ⟨checkLabels, checkQuiet, left⟩ := destination.listRange_recheck_tracks (profile := profile)
+        (ready := ready) (dispatch := specDispatch ready base) checked inst area entries.length pointer
+        (Field.listObjects entries) lhs first rfl checkedAt (not_ne_iff.mp misaligned) sized bounds
+      obtain ⟨canonLabels, canonQuiet, right⟩ := canonicalRange
+      refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩, ?_⟩
+      simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
+        (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
+    · simp only [ite_eq_right bounds] at checkedRange canonicalRange ⊢
+      exact traps .outOfBounds checkedRange canonicalRange
+
+theorem collectionOccurrences (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+    (entries : List Field) (output : Stored.Lower.Output) (index : Nat)
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {start incoming finish : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {seen : Trace grow sig}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (width : (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width)
+    (prepared : Record.prepare start.store start.host.writer (Field.listObjects entries) = .ok ())
+    (checkAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width type output
+    let first := checkedCollectionResume destination inst entries area index output checkNext
+    let second := canonicalCollectionResume destination inst entries area output canonNext mode
+    ClosedCallbackPrefix bindings profile ready base (fun resume => (∃ peer, older resume peer) ∨ resume = first)
+      (collectionEntry destination inst area entries.length (specDispatch ready base) start check first) seen finish →
+    ∃ checkLabels canonLabels reached mark,
+      AllocatorMark profile ready base bindings older
+        (collectionEntry destination inst area entries.length (specDispatch ready base) start check first)
+        (collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
+          incoming canon second) checkLabels canonLabels finish reached mark ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming seen finish reached ∧
+      (∀ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
+        mark = some (.active 0 0) →
+        finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
+        CollectionRangeOccurrences profile ready base bindings older start incoming finish reached seen
+          cursor destination area entries.length pointer (Field.listObjects entries)
+          (fun addr verdict => checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext)
+          (fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext)) := by
+  intro area mode first second callback
+  obtain ⟨checkLabels, canonLabels, reached, mark, _, _, paired, _, _, growth, _, _, marked, paths⟩ :=
+    CallbackPrefix.collectionPrefix destination inst type element entries output index checkNext canonNext
+      frame width prepared checkAt canonAt embedder callback
+  refine ⟨checkLabels, canonLabels, reached, mark, marked, paths, ?_⟩
+  intro pointer cursor active returning
+  subst mark
+  exact collectionRangeOccurrences destination inst type element entries output index pointer checkNext canonNext
+    marked paired returning (frame.store ▸ width) growth paths
 
 private theorem appendRun {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {start middle finish : Config (core3 grow) (HostState sig)} {leading trailing}

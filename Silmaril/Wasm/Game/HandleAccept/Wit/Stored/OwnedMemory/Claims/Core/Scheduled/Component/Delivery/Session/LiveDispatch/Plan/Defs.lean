@@ -424,6 +424,32 @@ def CollectionRangeCut (profile : ProfileKind) (ready : HostReady (HostState sig
         { canonical with ctl := canonCursor.control (canonNext pointer) })
     else traps .outOfBounds
 
+/-- Cumulative paths through the real collection return. A fresh verdict
+selects the checked continuation only; the canonical child program is still
+pending. Range traps instead end both paths at the reached lockdown states. -/
+def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (leftStart rightStart checked canonical : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (destination : RecordDestination) (area : ABI.Layout) (count pointer : Nat)
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    (checkNext : Nat → Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Nat → Session grow sig (Ret (core3 grow))) : Prop :=
+  let traps := fun reason => ComparedOccurrencePaths profile ready base bindings leftStart rightStart
+    (seen ++ [.trap reason]) (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+  ∃ bytes, (core3 grow).memAddrType? checked.store.core destination.memory = some destination.width ∧
+    (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
+    if pointer ≠ ABI.alignTo pointer area.alignment then traps .unalignedPointer
+    else if pointer + count * area.size ≤ bytes then
+      ∃ canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+        let verdict := OwnedMemory.Claims.Record.prepare checked.store checked.host.writer plan
+        let left := { checked with ctl := cursor.control (checkNext pointer verdict) }
+        let right := { canonical with ctl := canon.control (canonNext pointer) }
+        LinkedCallback.ChildFrameOver older left right cursor canon ∧
+        ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right
+    else traps .outOfBounds
+
 /-- Entry into the exact recursive bodies of a nested collection after its
 marked allocator returns, range checks pass and a fresh reservation succeeds.
 The frame and cumulative trails are for the reached state, not the state

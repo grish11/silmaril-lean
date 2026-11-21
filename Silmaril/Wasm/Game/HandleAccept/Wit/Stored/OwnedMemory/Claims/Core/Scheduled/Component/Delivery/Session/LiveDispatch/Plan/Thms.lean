@@ -123,6 +123,45 @@ theorem ClosedCallbackPrefix.collection_alloc (destination : RecordDestination) 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.collectionPrefix
     destination inst type element entries output index checkNext canonNext frame width prepared checkAt canonAt embedder
 
+/-- Compare every original coordinate through the actual collection install and
+finite callback cut. Only a return of that installed occurrence triggers the
+reached range checks and fresh checked reservation. Neither branch assumes
+preserved guest bytes or authority, and the canonical child is still pending. -/
+theorem ClosedCallbackPrefix.collection_alloc_occurrences (destination : RecordDestination) (inst : InstId)
+    (type element : Stored.TypeOf) (entries : List Field) (output : Stored.Lower.Output) (index : Nat)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (width : (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width)
+    (prepared : Stored.OwnedMemory.Claims.Record.prepare start.store start.host.writer (Field.listObjects entries) = .ok ())
+    (checkAt : start.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width type output
+    let first := PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext
+    ClosedCallbackPrefix bindings profile ready base (fun resume => (∃ peer, older resume peer) ∨ resume = first)
+      (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready base) start check first) labels finish →
+    ∃ checkLabels canonLabels reached mark,
+      AllocatorMark profile ready base bindings older
+        (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready base) start check first)
+        (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
+          incoming canon (PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext mode))
+        checkLabels canonLabels finish reached mark ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming labels finish reached ∧
+      (∀ (pointer : Nat) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+        mark = some (.active 0 0) →
+        finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
+        CollectionRangeOccurrences profile ready base bindings older start incoming finish reached labels
+          cursor destination area entries.length pointer (Field.listObjects entries)
+          (fun addr verdict => PayloadPrefix.checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext)
+          (fun addr => PayloadPrefix.canonicalCollectionTail destination inst entries area output addr mode >>= canonNext)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.collectionOccurrences
+    destination inst type element entries output index checkNext canonNext frame width prepared checkAt canonAt embedder
+
 /-- Compare a nested dynamic child's live admission and classified callbacks.
 Refusal before allocation takes no canonical step. Advance to the recursive
 bodies only after the marked return, live range checks and fresh reservation. -/
