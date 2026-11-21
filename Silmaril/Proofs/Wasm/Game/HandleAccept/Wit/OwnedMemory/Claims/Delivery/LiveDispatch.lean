@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Correspondence.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Correspondence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
@@ -406,6 +407,52 @@ theorem selectionLinked {request : CoreGiveRequest bindings start} (selection : 
   · simpa only [CoreGiveRequest.Selected.site, ← selection.args] using request.calling
   · simpa only [picked, CoreGiveRequest.Selected.site, Site.tree] using selection.selected
   · simpa only [picked, CoreGiveRequest.Selected.site, Site.tree] using selection.admitted
+
+theorem compilerSuccess {request : CoreGiveRequest bindings start} (selection : request.Selected route)
+    {field : Stored.Endpoints.RecordLower.Field} {plan}
+    (compiled : selection.preflight = .ok (field, plan)) :
+    ∃ (tag : sig.Tag) (payload : Stored.OwnedMemory.Payload (sig.payload tag)) (arity : Nat)
+      (children : Fin arity → Stored.OwnedMemory.Tree sig),
+      selection.tree = .tag ⟨tag, payload⟩ arity children ∧
+      (selection.site tag payload arity children field).Linked bindings := by
+  cases picked : selection.tree with
+  | atom impossible => exact impossible.elim
+  | tag value arity children =>
+    obtain ⟨tag, payload⟩ := value
+    simp only [CoreGiveRequest.Selected.preflight, picked] at compiled
+    exact ⟨tag, payload, arity, children, rfl, selectionLinked selection picked compiled⟩
+
+theorem compilerRefusal {request : CoreGiveRequest bindings start} (selection : request.Selected route)
+    {issue : Stored.Endpoints.RecordLower.Issue} (refused : selection.preflight = .error issue)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
+    ∃ count, Steps profile ready (specDispatch ready impl) start (List.replicate count .tau) (selection.compilerRefused issue) := by
+  have calling := request.calling
+  rw [selection.args] at calling
+  obtain ⟨front, silent, entry⟩ := GiveEffectRoute.parked bindings request.name request.kind selection.handle route request.inst
+    request.destination selection.tree start request.thread profile ready request.focused calling selection.linked
+    selection.caller selection.mayLeave selection.destination selection.selected selection.admitted impl embedder
+  have replyOnly : route.run (grow := grow) request.destination request.inst selection.tree start.host.nextTicket =
+      (do return .flat (← writeCompletion (route.reply request.destination start.host.nextTicket (.error issue)))) := by
+    cases chosen : selection.tree with
+    | atom impossible => exact impossible.elim
+    | tag value arity children =>
+      simp only [CoreGiveRequest.Selected.preflight, chosen] at refused
+      simp only [GiveEffectRoute.run, Stored.OwnedMemory.Claims.Record.Effects.lowerTree,
+        Stored.Endpoints.RecordLower.Internal.lowerWithPlan, refused, Prog.pure_eq, Prog.bind_eq, Prog.pure_bind']
+  rw [replyOnly] at entry
+  have completed := Plain.give_completion_steps (profile := profile) (ready := ready) (dispatch := specDispatch ready impl)
+    (start := { start with host := start.host.enter request.name request.kind (route.args selection.handle)
+                           ctl := ⟨request.thread, .prog (route.run request.destination request.inst selection.tree start.host.nextTicket),
+                             .core request.core request.next :: request.frames⟩ :: request.rest })
+    (route.reply request.destination start.host.nextTicket (.error issue)) (by rw [replyOnly])
+  rw [replyOnly] at completed
+  have replicated : front = List.replicate front.length .tau := List.eq_replicate_length.mpr (fun label member => by
+    have tau := List.all_eq_true.mp silent label member
+    cases label <;> first | rfl | contradiction)
+  refine ⟨front.length + 3, ?_⟩
+  rw [List.replicate_add, ← replicated]
+  exact append entry completed
 
 theorem classifyStep {label} (step : Step profile ready (specDispatch ready base) start label finish) :
     Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) start label finish ∨

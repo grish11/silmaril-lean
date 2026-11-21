@@ -153,6 +153,26 @@ def CoreGiveRequest.Selected.site {bindings : List (Binding sig)} {state : Confi
   ⟨state, request.destination, request.inst, request.name, request.kind, selection.handle, tag, payload, arity,
     children, field, request.thread, request.core, request.next, request.frames, request.rest⟩
 
+/-- The actual selected payload's pure compiler check, before any memory
+placement, claim preparation, or realloc action. -/
+def CoreGiveRequest.Selected.preflight {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    {request : CoreGiveRequest bindings state} {route : GiveEffectRoute} (selection : request.Selected route) :
+    Except RecordLower.Issue (RecordLower.Field × List RecordLower.Object) :=
+  match selection.tree with
+  | .atom impossible => impossible.elim
+  | .tag payload _ _ => Record.preflightValue (request.destination.context (grow := grow) request.inst)
+    (sig.payload payload.1) payload.2 route.output
+
+/-- A compiler rejection writes the checked ticketed error and rejoins the
+parked Core caller without starting the recursive body. -/
+def CoreGiveRequest.Selected.compilerRefused {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    {request : CoreGiveRequest bindings state} {route : GiveEffectRoute} (selection : request.Selected route)
+    (issue : RecordLower.Issue) : Config (core3 grow) (HostState sig) :=
+  let reply := route.reply request.destination state.host.nextTicket (.error issue)
+  { state with host := (state.host.enter request.name request.kind (route.args selection.handle)).record reply.1
+               ctl := ⟨request.thread, .core ((core3 grow).resume state.store.core request.core (.values reply.2))
+                 request.next, request.frames⟩ :: request.rest }
+
 /-- Replay up to the first reached give installation, divergent host read, or
 substituted return. At an installation the live run stops before installing any
 body. At a read or return both actual steps execute. The rest is evidence about

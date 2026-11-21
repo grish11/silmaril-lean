@@ -137,6 +137,28 @@ theorem LiveDispatch.CoreGiveRequest.Selected.linked_site {request : LiveDispatc
     (selection.site tag payload arity children field).Linked bindings :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.selectionLinked selection picked preflight
 
+/-- Recover the exact tagged root and recursive site when the compiler check
+succeeds. The selected tag and its payload are not caller-supplied. -/
+theorem LiveDispatch.CoreGiveRequest.Selected.compiler_success {request : LiveDispatch.CoreGiveRequest bindings start}
+    (selection : request.Selected route) {field : Stored.Endpoints.RecordLower.Field} {plan}
+    (compiled : selection.preflight = .ok (field, plan)) :
+    ∃ (tag : sig.Tag) (payload : Stored.OwnedMemory.Payload (sig.payload tag)) (arity : Nat)
+      (children : Fin arity → Stored.OwnedMemory.Tree sig),
+      selection.tree = .tag ⟨tag, payload⟩ arity children ∧
+      (selection.site tag payload arity children field).Linked bindings :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.compilerSuccess selection compiled
+
+/-- A failed compiler check reaches the actual checked status reply without
+entering the emitter. This does not run the canonical body or synthesize a
+canonical error. The parked caller resumes against the original store. -/
+theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal {request : LiveDispatch.CoreGiveRequest bindings start}
+    (selection : request.Selected route) {issue : Stored.Endpoints.RecordLower.Issue}
+    (refused : selection.preflight = .error issue)
+    (impl : HostImpl (core3 grow) (HostState sig) := Core.Scheduled.host bindings)
+    (embedder : impl.embedder = (Core.Scheduled.host (grow := grow) bindings).embedder := by rfl) :
+    ∃ count, Steps profile ready (specDispatch ready impl) start (List.replicate count .tau) (selection.compilerRefused issue) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.compilerRefusal selection refused impl embedder
+
 /-- Enter on the live root and compare the reached prefix of the nested body,
 even if it has not returned or executes another public give. Further requests
 are exposed at their real caller and with all older frames still paired. -/
