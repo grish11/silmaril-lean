@@ -6,6 +6,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 
 public section
 
@@ -223,6 +224,28 @@ theorem AllocatorMark.local_map_replies {outputPointer : FlatValue} (site : Payl
       (PayloadPrefix.canonicalCollectionTail site.destination site.inst entries area output pointer mode >>= site.referenceReply) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.localMapReplies
     site linked key element entries keyData valueData field pointer
+
+/-- At a reached owner, endpoint, or error-context leaf, use the live
+checked writer, not the enclosing dry run. Neither branch dispatches a
+callback at this leaf. A checked refusal leaves canonical before the leaf;
+after a successful check the actual spend survives a later canonical trap. -/
+theorem reached_handle_field (destination : RecordDestination) (inst : InstId) (item : Field) (handle : CanonicalHandle item)
+    (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    {origin : CStore (core3 grow)} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (checkAt : left.ctl = check.control (OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index output >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width item output >>= canonNext)) :
+    LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      item index output left right check canon checkNext canonNext (fun value reached reference lhs rhs =>
+        LinkedCallback.ChildFrameOver older reached reference lhs rhs ∧ Core3.Grows origin.core reached.store.core ∧
+        reached.ctl = lhs.control (checkNext (.ok value)) ∧ reference.ctl = rhs.control (canonNext value)) :=
+  frame.handle_field_then_between destination inst item handle index output checkNext canonNext growth checkAt canonAt
+    (fun _ _ _ _ _ related grown lhs rhs => ⟨related, grown, lhs, rhs⟩)
 
 /-- On a valid reached range with failed live preparation, execute exactly
 the checked refusal reply. This applies to the actual map entry mode as
