@@ -105,6 +105,54 @@ inductive GiveInstall (bindings : List (Binding sig))
       GiveInstall bindings dispatch state .tau
         { state with ctl := ⟨thread, .prog (dispatch (.hostCallout callee args)), .core core next :: frames⟩ :: rest }
 
+/-- The exact Core request at a pending public give. No caller, selection,
+preflight, or return verdict is inferred from resolving the binding. -/
+structure CoreGiveRequest (bindings : List (Binding sig)) (state : Config (core3 grow) (HostState sig)) where
+  name : String
+  kind : V1.FuncType
+  args : List FlatValue
+  inst : InstId
+  destination : RecordDestination
+  schema : Option Stored.TypeOf
+  thread : Option ThreadId
+  core : (core3 grow).Thread (CanonHost (core3 grow))
+  next : List FlatValue → Session grow sig (Ret (core3 grow))
+  frames : List (Seg (core3 grow) (HostState sig))
+  rest : List (Activation (core3 grow) (HostState sig))
+  focused : state.ctl = ⟨thread, .core core next, frames⟩ :: rest
+  calling : (core3 grow).status state.store.core core = .callout (.embedder name kind) args
+  linked : resolveBinding bindings name kind = .ok ⟨name, inst,
+    schema.elim (.givePayload destination) (.giveFlat destination)⟩
+
+/-- A direct program call has a program return frame, not the parked Core
+caller of the two public give routes. Its actual focus is kept separate. -/
+def DirectGiveAt (bindings : List (Binding sig)) (state : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ name kind args thread next frames rest inst destination schema,
+    state.ctl = ⟨thread, .prog (.op (.call (.hostCallout (.embedder name kind) args)) next), frames⟩ :: rest ∧
+    resolveBinding bindings name kind = .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩
+
+/-- The result of the read-only admission and selection prefix. The tree is
+an observation from the live journal, not evidence of a live transfer claim. -/
+structure CoreGiveRequest.Selected {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    (request : CoreGiveRequest bindings state) (route : GiveEffectRoute) where
+  handle : BitVec IntType.i32.width
+  tree : Tree sig
+  args : request.args = route.args handle
+  linked : resolveBinding bindings request.name request.kind =
+    .ok ⟨request.name, request.inst, route.action request.destination⟩
+  caller : Plain.callerInstance state.store request.thread = .ok (some request.inst)
+  mayLeave : (state.store.inst? request.inst).any (·.mayLeave) = true
+  destination : request.destination.check state.store = .ok ()
+  selected : Stored.Endpoints.Core.childFromHistory state.host.writer.accepted handle = some tree
+  admitted : route.admits request.destination tree
+
+def CoreGiveRequest.Selected.site {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    {request : CoreGiveRequest bindings state} {route : GiveEffectRoute} (selection : request.Selected route)
+    (tag : sig.Tag) (payload : OwnedMemory.Payload (sig.payload tag))
+    (arity : Nat) (children : Fin arity → Tree sig) (field : RecordLower.Field) : PayloadRoot.Site grow sig route :=
+  ⟨state, request.destination, request.inst, request.name, request.kind, selection.handle, tag, payload, arity,
+    children, field, request.thread, request.core, request.next, request.frames, request.rest⟩
+
 /-- Replay up to the first reached give installation, divergent host read, or
 substituted return. At an installation the live run stops before installing any
 body. At a read or return both actual steps execute. The rest is evidence about
