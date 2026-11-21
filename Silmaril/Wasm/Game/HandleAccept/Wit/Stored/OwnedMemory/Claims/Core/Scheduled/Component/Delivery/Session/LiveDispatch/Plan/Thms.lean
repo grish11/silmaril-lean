@@ -237,6 +237,20 @@ theorem linked_collection_rejoin_paths {route : GiveEffectRoute} (site : Payload
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedCollectionRejoinPaths
     site linked family collection schema paired selected embedder
 
+/-- Compare a placed memory root of the supported recursive fragment,
+including top-level strings, records, tuples, fixed arrays and active sums.
+The actual public entry guards supply placement and the compiled field;
+both original caller replies or the exact stopped/trapped paths follow
+from its recursive traversal. -/
+theorem linked_memory_rejoin_paths {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryRejoinPaths profile ready base bindings older site incoming) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedMemoryRejoinPaths
+    site linked family paired selected embedder
+
 /-- A finite callback prefix has a comparison even when it has not returned.
 On the actual marked return, both public collection routes take the reached
 range verdict. If the range passes but live preparation refuses, only the

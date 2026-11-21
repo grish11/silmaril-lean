@@ -3012,6 +3012,53 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
         tracks same elements (rootVisitorAdmits site entered)
         (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
 
+private theorem rejoinMemory {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {entered left right : Config (core3 grow) (HostState sig)} {observed : Trace grow sig}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (leading : ComparedSlots profile ready base bindings site.checked entered observed left right)
+    (finished : MemoryRootFinish older site left right check canon) :
+    CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0 := by
+  obtain ⟨frame, checkAt, canonAt⟩ := finished
+  obtain ⟨lhs, rhs, checked, canonical, seenLeft, seenRight⟩ := leading
+  have terminal : CollectionSegment profile ready base bindings older left right check site.reply site.referenceReply 0
+      (fun _ => False) :=
+    ⟨canon, .returned (), [], [], left, right, .refl _, .refl _, frame.store, rfl, frame, checkAt, canonAt,
+      fun _ => .done _ _, fun _ => .done _ _, trivial⟩
+  exact replies site (.done _ _) (prependSegment checked canonical (seenLeft.trans seenRight.symm) terminal)
+
+theorem linkedMemoryRejoinPaths {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryRejoinPaths profile ready base bindings older site incoming) base := by
+  refine site.parked_after_admission linked _ (fun fits placed _ => ?_) base embedder
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+  have source : CollectionSource site.destination site.field (sig.payload site.tag) :=
+    ⟨matched, Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits, preflightAllocator site linked⟩
+  obtain ⟨leading, entered, quiet, installed, framePaired, enteredHost⟩ :=
+    LiveDispatch.entry_paired_tracks (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨peer, frame, canonAt⟩ := referenceFrame site (site.reference_at linked site.referenceReply) framePaired
+  have width := site.destination.check_width site.start.store linked.destination
+  have position : placement site.destination site.checked.store (layout site.destination.width site.field.type) (flatNat pointer) = .ok () :=
+    matched.type_eq.symm ▸ placed
+  have compiledBody := collectionFieldRule (profile := profile) (ready := ready) (base := base) (older := older)
+    (origin := site.checked.store) site.destination site.inst family site.field (flatNat pointer)
+    matched linked.emitted source (.self _) embedder
+  have body := compiledBody 0 site.reply site.referenceReply site.checked entered site.cursor peer frame
+    (Core3.Grows.refl _) width position rfl canonAt (MemoryRootFinish older site)
+    (fun _ _ _ _ linkedFrame _ checkAt canonicalAt => ⟨linkedFrame, checkAt, canonicalAt⟩)
+  refine ⟨leading, entered, peer, silent ?_, installed, enteredHost, ?_⟩
+  · intro label member
+    have tau := List.all_eq_true.mp quiet label member
+    cases label <;> simp_all
+  · exact RecursiveTrails.fieldPaths (publicRefusalCovers site entered) family site.field 0 (flatNat pointer) _ _ _ _
+      site.reply site.referenceReply _ _ [] body (initialSlots site.checked entered) frame.store
+      (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ tracks _ finished => rejoinMemory site tracks finished)
+
 private theorem collectionReturnFailure {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (type element : Stored.TypeOf) (entries : List Field) (pointer : Nat)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}

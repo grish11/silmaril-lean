@@ -1627,6 +1627,31 @@ def LinkedCollectionRejoinPaths (profile : ProfileKind) (ready : HostReady (Host
         (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
   | _ => False
 
+/-- The successful body continuation of a memory give is already the
+actual public reply; there is no separate root descriptor to publish. -/
+def MemoryRootFinish (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) : LinkedCallback.MemorySequence.Finish grow sig :=
+  fun left right check canon => LinkedCallback.ChildFrameOver older left right check canon ∧
+    left.ctl = check.control (site.reply (.ok ())) ∧ right.ctl = canon.control (site.referenceReply ())
+
+/-- Enter the actual canonical memory root and compare the same compiled
+field traversal used for children. Success and typed refusal target the
+original caller, while trap and allocator cuts stay at their reached sites. -/
+def LinkedMemoryRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading entered peer, PayloadPrefix.visible leading = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place leading entered
+      (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+    entered.host = incoming.host ∧
+    liveRecursivePaths profile ready base bindings older site.destination site.inst site.checked entered 0
+      (publicRefusalSink profile ready base bindings site entered) (sig.payload site.tag)
+      site.field 0 (flatNat pointer) site.reply site.referenceReply
+      (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+      [] site.checked entered site.cursor peer
+
 /-- The actual range verdict after an allocator return. A late reservation
 refusal runs only the checked completion; canonical is at child entry with
 the reached store, before any element write or descriptor publication. -/
