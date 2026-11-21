@@ -1898,6 +1898,22 @@ private theorem liveCompiledMapVisitor (destination : RecordDestination) (inst :
     have valuePath : Field.Descendant root value := entryPath.trans (.aggregate (by simp) (.self _))
     exact ⟨payload, value, shape, ⟨layout.type_eq, entryPath⟩, child value valuePath layout emitted⟩
 
+private theorem placementInterval (destination : RecordDestination) (before : CStore (core3 grow))
+    (area : Layout) (address : Nat) (placed : placement destination before area address = .ok ()) :
+    address % area.alignment.bytes = 0 ∧ ∃ bytes,
+      (core3 grow).memSize? before.core destination.memory = some bytes ∧ address + area.size ≤ bytes := by
+  have aligned : address % area.alignment.bytes = 0 := by
+    by_contra invalid
+    simp [placement, invalid] at placed
+    change Except.error TrapReason.unalignedPointer = .ok () at placed
+    contradiction
+  cases sized : (core3 grow).memSize? before.core destination.memory with
+  | none => simp [placement, aligned, sized] at placed
+  | some bytes =>
+    refine ⟨aligned, bytes, rfl, ?_⟩
+    by_contra invalid
+    simp [placement, aligned, sized, Nat.lt_of_not_ge invalid] at placed
+
 private theorem sumArmPlacement (destination : RecordDestination) (type : Stored.TypeOf)
     (arms : List (Option Stored.TypeOf)) (item : Field) (address : Nat) {before after : CStore (core3 grow)}
     (shape : layout destination.width type = variantLayout (arms.map (layoutOption destination.width)))
@@ -1907,27 +1923,17 @@ private theorem sumArmPlacement (destination : RecordDestination) (type : Stored
     placement destination after (layout destination.width item.type) (sumPayloadAddress destination.width arms address) = .ok () := by
   rw [shape] at placed
   let area := variantLayout (arms.map (layoutOption destination.width))
-  have aligned : address % area.alignment.bytes = 0 := by
-    by_contra invalid
-    simp [placement, area, invalid] at placed
-    change Except.error TrapReason.unalignedPointer = .ok () at placed
-    contradiction
-  cases sized : (core3 grow).memSize? before.core destination.memory with
-  | none => simp [placement, area, aligned, sized] at placed
-  | some bytes =>
-    have bounds : address + area.size ≤ bytes := by
-      by_contra invalid
-      simp [placement, area, aligned, sized, Nat.lt_of_not_ge invalid] at placed
-    obtain ⟨modulo, within⟩ := variantLayout_payload_fits _ address (layout destination.width item.type)
-      (Nat.dvd_of_mod_eq_zero aligned) member
-    rw [List.length_map] at modulo within
-    obtain ⟨reachedBytes, reachedSize, larger⟩ := growth.memSize sized
-    have sizeAt : (core3 grow).memSize? after.core destination.memory = some reachedBytes := reachedSize
-    have fits : sumPayloadAddress destination.width arms address + (layout destination.width item.type).size ≤ reachedBytes :=
-      within.trans (bounds.trans larger)
-    change sumPayloadAddress destination.width arms address % (layout destination.width item.type).alignment.bytes = 0 at modulo
-    simp [placement, modulo, sizeAt, Nat.not_lt.mpr fits]
-    rfl
+  obtain ⟨aligned, bytes, sized, bounds⟩ := placementInterval destination before area address placed
+  obtain ⟨modulo, within⟩ := variantLayout_payload_fits _ address (layout destination.width item.type)
+    (Nat.dvd_of_mod_eq_zero aligned) member
+  rw [List.length_map] at modulo within
+  obtain ⟨reachedBytes, reachedSize, larger⟩ := growth.memSize sized
+  have sizeAt : (core3 grow).memSize? after.core destination.memory = some reachedBytes := reachedSize
+  have fits : sumPayloadAddress destination.width arms address + (layout destination.width item.type).size ≤ reachedBytes :=
+    within.trans (bounds.trans larger)
+  change sumPayloadAddress destination.width arms address % (layout destination.width item.type).alignment.bytes = 0 at modulo
+  simp [placement, modulo, sizeAt, Nat.not_lt.mpr fits]
+  rfl
 
 private theorem liveSumRule (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
     (arms : List (Option Stored.TypeOf)) (tag address : Nat) (selected : Option Field)
@@ -1998,6 +2004,73 @@ private theorem resultCompiled {item : Field} {success failure : Option Stored.T
   | @endpoint channel _ _ => cases channel <;> cases matched
   | _ => cases matched
 
+private theorem fixedCompiled {item : Field} {element : Stored.TypeOf} {length : Nat}
+    (matched : item.LayoutMatches (.fixedList element length)) (emitted : item.Emitted) :
+    ∃ entries, item = .fixed element length entries ∧ entries.length = length ∧
+      Field.EntriesMatch entries element ∧ ∀ entry ∈ entries, entry.Emitted := by
+  cases emitted with
+  | fixed compiled => cases matched with | fixed count matching => exact ⟨_, rfl, count, matching, compiled⟩
+  | @endpoint channel _ _ => cases channel <;> cases matched
+  | _ => cases matched
+
+private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (length : Nat) (entries : List Field) (address : Nat)
+    (count : entries.length = length) (matching : Field.EntriesMatch entries element) (compare : FieldComparison grow sig)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
+    (child : ∀ item ∈ entries, ∀ reached slot, PlacedFieldRule compare older reached destination inst item slot) :
+    PlacedFieldRule (fun _ index address left right check canon checkNext canonNext finish =>
+      LiveFixedThen profile ready base bindings destination inst compare element entries index address checkNext canonNext finish
+        left right check canon) older origin destination inst (.fixed element length entries) address := by
+  intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+  let area := layout destination.width element
+  let cx : LiftLowerContext (core3 grow) := destination.context inst
+  let body := fun reached => CanonicalTree.elements Limits.spec Quirks.none cx destination.width entries .value
+    (layout reached element).size address >>= canonNext
+  let reference := { right with ctl := canon.control (body destination.width) }
+  have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width := frame.store ▸ width
+  have reachedWidth : ptrTypeIn right.store cx = destination.width := by
+    simp [cx, ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]
+  have focus : right.ctl = canon.control (.op .get (fun store => body (ptrTypeIn store cx))) := by
+    rw [canonAt, CanonicalTree.field]
+    let elements : AddrType → Session grow sig Unit := fun reached => CanonicalTree.elements Limits.spec Quirks.none cx destination.width entries .value
+      (layout reached element).size address
+    change canon.control (((ptrType cx).bind elements).bind canonNext) = _
+    rw [Prog.bind_assoc]
+    rfl
+  refine ⟨fun depth => ?_, ?_⟩
+  · change Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right (.active 0 depth) [.tau] reference (.active 0 depth)
+    simpa only [reachedWidth, Cursor.control, reference] using (ReturnFrame.Occurrence.Prefix.read (profile := profile)
+      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) depth focus)
+  · obtain ⟨modulo, bytes, sized, fits⟩ := placementInterval destination left.store
+      (layout destination.width (.fixedList element length)) address placed
+    rw [layout] at modulo fits
+    have aligned : address = alignTo address area.alignment := by
+      change address % area.alignment.bytes = 0 at modulo
+      cases reached : area.alignment <;> simp only [alignTo, reached, Alignment.bytes] at modulo ⊢ <;> omega
+    have bounds : address + entries.length * area.size ≤ bytes := by
+      rw [count]
+      simpa only [area, Layout.size, Nat.mul_assoc] using fits
+    have checkBody : left.ctl = check.control (Track.checked (.elements area.size) destination inst entries 0 address >>=
+        aggregateNext index checkNext) := by
+      rw [checkAt, Record.Effects.field]
+      let elements : Session grow sig (Except RecordLower.Issue Unit) := Track.checked (.elements area.size) destination inst entries 0 address
+      change check.control ((elements.bind fun verdict => Prog.pure (verdict.mapError (.nested index))).bind checkNext) = _
+      rw [Prog.bind_assoc]
+      rfl
+    have done := fun lhs rhs cursor peer paired grew checked canonical =>
+      ends lhs rhs cursor peer paired (growth.trans grew) checked canonical
+    change liveElements destination inst area.size compare (aggregateNext index checkNext) canonNext finish
+      entries 0 address left reference check canon
+    simpa only [Nat.zero_mul, Nat.add_zero, aggregateNext] using
+      liveElementsRule destination inst element entries 0 address entries.length 0 bytes compare older left.store
+        width sized aligned bounds (Nat.zero_add _).le
+        (fun item member => (entries_match_of_mem matching member).type_eq) (fun item member => child item member left.store)
+        (aggregateNext index checkNext) canonNext finish done
+        (left := left) (right := reference) (check := check) (canon := canon)
+        ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+        (Core3.Grows.refl _) (by simpa only [Nat.zero_mul, Nat.add_zero, Track.checked, area] using checkBody)
+        (by simp only [reference, body, cx, Nat.zero_mul, Nat.add_zero])
+
 private theorem collectionFieldRule (destination : RecordDestination) (inst : InstId)
     {schema : Stored.TypeOf} (family : RecursiveCollectionType schema) (item : Field) (address : Nat)
     (matched : item.LayoutMatches schema) (emitted : item.Emitted) {root : Field} {rootSchema : Stored.TypeOf}
@@ -2043,6 +2116,15 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
           checkNext canonNext (fun () => finish) ?_)⟩
     intro _ lhs rhs cursor peer paired kept leftAt rightAt
     exact ends lhs rhs cursor peer paired (growth.trans kept) leftAt rightAt
+  | @fixed element length _ ih =>
+    obtain ⟨entries, rfl, count, matching, compiled⟩ := fixedCompiled matched emitted
+    have rule := liveFixedRule (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      (older := older) (origin := origin) destination inst element length entries address count matching
+      (liveCollectionField profile ready base bindings older destination inst element)
+      (fun item member _ slot => ih item slot (entries_match_of_mem matching member) (compiled item member)
+        (path.trans (.fixed member (.self _))))
+    intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+    exact ⟨entries, rfl, rule index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
   | @option element _ ih =>
     have compare := fun tag selected => liveSumRule (profile := profile) (ready := ready) (base := base) (bindings := bindings)
       (older := older) (origin := origin) destination inst (.option element) [none, some element] tag address selected
@@ -2573,6 +2655,7 @@ theorem linkedRecursiveCollectionBody {route : GiveEffectRoute} (site : PayloadR
   | string => cases collection
   | option => cases collection
   | result => cases collection
+  | fixed => cases collection
   | @list element child =>
     obtain ⟨entries, field, shapes, emitted⟩ := listCompiled matched linked.emitted
     have rootPath : Field.Descendant site.field (.dynamic (.list element) element entries) := by

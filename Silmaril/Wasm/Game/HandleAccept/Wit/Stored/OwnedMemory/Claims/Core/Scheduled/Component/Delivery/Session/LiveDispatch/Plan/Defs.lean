@@ -624,6 +624,7 @@ inductive RecursiveCollectionType : Stored.TypeOf → Prop where
   | data {type} : PayloadPrefix.LocalDataType type → RecursiveCollectionType type
   | string : RecursiveCollectionType (.prim .string)
   | list {element} : RecursiveCollectionType element → RecursiveCollectionType (.list element)
+  | fixed {element length} : RecursiveCollectionType element → RecursiveCollectionType (.fixedList element length)
   | map {key element} : RecursiveCollectionType element → RecursiveCollectionType (.map key element)
   | option {element} : RecursiveCollectionType element → RecursiveCollectionType (.option element)
   | result {success failure} : (∀ type, success = some type → RecursiveCollectionType type) →
@@ -772,6 +773,19 @@ def LiveSumThen (profile : ProfileKind) (ready : HostReady (HostState sig))
       | none => finish lhs rhs check canon
       | some item => child item 0 addr lhs rhs check canon (aggregateNext index checkNext) canonNext finish
 
+def LiveFixedThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (destination : RecordDestination) (inst : InstId) (child : LinkedCallback.MemorySequence.FieldComparison grow sig)
+    (element : Stored.TypeOf) (entries : List Stored.Endpoints.RecordLower.Field) (index address : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : LinkedCallback.MemorySequence.Finish grow sig) (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  open ABI Stored.Endpoints.RecordLower LinkedCallback.MemorySequence ReturnFrame.Occurrence in
+  let stride := (layout destination.width element).size
+  let reference := { right with ctl := canon.control (Track.canonical (.elements stride) destination inst entries address >>= canonNext) }
+  RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] reference ∧
+    liveElements destination inst stride child (aggregateNext index checkNext) canonNext finish entries 0 address left reference check canon
+
 /-- Recursion follows the declared type, not the number of reached allocator
 returns. Each map selects the actual key rule before visiting its value. -/
 def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -793,6 +807,10 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
         (liveMapTailWith profile ready base bindings (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
           destination inst key element entries index output
           (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish))
+  | .fixedList element length => fun item index address left right check canon checkNext canonNext finish =>
+    ∃ entries, item = .fixed element length entries ∧
+      LiveFixedThen profile ready base bindings destination inst (liveCollectionField profile ready base bindings older destination inst element)
+        element entries index address checkNext canonNext finish left right check canon
   | .option element => fun item index address left right check canon checkNext canonNext finish =>
     ∃ tag selected, item = .sum (.option element) [none, some element] tag selected ∧
       LiveSumThen profile ready base bindings destination inst (liveCollectionField profile ready base bindings older destination inst element)
@@ -819,8 +837,8 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
       checkNext canonNext (fun () => finish)
 termination_by structural type => type
 
-/-- Compare either public body for arbitrary list/map nesting with active
-option/result arms and nominal, scalar, or string terminal fields. -/
+/-- Compare either public body for arbitrary list/map nesting with fixed
+arrays, active option/result arms, and nominal, scalar, or string leaves. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
