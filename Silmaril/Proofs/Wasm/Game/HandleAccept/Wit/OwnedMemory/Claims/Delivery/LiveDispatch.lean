@@ -454,6 +454,102 @@ theorem flatSelection (request : CoreGiveRequest bindings start) {schema : Store
   refine ⟨⟨handle, tree, args, ?_, caller, mayLeave, destination, selected, admitted⟩, rfl⟩
   simpa [flat, GiveEffectRoute.action] using request.linked
 
+theorem selectedOfReturn (request : CoreGiveRequest bindings start) {result : SelectionValue sig request.schema}
+    (evaluation : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok (.ok result))) :
+    ∃ route, Nonempty (request.Selected route) := by
+  cases request with
+  | mk name kind args inst destination schema thread core next frames rest focused calling linked =>
+    cases schema with
+    | none =>
+      obtain ⟨pointer, selected, _, _⟩ := memorySelection
+        ⟨name, kind, args, inst, destination, none, thread, core, next, frames, rest, focused, calling, linked⟩ rfl evaluation
+      exact ⟨.memory pointer, ⟨selected⟩⟩
+    | some schema =>
+      obtain ⟨selected, _⟩ := flatSelection
+        ⟨name, kind, args, inst, destination, some schema, thread, core, next, frames, rest, focused, calling, linked⟩ rfl evaluation
+      exact ⟨.flat schema, ⟨selected⟩⟩
+
+private theorem memorySelectorReturns (destination : RecordDestination) (args : List FlatValue) (thread : Option ThreadId) :
+    ∃ result, Plain.runBody (selectMemoryDestination destination args) start.store start.host (some thread) =
+      (start.store, start.host, .ok result) := by
+  unfold selectMemoryDestination
+  split
+  next _ handle pointer =>
+    split
+    · exact ⟨_, rfl⟩
+    · cases checked : destination.check start.store with
+      | error issue => exact ⟨.error issue, by simp [Prog.bind_eq, readStore, checked, Prog.pure_eq, Plain.runBody]⟩
+      | ok checkedValue =>
+        cases checkedValue
+        simp only [Prog.bind_eq, readStore, checked, readSelection]
+        cases Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle <;> exact ⟨_, rfl⟩
+  next => exact ⟨_, rfl⟩
+
+private theorem flatSelectorReturns (destination : RecordDestination) (schema : Stored.TypeOf) (args : List FlatValue)
+    (thread : Option ThreadId) :
+    ∃ result, Plain.runBody (selectFlatDestination destination schema args) start.store start.host (some thread) =
+      (start.store, start.host, .ok result) := by
+  unfold selectFlatDestination
+  split
+  next _ handle =>
+    cases checked : destination.check start.store with
+    | error issue => exact ⟨.error issue, by simp [Prog.bind_eq, readStore, checked, Prog.pure_eq, Plain.runBody]⟩
+    | ok checkedValue =>
+      cases checkedValue
+      simp only [Prog.bind_eq, readStore, checked, readSelection]
+      cases Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle with
+      | none => exact ⟨_, rfl⟩
+      | some tree =>
+        cases sameSchema : rootHasSchema tree schema with
+        | false => exact ⟨.error .wrongPayloadType, by simp [sameSchema, Prog.pure_eq, Plain.runBody]⟩
+        | true => exact ⟨.ok tree, by simp [sameSchema, Prog.pure_eq, Plain.runBody]⟩
+  next => exact ⟨_, rfl⟩
+
+private theorem admitReturns {Result : Type} (inst : InstId) (thread : Option ThreadId)
+    (program : Session grow sig (Except Issue Result))
+    (returned : ∃ result, Plain.runBody program start.store start.host (some thread) = (start.store, start.host, .ok result)) :
+    (∃ reason, Plain.callerInstance start.store thread = .error (.trapped reason)) ∨
+      ∃ result, Plain.runBody (admit inst program) start.store start.host (some thread) = (start.store, start.host, .ok result) := by
+  cases caller : Plain.callerInstance start.store thread with
+  | error issue =>
+    cases thread with
+    | none => simp [Plain.callerInstance] at caller
+    | some thread =>
+      cases active : ArenaField.threads.get? start.store thread with
+      | none =>
+        simp [Plain.callerInstance, active] at caller
+        exact .inl ⟨_, by cases caller; rfl⟩
+      | some activeThread =>
+        cases task : ArenaField.tasks.get? start.store activeThread.task with
+        | none =>
+          simp [Plain.callerInstance, active, task] at caller
+          exact .inl ⟨_, by cases caller; rfl⟩
+        | some record =>
+          simp [Plain.callerInstance, active, task] at caller
+          change Except.ok (some record.inst) = Except.error issue at caller
+          contradiction
+  | ok actual =>
+    right
+    by_cases same : actual = some inst
+    · subst actual
+      by_cases leave : (start.store.inst? inst).any (·.mayLeave) = true
+      · simpa [admit, Prog.bind_eq, Plain.runBody_currentInst, caller, readStore, leave] using returned
+      · refine ⟨.error .wrongContext, ?_⟩
+        simp [admit, Prog.bind_eq, Plain.runBody_currentInst, caller, readStore, Bool.eq_false_iff.mpr leave, Prog.pure_eq, Plain.runBody]
+    · refine ⟨.error .wrongContext, ?_⟩
+      simp [admit, Prog.bind_eq, Plain.runBody_currentInst, caller, readStore, same, Prog.pure_eq, Plain.runBody]
+
+theorem selectorResult (request : CoreGiveRequest bindings start) :
+    (∃ reason, Plain.callerInstance start.store request.thread = .error (.trapped reason)) ∨
+    ∃ result, Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok result) := by
+  cases request with
+  | mk name kind args inst destination schema thread core next frames rest focused calling linked =>
+    cases schema with
+    | none => exact admitReturns inst thread _ (memorySelectorReturns destination args thread)
+    | some schema => exact admitReturns inst thread _ (flatSelectorReturns destination schema args thread)
+
 theorem selectionLinked {request : CoreGiveRequest bindings start} (selection : request.Selected route)
     {tag : sig.Tag} {payload : Stored.OwnedMemory.Payload (sig.payload tag)} {arity : Nat}
     {children : Fin arity → Stored.OwnedMemory.Tree sig} {field : Stored.Endpoints.RecordLower.Field} {plan}

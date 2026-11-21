@@ -2351,4 +2351,35 @@ def RecursiveGiveDomain {bindings : List (Binding sig)} {start : Config (core3 g
   ∀ tag payload arity children field plan, selection.tree = .tag ⟨tag, payload⟩ arity children →
     selection.preflight = .ok (field, plan) → RecursiveCollectionType (sig.payload tag)
 
+/-- Classify a reached Core give without choosing its route or body in
+advance. The open lookup names the exact demanded handle. An ABI refusal
+actually rejoins both callers, unlike a later checked compiler refusal. -/
+inductive RecursiveRequestCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (callees : List (ComponentCall.Callee sig)) {bindings : List (Binding sig)}
+    {start : Config (core3 grow) (HostState sig)} (request : CoreGiveRequest bindings start)
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (incoming : Config (core3 grow) (HostState sig)) : Prop where
+  | lookup {handle} (demand : request.lookupDemand = some handle)
+      (different : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle ≠
+        Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle)
+  | trapped {reason leftCount rightCount}
+      (caller : Plain.callerInstance start.store request.thread = .error (.trapped reason))
+      (left : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        start (List.replicate leftCount .tau ++ [.trap reason])
+        (StepDefs.trapCfg { start with host := start.host.enter request.name request.kind request.args }))
+      (right : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming (List.replicate rightCount .tau ++ [.trap reason]) (StepDefs.trapCfg incoming))
+  | refused {issue leftCount rightCount checked canonical}
+      (verdict : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+        (start.store, start.host, .ok (.error issue)))
+      (left : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        start (List.replicate leftCount .tau) checked)
+      (right : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming (List.replicate rightCount .tau) canonical)
+      (paired : HostFrame.Related.Paired older checked canonical)
+      (checkedHost : checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1)
+      (canonicalHost : canonical.host = incoming.host)
+  | admitted {route} (selection : request.Selected route)
+      (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+      (body : RecursiveGiveDomain selection → ReachedRecursiveGive profile ready callees selection older incoming)
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

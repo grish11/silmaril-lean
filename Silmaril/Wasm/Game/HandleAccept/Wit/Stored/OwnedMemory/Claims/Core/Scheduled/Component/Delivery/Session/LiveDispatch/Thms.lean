@@ -142,6 +142,22 @@ theorem LiveDispatch.CoreGiveRequest.flat_selection (request : LiveDispatch.Core
     ∃ selection : request.Selected (.flat schema), selection.tree = tree :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.flatSelection request flat evaluation
 
+/-- The read-only selector either traps resolving a dangling caller or
+produces an ordinary admission verdict. It cannot run an emitter, suspend,
+or execute a callout. -/
+theorem LiveDispatch.CoreGiveRequest.selector_result (request : LiveDispatch.CoreGiveRequest bindings start) :
+    (∃ reason, Plain.callerInstance start.store request.thread = .error (.trapped reason)) ∨
+    ∃ result, Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok result) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.selectorResult request
+
+theorem LiveDispatch.CoreGiveRequest.selected_of_return (request : LiveDispatch.CoreGiveRequest bindings start)
+    {result : LiveDispatch.SelectionValue sig request.schema}
+    (evaluation : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok (.ok result))) :
+    ∃ route, Nonempty (request.Selected route) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.selectedOfReturn request evaluation
+
 /-- Turn the actual selected root and successful compiler result into a
 linked recursive site. No emitter readiness or live claim validity is assumed. -/
 theorem LiveDispatch.CoreGiveRequest.Selected.linked_site {request : LiveDispatch.CoreGiveRequest bindings start}

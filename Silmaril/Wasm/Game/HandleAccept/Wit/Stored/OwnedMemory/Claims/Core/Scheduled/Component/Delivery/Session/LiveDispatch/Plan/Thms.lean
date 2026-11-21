@@ -1263,4 +1263,13 @@ theorem CoreGiveRequest.Selected.recursive_give_after_interleaving {route : Give
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.recursiveGiveAfterInterleaving
     selection between roots family
 
+/-- Refine a reached give-installation cut from paired replay. The actual
+linked selector determines the route, ABI refusal, or caller trap. Open
+lookups and direct program calls remain explicit, not fabricated errors. -/
+theorem GiveInstall.recursive_request_cut {callees : List (ComponentCall.Callee sig)} {label}
+    (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    DirectGiveAt bindings start ∨ ∃ request : CoreGiveRequest bindings start, RecursiveRequestCut profile ready callees request older incoming :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.recursiveInstallCut install paired
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

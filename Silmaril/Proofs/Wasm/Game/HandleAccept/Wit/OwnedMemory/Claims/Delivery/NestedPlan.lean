@@ -932,4 +932,36 @@ theorem recursiveGiveAfterInterleaving {route : GiveEffectRoute} {request : Core
   rw [reachedRoots]
   exact selection.selected
 
+theorem recursiveRequestCut (request : CoreGiveRequest bindings start) {callees : List (ComponentCall.Callee sig)}
+    (paired : HostFrame.Related.Paired older start incoming) : RecursiveRequestCut profile ready callees request older incoming := by
+  classical
+  by_cases reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+      Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle
+  · rcases request.selector_result with ⟨reason, trap⟩ | ⟨verdict, evaluated⟩
+    · obtain ⟨_, _, left, right⟩ := request.paired_admission_trap (profile := profile) (ready := ready)
+        (base := ComponentCall.hostWithComponent bindings callees) (ComponentCall.hostWithComponent bindings callees) rfl paired trap
+      exact .trapped trap left right
+    · cases verdict with
+      | error issue =>
+        obtain ⟨_, _, _, _, left, right, aligned, checkedHost, canonicalHost⟩ := request.paired_admission_refusal
+          (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees)
+          (ComponentCall.hostWithComponent bindings callees) rfl paired evaluated reads
+        exact .refused evaluated left right aligned checkedHost canonicalHost
+      | ok result =>
+        obtain ⟨route, ⟨selection⟩⟩ := request.selected_of_return evaluated
+        have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected
+        exact .admitted selection selected (fun family => reachedRecursiveGive selection family paired selected)
+  · push Not at reads
+    obtain ⟨handle, demand, different⟩ := reads
+    exact .lookup demand different
+
+theorem recursiveInstallCut {callees : List (ComponentCall.Callee sig)} {label}
+    (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    DirectGiveAt bindings start ∨ ∃ request : CoreGiveRequest bindings start, RecursiveRequestCut profile ready callees request older incoming := by
+  rcases install.request with ⟨⟨request⟩⟩ | direct
+  · exact .inr ⟨request, recursiveRequestCut request paired⟩
+  · exact .inl direct
+
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
