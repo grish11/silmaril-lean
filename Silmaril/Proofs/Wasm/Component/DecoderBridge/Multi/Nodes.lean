@@ -346,12 +346,12 @@ def LaterCoreStep' : Prop :=
 
 /-- **`FirstK`, with the frame related to the symbolic reading** of the definitions up to and
 including the first core instantiation. -/
-def FirstK' : Prop :=
+def FirstKAt (fragment : RefComponent → Prop) : Prop :=
   ∀ (b : ByteArray) (c : Comp Binary.CoreMod) (r : RefComponent)
     (p : Binary.CoreMod × List Impl) (ps : List (Binary.CoreMod × List Impl))
     (t₀ : List (Σ _ : sigU.Op, Option Payload)) (pre : RefComponent) (mi : Nat)
     (cargs : List (String × Nat)) (post : RefComponent),
-    Binary.parseComponent b = .ok c → decodeRef b = .ok r → MultiImpFrag r →
+    Binary.parseComponent b = .ok c → decodeRef b = .ok r → fragment r →
     c.imports = hostI → c.nodes = coreNodes (p :: ps) → (∀ x ∈ t₀, x.2 = InstTests.unitV) →
     NodeCalls hostI.length .ready p.1 p.2 t₀ →
     firstCore? r = some (pre, mi, cargs, post) →
@@ -359,6 +359,8 @@ def FirstK' : Prop :=
       ∀ R₀, (pre ++ [Syntax.Definition.coreInstance (.instantiate mi cargs)]).foldlM refStep
           ({ env := (r.filter isFuncImport).length } : RSt) = some R₀ →
         FrameRel (coreMods pre) R₀ sc
+
+def FirstK' : Prop := FirstKAt MultiImpFrag
 
 /-! ## Core instantiations in the symbolic reading -/
 

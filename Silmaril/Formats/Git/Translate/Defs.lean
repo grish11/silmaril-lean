@@ -1,5 +1,6 @@
 module
 
+public import Mathlib.Data.Multiset.Bind
 public import Silmaril.Formats.Git.Native.Defs
 
 /-! A bottom-up interpretation of a finite Git unfolding. The two sides name
@@ -22,29 +23,37 @@ target name. This does not assert injectivity or resolve an opaque reference. -/
 def Correspondence.Functional (rel : Correspondence Source Target) : Prop :=
   ∀ kind, Naming.Binding (rel kind)
 
+/-- Each finite trace occurrence has a typed name pair and either its native
+preimage or an opaque cut (no assertion of object availability). -/
+structure Event (Source Target : Type) where
+  kind : Kind
+  source : Source
+  target : Target
+  bytes : Option ByteArray
+  deriving DecidableEq
+
 structure Trace (Source Target : Type) where
-  pairs : Correspondence Source Target
-  preimages : Kind → Naming.Relation Source ByteArray
-  frontier : Correspondence Source Target
+  events : Multiset (Event Source Target)
 
-def Trace.union (left right : Trace Source Target) : Trace Source Target :=
-  ⟨fun kind => Naming.union (left.pairs kind) (right.pairs kind),
-    fun kind => Naming.union (left.preimages kind) (right.preimages kind),
-    fun kind => Naming.union (left.frontier kind) (right.frontier kind)⟩
-
-def Trace.collect {Index : Type} (items : Index → Trace Source Target) : Trace Source Target :=
-  ⟨fun kind source target => ∃ index, (items index).pairs kind source target,
-    fun kind source bytes => ∃ index, (items index).preimages kind source bytes,
-    fun kind source target => ∃ index, (items index).frontier kind source target⟩
-
-/-- A reference cut supplies names, not bytes or evidence of availability. -/
 def Trace.opaque (kind : Kind) (source : Source) (target : Target) : Trace Source Target :=
-  let edge := fun tag left right => tag = kind ∧ left = source ∧ right = target
-  ⟨edge, fun _ _ _ => False, edge⟩
+  ⟨{⟨kind, source, target, none⟩}⟩
 
 def Trace.observe (kind : Kind) (source : Source) (target : Target) (bytes : ByteArray) : Trace Source Target :=
-  ⟨fun tag left right => tag = kind ∧ left = source ∧ right = target,
-    fun tag name wire => tag = kind ∧ name = source ∧ wire = bytes, fun _ _ _ => False⟩
+  ⟨{⟨kind, source, target, some bytes⟩}⟩
+
+def Trace.union (left right : Trace Source Target) : Trace Source Target := ⟨left.events + right.events⟩
+
+def Trace.collect {Index : Type} [Fintype Index] (items : Index → Trace Source Target) : Trace Source Target :=
+  ⟨Multiset.bind (Finset.univ : Finset Index).val (fun index => (items index).events)⟩
+
+def Trace.pairs (trace : Trace Source Target) : Correspondence Source Target :=
+  fun kind source target => ∃ bytes, ⟨kind, source, target, bytes⟩ ∈ trace.events
+
+def Trace.preimages (trace : Trace Source Target) : Kind → Naming.Relation Source ByteArray :=
+  fun kind source bytes => ∃ target, ⟨kind, source, target, some bytes⟩ ∈ trace.events
+
+def Trace.frontier (trace : Trace Source Target) : Correspondence Source Target :=
+  fun kind source target => ⟨kind, source, target, none⟩ ∈ trace.events
 
 def Trace.Closed (trace : Trace Source Target) : Prop := ∀ kind source target, ¬ trace.frontier kind source target
 

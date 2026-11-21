@@ -698,6 +698,7 @@ variable {W : Writer Op X}
 
 /-! ## Call-local traps -/
 
+omit [DecidableEq H] in
 /-- The accept policy order is the rank order, everything else fixed. -/
 theorem le_onAccept (pol : Policy H) {oa oa' : OnInvalid} (h : oa.rank ≤ oa'.rank) :
     Policy.Le {pol with onAccept := oa} {pol with onAccept := oa'} :=

@@ -160,14 +160,17 @@ def storeListIntoValidRangeWith (elemSize : Nat) (storeElem : Val → Nat → P 
     (vs : List Val) (ptr : Nat) : P E σ Unit :=
   Prog.forM vs.zipIdx fun (e, i) => storeElem e (ptr + i * elemSize)
 
+/-- Check the returned pointer against the memory in the reached store. -/
+def validateListRange (cx : LiftLowerContext E) (el : ABI.Layout) (count ptr : Nat) : P E σ Nat := do
+  trapIf (decide (ptr ≠ ABI.alignTo ptr el.alignment)) .unalignedPointer
+  checkInBounds cx ptr (count * el.size)
+  return ptr
+
 /-- Allocate the canonical list range, then check alignment and bounds against the
 reached state. The realloc byte-length bound is a precondition (`StoreListPre`, D-f). -/
 def allocateListRange (cx : LiftLowerContext E) (el : ABI.Layout) (count : Nat) : P E σ Nat := do
-  let byteLength := count * el.size
-  let ptr ← allocate cx el.alignment.bytes byteLength
-  trapIf (decide (ptr ≠ ABI.alignTo ptr el.alignment)) .unalignedPointer
-  checkInBounds cx ptr byteLength
-  return ptr
+  let ptr ← allocate cx el.alignment.bytes (count * el.size)
+  validateListRange cx el count ptr
 
 /-- REF `store_list_into_range(cx, v, elem_type)` (L1689-1696): allocate and
 validate the range, store elements in order, then return `(ptr, len(v))`. -/

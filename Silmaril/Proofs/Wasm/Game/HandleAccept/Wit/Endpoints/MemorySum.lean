@@ -73,6 +73,52 @@ private theorem armStore_matches (limits : Component.Limits) (quirks : Quirks) (
   | none => simp [armStore, storeOpt]
   | some layout => simp [armStore, storeOpt, Field.armValue, layout.type_eq]
 
+private theorem sum_program_aux (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowerContext E)
+    (type : TypeOf) (arms : List (Option TypeOf)) (tag ptr : Nat)
+    (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type) :
+    (store limits quirks cx (.variant tag (Field.armValue arm)) type ptr : P E World _) = (do
+      let width ← ptrType cx
+      let address ← storeVariantHead cx arms.length (maxCaseAlignment (arms.map (layoutOption width))) tag ptr
+      armStore limits quirks cx address arm) := by
+  cases layout with
+  | variant found certificate =>
+    rw [store]
+    congr 1
+    funext width
+    simp only [List.length_map, caseLayouts, caseStore_at _ _ _ _ _ _ _ _ found,
+      armStore_matches _ _ _ _ certificate]
+  | optionNone =>
+    rw [store]
+    congr 1
+    funext width
+    simp [armStore, layoutOption]
+  | optionSome certificate =>
+    rw [Field.armValue, store]
+    congr 1
+    funext width
+    simp [armStore, layoutOption, certificate.type_eq]
+  | resultOk certificate =>
+    rw [store]
+    congr 1
+    funext width
+    simp [armStore_matches _ _ _ _ certificate]
+  | resultError certificate =>
+    rw [store]
+    congr 1
+    funext width
+    simp [armStore_matches _ _ _ _ certificate]
+
+theorem sum_program (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowerContext E)
+    (type : TypeOf) (arms : List (Option TypeOf)) (tag ptr : Nat)
+    (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type) :
+    (store limits quirks cx (.variant tag (Field.armValue arm)) type ptr : P E World _) = (do
+      let width ← ptrType cx
+      let address ← storeVariantHead cx arms.length (maxCaseAlignment (arms.map (layoutOption width))) tag ptr
+      match arm with
+      | none => pure ()
+      | some field => store limits quirks cx field.value field.type address) :=
+  sum_program_aux limits quirks cx type arms tag ptr arm layout
+
 theorem sum_rejoin (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowerContext E)
     (authority : Authority E World) (type : TypeOf) (arms : List (Option TypeOf)) (tag index ptr : Nat)
     (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type)
@@ -83,49 +129,13 @@ theorem sum_rejoin (limits : Component.Limits) (quirks : Quirks) (cx : LiftLower
       let width ← ptrType cx
       runField limits quirks cx authority width (.sum type arms tag arm) index (.memory ptr)) =
       Except.ok <$> store limits quirks cx (.variant tag (Field.armValue arm)) type ptr := by
+  rw [sum_program_aux limits quirks cx type arms tag ptr arm layout]
   dsimp only [Output.Result]
-  cases layout with
-  | variant found certificate =>
-    rename_i types selected
-    rw [store]
-    simp only [← bind_pure_comp, Prog.bind_eq, Prog.bind_assoc]
-    congr 1
-    funext width
-    rw [rejoin limits quirks cx authority width _ _ tag index ptr arm (child width)]
-    dsimp only [Output.Result]
-    simp only [List.length_map, caseLayouts, caseStore_at _ _ _ _ _ _ _ _ found,
-      armStore_matches _ _ _ _ certificate, ← bind_pure_comp, Prog.bind_eq]
-  | optionNone =>
-    rw [store]
-    simp only [← bind_pure_comp, Prog.bind_eq, Prog.bind_assoc]
-    congr 1
-    funext width
-    rw [rejoin limits quirks cx authority width _ _ _ index ptr _ (child width)]
-    dsimp only [Output.Result]
-    simp [armStore, layoutOption, ← bind_pure_comp]
-  | optionSome certificate =>
-    rw [store]
-    simp only [Field.armValue, ← bind_pure_comp, Prog.bind_eq, Prog.bind_assoc]
-    congr 1
-    funext width
-    rw [rejoin limits quirks cx authority width _ _ _ index ptr _ (child width)]
-    dsimp only [Output.Result]
-    simp [armStore, layoutOption, certificate.type_eq, ← bind_pure_comp]
-  | resultOk certificate =>
-    rw [store]
-    simp only [← bind_pure_comp, Prog.bind_eq, Prog.bind_assoc]
-    congr 1
-    funext width
-    rw [rejoin limits quirks cx authority width _ _ _ index ptr _ (child width)]
-    dsimp only [Output.Result]
-    simp [armStore_matches _ _ _ _ certificate, ← bind_pure_comp]
-  | resultError certificate =>
-    rw [store]
-    simp only [← bind_pure_comp, Prog.bind_eq, Prog.bind_assoc]
-    congr 1
-    funext width
-    rw [rejoin limits quirks cx authority width _ _ _ index ptr _ (child width)]
-    dsimp only [Output.Result]
-    simp [armStore_matches _ _ _ _ certificate, ← bind_pure_comp]
+  simp only [← bind_pure_comp, Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext width
+  rw [rejoin limits quirks cx authority width type arms tag index ptr arm (child width)]
+  dsimp only [Output.Result]
+  simp only [← bind_pure_comp, Prog.bind_eq]
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.MemorySum

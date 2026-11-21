@@ -51,23 +51,53 @@ agreement is separate from using a canonical target writer; no claim equates
 the native and DASL digests, or says that the target metadata codec recovers
 native bytes or fields it chose not to encode.
 
-## Next slice: audited repository translation
+## Rooted partial stores
 
-1. Parse and validate the supported native preimages read from a store by OID;
-   require the requested root OID and each discovered kind/name to match the
-   parsed object and its original bytes.
-2. Define reachability from that root and distinguish missing local edges from
-   intentionally external gitlinks. Detect cycles on the active path; memoize
-   completed objects by kind and native OID. Prove the result represents every
-   reachable in-scope object, with only policy-allowed cuts on the boundary.
-3. Check source/target block binding and materialize a target store, including
-   Prolly internals. Prove the serializer, naming and sharing audit obligations
-   for that traversal and the resulting repository-root correspondence.
+[`Git.Translate.Graph`](../Silmaril/Formats/Git/Translate/Graph/Thms.lean)
+starts at a typed native address `(kind, name)` and takes a pure, partial
+lookup returning a typed shallow node and its original loose-object preimage.
+The adapter distinguishes absent from invalid data (including kind mismatch);
+the walker also checks that the restricted native writer reproduces the exact
+bytes and the native name function returns the requested name. No parser or
+on-disk Git adapter is assumed. Source and DASL names and naming functions
+remain independent.
+
+Discovery is depth-first, reading a commit's tree before its parents, in list
+order, and visiting tree keys in key order. It checks for an active-path cycle
+before memo or fuel checks and reuses completed plans by typed address. Fuel
+bounds the depth of **uncached local expansions**, not the number of edges or
+objects: a completed-plan hit works at zero fuel. An exhausted walk reports
+the next uncached address; it does not rule out a missing binding or a deeper
+cycle. It reports the first encountered failure and returns no partial plan.
+A gitlink is always external, even if that commit name also exists locally;
+it requires an explicit `.commit` frontier mapping and consumes no depth.
+The same name on a parent edge must resolve locally, regardless of frontier
+entries. A gitlink is never evidence that the other repository is available.
+
+- `Plan.reaches` covers every finite local path; `Plan.accessible` certifies
+  that local edges below a successful root are well-founded. `Plan.native_exact`
+  regenerates the original bytes at local roots, retaining native names on every edge.
+- `Outcome.rootPair` relates the requested typed root to the target root.
+  `Outcome.reaches` gives a materialized target pair and exact observed native
+  preimage for **every** reachable local address, not an opaque pair.
+- `Graph.run` checks native preimages and source naming, frontier permissions,
+  and functional same-kind sharing across the finite trace. `Outcome.audited`
+  combines these checks with a separate `Wire.Agrees` witness for the target
+  store (including auxiliary Prolly blocks). It does not assert that arbitrary
+  layout/serializer/namer combinations agree, or that every finite valid store
+  succeeds at any particular fuel. `Outcome.commitEvidence` connects the
+  target codec and wire witness to the source commit's actual ordered parent slots.
+
+Discovery memoizes reads and plans, not the bottom-up rendering: the existing
+fold expands shared occurrences and the trace audit currently compares pairs
+of distinct events. The next steps for production use are an adapter for the
+supported native bytes, memoized target rendering, and enumerable target-block
+validation for specific serializers/layouts.
 
 ## Checks
 
 ```sh
-lake build --wfail +Silmaril.Formats.Git.Translate.Thms +Silmaril.Formats.Git.Native.Thms \
+lake build --wfail +Silmaril.Formats.Git.Translate.Graph.Thms +Silmaril.Formats.Git.Native.Thms \
   +Silmaril.Formats.Git.Dasl.Layouts.Thms +Silmaril.Formats.Dasl.Wire.Defs \
   +Silmaril.Crypto.SHA1.Thms +Silmaril.Crypto.SHA256
 lake env lean -DwarningAsError=true --run tests/formats/GitTranslate.lean

@@ -48,6 +48,35 @@ theorem multiImpFrag_inv {r : RefComponent} (h : MultiImpFrag r) :
       exact ⟨pre, mi, cargs, post, hs, hp.1, hp.2⟩
     · cases hp
 
+theorem multiImpFailFrag_inv {r : RefComponent} (h : MultiImpFailFrag r) :
+    FirstImpFrag r ∧ HostWired r ∧
+      (∃ R, refRead r = some R ∧ lowWired R = true ∧
+        (R.exports.head?.map fun e => isGetTy e.ty).getD false = true) ∧
+      ∃ pre mi cargs post, firstCore? r = some (pre, mi, cargs, post) ∧ rootShape pre = true ∧
+        post.all (postDefOk (preLowers pre) (preInsts pre) (coreMods pre)) = true := by
+  unfold MultiImpFailFrag multiImpFailFrag at h
+  simp only [Bool.and_eq_true] at h
+  obtain ⟨⟨⟨hf, hw⟩, hR⟩, hp⟩ := h
+  refine ⟨hf, hw, ?_, ?_⟩
+  · split at hR
+    · rename_i R hR'
+      simp only [Bool.and_eq_true] at hR
+      exact ⟨R, hR', hR.1, hR.2⟩
+    · cases hR
+  · split at hp
+    · rename_i pre mi cargs post hs
+      simp only [Bool.and_eq_true] at hp
+      exact ⟨pre, mi, cargs, post, hs, hp.1, hp.2⟩
+    · cases hp
+
+theorem multiImpFailFrag_of_multiImpFrag {r : RefComponent} (h : MultiImpFrag r) :
+    MultiImpFailFrag r := by
+  obtain ⟨hfirst, hwired, ⟨reading, hread, hlow, hget⟩, pre, mi, args, post, hcore, hroot, hpost⟩ :=
+    multiImpFrag_inv h
+  change firstImpFrag r = true at hfirst
+  change hostWired r = true at hwired
+  simp [MultiImpFailFrag, multiImpFailFrag, hfirst, hwired, hread, hlow, hget, hcore, hroot, hpost]
+
 /-- In the fragment, every node of the REF reading is in the split fragment (`splitNodes`). -/
 theorem multiImpFrag_split {r : RefComponent} (h : MultiImpFrag r) :
     ∃ R, refRead r = some R ∧ splitNodes R = true := by

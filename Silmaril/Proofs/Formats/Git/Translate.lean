@@ -12,7 +12,8 @@ variable {Key Source Target Meta : Type} {algorithm : Native.Algorithm}
 
 private theorem materialize_pair (assign : ByteArray → Source) (kind : Kind) (bytes : ByteArray)
     (target : Dasl.Rendered Target) (children : Trace Source Target) :
-    (materialize assign kind bytes target children).RootPair kind := Or.inl ⟨rfl, rfl, rfl⟩
+    (materialize assign kind bytes target children).RootPair kind :=
+  ⟨some bytes, by simp [materialize, Trace.union, Trace.observe]⟩
 
 theorem translate_root_pair [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
     {kind : Kind} (object : Object Key Source Native.CommitMetadata kind) {result : Result Source Target}
@@ -21,7 +22,7 @@ theorem translate_root_pair [DecidableEq Key] (profile : Profile algorithm Key S
   | ref kind source =>
     simp only [translate, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at hit
     obtain ⟨target, _, rfl⟩ := hit
-    exact ⟨rfl, rfl, rfl⟩
+    exact ⟨none, by simp [Trace.opaque, Dasl.Rendered.opaque]⟩
   | blob bytes =>
     simp only [translate, Option.some.injEq] at hit
     subst result
@@ -50,16 +51,20 @@ theorem commit_step_evidence (profile : Profile algorithm Key Source Target Meta
     CommitEvidence profile tree parents metadata result observed nativeNames wire := by
   simp only [commitStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at hit
   obtain ⟨bytes, serialized, rfl⟩ := hit
-  refine ⟨materialize_pair .., Or.inr (Or.inl treePair), ?_, ?_, ?_⟩
+  refine ⟨materialize_pair .., ?_, ?_, ?_, ?_⟩
+  · obtain ⟨wire, present⟩ := treePair
+    exact ⟨wire, by simp [materialize, Trace.union, present]⟩
   · intro parent member
     obtain ⟨index, rfl⟩ := List.mem_iff_get.mp member
-    exact Or.inr (Or.inr ⟨index, parentPairs _ member⟩)
-  · have recorded : (Trace.observe .commit (profile.native.assign bytes)
+    obtain ⟨wire, present⟩ := parentPairs _ member
+    refine ⟨wire, ?_⟩
+    simp only [materialize, Trace.union, Trace.collect, Multiset.mem_add, Multiset.mem_bind]
+    exact Or.inr (Or.inr ⟨index, Finset.mem_val.mpr (Finset.mem_univ _), present⟩)
+  · have recorded : (materialize profile.native.assign .commit bytes
         (Dasl.renderCommit profile.naming profile.codec tree.target (parents.map Result.target)
-          (profile.metadata metadata)).root bytes).preimages .commit (profile.native.assign bytes) bytes :=
-      ⟨rfl, rfl, rfl⟩
-    exact ⟨bytes, serialized, audit.observedBytes .commit (Or.inl recorded),
-      audit.nativeNamed .commit (Or.inl recorded)⟩
+          (profile.metadata metadata)) (tree.trace.union (Trace.collect (Result.trace ∘ parents.get)))).trace.preimages
+        .commit (profile.native.assign bytes) bytes := ⟨_, Multiset.mem_add.mpr (Or.inl (Multiset.mem_singleton_self _))⟩
+    exact ⟨bytes, serialized, audit.observedBytes .commit recorded, audit.nativeNamed .commit recorded⟩
   · dsimp only
     have stored : (Dasl.renderCommit profile.naming profile.codec tree.target (parents.map Result.target)
         (profile.metadata metadata)).store.objects
@@ -99,6 +104,41 @@ private theorem mapM_ofFn {Output : Type} {count : Nat} (visit : Fin count → O
   rw [show List.ofFn visit = (List.ofFn id).map visit from List.map_ofFn.symm, List.mapM_map]
   rfl
 
+theorem translate_tree_child [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
+    {keys : Finset Key} {modes : ↥keys → EntryMode}
+    {children : (key : ↥keys) → Object Key Source Native.CommitMetadata (modes key).kind}
+    {result : Result Source Target} (hit : translate profile (.tree keys modes children) = some result)
+    (key : ↥keys) : ∃ child, translate profile (children key) = some child ∧
+      child.trace.events ⊆ result.trace.events := by
+  simp only [translate] at hit
+  split at hit
+  next present =>
+    simp only [treeStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at hit
+    obtain ⟨_, _, _, _, rfl⟩ := hit
+    refine ⟨_, (Option.some_get (present key.val key.property)).symm, fun {event} member => ?_⟩
+    exact Multiset.mem_add.mpr (Or.inr (Multiset.mem_bind.mpr ⟨key, Finset.mem_val.mpr (Finset.mem_univ _), member⟩))
+  next => contradiction
+
+theorem translate_commit_children [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
+    {tree : Object Key Source Native.CommitMetadata .tree} {count : Nat}
+    {parents : Fin count → Object Key Source Native.CommitMetadata .commit} {metadata : Native.CommitMetadata}
+    {result : Result Source Target} (hit : translate profile (.commit tree count parents metadata) = some result) :
+    (∃ child, translate profile tree = some child ∧ child.trace.events ⊆ result.trace.events) ∧
+    (∀ index, ∃ child, translate profile (parents index) = some child ∧ child.trace.events ⊆ result.trace.events) := by
+  simp only [translate, commitStep, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
+    Option.some.injEq] at hit
+  obtain ⟨root, treeHit, ancestors, ancestorsHit, _, _, rfl⟩ := hit
+  refine ⟨⟨root, treeHit, fun {_} member => Multiset.mem_add.mpr (Or.inr (Multiset.mem_add.mpr (Or.inl member)))⟩,
+    fun index => ?_⟩
+  rw [mapM_ofFn] at ancestorsHit
+  have related := mapM_forall₂ (fun index => translate profile (parents index)) ancestorsHit
+  have left : index.val < (List.finRange count).length := by simp
+  have right : index.val < ancestors.length := related.length_eq ▸ left
+  refine ⟨ancestors.get ⟨index, right⟩, ?_, fun {_} member => ?_⟩
+  · simpa only [List.get_finRange, Fin.cast_mk] using related.get left right
+  · exact Multiset.mem_add.mpr (Or.inr (Multiset.mem_add.mpr (Or.inr
+      (Multiset.mem_bind.mpr ⟨(⟨index, right⟩ : Fin ancestors.length), Finset.mem_val.mpr (Finset.mem_univ _), member⟩))))
+
 private theorem mapM_project {Input Output View Value : Type} (visit : Input → Option View)
     (project : View → Value) (value : Output → Value) {input : List Input} {output : List Output}
     (related : List.Forall₂ (fun item result => ∃ view, visit item = some view ∧ project view = value result)
@@ -113,7 +153,7 @@ private theorem mapM_project {Input Output View Value : Type} (visit : Input →
 private theorem materialize_source (assign : ByteArray → Source) (kind : Kind) (bytes : ByteArray)
     (target : Dasl.Rendered Target) (children : Trace Source Target) :
     (materialize assign kind bytes target children).SourceWitness assign kind (.encoded bytes) :=
-  ⟨rfl, Or.inl ⟨rfl, rfl, rfl⟩⟩
+  ⟨rfl, target.root, by simp [materialize, Trace.union, Trace.observe]⟩
 
 theorem translate_native [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
     {kind : Kind} (object : Object Key Source Native.CommitMetadata kind) {result : Result Source Target}
@@ -124,7 +164,8 @@ theorem translate_native [DecidableEq Key] (profile : Profile algorithm Key Sour
   | ref kind source =>
     simp only [translate, Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def, Option.some.injEq] at hit
     obtain ⟨target, _, rfl⟩ := hit
-    exact ⟨.opaque source, by rw [Native.renderObject], rfl, rfl, rfl, rfl⟩
+    exact ⟨.opaque source, by rw [Native.renderObject], rfl,
+      by simp [Trace.frontier, Trace.opaque, Dasl.Rendered.opaque]⟩
   | blob bytes =>
     simp only [translate, Option.some.injEq] at hit
     subst result

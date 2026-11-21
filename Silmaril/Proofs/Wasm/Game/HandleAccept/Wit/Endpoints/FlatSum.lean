@@ -82,6 +82,37 @@ private theorem armProgram_matches (limits : Component.Limits) (quirks : Quirks)
   | none => simp [armProgram, lowerFlatOpt]
   | some layout => simp [armProgram, lowerFlatOpt, Field.armValue, layout.type_eq]
 
+private theorem sum_program_aux (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowerContext E)
+    (width : AddrType) (type : TypeOf) (arms : List (Option TypeOf))
+    (tag : Nat) (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type) :
+    (lowerFlatAt limits quirks cx width (.variant tag (Field.armValue arm)) type : P E World _) =
+      lowerFlatVariantWith arms.length ((flatten width type).drop 1) tag
+        (armTypes width arm) (armProgram limits quirks cx width arm) := by
+  cases layout with
+  | variant found certificate =>
+    rw [lowerFlatAt, caseTypes_at _ _ _ _ found, lowerCase_at _ _ _ _ _ _ _ _ found,
+      armTypes_match _ certificate, armProgram_matches _ _ _ _ certificate]
+    simp [flatten]
+  | optionNone =>
+    simp [Field.armValue, lowerFlatAt, flatten, armTypes, armProgram, optionWants]
+  | optionSome layout =>
+    simp [Field.armValue, lowerFlatAt, flatten, armTypes, armProgram, optionWants, layout.type_eq]
+  | resultOk certificate =>
+    rw [lowerFlatAt, armTypes_match _ certificate, armProgram_matches _ _ _ _ certificate]
+    simp [flatten, resultWants]
+  | resultError certificate =>
+    rw [lowerFlatAt, armTypes_match _ certificate, armProgram_matches _ _ _ _ certificate]
+    simp [flatten, resultWants]
+
+theorem sum_program (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowerContext E)
+    (width : AddrType) (type : TypeOf) (arms : List (Option TypeOf))
+    (tag : Nat) (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type) :
+    (lowerFlatAt limits quirks cx width (.variant tag (Field.armValue arm)) type : P E World _) =
+      lowerFlatVariantWith arms.length ((flatten width type).drop 1) tag
+        (match arm with | none => [] | some field => flatten width field.type)
+        (match arm with | none => pure [] | some field => lowerFlatAt limits quirks cx width field.value field.type) :=
+  by cases arm <;> exact sum_program_aux limits quirks cx width type arms tag _ layout
+
 theorem sum_rejoin (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowerContext E)
     (authority : Authority E World) (width : AddrType) (type : TypeOf) (arms : List (Option TypeOf))
     (tag index : Nat) (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type)
@@ -89,36 +120,10 @@ theorem sum_rejoin (limits : Component.Limits) (quirks : Quirks) (cx : LiftLower
       Except.ok <$> lowerFlatAt limits quirks cx width field.value field.type) :
     runField limits quirks cx authority width (.sum type arms tag arm) index .flat =
       Except.ok <$> lowerFlatAt limits quirks cx width (.variant tag (Field.armValue arm)) type := by
+  rw [sum_program_aux limits quirks cx width type arms tag arm layout]
+  apply rejoin limits quirks cx authority width type arms tag index arm _ child
   cases layout with
-  | variant found certificate =>
-    rename_i types selected
-    have bound : tag < (types.map Prod.snd).length := by
-      apply Nat.lt_of_not_ge
-      intro outside
-      rw [List.getElem?_eq_none_iff.mpr outside] at found
-      contradiction
-    rw [rejoin limits quirks cx authority width _ _ tag index arm bound child,
-      lowerFlatAt, caseTypes_at _ _ _ _ found, lowerCase_at _ _ _ _ _ _ _ _ found,
-      armTypes_match _ certificate, armProgram_matches _ _ _ _ certificate]
-    simp [flatten]
-    rfl
-  | optionNone =>
-    rw [rejoin limits quirks cx authority width _ _ _ index _ (by simp) child]
-    simp [Field.armValue, lowerFlatAt, flatten, armTypes, armProgram, optionWants]
-    rfl
-  | optionSome layout =>
-    rw [rejoin limits quirks cx authority width _ _ _ index _ (by simp) child]
-    simp [Field.armValue, lowerFlatAt, flatten, armTypes, armProgram, optionWants, layout.type_eq]
-    rfl
-  | resultOk certificate =>
-    rw [rejoin limits quirks cx authority width _ _ _ index _ (by simp) child, lowerFlatAt,
-      armTypes_match _ certificate, armProgram_matches _ _ _ _ certificate]
-    simp [flatten, resultWants]
-    rfl
-  | resultError certificate =>
-    rw [rejoin limits quirks cx authority width _ _ _ index _ (by simp) child, lowerFlatAt,
-      armTypes_match _ certificate, armProgram_matches _ _ _ _ certificate]
-    simp [flatten, resultWants]
-    rfl
+  | variant found certificate => exact List.getElem?_eq_some_iff.mp found |>.1
+  | _ => simp
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.FlatSum

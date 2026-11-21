@@ -217,6 +217,14 @@ def canonLift (_lim : Limits) (_q : Quirks) (callee : E.FuncAddr) (ft : WIT.Func
   (if !ft.async_ then callUnit (.loop (.syncLiftLoop task)) else pure () : P E σ Unit)
   return .cancel (.task task)
 
+/-- The synchronous lift's reached choice, or its trap when nothing is runnable. -/
+def syncLiftCandidates (task : TaskId) : List ThreadId → P E σ (Ret E)
+  | [] => trap .cannotBlockSync
+  | c :: cs => do
+    let t ← pickSyncLoop c cs
+    Thread.resume t
+    callRet (.loop (.syncLiftLoop task))
+
 /-- One iteration of REF `canon_lift`'s synchronous loop (L2141-2144), the body of
 `LoopPoint.syncLiftLoop task`: if `task.state == RESOLVED` the loop exits (`Ret.unit`);
 otherwise `candidates = { t for t in inst.threads if t.ready() }` (`CStore.instCandidates`,
@@ -228,12 +236,7 @@ def syncLiftLoopBody (hr : HostReady σ) (task : TaskId) : P E σ (Ret E) := do
   if tk.state = .resolved then return .unit
   let s ← getStore
   let h ← hostGet
-  match s.instCandidates (hr h) tk.inst with
-  | [] => trap .cannotBlockSync
-  | c :: cs =>
-    let t ← pickSyncLoop c cs
-    Thread.resume t
-    callRet (.loop (.syncLiftLoop task))
+  syncLiftCandidates task (s.instCandidates (hr h) tk.inst)
 
 /-- One iteration of REF `canon_lift`'s callback loop (L2108-2134), the body of
 `LoopPoint.callbackLoop task thread code si` (see the module docstring). `code = EXIT` exits

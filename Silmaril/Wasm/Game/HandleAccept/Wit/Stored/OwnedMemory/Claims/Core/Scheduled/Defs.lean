@@ -159,6 +159,11 @@ def RecordDestination.check {grow : SingleThreaded.GrowOracle} (destination : Re
     if type != some (Silmaril.Wasm.Component.Validation.reallocType destination.width) then
       throw .badLoweringRealloc
 
+def RecordDestination.context {grow : SingleThreaded.GrowOracle} (destination : RecordDestination)
+    (inst : InstId) : LiftLowerContext (core3 grow) :=
+  { inst
+    opts := { memory := some destination.memory, realloc := destination.realloc, encoding := destination.encoding } }
+
 /-- Import capabilities fix the destination and nominal type at link time. Core passes
 an accepted tree index and a position within that root's observations, never an arena ID. -/
 inductive Action (sig : Signature) where
@@ -272,19 +277,23 @@ def recordClaims : Record.Access (core3 grow) (HostState sig) sig where
   spendOwner id := claims.spend (.owner id)
   spendEndpoint id := claims.spend (.endpoint id)
 
+def selectMemoryDestination (destination : RecordDestination) (args : List FlatValue) :
+    Session grow sig (Except Issue (Tree sig × Nat)) := do
+  let [.int .i32 handle, pointer] := args | return .error .wrongType
+  if Stored.flatType pointer != ABI.pointerType destination.width then return .error .wrongType
+  if let .error issue := destination.check (← getStore) then return .error issue
+  let some tree ← select handle | return .error .badSelection
+  return .ok (tree, flatNat pointer)
+
 def giveToMemory (inst : InstId) (destination : RecordDestination) (args : List FlatValue)
     (lower : LiftLowerContext (core3 grow) → Tree sig → Nat →
       Session grow sig (Except Endpoints.RecordLower.Issue Unit))
     (diagnose : Endpoints.RecordLower.Issue → Issue) :
     Session grow sig (Except Issue Nat) := do
-  let [.int .i32 handle, pointer] := args | return .error .wrongType
-  if Stored.flatType pointer != ABI.pointerType destination.width then return .error .wrongType
-  if let .error issue := destination.check (← getStore) then return .error issue
-  let some tree ← select handle | return .error .badSelection
-  let cx : LiftLowerContext (core3 grow) :=
-    { inst
-      opts := { memory := some destination.memory, realloc := destination.realloc, encoding := destination.encoding } }
-  return (← lower cx tree (flatNat pointer)) |>.mapError diagnose |>.map (fun _ => 0)
+  match ← selectMemoryDestination destination args with
+  | .error issue => return .error issue
+  | .ok (tree, ptr) =>
+    return (← lower (destination.context inst) tree ptr) |>.mapError diagnose |>.map (fun _ => 0)
 
 def giveRecord (inst : InstId) (destination : RecordDestination) (args : List FlatValue) :
     Session grow sig (Except Issue Nat) :=
@@ -301,20 +310,25 @@ def rootHasSchema (tree : Tree sig) (type : Stored.TypeOf) : Bool :=
   | .atom impossible => impossible.elim
   | .tag payload _ _ => decide (sig.payload payload.1 = type)
 
+def selectFlatDestination (destination : RecordDestination) (payload : Stored.TypeOf)
+    (args : List FlatValue) : Session grow sig (Except Issue (Tree sig)) := do
+  let [.int .i32 handle] := args | return .error .wrongType
+  if let .error issue := destination.check (← getStore) then return .error issue
+  let some tree ← select handle | return .error .badSelection
+  if !rootHasSchema tree payload then return .error .wrongPayloadType
+  return .ok tree
+
 /-- Type selection is a preflight check on the accepted tree. It cannot spend a claim
 or enter realloc; the emitter handles effects only after it succeeds. -/
 def giveFlat (inst : InstId) (destination : RecordDestination) (payload : Stored.TypeOf)
     (args : List FlatValue) : Session grow sig (Except Issue (List FlatValue)) := do
   if (← currentInst?) != some inst || !((← getStore).inst? inst).any (·.mayLeave) then
     return .error .wrongContext
-  let [.int .i32 handle] := args | return .error .wrongType
-  if let .error issue := destination.check (← getStore) then return .error issue
-  let some tree ← select handle | return .error .badSelection
-  if !rootHasSchema tree payload then return .error .wrongPayloadType
-  let cx : LiftLowerContext (core3 grow) :=
-    { inst
-      opts := { memory := some destination.memory, realloc := destination.realloc, encoding := destination.encoding } }
-  return (← Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none cx tree .flat).mapError .lowerPayload
+  match ← selectFlatDestination destination payload args with
+  | .error issue => return .error issue
+  | .ok tree =>
+    return (← Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
+      (destination.context inst) tree .flat).mapError .lowerPayload
 
 def withTree (args : List FlatValue) (use : Tree sig → Nat → Session grow sig (Except Issue Nat)) :
     Session grow sig (Except Issue Nat) := do

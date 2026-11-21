@@ -56,6 +56,7 @@ theorem syncLiftLoopBody (H : LiftHyps I) (hr : HostReady σ) (task : TaskId) :
   refine bind (getTask _) fun tk => ?_
   refine ite (pure _) ?_
   refine bind getStore fun s => bind hostGet fun h => ?_
+  unfold Canon.syncLiftCandidates
   split
   · exact trap _
   · exact bind (pickSyncLoop _ _) fun t =>

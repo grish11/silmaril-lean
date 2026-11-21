@@ -16,6 +16,22 @@ theorem translate_root_pair [DecidableEq Key] (profile : Profile algorithm Key S
     (hit : translate profile object = some result) : result.RootPair kind :=
   Proofs.Formats.Git.translate_root_pair profile object hit
 
+theorem translate_tree_child [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
+    {keys : Finset Key} {modes : ↥keys → EntryMode}
+    {children : (key : ↥keys) → Object Key Source Native.CommitMetadata (modes key).kind}
+    {result : Result Source Target} (hit : translate profile (.tree keys modes children) = some result)
+    (key : ↥keys) : ∃ child, translate profile (children key) = some child ∧
+      child.trace.events ⊆ result.trace.events :=
+  Proofs.Formats.Git.translate_tree_child profile hit key
+
+theorem translate_commit_children [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
+    {tree : Object Key Source Native.CommitMetadata .tree} {count : Nat}
+    {parents : Fin count → Object Key Source Native.CommitMetadata .commit} {metadata : Native.CommitMetadata}
+    {result : Result Source Target} (hit : translate profile (.commit tree count parents metadata) = some result) :
+    (∃ child, translate profile tree = some child ∧ child.trace.events ⊆ result.trace.events) ∧
+    (∀ index, ∃ child, translate profile (parents index) = some child ∧ child.trace.events ⊆ result.trace.events) :=
+  Proofs.Formats.Git.translate_commit_children profile hit
+
 /-- For any successful fold, the native projection agrees with the independent
 native renderer, regardless of which admissible target layout or naming is used. -/
 theorem translate_native [DecidableEq Key] (profile : Profile algorithm Key Source Target Meta)
