@@ -201,7 +201,28 @@ theorem memory_sum_tag (destination : RecordDestination) (inst : InstId) (type :
     LocalCutKeeping profile ready dispatch (fun store => Core3.Grows origin.core store.core) left right check canon
       (sumCheckedNext destination inst selected index address checkNext)
       (sumCanonicalNext destination inst selected address canonNext) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTag
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagBetween (reference := dispatch)
+    destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
+
+theorem memory_sum_tag_between {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (growth : Core3.Grows origin.core right.store.core)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+    let address := sumPayloadAddress destination.width arms base
+    LocalCutKeepingBetween profile ready dispatch reference (fun store => Core3.Grows origin.core store.core) left right check canon
+      (sumCheckedNext destination inst selected index address checkNext)
+      (sumCanonicalNext destination inst selected address canonNext) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagBetween
     destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
 
 /-- The handle leaf in a placed memory entry has no allocator or width-read

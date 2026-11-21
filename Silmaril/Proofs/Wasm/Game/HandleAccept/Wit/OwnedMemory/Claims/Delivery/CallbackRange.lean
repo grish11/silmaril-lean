@@ -13,6 +13,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
+import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
 import Silmaril.Wasm.Component.Reference.Engine.Core3.Store.Defs
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
@@ -1897,6 +1898,106 @@ private theorem liveCompiledMapVisitor (destination : RecordDestination) (inst :
     have valuePath : Field.Descendant root value := entryPath.trans (.aggregate (by simp) (.self _))
     exact ⟨payload, value, shape, ⟨layout.type_eq, entryPath⟩, child value valuePath layout emitted⟩
 
+private theorem sumArmPlacement (destination : RecordDestination) (type : Stored.TypeOf)
+    (arms : List (Option Stored.TypeOf)) (item : Field) (address : Nat) {before after : CStore (core3 grow)}
+    (shape : layout destination.width type = variantLayout (arms.map (layoutOption destination.width)))
+    (member : some (layout destination.width item.type) ∈ arms.map (layoutOption destination.width))
+    (placed : placement destination before (layout destination.width type) address = .ok ())
+    (growth : Core3.Grows before.core after.core) :
+    placement destination after (layout destination.width item.type) (sumPayloadAddress destination.width arms address) = .ok () := by
+  rw [shape] at placed
+  let area := variantLayout (arms.map (layoutOption destination.width))
+  have aligned : address % area.alignment.bytes = 0 := by
+    by_contra invalid
+    simp [placement, area, invalid] at placed
+    change Except.error TrapReason.unalignedPointer = .ok () at placed
+    contradiction
+  cases sized : (core3 grow).memSize? before.core destination.memory with
+  | none => simp [placement, area, aligned, sized] at placed
+  | some bytes =>
+    have bounds : address + area.size ≤ bytes := by
+      by_contra invalid
+      simp [placement, area, aligned, sized, Nat.lt_of_not_ge invalid] at placed
+    obtain ⟨modulo, within⟩ := variantLayout_payload_fits _ address (layout destination.width item.type)
+      (Nat.dvd_of_mod_eq_zero aligned) member
+    rw [List.length_map] at modulo within
+    obtain ⟨reachedBytes, reachedSize, larger⟩ := growth.memSize sized
+    have sizeAt : (core3 grow).memSize? after.core destination.memory = some reachedBytes := reachedSize
+    have fits : sumPayloadAddress destination.width arms address + (layout destination.width item.type).size ≤ reachedBytes :=
+      within.trans (bounds.trans larger)
+    change sumPayloadAddress destination.width arms address % (layout destination.width item.type).alignment.bytes = 0 at modulo
+    simp [placement, modulo, sizeAt, Nat.not_lt.mpr fits]
+    rfl
+
+private theorem liveSumRule (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
+    (arms : List (Option Stored.TypeOf)) (tag address : Nat) (selected : Option Field)
+    (compare : FieldComparison grow sig)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
+    (child : ∀ item, selected = some item →
+      layout destination.width type = variantLayout (arms.map (layoutOption destination.width)) ∧
+      some (layout destination.width item.type) ∈ arms.map (layoutOption destination.width) ∧
+      PlacedFieldRule compare older origin destination inst item (sumPayloadAddress destination.width arms address)) :
+    PlacedFieldRule (fun _ index address left right check canon checkNext canonNext finish =>
+      LiveSumThen profile ready base bindings destination inst compare arms selected index address checkNext canonNext finish
+        left right check canon) older origin destination inst (.sum type arms tag selected) address := by
+  intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+  have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width := frame.store ▸ width
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, observed, cut⟩ :=
+    memory_sum_tag_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type arms tag index address selected
+      left.store left right check canon checkNext canonNext frame.store frame.thread
+      (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt])
+      (frame.store ▸ Core3.Grows.refl left.store.core) checkAt canonAt
+  refine ⟨store, result, lhsLabels, rhsLabels, lhs, rhs.steps, observed, ?_⟩
+  cases result with
+  | error reason => exact cut
+  | ok value =>
+    cases value
+    obtain ⟨grew, checkTracks, canonTracks⟩ := cut
+    refine ⟨checkTracks, canonTracks, ?_⟩
+    cases selected with
+    | none =>
+      exact ends _ _ check canon
+        ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+        (growth.trans grew) rfl rfl
+    | some item =>
+      obtain ⟨shape, member, rule⟩ := child item rfl
+      let addr := sumPayloadAddress destination.width arms address
+      let atChild := localLeafEnd left left.host store check.thread check.frames check.rest
+        (sumCheckedNext destination inst (some item) index addr checkNext) (.ok ())
+      let atCanonChild := localLeafEnd right right.host store canon.thread canon.frames canon.rest
+        (sumCanonicalNext destination inst (some item) addr canonNext) (.ok ())
+      exact rule 0 (aggregateNext index checkNext) canonNext atChild atCanonChild check canon
+        ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+        (growth.trans grew) (grew.memAddrType width) (sumArmPlacement destination type arms item address shape member placed grew)
+        rfl rfl finish ends
+
+private theorem optionCompiled {item : Field} {element : Stored.TypeOf}
+    (matched : item.LayoutMatches (.option element)) (emitted : item.Emitted) :
+    item = .sum (.option element) [none, some element] 0 none ∨
+      ∃ child, item = .sum (.option element) [none, some element] 1 (some child) ∧
+        child.LayoutMatches element ∧ child.Emitted := by
+  cases emitted with
+  | sum compiled =>
+    cases matched with
+    | optionNone => exact .inl rfl
+    | optionSome matching => exact .inr ⟨_, rfl, matching, compiled _ rfl⟩
+  | @endpoint channel _ _ => cases channel <;> cases matched
+  | _ => cases matched
+
+private theorem resultCompiled {item : Field} {success failure : Option Stored.TypeOf}
+    (matched : item.LayoutMatches (.result success failure)) (emitted : item.Emitted) :
+    ∃ tag selected, item = .sum (.result success failure) [success, failure] tag selected ∧
+      (tag = 0 ∧ Field.ArmMatches selected success ∨ tag = 1 ∧ Field.ArmMatches selected failure) ∧
+      ∀ child, selected = some child → child.Emitted := by
+  cases emitted with
+  | sum compiled =>
+    cases matched with
+    | resultOk arm => exact ⟨0, _, rfl, .inl ⟨rfl, arm⟩, compiled⟩
+    | resultError arm => exact ⟨1, _, rfl, .inr ⟨rfl, arm⟩, compiled⟩
+  | @endpoint channel _ _ => cases channel <;> cases matched
+  | _ => cases matched
+
 private theorem collectionFieldRule (destination : RecordDestination) (inst : InstId)
     {schema : Stored.TypeOf} (family : RecursiveCollectionType schema) (item : Field) (address : Nat)
     (matched : item.LayoutMatches schema) (emitted : item.Emitted) {root : Field} {rootSchema : Stored.TypeOf}
@@ -1942,6 +2043,63 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
           checkNext canonNext (fun () => finish) ?_)⟩
     intro _ lhs rhs cursor peer paired kept leftAt rightAt
     exact ends lhs rhs cursor peer paired (growth.trans kept) leftAt rightAt
+  | @option element _ ih =>
+    have compare := fun tag selected => liveSumRule (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      (older := older) (origin := origin) destination inst (.option element) [none, some element] tag address selected
+      (liveCollectionField profile ready base bindings older destination inst element)
+    rcases optionCompiled matched emitted with rfl | ⟨item, rfl, matching, compiled⟩
+    ·
+      have rule := compare 0 none (by intros; contradiction)
+      intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+      exact ⟨0, none, rfl, rule index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
+    ·
+      have rule := compare 1 (some item) (by
+        intro child equal
+        cases equal
+        refine ⟨by simp only [layout, List.map_cons, List.map_nil, layoutOption], ?_, ?_⟩
+        · simp [matching.type_eq, layoutOption]
+        · exact ih item _ matching compiled (path.trans (.sum (.self _))))
+      intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+      exact ⟨1, some item, rfl, rule index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
+  | @result success failure _ _ ihOk ihErr =>
+    obtain ⟨tag, selected, rfl, arm, compiled⟩ := resultCompiled matched emitted
+    let comparison (schema : Option Stored.TypeOf) : FieldComparison grow sig := match schema with
+      | some type => liveCollectionField profile ready base bindings older destination inst type
+      | none => fun _ _ _ _ _ _ _ _ _ _ => False
+    have branch (schema : Option Stored.TypeOf) (matched : Field.ArmMatches selected schema)
+        (mem : schema ∈ [success, failure])
+        (derive : ∀ type, schema = some type → ∀ item address, item.LayoutMatches type → item.Emitted →
+          Field.Descendant root item → PlacedFieldRule (liveCollectionField profile ready base bindings older destination inst type)
+            older origin destination inst item address) :
+        ∀ item, selected = some item →
+          layout destination.width (.result success failure : Stored.TypeOf) = variantLayout ([success, failure].map (layoutOption destination.width)) ∧
+          some (layout destination.width item.type) ∈ [success, failure].map (layoutOption destination.width) ∧
+          PlacedFieldRule (comparison schema) older origin destination inst item
+            (sumPayloadAddress destination.width [success, failure] address) := by
+      intro item equal
+      cases matched with
+      | none => contradiction
+      | @some field type matching =>
+        cases equal
+        refine ⟨by simp only [layout, List.map_cons, List.map_nil], ?_, ?_⟩
+        · exact List.mem_map.mpr ⟨some type, mem, by rw [matching.type_eq, layoutOption]⟩
+        · exact derive type rfl _ _ matching (compiled _ rfl) (path.trans (.sum (.self _)))
+    have child : ∀ item, selected = some item →
+        layout destination.width (.result success failure : Stored.TypeOf) = variantLayout ([success, failure].map (layoutOption destination.width)) ∧
+        some (layout destination.width item.type) ∈ [success, failure].map (layoutOption destination.width) ∧
+        PlacedFieldRule (if tag = 0 then comparison success else comparison failure) older origin destination inst item
+          (sumPayloadAddress destination.width [success, failure] address) := by
+      rcases arm with ⟨rfl, matching⟩ | ⟨rfl, matching⟩
+      · simpa using branch success matching (by simp) (fun type equal item slot shape emitted ancestry =>
+          ihOk type equal item slot shape emitted ancestry)
+      · simpa using branch failure matching (by simp) (fun type equal item slot shape emitted ancestry =>
+          ihErr type equal item slot shape emitted ancestry)
+    intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+    have compared := liveSumRule (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst (.result success failure) [success, failure] tag address selected
+      (if tag = 0 then comparison success else comparison failure) child index checkNext canonNext left right check canon
+      frame growth width placed checkAt canonAt finish ends
+    cases success <;> cases failure <;> exact ⟨tag, selected, rfl, compared⟩
 
 theorem linkedStringMapEntry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (index : Fin entries.length)
@@ -2413,6 +2571,8 @@ theorem linkedRecursiveCollectionBody {route : GiveEffectRoute} (site : PayloadR
   | leaf nominal => cases nominal <;> cases collection
   | data data => cases data <;> cases collection
   | string => cases collection
+  | option => cases collection
+  | result => cases collection
   | @list element child =>
     obtain ⟨entries, field, shapes, emitted⟩ := listCompiled matched linked.emitted
     have rootPath : Field.Descendant site.field (.dynamic (.list element) element entries) := by

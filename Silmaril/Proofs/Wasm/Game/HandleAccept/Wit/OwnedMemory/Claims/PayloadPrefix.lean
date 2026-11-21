@@ -672,7 +672,8 @@ theorem memorySum (destination : RecordDestination) (inst : InstId) (type : Type
       (fun address => mapIssue (child active address rfl) (.nested index))
     simpa only [Lower.Output.Result, head, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using composed
 
-theorem memorySumTag (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
     (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
     (check canon : Cursor (E := core3 grow) (HostState sig))
@@ -686,7 +687,8 @@ theorem memorySumTag (destination : RecordDestination) (inst : InstId) (type : T
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
       (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
     let address := sumPayloadAddress destination.width arms base
-    LocalCutKeeping profile scheduledReady scheduledDispatch (fun store => Core3.Grows origin.core store.core) left right check canon
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right check canon
       (sumCheckedNext destination inst selected index address checkNext)
       (sumCanonicalNext destination inst selected address canonNext) := by
   intro address
@@ -727,15 +729,16 @@ theorem memorySumTag (destination : RecordDestination) (inst : InstId) (type : T
       change (((body.bind fun () => Prog.pure ptr).bind field).bind canonNext) = _
       simp only [Prog.bind_assoc, Prog.pure_bind']
       rfl
-  have read : Step profile scheduledReady scheduledDispatch right .tau entered := by
+  have read : Step profile scheduledReady reference right .tau entered := by
     simpa only [entered, Cursor.control, show ptrTypeIn right.store cx = destination.width from width] using
-      (Step.get (prof := profile) (hr := scheduledReady) (dispatch := scheduledDispatch) focus)
+      (Step.get (prof := profile) (hr := scheduledReady) (dispatch := reference) focus)
   have localBody := closedIntKeeping (profile := profile) (Host := HostState sig)
     (keep := fun store => Core3.Grows origin.core store.core)
     (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
     cx tag base (discSize arms.length)
-  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status⟩ := closedCut (profile := profile)
-    (ready := scheduledReady) (dispatch := scheduledDispatch) localBody left entered check canon checked (resumed destination.width)
+  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status⟩ := closedCutBetween (profile := profile)
+    (ready := scheduledReady) (dispatch := scheduledDispatch) (reference := reference) localBody
+    left entered check canon checked (resumed destination.width)
     growth same thread checkBody rfl
   have final : localLeafEnd entered entered.host store canon.thread canon.frames canon.rest (resumed destination.width) result =
       localLeafEnd right right.host store canon.thread canon.frames canon.rest (resumed destination.width) result := by cases result <;> rfl

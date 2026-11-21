@@ -175,7 +175,8 @@ theorem linked_map_list_body {route : GiveEffectRoute} (site : PayloadRoot.Site 
 and map nodes on both public routes. String keys and values can allocate
 at any depth. Reached allocation ranges and growth justify scalar and
 string placement without fixing guest bytes. Nominal fields transfer only
-after their reached live checks. -/
+after their reached live checks. Option/result tags reach only the selected
+arm, at its slot under the full sum layout. -/
 theorem linked_recursive_collection_body {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
     (collection : CollectionRoot type) (schema : sig.payload site.tag = type)

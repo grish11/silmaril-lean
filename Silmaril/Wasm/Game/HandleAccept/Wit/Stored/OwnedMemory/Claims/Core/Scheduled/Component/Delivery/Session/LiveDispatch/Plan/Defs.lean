@@ -625,6 +625,9 @@ inductive RecursiveCollectionType : Stored.TypeOf → Prop where
   | string : RecursiveCollectionType (.prim .string)
   | list {element} : RecursiveCollectionType element → RecursiveCollectionType (.list element)
   | map {key element} : RecursiveCollectionType element → RecursiveCollectionType (.map key element)
+  | option {element} : RecursiveCollectionType element → RecursiveCollectionType (.option element)
+  | result {success failure} : (∀ type, success = some type → RecursiveCollectionType type) →
+      (∀ type, failure = some type → RecursiveCollectionType type) → RecursiveCollectionType (.result success failure)
 
 def CollectionRoot : Stored.TypeOf → Prop
   | .list _ | .map .. => True
@@ -741,8 +744,36 @@ def LiveLocalFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig
     | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile ready checked left lhsLabels lhs ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready canonical right rhsLabels rhs ∧ finish lhs rhs check canon
 
+/-- Write the reached discriminant before visiting the selected payload.
+A trapped tag write never enters the child continuation. -/
+def LiveSumThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (destination : RecordDestination) (inst : InstId) (child : LinkedCallback.MemorySequence.FieldComparison grow sig)
+    (arms : List (Option Stored.TypeOf)) (selected : Option Stored.Endpoints.RecordLower.Field) (index address : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : LinkedCallback.MemorySequence.Finish grow sig) (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  open PayloadPrefix LinkedCallback.MemorySequence ReturnFrame.Occurrence in
+  let addr := sumPayloadAddress destination.width arms address
+  let checked := specDispatch ready base
+  let canonical := specDispatch ready (LiveDispatch.host bindings base)
+  let lhsNext := sumCheckedNext destination inst selected index addr checkNext
+  let rhsNext := sumCanonicalNext destination inst selected addr canonNext
+  ∃ (store : CStore (core3 grow)) (result : Except TrapReason Unit) (lhsLabels rhsLabels : Trace grow sig),
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest lhsNext result
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest rhsNext result
+    Steps profile ready checked left lhsLabels lhs ∧ Steps profile ready canonical right rhsLabels rhs ∧
+    visible lhsLabels = visible rhsLabels ∧
+    match result with
+    | .error reason => ∃ leading, visible rhsLabels = leading ++ [.trap reason]
+    | .ok () => RetainsActiveSlots profile ready checked left lhsLabels lhs ∧
+      RetainsActiveSlots profile ready canonical right rhsLabels rhs ∧
+      match selected with
+      | none => finish lhs rhs check canon
+      | some item => child item 0 addr lhs rhs check canon (aggregateNext index checkNext) canonNext finish
+
 /-- Recursion follows the declared type, not the number of reached allocator
-returns. Every map selects the actual key rule before visiting its value. -/
+returns. Each map selects the actual key rule before visiting its value. -/
 def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId) :
@@ -762,6 +793,20 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
         (liveMapTailWith profile ready base bindings (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
           destination inst key element entries index output
           (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish))
+  | .option element => fun item index address left right check canon checkNext canonNext finish =>
+    ∃ tag selected, item = .sum (.option element) [none, some element] tag selected ∧
+      LiveSumThen profile ready base bindings destination inst (liveCollectionField profile ready base bindings older destination inst element)
+        [none, some element] selected index address checkNext canonNext finish left right check canon
+  | .result success failure => fun item index address left right check canon checkNext canonNext finish =>
+    ∃ tag selected, item = .sum (.result success failure) [success, failure] tag selected ∧
+      let okCompare : LinkedCallback.MemorySequence.FieldComparison grow sig := match success with
+        | some type => liveCollectionField profile ready base bindings older destination inst type
+        | none => fun _ _ _ _ _ _ _ _ _ _ => False
+      let errCompare : LinkedCallback.MemorySequence.FieldComparison grow sig := match failure with
+        | some type => liveCollectionField profile ready base bindings older destination inst type
+        | none => fun _ _ _ _ _ _ _ _ _ _ => False
+      LiveSumThen profile ready base bindings destination inst (if tag = 0 then okCompare else errCompare)
+        [success, failure] selected index address checkNext canonNext finish left right check canon
   | .prim .string => fun item _ address left right check canon checkNext canonNext finish =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringKeyThen profile ready base bindings older destination inst str address left right check canon checkNext canonNext
@@ -774,8 +819,8 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
       checkNext canonNext (fun () => finish)
 termination_by structural type => type
 
-/-- Compare the actual public body of either route for arbitrary list/map
-nesting with all WIT key types and nominal, scalar, or string terminal fields. -/
+/-- Compare either public body for arbitrary list/map nesting with active
+option/result arms and nominal, scalar, or string terminal fields. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
