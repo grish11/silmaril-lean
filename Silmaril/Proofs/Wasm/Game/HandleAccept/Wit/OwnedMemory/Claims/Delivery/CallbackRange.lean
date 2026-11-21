@@ -642,6 +642,28 @@ theorem replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig rout
     exact ⟨.refused issue, _, rhs, finished, right, appendRun checkedRun (resumes _), canonRun, same,
       by rw [silentTail _ _ rfl, seen], left, lhs, canon, stop, stopped, rfl, checkedRun, canonTracks, rfl, resumes, canonAt⟩
 
+theorem rejoinPublished {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {checked canonical left right : Config (core3 grow) (HostState sig)}
+    {check canon : Cursor (E := core3 grow) (HostState sig)} {callerLabels seen offset}
+    (caller : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) callerLabels checked (.active 0 offset))
+    (leading : ComparedSlots profile ready base bindings checked canonical seen left right offset)
+    (publish : LiveListPublish profile ready base bindings route.output site.reply site.referenceReply
+      (fun _ => LinkedCallback.ChildFrameOver older) left right check canon) :
+    CollectionSegmentReplies profile ready base bindings older site checked canonical (fun _ => False) offset := by
+  obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
+  have terminal : CollectionSegment profile ready base bindings older left right check site.reply site.referenceReply 0
+      (fun _ => False) := by
+    obtain ⟨store, outcome, labels, observed, lhs, rhs, continuation⟩ := publish
+    cases outcome with
+    | error reason =>
+      exact ⟨canon, .trapped reason, labels, labels, _, _, lhs.steps, rhs.steps, rfl, rfl, rfl, rfl, [], leafTrap observed⟩
+    | ok value =>
+      obtain ⟨keepsLeft, keepsRight, frame⟩ := continuation value rfl
+      exact ⟨canon, .returned value, labels, labels, _, _, lhs.steps, rhs.steps, rfl, rfl, frame,
+        rfl, rfl, keepsLeft, keepsRight, trivial⟩
+  exact replies site caller (prependSegment checkTracks canonTracks (checkSeen.trans canonSeen.symm) terminal)
+
 private theorem listEntries {entries : List Field} {element schema : Stored.TypeOf}
     (matched : Field.LayoutMatches (.dynamic (.list element) element entries) schema) : Field.EntriesMatch entries element := by
   cases matched with
@@ -2843,7 +2865,7 @@ theorem linkedRecursiveCollectionBody {route : GiveEffectRoute} (site : PayloadR
       (liveListVisitor site.destination site.inst element entries 0 route.output _ older site.checked.store site.checked.store
         (Core3.Grows.refl _) shapes (fun item member _ address => collectionFieldRule site.destination site.inst child item address
           (entries_match_of_mem shapes member) (emitted item member) source (rootPath.trans (.dynamic member (.self _))) embedder)
-        site.reply site.referenceReply _ (by intros; trivial))
+        site.reply site.referenceReply _ (fun _ _ _ _ _ frame _ _ _ => frame))
   | @map key element child =>
     obtain ⟨entries, field, shapes⟩ := mapCompiled matched linked.emitted
     have rootPath : Field.Descendant site.field (.dynamic (.map key element) (.record (mapEntryFields key element)) entries) := by
@@ -2852,7 +2874,7 @@ theorem linkedRecursiveCollectionBody {route : GiveEffectRoute} (site : PayloadR
       embedder prepared _ (liveCompiledMapVisitor site.destination site.inst key element entries 0 route.output _ older
         site.checked.store source rootPath shapes (fun value ancestry layout emitted _ address =>
           collectionFieldRule site.destination site.inst child value address layout emitted source ancestry embedder)
-        embedder site.reply site.referenceReply _ (by intros; trivial))
+        embedder site.reply site.referenceReply _ (fun _ _ _ _ _ frame _ _ _ => frame))
 
 theorem linkedStringRecursiveMapBody {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (family : RecursiveCollectionType element)

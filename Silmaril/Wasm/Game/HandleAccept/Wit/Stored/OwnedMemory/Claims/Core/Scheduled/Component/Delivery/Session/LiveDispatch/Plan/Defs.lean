@@ -915,14 +915,14 @@ def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (Ho
     LinkedCollectionBody profile ready base bindings older site (.list element) element incoming (fun entries =>
       liveListTail profile ready base bindings site.destination site.inst element entries 0 route.output
         (liveCollectionField profile ready base bindings older site.destination site.inst element)
-        site.reply site.referenceReply (fun _ _ _ _ _ => True))
+        site.reply site.referenceReply (fun _ => LinkedCallback.ChildFrameOver older))
   | .map key element =>
     LinkedCollectionBody profile ready base bindings older site (.map key element) (.record (ABI.mapEntryFields key element)) incoming
       (fun entries => liveMapTailWith profile ready base bindings
         (liveCollectionMapEntry profile ready base bindings older site.destination site.inst key element route.output)
         site.destination site.inst key element entries 0 route.output
         (liveCollectionField profile ready base bindings older site.destination site.inst element)
-        site.reply site.referenceReply (fun _ _ _ _ _ => True))
+        site.reply site.referenceReply (fun _ => LinkedCallback.ChildFrameOver older))
   | _ => False
 
 abbrev LinkedStringRecursiveMapBody (profile : ProfileKind) (ready : HostReady (HostState sig))

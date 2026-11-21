@@ -188,6 +188,21 @@ theorem linked_recursive_collection_body {route : GiveEffectRoute} (site : Paylo
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedRecursiveCollectionBody
     site linked family collection schema paired selected embedder
 
+/-- After the recursive entries reach descriptor publication, use their
+accumulated occurrence trails to return to the original parked Core caller.
+A descriptor trap keeps the reached effects without executing either reply. -/
+theorem LiveListPublish.rejoin {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {checked canonical left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {callerLabels seen offset}
+    (caller : ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base) site.checked
+      (.active 0 0) callerLabels checked (.active 0 offset))
+    (leading : ComparedSlots profile ready base bindings checked canonical seen left right offset)
+    (publish : LiveListPublish profile ready base bindings route.output site.reply site.referenceReply
+      (fun _ => LinkedCallback.ChildFrameOver older) left right check canon) :
+    CollectionSegmentReplies profile ready base bindings older site checked canonical (fun _ => False) offset :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.rejoinPublished
+    site caller leading publish
+
 /-- Both public routes finish the actual allocating string key before
 entering its recursively allocating map/list value. The same compiler
 evidence discharges both the key plan and the value recursion. -/
