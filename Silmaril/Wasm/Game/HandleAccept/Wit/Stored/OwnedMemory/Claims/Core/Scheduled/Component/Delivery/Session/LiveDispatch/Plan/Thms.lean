@@ -329,6 +329,23 @@ theorem AllocatorMark.pop {checkEntry canonEntry : Config (core3 grow) (HostStat
         canonEntry (canonTrace ++ [.tau]) { incoming with ctl := canon.control (second value) } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.pop marked paired returning installed
 
+/-- A real marked allocator pop gives cumulative trails for every older
+active or saved occurrence, not just the slots below the caller. -/
+theorem AllocatorMark.pop_movement {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (marked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkTrace canonTrace finish incoming (some (.active 0 0)))
+    (paired : HostFrame.Related.Paired wider finish incoming)
+    (returning : finish.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+    (installed : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage canonEntry) (.active 0 0) = some (.prog second)) :
+    ∃ canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+      LinkedCallback.ChildFrameOver older finish incoming check canon ∧
+      incoming.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure value) ∧
+      CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau])
+        { finish with ctl := check.control (first value) } { incoming with ctl := canon.control (second value) } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.popMovement marked paired returning installed
+
 /-- A reached marked collection return uses the live memory and claim table.
 Both paths take the actual range checks under their respective dispatchers.
 Invalid range traps both; valid range hands the checked suffix its fresh

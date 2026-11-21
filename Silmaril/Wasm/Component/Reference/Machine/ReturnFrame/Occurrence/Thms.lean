@@ -199,6 +199,13 @@ theorem Trail.pop_core {before : Config E Host} {thread values core next frames 
       ((Edit.pop : Edit E Host).follow mark) :=
   .step (.popCore focused) (by rw [transitionEdit, focused]; exact .done _ _)
 
+theorem Trail.pop_prog {before : Config E Host} {thread value resume frames rest} (mark : Option Location)
+    (focused : before.ctl = ⟨thread, .prog (.pure value), .prog resume :: frames⟩ :: rest) :
+    Trail profile ready dispatch before mark [.tau]
+      { before with ctl := ⟨thread, .prog (resume value), frames⟩ :: rest }
+      (mark.bind (Edit.pop : Edit E Host).follow) :=
+  .step (.popProg focused) (by rw [transitionEdit, focused]; exact .done _ _)
+
 /-- An absent final mark identifies a real first loss in the same tracked
 run. Only a loss by popping the selected slot enters its continuation. -/
 theorem Trail.first_loss {before after : Config E Host} {labels : List (Label E Host)}

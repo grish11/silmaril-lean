@@ -1015,10 +1015,10 @@ theorem classifyWithOccurrence {callees : List (ComponentCall.Callee sig)} {mark
     ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish
       (WorkerOccurrencePrefix profile ready bindings callees retained start incoming mark) := by
   induction run generalizing incoming mark with
-  | refl => exact .complete (.refl _) paired ⟨mark, .done _ _, .done _ _, outside⟩
+  | refl => exact .complete (.refl _) paired ⟨mark, .done _ _, .done _ _, outside, fun cursor => ⟨cursor, .done _ _, .done _ _⟩⟩
   | @cons before middle after label labels step tail ih =>
     have empty : WorkerOccurrencePrefix profile ready bindings callees retained before incoming mark [] before incoming :=
-      ⟨mark, .done _ _, .done _ _, outside⟩
+      ⟨mark, .done _ _, .done _ _, outside, fun cursor => ⟨cursor, .done _ _, .done _ _⟩⟩
     rcases LiveDispatch.classify_step (bindings := bindings) step with unchanged | install
     · obtain ⟨other, live, aligned | boundary⟩ := HostFrame.Related.paired_step paired unchanged
       · have edit := pair_edit paired label
@@ -1029,8 +1029,11 @@ theorem classifyWithOccurrence {callees : List (ComponentCall.Callee sig)} {mark
         have extend {prefixLabels left right}
             (tracks : WorkerOccurrencePrefix profile ready bindings callees retained middle other nextMark prefixLabels left right) :
             WorkerOccurrencePrefix profile ready bindings callees retained before incoming mark (label :: prefixLabels) left right := by
-          obtain ⟨last, lhs, rhs, kept⟩ := tracks
-          exact ⟨last, .step step lhs, .step live (edit ▸ rhs), kept⟩
+          obtain ⟨last, lhs, rhs, kept, movement⟩ := tracks
+          refine ⟨last, .step step lhs, .step live (edit ▸ rhs), kept, ?_⟩
+          intro cursor
+          obtain ⟨target, leftTrail, rightTrail⟩ := movement (cursor.bind (transitionEdit before label).follow)
+          exact ⟨target, .step step leftTrail, .step live (edit ▸ rightTrail)⟩
         cases ih aligned nextOutside with
         | complete replay paired trails => exact .complete (.cons live replay) paired (extend trails)
         | request split checked replay paired trails install cut rest =>
@@ -1067,8 +1070,12 @@ theorem classifyAllocatorTail {callees : List (ComponentCall.Callee sig)}
           (checkTrace ++ added) (canonTrace ++ added) left right reached) := by
   refine mapWorkerTrack (classifyWithOccurrence run paired tracked.outside) ?_
   intro _ _ _ trails
-  obtain ⟨reached, checked, live, outside⟩ := trails
-  exact ⟨reached, outside, tracked.checkedTrail.append checked, tracked.canonicalTrail.append live⟩
+  obtain ⟨reached, checked, live, outside, movement⟩ := trails
+  refine ⟨reached, outside, tracked.checkedTrail.append checked, tracked.canonicalTrail.append live, ?_⟩
+  intro cursor
+  obtain ⟨middle, checkFront, canonFront⟩ := tracked.movement cursor
+  obtain ⟨target, checkTail, canonTail⟩ := movement middle
+  exact ⟨target, checkFront.append checkTail, canonFront.append canonTail⟩
 
 theorem classifyAfterDelivery {callees : List (ComponentCall.Callee sig)}
     (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)

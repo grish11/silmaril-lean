@@ -111,9 +111,11 @@ theorem replayMarked {protectedReturn} {wider : ReturnFrame.Substitutions (core3
       finish.host.writer.accepted = start.host.writer.accepted ∧ reached.host.writer.accepted = incoming.host.writer.accepted ∧
       Outside older (segmentStorage finish) (segmentStorage reached) finalMark ∧
       Trail profile ready (specDispatch ready base) start mark checkedLabels finish finalMark ∧
-      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming mark canonLabels reached finalMark := by
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming mark canonLabels reached finalMark ∧
+      CoupledOccurrencePaths profile ready base bindings start incoming checkedLabels canonLabels finish reached := by
   induction path generalizing incoming mark with
-  | done => exact ⟨[], [], incoming, mark, .refl _, .refl _, paired, rfl, rfl, .refl _, rfl, rfl, outside, .done _ _, .done _ _⟩
+  | done => exact ⟨[], [], incoming, mark, .refl _, .refl _, paired, rfl, rfl, .refl _, rfl, rfl, outside, .done _ _, .done _ _,
+      fun cursor => ⟨cursor, .done _ _, .done _ _⟩⟩
   | @step current next last label rest interior unchanged noAssignment grows run _ ih =>
     have live : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) current label next := by
       rcases LiveDispatch.classify_step (bindings := bindings) run with live | install
@@ -130,14 +132,17 @@ theorem replayMarked {protectedReturn} {wider : ReturnFrame.Substitutions (core3
       rw [step_edit run, step_edit peerStep, ← edit]
       exact outside_edit outside _
     obtain ⟨checkedLabels, canonLabels, reached, finalMark, checked, canonical, final, checkSeen, canonSeen, growth,
-      checkRoots, canonRoots, finalOutside, checkTrail, canonTrail⟩ := ih aligned nextOutside
-    exact ⟨_, _, reached, finalMark, .cons run checked, .cons peerStep canonical, final,
+      checkRoots, canonRoots, finalOutside, checkTrail, canonTrail, movement⟩ := ih aligned nextOutside
+    refine ⟨_, _, reached, finalMark, .cons run checked, .cons peerStep canonical, final,
       (List.filter_append [_] checkedLabels).trans (congrArg (_ ++ ·) checkSeen),
       (List.filter_append [_] canonLabels).trans (congrArg (_ ++ ·) canonSeen),
       (CoreGrowthSteps.cons grows run (.refl _)).grows.trans growth,
       checkRoots.trans (congrArg (·.writer.accepted) (stepHost noAssignment run)),
       canonRoots.trans (congrArg (·.writer.accepted) (stepHost (noAssignmentPeer paired noAssignment) peerStep)),
-      finalOutside, .step run checkTrail, .step peerStep (by rwa [← edit])⟩
+      finalOutside, .step run checkTrail, .step peerStep (by rwa [← edit]), ?_⟩
+    intro cursor
+    obtain ⟨target, left, right⟩ := movement (cursor.bind (transitionEdit current label).follow)
+    exact ⟨target, .step run left, .step peerStep (edit ▸ right)⟩
   | confinedGive callout _ ih =>
     obtain ⟨count, checked, _, _, checkedSlots⟩ := Plain.parked_closed_give_steps bindings callout.name callout.type callout.args
       callout.inst callout.destination callout.schema _ callout.thread profile ready callout.parked callout.calling
@@ -149,16 +154,19 @@ theorem replayMarked {protectedReturn} {wider : ReturnFrame.Substitutions (core3
         ((prefix_survives (checkedSlots place)).2.symm.trans leftAt)
         ((prefix_survives (canonSlots place)).2.symm.trans rightAt)
     obtain ⟨checkLabels, canonLabels, reached, finalMark, checkTail, canonTail, final, checkSeen, canonSeen, growth,
-      checkRoots, canonRoots, finalOutside, checkTrail, canonTrail⟩ := ih aligned nextOutside
+      checkRoots, canonRoots, finalOutside, checkTrail, canonTrail, movement⟩ := ih aligned nextOutside
     have tau : (List.replicate count (.tau : Label (core3 grow) (HostState sig))).all (· matches .tau) = true := by
       apply List.all_eq_true.mpr
       intro label member
       rw [List.eq_of_mem_replicate member]
-    exact ⟨_, _, reached, finalMark, append checked.steps checkTail, append canonical canonTail, final,
+    refine ⟨_, _, reached, finalMark, append checked.steps checkTail, append canonical canonTail, final,
       (List.filter_append _ checkLabels).trans (by rw [← PayloadPrefix.visible, invisible tau, List.nil_append]; exact checkSeen),
       (List.filter_append _ canonLabels).trans (by rw [← PayloadPrefix.visible, invisible silent, List.nil_append]; exact canonSeen),
       growth, checkRoots, canonRoots.trans (congrArg (·.writer.accepted) host), finalOutside,
-      (unchangedTrail checkedSlots mark).append checkTrail, (unchangedTrail canonSlots mark).append canonTrail⟩
+      (unchangedTrail checkedSlots mark).append checkTrail, (unchangedTrail canonSlots mark).append canonTrail, ?_⟩
+    intro cursor
+    obtain ⟨target, left, right⟩ := movement cursor
+    exact ⟨target, (unchangedTrail checkedSlots cursor).append left, (unchangedTrail canonSlots cursor).append right⟩
   | @syncReady current _ _ task inst thread frames rest focused agrees _ ih =>
     let residual := syncLiftCandidates (E := core3 grow) (σ := HostState sig) task
       (current.store.instCandidates (ready current.host) inst)
@@ -176,17 +184,24 @@ theorem replayMarked {protectedReturn} {wider : ReturnFrame.Substitutions (core3
         (segmentStorage { incoming with ctl := ⟨thread, .prog residual, peerFrames⟩ :: peerRest }) mark := by
       simpa only [segmentStorage, focused, atPeer, List.map_cons, Activation.segs] using outside
     obtain ⟨_, _, reached, finalMark, checked, canonical, final, checkSeen, canonSeen, growth,
-      checkRoots, canonRoots, finalOutside, checkTrail, canonTrail⟩ := ih aligned nextOutside
-    have unchanged : mark.bind (Edit.same (E := core3 grow) (Host := HostState sig)).follow = mark := by
-      cases mark with
+      checkRoots, canonRoots, finalOutside, checkTrail, canonTrail, movement⟩ := ih aligned nextOutside
+    have unchanged (cursor : Option Location) : cursor.bind (Edit.same (E := core3 grow) (Host := HostState sig)).follow = cursor := by
+      cases cursor with
       | none => rfl
       | some place => cases place <;> rfl
     refine ⟨_, _, reached, finalMark, .cons (.hostGet focused) checked, .cons peerStep canonical, final,
-      checkSeen, canonSeen, growth, checkRoots, canonRoots, finalOutside, .step (.hostGet focused) ?_, .step peerStep ?_⟩
+      checkSeen, canonSeen, growth, checkRoots, canonRoots, finalOutside, .step (.hostGet focused) ?_, .step peerStep ?_, ?_⟩
     · rw [transitionEdit, focused]
-      exact unchanged.symm ▸ checkTrail
+      exact (unchanged mark).symm ▸ checkTrail
     · rw [transitionEdit, atPeer]
-      exact unchanged.symm ▸ canonTrail
+      exact (unchanged mark).symm ▸ canonTrail
+    · intro cursor
+      obtain ⟨target, left, right⟩ := movement cursor
+      refine ⟨target, .step (.hostGet focused) ?_, .step peerStep ?_⟩
+      · rw [transitionEdit, focused]
+        exact (unchanged cursor).symm ▸ left
+      · rw [transitionEdit, atPeer]
+        exact (unchanged cursor).symm ▸ right
 
 theorem replay {protectedReturn}
     (path : ClosedCallbackPrefix bindings profile ready base protectedReturn start seen finish)
@@ -201,7 +216,7 @@ theorem replay {protectedReturn}
       Core3.Grows start.store.core finish.store.core ∧
       finish.host.writer.accepted = start.host.writer.accepted ∧ reached.host.writer.accepted = incoming.host.writer.accepted := by
   obtain ⟨checkedLabels, canonLabels, reached, _, checked, canonical, final, checkSeen, canonSeen, growth,
-    checkRoots, canonRoots, _, _, _⟩ := replayMarked path embedder covers paired
+    checkRoots, canonRoots, _, _, _, _⟩ := replayMarked path embedder covers paired
       (paired_outside (left := HostFrame.replace start incoming.host) paired)
   exact ⟨checkedLabels, canonLabels, reached, checked, canonical, final, checkSeen, canonSeen, growth, checkRoots, canonRoots⟩
 
@@ -233,7 +248,7 @@ theorem stringReallocPrefix (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (ol
   obtain ⟨_, _, paired⟩ := frame.string_realloc_pair (profile := profile) (ready := ready) (bindings := bindings)
     cx ptr oldSize alignment size steps checkNext canonNext checkAt canonAt
   obtain ⟨checkedLabels, canonLabels, reached, mark, checked, canonical, final, checkSeen, canonSeen, growth, checkRoots, canonRoots,
-    outside, checkTrail, canonTrail⟩ :=
+    outside, checkTrail, canonTrail, movement⟩ :=
     replayMarked path embedder (fun _ _ edge => by cases edge with
       | existing previous => exact .inl ⟨_, previous⟩
       | current => exact .inr rfl) paired (frame.outside_installed (.pure .unit) (.pure .unit))
@@ -242,7 +257,7 @@ theorem stringReallocPrefix (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (ol
   have enterRight := PayloadPrefix.string_realloc_install (profile := profile) (ready := ready)
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) cx ptr oldSize alignment size steps canonNext incoming canon canonAt
   exact ⟨checkedLabels, canonLabels, reached, mark, .cons enterLeft checked, .cons enterRight canonical, final,
-    checkSeen, canonSeen, growth, checkRoots, canonRoots, ⟨outside, checkTrail, canonTrail⟩⟩
+    checkSeen, canonSeen, growth, checkRoots, canonRoots, ⟨outside, checkTrail, canonTrail, movement⟩⟩
 
 theorem collectionPrefix (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (output : Stored.Lower.Output) (index : Nat)
@@ -282,7 +297,7 @@ theorem collectionPrefix (destination : RecordDestination) (inst : InstId) (type
       (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
         incoming canon second) := paired
   obtain ⟨checkedLabels, canonLabels, reached, mark, checked, canonical, final, checkSeen, canonSeen, growth, checkRoots, canonRoots,
-    outside, checkTrail, canonTrail⟩ :=
+    outside, checkTrail, canonTrail, movement⟩ :=
     replayMarked path embedder (fun _ _ edge => by cases edge with
       | existing previous => exact .inl ⟨_, previous⟩
       | current => exact .inr rfl) atCallback (frame.outside_installed (.pure .unit) (.pure .unit))
@@ -292,7 +307,7 @@ theorem collectionPrefix (destination : RecordDestination) (inst : InstId) (type
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) destination inst type element entries output index
     start incoming check canon checkNext canonNext width prepared checkAt canonAt).2
   exact ⟨checkedLabels, canonLabels, reached, mark, append enterLeft checked, append enterRight canonical, final,
-    checkSeen, canonSeen, growth, checkRoots, canonRoots, ⟨outside, checkTrail, canonTrail⟩⟩
+    checkSeen, canonSeen, growth, checkRoots, canonRoots, ⟨outside, checkTrail, canonTrail, movement⟩⟩
 
 theorem pop {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
     {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)}
@@ -324,6 +339,28 @@ theorem pop {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {check
   · intro depth
     exact Prefix.append (by simpa only [Location.below, Nat.zero_add] using trail.under (depth + 1))
       (Prefix.pop_return canonAt depth)
+
+theorem popMovement {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (marked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkTrace canonTrace finish incoming (some (.active 0 0)))
+    (paired : HostFrame.Related.Paired wider finish incoming)
+    (returning : finish.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+    (installed : segmentAt (segmentStorage canonEntry) (.active 0 0) = some (.prog second)) :
+    ∃ canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+      LinkedCallback.ChildFrameOver older finish incoming check canon ∧
+      incoming.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure value) ∧
+      CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau])
+        { finish with ctl := check.control (first value) } { incoming with ctl := canon.control (second value) } := by
+  obtain ⟨place, same, tracked⟩ := marked.canonicalTrail.survives
+  cases same
+  have atTop := (prefix_survives tracked).2.trans installed
+  obtain ⟨canon, frame, focused⟩ := LinkedCallback.marked_pop_frame paired marked.outside returning atTop
+  refine ⟨canon, frame, focused, ?_⟩
+  intro cursor
+  obtain ⟨middle, leftTrail, rightTrail⟩ := marked.movement cursor
+  exact ⟨_, leftTrail.append (Trail.pop_prog middle returning), rightTrail.append (Trail.pop_prog middle focused)⟩
 
 private theorem stringInstallTracks (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cx : LiftLowerContext (core3 grow)) (pointer : Nat) (oldSize : Option Nat) (alignment : Alignment) (size : Nat)

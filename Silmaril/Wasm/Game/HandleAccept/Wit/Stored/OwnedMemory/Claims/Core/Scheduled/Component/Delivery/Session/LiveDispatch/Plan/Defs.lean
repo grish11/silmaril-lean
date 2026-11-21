@@ -48,6 +48,18 @@ inductive ClosedCallbackPrefix (bindings : List (Binding sig)) (profile : Profil
         .prog (syncLiftCandidates task (start.store.instCandidates (ready start.host) inst)), frames⟩ :: rest } seen finish) :
       ClosedCallbackPrefix bindings profile ready base protectedReturn start seen finish
 
+/-- Every initial occurrence follows the same reached coordinate on both
+paths, even if checked journal steps add silent labels. This includes saved
+locations and records loss without assuming later return. -/
+def CoupledOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checkEntry canonEntry : Config (core3 grow) (HostState sig)) (checkTrace canonTrace : Trace grow sig)
+    (checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∀ cursor : Option Location, ∃ reached,
+    Trail profile ready (specDispatch ready base) checkEntry cursor checkTrace checked reached ∧
+    Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonEntry cursor canonTrace canonical reached
+
 /-- The installed allocator occurrence migrates through actual scheduler
 edits. Older substitutions remain valid off that mark, even if it is lost
 to a trap or the callback is still suspended. -/
@@ -62,6 +74,7 @@ structure AllocatorMark (profile : ProfileKind) (ready : HostReady (HostState si
     checkEntry (some (.active 0 0)) checkTrace checked mark
   canonicalTrail : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
     canonEntry (some (.active 0 0)) canonTrace canonical mark
+  movement : CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry checkTrace canonTrace checked canonical
 
 def stringAllocatorEntry (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (oldSize : Option Nat) (alignment : ABI.Alignment) (size : Nat)
@@ -2470,7 +2483,8 @@ def WorkerOccurrencePrefix (profile : ProfileKind) (ready : HostReady (HostState
   let base := ComponentCall.hostWithComponent bindings callees
   ∃ reached, Trail profile ready (specDispatch ready base) start mark labels checked reached ∧
     Trail profile ready (specDispatch ready (host bindings base)) incoming mark labels canonical reached ∧
-    Outside retained (segmentStorage checked) (segmentStorage canonical) reached
+    Outside retained (segmentStorage checked) (segmentStorage canonical) reached ∧
+    CoupledOccurrencePaths profile ready base bindings start incoming labels labels checked canonical
 
 /-- The first reached cut in Core execution after a common reply. At a
 give installation the canonical side follows the reached live selector;
