@@ -279,6 +279,19 @@ theorem memory_map_tail (destination : RecordDestination) (inst : InstId) (key :
 
 /-- A slot of a validated allocation stays aligned and in bounds across a
 growth-certified prefix. Only the reached size and width are constrained. -/
+theorem list_entry_placement_of_growth (destination : RecordDestination) (inst : InstId) (element : TypeOf)
+    {before after : CStore (core3 grow)} {base count index bytes : Nat}
+    (growth : Core3.Grows before.core after.core)
+    (width : (core3 grow).memAddrType? before.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? before.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width element).alignment)
+    (bounds : base + count * (layout destination.width element).size ≤ bytes) (entry : index < count) :
+    let area := layout destination.width element
+    ptrTypeIn after (destination.context inst) = destination.width ∧
+      placement destination after area (base + index * area.size) = .ok () :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.listEntryPlacementOfGrowth
+    destination inst element growth width sized aligned bounds entry
+
 theorem list_entry_placement {EHost : Type} {entryReady : HostReady EHost}
     {entryDispatch : Call (core3 grow) → P (core3 grow) EHost (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (element : TypeOf)
@@ -401,6 +414,21 @@ theorem string_plan_entry_between {grow : SingleThreaded.GrowOracle} {sig : Sign
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry
     destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+
+theorem local_data_leaf_frame_between {ready : HostReady (HostState sig)}
+    {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store type output = .ok ()) :
+    CompareLocalKeepingBetween profile ready dispatch reference (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) output) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataLeafFrameBetween
+    destination inst type data payload index output origin left right growth width placed
 
 /-- At a reached allocating string action, the actual call saves the remaining plan. -/
 theorem string_realloc_focus {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E)

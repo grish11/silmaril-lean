@@ -618,12 +618,15 @@ abbrev LinkedMapListBody (profile : ProfileKind) (ready : HostReady (HostState s
       (liveNominalList profile ready base bindings older site.destination site.inst depth)
       site.reply site.referenceReply (fun _ _ _ _ _ => True))
 
-inductive NominalCollectionType : Stored.TypeOf → Prop where
-  | leaf {type} : NominalElement type → NominalCollectionType type
-  | list {element} : NominalCollectionType element → NominalCollectionType (.list element)
-  | map {key element} : NominalCollectionType element → NominalCollectionType (.map key element)
+/-- The current proof fragment, not the runtime support predicate. -/
+inductive RecursiveCollectionType : Stored.TypeOf → Prop where
+  | leaf {type} : NominalElement type → RecursiveCollectionType type
+  | data {type} : PayloadPrefix.LocalDataType type → RecursiveCollectionType type
+  | string : RecursiveCollectionType (.prim .string)
+  | list {element} : RecursiveCollectionType element → RecursiveCollectionType (.list element)
+  | map {key element} : RecursiveCollectionType element → RecursiveCollectionType (.map key element)
 
-def NominalCollectionRoot : Stored.TypeOf → Prop
+def CollectionRoot : Stored.TypeOf → Prop
   | .list _ | .map .. => True
   | _ => False
 
@@ -719,6 +722,25 @@ def liveCollectionMapEntry (profile : ProfileKind) (ready : HostReady (HostState
   else LiveMapEntryThen profile ready base bindings destination inst
     (Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput destination.width (.map key element) output)
 
+/-- Both dispatchers run the actual local operations. Traps keep the stores
+at the reached fault; only a successful field enters the continuation. -/
+def LiveLocalFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : LinkedCallback.MemorySequence.Finish grow sig) (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  let checked := specDispatch ready base
+  let canonical := specDispatch ready (LiveDispatch.host bindings base)
+  ∃ (store : CStore (core3 grow)) (result : Except TrapReason Unit) (lhsLabels rhsLabels : Trace grow sig),
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest (fun res => checkNext (.ok res)) result
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
+    Steps profile ready checked left lhsLabels lhs ∧ Steps profile ready canonical right rhsLabels rhs ∧
+    PayloadPrefix.visible lhsLabels = PayloadPrefix.visible rhsLabels ∧
+    match result with
+    | .error reason => ∃ leading, PayloadPrefix.visible rhsLabels = leading ++ [.trap reason]
+    | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile ready checked left lhsLabels lhs ∧
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready canonical right rhsLabels rhs ∧ finish lhs rhs check canon
+
 /-- Recursion follows the declared type, not the number of reached allocator
 returns. Every map selects the actual key rule before visiting its value. -/
 def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -740,6 +762,12 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
         (liveMapTailWith profile ready base bindings (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
           destination inst key element entries index output
           (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish))
+  | .prim .string => fun item _ address left right check canon checkNext canonNext finish =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringKeyThen profile ready base bindings older destination inst str address left right check canon checkNext canonNext
+        (fun _ => LiveLocalFieldThen profile ready base bindings checkNext canonNext finish)
+  | .prim _ | .enum _ | .flags _ => fun _ _ _ left right check canon checkNext canonNext finish =>
+    LiveLocalFieldThen profile ready base bindings checkNext canonNext finish left right check canon
   | _ => fun item index address left right check canon checkNext canonNext finish =>
     LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
       (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon
@@ -747,7 +775,7 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
 termination_by structural type => type
 
 /-- Compare the actual public body of either route for arbitrary list/map
-nesting with all WIT key types and nominal terminal fields. -/
+nesting with all WIT key types and nominal, scalar, or string terminal fields. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}

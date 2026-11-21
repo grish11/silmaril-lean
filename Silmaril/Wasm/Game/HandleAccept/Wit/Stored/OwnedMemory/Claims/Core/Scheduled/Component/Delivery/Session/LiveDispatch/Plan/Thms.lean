@@ -172,12 +172,13 @@ theorem linked_map_list_body {route : GiveEffectRoute} (site : PayloadRoot.Site 
     site linked key keyData depth element family schema paired selected embedder
 
 /-- The linked compiler derives children of arbitrarily interleaved list
-and map nodes on both public routes, including allocating string keys at
-any depth. Reached returns run live range and reservation checks; nominal
-terminal fields transfer only after their reached checks. -/
+and map nodes on both public routes. String keys and values can allocate
+at any depth. Reached allocation ranges and growth justify scalar and
+string placement without fixing guest bytes. Nominal fields transfer only
+after their reached live checks. -/
 theorem linked_recursive_collection_body {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (linked : site.Linked bindings) {type : Stored.TypeOf} (family : NominalCollectionType type)
-    (collection : NominalCollectionRoot type) (schema : sig.payload site.tag = type)
+    (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
+    (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
@@ -189,7 +190,7 @@ theorem linked_recursive_collection_body {route : GiveEffectRoute} (site : Paylo
 entering its recursively allocating map/list value. The same compiler
 evidence discharges both the key plan and the value recursion. -/
 theorem linked_string_recursive_map_body {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (linked : site.Linked bindings) (element : Stored.TypeOf) (family : NominalCollectionType element)
+    (linked : site.Linked bindings) (element : Stored.TypeOf) (family : RecursiveCollectionType element)
     (schema : sig.payload site.tag = .map .string element)
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)

@@ -1396,7 +1396,7 @@ private theorem listEntryBounds (area : Layout) {base count index bytes : Nat}
   rw [Nat.add_assoc, ← Nat.succ_mul]
   exact (Nat.add_le_add_left (Nat.mul_le_mul_right area.size (Nat.succ_le_of_lt entry)) base).trans bounds
 
-private theorem listEntryPlacementOfGrowth (destination : RecordDestination) (inst : InstId) (element : TypeOf)
+theorem listEntryPlacementOfGrowth (destination : RecordDestination) (inst : InstId) (element : TypeOf)
     {before after : CStore (core3 grow)} {base count index bytes : Nat}
     (growth : Core3.Grows before.core after.core)
     (width : (core3 grow).memAddrType? before.core destination.memory = some destination.width)
