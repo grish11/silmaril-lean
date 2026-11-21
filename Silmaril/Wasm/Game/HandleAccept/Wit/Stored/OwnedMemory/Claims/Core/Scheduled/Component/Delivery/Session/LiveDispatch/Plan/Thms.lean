@@ -1280,6 +1280,23 @@ theorem RejoinedWorkerTail.classify {callees : List (ComponentCall.Callee sig)}
     ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyReplay (tail.replay run)
 
+open ReturnFrame.Occurrence in
+/-- Follow the actual saved allocator occurrence through the common worker
+prefix. The next install is classified before its body, or the replay stops
+at a reached read or substituted pop. A lost mark is not a return. -/
+theorem AllocatorMark.classified_worker_tail {callees : List (ComponentCall.Callee sig)}
+    {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {mark : Option Location} {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ClassifiedWorkerTail profile ready bindings callees (ReturnFrame.Extend older first second) start incoming labels finish
+      (fun added left right => ∃ reached,
+        AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
+          (checkTrace ++ added) (canonTrace ++ added) left right reached) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyAllocatorTail tracked paired run
+
 /-- Execute the intervening delivery on the reached journals and classify
 the next Core cut. The next selector runs against the updated journals; an
 event may have been consumed or replaced before that selector is reached. -/

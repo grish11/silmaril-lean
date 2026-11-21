@@ -1000,11 +1000,75 @@ theorem classifyReplay {callees : List (ComponentCall.Callee sig)}
     (replay : PairedReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees)
       older start incoming labels finish) : ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish := by
   cases replay with
-  | complete live paired => exact .complete live paired
+  | complete live paired => exact .complete live paired trivial
   | request split checked live paired install tail =>
-    exact .request split checked live paired install (recursiveInstallCut install paired) tail
+    exact .request split checked live paired trivial install (recursiveInstallCut install paired) tail
   | boundary split checked live paired boundary stepLeft stepRight tail =>
-    exact .boundary split checked live paired boundary stepLeft stepRight tail
+    exact .boundary split checked live paired trivial boundary stepLeft stepRight tail
+
+open ReturnFrame.Occurrence in
+theorem classifyWithOccurrence {callees : List (ComponentCall.Callee sig)} {mark : Option Location}
+    {retained : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (outside : Outside retained (segmentStorage start) (segmentStorage incoming) mark) :
+    ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish
+      (WorkerOccurrencePrefix profile ready bindings callees retained start incoming mark) := by
+  induction run generalizing incoming mark with
+  | refl => exact .complete (.refl _) paired ⟨mark, .done _ _, .done _ _, outside⟩
+  | @cons before middle after label labels step tail ih =>
+    have empty : WorkerOccurrencePrefix profile ready bindings callees retained before incoming mark [] before incoming :=
+      ⟨mark, .done _ _, .done _ _, outside⟩
+    rcases LiveDispatch.classify_step (bindings := bindings) step with unchanged | install
+    · obtain ⟨other, live, aligned | boundary⟩ := HostFrame.Related.paired_step paired unchanged
+      · have edit := pair_edit paired label
+        let nextMark := mark.bind (transitionEdit before label).follow
+        have nextOutside : Outside retained (segmentStorage middle) (segmentStorage other) nextMark := by
+          rw [step_edit step, step_edit live, ← edit]
+          exact outside_edit outside _
+        have extend {prefixLabels left right}
+            (tracks : WorkerOccurrencePrefix profile ready bindings callees retained middle other nextMark prefixLabels left right) :
+            WorkerOccurrencePrefix profile ready bindings callees retained before incoming mark (label :: prefixLabels) left right := by
+          obtain ⟨last, lhs, rhs, kept⟩ := tracks
+          exact ⟨last, .step step lhs, .step live (edit ▸ rhs), kept⟩
+        cases ih aligned nextOutside with
+        | complete replay paired trails => exact .complete (.cons live replay) paired (extend trails)
+        | request split checked replay paired trails install cut rest =>
+          exact .request (congrArg (List.cons _) split) (.cons step checked) (.cons live replay)
+            paired (extend trails) install cut rest
+        | boundary split checked replay paired trails cut lhs rhs rest =>
+          exact .boundary (congrArg (List.cons _) split) (.cons step checked) (.cons live replay)
+            paired (extend trails) cut lhs rhs rest
+      · exact .boundary (leading := []) rfl (.refl _) (.refl _) paired empty boundary step live tail
+    · exact .request (leading := []) rfl (.refl _) (.refl _) paired empty install (recursiveInstallCut install paired) tail
+
+private theorem mapWorkerTrack {callees : List (ComponentCall.Callee sig)} {track next}
+    (path : ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish track)
+    (carry : ∀ trace left right, track trace left right → next trace left right) :
+    ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish next := by
+  cases path with
+  | complete live paired trail => exact .complete live paired (carry _ _ _ trail)
+  | request split checked live paired trail install cut tail =>
+    exact .request split checked live paired (carry _ _ _ trail) install cut tail
+  | boundary split checked live paired trail cut lhs rhs tail =>
+    exact .boundary split checked live paired (carry _ _ _ trail) cut lhs rhs tail
+
+open ReturnFrame.Occurrence in
+theorem classifyAllocatorTail {callees : List (ComponentCall.Callee sig)}
+    {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {mark : Option Location} {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ClassifiedWorkerTail profile ready bindings callees (ReturnFrame.Extend older first second) start incoming labels finish
+      (fun added left right => ∃ reached,
+        AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
+          (checkTrace ++ added) (canonTrace ++ added) left right reached) := by
+  refine mapWorkerTrack (classifyWithOccurrence run paired tracked.outside) ?_
+  intro _ _ _ trails
+  obtain ⟨reached, checked, live, outside⟩ := trails
+  exact ⟨reached, outside, tracked.checkedTrail.append checked, tracked.canonicalTrail.append live⟩
 
 theorem classifyAfterDelivery {callees : List (ComponentCall.Callee sig)}
     (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)

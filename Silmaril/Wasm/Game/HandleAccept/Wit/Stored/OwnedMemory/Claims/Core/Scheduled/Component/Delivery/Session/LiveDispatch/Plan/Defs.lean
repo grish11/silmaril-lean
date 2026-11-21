@@ -2446,6 +2446,19 @@ inductive RecursiveRequestCut (profile : ProfileKind) (ready : HostReady (HostSt
       (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
       (body : RecursiveGiveDomain selection → ReachedRecursiveGive profile ready callees selection older incoming)
 
+/-- Both paths carry the same occurrence through the actual scheduler
+edits. If the mark disappears, an equal segment cannot revive it. -/
+def WorkerOccurrencePrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (retained : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (mark : Option ReturnFrame.Occurrence.Location)
+    (labels : Trace grow sig) (checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  let base := ComponentCall.hostWithComponent bindings callees
+  ∃ reached, Trail profile ready (specDispatch ready base) start mark labels checked reached ∧
+    Trail profile ready (specDispatch ready (host bindings base)) incoming mark labels canonical reached ∧
+    Outside retained (segmentStorage checked) (segmentStorage canonical) reached
+
 /-- The first reached cut in Core execution after a common reply. At a
 give installation the canonical side follows the reached live selector;
 the baseline tail witnesses only the checked execution. -/
@@ -2453,17 +2466,20 @@ inductive ClassifiedWorkerTail (profile : ProfileKind) (ready : HostReady (HostS
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
-    (finish : Config (core3 grow) (HostState sig)) : Prop where
+    (finish : Config (core3 grow) (HostState sig))
+    (track : Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop :=
+      fun _ _ _ => True) : Prop where
   | complete {other}
       (live : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
         incoming labels other)
-      (paired : HostFrame.Related.Paired older finish other)
+      (paired : HostFrame.Related.Paired older finish other) (trail : track labels finish other)
   | request {leading label trailing beforeLeft beforeRight afterLeft}
       (split : labels = leading ++ label :: trailing)
       (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start leading beforeLeft)
       (live : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
         incoming leading beforeRight)
       (paired : HostFrame.Related.Paired older beforeLeft beforeRight)
+      (trail : track leading beforeLeft beforeRight)
       (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) beforeLeft label afterLeft)
       (cut : DirectGiveAt bindings beforeLeft ∨ ∃ request : CoreGiveRequest bindings beforeLeft,
         RecursiveRequestCut profile ready callees request older beforeRight)
@@ -2474,6 +2490,7 @@ inductive ClassifiedWorkerTail (profile : ProfileKind) (ready : HostReady (HostS
       (live : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
         incoming leading beforeRight)
       (paired : HostFrame.Related.Paired older beforeLeft beforeRight)
+      (trail : track leading beforeLeft beforeRight)
       (boundary : HostFrame.Related.Boundary older beforeLeft beforeRight label afterLeft afterRight)
       (checkedStep : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) beforeLeft label afterLeft)
       (liveStep : Step profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
