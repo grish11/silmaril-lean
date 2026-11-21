@@ -16,6 +16,7 @@ open Silmaril.Wasm.Game.HandleAccept.Wit
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix
+open ReturnFrame.Occurrence
 
 variable {E : CoreEngine} {grow : SingleThreaded.GrowOracle} {Host Result : Type}
 
@@ -127,12 +128,12 @@ private theorem prepend {left right left' right' : Config (core3 grow) Host} {ch
       localLeafEnd left left.host store check.thread check.frames check.rest checkNext outcome)
     (rightEnd : ∀ store outcome, localLeafEnd right' right.host store canon.thread canon.frames canon.rest canonNext outcome =
       localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext outcome)
-    (next : StringLocalCutBetween profile ready dispatch reference left' right' check canon checkNext canonNext) :
-    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext := by
-  obtain ⟨store, outcome, labels, observed, lhs, rhs, tracks⟩ := next
+    (next : StringLocalCutBetween profile ready dispatch reference left' right' check canon checkNext canonNext true) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true := by
+  obtain ⟨store, outcome, labels, observed, lhs, rhs, tracks, trails⟩ := next
   rw [leftHost, leftEnd] at lhs
   rw [rightHost, rightEnd] at rhs
-  refine ⟨store, outcome, .tau :: labels, ?_, .cons leftGrows leftStep lhs, .cons rightGrows rightStep rhs, ?_⟩
+  refine ⟨store, outcome, .tau :: labels, ?_, .cons leftGrows leftStep lhs, .cons rightGrows rightStep rhs, ?_, ?_⟩
   · cases outcome with
     | ok value => exact observed
     | error reason =>
@@ -143,13 +144,23 @@ private theorem prepend {left right left' right' : Config (core3 grow) Host} {ch
     rw [leftHost, leftEnd] at keptLeft
     rw [rightHost, rightEnd] at keptRight
     exact ⟨.step leftStep (by rw [leftEdit]; rfl) keptLeft, .step rightStep (by rw [rightEdit]; rfl) keptRight⟩
+  · intro mark
+    obtain ⟨keptLeft, keptRight⟩ := trails mark
+    rw [leftHost, leftEnd] at keptLeft
+    rw [rightHost, rightEnd] at keptRight
+    have sameMark (edit : Edit (core3 grow) Host) (unchanged : edit = .same) : mark.bind edit.follow = mark := by
+      subst edit
+      cases mark <;> rfl
+    refine ⟨Trail.step (mark := mark) leftStep ?_, Trail.step (mark := mark) rightStep ?_⟩
+    · rw [sameMark _ leftEdit]; exact keptLeft
+    · rw [sameMark _ rightEdit]; exact keptRight
 
 private theorem closedCut {body : P (core3 grow) Host Result} (closed : Closed body)
     (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
     (checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow)))
     (same : left.store = right.store) (checkAt : left.ctl = check.control (body >>= checkNext))
     (canonAt : right.ctl = canon.control (body >>= canonNext)) :
-    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext := by
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true := by
   induction closed generalizing left right with
   | pure value =>
     have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.ok value) = left := by
@@ -158,10 +169,13 @@ private theorem closedCut {body : P (core3 grow) Host Result} (closed : Closed b
     have rightEnd : localLeafEnd right right.host right.store canon.thread canon.frames canon.rest canonNext (.ok value) = right := by
       cases right
       simp_all [localLeafEnd, Cursor.control]
-    refine ⟨right.store, .ok value, [], rfl, leftEnd ▸ .refl _, rightEnd ▸ .refl _, ?_⟩
-    intro _ _ depth
-    rw [leftEnd, rightEnd]
-    exact ⟨.done _ _, .done _ _⟩
+    refine ⟨right.store, .ok value, [], rfl, leftEnd ▸ .refl _, rightEnd ▸ .refl _, ?_, ?_⟩
+    · intro _ _ _
+      rw [leftEnd, rightEnd]
+      exact ⟨.done _ _, .done _ _⟩
+    · intro mark
+      rw [leftEnd, rightEnd]
+      cases mark <;> exact ⟨.done _ _, .done _ _⟩
   | @op effect continuation admitted _ ih =>
     cases effect with
     | get =>
@@ -179,11 +193,28 @@ private theorem closedCut {body : P (core3 grow) Host Result} (closed : Closed b
       · rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl
       · rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl
     | trap reason =>
-      refine ⟨right.store, .error reason, [.trap reason], ⟨0, rfl⟩, ?_, ?_, fun _ returned => by cases returned⟩
+      refine ⟨right.store, .error reason, [.trap reason], ⟨0, rfl⟩, ?_, ?_, (fun _ returned => by cases returned), ?_⟩
       · rw [← same]
         exact .cons (by simp [CoreUpdateGrows, checkAt, Cursor.control, Prog.bind]) (.trap checkAt) (.refl _)
       · exact .cons (by simp [CoreUpdateGrows, canonAt, Cursor.control, Prog.bind]) (.trap canonAt) (.refl _)
+      · intro mark
+        have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
+            StepDefs.trapCfg left := by rw [← same]; rfl
+        have tracks (state : Config (core3 grow) Host) :
+            mark.bind (transitionEdit state (.trap reason)).follow = localOccurrenceEnd (.error (α := Result) reason) mark := by
+          rcases mark with _ | ⟨place⟩
+          · rfl
+          · cases place <;> rfl
+        rw [leftEnd, ← tracks left]
+        refine ⟨.step (.trap checkAt) (.done _ _), .step (.trap canonAt) (.done _ _)⟩
     | _ => contradiction
+
+theorem activeCut {left right : Config (core3 grow) Host} {check canon : Cursor (E := core3 grow) Host}
+    {checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))}
+    (run : StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext := by
+  obtain ⟨store, result, labels, observed, left, right, active, _⟩ := run
+  exact ⟨store, result, labels, observed, left, right, active⟩
 
 theorem cut (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (steps : List StoreStep)
     (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
@@ -192,7 +223,7 @@ theorem cut (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (steps : List Store
     (canonAt : right.ctl = canon.control (runStoreSteps cx ptr steps >>= canonNext)) :
     StringLocalCutBetween profile ready dispatch reference left right check canon
       (fun front : StringFront steps.length => front.remaining cx >>= checkNext)
-      (fun front : StringFront steps.length => front.remaining cx >>= canonNext) := by
+      (fun front : StringFront steps.length => front.remaining cx >>= canonNext) true := by
   apply closedCut (closedFront cx ptr steps) left right check canon _ _ same
   · simpa only [Prog.bind_eq, Prog.bind_assoc] using checkAt.trans
       (congrArg (fun body => check.control (body >>= checkNext)) (factor (Host := Host) cx ptr steps).symm)
@@ -204,7 +235,7 @@ theorem descriptor (cx : LiftLowerContext (core3 grow)) (width : AddrType) (outp
     (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
     (checkAt : left.ctl = check.control (stringPlanTail cx width output plan ptr >>= checkNext))
     (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan ptr >>= canonNext)) :
-    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext :=
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true :=
   closedCut (closedTail cx width output plan ptr) left right check canon checkNext canonNext same checkAt canonAt
 
 theorem write (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (data : ByteArray)
@@ -213,7 +244,7 @@ theorem write (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (data : ByteArray
     (checkAt : left.ctl = check.control (writeMem cx ptr data >>= checkNext))
     (canonAt : right.ctl = canon.control (writeMem cx ptr data >>= canonNext)) :
     StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext :=
-  closedCut (closedWrite cx ptr data) left right check canon checkNext canonNext same checkAt canonAt
+  activeCut (closedCut (closedWrite cx ptr data) left right check canon checkNext canonNext same checkAt canonAt)
 
 theorem collectionDescriptor (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Stored.Lower.Output)
     (ptr count : Nat) (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
@@ -228,6 +259,6 @@ theorem collectionDescriptor (cx : LiftLowerContext (core3 grow)) (width : AddrT
       have size : Closed (ptrSize cx : P (core3 grow) Host Nat) := closedGet.bind (fun _ => .pure _)
       exact size.bind fun bytes => (closedWrite cx address (intToLE bytes ptr)).bind fun _ =>
         closedWrite cx (address + bytes) (intToLE bytes count)
-  exact closedCut localProgram left right check canon checkNext canonNext same checkAt canonAt
+  exact activeCut (closedCut localProgram left right check canon checkNext canonNext same checkAt canonAt)
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront

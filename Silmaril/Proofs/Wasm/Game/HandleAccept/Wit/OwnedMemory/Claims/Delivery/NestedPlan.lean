@@ -1175,4 +1175,21 @@ theorem pendingCoupledEntry {route : GiveEffectRoute} (site : PayloadRoot.Site g
   | none => exact ⟨none, Trail.absent checked.steps, Trail.absent (prefix_survives (canonical (.active 0 0))).1⟩
   | some place => exact ⟨some (site.entryPlace place), (checked place).toTrail, (canonical place).toTrail⟩
 
+open ReturnFrame.Occurrence in
+theorem pendingComparedEntry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (silent : PayloadPrefix.visible checkLabels = [])
+    (pending : PendingRecursiveRoot profile ready bindings callees older site incoming) :
+    ∃ entered, HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = incoming.host ∧
+      ComparedOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        site.start incoming [] site.checked entered := by
+  obtain ⟨canonLabels, entered, canonSilent, canonical, paired, hostSame⟩ := pending
+  refine ⟨entered, paired, hostSame, checkLabels, canonLabels, ?_, silent, canonSilent,
+    (HostFrame.Related.Paired.data paired).1⟩
+  intro mark
+  cases mark with
+  | none => exact ⟨none, Trail.absent checked.steps, Trail.absent (prefix_survives (canonical (.active 0 0))).1⟩
+  | some place => exact ⟨some (site.entryPlace place), (checked place).toTrail, (canonical place).toTrail⟩
+
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

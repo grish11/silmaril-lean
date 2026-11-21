@@ -236,24 +236,36 @@ def stringFront {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E) (ptr : 
   | action :: rest => runStoreStep cx ptr action >>= fun next =>
       stringFront cx next rest >>= fun front => pure front.weaken
 
+def localOccurrenceEnd {Result : Type} (result : Except TrapReason Result)
+    (mark : Option ReturnFrame.Occurrence.Location) : Option ReturnFrame.Occurrence.Location :=
+  match result, mark with
+  | .error _, some (.active ..) => none
+  | _, _ => mark
+
 /-- Both sides execute the same local effects up to a returned cursor or
 trap. On return the original active and blocked frame tails are intact; a
 trap locks down the reached store without undoing its writes. -/
 def StringLocalCutBetween {grow : SingleThreaded.GrowOracle} {Host Result : Type} (profile : ProfileKind)
     (ready : HostReady Host) (dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
     (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
-    (checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))) : Prop :=
+    (checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))) (trackOccurrences : Bool := false) : Prop :=
   ∃ (store : CStore (core3 grow)) (result : Except TrapReason Result) (labels : List (Label (core3 grow) Host)),
     LocalLeafLabels result labels ∧
     CoreGrowthSteps profile ready dispatch left labels
       (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
     CoreGrowthSteps profile ready reference right labels
       (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
-    ∀ value, result = .ok value → ∀ depth,
+    let active := ∀ value, result = .ok value → ∀ depth,
       ReturnFrame.Occurrence.Prefix profile ready dispatch left (.active 0 depth) labels
         (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) (.active 0 depth) ∧
       ReturnFrame.Occurrence.Prefix profile ready reference right (.active 0 depth) labels
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) (.active 0 depth)
+    if trackOccurrences then active ∧ ∀ mark,
+      ReturnFrame.Occurrence.Trail profile ready dispatch left mark labels
+        (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) (localOccurrenceEnd result mark) ∧
+      ReturnFrame.Occurrence.Trail profile ready reference right mark labels
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) (localOccurrenceEnd result mark)
+    else active
 
 abbrev StringLocalCut {grow : SingleThreaded.GrowOracle} {Host Result : Type} (profile : ProfileKind)
     (ready : HostReady Host) (dispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))

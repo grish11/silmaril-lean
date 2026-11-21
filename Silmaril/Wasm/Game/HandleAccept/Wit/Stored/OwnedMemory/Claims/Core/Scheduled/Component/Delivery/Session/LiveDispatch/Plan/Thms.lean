@@ -327,7 +327,9 @@ theorem AllocatorMark.pop {checkEntry canonEntry : Config (core3 grow) (HostStat
         { finish with ctl := check.control (first value) } ∧
       ReturnFrame.Occurrence.RetainsBelowTop profile ready (specDispatch ready (LiveDispatch.host bindings base))
         canonEntry (canonTrace ++ [.tau]) { incoming with ctl := canon.control (second value) } :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.pop marked paired returning installed
+  let ⟨canon, frame, lhs, rhs, checkTracks, canonTracks, _⟩ :=
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.pop marked paired returning installed
+  ⟨canon, frame, lhs, rhs, checkTracks, canonTracks⟩
 
 /-- A real marked allocator pop gives cumulative trails for every older
 active or saved occurrence, not just the slots below the caller. -/
@@ -473,6 +475,19 @@ theorem string_plan_replay (cx : LiftLowerContext (core3 grow)) (pointer : Nat) 
     LiveStringReplay profile ready base bindings older cx checkNext canonNext ends steps.length left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringReplay
     cx pointer steps checkNext canonNext frame growth checkAt canonAt embedder finish
+
+/-- Extend an already reached occurrence pair through every reached string
+instruction and classified allocator cut, including repeated marked returns. -/
+theorem string_plan_occurrences {cx : LiftLowerContext (core3 grow)}
+    {checkNext canonNext : Nat → Session grow sig (Ret (core3 grow))}
+    {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
+    {ends : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop}
+    {length : Nat} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {seen : Trace grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right)
+    (run : LiveStringReplay profile ready base bindings older cx checkNext canonNext ends length left right check canon) :
+    LiveStringOccurrences profile ready base bindings older cx checkNext canonNext leftStart rightStart ends length left right check canon seen :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringOccurrences leading run
 
 /-- Compare the actual string-key plan in either map placement mode. Static
 fit and allocator availability follow the compiled descendant path. Compare
@@ -1378,5 +1393,17 @@ theorem ComparedAllocatorPaths.at_public_request {route : GiveEffectRoute} (site
     ComparedAllocatorPaths profile ready base bindings site.start incoming seen lhs rhs :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.rebaseAllocatorAtRequest
     site checked canonical checkSilent canonSilent suspended
+
+/-- The public request itself provides the initial all-location comparison;
+the checked and canonical entry paths need not have the same raw length. -/
+theorem PendingRecursiveRoot.compared_entry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (silent : PayloadPrefix.visible checkLabels = [])
+    (pending : PendingRecursiveRoot profile ready bindings callees older site incoming) :
+    ∃ entered, HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = incoming.host ∧
+      ComparedOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        site.start incoming [] site.checked entered :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.pendingComparedEntry site checked silent pending
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch
