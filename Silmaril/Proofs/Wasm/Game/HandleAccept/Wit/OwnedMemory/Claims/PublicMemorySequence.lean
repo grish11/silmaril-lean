@@ -5,6 +5,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Component.Reference.Engine.Core3.Store.Defs
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Width.Thms
+import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Thms
@@ -525,6 +526,7 @@ private theorem rejoinedMachine {older : ReturnFrame.Substitutions (core3 grow) 
   subst_vars
   exact .mk control blocked
 
+open ReturnFrame.Occurrence in
 theorem resumeReturned {route : GiveEffectRoute} (call : PayloadRoot.Site grow sig route)
     (value : route.output.Result) {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {reached reference : State grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
@@ -536,7 +538,11 @@ theorem resumeReturned {route : GiveEffectRoute} (call : PayloadRoot.Site grow s
     ∃ left right, (∀ dispatch, Steps profile ready dispatch reached [.tau, .tau, .tau] left) ∧
       (∀ dispatch, Steps profile ready dispatch reference [.tau] right) ∧ left.store = right.store ∧
       left.host = reached.host.record reply.1 ∧ right.host = reference.host ∧
-      HostFrame.Related.Paired older left right := by
+      HostFrame.Related.Paired older left right ∧
+      (∀ dispatch place, Trail profile ready dispatch reached (some place) [.tau, .tau, .tau] left
+        ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) ∧
+      (∀ dispatch place, Trail profile ready dispatch reference (some place) [.tau] right
+        ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) := by
   have paired := frame.frames
   rw [caller] at paired
   obtain ⟨referenceSegments, referenceCaller, tails⟩ := pairedCoreHead call paired
@@ -547,7 +553,8 @@ theorem resumeReturned {route : GiveEffectRoute} (call : PayloadRoot.Site grow s
   have referenceRun (dispatch) : Steps profile ready dispatch reference [.tau]
       { reference with ctl := ⟨canon.thread, .core ((core3 grow).resume reference.store.core call.core (.values reply.2))
         call.resume, referenceSegments⟩ :: canon.rest } := .cons (.popCore canonical) (.refl _)
-  refine ⟨_, _, checkRun, referenceRun, frame.store, rfl, rfl, ?_⟩
+  refine ⟨_, _, checkRun, referenceRun, frame.store, rfl, rfl, ?_,
+    fun _ place => Plain.give_completion_trail reply place checked, fun _ place => Trail.pop_core place canonical⟩
   refine rejoinedMachine ?_ ?_ ?_ ?_ ?_ ?_
   · exact frame.store
   · exact frame.pending

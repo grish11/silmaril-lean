@@ -1272,4 +1272,20 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
   simp only [next, reply, Prog.bind_eq, Prog.bind_assoc] at actual ⊢
   exact actual
 
+open Machine Machine.ReturnFrame.Occurrence in
+theorem giveCompletionTrail {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest} (place : Location)
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    Trail profile ready dispatch start (some place) [.tau, .tau, .tau]
+      { start with host := start.host.record reply.1
+                   ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+                     continuation, segments⟩ :: rest } ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place) := by
+  have edit : transitionEdit start .tau = .same := by rw [transitionEdit, reached]; rfl
+  refine .step (.hostGet reached) ?_
+  rw [edit]
+  exact .step (.hostSet rfl) (Trail.pop_core place rfl)
+
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled

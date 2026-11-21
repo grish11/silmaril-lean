@@ -229,7 +229,9 @@ private theorem rejoin {route : GiveEffectRoute} (call : PayloadRoot.Site grow s
     RejoinedGive call value profile ready bindings reached reference := by
   refine ⟨advance, ?_⟩
   obtain ⟨_, _, _, path, _, _⟩ := advance
-  exact resume_returned_give call value frame (path 0) checked canonical
+  obtain ⟨left, right, checkRun, canonRun, storeEq, checkHost, canonHost, paired, _, _⟩ :=
+    resume_returned_give call value frame (path 0) checked canonical
+  exact ⟨left, right, checkRun, canonRun, storeEq, checkHost, canonHost, paired⟩
 
 theorem parkedMemoryThen {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory pointer))
     (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))

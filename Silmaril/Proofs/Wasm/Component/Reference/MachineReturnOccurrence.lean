@@ -679,6 +679,15 @@ theorem absentTrail {before after : Config E Host} {labels : List (Label E Host)
   | refl => exact .done _ _
   | cons head _ ih => exact .step head ih
 
+theorem followSteps {before after : Config E Host} {labels : List (Label E Host)}
+    (run : Steps profile ready dispatch before labels after) (mark : Option Location) :
+    ∃ reached, Trail profile ready dispatch before mark labels after reached := by
+  induction run generalizing mark with
+  | refl => exact ⟨mark, .done _ _⟩
+  | cons head _ ih =>
+    obtain ⟨reached, tail⟩ := ih _
+    exact ⟨reached, .step head tail⟩
+
 theorem trail_through_return {start entered reached : Config E Host} {leading labels : List (Label E Host)}
     {thread frames rest value} {resume : Continuation E Host} {depth : Nat}
     (install : Prefix profile ready dispatch start (.active 0 depth) leading entered (.active 0 (depth + 1)))

@@ -1760,7 +1760,11 @@ def CollectionSegmentReplies (profile : ProfileKind) (ready : HostReady (HostSta
         (∀ dispatch, Steps profile ready dispatch before [.tau, .tau, .tau] left) ∧
         (∀ dispatch, Steps profile ready dispatch canonBefore [.tau] right) ∧
         left.host = before.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
-        right.host = canonBefore.host ∧ HostFrame.Related.Paired older left right ∧ afterReturn left right
+        right.host = canonBefore.host ∧ HostFrame.Related.Paired older left right ∧ afterReturn left right ∧
+        (∀ depth, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base)
+          checked (.active 0 (depth + 1 + offset)) checkLabels left (.active 0 depth)) ∧
+        (∀ depth, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+          canonical (.active 0 (depth + 1 + offset)) canonLabels right (.active 0 depth))
     | .refused issue => ∃ (before : Config (core3 grow) (HostState sig)) (checkBody : Trace grow sig)
         (canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
         (stop : Session grow sig (Ret (core3 grow))), stopsAt stop ∧
@@ -1769,7 +1773,9 @@ def CollectionSegmentReplies (profile : ProfileKind) (ready : HostReady (HostSta
         (∀ depth, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
           canonical (.active 0 (depth + offset)) canonLabels right (.active 0 depth)) ∧
         left.host = before.host.record (route.reply site.destination site.start.host.nextTicket (.error issue)).1 ∧
-        (∀ dispatch, Steps profile ready dispatch before [.tau, .tau, .tau] left) ∧ right.ctl = canon.control stop
+        (∀ dispatch, Steps profile ready dispatch before [.tau, .tau, .tau] left) ∧ right.ctl = canon.control stop ∧
+        (∀ depth, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base)
+          checked (.active 0 (depth + 1 + offset)) checkLabels left (.active 0 depth))
     | .trapped reason => left.ctl = [] ∧ right.ctl = [] ∧ ∃ leading, PayloadPrefix.visible canonLabels = leading ++ [.trap reason]
 
 /-- The error program has already reached the public reply on checked.
@@ -1783,13 +1789,20 @@ def publicRefusalSink (profile : ProfileKind) (ready : HostReady (HostState sig)
   exit next issue observed lhs rhs cursor :=
     ∃ reported, next issue = site.reply (.error reported) ∧
       ComparedSlots profile ready base bindings site.checked entered observed lhs rhs ∧ lhs.store = rhs.store ∧
-      ∃ segments : List (Seg (core3 grow) (HostState sig)),
+      ∃ (segments : List (Seg (core3 grow) (HostState sig))) (checkBody canonBody : Trace grow sig),
         let reply := route.reply site.destination site.start.host.nextTicket (.error reported)
-        ∀ dispatch, Steps profile ready dispatch lhs [.tau, .tau, .tau]
+        let resumed :=
           { lhs with
             host := lhs.host.record reply.1
             ctl := ⟨cursor.thread, .core ((core3 grow).resume lhs.store.core site.core (.values reply.2)) site.resume,
               segments⟩ :: cursor.rest }
+        PayloadPrefix.visible checkBody = observed ∧ PayloadPrefix.visible canonBody = observed ∧
+        (∀ dispatch place, ReturnFrame.Occurrence.Trail profile ready dispatch lhs (some place) [.tau, .tau, .tau] resumed
+          ((ReturnFrame.Occurrence.Edit.pop : ReturnFrame.Occurrence.Edit (core3 grow) (HostState sig)).follow place)) ∧
+        (∀ depth, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base)
+          site.checked (.active 0 (depth + 1)) (checkBody ++ [.tau, .tau, .tau]) resumed (.active 0 depth)) ∧
+        (∀ depth, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+          entered (.active 0 depth) canonBody rhs (.active 0 depth))
 
 /-- From actual collection allocation and placement, visit the reached
 descendants in order. The cumulative trail supports either original caller

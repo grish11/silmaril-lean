@@ -12,6 +12,7 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.
   Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine
 open Stored.Endpoints.RecordLower
 open PayloadPrefix
+open ReturnFrame.Occurrence
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {pointer : FlatValue}
   {profile : ProfileKind} {ready : HostReady (HostState sig)} {bindings : List (Binding sig)}
@@ -117,7 +118,11 @@ theorem resume_returned_give {route : GiveEffectRoute} (call : PayloadRoot.Site 
     ∃ left right, (∀ dispatch, Steps profile ready dispatch reached [.tau, .tau, .tau] left) ∧
       (∀ dispatch, Steps profile ready dispatch reference [.tau] right) ∧ left.store = right.store ∧
       left.host = reached.host.record reply.1 ∧ right.host = reference.host ∧
-      HostFrame.Related.Paired older left right := by
+      HostFrame.Related.Paired older left right ∧
+      (∀ dispatch place, Trail profile ready dispatch reached (some place) [.tau, .tau, .tau] left
+        ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) ∧
+      (∀ dispatch place, Trail profile ready dispatch reference (some place) [.tau] right
+        ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) := by
   obtain ⟨_, caller⟩ := call.reached_caller checked tracked
   exact Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PublicMemorySequence.resumeReturned
     call value frame caller checked canonical

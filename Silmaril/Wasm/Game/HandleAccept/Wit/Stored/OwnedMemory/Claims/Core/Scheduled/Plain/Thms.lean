@@ -577,4 +577,19 @@ theorem give_completion_steps {sig : Signature} {grow : SingleThreaded.GrowOracl
                      continuation, segments⟩ :: rest } :=
   .cons (.hostGet reached) (.cons (.hostSet rfl) (.cons (.popCore rfl) (.refl _)))
 
+open Machine.ReturnFrame.Occurrence in
+/-- Follow any enclosing occurrence through the real checked completion.
+Recording the reply changes the host, not any segment slot. -/
+theorem give_completion_trail {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Machine.Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest} (place : Location)
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    Trail profile ready dispatch start (some place) [.tau, .tau, .tau]
+      { start with host := start.host.record reply.1
+                   ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+                     continuation, segments⟩ :: rest } ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.giveCompletionTrail reply place reached
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain

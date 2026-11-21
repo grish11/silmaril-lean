@@ -801,7 +801,7 @@ theorem localDataGive {route : GiveEffectRoute} (site : PayloadRoot.Site grow si
     have frame : LinkedCallback.ChildFrameOver older reached canonical site.cursor site.cursor :=
       ⟨rfl, rfl, rfl, rfl, List.forall₂_same.mpr fun act _ => saved act, rfl,
         segments site.cursor.frames, List.forall₂_same.mpr fun act _ => active act⟩
-    obtain ⟨left, right, checkReply, canonReply, storeEq, checkHost, canonHost, paired⟩ :=
+    obtain ⟨left, right, checkReply, canonReply, storeEq, checkHost, canonHost, paired, _, _⟩ :=
       LinkedCallback.MemorySequence.resume_returned_give site value frame (outcome.2.1 0) rfl rfl
     have popFocus : PayloadPrefix.LocalFocus canonical := by
       simp only [canonical, localLeafEnd, PayloadRoot.Site.cursor, PayloadRoot.Site.referenceReply, PayloadPrefix.LocalFocus]

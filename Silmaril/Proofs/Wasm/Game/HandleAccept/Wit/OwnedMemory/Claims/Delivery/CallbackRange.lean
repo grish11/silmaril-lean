@@ -662,6 +662,18 @@ private theorem localTail (destination : RecordDestination) (inst : InstId) (ele
   | error reason =>
     exact ⟨canon, .trapped reason, _, _, _, _, checkedRun, canonicalRun.steps, rfl, seen, rfl, rfl, result⟩
 
+private theorem appendReplyTrack {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {start before after : Config (core3 grow) (HostState sig)} {body reply : Trace grow sig} {offset : Nat}
+    (tracks : ∀ depth, Prefix profile ready dispatch start (.active 0 (depth + offset)) body before (.active 0 depth))
+    (pop : ∀ place, Trail profile ready dispatch before (some place) reply after
+      ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) :
+    ∀ depth, Prefix profile ready dispatch start (.active 0 (depth + 1 + offset)) (body ++ reply) after (.active 0 depth) := by
+  intro depth
+  have moved : Trail profile ready dispatch before (some (.active 0 (depth + 1))) reply after (some (.active 0 depth)) := pop _
+  obtain ⟨place, same, tail⟩ := moved.survives
+  cases same
+  exact (tracks (depth + 1)).append tail
+
 theorem replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {checked canonical : Config (core3 grow) (HostState sig)} {check : Cursor (E := core3 grow) (HostState sig)}
@@ -680,13 +692,14 @@ theorem replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig rout
   cases outcome with
   | trapped reason => exact ⟨.trapped reason, lhs, rhs, left, right, checkedRun, canonRun, same, seen, result⟩
   | returned value =>
-    obtain ⟨frame, checkAt, canonAt, tracks, _, _⟩ := result
-    obtain ⟨checkEnd, canonEnd, checkReply, canonReply, stores, checkHost, canonHost, paired⟩ :=
+    obtain ⟨frame, checkAt, canonAt, tracks, canonTracks, _⟩ := result
+    obtain ⟨checkEnd, canonEnd, checkReply, canonReply, stores, checkHost, canonHost, paired, checkPop, canonPop⟩ :=
       LinkedCallback.MemorySequence.resume_returned_give site value frame
         (caller.append (by simpa only [Nat.zero_add] using tracks 0)) checkAt canonAt
     exact ⟨.returned value, _, _, checkEnd, canonEnd, appendRun checkedRun (checkReply _), appendRun canonRun (canonReply _),
       stores, by rw [silentTail _ _ rfl, silentTail _ _ rfl, seen], left, right, lhs, rhs, rfl, rfl,
-      checkedRun, canonRun, checkReply, canonReply, checkHost, canonHost, paired, next _ _ paired⟩
+      checkedRun, canonRun, checkReply, canonReply, checkHost, canonHost, paired, next _ _ paired,
+      appendReplyTrack tracks (checkPop _), appendReplyTrack canonTracks (canonPop _)⟩
   | refused issue =>
     obtain ⟨stop, stopped, checkAt, canonAt, tracks, canonTracks⟩ := result
     obtain ⟨segments, callerAt⟩ := site.reached_caller checkAt (caller.append (by simpa only [Nat.zero_add] using tracks 0))
@@ -700,7 +713,8 @@ theorem replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig rout
     have resumes (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))) :
         Steps profile ready dispatch left [.tau, .tau, .tau] finished := Plain.give_completion_steps reply atReply
     exact ⟨.refused issue, _, rhs, finished, right, appendRun checkedRun (resumes _), canonRun, same,
-      by rw [silentTail _ _ rfl, seen], left, lhs, canon, stop, stopped, rfl, checkedRun, canonTracks, rfl, resumes, canonAt⟩
+      by rw [silentTail _ _ rfl, seen], left, lhs, canon, stop, stopped, rfl, checkedRun, canonTracks, rfl, resumes, canonAt,
+      appendReplyTrack tracks (fun place => Plain.give_completion_trail reply place atReply)⟩
 
 theorem rejoinPublished {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -3243,12 +3257,16 @@ private theorem publicRefusalCovers {route : GiveEffectRoute} (site : PayloadRoo
   intro next admitted issue observed lhs rhs check control same tracks
   obtain ⟨reported, replyAt⟩ := admitted issue
   have checked := tracks
-  obtain ⟨_, _, left, _, _, _⟩ := checked
+  obtain ⟨checkBody, canonBody, left, right, checkSeen, canonSeen⟩ := checked
   obtain ⟨segments, caller⟩ := site.reached_caller control (left 0)
-  refine ⟨reported, replyAt, tracks, same, segments, ?_⟩
-  intro reply dispatch
-  apply Plain.give_completion_steps reply
-  simpa only [replyAt, Cursor.control, caller, PayloadRoot.Site.reply, reply] using control
+  let reply := route.reply site.destination site.start.host.nextTicket (.error reported)
+  have atReply : lhs.ctl = ⟨check.thread, .prog (do return .flat (← writeCompletion reply)),
+        .core site.core site.resume :: segments⟩ :: check.rest := by
+    simpa only [replyAt, Cursor.control, caller, PayloadRoot.Site.reply, reply] using control
+  refine ⟨reported, replyAt, tracks, same, segments, checkBody, canonBody, checkSeen, canonSeen,
+    fun _ place => Plain.give_completion_trail reply place atReply, ?_, ?_⟩
+  · exact appendReplyTrack left (fun place => Plain.give_completion_trail reply place atReply)
+  · simpa only [Nat.add_zero] using right
 
 private theorem rootVisitorAdmits {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (entered : Config (core3 grow) (HostState sig)) :

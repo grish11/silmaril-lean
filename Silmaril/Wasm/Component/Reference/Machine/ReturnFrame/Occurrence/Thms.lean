@@ -183,6 +183,22 @@ theorem Trail.absent {before after : Config E Host} {labels : List (Label E Host
     Trail profile ready dispatch before none labels after none :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.absentTrail run
 
+/-- Follow any starting mark through the edits of this actual finite run,
+including a saved mark that moves to active or is overwritten. -/
+theorem Trail.follow_steps {before after : Config E Host} {labels : List (Label E Host)}
+    (run : Steps profile ready dispatch before labels after) (mark : Option Location) :
+    ∃ reached, Trail profile ready dispatch before mark labels after reached :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.followSteps run mark
+
+/-- The Core reply pops only the reached caller. Older active segments
+move one slot up; suspended and other active activations are untouched. -/
+theorem Trail.pop_core {before : Config E Host} {thread values core next frames rest} (mark : Location)
+    (focused : before.ctl = ⟨thread, .prog (.pure (.flat values)), .core core next :: frames⟩ :: rest) :
+    Trail profile ready dispatch before (some mark) [.tau]
+      { before with ctl := ⟨thread, .core (E.resume before.store.core core (.values values)) next, frames⟩ :: rest }
+      ((Edit.pop : Edit E Host).follow mark) :=
+  .step (.popCore focused) (by rw [transitionEdit, focused]; exact .done _ _)
+
 /-- An absent final mark identifies a real first loss in the same tracked
 run. Only a loss by popping the selected slot enters its continuation. -/
 theorem Trail.first_loss {before after : Config E Host} {labels : List (Label E Host)}
