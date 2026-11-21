@@ -36,9 +36,9 @@ try {
   const listing=JSON.parse(fs.readFileSync(path.join(site,'compiler/api/problems.json'),'utf8'));
   assert.ok(listing.length>0,'actual compiler fixtures exported');
   await page.selectOption('#program','compiles-to/straight');
-  await page.waitForFunction(()=>document.querySelector('#src-title').textContent.includes('straight'));
-  assert.ok(await page.locator('#src .line').count()>1,'actual source text');
-  assert.ok(await page.locator('#tgt .line').count()>1,'actual target listing');
+  await page.waitForFunction(()=>document.querySelector('#source-title').textContent.includes('straight'));
+  assert.ok(await page.locator('#source .line').count()>1,'actual source text');
+  assert.ok(await page.locator('#target .line').count()>1,'actual target listing');
   await page.selectOption('#mode','semantic');
   await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('semantic link'));
   assert.match(await page.locator('body').innerText(),/not every corpus function/);
@@ -75,7 +75,7 @@ try {
     const spans=JSON.parse(await page.locator('#corpus-source-spans').innerText());
     assert.equal(spans.tu_sha256,'31992f073781a1cdbd06ee2a00b2de14b62d87b5e81199dbb6a0fb7dfb7b6f1d');
     assert.deepEqual(spans.spans.map(s=>[s.offset,s.length]),[[529,50],[3240421,64]]);
-    const target=await page.locator('#tgt').innerText();
+    const target=await page.locator('#target').innerText();
     for(const expected of ['0x13810','48 8b 05 b1 b7 0f 00 c3','Actual ELF data object','sqlite3_version @ 0xed572','33 2e 35 34 2e 31 00','Actual raw RELA @ file offset 53296','R_X86_64_GLOB_DAT','symbol index 233','GOT slot 0x10efc8','Raw GOT slot bytes 00 00 00 00 00 00 00 00 (before loader resolution)','No dynamic-loader'])assert.ok(target.includes(expected),expected);
     const context=await page.locator('#corpus-evidence').textContent();
     for(const expected of ['Initialization.prepare input','memoryUnchanged before.memory after.memory','SysV.StackBelow machine 0','returnedAddress value'])assert.ok(context.includes(expected),expected);
@@ -97,8 +97,8 @@ try {
     await page.getByRole('link',{name:c.symbol+' (UNPROVED)',exact:true}).click();
     await page.waitForFunction(d=>document.body.dataset.corpusDeclaration===d,c.declaration);
     assert.match(await page.locator('#selection').innerText(),/UNPROVED/);
-    assert.ok((await page.locator('#src').innerText()).includes(c.symbol));
-    const target=await page.locator('#tgt').innerText();
+    assert.ok((await page.locator('#source').innerText()).includes(c.symbol));
+    const target=await page.locator('#target').innerText();
     assert.ok(target.includes(c.address));assert.ok(target.includes(c.bytes));
     assert.ok((await page.locator('[data-evidence-role="Source"]').innerText()).includes(c.source));
     assert.ok((await page.locator('[data-evidence-role="Core"]').innerText()).includes(c.core));
@@ -116,7 +116,7 @@ try {
       }
       for(const helper of c.helpers){
         for(const required of [helper.symbol+' @ 0x'+helper.address.toString(16),helper.bytes_hex,helper.code_sha256])assert.ok(target.includes(required),required);
-        assert.ok((await page.locator('#src').innerText()).includes(helper.symbol));
+        assert.ok((await page.locator('#source').innerText()).includes(helper.symbol));
         assert.ok(core.includes(helper.symbol));
         await page.getByRole('link',{name:'Actual callee '+helper.symbol,exact:true}).click();
         await page.waitForFunction(name=>document.querySelector('#corpus-function-search')?.value===name,helper.symbol);
@@ -133,7 +133,7 @@ try {
       for(const required of ['get_array_item @ 0x53d3', '84 bytes', c.helperBytes, c.helperHash, 'not a substituted contract']){
         assert.ok(target.includes(required),required);
       }
-      assert.ok((await page.locator('#src').innerText()).includes('get_array_item'));
+      assert.ok((await page.locator('#source').innerText()).includes('get_array_item'));
       assert.ok(core.includes('get_array_item'));
       const assumptions=await page.locator('#assumptions').innerText();
       for(const required of ['signed32','unsigned64','72 bytes','not full-record','not proofs','arbitrary payload'])assert.ok(assumptions.includes(required),required);
@@ -184,11 +184,11 @@ try {
     }
     assert.match(await page.locator('#assumptions').innerText(),/unproved/i);
     if(c.symbol==='_mi_os_large_page_size'){
-      assert.ok((await page.locator('#src').innerText()).includes('_mi_os_page_size()'));
+      assert.ok((await page.locator('#source').innerText()).includes('_mi_os_page_size()'));
       assert.match(await page.locator('#assumptions').innerText(),/prototype=false/);
     }
     if(c.symbol==='_mi_os_has_overcommit'){
-      assert.ok((await page.locator('#src').innerText()).includes('_Bool'));
+      assert.ok((await page.locator('#source').innerText()).includes('_Bool'));
       assert.ok(context.includes('some .boolean'));
       assert.ok(context.includes('(.integer .bool)'));
       assert.ok(context.includes('globalAddress + 40'));
@@ -229,7 +229,7 @@ try {
     assert.match(await page.locator('#status').innerText(),/15 binary-equivalence viewer problems · UNPROVED/);
     assert.equal(await page.locator('#binary-statement option').count(),16);
     assert.match(await page.locator('#selection').innerText(),p.pair.profile==='cjson-interior-detach-v1'?/joint entries for every declared five-object/:p.pair.profile==='cjson-finite-list-v1'?/joint entries for every declared finite-list/:p.pair.profile==='legacy-tinycc-isid-v1'?/independently admit every signed32/:/independently be enterable/);
-    for(const [i,id] of ['src','tgt'].entries()){
+    for(const [i,id] of ['source','target'].entries()){
       const a=p.artifacts[i],rendered=await page.locator('#'+id).innerText();
       for(const value of [a.path,a.sha256,a.bytes_hex,'0x'+a.address.toString(16),`${a.frame} bytes below entry RSP`])assert.ok(rendered.includes(value));
       assert.match(await page.locator('#provenance').innerText(),new RegExp(a.source.sha256));

@@ -208,13 +208,17 @@ For Wasm (Lean names relative to `Silmaril.Wasm.Game.Accept` and `Silmaril.Wasi.
   form.
 * Each proves nothing on the other shape's binaries or on invalid bytes
   (`Wasi/Component/Accept/Consequence/Examples.lean`).
-* **`list<u8>` components on the reference machine.** `Silmaril.Wasi.Accept.Ref.refBytesSystem prof`
+* **`list<u8>` components on the reference machine.** `Silmaril.Wasi.Accept.Ref.bytesSystem prof`
   decodes and validates a component binary on the reference machine (REF, the full canonical
   ABI with linear memory). `b ⊢ w` iff the component, linked to a host `accept` that records
-  its arguments, receives `list<u8> w` in some run: the host invokes exports, ticks and
-  cancels. `acceptRun` is the executable driver and `acceptRun_sound` its soundness. A real
+  its arguments, receives `list<u8> w` in some run of the typed environment: the host invokes
+  exports on arguments of their WIT type, ticks and cancels. `acceptRunTyped` is the
+  executable driver and `acceptRunTyped_sound` its soundness. Both are instances of the
+  policy-generic development (`EnvPolicy`, `bytesSystemWith`, `acceptRunWith`,
+  `recordsWith_of_run`); `bytesSystemUntyped` is the untyped environment, which admits
+  spurious runs (the deprecated `refBytesSystem` is this untyped system). A real
   `accept(list<u8>)` binary decodes in the kernel and accepts `"hi!"` by a `#guard`ed run
-  (`Ref/Examples.lean`). Caveats: `docs/projects/component-caveats.md`.
+  (`Ref/Examples.lean`, `Ref/Typed/Examples.lean`). Caveats: `docs/projects/component-caveats.md`.
 * **`list<u8>` is a lowering and semantics gap, not a parser gap.**
   * Every component parser reads `list<u8>`: `Binary.parse`, `Codec.decode` and the reference
     semantics' `Conformance.decodeRef`.

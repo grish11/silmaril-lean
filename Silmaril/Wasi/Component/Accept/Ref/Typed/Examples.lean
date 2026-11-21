@@ -15,7 +15,10 @@ public meta import Silmaril.Wasi.Component.Accept.Ref.Examples
   The typed driver refuses that call (`exportCallTyped … = none`) and still returns `true` on
   `"hi!"`.
 * **Imported `accept`** (`acceptHiBytes`): the typed driver records `"hi!"` when `run` is
-  called with no arguments. It refuses `run` on an extra argument.
+  called with no arguments. It refuses `run` on an extra argument, which the untyped driver
+  makes (`recordsUntyped`).
+* **Defaults** (kernel, `rfl`): `bytesSystem` is the typed system; the deprecated
+  `refBytesSystem` and `refTypedBytesSystem` are the untyped and typed systems.
 * **`tuple<u8, u8>`** (`tupleHiBytes`, lowered with no memory): REF and the IR lowering both read
   it (kernel). REF passes `accept` a *record*, so the `list<u8>` notion `AcceptedTyped` cannot
   see it, while `AcceptedTypedBytes` (through `bytesOf?`, the IR's reading) does.
@@ -110,6 +113,29 @@ def recordsTyped (bytes : ByteArray) (calls : List (String × List Value.Val)) (
 #guard recordsTyped acceptHiBytes [("run", [])] hi == some true
 #guard recordsTyped acceptHiBytes [("run", [.int .u32 5])] hi == none
 
+/-- Did the untyped driver record `[list<u8> w]` on `bytes` after `calls`? -/
+def recordsUntyped (bytes : ByteArray) (calls : List (String × List Value.Val))
+    (w : List UInt8) : Option Bool :=
+  (decodeValid (prof := first.prof) bytes).bind fun a =>
+    (acceptRun (core3Exec Silmaril.Wasm.SingleThreaded.neverFail) first 4000 a.comp
+      calls).map fun st => st.any fun args => Value.Val.beqList args [bytesVal w]
+
+-- The untyped driver makes the ill-typed call that the typed one refuses (`some`, not `none`);
+-- here the machine then records nothing.
+#guard recordsUntyped acceptHiBytes [("run", [])] hi == some true
+#guard recordsUntyped acceptHiBytes [("run", [.int .u32 5])] hi == some false
+
+/-! ### The default bytes system is typed; the former names are deprecated aliases -/
+
+example (prof : ProfileKind) : bytesSystem prof = bytesSystemWith EnvPolicy.typed prof := rfl
+example (prof : ProfileKind) : bytesSystem prof ≤ bytesSystemUntyped prof := bytesSystem_le_untyped
+
+set_option linter.deprecated false in
+example (prof : ProfileKind) : refBytesSystem prof = bytesSystemUntyped prof := rfl
+
+set_option linter.deprecated false in
+example (prof : ProfileKind) : refTypedBytesSystem prof = bytesSystem prof := rfl
+
 /-- `(component (import "accept" (func $a (param "bs" (list u8)))) (export "accept" (func $a)))`
 (assembled and validated with `wasm-tools` 1.263.0, stripped). -/
 def reexportBytes : ByteArray := ⟨#[0, 97, 115, 109, 13, 0, 1, 0, 7, 11, 2, 112, 125, 64, 1, 2,
@@ -123,14 +149,15 @@ theorem decodeValid_reexport : (decodeValid (prof := first.prof) reexportBytes).
 #guard recordsTyped reexportBytes [("accept", [bytesVal [0x78, 0x79, 0x7a]])] [0x78, 0x79, 0x7a]
   == some true
 
-/-- `"hi!"` is accepted in the typed environment, given the typed run that `#guard` checks. -/
+/-- `"hi!"` is accepted in the default (typed) bytes system, given the typed run that `#guard`
+checks. -/
 theorem hi_mem_typed_of_run
     (h : ∃ a st, decodeValid (prof := first.prof) acceptHiBytes = some a ∧
       acceptRunTyped (core3Exec Silmaril.Wasm.SingleThreaded.neverFail) first 4000 a.comp
         [("run", [])] = some st ∧ [bytesVal hi] ∈ st) :
-    refTypedBytesSystem first.prof acceptHiBytes hi :=
+    bytesSystem first.prof acceptHiBytes hi :=
   let ⟨_, _, hd, hr, hw⟩ := h
-  refTypedBytesSystem_of_run first hd hr hw
+  bytesSystem_of_run first hd hr hw
 
 /-! ## A `tuple<u8, u8>` acceptor: the fragment both semantics read -/
 

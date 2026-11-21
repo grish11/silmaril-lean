@@ -1,5 +1,23 @@
 {
   "artifacts": {
+    "include_search": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/env/programs-O2.search.json",
+      "sha256": "51fd4486fa002194e0f3ebd7970e9fc08d40fca56fbaefedd6e3ef16f6cbc2cc",
+      "size": 417
+    },
+    "includes": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/env/msort-O2.includes.json",
+      "sha256": "5c7d82bdce052869e1712e32c0fc63f10e52dd9407bd29e7ff20d40a1cd1cb70",
+      "size": 15642
+    },
+    "macros": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/env/programs-O2.macros.txt",
+      "sha256": "e1a5a45790661ab18d303224953cf89ed350d5e3df475c864a5be988c88885a3",
+      "size": 14893
+    },
     "receipt": {
       "media": "application/json",
       "path": "examples/compiler-explorer/builds/msort/O2/RECEIPT.json",
@@ -1216,6 +1234,176 @@
     }
   ],
   "id": "programs/msort/O2",
+  "include_env": {
+    "dependencies": {
+      "artifact": "includes",
+      "flags": "-O2 -g -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=."
+    },
+    "files": [
+      {
+        "artifact": "source",
+        "name": "/src/msort.c",
+        "sha256": "d48b0e6ea33321d880bf0d852707aea394e90a3f52ae46950951100ee8bb4e18",
+        "size": 767,
+        "where": "examples/compiler-explorer/programs/msort.c"
+      },
+      {
+        "name": "/usr/include/features-time64.h",
+        "sha256": "f204758482abaeaf9a9c49f0054c1ac19c5804c82b6d4d249ae0329ec293c973",
+        "size": 1409
+      },
+      {
+        "name": "/usr/include/features.h",
+        "sha256": "a43c1fcf40f4585ab05a92a262d06417e4711474b2a2d6b3205f15cc2a7a07eb",
+        "size": 18047
+      },
+      {
+        "name": "/usr/include/stdc-predef.h",
+        "sha256": "cb08cd5d4cc059a90833ac48a284d25016e8d56ded8ad4cd98d8ac59cc5053f3",
+        "size": 2462
+      },
+      {
+        "name": "/usr/include/stdio.h",
+        "sha256": "cf8eec642c164a95d6ffcdbea90db9e277c204532989492b0e9c0b4f55659d57",
+        "size": 31526
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/floatn-common.h",
+        "sha256": "34470310bc42f4ed4a8790ca3f33d1a11878a583561d51ad324ef5fb925d5493",
+        "size": 10325
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/floatn.h",
+        "sha256": "3d4345a5968836e9223ecb41753075921bedbfd20785b13bee4482dee7c7bbc5",
+        "size": 4508
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/libc-header-start.h",
+        "sha256": "2f1c081f8d5940640addc9daaf9552f65e38f86eac744e6d7c76bddb0f7969f2",
+        "size": 4286
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/long-double.h",
+        "sha256": "de8ef43fbb73a2525346914ce91fd9e72bb5c1040ae2ac739569001220e2da8d",
+        "size": 970
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/stdio.h",
+        "sha256": "c44a0a54387001b123e6e2dbe8172fda2a217ab06094a99eeaa6f54b511dae2c",
+        "size": 5599
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/stdio_lim.h",
+        "sha256": "31afdb7f07448d50082123a6a4c6bdf104d841b48038a79fbf85507476466acf",
+        "size": 1213
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/time64.h",
+        "sha256": "5f423dcbb2c2969085506456ff16788d8d7d0a430d994fc18fec4780e68dba39",
+        "size": 1340
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/timesize.h",
+        "sha256": "b675674807d56aa8b0c97ce136e70bfc27bf49c72ec49f4de9f273202604c0ef",
+        "size": 1109
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types.h",
+        "sha256": "cd152b6a5b70db5ff301e428b13e7a02d64dde93c4ae0a7879378dc04fd4fbcd",
+        "size": 8806
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types/FILE.h",
+        "sha256": "37515f78be386f2edad4746f2947c928f480728c56d9a94e25302ebbdaef3c96",
+        "size": 180
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types/__FILE.h",
+        "sha256": "26c909942e8a6bc82725e9c402f393aed9e32d94190257ddf71e1b5f819b4e5e",
+        "size": 110
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types/__fpos64_t.h",
+        "sha256": "8afae3abf006beb39fd9d4d4bae38745cdf08a91e6217ddf25833c8d4b04751b",
+        "size": 410
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types/__fpos_t.h",
+        "sha256": "603e58ab31ed75b7e0ab09a2ca94e99955f7fbc63310466321ce27c906227eb4",
+        "size": 381
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types/__mbstate_t.h",
+        "sha256": "c561df72d5b987ccbd022059fdb1bcb6899c3e94b403997a0576ef3e1afb0f94",
+        "size": 564
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/types/struct_FILE.h",
+        "sha256": "c746e2ecb48cc2a1b7b4c63ff30e471569ad5bde1464a72c4aa1cadddb4dc113",
+        "size": 4104
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/typesizes.h",
+        "sha256": "5663fc72923363ef9bffe3fbbafa3ca9b94da2d5aadae781dd6f6da5e435a9c6",
+        "size": 3737
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/bits/wordsize.h",
+        "sha256": "948177c0fc84c4746588f62252029880ec4c6f88b743ba55d952f980303ebfbb",
+        "size": 398
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/gnu/stubs-64.h",
+        "sha256": "0b6ab3e2ed3ba79b30fe6ba81a68fc41f57965b8d56662763633431b703c9289",
+        "size": 481
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/gnu/stubs.h",
+        "sha256": "ef444295a0a9e8f5c40918399a00cc91ba0bd79774110cdf6e652baa6cfadb2e",
+        "size": 384
+      },
+      {
+        "name": "/usr/include/x86_64-linux-gnu/sys/cdefs.h",
+        "sha256": "6b6f6ebc94fed6ad6cee59558f803c3d436ca97f0a4fcc72a9a30cfef99ca87c",
+        "size": 26665
+      },
+      {
+        "name": "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include/stdarg.h",
+        "sha256": "5a443943e67d7bab17203591b4ccb508757587d9b955ee883a053d755ed09321",
+        "size": 4303
+      },
+      {
+        "name": "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include/stddef.h",
+        "sha256": "9efc696d6c7eb8bb1831b149c6a92f88a775809cd63e4007312b617915f81188",
+        "size": 13735
+      }
+    ],
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "macros": "macros",
+    "note": "Main file and observed headers by content; macros/search come from a separate probe. Header dependencies and include occurrences are GCC observations from a separate preprocessing probe, not a verified preprocessor.",
+    "options": [
+      "gcc",
+      "-O2",
+      "-g",
+      "-S",
+      "-std=c11",
+      "-fno-asynchronous-unwind-tables",
+      "-fdebug-prefix-map=/src=.",
+      "msort.c",
+      "-o",
+      "msort.s"
+    ],
+    "probe_flags": "-O2 -g -std=c11 -fno-asynchronous-unwind-tables -fdebug-prefix-map=/src=.",
+    "search": [
+      "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include",
+      "/usr/local/include",
+      "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include-fixed",
+      "/usr/include/x86_64-linux-gnu",
+      "/usr/include"
+    ],
+    "search_receipt": "include_search",
+    "workdir": "/src"
+  },
   "lean": {
     "family": null,
     "modules": []
@@ -1261,7 +1449,22 @@
       "unsupported": "no comorphism relation is generated for this program"
     }
   ],
+  "problem_form": "relation",
+  "relation": {
+    "description": "gcc 13.3.0 compiled this C to this assembly (receipt); the run test checks one execution; no Lean statement relates them",
+    "semantics": "none"
+  },
   "schema": "silmaril.compiler-explorer.problem/1",
+  "stages": [
+    {
+      "evidence": "receipt only",
+      "input": "source",
+      "name": "gcc -S (cc1, pinned image)",
+      "output": "target",
+      "side": "target",
+      "trust": "trusted"
+    }
+  ],
   "tests": [
     {
       "about": "target",

@@ -160,19 +160,32 @@ def storeListIntoValidRangeWith (elemSize : Nat) (storeElem : Val → Nat → P 
     (vs : List Val) (ptr : Nat) : P E σ Unit :=
   Prog.forM vs.zipIdx fun (e, i) => storeElem e (ptr + i * elemSize)
 
-/-- REF `store_list_into_range(cx, v, elem_type)` (L1689-1696) for an element layout `el`:
-`byte_length = len(v) * elem_size`; `ptr = cx.allocate(alignment, byte_length)` (the
-late-bound realloc); `trap_if` misaligned (`unalignedPointer`) and out of bounds
-(`outOfBounds`), in this order; store the elements; return `(ptr, len(v))`. The REF assert
-`byte_length <= REALLOC_I32_MAX` is a precondition (`StoreListPre`, D-f). -/
+/-- Check the returned pointer against the memory in the reached store. -/
+def validateListRange (cx : LiftLowerContext E) (el : ABI.Layout) (count ptr : Nat) : P E σ Nat := do
+  trapIf (decide (ptr ≠ ABI.alignTo ptr el.alignment)) .unalignedPointer
+  checkInBounds cx ptr (count * el.size)
+  return ptr
+
+/-- Allocate the canonical list range, then check alignment and bounds against the
+reached state. The realloc byte-length bound is a precondition (`StoreListPre`, D-f). -/
+def allocateListRange (cx : LiftLowerContext E) (el : ABI.Layout) (count : Nat) : P E σ Nat := do
+  let ptr ← allocate cx el.alignment.bytes (count * el.size)
+  validateListRange cx el count ptr
+
+/-- REF `store_list_into_range(cx, v, elem_type)` (L1689-1696): allocate and
+validate the range, store elements in order, then return `(ptr, len(v))`. -/
 def storeListIntoRangeWith (cx : LiftLowerContext E) (el : ABI.Layout)
     (storeElem : Val → Nat → P E σ Unit) (vs : List Val) : P E σ (Nat × Nat) := do
-  let byteLength := vs.length * el.size
-  let ptr ← allocate cx el.alignment.bytes byteLength
-  trapIf (decide (ptr ≠ ABI.alignTo ptr el.alignment)) .unalignedPointer
-  checkInBounds cx ptr byteLength
+  let ptr ← allocateListRange cx el vs.length
   storeListIntoValidRangeWith el.size storeElem vs ptr
   pure (ptr, vs.length)
+
+/-- Publish an indirect list descriptor in canonical write order. If the length
+write traps, the already-written pointer is not rolled back. -/
+def storeListDescriptor (cx : LiftLowerContext E) (begin length dest : Nat) : P E σ Unit := do
+  let size ← ptrSize cx
+  storeInt cx begin dest size
+  storeInt cx length (dest + size) size
 
 /-- REF `store_list(cx, v, ptr, elem_type, maybe_length)` (L1680-1687): a fixed-length list
 (`fixed = true`) is stored in place; otherwise `store_list_into_range` and the pointer-sized
@@ -183,9 +196,7 @@ def storeListWith (cx : LiftLowerContext E) (el : ABI.Layout)
   if fixed then storeListIntoValidRangeWith el.size storeElem vs ptr
   else do
     let (begin, length) ← storeListIntoRangeWith cx el storeElem vs
-    let sz ← ptrSize cx
-    storeInt cx begin ptr sz
-    storeInt cx length (ptr + sz) sz
+    storeListDescriptor cx begin length ptr
 
 /-- The REF assertion of `store_list_into_range` (L1691, D-f): the list's byte length is at
 most `REALLOC_I32_MAX`. A precondition of lowering a list of element layout `el`. -/

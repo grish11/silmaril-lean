@@ -29,20 +29,26 @@ _equivalence_spec.loader.exec_module(equivalence)
 def export(project, output, *, include_corpus=True):
     output.mkdir(parents=True, exist_ok=True)
     (output / 'api/problems').mkdir(parents=True, exist_ok=True)
+    downloads = output / 'api/artifacts'
+    downloads.mkdir(parents=True, exist_ok=True)
+    index = output.parent / 'compiler-artifacts/index.json'
+    catalog = ('../', json.loads(index.read_bytes())['artifacts']) if index.is_file() else None
     with tempfile.TemporaryDirectory(prefix='compiler-pages-') as tmp:
         db = cx.connect(str(Path(tmp) / 'explorer.sqlite'))
         try:
             for manifest in sorted((cx.ROOT / 'examples/compiler-explorer/manifests').glob('*.json')):
                 cx.ingest_manifest(db, manifest)
-            matched = cx.ingest_project(db, project)
+            matched = cx.ingest_project(db, project) if project else 0
             problems = cx.problem_list(db)
             statuses = Counter()
             for problem in problems:
                 filename = hashlib.sha256(problem['id'].encode()).hexdigest() + '.json'
                 problem['static_path'] = 'api/problems/' + filename
-                payload = cx.problem_view(db, problem['id'])
+                payload = cx.problem_view(db, problem['id'], catalog)
                 statuses.update(o['status'] for o in payload['obligations'])
                 (output / problem['static_path']).write_text(json.dumps(payload, ensure_ascii=False) + '\n')
+            for row in db.execute('SELECT sha256, content FROM artifacts'):
+                (downloads / row['sha256']).write_bytes(row['content'])
             (output / 'api/problems.json').write_text(json.dumps(problems, ensure_ascii=False) + '\n')
         finally:
             db.close()
@@ -65,7 +71,7 @@ This viewer covers committed compiler fixtures and registered corpus statements,
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--project', type=Path, required=True)
+    p.add_argument('--project', type=Path, help='public project database; omit for a navigation-only snapshot')
     p.add_argument('--out', type=Path, required=True)
     a = p.parse_args()
     export(a.project, a.out)

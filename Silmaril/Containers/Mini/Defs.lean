@@ -7,6 +7,8 @@ public import Silmaril.Containers.Check.Defs
 /-!
 # A minimal machine: undefined behaviour and thread creation, under a sequential machine
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 `mini` is a machine semantics (`Silmaril.Containers.Mach.MachineSem`) for straight-line
 programs (`Instr`): emit an event, request a task (`clone`), exit, crash, or spin. Its state is
 the rest of the program. Running off the end of a program is a **stuck** state, so it is
@@ -27,6 +29,7 @@ maps to it.
 | `forkExit`: `fork`, exit 0 | `done [] (undefined unmodeled)` | no | no |
 | `fallOff`: print `x`, then nothing | `done [stdout "x"] (undefined stuck)` | no | no |
 | `spinForever` | `spins []` | yes | no |
+| `crashNow`: killed by `SIGSEGV` | `done [] (signaled 11)` | yes (a crash is not undefined behaviour) | no |
 | `tcpThenThread`: a TCP socket, then `clone` for a thread | `done [socket] (undefined threadCreate)` | no; **yes under vsock-only enforcement**, which stops it at the socket, before the thread creation | no |
 
 A Silmaril addition.
@@ -105,6 +108,9 @@ def vforkExit : List Instr := [.clone .vfork, .exit 0]
 def forkExit : List Instr := [.clone .fork, .exit 0]
 def fallOff : List Instr := [.emit (.stdout (Fixtures.ascii "x"))]
 def spinForever : List Instr := [.spin]
+
+/-- Crash at once with `SIGSEGV`. -/
+def crashNow : List Instr := [.crash 11]
 
 /-- `OutputOnly`, decided. -/
 def outputOnlyB (p : List Instr) : Bool :=

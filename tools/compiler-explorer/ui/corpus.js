@@ -50,14 +50,14 @@ export async function initCorpus() {
   document.querySelector('h1 .sub').textContent = 'actual source / Core / ELF · stated, unproved';
   document.querySelector('header .note').textContent = 'Read-only registered corpus statements. All corpus refinements are UNPROVED. Source and identity checks are separate from semantic correctness; no compiler service runs here.';
   const git = path => `https://github.com/hiloopai/silmaril-lean/blob/${p.revision}/${path.split('/').map(encodeURIComponent).join('/')}`;
-  $('src-title').textContent = `Actual source closure · ${p.function_symbol}`;
-  $('tgt-title').textContent = 'Real ELF function bytes · tool-checked excerpt';
-  lines($('src'), await text(p.source));
+  $('source-title').textContent = `Actual source closure · ${p.function_symbol}`;
+  $('target-title').textContent = 'Real ELF function bytes · tool-checked excerpt';
+  lines($('source'), await text(p.source));
   const excerpt = (symbol, f) => `${symbol} @ 0x${f.address.toString(16)} · ${f.size} bytes · file offset ${f.file_offset}\n${f.bytes_hex}\nFunction bytes sha256 ${f.code_sha256}\n${f.identity_check}`;
   const target = p.artifacts.map(a => `${a.path}\nELF sha256 ${a.sha256}\n${excerpt(p.function_symbol, a)}${(a.callees || []).map(c => '\n\nActual callee excerpt (not a substituted contract)\n' + excerpt(c.function_symbol, c)).join('')}`).join('\n\n');
   const dataEvidence = p.artifacts.flatMap(a => (a.data_bindings || []).map(d =>
     `Actual ELF data object (separate from function CodeAt)\n${d.symbol} @ 0x${d.address.toString(16)} · ${d.size} bytes · file offset ${d.file_offset}\n${d.bytes_hex}\nData sha256 ${d.sha256}\nActual raw RELA @ file offset ${d.relocation.file_offset}\n${d.relocation.bytes_hex}\n${d.relocation.type} · symbol index ${d.relocation.symbol_index} · addend ${d.relocation.addend} · GOT slot 0x${d.relocation.slot.toString(16)} · raw ELF file offset ${d.relocation.slot_file_offset}\nRaw GOT slot bytes ${d.relocation.slot_bytes_hex} (before loader resolution)\n${d.limit}`));
-  lines($('tgt'), [target, ...dataEvidence].join('\n\n'));
+  lines($('target'), [target, ...dataEvidence].join('\n\n'));
   const selection = $('selection');
   selection.replaceChildren(el('h2', 'Registered corpus problem'), el('span', 'UNPROVED', 'badge st-open'), el('code', p.declaration, 'stmt'), el('p', p.mapping));
   const navigation = el('p');

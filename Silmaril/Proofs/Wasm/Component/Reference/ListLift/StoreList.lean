@@ -236,7 +236,8 @@ theorem spec_storeListIntoRange {I : Silmaril.Wasm.Game.ScalarInstance} {ra ma :
         ReallocRun P ra (cmap m.store) el.alignment.bytes (us.length * el.size) q s₁ ∧
         q % el.alignment.bytes = 0 ∧ q + us.length * el.size ≤ ListLift.memLen s₁ ma ∧
         ElemsRel el.size Elem us q s₁ (cmap m'.store)) := by
-  unfold storeListIntoRangeWith
+  unfold storeListIntoRangeWith allocateListRange validateListRange
+  simp only [bind_assoc, pure_bind]
   rw [List.length_map]
   refine Spec.bind (spec_allocate hcx hi _ _) fun q m₁ ⟨hi₁, hg₁, hrun⟩ _ _ => ?_
   refine Spec.bind (Spec.trapIf _ _) fun _ m₂ ⟨ha, hm⟩ _ _ => ?_

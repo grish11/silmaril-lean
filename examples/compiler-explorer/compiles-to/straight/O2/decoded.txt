@@ -1,0 +1,5 @@
+-- CompilesToExamples.Straight.O2.add3Listing: the decoder's listing, checked by the kernel (decodesAs)
+-- offset, length, instruction (Repr, with Silmaril.X86.Ext. and Silmaril.X86. dropped)
+0x0	2	Instr.alu (Sz.d) (AluOp.add) (RM.reg (Reg.rdi)) (Reg.rsi)
+0x2	3	Instr.lea (Sz.d) (Reg.rax) { base := Base.reg (Reg.rdi), index := some { reg := Reg.rdx, scale := 0x0#2 }, disp := 0x00000000#32 }
+0x5	1	Instr.ret

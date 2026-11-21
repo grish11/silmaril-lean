@@ -44,11 +44,21 @@ theorem storeListIntoValidRangeWith (elemSize : Nat) {storeElem : Val → Nat �
     P.InvW I W (Canon.storeListIntoValidRangeWith elemSize storeElem vs ptr) :=
   forM fun _ _ => h _ _
 
+theorem allocateListRange (cx : LiftLowerContext E) (el : ABI.Layout) (count : Nat) :
+    P.InvW I W (Canon.allocateListRange cx el count : P E σ Nat) :=
+  bind (allocate _ _ _) fun _ => bind (trapIf _ _) fun _ => bind (checkInBounds _ _ _) fun _ => pure _
+
 theorem storeListIntoRangeWith (cx : LiftLowerContext E) (el : ABI.Layout)
     {storeElem : Val → Nat → P E σ Unit} (h : ∀ e a, P.InvW I W (storeElem e a))
     (vs : List Val) : P.InvW I W (Canon.storeListIntoRangeWith cx el storeElem vs) :=
-  bind (allocate _ _ _) fun _ => bind (trapIf _ _) fun _ => bind (checkInBounds _ _ _) fun _ =>
+  bind (allocateListRange cx el vs.length) fun _ =>
     bind (storeListIntoValidRangeWith _ h _ _) fun _ => pure _
+
+theorem storeListDescriptor (cx : LiftLowerContext E) (begin length dest : Nat)
+    (hw : ∀ m p bs s, I s → I (writeMemSt m p bs s)) :
+    P.InvW I W (Canon.storeListDescriptor cx begin length dest : P E σ Unit) :=
+  bind (ptrSize cx) fun _ =>
+    bind (storeInt _ _ _ _ _ (hw · _ _)) fun _ => storeInt _ _ _ _ _ (hw · _ _)
 
 theorem storeListWith (cx : LiftLowerContext E) (el : ABI.Layout)
     {storeElem : Val → Nat → P E σ Unit} (h : ∀ e a, P.InvW I W (storeElem e a)) (fixed : Bool)
@@ -57,8 +67,7 @@ theorem storeListWith (cx : LiftLowerContext E) (el : ABI.Layout)
   unfold Canon.storeListWith
   split
   · exact storeListIntoValidRangeWith _ h _ _
-  · exact bind (storeListIntoRangeWith cx el h vs) fun _ => bind (ptrSize cx) fun _ =>
-      bind (storeInt _ _ _ _ _ (hw · _ _)) fun _ => storeInt _ _ _ _ _ (hw · _ _)
+  · exact bind (storeListIntoRangeWith cx el h vs) fun (begin, length) => storeListDescriptor cx begin length ptr hw
 
 theorem storeVariantHead (cx : LiftLowerContext E) (n : Nat) (a : ABI.Alignment) (i ptr : Nat)
     (hw : ∀ m p bs s, I s → I (writeMemSt m p bs s)) :

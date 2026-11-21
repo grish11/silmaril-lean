@@ -5,6 +5,8 @@ public import Silmaril.Containers.Image.Defs
 /-!
 # Environment interaction: events, capabilities and restricted profiles
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 What a containerised process does to its environment is a sequence of **events** (`Ev`):
 socket operations, file reads and writes, standard streams, the clock and randomness, and
 starting other programs. Each socket event carries the socket it acts on (`Sock`: descriptor,

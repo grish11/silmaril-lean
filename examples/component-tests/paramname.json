@@ -1,0 +1,368 @@
+{
+  "schema": "silmaril.component-tests.paramname.v1",
+  "note": "evidence for the parameter-name counterexample; not a proof, not run in CI",
+  "tools": {
+    "wasm-tools": "1.262.0",
+    "wasmtime": "50.0.0",
+    "wac": "0.12.0",
+    "linker-host wasmtime crate": "50.0.0"
+  },
+  "binaries": {
+    "starts": {
+      "path": "examples/component-tests/starts.wasm",
+      "sha256": "ff543e050721e1620c89fa540559e12c9b28d9b22333942ad7e74b12ed02665f",
+      "validate": {
+        "argv": [
+          "wasm-tools",
+          "validate",
+          "examples/component-tests/starts.wasm"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": []
+      },
+      "wit": {
+        "argv": [
+          "wasm-tools",
+          "component",
+          "wit",
+          "examples/component-tests/starts.wasm"
+        ],
+        "exit": 0,
+        "stdout": "package root:component;\n\nworld root {\n  import f: func(x: u32);\n\n  export get: func() -> u32;\n}",
+        "stderr": []
+      }
+    },
+    "paramname": {
+      "path": "examples/component-tests/paramname.wasm",
+      "sha256": "347583e4905a48fa04934184282b78d208ab5d430b01de4d6b797dadc3113da2",
+      "validate": {
+        "argv": [
+          "wasm-tools",
+          "validate",
+          "examples/component-tests/paramname.wasm"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": []
+      },
+      "wit": {
+        "argv": [
+          "wasm-tools",
+          "component",
+          "wit",
+          "examples/component-tests/paramname.wasm"
+        ],
+        "exit": 0,
+        "stdout": "package root:component;\n\nworld root {\n  import f: func(y: u32);\n\n  export get: func() -> u32;\n}",
+        "stderr": []
+      }
+    }
+  },
+  "wac": {
+    "host f: func(x: u32), starts.wasm": {
+      "compose": {
+        "argv": [
+          "wac",
+          "compose",
+          "$TMP/t.wac",
+          "--dep",
+          "host:log=$TMP/hostx.wasm",
+          "--dep",
+          "test:b=examples/component-tests/starts.wasm",
+          "-o",
+          "$TMP/c_x_starts.wasm"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": []
+      },
+      "invocations": {
+        "get()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "get()",
+            "$TMP/c_x_starts.wasm"
+          ],
+          "exit": 0,
+          "stdout": "42",
+          "stderr": []
+        },
+        "trace()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "trace()",
+            "$TMP/c_x_starts.wasm"
+          ],
+          "exit": 0,
+          "stdout": "12",
+          "stderr": []
+        },
+        "calls()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "calls()",
+            "$TMP/c_x_starts.wasm"
+          ],
+          "exit": 0,
+          "stdout": "2",
+          "stderr": []
+        }
+      }
+    },
+    "host f: func(x: u32), paramname.wasm": {
+      "compose": {
+        "argv": [
+          "wac",
+          "compose",
+          "$TMP/t.wac",
+          "--dep",
+          "host:log=$TMP/hostx.wasm",
+          "--dep",
+          "test:b=examples/component-tests/paramname.wasm",
+          "-o",
+          "$TMP/c_x_paramname.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "error: failed to resolve document",
+          "\u00d7 mismatched instantiation argument `f`",
+          "\u2570\u2500\u25b6 expected function parameter 0 to be named `y`, found name `x`",
+          "\u256d\u2500[$TMP/t.wac:3:22]",
+          "2 \u2502 let h = new host:log {};",
+          "3 \u2502 let s = new test:b { f: h.f };",
+          "\u00b7                      \u252c",
+          "\u00b7                      \u2570\u2500\u2500 mismatched argument `f`",
+          "4 \u2502 export s.get;",
+          "\u2570\u2500\u2500\u2500\u2500"
+        ]
+      }
+    },
+    "host f: func(y: u32), starts.wasm": {
+      "compose": {
+        "argv": [
+          "wac",
+          "compose",
+          "$TMP/t.wac",
+          "--dep",
+          "host:log=$TMP/hosty.wasm",
+          "--dep",
+          "test:b=examples/component-tests/starts.wasm",
+          "-o",
+          "$TMP/c_y_starts.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "error: failed to resolve document",
+          "\u00d7 mismatched instantiation argument `f`",
+          "\u2570\u2500\u25b6 expected function parameter 0 to be named `x`, found name `y`",
+          "\u256d\u2500[$TMP/t.wac:3:22]",
+          "2 \u2502 let h = new host:log {};",
+          "3 \u2502 let s = new test:b { f: h.f };",
+          "\u00b7                      \u252c",
+          "\u00b7                      \u2570\u2500\u2500 mismatched argument `f`",
+          "4 \u2502 export s.get;",
+          "\u2570\u2500\u2500\u2500\u2500"
+        ]
+      }
+    },
+    "host f: func(y: u32), paramname.wasm": {
+      "compose": {
+        "argv": [
+          "wac",
+          "compose",
+          "$TMP/t.wac",
+          "--dep",
+          "host:log=$TMP/hosty.wasm",
+          "--dep",
+          "test:b=examples/component-tests/paramname.wasm",
+          "-o",
+          "$TMP/c_y_paramname.wasm"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": []
+      },
+      "invocations": {
+        "get()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "get()",
+            "$TMP/c_y_paramname.wasm"
+          ],
+          "exit": 0,
+          "stdout": "42",
+          "stderr": []
+        },
+        "trace()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "trace()",
+            "$TMP/c_y_paramname.wasm"
+          ],
+          "exit": 0,
+          "stdout": "12",
+          "stderr": []
+        },
+        "calls()": {
+          "argv": [
+            "wasmtime",
+            "run",
+            "--invoke",
+            "calls()",
+            "$TMP/c_y_paramname.wasm"
+          ],
+          "exit": 0,
+          "stdout": "2",
+          "stderr": []
+        }
+      }
+    }
+  },
+  "nested": {
+    "host f: func(x: u32), starts.wasm": {
+      "validate": {
+        "argv": [
+          "wasm-tools",
+          "validate",
+          "$TMP/nest_x_starts.wasm"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": []
+      },
+      "run": {
+        "argv": [
+          "wasmtime",
+          "run",
+          "--invoke",
+          "get()",
+          "$TMP/nest_x_starts.wasm"
+        ],
+        "exit": 0,
+        "stdout": "42",
+        "stderr": []
+      }
+    },
+    "host f: func(x: u32), paramname.wasm": {
+      "validate": {
+        "argv": [
+          "wasm-tools",
+          "validate",
+          "$TMP/nest_x_paramname.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "error: type mismatch for import `f`",
+          "expected parameter named `y`, found `x` (at offset 0x2c7)"
+        ]
+      },
+      "run": {
+        "argv": [
+          "wasmtime",
+          "run",
+          "--invoke",
+          "get()",
+          "$TMP/nest_x_paramname.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "Error: failed to parse WebAssembly module",
+          "Caused by:",
+          "type mismatch for import `f`",
+          "expected parameter named `y`, found `x` (at offset 0x2c7)"
+        ]
+      }
+    },
+    "host f: func(y: u32), starts.wasm": {
+      "validate": {
+        "argv": [
+          "wasm-tools",
+          "validate",
+          "$TMP/nest_y_starts.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "error: type mismatch for import `f`",
+          "expected parameter named `x`, found `y` (at offset 0x2c7)"
+        ]
+      },
+      "run": {
+        "argv": [
+          "wasmtime",
+          "run",
+          "--invoke",
+          "get()",
+          "$TMP/nest_y_starts.wasm"
+        ],
+        "exit": 1,
+        "stdout": "",
+        "stderr": [
+          "Error: failed to parse WebAssembly module",
+          "Caused by:",
+          "type mismatch for import `f`",
+          "expected parameter named `x`, found `y` (at offset 0x2c7)"
+        ]
+      }
+    },
+    "host f: func(y: u32), paramname.wasm": {
+      "validate": {
+        "argv": [
+          "wasm-tools",
+          "validate",
+          "$TMP/nest_y_paramname.wasm"
+        ],
+        "exit": 0,
+        "stdout": "",
+        "stderr": []
+      },
+      "run": {
+        "argv": [
+          "wasmtime",
+          "run",
+          "--invoke",
+          "get()",
+          "$TMP/nest_y_paramname.wasm"
+        ],
+        "exit": 0,
+        "stdout": "42",
+        "stderr": []
+      }
+    }
+  },
+  "linker_host": {
+    "func_wrap f: (u32,) -> (), starts.wasm": {
+      "argv": [
+        "linker-host",
+        "examples/component-tests/starts.wasm"
+      ],
+      "exit": 0,
+      "stdout": "instantiate: ok; host log [1, 2]\nget() = 42; host log [1, 2]",
+      "stderr": []
+    },
+    "func_wrap f: (u32,) -> (), paramname.wasm": {
+      "argv": [
+        "linker-host",
+        "examples/component-tests/paramname.wasm"
+      ],
+      "exit": 0,
+      "stdout": "instantiate: ok; host log [1, 2]\nget() = 42; host log [1, 2]",
+      "stderr": []
+    }
+  }
+}

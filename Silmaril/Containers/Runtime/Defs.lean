@@ -5,6 +5,8 @@ public import Silmaril.Containers.Behaviour.Defs
 /-!
 # Runtime models: loading, process semantics and what the runtime adds
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 A **runtime model** (`Runtime I P E`) says what happens when an image `I` is started:
 
 * `load`: the loader. It turns the image into a program `P`, or refuses (`Refusal`). For a

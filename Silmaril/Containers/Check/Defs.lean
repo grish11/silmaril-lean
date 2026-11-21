@@ -8,6 +8,8 @@ public import Silmaril.Logic.Consequence.Defs
 /-!
 # Container obligations as consequence systems and acceptors
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 This module states container obligations in the two shapes the library already has for checked
 judgements, so that container checks are recorded and compared like the others
 (`docs/projects/consequence-systems.md`, `docs/accept.md`).

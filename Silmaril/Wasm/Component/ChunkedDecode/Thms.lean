@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Component.ChunkedDecode.Defs
 public import Silmaril.Raw.Wasm.Component.ChunkedDecode.Slices
+import Silmaril.Proofs.Wasm.Component.ChunkedDecode.Bounded
 
 /-!
 # Chunked decode certificates give `decode?` itself
@@ -28,3 +29,18 @@ hundreds of KB to MB without running `decode?` on the whole file in the kernel (
 
 A Silmaril addition.
 -/
+
+public section
+
+namespace Silmaril.Wasm.Component.ChunkedDecode
+
+open Silmaril.Wasm.Binary.Core.Decode
+
+theorem readHeader_frame : Frame readHeader :=
+  Proofs.Wasm.Component.ChunkedDecode.readHeader_frame
+
+theorem readSectionBody_frame (id : Nat) (sections : Sections) :
+    Frame (readSectionBody id sections) :=
+  Proofs.Wasm.Component.ChunkedDecode.readSectionBody_frame id sections
+
+end Silmaril.Wasm.Component.ChunkedDecode

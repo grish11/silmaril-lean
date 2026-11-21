@@ -26,8 +26,8 @@ export async function initEquivalence() {
   const git=path=>`https://github.com/hiloopai/silmaril-lean/blob/${p.revision}/${path.split('/').map(encodeURIComponent).join('/')}`;
   const mutation=p.pair.profile==='cjson-interior-detach-v1';
   const render=a=>`${a.role.toUpperCase()} · ${a.path}\nELF sha256 ${a.sha256}\n${p.function_symbol} @ 0x${a.address.toString(16)} · ${a.size} bytes · file offset ${a.file_offset}\n${a.bytes_hex}\nFunction bytes sha256 ${a.code_sha256}\nPrivate writable stack: ${a.frame} bytes below entry RSP; ${mutation ? "exact four pointer words may change; all unrelated memory preserved" : "all other memory preserved"}\n${a.identity_check}`;
-  $('src-title').textContent='Left actual ELF function';$('tgt-title').textContent='Right actual ELF function';
-  $('src').textContent=render(p.artifacts[0]);$('tgt').textContent=render(p.artifacts[1]);
+  $('source-title').textContent='Left actual ELF function';$('target-title').textContent='Right actual ELF function';
+  $('source').textContent=render(p.artifacts[0]);$('target').textContent=render(p.artifacts[1]);
   const traversal=p.pair.profile==='cjson-finite-list-v1';
   const identifier=p.pair.profile==='legacy-tinycc-isid-v1';
   const selection=$('selection');selection.replaceChildren(el('h2','Contextual binary-equivalence problem'),el('strong','UNPROVED'),el('pre',p.declaration),

@@ -280,7 +280,7 @@ theorem spec_store_list {I : Silmaril.Wasm.Game.ScalarInstance} {ra ma : Nat} {t
   refine Spec.bind (spec_storeListL hcx t us hel hi) fun r m₂ ⟨hi₂, hg₂, q, hr, hl⟩ _ _ => ?_
   subst r
   dsimp only
-  unfold ptrSize
+  unfold storeListDescriptor ptrSize
   refine Spec.bind (Spec.bind (Spec.gets _) fun p m₃ ⟨hp, hm⟩ _ _ => ?_)
     (R := fun sz m' => sz = 4 ∧ m' = m₂) fun sz m₄ ⟨hsz, hm⟩ _ _ => ?_
   · subst m₃

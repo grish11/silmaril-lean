@@ -1,0 +1,11 @@
+{
+  "angle_search": [
+    "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include",
+    "/usr/local/include",
+    "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include-fixed",
+    "/usr/include/x86_64-linux-gnu",
+    "/usr/include"
+  ],
+  "flags": "-O2 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident",
+  "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818"
+}

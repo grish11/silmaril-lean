@@ -136,12 +136,22 @@ def readVec {α : Type} (f : DecodeM α) : DecodeM (List α) := do
       pure (x :: xs)
   go (← readCount)
 
+/-- Slice the logical list of bytes without the kernel's repeated indexed array reads and
+pushes. Compiled code uses the original `ByteArray.extract`. -/
+def extractForKernel (bytes : ByteArray) (start stop : Nat) : ByteArray :=
+  ⟨⟨bytes.data.toList.extract start stop⟩⟩
+
+@[csimp] theorem extractForKernel_eq : @extractForKernel = @ByteArray.extract := by
+  funext bytes start stop
+  apply ByteArray.ext (Array.ext' ?_)
+  simp [extractForKernel]
+
 /-- `n` raw bytes. -/
 def readBytes (n : Nat) : DecodeM ByteArray := do
   let c ← get
   if c.pos + n ≤ c.bytes.size then
     set { c with pos := c.pos + n }
-    pure (c.bytes.extract c.pos (c.pos + n))
+    pure (extractForKernel c.bytes c.pos (c.pos + n))
   else decodeError s!"{n} bytes requested past the end"
 
 /-- A name: a byte vector holding UTF-8. -/

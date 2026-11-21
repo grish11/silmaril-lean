@@ -1,7 +1,8 @@
 FROM mcr.microsoft.com/devcontainers/base:ubuntu-24.04@sha256:d94c97dd9cacf183d0a6fd12a8e87b526e9e928307674ae9c94139139c0c6eae AS development
 
 USER root
-RUN apt-get update && apt-get install -y --no-install-recommends \
+COPY .devcontainer/ubuntu-archive-https.sh /tmp/ubuntu-archive-https.sh
+RUN sh /tmp/ubuntu-archive-https.sh && apt-get update && apt-get install -y --no-install-recommends \
     clang make pkg-config python3 zlib1g-dev xz-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY .devcontainer/install-tools.sh /tmp/install-tools.sh

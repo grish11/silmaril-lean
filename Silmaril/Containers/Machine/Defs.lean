@@ -5,6 +5,8 @@ public import Silmaril.Containers.Runtime.Defs
 /-!
 # Machine semantics: the pluggable machine under a container runtime
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 A runtime model (`Silmaril.Containers.Runtime`) takes a process semantics, the runs of each
 program. This module builds process semantics from a **machine semantics** (`MachineSem P E`):
 states, the initial states of a program, labelled steps and final states, and a **run

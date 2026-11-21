@@ -6,14 +6,12 @@ import Silmaril.Proofs.Wasi.Component.Accept.RefTyped
 
 /-! # Component acceptors on the reference machine, typed environment: theorems
 
-* `acceptedTyped_accepted`, `acceptedExportTyped_acceptedExport`, `refTypedBytesSystem_le`: the
-  typed notions are included in the untyped ones (the untyped ones also contain the spurious
-  runs of ill-typed hosts).
-* `recordsTyped_of_run`, `acceptedTyped_bytes`, `bytesOf?_bytesVal`: what the driver records, and
-  `list<u8>` acceptance read through `bytesOf?`.
-* `acceptRunTyped_sound`: the typed executable driver is sound for `AcceptedTyped`.
+The generic policy theorems (`acceptedTyped_accepted`, `acceptRunTyped_sound`,
+`recordsTyped_of_run`, `bytesSystem_of_run`, …) are in `Ref/Thms.lean`. Here:
+
+* `acceptedExportTyped_acceptedExport`: typed exported acceptance implies the untyped one.
+* `acceptedTyped_bytes`, `bytesOf?_bytesVal`: `list<u8>` acceptance read through `bytesOf?`.
 * `acceptedExportTyped_of_run`: an executable run at the right type proves `AcceptedExportTyped`.
-* `refTypedBytesSystem_of_decode`, `refTypedBytesSystem_of_run`.
 -/
 
 @[expose] public section
@@ -28,24 +26,9 @@ section
 variable {E : CoreEngine} [∀ a b, Decidable (E.ExternSub a b)] {prof : ProfileKind}
   {c : Syntax.Component E.Module} {w : List UInt8}
 
-theorem acceptedTyped_accepted (h : AcceptedTyped prof c w) : Accepted prof c w :=
-  Silmaril.Proofs.Wasi.Component.Accept.Ref.acceptedTyped_accepted h
-
 theorem acceptedExportTyped_acceptedExport (h : AcceptedExportTyped prof c w) :
     AcceptedExport prof c w :=
   Silmaril.Proofs.Wasi.Component.Accept.Ref.acceptedExportTyped_acceptedExport h
-
-theorem acceptRunTyped_sound (X : E.Exec) (o : Oracle E) {fuel : Nat}
-    {calls : List (String × List Value.Val)} {st : AcceptSt}
-    (h : acceptRunTyped X o fuel c calls = some st) (hw : [bytesVal w] ∈ st) :
-    AcceptedTyped o.prof c w :=
-  Silmaril.Proofs.Wasi.Component.Accept.Ref.acceptRunTyped_sound X o h hw
-
-theorem recordsTyped_of_run (X : E.Exec) (o : Oracle E) {fuel : Nat}
-    {ft : WIT.FuncType Empty RtId} {calls : List (String × List Value.Val)} {st : AcceptSt}
-    (h : acceptRunTyped X o fuel c calls ft = some st) {args : List Value.Val} (hw : args ∈ st) :
-    RecordsTyped ft o.prof c args :=
-  Silmaril.Proofs.Wasi.Component.Accept.Ref.recordsTyped_of_run X o h hw
 
 theorem acceptedTyped_bytes (h : AcceptedTyped prof c w) : AcceptedTypedBytes acceptFT prof c w :=
   Silmaril.Proofs.Wasi.Component.Accept.Ref.acceptedTyped_bytes h
@@ -66,27 +49,5 @@ theorem acceptedExportTyped_of_run (X : E.Exec) (o : Oracle E) {fuel fuel' : Nat
   Silmaril.Proofs.Wasi.Component.Accept.Ref.acceptedExportTyped_of_run X o hi hf hft hty hres hc ho
 
 end
-
-variable {prof : ProfileKind} {b : ByteArray} {w : List UInt8}
-
-theorem refTypedBytesSystem_of_decode {a : RefAcceptor prof} (h : decodeValid b = some a) :
-    refTypedBytesSystem prof b w ↔ AcceptedTyped prof a.comp w :=
-  ⟨fun ⟨_, ha', hw⟩ => by
-      obtain ⟨a'', h'', rfl⟩ := Option.map_eq_some_iff.mp ha'
-      rw [h] at h''; cases h''; exact hw,
-    fun hw => ⟨⟨a.comp⟩, by simp [h], hw⟩⟩
-
-theorem refTypedBytesSystem_le : refTypedBytesSystem prof ≤ refBytesSystem prof :=
-  fun _ _ ⟨a, ha, hw⟩ => by
-    obtain ⟨a', ha', rfl⟩ := Option.map_eq_some_iff.mp ha
-    exact ⟨a', ha', acceptedTyped_accepted hw⟩
-
-theorem refTypedBytesSystem_of_run (o : Oracle Eng) {a : RefAcceptor o.prof}
-    (hd : decodeValid b = some a) {fuel : Nat} {calls : List (String × List Value.Val)}
-    {st : AcceptSt}
-    (hr : acceptRunTyped (core3Exec Silmaril.Wasm.SingleThreaded.neverFail) o fuel a.comp calls =
-      some st)
-    (hw : [bytesVal w] ∈ st) : refTypedBytesSystem o.prof b w :=
-  (refTypedBytesSystem_of_decode hd).2 (acceptRunTyped_sound _ o hr hw)
 
 end Silmaril.Wasi.Accept.Ref

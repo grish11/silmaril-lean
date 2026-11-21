@@ -34,8 +34,10 @@ canonical ABI lifts the bytes `68 69 21` from linear memory.
 * **Exported shape** (`exportLen3Bytes`, `accept: func(list<u8>) -> bool` returning `len == 3`):
   it decodes and validates in the kernel; `#guard`ed runs return `true` on `"hi!"` and `false`
   on `"hi"`; `acceptedExport_of_run` turns such a run into `AcceptedExport`.
-* `hi_mem_of_runHi`: given that run, `"hi!"` is in `refBytesSystem` (by `refBytesSystem_of_run`,
-  a kernel-checked soundness theorem). The hypothesis is exactly the `#guard`ed run. Kernel
+* `hi_mem_of_runHi`: given that run, `"hi!"` is in `bytesSystemUntyped` (by
+  `bytesSystemWith_of_run`, a kernel-checked soundness theorem). The hypothesis is exactly the
+  `#guard`ed run. The default `bytesSystem` (typed) version is `hi_mem_typed_of_run`
+  (`Typed/Examples.lean`). Kernel
   evaluation of this run needs a 64 KiB linear memory in the kernel, which exceeds kernel
   recursion depth today (`Wasm.KernelEval` memory representations are the pending remedy).
 -/
@@ -87,9 +89,9 @@ theorem hi_mem_of_runHi
     (h : ∃ a st, decodeValid (prof := first.prof) acceptHiBytes = some a ∧
       acceptRun (core3Exec Silmaril.Wasm.SingleThreaded.neverFail) first 4000 a.comp
         [("run", [])] = some st ∧ [bytesVal hi] ∈ st) :
-    refBytesSystem first.prof acceptHiBytes hi :=
+    bytesSystemUntyped first.prof acceptHiBytes hi :=
   let ⟨_, _, hd, hr, hw⟩ := h
-  refBytesSystem_of_run first hd hr hw
+  bytesSystemWith_of_run _ first hd hr hw
 
 /-! ## Exported `accept: func(list<u8>) -> bool`
 

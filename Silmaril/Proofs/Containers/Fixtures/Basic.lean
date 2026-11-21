@@ -344,4 +344,18 @@ theorem noopCheck_iff (img : Flat Blob) : noopCheck img = true ↔ small.load im
   | error r => simp
   | ok p => cases p <;> simp
 
+
+/-! ## The examples' specifications, with no undefined behaviour -/
+
+theorem http_vpre : vpre small httpSpec http := by
+  intro b hb
+  refine ⟨?_, fun u hu e he => ⟨http_confined b hb u hu e he, http_sends_only b hb u hu e he⟩,
+    http_binds_declared b hb⟩
+  cases (beh_image _ _ b).1 hb <;> trivial
+
+theorem nitro_vpre : vpre small vsockSpec nitro := by
+  intro b hb
+  refine ⟨?_, nitro_confined b hb, nitro_total b hb⟩
+  cases (beh_image _ _ b).1 hb <;> trivial
+
 end Silmaril.Proofs.Containers.Fixtures

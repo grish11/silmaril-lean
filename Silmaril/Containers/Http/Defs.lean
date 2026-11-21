@@ -7,6 +7,8 @@ public import Silmaril.Net.Http1.Message.Defs
 /-!
 # Containers as HTTP servers: interfaces, profiles and the server platform
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 This module connects container runtime models to the server semantics of `Silmaril.Servers`
 and the HTTP syntax of `Silmaril.Net.Http1`.
 

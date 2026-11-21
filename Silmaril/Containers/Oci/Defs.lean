@@ -9,6 +9,8 @@ public import Silmaril.Formats.Json.RfcParser
 /-!
 # A restricted OCI image reader, with checked digests
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 `Oci.load L d` reads an image from an OCI image layout's blobs (`Layout`) starting at the digest
 `d` of its manifest, into a flat image (`Silmaril.Containers.Flat`) whose files hold octets. It
 accepts **one profile** and refuses everything else (`Refusal.other` for an unsupported format,
@@ -30,9 +32,10 @@ by the reader; it is what makes the digest of the manifest name one image (`Cas.
   `application/vnd.oci.image.layer.v1.tar` only (uncompressed). Compressed layers (gzip, zstd),
   foreign layers and image indexes are refused.
 * Configuration: `architecture` `amd64`, `os` `linux`, a non-empty `config.Entrypoint`, an optional
-  `config.Cmd` and `config.Env` (`KEY=VALUE` strings). Other configuration fields are not read;
-  claims over images read this way quantify over every launch the process semantics admits
-  (`Silmaril.Containers.Lps`), so they do not depend on them.
+  `config.Cmd` and `config.Env` (`KEY=VALUE` strings), and optional `config.ExposedPorts`
+  (members `N/tcp` or `N/udp` with value `{}`, read as the configuration's declared ports).
+  Other configuration fields are not read; claims over images read this way quantify over every
+  launch the process semantics admits (`Silmaril.Containers.Lps`), so they do not depend on them.
 * Layers: decoded by `Silmaril.Formats.Tar.decode`; only regular files and directories are
   accepted; links, devices, FIFOs, PAX headers and whiteouts (`.wh.` names) are refused. Layers
   apply lowest first (`Tree.applyAll`).
@@ -219,6 +222,30 @@ def envPair? (s : String) : Option (String × String) :=
   | (k, '=' :: v) => if k.isEmpty then none else some (String.ofList k, String.ofList v)
   | _ => none
 
+/-- A declared port, `N/tcp` or `N/udp` with `N` a decimal below 65536 (the key of an
+`ExposedPorts` member). The form without a protocol is outside the profile. -/
+def portSpecOf? (s : String) : Option PortSpec :=
+  match s.toList.span (· ≠ '/') with
+  | (n, '/' :: p) =>
+    match natOf? (String.ofList n) with
+    | some v =>
+      if v < 65536 then
+        if p = ['t', 'c', 'p'] then some ⟨.tcp, v.toUInt16⟩
+        else if p = ['u', 'd', 'p'] then some ⟨.udp, v.toUInt16⟩ else none
+      else none
+    | none => none
+  | _ => none
+
+/-- `config.ExposedPorts`: an object whose members are declared ports with the empty object as
+value; absent is none. -/
+def J.exposed? (c : J) : Option (List PortSpec) :=
+  match c.member? "ExposedPorts" with
+  | none => some []
+  | some (.obj es) => es.mapM fun e => match e.2 with
+    | .obj [] => portSpecOf? e.1
+    | _ => none
+  | some _ => none
+
 /-- **A configuration of the profile.** -/
 def configOf (j : J) : Except Refusal Config := do
   if (j.member? "architecture" >>= J.str?) ≠ some "amd64" then unsupported else
@@ -228,7 +255,8 @@ def configOf (j : J) : Except Refusal Config := do
   if entry.isEmpty then unsupported else
   let cmd ← req (c.optStrs? "Cmd")
   let env ← req ((c.optStrs? "Env").bind (·.mapM envPair?))
-  pure { entrypoint := entry, cmd, env }
+  let exposed ← req c.exposed?
+  pure { entrypoint := entry, cmd, env, exposed }
 
 /-! ## Layers -/
 

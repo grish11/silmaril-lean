@@ -15,5 +15,6 @@ modules = ["ProjectSelfTest", "Silmaril.Project.Formats.Thms", "Silmaril.Project
   "Silmaril.LogicGraph.Consequence.Formal.Defs",
   "Silmaril.Project.WasmComponents.Thms", "Silmaril.Project.WasmComponents.Relations.Thms",
   "Silmaril.Project.WasmComponents.Toy.Thms", "Silmaril.Project.WasmComponents.Versions.Thms",
-  "Silmaril.Project.WasmComponents.Wac.Thms", "Silmaril.Project.WasmComponents.Wac.Verdicts.Thms"]
+  "Silmaril.Project.WasmComponents.Wac.Thms", "Silmaril.Project.WasmComponents.Wac.Verdicts.Thms",
+  "Silmaril.Project.ComponentTests.Thms"]
 roots = ["Silmaril.Project", "Silmaril.Elf.CliExe", "Silmaril.Automata", "Silmaril.Containers", "Silmaril.LogicGraph", "ProjectSelfTest", "SysVTvExample", "SysVTvRtl", "CompilesToExamples"]

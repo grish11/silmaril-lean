@@ -139,7 +139,7 @@ theorem remaining_apply (c : Cursor) : remaining c = .ok (c.bytes.size - c.pos, 
 theorem readBytes_apply (c : Cursor) (n : Nat) : readBytes n c =
     if c.pos + n ≤ c.bytes.size then .ok (c.bytes.extract c.pos (c.pos + n), { c with pos := c.pos + n })
     else (decodeError s!"{n} bytes requested past the end" : DecodeM ByteArray) c := by
-  simp only [readBytes, bind_apply, get_apply]
+  simp only [readBytes, bind_apply, get_apply, extractForKernel_eq]
   split <;> rfl
 
 

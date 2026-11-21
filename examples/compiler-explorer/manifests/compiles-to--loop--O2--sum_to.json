@@ -1,5 +1,17 @@
 {
   "artifacts": {
+    "dwarf_extract": {
+      "media": "application/json",
+      "path": "examples/compiles-to/loop/correspondence.json",
+      "sha256": "df4ebea471799dd87d8184349b1c526484c53f594f48024abf686a62aba915a6",
+      "size": 10884
+    },
+    "include_search": {
+      "media": "application/json",
+      "path": "examples/compiler-explorer/env/compiles-to-O2.search.json",
+      "sha256": "82909567539eedd9f035a23bdcc0b29c1fc1a0aeb841524067ba2837c6ac66fc",
+      "size": 558
+    },
     "listing": {
       "media": "text/x-objdump",
       "path": "examples/compiler-explorer/compiles-to/loop/O2/listing.txt",
@@ -11,6 +23,12 @@
       "path": "examples/compiler-explorer/compiles-to/loop/O2/RECEIPT.json",
       "sha256": "ad34e25fb188977d92f1e599dcaab1ff5cf9d52709757e29a9d3552ffd501ad8",
       "size": 544
+    },
+    "macros": {
+      "media": "text/x-c",
+      "path": "examples/compiler-explorer/env/compiles-to-O2.macros.txt",
+      "sha256": "39d65b7818761ff20b38679f0cbd1ee83d74e205f84623752930ba79f8f7ac8a",
+      "size": 13176
     },
     "receipt": {
       "media": "application/json",
@@ -49,6 +67,133 @@
     "version": "gcc (GCC) 13.3.0"
   },
   "direction": "compiled",
+  "dwarf_extraction": {
+    "function": "sum_to",
+    "input": "target",
+    "output": "dwarf_extract",
+    "profile": "O2",
+    "tool": "c-tv (gimli)",
+    "trust": "trusted"
+  },
+  "dwarf_facts": [
+    {
+      "fact": "line 6 <- .text [0x0, 0x4)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 5 <- .text [0x4, 0x6)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 4 <- .text [0x6, 0xe)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 7 <- .text [0xe, 0x13)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 8 <- .text [0x13, 0x18)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 6 <- .text [0x18, 0x20)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 8 <- .text [0x20, 0x24)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 7 <- .text [0x24, 0x27)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 8 <- .text [0x27, 0x29)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 6 <- .text [0x29, 0x2d)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 11 <- .text [0x2d, 0x30)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 4 <- .text [0x30, 0x32)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    },
+    {
+      "fact": "line 11 <- .text [0x32, 0x35)",
+      "if_wrong": "a wrong range misplaces a navigation link; no statement depends on it",
+      "kind": "line_range",
+      "origin": "DWARF line table (c-tv, gimli: unverified)",
+      "used_by": [
+        "navigation links"
+      ]
+    }
+  ],
   "edges": [
     {
       "function": "sum_to",
@@ -451,6 +596,52 @@
     }
   ],
   "id": "compiles-to/loop/O2/sum_to",
+  "include_env": {
+    "dependencies": null,
+    "files": [
+      {
+        "artifact": "source",
+        "name": "/src/loop.c",
+        "sha256": "27290d697dff6003ea20638190f5f40a69cda2dc5368f9a1b96cc862c6dc34ee",
+        "size": 138,
+        "where": "examples/compiles-to/loop/loop.c"
+      }
+    ],
+    "image": "gcc:13.3.0@sha256:1d71f0f3450214bef38fe09e6f610fb6cca90cf97b43f4ce845bfc32a4168818",
+    "macros": "macros",
+    "note": "Main file and observed headers by content; macros/search come from a separate probe. Header dependencies, when present, are from the recorded gcc -M flags, not a replay of every build. This is not a complete include map or a verified preprocessor.",
+    "options": [
+      "gcc",
+      "-O2",
+      "-g",
+      "-c",
+      "-fdebug-prefix-map=/src=.",
+      "-std=c11",
+      "-ffreestanding",
+      "-fno-builtin",
+      "-fno-stack-protector",
+      "-fcf-protection=none",
+      "-mgeneral-regs-only",
+      "-fno-pic",
+      "-fno-pie",
+      "-fno-asynchronous-unwind-tables",
+      "-fno-unwind-tables",
+      "-fno-ident",
+      "loop.c",
+      "-o",
+      "O2/loop.o"
+    ],
+    "probe_flags": "-O2 -g -c -fdebug-prefix-map=/src=. -std=c11 -ffreestanding -fno-builtin -fno-stack-protector -fcf-protection=none -mgeneral-regs-only -fno-pic -fno-pie -fno-asynchronous-unwind-tables -fno-unwind-tables -fno-ident",
+    "search": [
+      "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include",
+      "/usr/local/include",
+      "/usr/local/lib/gcc/x86_64-linux-gnu/13.3.0/include-fixed",
+      "/usr/include/x86_64-linux-gnu",
+      "/usr/include"
+    ],
+    "search_receipt": "include_search",
+    "workdir": "/src"
+  },
   "lean": {
     "family": null,
     "modules": []
@@ -492,10 +683,43 @@
       "unsupported": "C -> Core: the Lean Cerberus elaborator rejects the file: Silmaril.Cerberus.Elaboration.State.Error.message \"statement form is not ported by the actual elaborator\""
     }
   ],
+  "problem_form": "relation",
+  "relation": {
+    "description": "gcc 13.3.0 compiled this C to this object (receipt); no Lean statement relates them",
+    "semantics": "none"
+  },
   "schema": "silmaril.compiler-explorer.problem/1",
+  "stages": [
+    {
+      "evidence": "receipt only",
+      "input": "target",
+      "name": "objdump -d (binutils 2.40)",
+      "output": "listing",
+      "side": "target",
+      "trust": "trusted"
+    }
+  ],
   "tests": [],
   "title": "loop.c, gcc 13.3.0 -O2, sum_to (object code)",
   "view": {
+    "alternatives": {
+      "source": [
+        {
+          "label": "C source",
+          "role": "source"
+        }
+      ],
+      "target": [
+        {
+          "label": "objdump (unverified)",
+          "role": "listing"
+        },
+        {
+          "label": "Raw ELF bytes",
+          "role": "target"
+        }
+      ]
+    },
     "source": "source",
     "target": "listing",
     "target_map": [

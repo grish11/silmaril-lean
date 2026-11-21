@@ -36,6 +36,8 @@ sufficient precondition, so its system is sound for `vsys machRT`.
 * `forkExit_run`, `forkExit_not_wlp`: `fork` creates a process, which this model does not give
   a semantics: `unmodeled`, and no `wlp` holds;
 * `fallOff_run`, `fallOff_not_wlp`: a program that runs off its end is stuck after its event;
+* `crashNow_run`, `crashNow_wlp`, `crashNow_not_wp`: a crash by a signal is defined behaviour
+  (`wlp` holds) and not an exit (`wp` fails);
 * `spinForever_wlp`, `spinForever_not_wp`: no undefined behaviour is not termination;
 * `tcpThenThread_not_wlp`, `tcpThenThread_wlp_enforce`: a program that opens a TCP socket and
   then creates a thread has undefined behaviour, and satisfies `wlp` under vsock-only
@@ -142,6 +144,20 @@ theorem fallOff_run (b : Beh Ev) :
 
 theorem fallOff_not_wlp (post : List Ev → UInt8 → Prop) : ¬ wlp machRT post (mimage fallOff) :=
   not_wlp_of_undefined ((fallOff_run _).2 rfl) post
+
+theorem crashNow_out : OutputOnly crashNow := by intro e he; simp [crashNow] at he
+
+theorem crashNow_run (b : Beh Ev) :
+    machRT.beh (mimage crashNow) b ↔ b = .done [] (.signaled 11) :=
+  beh_mimage crashNow_out b
+
+/-- A crash is defined behaviour: the weakest liberal precondition holds. -/
+theorem crashNow_wlp (post : List Ev → UInt8 → Prop) : wlp machRT post (mimage crashNow) :=
+  (wlp_iff crashNow_out post).2 ⟨trivial, trivial⟩
+
+/-- It never exits: no weakest precondition holds. -/
+theorem crashNow_not_wp (post : List Ev → UInt8 → Prop) : ¬ wp machRT post (mimage crashNow) :=
+  fun h => ((wp_iff crashNow_out post).1 h).2
 
 theorem spinForever_wlp (post : List Ev → UInt8 → Prop) : wlp machRT post (mimage spinForever) :=
   (wlp_iff spinForever_out post).2 ⟨trivial, trivial⟩

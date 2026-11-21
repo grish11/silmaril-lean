@@ -7,6 +7,8 @@ public import Silmaril.Process.LPS.Probes.Data.LiteTrue
 /-!
 # The first real fixture: a static no-op ELF in an OCI image
 
+**Experimental API** (`docs/projects/containers.md`): definitions and statements may change.
+
 **One pinned artifact.** The program is the 352-octet static x86-64 ELF of the LPS probe
 `lite_true` (`Silmaril.Process.LPS.Probes.Data.LiteTrue.fileBytes`: GCC 13.3 `-O2` `true`,
 `mov $60,%eax; xor %edi,%edi; syscall`, one `PT_LOAD`), SHA-256
