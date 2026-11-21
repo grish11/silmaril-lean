@@ -139,13 +139,14 @@ Terms used above:
 ## Confidence in the Wasm semantics
 
 This is a snapshot of evidence on `main` and on separate branches as of
-2026-11-20. A theorem about one model or fragment is not a conformance claim
+2026-11-21. A theorem about one model or fragment is not a conformance claim
 for the entire toolchain. The linked ledgers give the precise domains and open goals.
 
 | Evidence on `main` | What is proved | What it does not establish |
 | --- | --- | --- |
 | [REF and IR byte reading](../../Silmaril/Wasi/Component/Accept/Ref/Bridge/Thms.lean), #709 (`532414bea`) | `bytesOf?_toRefVal`: the reference machine (REF) and the component IR read the same bytes from a converted value. | Agreement of acceptance languages or machine runs. |
 | [Named decoder and start bridge](component-tests.md), #1020 (`568ec9b0c`) | `MultiX.startAdequacyFrag` discharges `Task.startAdequacyFrag` on `MultiImpFrag`: for the stated valid named reading, an IR ready instantiation and first-export play imply the REF outcome and ordered host log. The IR uses `profile neverFail`; REF uses `first.prof` with the logging host for the fixed `f: func(x: u32)` import. `starts_ref_of_ir'` gives the concrete `get` result `42` and log. | `Task.startAdequacyChecked` for every binary that passes the root checks. The parameter-name counterexample rules out the unguarded claim. |
+| [Quiet later-node failure](component-tests.md), #989 (`e39131465`) | For a valid P2 import-wired binary in `MultiImpFailFrag` with the fixed host import, quiet ready nodes followed by a quiet preparation or start failure at node `k ≥ 1` imply a REF instantiation trap under the bridge's `first.prof` and logging host. The guard does not require the successful-start fragment's `splitNodes` or `liftsCall` checks. | `Task.failRefWiredRest''` remains a hypothesis for the other cases. This proves neither general failure adequacy nor a broader successful-start theorem. |
 | [Typed-host acceptance sessions](../../Silmaril/Wasi/Component/Accept/Ref/HostSession/Thms.lean), #805 (`363a097a2`) | `HLinked2.sessAccepted_iff`: under `HLinked2.Adequate` and `HostTyped g`, REF sessions and IR plays answered by the same host agree on the existence of a logged `accept` carrying the bytes, for every stated Core profile and component choice profile. | Arbitrary hosts, unfinished calls, or a general equivalence from component bytes to a game denotation. |
 | [Well-typed jco adaptors](component-caveats.md#streams-async-and-jco), #1025 (`2441a12ba`) | Core 3.0 matching runs for the covered `memory.copy`, control and integer-store code with `CallsTyped`, `MemOk` and `CallsKeepMem`; the trap result also needs `CallsTrapCore`. The moving `cabi_realloc` shim agrees with allocation followed by a bounded copy when `alloc` returns one `i32`. | General adaptor correctness, including float loads/stores, or agreement with the full canonical ABI. |
 | [Core ↔ SpecTec bridge](wasm-spec-bridge.md#bridge-matrix), #1027 (`f39e5bd24`, includes #1015 and #1024) | Two-way whole-step results on typed/plain Wasm 1.0 with aligned memories and `GoodV1`, at the top-level Wasm 2.0 `growB` domain, and on selected bounded Wasm 3.0 domains (up to configuration equality and Core's choices). Round 9 lifts 140 backward cases (74 `Step_read`, 66 `Step_pure`); the matrix gives the exact profile and host hypotheses. | Whole-step equivalence on all valid configurations. Backward rule lift and provenance, broader memory/SIMD and export/host coverage, and official validation and instantiation correspondence remain separate. |
@@ -168,9 +169,7 @@ for the entire toolchain. The linked ledgers give the precise domains and open g
   agreement, not a proof about Wasmtime or the whole spec suite.
 - **Separate pending work:** #707 makes direct `ByteArray` writes kernel-evaluable;
   #802 factors acceptance over an environment policy and makes the typed byte
-  system the default; #989 addresses a quiet later-node instantiation failure
-  under the original multi-node guard, not general failure adequacy. None is
-  counted as landed evidence here.
+  system the default. Neither is counted as landed evidence here.
 
 The WAST counts combine different kinds of evidence:
 
