@@ -866,6 +866,22 @@ private theorem rejoinedTail {callees : List (ComponentCall.Callee sig)}
   exact ⟨between.runs.1.steps, replace ▸ LiveDispatch.interleaving_steps between,
     fun roots => (LiveDispatch.interleaving_paired_roots between roots).2⟩
 
+private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} (linked : site.Linked bindings)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (cut : PayloadRoot.Cut site profile ready bindings (RecursiveGivePaths profile ready bindings callees older incoming route site)
+      (ComponentCall.hostWithComponent bindings callees)) :
+    ReachedRecursiveRoot profile ready bindings callees older incoming site := by
+  have pending : PendingRecursiveRoot profile ready bindings callees older site incoming := by
+    obtain ⟨labels, entered, quiet, installed, aligned, hostEq⟩ := LiveDispatch.entry_paired_tracks
+      (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) site linked paired selected
+    exact ⟨labels, entered, silentVisible quiet, installed, aligned, hostEq⟩
+  cases cut with
+  | refused issue silent run => exact .refused silent (site.refusal_resumes issue run) pending
+  | placementTrap _ _ verdict run => exact .placementTrap verdict run pending
+  | placed silent verdict prepared run body => exact .placed silent verdict prepared run body
+
 theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)}
     (family : RecursiveGiveDomain selection)
@@ -895,7 +911,7 @@ theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveReques
       selected.trans (congrArg some picked)
     have tail (left right : Config (core3 grow) (HostState sig)) (aligned : HostFrame.Related.Paired older left right) :
         RejoinedWorkerTail profile ready bindings callees older left right := rejoinedTail aligned
-    refine .compiled preflight picked linked ?_
+    refine .compiled preflight picked linked (classifyRecursiveRoot _ linked paired liveRoot ?_)
     cases route with
     | memory pointer =>
       exact CallbackRange.linkedMemoryRejoinPaths (profile := profile) (ready := ready)

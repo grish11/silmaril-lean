@@ -2345,6 +2345,45 @@ def RecursiveGivePaths (profile : ProfileKind) (ready : HostReady (HostState sig
   | .flat _, site => LinkedFlatAggregateRejoinPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
     (RejoinedWorkerTail profile ready bindings callees older)
 
+/-- The canonical root has installed its real body but has not executed it.
+Record the original occurrence trail at this cut; the checked side can
+already have issued a refusal or entered lockdown. -/
+def PendingRecursiveRoot (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading entered, PayloadPrefix.visible leading = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready
+      (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place leading entered
+      (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+    HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = incoming.host
+
+/-- Classify the reached guard before recursive traversal starts. A
+checked placement trap has its actual lockdown; it is not evidence that
+the unexecuted canonical program has trapped at the same point. -/
+inductive ReachedRecursiveRoot (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (incoming : Config (core3 grow) (HostState sig))
+    {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route) : Prop where
+  | refused {issue labels} (silent : PayloadPrefix.visible labels = [])
+      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start (labels ++ [.tau, .tau, .tau]) (site.refusedReply issue))
+      (pending : PendingRecursiveRoot profile ready bindings callees older site incoming)
+  | placementTrap {reason count}
+      (verdict : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason)
+      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked))
+      (pending : PendingRecursiveRoot profile ready bindings callees older site incoming)
+  | placed {labels} (silent : PayloadPrefix.visible labels = [])
+      (verdict : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())
+      (prepared : OwnedMemory.Claims.Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ())
+      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start labels site.checked)
+      (body : RecursiveGivePaths profile ready bindings callees older incoming route site)
+
 /-- Compare a give at its actual Core installation. A compiler refusal
 can rejoin only the checked caller; the canonical body has not executed.
 Successful compilation supplies the real checked entry and the recursive
@@ -2366,9 +2405,7 @@ inductive ReachedRecursiveGive (profile : ProfileKind) (ready : HostReady (HostS
   | compiled {tag payload arity children field plan} (preflight : selection.preflight = .ok (field, plan))
       (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
       (linked : (selection.site tag payload arity children field).Linked bindings)
-      (cut : PayloadRoot.Cut (selection.site tag payload arity children field) profile ready bindings
-        (RecursiveGivePaths profile ready bindings callees older incoming route (selection.site tag payload arity children field))
-        (ComponentCall.hostWithComponent bindings callees))
+      (cut : ReachedRecursiveRoot profile ready bindings callees older incoming (selection.site tag payload arity children field))
 
 /-- The comparison domain for a successfully compiled root. A compiler
 refusal does not need the recursive body theorem at all. -/
