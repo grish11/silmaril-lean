@@ -414,15 +414,18 @@ private theorem variantTail (count : Nat) (wanted : List CoreType) (tag : Nat) (
       (lowerFlatVariantWith count wanted tag haves (pure words)) :=
   compareClosed (variantTailClosed count wanted tag haves words)
 
-theorem variantTailFrame (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+theorem variantTailFrameBetween {reference : Call E → P E Host (Ret E)}
+    (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
     (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store) :
-    CompareLocalKeepingAt profile ready dispatch keep left right
+    CompareLocalKeepingBetween profile ready dispatch reference keep left right
       (do return .ok (← lowerFlatVariantWith count wanted tag haves (pure words)))
       (lowerFlatVariantWith count wanted tag haves (pure words)) := by
   intro same check canon thread checkNext canonNext checkAt canonAt
-  refine closedCut (variantTailClosed count wanted tag haves words) left right check canon
+  refine closedCutBetween (variantTailClosed count wanted tag haves words) left right check canon
     (fun value => checkNext (.ok value)) canonNext kept same thread ?_ canonAt
   simpa only [Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using checkAt
+
+abbrev variantTailFrame := @variantTailFrameBetween E Host profile ready dispatch dispatch
 
 private theorem localGet {keep : CStore E → Prop} :
     Prog.Every (ClosedOp (E := E) (Host := Host) profile keep) getStore := .op trivial (fun _ => .pure _)

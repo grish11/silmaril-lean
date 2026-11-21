@@ -2568,7 +2568,7 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
     exact ⟨fields, rfl, rule index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
 
 private theorem flatCompiledField (destination : RecordDestination) (inst : InstId)
-    {schema : Stored.TypeOf} (family : FlatAggregateType schema) (item : Field)
+    {schema : Stored.TypeOf} (family : RecursiveCollectionType schema) (item : Field)
     (matched : item.LayoutMatches schema) (emitted : item.Emitted) {root rootSchema}
     (source : CollectionSource destination root rootSchema) (path : Field.Descendant root item)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -2585,7 +2585,7 @@ private theorem flatCompiledField (destination : RecordDestination) (inst : Inst
     cases data with
     | @primitive prim nonString => cases prim <;> first | exact compared | exact (nonString rfl).elim
     | enum | flags => exact compared
-  | handle nominal =>
+  | leaf nominal =>
     have handle := nominalEntry nominal matched emitted
     cases nominal <;>
       intro index checkNext canonNext finish before left right check canon frame growth trail admitted checkAt canonAt ends <;>
@@ -2600,7 +2600,7 @@ private theorem flatCompiledField (destination : RecordDestination) (inst : Inst
   | string =>
     obtain ⟨str, rfl⟩ := stringCompiled matched emitted
     exact flatStringPaths destination inst str source path embedder memoryWidth
-  | @list element family =>
+  | @list element family _ =>
     obtain ⟨entries, rfl, shapes, compiled⟩ := listCompiled matched emitted
     intro index checkNext canonNext finish before left right check canon frame growth leading admitted checkAt canonAt ends
     let compare := liveCollectionField profile ready base bindings older destination inst element
@@ -2621,7 +2621,7 @@ private theorem flatCompiledField (destination : RecordDestination) (inst : Inst
       (sink.nested _ admitted index) (fun _ _ _ _ _ terminal _ publish => RecursiveTrails.descriptorPaths terminal publish
         (fun words seen lhs rhs cursor peer tracks _ ⟨paired, grew, lhsAt, rhsAt⟩ =>
           ⟨words, ends words seen lhs rhs cursor peer paired grew tracks lhsAt rhsAt⟩))
-  | @map key element family =>
+  | @map key element family _ =>
     obtain ⟨entries, rfl, shapes⟩ := mapCompiled matched emitted
     intro index checkNext canonNext finish before left right check canon frame growth leading admitted checkAt canonAt ends
     let compare := liveCollectionField profile ready base bindings older destination inst element
@@ -2646,6 +2646,56 @@ private theorem flatCompiledField (destination : RecordDestination) (inst : Inst
     obtain ⟨children, rfl, _, matching, compiled⟩ := fixedCompiled matched emitted
     exact flatAggregateField destination inst _ children (.inr ⟨_, _, rfl⟩) fun child member =>
       ih child (entries_match_of_mem matching member) (compiled child member) (path.trans (.fixed member (.self _)))
+  | @option element _ ih =>
+    rcases optionCompiled matched emitted with rfl | ⟨child, rfl, matching, compiled⟩
+    · exact FlatTrails.sum destination inst (.option element) [none, some element] 0 none (by change 0 < 2; decide) _
+        (fun _ impossible => nomatch impossible)
+    · exact FlatTrails.sum destination inst (.option element) [none, some element] 1 (some child) (by change 1 < 2; decide) _
+        (fun _ equal => by cases equal; exact ih child matching compiled (path.trans (.sum (.self _))))
+  | @result success failure _ _ ihSuccess ihFailure =>
+    obtain ⟨tag, selected, rfl, chosen, compiled⟩ := resultCompiled matched emitted
+    have valid : tag < [success, failure].length := by
+      change tag < 2
+      rcases chosen with ⟨rfl, _⟩ | ⟨rfl, _⟩ <;> decide
+    let armPaths : Option Stored.TypeOf → FlatFieldTrail grow sig
+      | none => noFlatChild
+      | some type => liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type
+    have pathsEq : liveFlatPaths profile ready base bindings older destination inst start incoming offset sink (.result success failure) =
+        flatSumPaths profile ready base bindings start incoming offset destination.width (.result success failure) [success, failure]
+          (fun tag => if tag = 0 then armPaths success else armPaths failure) := by
+      cases success <;> cases failure <;> rfl
+    rw [pathsEq]
+    refine FlatTrails.sum destination inst (.result success failure) [success, failure] tag selected valid
+      (fun tag => if tag = 0 then armPaths success else armPaths failure) ?_
+    intro child equal
+    rcases chosen with ⟨rfl, matching⟩ | ⟨rfl, matching⟩
+    · cases matching with
+      | none => contradiction
+      | some matching =>
+        cases equal
+        exact ihSuccess _ rfl child matching (compiled child rfl) (path.trans (.sum (.self _)))
+    · cases matching with
+      | none => contradiction
+      | some matching =>
+        cases equal
+        exact ihFailure _ rfl child matching (compiled child rfl) (path.trans (.sum (.self _)))
+  | @variant cases _ ih =>
+    obtain ⟨tag, selected, arm, rfl, found, matching, compiled⟩ := variantCompiled matched emitted
+    have valid : tag < (cases.map Prod.snd).length := by
+      by_contra outside
+      rw [List.getElem?_eq_none (Nat.le_of_not_lt outside)] at found
+      contradiction
+    refine FlatTrails.sum destination inst (.variant cases) (cases.map Prod.snd) tag selected valid _ ?_
+    intro child equal
+    cases matching with
+    | none => contradiction
+    | @some field type layout =>
+      cases equal
+      obtain ⟨⟨name, member⟩, compared⟩ := FlatTrails.variantMember (profile := profile) (ready := ready)
+        (base := base) (bindings := bindings) (older := older) (start := start) (incoming := incoming) (offset := offset)
+        (sink := sink) destination inst found
+      rw [compared]
+      exact ih name type member _ layout (compiled _ rfl) (path.trans (.sum (.self _)))
   | record _ ih =>
     obtain ⟨children, rfl, matching, compiled⟩ := recordCompiled matched emitted
     apply flatAggregateField destination inst _ children (.inl ⟨_, rfl⟩)
@@ -3320,7 +3370,7 @@ theorem linkedMemoryRejoinPaths {pointer : FlatValue} (site : PayloadRoot.Site g
         rejoinReady site tracks () paired checkAt canonAt)
 
 theorem linkedFlatAggregateRejoinPaths {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
-    (linked : site.Linked bindings) (family : FlatAggregateType (sig.payload site.tag))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)

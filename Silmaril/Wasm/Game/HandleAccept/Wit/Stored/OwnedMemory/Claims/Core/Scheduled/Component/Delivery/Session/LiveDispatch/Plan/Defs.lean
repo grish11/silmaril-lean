@@ -918,20 +918,6 @@ abbrev StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig)
     (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (address : Nat) :=
   StringValuePaths profile ready base bindings older destination inst key (.memory address)
 
-/-- The recursive flat aggregate fragment. This is a proof domain, not a
-runtime support test. -/
-inductive FlatAggregateType : Stored.TypeOf → Prop where
-  | data {type} : PayloadPrefix.LocalDataType type → FlatAggregateType type
-  | handle {type} : NominalElement type → FlatAggregateType type
-  | string : FlatAggregateType (.prim .string)
-  | list {element} : RecursiveCollectionType element → FlatAggregateType (.list element)
-  | map {key element} : RecursiveCollectionType element → FlatAggregateType (.map key element)
-  | fixed {element length} : FlatAggregateType element → FlatAggregateType (.fixedList element length)
-  | record {fields : List (String × Stored.TypeOf)} :
-      (∀ name type, (name, type) ∈ fields → FlatAggregateType type) → FlatAggregateType (.record fields)
-  | tuple {types : List Stored.TypeOf} :
-      (∀ type, type ∈ types → FlatAggregateType type) → FlatAggregateType (.tuple types)
-
 def flatWordVisit (finish : FlatTrailFinish grow sig) : TrailFinish grow sig :=
   fun seen lhs rhs check canon => ∃ words, finish words seen lhs rhs check canon
 
@@ -946,6 +932,27 @@ def flatAggregatePaths (destination : RecordDestination) (inst : InstId) (child 
     ∃ children, LinkedCallback.flatChildren item = some children ∧
       flatSequencePaths destination inst child (fun verdict => checkNext (verdict.mapError (.nested index)))
         canonNext finish children 0 [] before left right check canon
+
+def noFlatChild : FlatFieldTrail grow sig := fun _ _ _ _ _ _ _ _ _ _ => False
+
+/-- The selected arm runs before the flat tag and coercion tail; the actual
+checked error continuation skips that tail. -/
+def flatSumPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+    (width : AddrType) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+    (pick : Nat → FlatFieldTrail grow sig) : FlatFieldTrail grow sig :=
+  fun item index checkNext canonNext finish before left right check canon =>
+    open LinkedCallback ABI in
+    ∃ tag selected, item = .sum type arms tag selected ∧
+      match selected with
+      | none => LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish)
+      | some child =>
+        let haves := flatten width child.type
+        pick tag child 0 (flatSumCheckNext width type arms.length tag index haves checkNext)
+          (fun words => flatSumTail width type arms.length tag haves words >>= canonNext)
+          (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset (flatWordVisit finish))
+          before left right check canon
 
 abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
   NominalElement type ∨ PayloadPrefix.LocalDataType type ∨ type = .prim .string
@@ -1477,6 +1484,20 @@ def liveFlatPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
         start incoming before offset sink
   | .fixedList element _ => flatAggregatePaths destination inst
       (liveFlatPaths profile ready base bindings older destination inst start incoming offset sink element)
+  | .option element => flatSumPaths profile ready base bindings start incoming offset destination.width
+      (.option element) [none, some element]
+      (fun _ => liveFlatPaths profile ready base bindings older destination inst start incoming offset sink element)
+  | .result success failure =>
+    let first := match success with
+      | none => noFlatChild
+      | some type => liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type
+    let second := match failure with
+      | none => noFlatChild
+      | some type => liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type
+    flatSumPaths profile ready base bindings start incoming offset destination.width (.result success failure) [success, failure]
+      (fun tag => if tag = 0 then first else second)
+  | .variant cases => flatSumPaths profile ready base bindings start incoming offset destination.width
+      (.variant cases) (cases.map Prod.snd) (liveFlatVariantPaths profile ready base bindings older destination inst start incoming offset sink cases)
   | .record fields => flatAggregatePaths destination inst
       (selectFlatPaths (liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink fields))
   | .tuple types => flatAggregatePaths destination inst
@@ -1508,6 +1529,16 @@ def liveFlatTuplePaths (profile : ProfileKind) (ready : HostReady (HostState sig
     (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
       liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink rest
 termination_by structural types => types
+
+def liveFlatVariantPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    List (String × Option Stored.TypeOf) → Nat → FlatFieldTrail grow sig
+  | [], _ | (_, none) :: _, 0 => noFlatChild
+  | (_, some type) :: _, 0 => liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type
+  | _ :: rest, tag + 1 => liveFlatVariantPaths profile ready base bindings older destination inst start incoming offset sink rest tag
+termination_by structural cases => cases
 end
 
 /-- Compare either public body for arbitrary list/map nesting with fixed
