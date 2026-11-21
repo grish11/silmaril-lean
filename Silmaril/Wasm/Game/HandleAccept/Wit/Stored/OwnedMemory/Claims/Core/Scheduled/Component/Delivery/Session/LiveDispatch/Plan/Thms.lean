@@ -118,7 +118,8 @@ theorem ClosedCallbackPrefix.collection_alloc (destination : RecordDestination) 
       AllocatorMark profile ready base bindings older
         (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready base) start check first)
         (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
-          incoming canon second) checkedLabels canonLabels finish reached mark :=
+          incoming canon second) checkedLabels canonLabels finish reached mark ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming labels finish reached :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.collectionPrefix
     destination inst type element entries output index checkNext canonNext frame width prepared checkAt canonAt embedder
 

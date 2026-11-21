@@ -154,7 +154,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart before offset := by
   unfold LiveCollectionPaths
   intro area mode first second leftEntry rightEntry seen finish path
-  obtain ⟨lhs, rhs, reached, mark, checkRun, canonRun, paired, checkSeen, canonSeen, growth, _, _, marked⟩ :=
+  obtain ⟨lhs, rhs, reached, mark, checkRun, canonRun, paired, checkSeen, canonSeen, growth, _, _, marked, _⟩ :=
     CallbackPrefix.collectionPrefix (profile := profile) (ready := ready) destination inst type element entries output index
       checkNext canonNext frame width prepared checkAt canonAt embedder path
   have checkObserved : visible ([.tau, .tau, .tau] ++ lhs) = seen := by
@@ -3527,7 +3527,7 @@ theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Si
   unfold LinkedStringMapDispatch
   refine ⟨leading, entered, peer, leadingSilent, installed, enteredHost, ?_⟩
   intro rightEntry seen checked path
-  obtain ⟨lhs, rhs, reached, mark, left, right, live, seenLeft, seenRight, growth, _, _, tracked⟩ :=
+  obtain ⟨lhs, rhs, reached, mark, left, right, live, seenLeft, seenRight, growth, _, _, tracked, _⟩ :=
     CallbackPrefix.collectionPrefix (profile := profile) (ready := ready) site.destination site.inst (.map .string element)
       (.record (mapEntryFields .string element)) entries route.output 0 site.reply site.referenceReply frame
       (frame.store ▸ width) preparedAt checkAt canonAt embedder path

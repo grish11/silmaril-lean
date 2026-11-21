@@ -951,6 +951,33 @@ theorem collection_install_tracks (destination : RecordDestination) (inst : Inst
       [.tau, .tau, .tau] checkCall (.active 0 (depth + 1)) ∧
     ReturnFrame.Occurrence.Prefix profile ready dispatch right (.active 0 depth)
       [.tau, .tau] canonCall (.active 0 (depth + 1)) :=
+  fun depth => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.collectionInstallTracks
+    destination inst type element entries output index left right check canon checkNext canonNext
+    reachedWidth prepared checkAt canonAt (.active 0 depth)
+
+open ReturnFrame.Occurrence in
+/-- The actual preflight reads leave all coordinates in place. Only the
+allocator install changes the active top segment depths. -/
+theorem collection_install_occurrences (destination : RecordDestination) (inst : InstId) (type element : TypeOf)
+    (entries : List Field) (output : Lower.Output) (index : Nat)
+    (left right : Config (core3 grow) (HostState sig)) (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (reachedWidth : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    (prepared : Record.prepare left.store left.host.writer (Field.listObjects entries) = .ok ())
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext)) :
+    let area := layout destination.width element
+    let checkResume := checkedCollectionResume destination inst entries area index output checkNext
+    let canonResume := canonicalCollectionResume destination inst entries area output canonNext
+      (CanonicalTree.EntryMode.forOutput destination.width type output)
+    let checkCall := collectionEntry destination inst area entries.length dispatch left check checkResume
+    let canonCall := collectionEntry destination inst area entries.length dispatch right canon canonResume
+    ∀ place : Location,
+      Prefix profile ready dispatch left place [.tau, .tau, .tau] checkCall place.pushed ∧
+      Prefix profile ready dispatch right place [.tau, .tau] canonCall place.pushed :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.collectionInstallTracks
     destination inst type element entries output index left right check canon checkNext canonNext
     reachedWidth prepared checkAt canonAt

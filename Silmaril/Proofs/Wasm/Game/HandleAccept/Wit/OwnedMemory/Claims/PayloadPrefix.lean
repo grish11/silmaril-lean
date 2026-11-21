@@ -1208,10 +1208,8 @@ theorem collectionInstallTracks (destination : RecordDestination) (inst : InstId
       (CanonicalTree.EntryMode.forOutput destination.width type output)
     let checkCall := collectionEntry destination inst area entries.length scheduledDispatch left check checkResume
     let canonCall := collectionEntry destination inst area entries.length scheduledDispatch right canon canonResume
-    ∀ depth, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch left (.active 0 depth)
-      [.tau, .tau, .tau] checkCall (.active 0 (depth + 1)) ∧
-    ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch right (.active 0 depth)
-      [.tau, .tau] canonCall (.active 0 (depth + 1)) := by
+    ∀ place : Location, Prefix profile scheduledReady scheduledDispatch left place [.tau, .tau, .tau] checkCall place.pushed ∧
+      Prefix profile scheduledReady scheduledDispatch right place [.tau, .tau] canonCall place.pushed := by
   let cx := destination.context (grow := grow) inst
   let area := layout destination.width element
   have width : ptrTypeIn right.store (destination.context inst) = destination.width := by
@@ -1255,19 +1253,23 @@ theorem collectionInstallTracks (destination : RecordDestination) (inst : InstId
   have canonInstall := listRange_install
     (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch) cx area entries.length canonTail canonAlloc
   dsimp only
-  intro depth
-  refine ⟨.step (middle := .active 0 depth) (.get checkRead) ?_
-      (.step (middle := .active 0 depth) (.hostGet rfl) rfl (.step checkInstall ?_ (.done _ _))),
-    .step (middle := .active 0 depth) canonStep ?_ (.step canonInstall ?_ (.done _ _))⟩
+  intro place
+  have pushed (frame : Seg (core3 grow) (HostState sig)) : (Edit.push frame).follow place = some place.pushed := by
+    cases place with
+    | active activation segment => cases activation <;> rfl
+    | saved => rfl
+  refine ⟨.step (middle := place) (.get checkRead) ?_
+      (.step (middle := place) (.hostGet rfl) rfl (.step checkInstall ?_ (.done _ _))),
+    .step (middle := place) canonStep ?_ (.step canonInstall ?_ (.done _ _))⟩
   · rw [ReturnFrame.Occurrence.transitionEdit, checkRead]
     rfl
   · change (ReturnFrame.Occurrence.transitionEdit checkEntered .tau).follow _ = _
     rw [ReturnFrame.Occurrence.transitionEdit, checkAlloc, listRange_focus]
-    rfl
+    exact pushed _
   · rw [ReturnFrame.Occurrence.transitionEdit, canonRead]
     rfl
   · rw [ReturnFrame.Occurrence.transitionEdit, canonAlloc, listRange_focus]
-    rfl
+    exact pushed _
 
 theorem collectionInstallMode (destination : RecordDestination) (inst : InstId) (type element : TypeOf)
     (entries : List Field) (output : Lower.Output) (index : Nat)
@@ -1291,7 +1293,7 @@ theorem collectionInstallMode (destination : RecordDestination) (inst : InstId) 
     Machine.Steps profile scheduledReady scheduledDispatch right [.tau, .tau] canonCall ∧
     HostFrame.Paired checkResume canonResume checkCall canonCall := by
   obtain ⟨checked, canonical⟩ := collectionInstallTracks destination inst type element entries output index
-    left right cursor cursor checkNext canonNext reachedWidth prepared checkAt canonAt 0
+    left right cursor cursor checkNext canonNext reachedWidth prepared checkAt canonAt (.active 0 0)
   refine ⟨(ReturnFrame.Occurrence.prefix_survives checked).1, (ReturnFrame.Occurrence.prefix_survives canonical).1, ?_⟩
   dsimp only [collectionEntry, HostFrame.Paired]
   conv => rhs; rw [← same]

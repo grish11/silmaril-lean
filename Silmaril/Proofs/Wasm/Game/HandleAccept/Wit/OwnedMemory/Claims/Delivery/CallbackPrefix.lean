@@ -305,7 +305,8 @@ theorem collectionPrefix (destination : RecordDestination) (inst : InstId) (type
       AllocatorMark profile ready base bindings older
         (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready base) start check first)
         (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
-          incoming canon second) checkedLabels canonLabels finish reached mark := by
+          incoming canon second) checkedLabels canonLabels finish reached mark ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming seen finish reached := by
   intro area first second path
   obtain ⟨_, _, paired⟩ := frame.collection_install_pair (profile := profile) (ready := ready) (bindings := bindings)
     destination inst type element entries output index checkNext canonNext width prepared checkAt canonAt
@@ -318,13 +319,27 @@ theorem collectionPrefix (destination : RecordDestination) (inst : InstId) (type
     replayMarked path embedder (fun _ _ edge => by cases edge with
       | existing previous => exact .inl ⟨_, previous⟩
       | current => exact .inr rfl) atCallback (frame.outside_installed (.pure .unit) (.pure .unit))
-  have enterLeft := (PayloadPrefix.collection_install_steps (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-    destination inst type element entries output index start incoming check canon checkNext canonNext width prepared checkAt canonAt).1
-  have enterRight := (PayloadPrefix.collection_install_steps (profile := profile) (ready := ready)
+  have leftInstalls := fun place => (PayloadPrefix.collection_install_occurrences (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready base) destination inst type element entries output index start incoming check canon
+    checkNext canonNext width prepared checkAt canonAt place).1
+  have rightInstalls := fun place => (PayloadPrefix.collection_install_occurrences (profile := profile) (ready := ready)
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) destination inst type element entries output index
-    start incoming check canon checkNext canonNext width prepared checkAt canonAt).2
-  exact ⟨checkedLabels, canonLabels, reached, mark, append enterLeft checked, append enterRight canonical, final,
-    checkSeen, canonSeen, growth, checkRoots, canonRoots, ⟨outside, checkTrail, canonTrail, movement⟩⟩
+    start incoming check canon checkNext canonNext width prepared checkAt canonAt place).2
+  have enterLeft := (prefix_survives (leftInstalls (.active 0 0))).1
+  have enterRight := (prefix_survives (rightInstalls (.active 0 0))).1
+  refine ⟨checkedLabels, canonLabels, reached, mark, append enterLeft checked, append enterRight canonical, final,
+    checkSeen, canonSeen, growth, checkRoots, canonRoots, ⟨outside, checkTrail, canonTrail, movement⟩,
+    [.tau, .tau, .tau] ++ checkedLabels, [.tau, .tau] ++ canonLabels, ?_, ?_, ?_, (HostFrame.Related.Paired.data final).1⟩
+  · intro mark
+    cases mark with
+    | none =>
+      obtain ⟨atCut, left, right⟩ := movement none
+      exact ⟨atCut, (Trail.absent enterLeft).append left, (Trail.absent enterRight).append right⟩
+    | some place =>
+      obtain ⟨atCut, left, right⟩ := movement (some place.pushed)
+      exact ⟨atCut, (leftInstalls place).toTrail.append left, (rightInstalls place).toTrail.append right⟩
+  · exact checkSeen
+  · exact canonSeen
 
 theorem pop {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
     {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)}
@@ -396,10 +411,6 @@ private theorem stringInstallTracks (dispatch : Call (core3 grow) → Session gr
   .step (PayloadPrefix.string_realloc_install cx pointer oldSize alignment size rest next state cursor focused)
     (by rw [transitionEdit, focused, PayloadPrefix.string_realloc_focus]; rfl) (.done _ _)
 
-private def pushLocation : Location → Location
-  | .active 0 segment => .active 0 (segment + 1)
-  | place => place
-
 private theorem stringInstallTrail (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cx : LiftLowerContext (core3 grow)) (pointer : Nat) (oldSize : Option Nat) (alignment : Alignment) (size : Nat)
     (rest : List StoreStep) (next : Nat → Session grow sig (Ret (core3 grow)))
@@ -408,7 +419,7 @@ private theorem stringInstallTrail (dispatch : Call (core3 grow) → Session gro
       ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: rest) >>= next))
     (mark : Option Location) : Trail profile ready dispatch state mark [.tau]
       (stringAllocatorEntry dispatch cx pointer oldSize alignment size state cursor (PayloadPrefix.stringPlanResume cx rest next))
-      (mark.map pushLocation) := by
+      (mark.map Location.pushed) := by
   refine .step (PayloadPrefix.string_realloc_install cx pointer oldSize alignment size rest next state cursor focused) ?_
   rw [transitionEdit, focused, PayloadPrefix.string_realloc_focus]
   rcases mark with _ | ⟨place⟩
@@ -466,11 +477,11 @@ theorem stringReplay (cx : LiftLowerContext (core3 grow)) (pointer : Nat) (steps
           (tail : CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry leftTail rightTail endLeft endRight) :
           CoupledOccurrencePaths profile ready base bindings lhs rhs (.tau :: leftTail) (.tau :: rightTail) endLeft endRight := by
         intro mark
-        have checkInstall : Trail profile ready (specDispatch ready base) lhs mark [.tau] checkEntry (mark.map pushLocation) :=
+        have checkInstall : Trail profile ready (specDispatch ready base) lhs mark [.tau] checkEntry (mark.map Location.pushed) :=
           stringInstallTrail _ cx ptr oldSize alignment size rest checkNext lhs check rfl mark
         have canonInstall : Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) rhs mark [.tau]
-            canonEntry (mark.map pushLocation) := stringInstallTrail _ cx ptr oldSize alignment size rest canonNext rhs canon rfl mark
-        obtain ⟨reached, checkTail, canonTail⟩ := tail (mark.map pushLocation)
+            canonEntry (mark.map Location.pushed) := stringInstallTrail _ cx ptr oldSize alignment size rest canonNext rhs canon rfl mark
+        obtain ⟨reached, checkTail, canonTail⟩ := tail (mark.map Location.pushed)
         exact ⟨reached, checkInstall.append checkTail, canonInstall.append canonTail⟩
       refine ⟨checkLabels, canonLabels, reference, mark, leftRun, rightRun, checkSeen, canonSeen, paired,
         callGrowth, checkedRoots, canonRoots, marked, prependInstall marked.movement, ?_⟩

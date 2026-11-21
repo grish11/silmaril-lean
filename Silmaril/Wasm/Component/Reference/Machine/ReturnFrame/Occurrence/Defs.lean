@@ -82,6 +82,10 @@ def Location.resume (slot : Nat) : Location → Location
   | .active activation segment => .active (activation + 1) segment
   | .saved current segment => if current = slot then .active 0 segment else .saved current segment
 
+def Location.pushed : Location → Location
+  | .active 0 segment => .active 0 (segment + 1)
+  | place => place
+
 /-- Map an existing coordinate through one scheduler edit. If an edit
 discards a frame, a later equal frame cannot revive that occurrence. -/
 def Edit.follow (edit : Edit E Host) (place : Location) : Option Location :=
