@@ -236,12 +236,6 @@ def stringFront {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E) (ptr : 
   | action :: rest => runStoreStep cx ptr action >>= fun next =>
       stringFront cx next rest >>= fun front => pure front.weaken
 
-def localOccurrenceEnd {Result : Type} (result : Except TrapReason Result)
-    (mark : Option ReturnFrame.Occurrence.Location) : Option ReturnFrame.Occurrence.Location :=
-  match result, mark with
-  | .error _, some (.active ..) => none
-  | _, _ => mark
-
 /-- Both sides execute the same local effects up to a returned cursor or
 trap. On return the original active and blocked frame tails are intact; a
 trap locks down the reached store without undoing its writes. -/

@@ -158,17 +158,28 @@ private theorem execute {profile : ProfileKind} {ready : HostReady Host} {dispat
       (reached, start.host, outcome.mapError .trapped)) :
     ∃ labels, LocalLeafLabels outcome labels ∧ Steps profile ready dispatch start labels
       (localLeafEnd start start.host reached thread frames rest finish outcome) ∧
+      (∀ mark, Trail profile ready dispatch start mark labels
+        (localLeafEnd start start.host reached thread frames rest finish outcome) (localOccurrenceEnd outcome mark)) ∧
       (∀ value, outcome = .ok value → RetainsActiveSlots profile ready dispatch start labels
         (localLeafEnd start start.host reached thread frames rest finish (.ok value))) := by
   cases outcome with
   | ok value =>
-    obtain ⟨labels, silent, tracks⟩ := Plain.runBody_thread_tracks body start reached start.host value finish thread frames rest
+    obtain ⟨labels, silent, tracks⟩ := Plain.runBody_thread_tracks_all body start reached start.host value finish thread frames rest
       profile ready dispatch focused evaluated
-    exact ⟨labels, silent, (prefix_survives (tracks 0)).1, fun _ equal => by cases equal; exact tracks⟩
+    have run := (prefix_survives (tracks (.active 0 0))).1
+    refine ⟨labels, silent, run, ?_, fun _ equal => by cases equal; exact fun depth => tracks (.active 0 depth)⟩
+    intro mark
+    cases mark with
+    | none => exact Trail.absent run
+    | some place => exact (tracks place).toTrail
   | error reason =>
-    obtain ⟨count, steps⟩ := Plain.runBody_trap_steps body start reached start.host reason finish thread frames rest
+    obtain ⟨count, trails⟩ := Plain.runBody_trap_tracks body start reached start.host reason finish thread frames rest
       profile ready dispatch focused evaluated
-    exact ⟨_, ⟨count, rfl⟩, steps, fun _ equal => by cases equal⟩
+    refine ⟨_, ⟨count, rfl⟩, (trails none).steps, ?_, fun _ equal => by cases equal⟩
+    intro mark
+    cases mark with
+    | none => exact trails none
+    | some place => cases place <;> exact trails _
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Stored.Signature}
   {profile : ProfileKind} {ready : HostReady (HostState sig)}
@@ -221,8 +232,8 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
     (canonAt : canonical.ctl = ⟨thread, .prog (CanonicalTree.leaf Component.Limits.spec Quirks.none
       (destination.context inst) destination.width item output >>= canonNext), canonFrames⟩ :: canonRest) :
     match liveLeafPlan checked.store checked.host.writer index item with
-    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch checked labels
-        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest }
+    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place, Prefix profile ready dispatch checked place labels
+        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest } place
     | .ok plan =>
       let host := plan.elim checked.host (fun spend => { checked.host with writer := spend.apply checked.host.writer })
       ∃ reached outcome leading checkLabels canonLabels,
@@ -232,6 +243,12 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
           (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome) ∧
         Steps profile ready reference canonical canonLabels
           (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome) ∧
+        (∀ mark, Trail profile ready dispatch checked mark (leading ++ checkLabels)
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome)
+          (localOccurrenceEnd outcome mark) ∧
+          Trail profile ready reference canonical mark canonLabels
+            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome)
+            (localOccurrenceEnd outcome mark)) ∧
         ∀ value, outcome = .ok value →
           RetainsActiveSlots profile ready dispatch checked (leading ++ checkLabels)
             (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) (.ok value)) ∧
@@ -248,7 +265,7 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
     let host := plan.elim checked.host (fun spend => { checked.host with writer := spend.apply checked.host.writer })
     let checkedNext := { checked with host, ctl := ⟨thread, .prog (body >>= fun result => checkNext (.ok result)),
       checkFrames⟩ :: checkRest }
-    have prefixTracks : RetainsActiveSlots profile ready dispatch checked guardLabels checkedNext := by
+    have prefixTracks : ∀ place, Prefix profile ready dispatch checked place guardLabels checkedNext place := by
       cases plan <;> simpa only [verdict, checkedNext, host, body, Option.elim] using guardSteps
     obtain ⟨reached, outcome, evaluated⟩ := eval
       (localHandle Component.Limits.spec Quirks.none (destination.context inst) destination.width item output handle)
@@ -263,14 +280,22 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
       change Core3.Grows canonical.store.core (Plain.runBody body canonical.store canonical.host (some thread)).1.core at kept
       rw [canonEval] at kept
       exact kept
-    obtain ⟨checkLabels, checkTrace, checkRun, checkTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := dispatch)
+    obtain ⟨checkLabels, checkTrace, checkRun, checkTrails, checkTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := dispatch)
       body checkedNext reached outcome (fun result => checkNext (.ok result)) (thread := thread)
       (frames := checkFrames) (rest := checkRest) rfl checkedEval
-    obtain ⟨canonLabels, canonTrace, canonRun, canonTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := reference)
+    obtain ⟨canonLabels, canonTrace, canonRun, canonTrails, canonTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := reference)
       body canonical reached outcome canonNext canonAt canonEval
-    refine ⟨reached, outcome, guardLabels, checkLabels, canonLabels, grown, guardSilent, checkTrace, canonTrace, ?_, canonRun, ?_⟩
-    · cases outcome <;> exact chain (prefix_survives (prefixTracks 0)).1 checkRun
+    have guardRun := (prefix_survives (prefixTracks (.active 0 0))).1
+    refine ⟨reached, outcome, guardLabels, checkLabels, canonLabels, grown, guardSilent, checkTrace, canonTrace, ?_, canonRun, ?_, ?_⟩
+    · cases outcome <;> exact chain guardRun checkRun
+    · intro mark
+      refine ⟨?_, canonTrails mark⟩
+      have stitched (startMark) : Trail profile ready dispatch checked startMark guardLabels checkedNext startMark := by
+        cases startMark with
+        | none => exact Trail.absent guardRun
+        | some place => exact (prefixTracks place).toTrail
+      cases outcome <;> exact (stitched mark).append (checkTrails mark)
     · intro value success
-      exact ⟨fun depth => (prefixTracks depth).append (checkTracks value success depth), canonTracks value success⟩
+      exact ⟨fun depth => (prefixTracks (.active 0 depth)).append (checkTracks value success depth), canonTracks value success⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LocalLeaf

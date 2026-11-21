@@ -542,11 +542,12 @@ private theorem nominalElements (destination : RecordDestination) (inst : InstId
     | error issue =>
       rw [live] at leaf
       obtain ⟨labels, tau, tracks⟩ := leaf
-      exact ⟨canon, .refused issue, labels, [], _, right, (prefix_survives (tracks 0)).1, .refl _,
-        frame.store, silent tau, _, ⟨[], item :: rest, rfl, by simp, by simp⟩, rfl, canonAt, tracks, fun depth => .done _ _⟩
+      exact ⟨canon, .refused issue, labels, [], _, right, (prefix_survives (tracks (.active 0 0))).1, .refl _,
+        frame.store, silent tau, _, ⟨[], item :: rest, rfl, by simp, by simp⟩, rfl, canonAt,
+        fun depth => tracks (.active 0 depth), fun depth => .done _ _⟩
     | ok plan =>
       rw [live] at leaf
-      obtain ⟨store, result, initial, leftLabels, rightLabels, quiet, seenLeft, seenRight, runLeft, runRight, success⟩ := leaf
+      obtain ⟨store, result, initial, leftLabels, rightLabels, quiet, seenLeft, seenRight, runLeft, runRight, _, success⟩ := leaf
       cases result with
       | error reason =>
         have seen := leafTrap seenRight
@@ -1225,11 +1226,11 @@ private theorem nominalMapValue (destination : RecordDestination) (inst : InstId
   | error issue =>
     rw [live] at leaf
     obtain ⟨labels, quiet, tracks⟩ := leaf
-    exact ⟨canon, .refused (.nested issueIndex issue), labels, [], _, right, (prefix_survives (tracks 0)).1, .refl _, frame.store,
-      silent quiet, pending, rfl, rfl, canonAt, tracks, fun depth => .done _ _⟩
+    exact ⟨canon, .refused (.nested issueIndex issue), labels, [], _, right, (prefix_survives (tracks (.active 0 0))).1,
+      .refl _, frame.store, silent quiet, pending, rfl, rfl, canonAt, fun depth => tracks (.active 0 depth), fun depth => .done _ _⟩
   | ok plan =>
     rw [live] at leaf
-    obtain ⟨store, result, guard, checkLabels, canonLabels, quiet, seenLeft, seenRight, runLeft, runRight, success⟩ := leaf
+    obtain ⟨store, result, guard, checkLabels, canonLabels, quiet, seenLeft, seenRight, runLeft, runRight, _, success⟩ := leaf
     have runCanonical := appendRun (prefix_survives (tracksPlacement 0)).1 runRight
     cases result with
     | error reason =>

@@ -1000,9 +1000,10 @@ def HandlePathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (sink : RefusalSink grow sig := .ignore) : Prop :=
   (∃ issue, liveLeafPlan left.store left.host.writer index item = .error issue ∧
     let refused := { left with ctl := check.control (checkNext (.error issue)) }
-    ComparedSlots profile ready base bindings start incoming seen refused right offset ∧ refused.store = right.store ∧
+    ComparedSlots profile ready base bindings start incoming seen refused right offset ∧
+      ComparedOccurrencePaths profile ready base bindings left right [] refused right ∧
       sink.exit (fun reason => checkNext (.error reason)) issue seen refused right check) ∨
-  LocalPathsThen profile ready base bindings start incoming seen offset finish
+  LocatedLocalPathsThen profile ready base bindings start incoming left right seen offset finish
 
 /-- A reached map key under the live dispatchers, from field placement
 through the recursive string plan. Only completed plans reach the supplied

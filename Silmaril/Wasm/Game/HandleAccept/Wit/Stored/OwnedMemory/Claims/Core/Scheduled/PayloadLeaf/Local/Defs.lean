@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 
 @[expose] public section
 
@@ -35,5 +36,11 @@ def localLeafEnd {E : CoreEngine} {Host Result : Type} (start : Config E Host) (
     (finish : Result → P E Host (Ret E)) : Except TrapReason Result → Config E Host
   | .ok value => { start with store, host, ctl := ⟨thread, .prog (finish value), frames⟩ :: rest }
   | .error _ => StepDefs.trapCfg { start with store, host }
+
+def localOccurrenceEnd {Result : Type} (result : Except TrapReason Result)
+    (mark : Option ReturnFrame.Occurrence.Location) : Option ReturnFrame.Occurrence.Location :=
+  match result, mark with
+  | .error _, some (.active ..) => none
+  | _, _ => mark
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled

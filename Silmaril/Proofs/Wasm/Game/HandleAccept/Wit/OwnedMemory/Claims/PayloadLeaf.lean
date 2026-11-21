@@ -70,19 +70,19 @@ private theorem transfer_eq (initial : CStore (core3 grow)) (item : Field) (inde
 private theorem reads (reached : Machine.Config (core3 grow) (HostState sig)) (item : Field) (index : Nat)
     (finish : Except RecordLower.Issue (Option Spend) → Session grow sig (Ret (core3 grow))) {thread segments rest}
     (focused : reached.ctl = ⟨thread, .prog (readPlan reached.store item index >>= finish), segments⟩ :: rest) :
-    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch reached labels
+    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place, Prefix profile ready dispatch reached place labels
       { reached with ctl := ⟨thread, .prog (finish (liveLeafPlan reached.store reached.host.writer index item)),
-        segments⟩ :: rest } := by
+        segments⟩ :: rest } place := by
   cases item with
-  | owner => exact ⟨[.tau], by simp, fun depth => .step (.hostGet focused)
+  | owner => exact ⟨[.tau], by simp, fun _ => .step (.hostGet focused)
       (by rw [transitionEdit, focused]; rfl) (.done _ _)⟩
   | endpoint | context => exact ⟨[.tau, .tau], by simp, fun _ => .step (.hostGet focused)
       (by rw [transitionEdit, focused]; rfl) (.step (.get rfl) rfl (.done _ _))⟩
   | _ =>
     refine ⟨[], by simp, ?_⟩
     change reached.ctl = ⟨thread, .prog (finish (.ok none)), segments⟩ :: rest at focused
-    change RetainsActiveSlots profile ready dispatch reached []
-      { reached with ctl := ⟨thread, .prog (finish (.ok none)), segments⟩ :: rest }
+    change ∀ place, Prefix profile ready dispatch reached place []
+      { reached with ctl := ⟨thread, .prog (finish (.ok none)), segments⟩ :: rest } place
     rw [← focused]
     cases reached
     exact fun _ => .done _ _
@@ -90,9 +90,9 @@ private theorem reads (reached : Machine.Config (core3 grow) (HostState sig)) (i
 private theorem spends (reached : Machine.Config (core3 grow) (HostState sig)) (spend : Spend)
     (finish : Session grow sig (Ret (core3 grow))) {thread segments rest}
     (focused : reached.ctl = ⟨thread, .prog (claims.spend spend >>= fun _ => finish), segments⟩ :: rest) :
-    RetainsActiveSlots profile ready dispatch reached [.tau, .tau]
+    ∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
       { reached with host := { reached.host with writer := spend.apply reached.host.writer }
-                     ctl := ⟨thread, .prog finish, segments⟩ :: rest } :=
+                     ctl := ⟨thread, .prog finish, segments⟩ :: rest } place :=
   fun _ => .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) (.step (.hostSet rfl) rfl (.done _ _))
 
 theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (destination : RecordDestination)
@@ -106,8 +106,8 @@ theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (des
       | .error issue => (reached.host, finish (.error issue))
       | .ok none => (reached.host, canonical)
       | .ok (some spend) => ({ reached.host with writer := spend.apply reached.host.writer }, canonical)
-    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch reached labels
-      { reached with host := postHost, ctl := ⟨thread, .prog next, segments⟩ :: rest } := by
+    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place, Prefix profile ready dispatch reached place labels
+      { reached with host := postHost, ctl := ⟨thread, .prog next, segments⟩ :: rest } place := by
   let canonical := RecordLower.CanonicalTree.leaf Limits.spec Quirks.none (destination.context inst)
     destination.width item output >>= fun result => finish (.ok result)
   have leafEq : Effects.canonical Limits.spec Quirks.none (destination.context inst)
@@ -136,12 +136,12 @@ theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (des
     | none => exact ⟨labels, silent, by simpa only [plan, next, applyPlan, pure_bind, onSuccess] using readSteps⟩
     | some spend =>
       let afterRead := { reached with ctl := ⟨thread, .prog (next (.ok (some spend))), segments⟩ :: rest }
-      have readDone : RetainsActiveSlots profile ready dispatch reached labels afterRead := by
+      have readDone : ∀ place, Prefix profile ready dispatch reached place labels afterRead place := by
         simpa only [plan, afterRead] using readSteps
       have spendSteps := spends (profile := profile) (ready := ready) (dispatch := dispatch) afterRead spend canonical
         (thread := thread) (segments := segments) (rest := rest) (by
           simp only [afterRead, next, applyPlan, bind_assoc, pure_bind, onSuccess])
-      refine ⟨labels ++ [.tau, .tau], ?_, fun depth => (readDone depth).append (spendSteps depth)⟩
+      refine ⟨labels ++ [.tau, .tau], ?_, fun place => (readDone place).append (spendSteps place)⟩
       intro label member
       rcases List.mem_append.mp member with front | back
       · exact silent label front

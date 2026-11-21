@@ -587,7 +587,7 @@ theorem locatedLocalPaths {Result : Type} {keep : CStore (core3 grow) → Prop}
   have paths : ComparedOccurrencePaths profile ready base bindings left right (PayloadPrefix.visible canonical)
       (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
       (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=
-    ⟨checked, canonical, fun mark => ⟨PayloadPrefix.localOccurrenceEnd result mark, trails mark⟩, matched, rfl, by cases result <;> rfl⟩
+    ⟨checked, canonical, fun mark => ⟨localOccurrenceEnd result mark, trails mark⟩, matched, rfl, by cases result <;> rfl⟩
   cases result with
   | error reason =>
     obtain ⟨prior, trap⟩ := outcome
@@ -894,23 +894,30 @@ theorem handleValuePaths {item : Field} {index offset : Nat} {output : Stored.Lo
     rw [decision] at run
     obtain ⟨labels, tau, retained⟩ := run
     have silent := invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
-    have reached := appendComparedSlots leading ⟨labels, [], retained, fun depth => .done _ _, silent, rfl⟩
+    have reached := appendComparedSlots leading ⟨labels, [], fun depth => retained (.active 0 depth), fun _ => .done _ _, silent, rfl⟩
     rw [List.append_nil] at reached
-    exact .inl ⟨issue, decision, reached, same, covers _ admitted issue seen _ _ check rfl same reached⟩
+    refine .inl ⟨issue, decision, reached, ⟨labels, [], ?_, silent, rfl, same⟩, covers _ admitted issue seen _ _ check rfl same reached⟩
+    intro mark
+    refine ⟨mark, ?_, .done _ _⟩
+    cases mark with
+    | none => exact Trail.absent (prefix_survives (retained (.active 0 0))).1
+    | some place => exact (retained place).toTrail
   | ok plan =>
     rw [decision] at run
-    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, lhsRun, rhsRun, continued⟩ := run
+    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, lhsRun, rhsRun, trails, continued⟩ := run
     have silent : PayloadPrefix.visible guard = [] :=
       invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have lhsSeen := (List.filter_append ..).trans (congrArg₂ List.append silent (visibleLeaf lhsKind))
     cases result with
     | error reason =>
       exact .inr (.inl ⟨reason, [], _, _, appendComparedPaths leading
-        ⟨_, _, lhsRun, rhsRun, lhsSeen, visibleLeaf rhsKind, rfl⟩, rfl, rfl⟩)
+        ⟨_, _, lhsRun, rhsRun, lhsSeen, visibleLeaf rhsKind, rfl⟩,
+        ⟨_, _, fun mark => ⟨_, trails mark⟩, lhsSeen, visibleLeaf rhsKind, rfl⟩, rfl, rfl⟩)
     | ok result =>
       obtain ⟨lhsTrack, rhsTrack, done⟩ := continued result rfl
       have reached := appendComparedSlots leading ⟨_, _, lhsTrack, rhsTrack, lhsSeen, visibleLeaf rhsKind⟩
-      exact .inr (.inr ⟨[], _, _, check, canon, reached, rfl, next result _ _ _ _ _ reached rfl done⟩)
+      exact .inr (.inr ⟨[], _, _, check, canon, reached,
+        ⟨_, _, fun mark => ⟨_, trails mark⟩, lhsSeen, visibleLeaf rhsKind, rfl⟩, next result _ _ _ _ _ reached rfl done⟩)
 
 theorem handleFieldPaths {item : Field} {index address offset : Nat}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}

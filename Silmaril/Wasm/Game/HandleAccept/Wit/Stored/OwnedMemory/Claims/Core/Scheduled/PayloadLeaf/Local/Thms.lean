@@ -13,7 +13,7 @@ namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Sch
 open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.Wasm.Component.Canon
   Silmaril.Wasm.Component.Engine Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine
 open Stored.Endpoints.RecordLower (Field)
-open ReturnFrame.Occurrence (RetainsActiveSlots)
+open ReturnFrame.Occurrence (Prefix RetainsActiveSlots Trail)
 
 /-- The actual memory and flat handle programs perform only local store
 operations. Ordinary owner lowering (including allocation before insertion),
@@ -51,8 +51,8 @@ theorem RecordDestination.compare_handle_leaf_between {grow : SingleThreaded.Gro
     (canonAt : canonical.ctl = ⟨thread, .prog (Endpoints.RecordLower.CanonicalTree.leaf Component.Limits.spec Quirks.none
       (destination.context inst) destination.width item output >>= canonNext), canonFrames⟩ :: canonRest) :
     match liveLeafPlan checked.store checked.host.writer index item with
-    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch checked labels
-        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest }
+    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place, Prefix profile ready dispatch checked place labels
+        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest } place
     | .ok plan =>
       let host := plan.elim checked.host (fun spend => { checked.host with writer := spend.apply checked.host.writer })
       ∃ reached outcome leading checkLabels canonLabels,
@@ -62,6 +62,12 @@ theorem RecordDestination.compare_handle_leaf_between {grow : SingleThreaded.Gro
           (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome) ∧
         Steps profile ready reference canonical canonLabels
           (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome) ∧
+        (∀ mark, Trail profile ready dispatch checked mark (leading ++ checkLabels)
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome)
+          (localOccurrenceEnd outcome mark) ∧
+          Trail profile ready reference canonical mark canonLabels
+            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome)
+            (localOccurrenceEnd outcome mark)) ∧
         ∀ value, outcome = .ok value →
           RetainsActiveSlots profile ready dispatch checked (leading ++ checkLabels)
             (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) (.ok value)) ∧

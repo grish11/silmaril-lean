@@ -444,8 +444,9 @@ def HandleFieldThenBetween (profile : ProfileKind) (ready : HostReady (HostState
     (next : output.Result → State grow sig → State grow sig → Cursor (E := core3 grow) (HostState sig) →
       Cursor (E := core3 grow) (HostState sig) → Prop) : Prop :=
   match liveLeafPlan left.store left.host.writer index item with
-  | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left labels
-      { left with ctl := check.control (checkNext (.error issue)) }
+  | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place,
+      ReturnFrame.Occurrence.Prefix profile ready dispatch left place labels
+        { left with ctl := check.control (checkNext (.error issue)) } place
   | .ok plan =>
     let spent := plan.elim left.host (fun spend => { left.host with writer := spend.apply left.host.writer })
     ∃ (store : CStore (core3 grow)) (result : Except TrapReason output.Result)
@@ -455,6 +456,12 @@ def HandleFieldThenBetween (profile : ProfileKind) (ready : HostReady (HostState
         (localLeafEnd left spent store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result) ∧
       Steps profile ready reference right canonLabels
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
+      (∀ mark, ReturnFrame.Occurrence.Trail profile ready dispatch left mark (leading ++ checkLabels)
+        (localLeafEnd left spent store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result)
+        (localOccurrenceEnd result mark) ∧
+        ReturnFrame.Occurrence.Trail profile ready reference right mark canonLabels
+          (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result)
+          (localOccurrenceEnd result mark)) ∧
       ∀ value, result = .ok value →
         let lhs := { left with store, host := spent, ctl := check.control (checkNext (.ok value)) }
         let rhs := { right with store, ctl := canon.control (canonNext value) }
