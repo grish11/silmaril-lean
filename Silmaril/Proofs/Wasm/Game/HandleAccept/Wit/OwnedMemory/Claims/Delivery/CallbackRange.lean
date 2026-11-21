@@ -2019,13 +2019,13 @@ private theorem localFieldThen (destination : RecordDestination) (inst : InstId)
       LiveLocalFieldThen profile ready base bindings checkNext canonNext finish left right check canon)
       older origin destination inst (.data type payload) address := by
   intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
-  obtain ⟨store, result, lhsTrace, rhsTrace, lhs, rhs, observed, cut⟩ :=
+  obtain ⟨store, result, lhsTrace, rhsTrace, lhs, rhs, observed, cut, trails⟩ :=
     local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type data payload index
       (.memory address) origin left right (frame.store ▸ growth)
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, width]) placed
-      frame.store check canon frame.thread checkNext canonNext checkAt canonAt
-  refine ⟨store, result, lhsTrace, rhsTrace, lhs, rhs.steps, observed, ?_⟩
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
+  refine ⟨store, result, lhsTrace, rhsTrace, lhs, rhs.steps, observed, fun mark => ⟨_, trails mark⟩, ?_⟩
   cases result with
   | error reason => exact cut
   | ok val =>
@@ -2120,10 +2120,10 @@ private theorem stringFieldThen (destination : RecordDestination) (inst : InstId
   let plan := storePlanFor Quirks.none destination.encoding destination.width str.value
   refine ⟨str, rfl, stringValueThen destination inst str output source path embedder frame growth width placed checkAt canonAt ?_⟩
   intro pointer lhs rhs cursor peer paired grew _ checkAt canonAt
-  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks⟩ :=
-    string_descriptor_cut_between cx destination.width output plan pointer lhs rhs cursor peer
+  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, trails⟩ :=
+    string_descriptor_occurrences cx destination.width output plan pointer lhs rhs cursor peer
       (fun result => checkNext (.ok result)) canonNext paired.store checkAt canonAt
-  refine ⟨store, result, labels, labels, lhsRun.steps, rhsRun.steps, rfl, ?_⟩
+  refine ⟨store, result, labels, labels, lhsRun.steps, rhsRun.steps, rfl, fun mark => ⟨_, trails mark⟩, ?_⟩
   cases result with
   | error reason => exact ⟨[], leafTrap observed⟩
   | ok val =>
@@ -2421,11 +2421,12 @@ private theorem flatDataPaths (destination : RecordDestination) (inst : InstId) 
     (data : LocalDataType type) (payload : Stored.Payload type) {older origin start incoming offset sink}
     (memoryWidth : (core3 grow).memAddrType? origin.core destination.memory = some destination.width) :
     DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset destination inst sink
-      (fun _ _ _ _ finish before _ _ _ _ => LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish))
+      (fun _ _ _ _ finish before left right _ _ =>
+        LocatedLocalPathsThen profile ready base bindings start incoming left right before offset (flatWordVisit finish))
       (.data type payload) := by
   intro index checkNext canonNext finish before left right check canon frame growth leading _ checkAt canonAt ends
   have width := growth.memAddrType memoryWidth
-  obtain ⟨store, result, lhsTrace, rhsTrace, lhs, rhs, observed, cut⟩ :=
+  have cut :=
     local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type data payload index
       .flat origin left right (frame.store ▸ growth)
@@ -2433,17 +2434,9 @@ private theorem flatDataPaths (destination : RecordDestination) (inst : InstId) 
         change ((core3 grow).memAddrType? left.store.core destination.memory).getD .i32 = destination.width
         rw [show (core3 grow).memAddrType? left.store.core destination.memory = some destination.width from width]
         rfl) rfl
-      frame.store check canon frame.thread checkNext canonNext checkAt canonAt
-  cases result with
-  | error reason =>
-    obtain ⟨labels, trapped⟩ := cut
-    exact .inl ⟨reason, labels, _, _, CallbackPrefix.appendComparedPaths leading
-      ⟨lhsTrace, rhsTrace, lhs, rhs.steps, observed.trans trapped, trapped, rfl⟩, rfl, rfl⟩
-  | ok words =>
-    obtain ⟨grew, checkTracks, canonTracks⟩ := cut
-    have trails := CallbackPrefix.appendComparedSlots leading ⟨lhsTrace, rhsTrace, checkTracks, canonTracks, rfl, observed.symm⟩
-    exact .inr ⟨visible lhsTrace, _, _, check, canon, trails, rfl, words, ends words _ _ _ _ _
-      ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ grew trails rfl rfl⟩
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
+  exact CallbackPrefix.locatedLocalPaths frame leading cut fun words _ _ _ grew paired trails lhsAt rhsAt =>
+    ⟨words, ends words _ _ _ _ _ paired grew trails lhsAt rhsAt⟩
 
 private theorem flatStringPaths (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
     {root rootSchema} (source : CollectionSource destination root rootSchema) (path : Field.Descendant root str.field)

@@ -134,23 +134,15 @@ private theorem sumTail (width : AddrType) (type : Stored.TypeOf) (count tag : N
     (ends : ∀ words seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
       Core3.Grows origin.core lhs.store.core → ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
       lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
-    LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish) := by
-  obtain ⟨store, result, lhsTrace, rhsTrace, lhs, rhs, seen, status⟩ :=
+    LocatedLocalPathsThen profile ready base bindings start incoming left right before offset (flatWordVisit finish) := by
+  have cut :=
     PayloadPrefix.variant_tail_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) count ((flatten width type).drop 1) tag haves words
-      (keep := fun store => Core3.Grows origin.core store.core) left right (frame.store ▸ growth) frame.store check canon frame.thread
-      checkNext canonNext (by simpa only [flatSumTail, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt) canonAt
-  cases result with
-  | error reason =>
-    obtain ⟨leading, trapped⟩ := status
-    exact .inl ⟨reason, leading, _, _, CallbackPrefix.appendComparedPaths trail
-      ⟨lhsTrace, rhsTrace, lhs, rhs.steps, seen.trans trapped, trapped, rfl⟩, rfl, rfl⟩
-  | ok value =>
-    obtain ⟨grown, lhsTrack, rhsTrack⟩ := status
-    have reached := CallbackPrefix.appendComparedSlots trail ⟨lhsTrace, rhsTrace, lhsTrack, rhsTrack, rfl, seen.symm⟩
-    exact .inr ⟨PayloadPrefix.visible lhsTrace, _, _, check, canon, reached, rfl, value,
-      ends value _ _ _ _ _ ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
-        grown reached rfl rfl⟩
+      (keep := fun store => Core3.Grows origin.core store.core) left right (frame.store ▸ growth)
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext
+      (by simpa only [flatSumTail, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt) canonAt
+  exact CallbackPrefix.locatedLocalPaths frame trail cut fun words _ _ _ grew paired reached lhsAt rhsAt =>
+    ⟨words, ends words _ _ _ _ _ paired grew reached lhsAt rhsAt⟩
 
 theorem sum (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
     (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)

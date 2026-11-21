@@ -759,8 +759,8 @@ theorem leaf_aggregate_field_lifts {destination : RecordDestination} {inst : Ins
         (liveLeafPaths profile ready base bindings older destination inst start incoming offset)) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.leafAggregateLift leaves
 
-/-- Preserve tracked slots through the actual tag store. A tag trap takes
-neither branch; successful entry uses only the selected child induction. -/
+/-- Track active and saved occurrences through the actual tag store. A tag
+trap takes neither branch; successful entry uses only the selected child. -/
 theorem LiveSumThen.paths {destination : RecordDestination} {inst : InstId}
     {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
     {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
@@ -774,7 +774,7 @@ theorem LiveSumThen.paths {destination : RecordDestination} {inst : InstId}
     (next : ∀ seen lhs rhs cursor peer,
       ComparedSlots profile ready base bindings start incoming seen lhs rhs offset → lhs.store = rhs.store →
       finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) :
-    LocalPathsThen profile ready base bindings start incoming labels offset
+    LocatedLocalPathsThen profile ready base bindings start incoming left right labels offset
       (match selected with
       | none => visit
       | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)

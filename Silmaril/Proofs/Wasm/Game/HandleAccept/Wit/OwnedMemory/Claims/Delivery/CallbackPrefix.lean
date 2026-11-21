@@ -558,6 +558,63 @@ theorem appendComparedOccurrences {leftStart rightStart left right lhs rhs : Con
   obtain ⟨reached, leftTrail, rightTrail⟩ := afterPaths middle
   exact ⟨reached, checkTrail.append leftTrail, canonTrail.append rightTrail⟩
 
+theorem appendComparedPaths {leftStart rightStart left right lhs rhs : Config (core3 grow) (HostState sig)}
+    {before after : Trace grow sig} {offset : Nat}
+    (leading : ComparedSlots profile ready base bindings leftStart rightStart before left right offset)
+    (trailing : ComparedPaths profile ready base bindings left right after lhs rhs) :
+    ComparedPaths profile ready base bindings leftStart rightStart (before ++ after) lhs rhs := by
+  obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
+  obtain ⟨leftLabels, rightLabels, leftRun, rightRun, leftSeen, rightSeen, same⟩ := trailing
+  exact ⟨checkLabels ++ leftLabels, canonLabels ++ rightLabels,
+    append (prefix_survives (checkTracks 0)).1 leftRun, append (prefix_survives (canonTracks 0)).1 rightRun,
+    (List.filter_append ..).trans (congrArg₂ List.append checkSeen leftSeen),
+    (List.filter_append ..).trans (congrArg₂ List.append canonSeen rightSeen), same⟩
+
+theorem locatedLocalPaths {Result : Type} {keep : CStore (core3 grow) → Prop}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext canonNext : Result → Session grow sig (Ret (core3 grow))} {offset : Nat}
+    {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (cut : PayloadPrefix.LocalCutKeepingBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) keep left right check canon checkNext canonNext true)
+    (next : ∀ words observed lhs rhs,
+      keep lhs.store → LinkedCallback.ChildFrameOver older lhs rhs check canon →
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset →
+      lhs.ctl = check.control (checkNext words) → rhs.ctl = canon.control (canonNext words) → visit observed lhs rhs check canon) :
+    LocatedLocalPathsThen profile ready base bindings start incoming left right seen offset visit := by
+  obtain ⟨store, result, checked, canonical, lhs, rhs, matched, outcome, trails⟩ := cut
+  have paths : ComparedOccurrencePaths profile ready base bindings left right (PayloadPrefix.visible canonical)
+      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
+      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=
+    ⟨checked, canonical, fun mark => ⟨PayloadPrefix.localOccurrenceEnd result mark, trails mark⟩, matched, rfl, by cases result <;> rfl⟩
+  cases result with
+  | error reason =>
+    obtain ⟨prior, trap⟩ := outcome
+    exact .inl ⟨reason, prior, _, _, appendComparedPaths leading
+      ⟨checked, canonical, lhs, rhs.steps, matched.trans trap, trap, rfl⟩, trap ▸ paths, rfl, rfl⟩
+  | ok words =>
+    obtain ⟨kept, checkTracks, canonTracks⟩ := outcome
+    have reached := appendComparedSlots leading ⟨checked, canonical, checkTracks, canonTracks, matched, rfl⟩
+    exact .inr ⟨PayloadPrefix.visible canonical, _, _, check, canon, reached, paths,
+      next words _ _ _ kept ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ reached rfl rfl⟩
+
+theorem rebaseLocatedLocalPaths {left right : Config (core3 grow) (HostState sig)} {offset : Nat}
+    {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (cut : LocatedLocalPathsThen profile ready base bindings start incoming left right seen offset visit) :
+    (∃ reason prior lhs rhs,
+      ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ (prior ++ [.trap reason])) lhs rhs ∧
+      lhs.ctl = [] ∧ rhs.ctl = []) ∨
+    (∃ more lhs rhs check canon,
+      ComparedSlots profile ready base bindings start incoming (seen ++ more) lhs rhs offset ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ more) lhs rhs ∧
+      visit (seen ++ more) lhs rhs check canon) := by
+  rcases cut with ⟨reason, prior, lhs, rhs, _, localPath, lhsTrap, rhsTrap⟩ |
+    ⟨more, lhs, rhs, check, canon, active, localPath, next⟩
+  · exact .inl ⟨reason, prior, lhs, rhs, appendComparedOccurrences leading localPath, lhsTrap, rhsTrap⟩
+  · exact .inr ⟨more, lhs, rhs, check, canon, active, appendComparedOccurrences leading localPath, next⟩
+
 theorem stringOccurrences {cx : LiftLowerContext (core3 grow)}
     {checkNext canonNext : Nat → Session grow sig (Ret (core3 grow))}
     {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
@@ -600,18 +657,6 @@ theorem stringOccurrences {cx : LiftLowerContext (core3 grow)}
         have afterPop := appendComparedOccurrences reached
           ⟨_, _, returned, silentPop _ checkSeen, silentPop _ canonSeen, sameStore⟩
         exact ⟨peer, afterPop, ih rest.length shorter afterPop residual⟩
-
-theorem appendComparedPaths {leftStart rightStart left right lhs rhs : Config (core3 grow) (HostState sig)}
-    {before after : Trace grow sig} {offset : Nat}
-    (leading : ComparedSlots profile ready base bindings leftStart rightStart before left right offset)
-    (trailing : ComparedPaths profile ready base bindings left right after lhs rhs) :
-    ComparedPaths profile ready base bindings leftStart rightStart (before ++ after) lhs rhs := by
-  obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
-  obtain ⟨leftLabels, rightLabels, leftRun, rightRun, leftSeen, rightSeen, same⟩ := trailing
-  exact ⟨checkLabels ++ leftLabels, canonLabels ++ rightLabels,
-    append (prefix_survives (checkTracks 0)).1 leftRun, append (prefix_survives (canonTracks 0)).1 rightRun,
-    (List.filter_append ..).trans (congrArg₂ List.append checkSeen leftSeen),
-    (List.filter_append ..).trans (congrArg₂ List.append canonSeen rightSeen), same⟩
 
 theorem appendAllocatorPaths {leftStart rightStart left right lhs rhs : Config (core3 grow) (HostState sig)}
     {before after : Trace grow sig} {offset : Nat}
@@ -793,18 +838,20 @@ theorem localFieldPaths {left right : Config (core3 grow) (HostState sig)}
     (next : ∀ observed lhs rhs cursor peer,
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
       finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
-    LocalPathsThen profile ready base bindings start incoming seen offset visit := by
-  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, same, cut⟩ := run
+    LocatedLocalPathsThen profile ready base bindings start incoming left right seen offset visit := by
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, same, trails, cut⟩ := run
   cases result with
   | error reason =>
     obtain ⟨before, trapped⟩ := cut
     exact .inl ⟨reason, before, _, _, appendComparedPaths leading
-      ⟨lhsLabels, rhsLabels, lhs, rhs, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+      ⟨lhsLabels, rhsLabels, lhs, rhs, same.trans trapped, trapped, rfl⟩,
+      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok value =>
     cases value
     obtain ⟨lhsTrack, rhsTrack, done⟩ := cut
     have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
-    exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, rfl, next _ _ _ _ _ reached rfl done⟩
+    exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached,
+      ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩, next _ _ _ _ _ reached rfl done⟩
 
 theorem compiledStringPaths {destination : RecordDestination} {inst : InstId}
     {item : Field} {index address : Nat} {left right : Config (core3 grow) (HostState sig)}
@@ -819,8 +866,8 @@ theorem compiledStringPaths {destination : RecordDestination} {inst : InstId}
       finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringKeyPaths profile ready base bindings older destination inst str address start incoming left right check canon
-        checkNext canonNext (fun _ observed _ _ _ _ =>
-          LocalPathsThen profile ready base bindings start incoming observed offset visit) seen offset := by
+        checkNext canonNext (fun _ observed lhs rhs _ _ =>
+          LocatedLocalPathsThen profile ready base bindings start incoming lhs rhs observed offset visit) seen offset := by
   obtain ⟨str, field, body⟩ := run
   exact ⟨str, field, stringValuePaths leading body
     (fun _ _ _ _ _ _ descriptors path => localFieldPaths path descriptors next)⟩
@@ -996,22 +1043,24 @@ theorem sumPathsFrom {destination : RecordDestination} {inst : InstId}
     (next : ∀ observed lhs rhs cursor peer,
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
       finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
-    LocalPathsThen profile ready base bindings start incoming seen offset
+    LocatedLocalPathsThen profile ready base bindings start incoming left right seen offset
       (match selected with
       | none => visit
       | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
           (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) := by
-  obtain ⟨store, result, lhsLabels, rhsLabels, lhsRun, rhsRun, same, _, tail⟩ := run
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhsRun, rhsRun, same, trails, tail⟩ := run
   cases result with
   | error reason =>
     obtain ⟨prefixLabels, trapped⟩ := tail
     exact .inl ⟨reason, prefixLabels, _, _, appendComparedPaths leading
-      ⟨lhsLabels, rhsLabels, lhsRun, rhsRun, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+      ⟨lhsLabels, rhsLabels, lhsRun, rhsRun, same.trans trapped, trapped, rfl⟩,
+      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok result =>
     cases result
     obtain ⟨lhsTrack, rhsTrack, done⟩ := tail
     have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
-    refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, rfl, ?_⟩
+    refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached,
+      ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩, ?_⟩
     cases selected with
     | none => exact next _ _ _ _ _ reached rfl done
     | some item =>

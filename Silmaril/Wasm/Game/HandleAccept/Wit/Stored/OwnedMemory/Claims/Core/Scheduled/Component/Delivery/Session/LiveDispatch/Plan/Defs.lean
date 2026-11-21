@@ -971,6 +971,22 @@ def LocalPathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     ComparedSlots profile ready base bindings start incoming (seen ++ more) lhs rhs offset ∧
     lhs.store = rhs.store ∧ finish (seen ++ more) lhs rhs check canon)
 
+/-- A local field or flat coercion suffix with exact all-location paths from
+its reached entry. These can be rebased even when an older occurrence is
+saved or was lost before this cut. -/
+def LocatedLocalPathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming left right : Config (core3 grow) (HostState sig)) (seen : Trace grow sig) (offset : Nat)
+    (finish : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) : Prop :=
+  (∃ reason leading lhs rhs,
+    ComparedPaths profile ready base bindings start incoming (seen ++ (leading ++ [.trap reason])) lhs rhs ∧
+    ComparedOccurrencePaths profile ready base bindings left right (leading ++ [.trap reason]) lhs rhs ∧
+    lhs.ctl = [] ∧ rhs.ctl = []) ∨
+  (∃ more lhs rhs check canon,
+    ComparedSlots profile ready base bindings start incoming (seen ++ more) lhs rhs offset ∧
+    ComparedOccurrencePaths profile ready base bindings left right more lhs rhs ∧
+    finish (seen ++ more) lhs rhs check canon)
+
 /-- A typed live refusal advances only the checked guard; the canonical
 cursor remains at the unexecuted field. Otherwise compare the reached stores
 and continue only on success. -/
@@ -1078,12 +1094,13 @@ def flatSumPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     open LinkedCallback ABI in
     ∃ tag selected, item = .sum type arms tag selected ∧
       match selected with
-      | none => LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish)
+      | none => LocatedLocalPathsThen profile ready base bindings start incoming left right before offset (flatWordVisit finish)
       | some child =>
         let haves := flatten width child.type
         pick tag child 0 (flatSumCheckNext width type arms.length tag index haves checkNext)
           (fun words => flatSumTail width type arms.length tag haves words >>= canonNext)
-          (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset (flatWordVisit finish))
+          (fun _ observed lhs rhs _ _ =>
+            LocatedLocalPathsThen profile ready base bindings start incoming lhs rhs observed offset (flatWordVisit finish))
           before left right check canon
 
 abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
@@ -1100,10 +1117,11 @@ def liveLeafPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
   | .prim .string => fun item _ address checkNext canonNext finish before left right check canon =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringKeyPaths profile ready base bindings older destination inst str address start incoming left right check canon
-        checkNext canonNext (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset finish)
+        checkNext canonNext (fun _ observed lhs rhs _ _ =>
+          LocatedLocalPathsThen profile ready base bindings start incoming lhs rhs observed offset finish)
         before offset
-  | .prim _ | .enum _ | .flags _ => fun _ _ _ _ _ finish before _ _ _ _ =>
-    LocalPathsThen profile ready base bindings start incoming before offset finish
+  | .prim _ | .enum _ | .flags _ => fun _ _ _ _ _ finish before left right _ _ =>
+    LocatedLocalPathsThen profile ready base bindings start incoming left right before offset finish
   | _ => fun item index _ checkNext _ finish before left right check _ =>
     HandlePathsThen profile ready base bindings start incoming before offset item index checkNext finish left right check sink
 
@@ -1284,6 +1302,7 @@ def LiveLocalFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig
     let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
     Steps profile ready checked left lhsLabels lhs ∧ Steps profile ready canonical right rhsLabels rhs ∧
     PayloadPrefix.visible lhsLabels = PayloadPrefix.visible rhsLabels ∧
+    CoupledOccurrencePaths profile ready base bindings left right lhsLabels rhsLabels lhs rhs ∧
     match result with
     | .error reason => ∃ leading, PayloadPrefix.visible rhsLabels = leading ++ [.trap reason]
     | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile ready checked left lhsLabels lhs ∧
@@ -1512,15 +1531,15 @@ def liveRecursivePaths (profile : ProfileKind) (ready : HostReady (HostState sig
       liveFixedPaths profile ready base bindings destination inst
         (liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink element) element entries index address
         checkNext canonNext finish before left right check canon
-  | .option element => fun item index address checkNext canonNext finish before _ _ _ _ =>
+  | .option element => fun item index address checkNext canonNext finish before left right _ _ =>
     ∃ tag selected, item = .sum (.option element) [none, some element] tag selected ∧
-      LocalPathsThen profile ready base bindings start incoming before offset
+      LocatedLocalPathsThen profile ready base bindings start incoming left right before offset
         (match selected with
         | none => finish
         | some arm => liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink element arm 0
             (PayloadPrefix.sumPayloadAddress destination.width [none, some element] address)
             (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
-  | .result success failure => fun item index address checkNext canonNext finish before _ _ _ _ =>
+  | .result success failure => fun item index address checkNext canonNext finish before left right _ _ =>
     ∃ tag selected, item = .sum (.result success failure) [success, failure] tag selected ∧
       let okPaths : TrailFieldComparison grow sig := match success with
         | some type => liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink type
@@ -1528,14 +1547,14 @@ def liveRecursivePaths (profile : ProfileKind) (ready : HostReady (HostState sig
       let errorPaths : TrailFieldComparison grow sig := match failure with
         | some type => liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink type
         | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
-      LocalPathsThen profile ready base bindings start incoming before offset
+      LocatedLocalPathsThen profile ready base bindings start incoming left right before offset
         (match selected with
         | none => finish
         | some arm => (if tag = 0 then okPaths else errorPaths) arm 0 (PayloadPrefix.sumPayloadAddress destination.width [success, failure] address)
             (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
-  | .variant cases => fun item index address checkNext canonNext finish before _ _ _ _ =>
+  | .variant cases => fun item index address checkNext canonNext finish before left right _ _ =>
     ∃ tag selected, item = .sum (.variant cases) (cases.map Prod.snd) tag selected ∧
-      LocalPathsThen profile ready base bindings start incoming before offset
+      LocatedLocalPathsThen profile ready base bindings start incoming left right before offset
         (match selected with
         | none => finish
         | some arm => liveVariantPaths profile ready base bindings older destination inst start incoming offset sink cases tag arm 0
@@ -1637,8 +1656,8 @@ def liveFlatPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
       (selectFlatPaths (liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink types))
   | .own _ | .future _ | .stream _ | .errorContext => fun item index checkNext _ finish before left right check _ =>
     HandlePathsThen profile ready base bindings start incoming before offset item index checkNext (flatWordVisit finish) left right check sink
-  | _ => fun _ _ _ _ finish before _ _ _ _ =>
-    LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish)
+  | _ => fun _ _ _ _ finish before left right _ _ =>
+    LocatedLocalPathsThen profile ready base bindings start incoming left right before offset (flatWordVisit finish)
 termination_by structural type => type
 
 def liveFlatRecordPaths (profile : ProfileKind) (ready : HostReady (HostState sig))

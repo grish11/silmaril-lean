@@ -140,11 +140,13 @@ reached-store predicate on common success. Its trap or choices remain visible. -
 theorem variant_tail_frame_between {E : CoreEngine} {Host : Type} {profile : ProfileKind}
     {ready : HostReady Host} {dispatch reference : Call E → P E Host (Ret E)}
     (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
-    (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store) :
+    (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store)
+    (trackOccurrences : Bool := false) :
     CompareLocalKeepingBetween profile ready dispatch reference keep left right
       (do return .ok (← lowerFlatVariantWith count wanted tag haves (pure words)))
-      (lowerFlatVariantWith count wanted tag haves (pure words)) :=
+      (lowerFlatVariantWith count wanted tag haves (pure words)) trackOccurrences :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.variantTailFrameBetween count wanted tag haves words left right kept
+    trackOccurrences
 
 theorem variant_tail_frame {E : CoreEngine} {Host : Type} {profile : ProfileKind}
     {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
@@ -453,14 +455,14 @@ theorem local_data_leaf_frame_between {ready : HostReady (HostState sig)}
     (payload : Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
     (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
     (width : ptrTypeIn left.store (destination.context inst) = destination.width)
-    (placed : rootPlacement destination left.store type output = .ok ()) :
+    (placed : rootPlacement destination left.store type output = .ok ()) (trackOccurrences : Bool := false) :
     CompareLocalKeepingBetween profile ready dispatch reference (fun store => Core3.Grows origin.core store.core) left right
       (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
         (.data type payload) index output)
       (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
-        (.data type payload) output) :=
+        (.data type payload) output) trackOccurrences :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataLeafFrameBetween
-    destination inst type data payload index output origin left right growth width placed
+    destination inst type data payload index output origin left right growth width placed trackOccurrences
 
 /-- At a reached allocating string action, the actual call saves the remaining plan. -/
 theorem string_realloc_focus {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E)

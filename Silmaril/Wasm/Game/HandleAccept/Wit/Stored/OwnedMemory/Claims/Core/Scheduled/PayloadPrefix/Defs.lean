@@ -330,12 +330,13 @@ abbrev LocalCutKeeping {E : CoreEngine} {Host Result : Type} (profile : ProfileK
 
 def CompareLocalKeepingBetween {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
     (dispatch reference : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
-    (checked : P E Host (Except RecordLower.Issue Result)) (canonical : P E Host Result) : Prop :=
+    (checked : P E Host (Except RecordLower.Issue Result)) (canonical : P E Host Result) (trackOccurrences : Bool := false) : Prop :=
   left.store = right.store →
     ∀ (check canon : Cursor (E := E) Host), check.thread = canon.thread →
       ∀ (checkNext : Except RecordLower.Issue Result → P E Host (Ret E)) (canonNext : Result → P E Host (Ret E)),
         left.ctl = check.control (checked >>= checkNext) → right.ctl = canon.control (canonical >>= canonNext) →
-        LocalCutKeepingBetween profile ready dispatch reference keep left right check canon (fun value => checkNext (.ok value)) canonNext
+        LocalCutKeepingBetween profile ready dispatch reference keep left right check canon
+          (fun value => checkNext (.ok value)) canonNext trackOccurrences
 
 abbrev CompareLocalKeepingAt {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
     (dispatch : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
