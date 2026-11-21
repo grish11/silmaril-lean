@@ -7,8 +7,19 @@ public section
 
 namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower
 
-open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon
+open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.Wasm.Component.Canon
   Silmaril.Wasm.Component.Engine Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Value
+
+theorem store_sum_program {E : CoreEngine} {World : Type} (limits : Component.Limits) (quirks : Quirks)
+    (cx : LiftLowerContext E) (type : TypeOf) (arms : List (Option TypeOf)) (tag ptr : Nat)
+    (arm : Option Field) (layout : Field.LayoutMatches (.sum type arms tag arm) type) :
+    (store limits quirks cx (.variant tag (Field.armValue arm)) type ptr : P E World _) = (do
+      let width ← ptrType cx
+      let address ← storeVariantHead cx arms.length (maxCaseAlignment (arms.map (layoutOption width))) tag ptr
+      match arm with
+      | none => pure ()
+      | some field => store limits quirks cx field.value field.type address) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.MemorySum.sum_program limits quirks cx type arms tag ptr arm layout
 
 /-- After an explicit pointer-width read, a compiled sum writes the same discriminator
 and selects the same aligned address as the canonical store. Program equality then

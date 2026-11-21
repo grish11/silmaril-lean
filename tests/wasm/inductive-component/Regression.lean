@@ -1,6 +1,6 @@
 module
 
-import Silmaril.Wasm.Component.IntrinsicWiring.Thms
+import Silmaril.Wasm.Component.IntrinsicWiring.Lift.Thms
 import Silmaril.Wasm.Validation.Intrinsic.ReifyThms
 import Silmaril.Wasm.ModuleParts.Thms
 
@@ -90,6 +90,15 @@ example : ValidComponentCore3 .p2 erased (componentTypeOfDefs linked.1.ctx) :=
 
 example : ((checkCore3? .p2 erased).toOption.map fun typ => typ.exports.map Prod.fst) = some ["run"] :=
   by decide +kernel
+
+private def linkedClosed := (Closed.lift? .p2 core3Profile core3ModuleType? erased).get (by decide +kernel)
+
+private def exposeRun : Exposure linkedClosed.1 "run"
+    (.func { params := [], result := some (.prim .u32) }) :=
+  ⟨⟨0, by decide +kernel⟩, by with_unfolding_all rfl⟩
+
+example : ∃ typed : Closed .p2 core3Profile core3ModuleType? linkedClosed.1, typed.erase = erased :=
+  ⟨linkedClosed.2.val, linkedClosed.2.property⟩
 
 #print axioms Program.erase_then
 #print axioms Program.erase_map

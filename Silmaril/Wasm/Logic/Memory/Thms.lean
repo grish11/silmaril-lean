@@ -129,7 +129,8 @@ theorem size_encodeLE (n v : Nat) : (Memory.encodeLE n v).size = n := by
 /-- **An in-bounds store.** -/
 theorem store_eq {B : ByteArray} {a n : Nat} (w : BitVec (8 * n)) (h : a + n ≤ B.size) :
     Memory.store B a w = some (storeLE B a n w.toNat) := by
-  simp only [Memory.store, Memory.writeBytes, storeLE, Memory.encodeLE_size, h, ↓reduceIte]
+  simp only [Memory.store, Memory.writeBytes, Memory.writeSlice_eq, storeLE, Memory.encodeLE_size,
+    h, ↓reduceIte]
 
 /-- A store does not change the size of memory. -/
 theorem size_store {B B' : ByteArray} {a n : Nat} {w : BitVec (8 * n)}

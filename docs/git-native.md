@@ -37,6 +37,9 @@ filesystem into the full object syntax preserves both native bytes (including
 failure) and the induced naming relation under the same profile. The analogous
 DASL theorems are in [the DASL model](git-dasl.md).
 
+See [native-to-DASL name correspondence](git-translation.md) for the combined
+bottom-up interpretation and its audit boundary.
+
 `tests/formats/GitNative.lean` compares output byte-for-byte against preimages
 from Git 2.47.3 `mktree --missing -z` and `commit-tree`, in SHA-1 and SHA-256
 repositories. The fixtures include prefix-sensitive tree ordering, a non-UTF-8

@@ -24,13 +24,58 @@ The erased program passes the reference Core 3.0 component checker. A missing
 argument name and an out-of-scope provider instance are rejected. This is
 scope-indexed **declaration** composition, not WAC composition of separately
 closed components. Reference validation, not a new engine, supplies the
-typing premises. This builder does not cover nested binders, resource
-declarations, general component link equivalence, or runtime observations.
+typing premises. The builder does not cover nested binders or resource declarations.
+
+### Exact lift and typed exports
+
+`IntrinsicWiring.Lift` seals a finished program as `Closed` at the reference
+`ComponentType`. `Exposure` identifies an entry in that checked export table
+by position, name, and actual entity type. `Closed.lift?` reconstructs the
+indexed steps from reference syntax; its success certificate erases to the
+input exactly. `Program.lift_erase` and `Closed.lift_erase` give the other
+direction. This is a retraction on the supported declaration fragment, not
+completeness for the full reference checker. In particular neither nested
+components nor export ascriptions are silently stripped. `Closed.erase_map`
+commutes with raw `Syntax.Component.map` for a payload map preserving the
+same named module interfaces under one component profile.
+
+### Observation boundary
+
+`Closed.terminal_iff` relates the stock reference-machine outcomes at an
+exposed function to `IRObs` of the existing component game. It requires
+exact erasure to a `Simple.toRef`, `Simple.Adequate` (goodness, float freedom,
+instantiation with the intended instance, flat arities), typed arguments and
+a terminating outcome. It uses the stock no-import reference host. The
+regression projects the same typed `add` declaration from an intrinsically
+typed Core body and from a native Lime1 payload. For the Core projection of
+the Lime1 payload, an actual game answer `x + y` transfers to the reference
+machine. This is not an execution theorem about the native Lime1 engine.
+
+`Syntax.Component Lime1.Module` and `checkLime1?` already exist: this is
+shared reference component syntax with native Lime1 payloads and the Lime1
+extern interface, not a separate Lime component calculus. That checker
+checks wiring and the structural module interface, not Lime1 module bodies.
+`Syntax.Component.map Lime1.Module.toCore` instead targets Core payloads:
+the example rechecks at the Core 3.0 profile, whose extern types and module
+validation are different. It does not coerce a native checked interface into
+the Core index. Removing the adder's result-producing body leaves the native
+interface check successful but is rejected by the Core-projected checker.
+
+The [institution guide](wasm-institutions-guide.md#scope-core-modules-and-components)
+describes the existing `componentToGInst` on component IR. A syntax map alone
+does not give the reduct for native reference observations or the
+satisfaction condition. The ready-instance Core `Entry` API begins after
+registration. For actual linked components, `Linked2.sessObs_eq` needs the
+adequate wire and the corresponding importer/exporter instances, discharged
+within `Linked2.sessAdequacy_full` for that class;
+`HLinked2.sessAdequacy_full` also requires typed host handling and retains
+the host run. The flat Core-module wiring fixture proves neither the linked
+instantiation/store correspondence nor an observation map for all prefixes.
+The stock `Simple.adequacy` identifies only trap-last plays; observing the
+retained store after a trap would distinguish its existing witnesses.
 
 ```sh
-lake build --wfail +Silmaril.Wasm.Component.IntrinsicWiring.Thms \
-  +Silmaril.Wasm.Validation.Intrinsic.ReifyThms
-lake env lean -DwarningAsError=true tests/wasm/inductive-component/Regression.lean
+make check CHECK_TARGETS='+Silmaril.Wasm.Component.IntrinsicWiring.Lift.Observation.Thms'
 ```
 
 ## What ships

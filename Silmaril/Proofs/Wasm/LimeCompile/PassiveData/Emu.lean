@@ -449,7 +449,7 @@ theorem store1_some {bytes : ByteArray} {a : Nat} (w : BitVec (8 * (PackSize.i8.
     rw [hsz]; exact h
   refine ⟨(Memory.encodeLE (PackSize.i8.width / 8) w.toNat).copySlice 0 bytes a
     (Memory.encodeLE (PackSize.i8.width / 8) w.toNat).size, ?_⟩
-  simp only [Memory.store, Memory.writeBytes, hle, ↓reduceIte]
+  simp only [Memory.store, Memory.writeBytes, Memory.writeSlice_eq, hle, ↓reduceIte]
 
 theorem memoryInitLoop_zero {y : DataIdx} {ma da : Nat} {di : DataInst} {s : Store H}
     {f : Frame} {i j : BitVec 32} {mi : MemInst} (hm : s.mem? f (idx 0) = some (ma, mi))

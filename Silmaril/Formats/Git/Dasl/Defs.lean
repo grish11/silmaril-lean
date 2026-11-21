@@ -187,6 +187,11 @@ def commitCodec {Root Parent : Type} (tree : TotalCodec Root (Shallow Name))
 def namedCommit (metadata : TotalCodec Meta (Shallow Name)) : TotalCodec (Commit Name Name Meta) (Shallow Name) :=
   commitCodec (linkCodec .tree) (linkCodec .commit) metadata
 
+def renderCommit (naming : Naming Name) (codec : TotalCodec Meta (Shallow Name))
+    (tree : Rendered Name) (parents : List (Rendered Name)) (metadata : Meta) : Rendered Name :=
+  let value := (namedCommit codec).encode ⟨tree.root, parents.map Rendered.root, metadata⟩
+  Rendered.object naming value (tree.store.union (Rendered.union parents.get))
+
 def renderTree (naming : Naming Name) (layout : Layout String Name) : Git.Tree → Option (Rendered Name)
   | .file _ bytes => some (Rendered.raw naming bytes)
   | .dir keys children => renderDir naming layout validComponent keys
@@ -201,8 +206,7 @@ def renderObject [DecidableEq Key] (naming : Naming Name) (layout : Layout Key N
   | _, .commit tree _ parents metadata => do
     let target ← renderObject naming layout valid codec tree
     let ancestors ← (List.ofFn (fun index => renderObject naming layout valid codec (parents index))).mapM id
-    let value := (namedCommit codec).encode ⟨target.root, ancestors.map Rendered.root, metadata⟩
-    pure (Rendered.object naming value (target.store.union (Rendered.union ancestors.get)))
+    pure (renderCommit naming codec target ancestors metadata)
 
 end Dasl
 end Silmaril.Formats.Git

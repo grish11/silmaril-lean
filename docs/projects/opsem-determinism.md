@@ -59,3 +59,59 @@ transfer for that dialect; a tag alone supplies no such theorem. A host/game
 adapter must specify the log alphabet, what inputs are fixed, and how callouts,
 answers, host divergence, and pending requests are observed. No trace or
 determinism claim about those open systems follows from `noHost`.
+
+## Closed Strict invocations with immutable structs
+
+[`ClosedFunctional.Thms`](../../Silmaril/Wasm/Execution/Core/Entry/ClosedFunctional/Thms.lean)
+proves a sufficient criterion at an actual ready Core invocation, not a new
+syntax admission test. `Bodies` certifies that each allocated function is a
+Wasm body with an erasure in the existing `FunctionalISA.Raw .immutable`
+grammar. This covers `call_ref` callees as well as the initial function, and
+permits integer operations, locals, structured control, and immutable struct
+construction and reads. Raw and intrinsically typed syntax both give `IFree`
+evidence; Core `ConfigOk` is a separate premise for policy safety and the
+interpreter correspondence. The certificate does not constrain unrelated store
+data.
+
+At `noHost`, `finishes_unique` compares two finite Core executions from the
+same `invoke` at **any two Core numeric profiles**, including both standard
+`Profile.spec` choices. It proves equality of the complete final configuration
+and of the result, including traps. This is stronger than uniqueness of just
+non-trap results, and does not assert uniqueness of primitive steps or traces.
+`finishes_iff_run` matches these executions to successful runs of the existing
+Core interpreter for some finite fuel. `export_may_iff_run` uses actual named
+export lookup and retains the final store in its witness. Neither theorem
+classifies runs without a finite result as divergent or UB.
+
+The [regression](../../tests/wasm/closed-functional/Regression.lean) checks
+admission, validation, and instantiation of a closed Strict module that
+allocates and reads an immutable struct, then either returns 42 through
+`br_if` or traps on division by zero, depending on a typed argument. Both
+paths retain the allocation; the trap is not UB. Conversely, the broader
+closed Strict admission checker accepts a well-typed NaN program with two
+different **non-trap** returned bit patterns for each standard spec profile.
+For a wider GC fragment, the missing criterion is that all admitted bodies
+(including callees in the allocated store) satisfy `IFree`, or a more general
+step-transport invariant. The checked struct example requires no new GC rule.
+
+Strict as a language can allow imports. This result is only for the **closed
+Strict fragment** and does not extend by absence of memory or mutable GC. For
+a fixed host, a determinism extension needs a fixed initial environment and
+unique answers to each reachable call (including next environment, store and
+result, and whether divergence is an alternative). Typing preservation is
+needed for safety, and preservation of profile-free code for cross-profile
+transfer. For an open labelled semantics, specify a fixed incoming response
+schedule or a projection of the visible log before formulating a uniqueness
+claim; allowing all input choices is not a deterministic handler.
+
+These theorems compare numeric profiles within the same Core reduction
+relation. Applying them to a native version or SpecTec interpretation requires
+the exact state and observation transport for that route (see the
+[version theorem guide](https://github.com/hiloopai/silmaril-lean/pull/1370));
+a checked syntax injection alone proves neither behavioral equality nor
+linking closure. Fixed memory remains the existing one-page profile: changing
+the page count needs a generalized valid memory instance witness and a proof
+that replacement of bytes preserves its length and typing.
+
+Run `make check CHECK_TARGETS=+Silmaril.Wasm.Execution.Core.Entry.ClosedFunctional.Thms`
+for the scoped checks.

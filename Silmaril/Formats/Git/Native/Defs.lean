@@ -103,6 +103,10 @@ def commitPayload? (names : NameCodec algorithm Name) (commit : Commit Name Name
       data.message).toByteArray)
   else none
 
+/-- Serialize the full native preimage of an already named commit. -/
+def commitBytes? (names : NameCodec algorithm Name) (commit : Commit Name Name CommitMetadata) : Option ByteArray :=
+  (commitPayload? names commit).map (loose .commit)
+
 /-- An opaque reference retains its name, but does not supply an object preimage. -/
 inductive View (Name : Type) where
   | opaque (name : Name)
@@ -148,9 +152,9 @@ def renderObject (profile : Profile algorithm Key Name) :
   | _, .commit root _ parents metadata => do
     let tree ← renderObject profile root
     let ancestors ← (List.ofFn (fun index => renderObject profile (parents index))).mapM id
-    let payload ← commitPayload? profile.names ⟨tree.target profile.assign,
+    let bytes ← commitBytes? profile.names ⟨tree.target profile.assign,
       ancestors.map (View.target profile.assign), metadata⟩
-    pure (.encoded (loose .commit payload))
+    pure (.encoded bytes)
 
 def names {Source : Type} (rel : Semantics.Naming.Relation Name ByteArray) (render : Source → Option (View Name)) :
     Semantics.Naming.Relation Name Source :=

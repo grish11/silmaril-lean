@@ -674,7 +674,8 @@ theorem store8_eq (mem : ByteArray) (k : Nat) (byte : UInt8) (hk : k < mem.size)
       ⟨#[byte]⟩ := by
     apply ByteArray.ext
     simp [Silmaril.Wasm.Execution.Memory.encodeLE, PackSize.width]
-  simp only [Silmaril.Wasm.Execution.Memory.store, e1, e2, Silmaril.Wasm.Execution.Memory.writeBytes]
+  simp only [Silmaril.Wasm.Execution.Memory.store, e1, e2, Silmaril.Wasm.Execution.Memory.writeBytes,
+    Silmaril.Wasm.Execution.Memory.writeSlice_eq]
   have hsz : (⟨#[byte]⟩ : ByteArray).size = 1 := rfl
   rw [ite_eq_left (by rw [hsz]; omega)]
   congr 1

@@ -594,9 +594,9 @@ local notation "Σh" => Unit × List HLinked2.HostEvent
 
 /-- **The first node with a finishing continuation, the machine invariant, and the frame
 related to the symbolic reading.** -/
-theorem firstK' : FirstK' := by
+theorem firstK_failFrag : FirstKAt MultiImpFailFrag := by
   intro b c r p ps t₀ pre mi cargs post hc hr hf himp hn hu hq hs
-  obtain ⟨hfi, hw, -, pre₁, mi₁, cargs₁, post₁, hs₁, hshape, hpostOk⟩ := multiImpFrag_inv hf
+  obtain ⟨hfi, hw, -, pre₁, mi₁, cargs₁, post₁, hs₁, hshape, hpostOk⟩ := multiImpFailFrag_inv hf
   rw [hs] at hs₁
   obtain ⟨rfl, rfl, rfl, rfl⟩ : pre = pre₁ ∧ mi = mi₁ ∧ cargs = cargs₁ ∧ post = post₁ := by
     simp only [Option.some.injEq, Prod.mk.injEq] at hs₁
@@ -890,5 +890,9 @@ theorem firstK' : FirstK' := by
     have hh : h = (M₀.host.1, M₀.host.2 ++ coreLog ys) := hhost
     rw [hh, hS.host, hlog]
     rfl
+
+theorem firstK' : FirstK' := by
+  intro b c r p ps trace pre mi args post hc hr hfrag
+  exact firstK_failFrag b c r p ps trace pre mi args post hc hr (multiImpFailFrag_of_multiImpFrag hfrag)
 
 end Silmaril.Proofs.Wasm.Component.DecoderBridge.Multi

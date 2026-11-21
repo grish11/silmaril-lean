@@ -83,4 +83,46 @@ theorem CoreGrowthSteps.linked_region (run : CoreGrowthSteps profile ready dispa
         size ≤ reachedSize ∧ start + length ≤ reachedSize :=
   Silmaril.Proofs.Wasm.Component.Reference.MachineCoreGrowth.linked_region run context linked present sized bounds
 
+/-- Resuming a saved thread or popping a continuation needs no new certificate:
+the original proof covers every return value at every reached Core store. -/
+theorem Step.control_growing (step : Step profile ready dispatch before label after)
+    (growing : before.CoreGrowing) (install : CoreGrowthInstall dispatch before label) :
+    after.CoreGrowing :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineCoreGrowth.control_growing step growing install
+
+/-- Certify an actual run using just the initial control and the fresh programs
+installed along reached prefixes. This covers returning, blocked, and trapping
+runs without requiring the callback or scheduler to make progress. -/
+theorem CoreGrowthSteps.of_installs (run : Steps profile ready dispatch before trace after)
+    (growing : before.CoreGrowing)
+    (installs : ∀ {reached next leading label}, Steps profile ready dispatch before leading reached →
+      Step profile ready dispatch reached label next → CoreGrowthInstall dispatch reached label) :
+    CoreGrowthSteps profile ready dispatch before trace after ∧ after.CoreGrowing :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineCoreGrowth.of_installs run growing installs
+
+/-- Allocate, start and resolve using the actual specification dispatcher. The
+synchronous lift thread and loop are included; guest callouts are separate. -/
+theorem allocator_dispatch_growing (ready : HostReady Host) (host : HostImpl (core3 grow) Host)
+    {call : Call (core3 grow)} (kind : AllocatorCall call) : CoreGrowing (specDispatch ready host call) :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineCoreGrowth.allocator_dispatch_growing ready host kind
+
+/-- The dispatcher keeps the entry check and confines calls in the closed
+window. An unconfined import needs a certificate for its own updates. -/
+theorem embedder_dispatch_growing (ready : HostReady Host) (host : HostImpl (core3 grow) Host)
+    (name : String) (type : V1.FuncType) (args : List FlatValue)
+    (embedder : CoreGrowing (host.embedder name type args)) :
+    CoreGrowing (specDispatch ready host (.hostCallout (.embedder name type) args)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineCoreGrowth.embedder_dispatch_growing ready host name type args embedder
+
+/-- A separately certified callout may resume Core with new results and host
+state. Its unchanged continuations retain their proofs. -/
+theorem Config.CoreGrowing.replace_core_focus {thread initial reached next segments rest}
+    (growing : before.CoreGrowing)
+    (focused : before.ctl = ⟨thread, .core initial next, segments⟩ :: rest)
+    (updatedHost : Host) :
+    Config.CoreGrowing { before with
+      host := updatedHost
+      ctl := ⟨thread, .core reached next, segments⟩ :: rest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineCoreGrowth.replace_core_focus growing focused updatedHost
+
 end Silmaril.Wasm.Component.Machine

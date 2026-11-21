@@ -283,4 +283,37 @@ def Task.startAdequacyFrag : Prop :=
     (([some (ws.map toRefVal)] : List (Option (List Value.Val))), ((), logOfCalls t)) ∈
       sessRunFrom first.prof (Host.ofEmbedder embL) hostConfigX r (importArgs hostI) [(n, [])]
 
+/-! ## The failing cases -/
+
+/-- The original multi-node fragment for quiet failure. It does not require the additional
+`splitNodes` and `liftsCall` checks used by the successful export-call bridge. -/
+def multiImpFailFrag (r : RefComponent) : Bool :=
+  firstImpFrag r && hostWired r &&
+    (match refRead r with
+      | some R => lowWired R && (R.exports.head?.map fun e => isGetTy e.ty).getD false
+      | none => false) &&
+    (match firstCore? r with
+      | some (pre, _, _, post) =>
+        rootShape pre && post.all (postDefOk (preLowers pre) (preInsts pre) (coreMods pre))
+      | none => false)
+
+def MultiImpFailFrag (r : RefComponent) : Prop := multiImpFailFrag r = true
+
+instance (r : RefComponent) : Decidable (MultiImpFailFrag r) :=
+  inferInstanceAs (Decidable (multiImpFailFrag r = true))
+
+/-- **Open goal, `Task.failRefWiredRest'` outside the case proved on the fragment**: a failure of
+node `k ≥ 1` of a binary of `MultiImpFailFrag` is proved (`Multi.Thms.failRefWiredRest'_of_rest''`);
+this is the rest. -/
+def Task.failRefWiredRest'' : Prop :=
+  ∀ (b : ByteArray) (c : Comp Binary.CoreMod) (r : RefComponent)
+    (ps : List (Binary.CoreMod × List Impl)) (k : Nat) (hk : k < ps.length),
+    ¬ (MultiImpFailFrag r ∧ 0 < k) → (0 < k ∨ ¬ FirstCoreFrag' r) →
+    Binary.parseComponent b = .ok c → decodeRef b = .ok r → (∃ ct, Valid Features.p2 r ct) →
+    HostWired r → c.imports = hostI → c.nodes = coreNodes ps →
+    (∀ j (hj : j < k), NodeQuiet hostI.length .ready (ps[j]'(by omega)).1 (ps[j]'(by omega)).2) →
+    NodeQuiet hostI.length (.fail ()) ps[k].1 ps[k].2 →
+    InstResult.traps ∈
+      instBehaviours first.prof (Host.ofEmbedder embL) hostConfigX r (importArgs hostI)
+
 end Silmaril.Wasm.Component.DecoderBridge

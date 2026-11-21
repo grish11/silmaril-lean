@@ -125,7 +125,7 @@ theorem run_store (s : Store H) (f : Silmaril.Wasm.Execution.Core.Frame) (rest :
   have e3 : writeBytes mi.bytes (x.toNat + arg.offset.val) (encodeLE 4 v.toNat) =
       some ((encodeLE 4 v.toNat).copySlice 0 mi.bytes (x.toNat + arg.offset.val)
         (encodeLE 4 v.toNat).size) := by
-    simp only [writeBytes, hbound, ↓reduceIte]
+    simp only [writeBytes, hbound, ↓reduceIte, writeSlice_eq]
   obtain ⟨b, hb⟩ : ∃ b, store mi.bytes (x.toNat + arg.offset.val) (count := IntType.i32.width / 8)
       (v.setWidth (8 * (IntType.i32.width / 8))) = some b := ⟨_, e1.trans e3⟩
   have hb4 : store mi.bytes (x.toNat + arg.offset.val) (count := 4) v = some b :=

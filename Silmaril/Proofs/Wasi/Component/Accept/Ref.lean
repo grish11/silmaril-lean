@@ -6,7 +6,8 @@ public import Silmaril.Wasm.Component.Reference.Embedding.Thms
 public import Silmaril.Wasm.Component.Reference.Machine.Soundness.Thms
 
 /-! Proofs for `Silmaril.Wasi.Component.Accept.Ref.Thms`: the executable acceptor driver is
-sound for `Accepted`. -/
+sound for `RecordsWith`, for every environment policy; policy monotonicity; the bytes
+systems. -/
 
 @[expose] public section
 
@@ -67,75 +68,103 @@ theorem untilLoop_env (c : CallId) (n : Nat) (st : o.State) (m : Config E Accept
       · exact ⟨[], by simp [Conformance.untilLoop, hd, e, w], by simp⟩
 
 omit [∀ a b, Decidable (E.ExternSub a b)] in
-theorem envLabel_of {es : List (String × FuncId)} {l : Label E AcceptSt}
-    (h : (∀ ev, l ≠ .host ev) ∨ l = .host .tick) : EnvLabel es l := by
+theorem envMove_of {allowed : FuncId → List Value.Val → Prop} {l : Label E AcceptSt}
+    (h : (∀ ev, l ≠ .host ev) ∨ l = .host .tick) : EnvMove allowed l := by
   rcases h with h | rfl
   · cases l with
     | host ev => exact absurd rfl (h ev)
     | _ => trivial
   · trivial
 
-theorem mem_snd_of_lookup {es : List (String × FuncId)} {name : String} {f : FuncId}
-    (h : es.lookup name = some f) : f ∈ es.map Prod.snd := by
-  induction es with
-  | nil => simp at h
-  | cons p es ih =>
-    obtain ⟨n', f'⟩ := p
-    by_cases hn : name = n'
-    · subst hn; simp [List.lookup] at h; subst h; simp
-    · have : es.lookup name = some f := by
-        have hb : (name == n') = false := beq_false_of_ne hn
-        simpa [List.lookup, hb] using h
-      exact List.mem_cons_of_mem _ (ih this)
-
-/-- `runCalls` is a run of environment moves. -/
-theorem runCalls_sound (fuel : Nat) (es : List (String × FuncId)) :
+/-- `runCallsWith` is a run of moves of the policy `P`. -/
+theorem runCallsWith_sound (P : EnvPolicy E) (fuel : Nat) (m₁ : Config E AcceptSt)
+    (es : List (String × FuncId)) :
     ∀ (k : Nat) (calls : List (String × List Value.Val)) (m m' : Config E AcceptSt),
-      runCalls X o fuel es k calls m = some m' →
-      ∃ tr, Steps o.prof noReady dispatch m tr m' ∧ ∀ l ∈ tr, EnvLabel es l
+      runCallsWith X o P fuel m₁ es k calls m = some m' →
+      ∃ tr, Steps o.prof noReady dispatch m tr m' ∧ ∀ l ∈ tr, P.Label m₁ es l
   | _, [], m, m', h => by
-    simp only [runCalls, Option.some.injEq] at h
+    simp only [runCallsWith, Option.some.injEq] at h
     exact ⟨[], h ▸ .refl _, by simp⟩
   | k, (name, args) :: rest, m, m', h => by
-    simp only [runCalls, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
-    obtain ⟨f, hf, r, hr, hrest⟩ := h
-    obtain ⟨tr, h₁, h₂⟩ := runCalls_sound fuel es (k + 1) rest r.config m' hrest
-    have hs := Conformance.callUntil_sound noReady dispatch X o (fun _ => false) (pure .unit) hr
-    unfold Conformance.callUntil at hr
-    cases e : hostStep? noReady (.invoke ⟨k⟩ f args) m with
-    | none => simp [e] at hr
-    | some p =>
-      obtain ⟨l, m₁⟩ := p
-      have hl : l = .host (.invoke ⟨k⟩ f args) := hostStep?_label e
-      have hr' : Conformance.untilLoop noReady dispatch X o (fun _ => false) (pure .unit) ⟨k⟩
-          fuel o.state m₁ [l] = r := by simpa [e] using hr
-      obtain ⟨tr', h₃, h₄⟩ := untilLoop_env X o ⟨k⟩ fuel o.state m₁ [l]
-      rw [hr'] at h₃
-      refine ⟨r.labels ++ tr, steps_append hs h₁, ?_⟩
-      intro l' hl'
-      rcases List.mem_append.mp hl' with hl' | hl'
-      · rw [h₃] at hl'
-        rcases List.mem_cons.mp hl' with rfl | hl'
-        · rw [hl]; exact mem_snd_of_lookup hf
-        · exact envLabel_of (h₄ l' (by simpa using hl'))
-      · exact h₂ l' hl'
+    simp only [runCallsWith, Option.bind_eq_bind, Option.bind_eq_some_iff] at h
+    obtain ⟨f, _, h⟩ := h
+    by_cases ht : P.check m₁ es f args = true
+    · simp only [ht, ↓reduceIte, Option.bind_eq_some_iff] at h
+      obtain ⟨r, hr, hrest⟩ := h
+      obtain ⟨tr, h₁, h₂⟩ := runCallsWith_sound P fuel m₁ es (k + 1) rest r.config m' hrest
+      have hs := Conformance.callUntil_sound noReady dispatch X o (fun _ => false) (pure .unit) hr
+      unfold Conformance.callUntil at hr
+      cases e : hostStep? noReady (.invoke ⟨k⟩ f args) m with
+      | none => simp [e] at hr
+      | some p =>
+        obtain ⟨l, m₂⟩ := p
+        have hl : l = .host (.invoke ⟨k⟩ f args) := hostStep?_label e
+        have hr' : Conformance.untilLoop noReady dispatch X o (fun _ => false) (pure .unit) ⟨k⟩
+            fuel o.state m₂ [l] = r := by simpa [e] using hr
+        obtain ⟨tr', h₃, h₄⟩ := untilLoop_env X o ⟨k⟩ fuel o.state m₂ [l]
+        rw [hr'] at h₃
+        refine ⟨r.labels ++ tr, steps_append hs h₁, ?_⟩
+        intro l' hl'
+        rcases List.mem_append.mp hl' with hl' | hl'
+        · rw [h₃] at hl'
+          rcases List.mem_cons.mp hl' with rfl | hl'
+          · rw [hl]; exact P.check_sound _ _ _ _ ht
+          · exact envMove_of (h₄ l' (by simpa using hl'))
+        · exact h₂ l' hl'
+    · simp [ht] at h
 
-/-- **Soundness of `acceptRun`**: a recorded byte list is accepted. -/
-theorem acceptRun_sound {fuel : Nat} {c : Syntax.Component E.Module}
-    {calls : List (String × List Value.Val)} {st : AcceptSt}
-    (h : acceptRun X o fuel c calls = some st) {w : List UInt8} (hw : [bytesVal w] ∈ st) :
-    Accepted o.prof c w := by
-  unfold acceptRun at h
+/-- **Soundness of the executable driver**, for every policy and every `accept` type: an
+argument list recorded by `acceptRunWith` is recorded in `RecordsWith`. -/
+theorem recordsWith_of_run (P : EnvPolicy E) {fuel : Nat} {c : Syntax.Component E.Module}
+    {calls : List (String × List Value.Val)} {ft : WIT.FuncType Empty RtId} {st : AcceptSt}
+    (h : acceptRunWith X o P fuel c calls ft = some st) {args : List Value.Val}
+    (hw : args ∈ st) : RecordsWith P ft o.prof c args := by
+  unfold acceptRunWith at h
   simp only [Option.bind_eq_bind, Option.bind_eq_some_iff] at h
   obtain ⟨⟨l, m₁⟩, h₁, ⟨inst, es⟩, h₂, m, h₃, h₄⟩ := h
-  have hl : l = .host (.run (acceptLinkedProg c)) := hostStep?_label h₁
+  have hl : l = .host (.run (acceptLinkedProgAt ft c)) := hostStep?_label h₁
   have hs₁ := Machine.hostStep?_sound o.prof noReady dispatch h₁
   have hrun := Machine.run_sound noReady dispatch X o fuel m₁
-  obtain ⟨tr, htr, henv⟩ := runCalls_sound X o fuel es 0 calls _ m h₃
+  obtain ⟨tr, htr, henv⟩ := runCallsWith_sound X o P fuel _ es 0 calls _ m h₃
   refine ⟨_, _, inst, es, tr, m, ?_, run_noHost noReady dispatch X o fuel m₁, h₂, htr,
     henv, ?_⟩
   · rw [← hl]; exact .cons hs₁ hrun
   · have h₅ : m.host = st := Option.some.inj h₄
     exact h₅ ▸ hw
+
+omit [∀ a b, Decidable (E.ExternSub a b)] in
+theorem envMove_mono {a b : FuncId → List Value.Val → Prop} (hab : ∀ f args, a f args → b f args)
+    {l : Label E AcceptSt} (h : EnvMove a l) : EnvMove b l := by
+  cases l with
+  | host ev => cases ev <;> first | exact hab _ _ h | trivial
+  | _ => trivial
+
+/-- **Policy monotonicity**: a larger environment records more. -/
+theorem recordsWith_mono {P Q : EnvPolicy E} (hPQ : P ≤ Q) {ft : WIT.FuncType Empty RtId}
+    {prof : ProfileKind} {c : Syntax.Component E.Module} {args : List Value.Val}
+    (h : RecordsWith P ft prof c args) : RecordsWith Q ft prof c args :=
+  let ⟨tr₀, m₁, inst, es, tr, m₂, h₁, h₂, h₃, h₄, h₅, h₆⟩ := h
+  ⟨tr₀, m₁, inst, es, tr, m₂, h₁, h₂, h₃, h₄,
+    fun l hl => envMove_mono (hPQ m₁ es) (h₅ l hl), h₆⟩
+
+theorem bytesSystemWith_of_decode {P : EnvPolicy Eng} {prof : ProfileKind} {b : ByteArray}
+    {w : List UInt8} {a : RefAcceptor prof} (h : decodeValid b = some a) :
+    bytesSystemWith P prof b w ↔ AcceptedWith P prof a.comp w :=
+  ⟨fun ⟨_, ha', hw⟩ => by
+      obtain ⟨a'', h'', rfl⟩ := Option.map_eq_some_iff.mp ha'
+      rw [h] at h''; cases h''; exact hw,
+    fun hw => ⟨⟨a.comp⟩, by simp [h], hw⟩⟩
+
+theorem bytesSystemWith_of_decode_none {P : EnvPolicy Eng} {prof : ProfileKind} {b : ByteArray}
+    {w : List UInt8} (h : decodeValid (prof := prof) b = none) : ¬ bytesSystemWith P prof b w :=
+  fun ⟨_, ha, _⟩ => by simp [h] at ha
+
+theorem bytesSystemWith_iff {P : EnvPolicy Eng} {prof : ProfileKind} {b : ByteArray}
+    {w : List UInt8} : bytesSystemWith P prof b w ↔
+      ∃ a : RefAcceptor prof, decodeValid b = some a ∧ AcceptedWith P prof a.comp w := by
+  refine ⟨fun h => ?_, fun ⟨_, ha, hw⟩ => (bytesSystemWith_of_decode ha).2 hw⟩
+  cases hd : decodeValid (prof := prof) b with
+  | none => exact absurd h (bytesSystemWith_of_decode_none hd)
+  | some a => exact ⟨a, rfl, (bytesSystemWith_of_decode hd).1 h⟩
 
 end Silmaril.Proofs.Wasi.Component.Accept.Ref

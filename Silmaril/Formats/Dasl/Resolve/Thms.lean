@@ -25,10 +25,14 @@ theorem Expands.shallow_eq {source : Shallow Name} {target : Named Name}
     (expanded : Expands store source target) : target.embed.shallow = source :=
   Proofs.Formats.Dasl.expands_shallow expanded
 
+theorem Expands.bindings_subset {source : Shallow Name} {target : Named Name}
+    (expanded : Expands store source target) : target.embed.bindings.Subset store :=
+  Proofs.Formats.Dasl.expands_bindings expanded
+
 theorem FullNames.toPartial {root : Name} {target : Named Name} (present : FullNames store root target) :
     PartialNames store root target.embed := by
   obtain ⟨source, hit, expanded⟩ := present
-  exact ⟨expanded.shallow_eq.symm ▸ hit, Proofs.Formats.Dasl.expands_bindings expanded⟩
+  exact ⟨expanded.shallow_eq.symm ▸ hit, expanded.bindings_subset⟩
 
 theorem FullNames.mono {extended : Store Name} (incl : store.Subset extended)
     {root : Name} {target : Named Name} (present : FullNames store root target) :

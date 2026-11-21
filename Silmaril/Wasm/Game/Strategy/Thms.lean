@@ -54,6 +54,17 @@ theorem mem_strategy_iff {P : Profile} {s : Store Nat} {p : List (Move I.E I.F)}
 theorem denotes (P : Profile) (s : Store Nat) : (I.lts P s).Denotes (I.strategy P s) :=
   Silmaril.Proofs.Wasm.Game.ScalarInstance.denotes P s
 
+/-- Given a visible move, its destination is unique in a deterministic profile. -/
+theorem Trans.functional {o : GrowOracle} {q left right : I.HState} {move : Move I.E I.F}
+    (first : I.Trans (profile o) q move left) (second : I.Trans (profile o) q move right) : left = right :=
+  Silmaril.Proofs.Wasm.Game.ScalarInstance.Trans.functional first second
+
+/-- In a deterministic profile the program cannot choose between different next moves. -/
+theorem Trans.player_unique {o : GrowOracle} {q left right : I.HState} {move other : Move I.E I.F}
+    (first : I.Trans (profile o) q move left) (second : I.Trans (profile o) q other right)
+    (player : move.IsP) : move = other :=
+  Silmaril.Proofs.Wasm.Game.ScalarInstance.Trans.player_unique first second player
+
 /-- The strategy is monotone in the profile: if every host-free step of `P` is one of `Q`,
 then every play under `P` is a play under `Q`. -/
 theorem strategy_mono {P Q : Profile}

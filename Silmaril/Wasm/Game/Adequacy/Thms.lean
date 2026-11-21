@@ -78,6 +78,15 @@ open Silmaril.Games Silmaril Silmaril.Wasm Silmaril.Wasm.Execution.Core Silmaril
 
 variable {I : ScalarInstance}
 
+/-- Replaying a typed game reply at its Core callout preserves thread typing.
+The answer does not replace the store; thrown addresses must already exist. -/
+theorem resume_answer_typed (P : Profile) {s : Store Nat} {t : Thread} {ts : List Validation.CValType}
+    {h : Nat} {args : List Val} {e : I.E.Op} (hw : I.WellFormed s) (ht : ThreadOk s t ts)
+    (hc : CalloutAt s t h args) (hop : I.importOp? h args = some e) (v : I.E.Ar e)
+    (hv : Answer.ThrowsBelow s.exns.length v) :
+    ThreadOk s (resumeResult s t (Answer.toResult (ft := I.imports.get e.1) v)) ts :=
+  Silmaril.Proofs.Wasm.Game.ScalarInstance.resume_answer_typed P hw ht hc hop v hv
+
 /-- **Game to operations.** An answer of the closed program comes from a finite Core run
 under the induced host to a result. -/
 theorem run_of_answer {P : Profile} {s : Store Nat} {K : Env I.E} {f : I.F.Op}
