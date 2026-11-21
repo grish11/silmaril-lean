@@ -1001,7 +1001,7 @@ theorem sumPathsFrom {destination : RecordDestination} {inst : InstId}
       | none => visit
       | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
           (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) := by
-  obtain ⟨store, result, lhsLabels, rhsLabels, lhsRun, rhsRun, same, tail⟩ := run
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhsRun, rhsRun, same, _, tail⟩ := run
   cases result with
   | error reason =>
     obtain ⟨prefixLabels, trapped⟩ := tail

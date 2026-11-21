@@ -226,13 +226,15 @@ theorem memory_sum_tag_between {reference : Call (core3 grow) → Session grow s
     (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
-      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext))
+    (trackOccurrences : Bool := false) :
     let address := sumPayloadAddress destination.width arms base
     LocalCutKeepingBetween profile ready dispatch reference (fun store => Core3.Grows origin.core store.core) left right check canon
       (sumCheckedNext destination inst selected index address checkNext)
-      (sumCanonicalNext destination inst selected address canonNext) :=
+      (sumCanonicalNext destination inst selected address canonNext) trackOccurrences :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagBetween
     destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
+    trackOccurrences
 
 /-- The handle leaf in a placed memory entry has no allocator or width-read
 prefix of its own. It rechecks live authority at the reached store. -/

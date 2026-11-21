@@ -233,13 +233,13 @@ theorem localAppend {before middle finish leading trailing}
   | refl => exact back
   | cons focus step _ ih => exact .cons focus step (ih back)
 
-private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → Prop} {reference : Call E → P E Host (Ret E)}
+private theorem closedCutOccurrencesBetween {body : P E Host Result} {keep : CStore E → Prop} {reference : Call E → P E Host (Ret E)}
     (closed : Prog.Every (ClosedOp profile keep) body) :
     ∀ (left right : Config E Host) (check canon : Cursor (E := E) Host)
       (checkNext canonNext : Result → P E Host (Ret E)),
       keep right.store → left.store = right.store → check.thread = canon.thread →
       left.ctl = check.control (body >>= checkNext) → right.ctl = canon.control (body >>= canonNext) →
-      LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext := by
+      LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext true := by
   induction closed with
   | pure value =>
     intro left right check canon checkNext canonNext kept same _ checkAt canonAt
@@ -249,13 +249,16 @@ private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → P
     have canonEnd : localLeafEnd right right.host right.store canon.thread canon.frames canon.rest canonNext (.ok value) = right := by
       cases right
       simp_all only [localLeafEnd, Cursor.control, Prog.bind_eq, Prog.pure_bind']
-    refine ⟨right.store, .ok value, [], [], by rw [checkEnd]; exact .refl _, by rw [canonEnd]; exact .refl _, rfl, kept, ?_, ?_⟩
+    refine ⟨right.store, .ok value, [], [], by rw [checkEnd]; exact .refl _, by rw [canonEnd]; exact .refl _, rfl, ⟨kept, ?_, ?_⟩, ?_⟩
     · intro depth
       rw [checkEnd]
       exact .done _ (.active 0 depth)
     · intro depth
       rw [canonEnd]
       exact .done _ (.active 0 depth)
+    · intro mark
+      rw [checkEnd, canonEnd]
+      exact ⟨.done _ mark, .done _ mark⟩
   | @op operation next admitted _ ih =>
     intro left right check canon checkNext canonNext kept same thread checkAt canonAt
     have advance (label : Label E Host) (response : (Eff E Host).Resp operation)
@@ -267,8 +270,8 @@ private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → P
         (localFocus : LocalFocus right)
         (checkEdit : ReturnFrame.Occurrence.transitionEdit left label = .same)
         (canonEdit : ReturnFrame.Occurrence.transitionEdit right label = .same) :
-        LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext := by
-      obtain ⟨store, result, chk, ref, runChk, runRef, labels, outcome⟩ :=
+        LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext true := by
+      obtain ⟨store, result, chk, ref, runChk, runRef, labels, outcome, trails⟩ :=
         ih response { left with store := leftStore, ctl := check.control (next response >>= checkNext) }
           { right with store := rightStore, ctl := canon.control (next response >>= canonNext) }
           check canon checkNext canonNext kept same thread rfl rfl
@@ -278,7 +281,7 @@ private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → P
         intro start localStore ctl cursor finish
         cases result <;> rfl
       rw [final] at runChk runRef
-      refine ⟨store, result, label :: chk, label :: ref, .cons checked runChk, .cons localFocus canonical runRef, ?_, ?_⟩
+      refine ⟨store, result, label :: chk, label :: ref, .cons checked runChk, .cons localFocus canonical runRef, ?_, ?_, ?_⟩
       · change visible ([label] ++ chk) = visible ([label] ++ ref)
         rw [visible_append, visible_append, labels]
       · cases result with
@@ -298,6 +301,11 @@ private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → P
           refine ⟨visible [label] ++ leading, ?_⟩
           change visible ([label] ++ ref) = _
           rw [visible_append, last, List.append_assoc]
+      · intro mark
+        obtain ⟨lhs, rhs⟩ := trails mark
+        rw [final] at lhs rhs
+        exact ⟨.step checked (by rw [checkEdit]; cases mark <;> exact lhs),
+          .step canonical (by rw [canonEdit]; cases mark <;> exact rhs)⟩
     cases operation with
     | get =>
       exact advance .tau right.store left.store right.store kept same
@@ -318,15 +326,36 @@ private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → P
         (by rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl) (by rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl)
     | trap reason =>
       refine ⟨right.store, .error reason, [.trap reason], [.trap reason], ?_,
-        .cons (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) (.trap canonAt) (.refl _), rfl, [], rfl⟩
-      rw [← same]
-      exact .cons (.trap checkAt) (.refl _)
+        .cons (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) (.trap canonAt) (.refl _), rfl, ⟨[], rfl⟩, ?_⟩
+      · rw [← same]
+        exact .cons (.trap checkAt) (.refl _)
+      · intro mark
+        have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
+            StepDefs.trapCfg left := by rw [← same]; rfl
+        have cleared (state : Config E Host) : mark.bind (ReturnFrame.Occurrence.transitionEdit state (.trap reason)).follow =
+            localOccurrenceEnd (.error (α := Result) reason) mark := by
+          rcases mark with _ | ⟨place⟩
+          · rfl
+          · cases place <;> rfl
+        rw [leftEnd, ← cleared left]
+        exact ⟨.step (.trap checkAt) (.done _ _), .step (.trap canonAt) (.done _ _)⟩
     | choose choice =>
       obtain ⟨answer, allowed⟩ := admitted
       exact advance (.choice choice answer) answer left.store right.store kept same
         (.choose answer checkAt allowed) (.choose answer canonAt allowed)
         (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) rfl rfl
     | _ => contradiction
+
+private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → Prop} {reference : Call E → P E Host (Ret E)}
+    (closed : Prog.Every (ClosedOp profile keep) body)
+    (left right : Config E Host) (check canon : Cursor (E := E) Host)
+    (checkNext canonNext : Result → P E Host (Ret E))
+    (kept : keep right.store) (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (checkAt : left.ctl = check.control (body >>= checkNext)) (canonAt : right.ctl = canon.control (body >>= canonNext)) :
+    LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext := by
+  obtain ⟨store, result, lhs, rhs, checkRun, canonRun, seen, outcome, _⟩ :=
+    closedCutOccurrencesBetween closed left right check canon checkNext canonNext kept same thread checkAt canonAt
+  exact ⟨store, result, lhs, rhs, checkRun, canonRun, seen, outcome⟩
 
 private theorem closedCut {body : P E Host Result} {keep : CStore E → Prop}
     (closed : Prog.Every (ClosedOp profile keep) body) :
@@ -689,12 +718,13 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
     (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
-      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext))
+    (trackOccurrences : Bool := false) :
     let address := sumPayloadAddress destination.width arms base
     LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference
       (fun store => Core3.Grows origin.core store.core) left right check canon
       (sumCheckedNext destination inst selected index address checkNext)
-      (sumCanonicalNext destination inst selected address canonNext) := by
+      (sumCanonicalNext destination inst selected address canonNext) trackOccurrences := by
   intro address
   let cx := destination.context (grow := grow) inst
   let body : Session grow sig Unit := storeInt cx tag base (discSize arms.length)
@@ -740,7 +770,7 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
     (keep := fun store => Core3.Grows origin.core store.core)
     (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
     cx tag base (discSize arms.length)
-  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status⟩ := closedCutBetween (profile := profile)
+  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status, trails⟩ := closedCutOccurrencesBetween (profile := profile)
     (ready := scheduledReady) (dispatch := scheduledDispatch) (reference := reference) localBody
     left entered check canon checked (resumed destination.width)
     growth same thread checkBody rfl
@@ -749,15 +779,31 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
   rw [final] at runRef
   refine ⟨store, result, chk, .tau :: ref, runChk, .cons ?_ read runRef, labels, ?_⟩
   · simp only [LocalFocus, focus, Cursor.control]
-  · cases result with
-    | error _ => exact status
-    | ok _ =>
-      obtain ⟨kept, checkTrack, canonTrack⟩ := status
-      refine ⟨kept, checkTrack, ?_⟩
-      intro depth
-      have tracked := canonTrack depth
-      rw [final] at tracked
-      exact .step read (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl) tracked
+  · have observed : match result with
+        | .ok value => Core3.Grows origin.core store.core ∧
+            RetainsActiveSlots profile scheduledReady scheduledDispatch left chk
+              (localLeafEnd left left.host store check.thread check.frames check.rest checked (.ok value)) ∧
+            RetainsActiveSlots profile scheduledReady reference right (.tau :: ref)
+              (localLeafEnd right right.host store canon.thread canon.frames canon.rest (resumed destination.width) (.ok value))
+        | .error reason => ∃ leading, visible ref = leading ++ [.trap reason] := by
+      cases result with
+      | error _ => exact status
+      | ok _ =>
+        obtain ⟨kept, checkTrack, canonTrack⟩ := status
+        refine ⟨kept, checkTrack, ?_⟩
+        intro depth
+        have tracked := canonTrack depth
+        rw [final] at tracked
+        exact .step read (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl) tracked
+    cases trackOccurrences with
+    | false => cases result <;> exact observed
+    | true =>
+      refine ⟨?_, ?_⟩
+      · cases result <;> exact observed
+      · intro mark
+        obtain ⟨lhs, rhs⟩ := trails mark
+        rw [final] at rhs
+        exact ⟨lhs, .step read (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; cases mark <;> exact rhs)⟩
 
 theorem memoryHandleLeaf (destination : RecordDestination) (inst : InstId) (field : Field) (index ptr : Nat)
     (fragment : CanonicalHandle field) :

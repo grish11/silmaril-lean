@@ -2226,13 +2226,14 @@ private theorem liveSumRule (destination : RecordDestination) (inst : InstId) (t
         left right check canon) older origin destination inst (.sum type arms tag selected) address := by
   intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
   have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width := frame.store ▸ width
-  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, observed, cut⟩ :=
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, observed, cut, occurrences⟩ :=
     memory_sum_tag_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type arms tag index address selected
       left.store left right check canon checkNext canonNext frame.store frame.thread
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt])
-      (frame.store ▸ Core3.Grows.refl left.store.core) checkAt canonAt
-  refine ⟨store, result, lhsLabels, rhsLabels, lhs, rhs.steps, observed, ?_⟩
+      (frame.store ▸ Core3.Grows.refl left.store.core) checkAt canonAt true
+  refine ⟨store, result, lhsLabels, rhsLabels, lhs, rhs.steps, observed,
+    fun mark => ⟨_, (occurrences mark).1, (occurrences mark).2⟩, ?_⟩
   cases result with
   | error reason => exact cut
   | ok value =>

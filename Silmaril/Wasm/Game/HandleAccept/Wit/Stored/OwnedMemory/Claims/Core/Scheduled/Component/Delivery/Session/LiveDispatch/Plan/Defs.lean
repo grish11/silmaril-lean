@@ -1309,6 +1309,7 @@ def LiveSumThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest rhsNext result
     Steps profile ready checked left lhsLabels lhs ∧ Steps profile ready canonical right rhsLabels rhs ∧
     visible lhsLabels = visible rhsLabels ∧
+    CoupledOccurrencePaths profile ready base bindings left right lhsLabels rhsLabels lhs rhs ∧
     match result with
     | .error reason => ∃ leading, visible rhsLabels = leading ++ [.trap reason]
     | .ok () => RetainsActiveSlots profile ready checked left lhsLabels lhs ∧

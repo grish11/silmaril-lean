@@ -307,20 +307,21 @@ inductive LocalSteps {E : CoreEngine} {Host : Type} (profile : ProfileKind) (rea
 handle-only cut, it permits synchronized observations such as NaN choices. -/
 def LocalCutKeepingBetween {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
     (dispatch reference : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
-    (check canon : Cursor (E := E) Host) (checkNext canonNext : Result → P E Host (Ret E)) : Prop :=
+    (check canon : Cursor (E := E) Host) (checkNext canonNext : Result → P E Host (Ret E))
+    (trackOccurrences : Bool := false) : Prop :=
   ∃ (store : CStore E) (result : Except TrapReason Result) (checked canonical : List (Label E Host)),
-    Steps profile ready dispatch left checked
-      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
-    LocalSteps profile ready reference right canonical
-      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest checkNext result
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
+    Steps profile ready dispatch left checked lhs ∧ LocalSteps profile ready reference right canonical rhs ∧
     visible checked = visible canonical ∧
-    match result with
-    | .ok _ => keep store ∧
-        ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left checked
-          (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
-        ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right canonical
-          (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result)
-    | .error reason => ∃ leading, visible canonical = leading ++ [.trap reason]
+    let outcome := match result with
+      | .ok _ => keep store ∧ ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left checked lhs ∧
+          ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right canonical rhs
+      | .error reason => ∃ leading, visible canonical = leading ++ [.trap reason]
+    if trackOccurrences then outcome ∧ ∀ mark,
+      ReturnFrame.Occurrence.Trail profile ready dispatch left mark checked lhs (localOccurrenceEnd result mark) ∧
+      ReturnFrame.Occurrence.Trail profile ready reference right mark canonical rhs (localOccurrenceEnd result mark)
+    else outcome
 
 abbrev LocalCutKeeping {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
     (dispatch : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
