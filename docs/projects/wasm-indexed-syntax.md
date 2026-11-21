@@ -83,8 +83,9 @@ Wasm1–Lime–Core syntax path, checks a two-result Lime export, passes its Cor
 image through the real reifier and `ModuleParts`, and exercises a Core feature
 inclusion and a counterexample to forgetting a nonunique index. It also checks
 the erasure and validity of a typed export with float parameters and a float
-result, invokes it with the native Lime interpreter at both widths, and rejects
-mixed-width arithmetic and an incorrect conversion result type.
+result, invokes it with the native Lime interpreter at both widths (including
+signed-zero arithmetic, unordered NaN comparison, and saturating conversion),
+and rejects mixed-width arithmetic and an incorrect conversion result type.
 
 ```sh
 make check CHECK_TARGETS=+Silmaril.Wasm.Profiles.Syntax.LimeScalar.Thms
