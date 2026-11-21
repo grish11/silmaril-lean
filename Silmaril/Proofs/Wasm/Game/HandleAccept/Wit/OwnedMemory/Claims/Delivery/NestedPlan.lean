@@ -20,6 +20,7 @@ import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
 
 public section
 
@@ -854,5 +855,81 @@ theorem pairedLocalDataGive {route : GiveEffectRoute} (site : PayloadRoot.Site g
   refine ⟨_, _, checked, canonical, source plan, append installed replay, aligned, ?_, ?_⟩
   · rw [visibleAppend, visibleAppend, silent, silentVisible silentEntry, List.nil_append, List.nil_append, seen]
   · rw [checkRoots, bodyHost, entryHost, roots]
+
+theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)}
+    (family : RecursiveGiveDomain selection)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree) :
+    ReachedRecursiveGive profile ready callees selection older incoming := by
+  cases preflight : selection.preflight with
+  | error issue =>
+    obtain ⟨count, checked⟩ := selection.compiler_refusal (profile := profile) (ready := ready) preflight
+      (ComponentCall.hostWithComponent bindings callees) rfl
+    have reads : ∀ handle, request.lookupDemand = some handle →
+        Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle := by
+      intro handle demand
+      rw [selection.lookup_demand] at demand
+      cases demand
+      exact selection.selected.trans selected.symm
+    obtain ⟨_, _, silent, canonical, kept, pending⟩ := selection.paired_canonical_pending_host
+      (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) paired reads
+    exact .refused preflight checked (silentVisible silent) canonical pending kept
+  | ok result =>
+    obtain ⟨field, plan⟩ := result
+    obtain ⟨tag, payload, arity, children, picked, linked⟩ := selection.compiler_success preflight
+    have supported := family tag payload arity children field plan picked preflight
+    have liveRoot : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted
+        (selection.site tag payload arity children field).handle = some (selection.site tag payload arity children field).tree :=
+      selected.trans (congrArg some picked)
+    refine .compiled preflight picked linked ?_
+    cases route with
+    | memory pointer => exact CallbackRange.linkedMemoryRejoinPaths _ linked supported paired liveRoot rfl
+    | flat schema => exact CallbackRange.linkedFlatAggregateRejoinPaths _ linked supported paired liveRoot rfl
+
+theorem recursiveGiveAfterCallback {route : GiveEffectRoute} {request : CoreGiveRequest bindings finish}
+    (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {protectedReturn}
+    (path : ClosedCallbackPrefix bindings profile ready (ComponentCall.hostWithComponent bindings callees)
+      protectedReturn start labels finish)
+    (covers : ∀ first second, older first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (family : RecursiveGiveDomain selection) :
+    ∃ checkedLabels canonLabels reached,
+      Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start checkedLabels finish ∧
+      Steps profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming canonLabels reached ∧
+      PayloadPrefix.visible checkedLabels = labels ∧ PayloadPrefix.visible canonLabels = labels ∧
+      HostFrame.Related.Paired older finish reached ∧
+      (Stored.Endpoints.Core.childFromHistory start.host.writer.accepted selection.handle =
+        Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle →
+        ReachedRecursiveGive profile ready callees selection older reached) ∧
+      (ReachedRecursiveGive profile ready callees selection older reached ∨
+        Stored.Endpoints.Core.childFromHistory reached.host.writer.accepted selection.handle ≠ some selection.tree) := by
+  obtain ⟨checkedLabels, canonLabels, reached, checked, canonical, aligned, checkSeen, canonSeen, _, checkRoots, canonRoots⟩ :=
+    CallbackPrefix.replay path rfl covers paired
+  refine ⟨checkedLabels, canonLabels, reached, checked, canonical, checkSeen, canonSeen, aligned, ?_, ?_⟩
+  · intro earlier
+    apply reachedRecursiveGive selection family aligned
+    rw [canonRoots, ← earlier, ← checkRoots]
+    exact selection.selected
+  · by_cases selected : Stored.Endpoints.Core.childFromHistory reached.host.writer.accepted selection.handle = some selection.tree
+    · exact .inl (reachedRecursiveGive selection family aligned selected)
+    · exact .inr selected
+
+theorem recursiveGiveAfterInterleaving {route : GiveEffectRoute} {request : CoreGiveRequest bindings finish}
+    (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {actions prior outgoing}
+    (between : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      start prior actions labels finish outgoing)
+    (roots : prior.writer.accepted = start.host.writer.accepted) (family : RecursiveGiveDomain selection) :
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish ∧
+    Steps profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      (HostFrame.replace start prior) labels (HostFrame.replace finish outgoing) ∧
+    ReachedRecursiveGive profile ready callees selection (fun _ _ => False) (HostFrame.replace finish outgoing) := by
+  obtain ⟨paired, reachedRoots⟩ := LiveDispatch.interleaving_paired_roots between roots
+  refine ⟨between.runs.1.steps, LiveDispatch.interleaving_steps between, reachedRecursiveGive selection family paired ?_⟩
+  change Stored.Endpoints.Core.childFromHistory outgoing.writer.accepted selection.handle = some selection.tree
+  rw [reachedRoots]
+  exact selection.selected
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

@@ -2310,4 +2310,45 @@ inductive ReachedGiveAdmission (profile : ProfileKind) (ready : HostReady (HostS
       (linked : (selection.site tag payload arity children field).Linked bindings)
       (exit : LinkedRootExit bindings profile ready callees route (selection.site tag payload arity children field))
 
+/-- The recursive body and caller paths for whichever ABI the live selector
+chose. This does not require an allocator return or a caller reply. -/
+def RecursiveGivePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (incoming : Config (core3 grow) (HostState sig)) : (route : GiveEffectRoute) → PayloadRoot.Site grow sig route → Prop
+  | .memory _, site => LinkedMemoryRejoinPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+  | .flat _, site => LinkedFlatAggregateRejoinPaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+
+/-- Compare a give at its actual Core installation. A compiler refusal
+can rejoin only the checked caller; the canonical body has not executed.
+Successful compilation supplies the real checked entry and the recursive
+paths from the live canonical caller, not from a fresh reference host. -/
+inductive ReachedRecursiveGive (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (callees : List (ComponentCall.Callee sig)) {bindings : List (Binding sig)}
+    {start : Config (core3 grow) (HostState sig)} {request : CoreGiveRequest bindings start}
+    {route : GiveEffectRoute} (selection : request.Selected route)
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (incoming : Config (core3 grow) (HostState sig)) : Prop where
+  | refused {issue count leading entered} (preflight : selection.preflight = .error issue)
+      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        start (List.replicate count .tau) (selection.compilerRefused issue))
+      (silent : PayloadPrefix.visible leading = [])
+      (canonical : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming leading entered)
+      (pending : HostFrame.Related.Paired older selection.canonicalPending entered)
+      (unchangedHost : entered.host = incoming.host)
+  | compiled {tag payload arity children field plan} (preflight : selection.preflight = .ok (field, plan))
+      (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
+      (linked : (selection.site tag payload arity children field).Linked bindings)
+      (cut : PayloadRoot.Cut (selection.site tag payload arity children field) profile ready bindings
+        (RecursiveGivePaths profile ready bindings callees older incoming route (selection.site tag payload arity children field))
+        (ComponentCall.hostWithComponent bindings callees))
+
+/-- The comparison domain for a successfully compiled root. A compiler
+refusal does not need the recursive body theorem at all. -/
+def RecursiveGiveDomain {bindings : List (Binding sig)} {start : Config (core3 grow) (HostState sig)}
+    {request : CoreGiveRequest bindings start} {route : GiveEffectRoute} (selection : request.Selected route) : Prop :=
+  ∀ tag payload arity children field plan, selection.tree = .tag ⟨tag, payload⟩ arity children →
+    selection.preflight = .ok (field, plan) → RecursiveCollectionType (sig.payload tag)
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

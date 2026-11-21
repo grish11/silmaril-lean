@@ -1333,6 +1333,13 @@ theorem pendingAfterInterleaving {request : CoreGiveRequest bindings finish} (se
     (fun handle _ => congrArg (fun accepted => Stored.Endpoints.Core.childFromHistory accepted handle) reached.symm)
   exact ⟨leading, entered, silent, append (interleavingSteps between) path, aligned, kept ▸ reached⟩
 
+theorem interleavingPairedRoots {actions labels incoming outgoing}
+    (between : JournalInterleaving profile ready base start incoming actions labels finish outgoing)
+    (roots : incoming.writer.accepted = start.host.writer.accepted) :
+    HostFrame.Related.Paired (fun _ _ => False) finish (HostFrame.replace finish outgoing) ∧
+      outgoing.writer.accepted = finish.host.writer.accepted :=
+  ⟨sameFrames (HostFrame.replace finish outgoing), interleavingRoots between roots⟩
+
 theorem afterRefusal (request : CoreGiveRequest bindings finish)
     (embedder : base.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
     {actions labels incoming outgoing} (between : JournalInterleaving profile ready base start incoming actions labels finish outgoing)

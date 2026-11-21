@@ -1209,4 +1209,58 @@ theorem paired_local_data_give {route : GiveEffectRoute} (site : PayloadRoot.Sit
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.pairedLocalDataGive
     site linked data payload field entryPath silent placed prepared paired roots
 
+/-- A successfully selected Core request can compare its actual recursive
+emitter under the live dispatcher. Only the reached handle lookup must
+agree; the journal, claims, and allocator callbacks need not be identical. -/
+theorem CoreGiveRequest.Selected.recursive_give {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)}
+    (family : RecursiveGiveDomain selection)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree) :
+    ReachedRecursiveGive profile ready callees selection older incoming :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.reachedRecursiveGive
+    selection family paired selected
+
+/-- Compare the actual closed prefix up to a nested Core give, then use
+its reached root to derive the recursive body paths under the same live
+dispatcher. An unequal reached lookup is a boundary, not a type error.
+No equality of entire journals or allocator progress is required. -/
+theorem ClosedCallbackPrefix.recursive_give_or_lookup {route : GiveEffectRoute} {request : CoreGiveRequest bindings finish}
+    (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {protectedReturn}
+    (path : ClosedCallbackPrefix bindings profile ready (ComponentCall.hostWithComponent bindings callees)
+      protectedReturn start labels finish)
+    (covers : ∀ first second, older first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (family : RecursiveGiveDomain selection) :
+    ∃ checkedLabels canonLabels reached,
+      Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start checkedLabels finish ∧
+      Steps profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming canonLabels reached ∧
+      PayloadPrefix.visible checkedLabels = labels ∧ PayloadPrefix.visible canonLabels = labels ∧
+      HostFrame.Related.Paired older finish reached ∧
+      (Stored.Endpoints.Core.childFromHistory start.host.writer.accepted selection.handle =
+        Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle →
+        ReachedRecursiveGive profile ready callees selection older reached) ∧
+      (ReachedRecursiveGive profile ready callees selection older reached ∨
+        Stored.Endpoints.Core.childFromHistory reached.host.writer.accepted selection.handle ≠ some selection.tree) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.recursiveGiveAfterCallback
+    selection path covers paired family
+
+/-- Closed commit, poll, wait, cancel, and tick segments lead to the actual
+next give under the same dispatcher. The lookup is derived at that point
+from the accepted observations at entry, not from an assumed retained event
+or equality of the reached journals. -/
+theorem CoreGiveRequest.Selected.recursive_give_after_interleaving {route : GiveEffectRoute}
+    {request : CoreGiveRequest bindings finish} (selection : request.Selected route)
+    {callees : List (ComponentCall.Callee sig)} {actions prior outgoing}
+    (between : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      start prior actions labels finish outgoing)
+    (roots : prior.writer.accepted = start.host.writer.accepted) (family : RecursiveGiveDomain selection) :
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish ∧
+    Steps profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      (HostFrame.replace start prior) labels (HostFrame.replace finish outgoing) ∧
+    ReachedRecursiveGive profile ready callees selection (fun _ _ => False) (HostFrame.replace finish outgoing) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.recursiveGiveAfterInterleaving
+    selection between roots family
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

@@ -324,6 +324,16 @@ theorem LiveDispatch.interleaving_steps {actions labels incoming outgoing}
       (HostFrame.replace start incoming) labels (HostFrame.replace finish outgoing) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.interleavingSteps between
 
+/-- The classified interleaving reconstructs the same accepted observations
+on the reached counterpart, even when a commit extends the observation list.
+It need not preserve the entry journal, or the entry event and claim state. -/
+theorem LiveDispatch.interleaving_paired_roots {actions labels incoming outgoing}
+    (between : JournalInterleaving profile ready base start incoming actions labels finish outgoing)
+    (roots : incoming.writer.accepted = start.host.writer.accepted) :
+    HostFrame.Related.Paired (fun _ _ => False) finish (HostFrame.replace finish outgoing) ∧
+      outgoing.writer.accepted = finish.host.writer.accepted :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.interleavingPairedRoots between roots
+
 /-- The classified Core, delivery, publication and tick transitions do not install
 an embedder body. Their dispatcher compatibility follows from their constructors,
 not a premise that the two finished runs agree. The reached readiness and root
