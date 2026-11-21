@@ -640,6 +640,36 @@ def CollectionRoot : Stored.TypeOf → Prop
   | .list _ | .map .. => True
   | _ => False
 
+/-- Record either a canonical trap at the reached stores or a continuing
+cursor pair with its original occurrences. Local completion does not choose
+or run a later sibling. -/
+def LocalPathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (seen : Trace grow sig) (offset : Nat)
+    (finish : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) : Prop :=
+  (∃ reason leading lhs rhs,
+    ComparedPaths profile ready base bindings start incoming (seen ++ (leading ++ [.trap reason])) lhs rhs ∧
+    lhs.ctl = [] ∧ rhs.ctl = []) ∨
+  (∃ more lhs rhs check canon,
+    ComparedSlots profile ready base bindings start incoming (seen ++ more) lhs rhs offset ∧
+    lhs.store = rhs.store ∧ finish (seen ++ more) lhs rhs check canon)
+
+/-- A typed live refusal advances only the checked guard; the canonical
+cursor remains at the unexecuted field. Otherwise compare the reached stores
+and continue only on success. -/
+def HandlePathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (seen : Trace grow sig) (offset : Nat)
+    (item : Stored.Endpoints.RecordLower.Field) (index : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig)
+    (finish : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig)
+    (left right : Config (core3 grow) (HostState sig))
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  (∃ issue, liveLeafPlan left.store left.host.writer index item = .error issue ∧
+    let refused := { left with ctl := check.control (checkNext (.error issue)) }
+    ComparedSlots profile ready base bindings start incoming seen refused right offset ∧ refused.store = right.store) ∨
+  LocalPathsThen profile ready base bindings start incoming seen offset finish
+
 /-- A reached map key under the live dispatchers, from field placement
 through the recursive string plan. Only completed plans reach the supplied
 descriptor continuation. -/
@@ -667,6 +697,27 @@ def StringKeyThen (profile : ProfileKind) (ready : HostReady (HostState sig))
       right canonLabels canonBody ∧
     LinkedCallback.ChildFrameOver older checkBody canonBody check canon ∧
     LiveStringReplay profile ready base bindings older cx checked canonical finish plan.steps.length checkBody canonBody check canon
+
+/-- The same string field along a cumulative occurrence path, including each
+finite allocator prefix and the descriptor continuation after actual return. -/
+def StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (address : Nat)
+    (start incoming left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) (seen : Trace grow sig) (offset : Nat) : Prop :=
+  let cx := destination.context inst
+  let plan := storePlanFor Quirks.none destination.encoding destination.width key.value
+  let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width (.memory address) plan pointer >>=
+    fun result => checkNext (.ok result)
+  let canonical := fun pointer => PayloadPrefix.stringPlanTail cx destination.width (.memory address) plan pointer >>= canonNext
+  let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
+  let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
+  LiveStringPaths profile ready base bindings older cx checked canonical start incoming
+    (fun pointer lhs rhs check canon observed => finish pointer observed lhs rhs check canon)
+    plan.steps.length checkBody canonBody check canon seen offset
 
 abbrev StringKeyReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -722,6 +773,36 @@ def LiveStringMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState
                 destination.width value (.memory valuePtr) >>= canonNext) }
               ∃ widthRead, visible widthRead = [] ∧ RetainsActiveSlots profile ready canonDispatch canonEnd widthRead atValue ∧
                 compare value 1 valuePtr checkEnd atValue cursor peer report canonNext finish)
+
+/-- Track a string-key entry from the original caller pair through key
+allocation, descriptor stores and the canonical width read. The value is
+entered only after all three have completed. -/
+def LiveStringMapEntryPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (output : Stored.Lower.Output) (start incoming : Config (core3 grow) (HostState sig))
+    (seen : Trace grow sig) (offset : Nat) (field value : Stored.Endpoints.RecordLower.Field) (index slot : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig)
+    (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  open Stored.Endpoints.RecordLower ABI LinkedCallback.MemorySequence in
+  ∃ key : LinkedCallback.StringField, field = key.field ∧
+    let cx := destination.context inst
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.map .string element) output
+    let keyArea := layout destination.width key.field.type
+    let address := alignTo slot keyArea.alignment
+    let afterKey := address + keyArea.size
+    let valuePtr := alignTo afterKey (layout destination.width value.type).alignment
+    let report := aggregateNext index checkNext
+    let checked := fun verdict : Except Stored.Endpoints.RecordLower.Issue Unit => (match verdict with
+      | .error issue => pure (.error issue)
+      | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width value 1 (.memory valuePtr)) >>= report
+    let canonical := fun () => mapValueProgram destination inst mode value afterKey canonNext
+    StringKeyPaths profile ready base bindings older destination inst key address start incoming left right check canon
+      checked canonical (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset visit)
+      seen offset
 
 def liveCollectionMapEntry (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))

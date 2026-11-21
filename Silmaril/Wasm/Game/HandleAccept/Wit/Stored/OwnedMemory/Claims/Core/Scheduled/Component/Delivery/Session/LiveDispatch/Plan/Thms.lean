@@ -548,6 +548,42 @@ theorem AllocatorMark.string_map_return {route : GiveEffectRoute} (site : Payloa
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedStringMapReturn
     site linked element entries nominal field fits pointer admitted embedder
 
+/-- Track the actual reached nominal guard, spend and store. A refusal
+keeps the canonical field pending; a reached trap keeps earlier effects. -/
+theorem reached_handle_field_paths {item : Field} {index address offset : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (leading : ComparedSlots profile ready base bindings start incoming labels left right offset)
+    (same : left.store = right.store)
+    (run : LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon
+      checkNext canonNext (fun () => finish))
+    (next : ∀ seen lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) :
+    HandlePathsThen profile ready base bindings start incoming labels offset item index checkNext visit left right check :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.handleFieldPaths leading same run next
+
+/-- Carry the key's actual allocator and descriptor path into the value,
+including the width read of the reached canonical placement. -/
+theorem LiveStringMapEntryThen.paths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {output : Stored.Lower.Output} {field value : Field} {index slot offset : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {compare : LinkedCallback.MemorySequence.FieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (leading : ComparedSlots profile ready base bindings start incoming labels left right offset)
+    (run : LiveStringMapEntryThen profile ready base bindings older destination inst element output
+      field value index slot compare checkNext canonNext finish left right check canon)
+    (next : ∀ ptr seen lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      compare value 1 ptr lhs rhs cursor peer (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish →
+      visit seen lhs rhs cursor peer) :
+    LiveStringMapEntryPaths profile ready base bindings older destination inst element output start incoming labels offset
+      field value index slot checkNext canonNext visit left right check canon :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryPaths leading run next
+
 /-- Compare the reached string-key nominal map paths through the original public
 caller rejoins. A finite suspended key keeps its accumulated occurrence path;
 late refusal rejoins only checked and traps execute neither reply. -/
