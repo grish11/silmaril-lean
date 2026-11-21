@@ -222,11 +222,11 @@ theorem LiveListPublish.rejoin {route : GiveEffectRoute} (site : PayloadRoot.Sit
     site caller leading publish
 
 /-- On either linked public give route, derive the list or map trail from
-the actual compiler output and reached callbacks, then rejoin the original
-caller at descriptor publication. This covers recursive descendants, not
-just leaf elements. A nested collection carries the cumulative path to
-its actual range trap or stopped preparation as well as to child entry.
-No finite stopped prefix must reach publication. -/
+the actual compiler output and reached callbacks. Success rejoins the
+original callers via the real descriptor publication. A reached nested
+typed refusal runs only the checked reply, preserving the exact stopped
+canonical configuration and preceding effects. Traps and finite suspended
+prefixes need not reach a reply. -/
 theorem linked_collection_rejoin_paths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
     (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
@@ -616,6 +616,7 @@ theorem reached_handle_field_paths {item : Field} {index address offset : Nat}
       finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) :
     HandlePathsThen profile ready base bindings start incoming labels offset item index checkNext visit left right check :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.handleFieldPaths leading same run
+    (fun _ _ _ _ _ _ _ _ _ _ => True.intro) True.intro
     (fun seen lhs rhs cursor peer tracks _ => next seen lhs rhs cursor peer tracks)
 
 /-- Carry the key's actual allocator and descriptor path into the value,
@@ -666,8 +667,9 @@ theorem LiveSumThen.paths {destination : RecordDestination} {inst : InstId}
       (match selected with
       | none => visit
       | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
-          (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.sumPathsFrom lift leading run next
+          (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) := by
+  cases selected <;> exact
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.sumPathsFrom lift leading run True.intro next
 
 /-- Compare the reached string-key nominal map paths through the original public
 caller rejoins. A finite suspended key keeps its accumulated occurrence path;

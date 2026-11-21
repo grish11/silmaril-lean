@@ -221,7 +221,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
           { finish with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer
             (.error issue) >>= checkNext) } at checkTracks
         rw [stopped] at checkTracks
-        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTracks canonTracks⟩
+        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTracks canonTracks, trivial⟩
       · rw [ite_eq_right bounds] at outcomes ⊢
         exact traps .outOfBounds outcomes.1 outcomes.2
     · rw [ite_eq_left aligned] at outcomes ⊢
@@ -288,7 +288,7 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
     have reached := CallbackPrefix.appendComparedSlots leading
       ⟨[.tau, .tau], [], track, fun depth => .done incoming (.active 0 depth), rfl, rfl⟩
     rw [show visible ([.tau, .tau] : Trace grow sig) = [] from rfl, List.append_nil] at reached
-    exact ⟨frame.store, canonAt, by cases issue <;> exact reached⟩
+    exact ⟨frame.store, canonAt, by cases issue <;> exact reached, trivial⟩
 
 theorem collectionEntryPathsFrom (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
@@ -2958,7 +2958,27 @@ private theorem liftLinkedCollection {route : GiveEffectRoute} {site : PayloadRo
     LinkedCollectionBody profile ready base bindings older site type element incoming visit := by
   obtain ⟨entries, leading, entered, peer, shape, quiet, entry, host, paths⟩ := body
   exact ⟨entries, leading, entered, peer, shape, quiet, entry, host,
-    RecursiveTrails.allocationPaths (initialSlots site.checked entered) paths (next entered entries)⟩
+    RecursiveTrails.allocationPaths (sink := .ignore) (fun _ _ _ _ _ _ _ _ _ _ => True.intro) True.intro
+      (initialSlots site.checked entered) paths (next entered entries)⟩
+
+private theorem publicRefusalCovers {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (entered : Config (core3 grow) (HostState sig)) :
+    (publicRefusalSink profile ready base bindings site entered).Covers profile ready base bindings site.checked entered 0 := by
+  unfold RefusalSink.Covers
+  intro next admitted issue observed lhs rhs check control same tracks
+  obtain ⟨reported, replyAt⟩ := admitted issue
+  have checked := tracks
+  obtain ⟨_, _, left, _, _, _⟩ := checked
+  obtain ⟨segments, caller⟩ := site.reached_caller control (left 0)
+  refine ⟨reported, replyAt, tracks, same, segments, ?_⟩
+  intro reply dispatch
+  apply Plain.give_completion_steps reply
+  simpa only [replyAt, Cursor.control, caller, PayloadRoot.Site.reply, reply] using control
+
+private theorem rootVisitorAdmits {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (entered : Config (core3 grow) (HostState sig)) :
+    (publicRefusalSink profile ready base bindings site entered).admits (fun issue => site.reply (.error (.nested 0 issue))) :=
+  fun issue => ⟨.nested 0 issue, rfl⟩
 
 theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
@@ -2982,12 +3002,14 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
     | list child =>
       refine liftLinkedCollection body ?_
       intro entered entries pointer bytes observed lhs rhs cursor peer tracks same elements
-      exact CallbackPrefix.liveElementsPathsFrom (RecursiveTrails.fieldPaths child) tracks same elements
+      exact CallbackPrefix.liveElementsPathsFrom (RecursiveTrails.fieldPaths (publicRefusalCovers site entered) child)
+        tracks same elements (rootVisitorAdmits site entered)
         (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
     | map child =>
       refine liftLinkedCollection body ?_
       intro entered entries pointer bytes observed lhs rhs cursor peer tracks same elements
-      exact RecursiveTrails.mapElementsPaths (RecursiveTrails.fieldPaths child) tracks same elements
+      exact RecursiveTrails.mapElementsPaths (RecursiveTrails.fieldPaths (publicRefusalCovers site entered) child)
+        tracks same elements (rootVisitorAdmits site entered)
         (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
 
 private theorem collectionReturnFailure {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
