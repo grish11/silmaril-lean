@@ -1450,6 +1450,13 @@ data entries themselves carry no claims. The theorem does not require a
 callback to return and does not yet cover lists with allocating or resource
 descendants, indirect maps, or a whole mixed worker session.
 
+For a collection that fails the fresh check after a valid allocator return,
+`CollectionRangeCut.refused_reply` identifies the original parked caller
+from its occurrence trail and executes the actual typed completion using
+the reached store and host journal. This refusal rule also applies to
+resource plans and the allocation-time map mode: canonical stops before
+child effects or publication, and neither dispatcher undoes callback effects.
+
 `LiveDispatch.linked_memory_admission` and `linked_flat_admission` join the
 actual linked root cut to the corresponding recursive body certificate. A
 checked preflight refusal resumes the checked Core caller, but the canonical

@@ -211,6 +211,54 @@ private theorem listEntries {entries : List Field} {element schema : Stored.Type
   cases matched with
   | list children => exact children
 
+theorem refusalReply {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (type element : Stored.TypeOf) (entries : List Field) (index pointer bytes : Nat)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {checked canonical : Config (core3 grow) (HostState sig)} {check : Cursor (E := core3 grow) (HostState sig)}
+    {leading issue} :
+    let area := layout site.destination.width element
+    let child := canonicalCollectionTail site.destination site.inst entries area route.output pointer
+      (CanonicalTree.EntryMode.forOutput site.destination.width type route.output) >>= site.referenceReply
+    let reply := route.reply site.destination site.start.host.nextTicket
+      (.error (LinkedCallback.CollectionVisit.afterAllocation index issue))
+    CollectionRangeCut profile ready base bindings older checked canonical check site.destination area entries.length pointer
+      (Field.listObjects entries)
+      (fun addr live => checkedCollectionTail site.destination site.inst entries area index route.output addr live >>= site.reply)
+      (fun addr => canonicalCollectionTail site.destination site.inst entries area route.output addr
+        (CanonicalTree.EntryMode.forOutput site.destination.width type route.output) >>= site.referenceReply) →
+    Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) leading checked (.active 0 1) →
+    (core3 grow).memSize? checked.store.core site.destination.memory = some bytes →
+    pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+    Stored.OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .error issue →
+    ∃ (canon : Cursor (E := core3 grow) (HostState sig)) (checkedLabels canonLabels : Trace grow sig)
+      (segments : List (Seg (core3 grow) (HostState sig))),
+      (∀ label ∈ checkedLabels, label = .tau) ∧ (∀ label ∈ canonLabels, label = .tau) ∧
+      Steps profile ready (specDispatch ready base) checked (checkedLabels ++ [.tau, .tau, .tau])
+        { checked with
+          host := checked.host.record reply.1
+          ctl := ⟨check.thread, .core ((core3 grow).resume checked.store.core site.core (.values reply.2)) site.resume,
+            segments⟩ :: check.rest } ∧
+      RetainsBelowTop profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical canonLabels
+        { canonical with ctl := canon.control child } := by
+  intro area child reply cut caller sized aligned bounds refused
+  obtain ⟨canon, capacity, _, atCapacity, _, reached⟩ := cut
+  have sameCapacity := Option.some.inj (atCapacity.symm.trans sized)
+  subst capacity
+  simp only [ite_eq_right (not_not_intro aligned), ite_eq_left bounds] at reached
+  obtain ⟨⟨lhs, checkTau, checkedRun⟩, ⟨rhs, canonTau, canonRun⟩⟩ := reached
+  rw [refused] at checkedRun
+  let stopped := site.reply (.error (LinkedCallback.CollectionVisit.afterAllocation index issue))
+  have stop : (checkedCollectionTail site.destination site.inst entries area index route.output pointer (.error issue) >>= site.reply) =
+      stopped := by cases issue <;> rfl
+  rw [stop] at checkedRun
+  let reached := { checked with ctl := check.control stopped }
+  obtain ⟨segments, atCaller⟩ := site.reached_caller (reached := reached) (body := stopped) rfl (caller.append (checkedRun 0))
+  have atReply : reached.ctl = ⟨check.thread, .prog (do return .flat (← writeCompletion reply)),
+        .core site.core site.resume :: segments⟩ :: check.rest := by
+    simp only [reached, Cursor.control, atCaller, stopped, PayloadRoot.Site.reply, reply]
+  exact ⟨canon, lhs, rhs, segments, checkTau, canonTau,
+    appendRun (prefix_survives (checkedRun 0)).1 (Plain.give_completion_steps reply atReply), canonRun⟩
+
 theorem localListReplies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (data : LocalDataType element)
     (field : site.field = .dynamic (.list element) element entries) (pointer : Nat)
