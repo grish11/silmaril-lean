@@ -48,7 +48,7 @@ theorem sequence_replay {older : ReturnFrame.Substitutions (core3 grow) (HostSta
     (checkAt : left.ctl = check.control (mode.checked destination inst items index cursor >>= checkNext))
     (canonAt : right.ctl = canon.control (mode.canonical destination inst items cursor >>= canonNext)) :
     Replay profile ready bindings mode destination inst compare checkNext canonNext finish items index cursor left right check canon :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.replay
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.replayBetween
     mode destination inst items index cursor compare checkNext canonNext finish frame growth present slots ends checkAt canonAt
 
 /-- Instantiate the traversal with actual allocating strings and live handles
@@ -99,7 +99,35 @@ theorem aggregate_replay {older : ReturnFrame.Substitutions (core3 grow) (HostSt
       (enterAggregate destination inst items index address left check checkNext) ∧
       Replay profile ready bindings .fields destination inst compare (aggregateNext index checkNext) canonNext finish
         items 0 address (enterAggregate destination inst items index address left check checkNext) right check canon :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.aggregateReplay
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.aggregateReplayBetween
+    destination inst type items index address compare checkNext canonNext finish frame growth present sized matched aligned bounds child ends checkAt canonAt
+
+/-- The same aggregate guard and cursor traversal can run under distinct live
+dispatchers; only the supplied recursive child comparison uses host calls. -/
+theorem aggregate_replay_between {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {origin : CStore (core3 grow)} {checked reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (items : List Field) (index address : Nat)
+    (compare : FieldComparison grow sig) (checkNext : CheckNext grow sig) (canonNext : CanonNext grow sig) (finish : Finish grow sig)
+    {left right : State grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (present : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    {bytes : Nat} (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (matched : Field.LayoutMatches (.aggregate type items) type)
+    (aligned : address % (layout destination.width type).alignment.bytes = 0)
+    (bounds : address + (layout destination.width type).size ≤ bytes)
+    (child : ∀ item ∈ items, ∀ slot, SlotFits destination.width bytes item slot → FieldRule compare older origin destination inst item slot)
+    (ends : ∀ reached reference check canon, ChildFrameOver older reached reference check canon →
+      Core3.Grows origin.core reached.store.core → reached.ctl = check.control (checkNext (.ok ())) →
+      reference.ctl = canon.control (canonNext ()) → finish reached reference check canon)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
+      destination.width (.aggregate type items) index (.memory address) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+      destination.width (.aggregate type items) (.memory address) >>= canonNext)) :
+    ReturnFrame.Occurrence.RetainsActiveSlots profile ready checked left [.tau]
+      (enterAggregate destination inst items index address left check checkNext) ∧
+      ReplayBetween profile ready reference .fields destination inst compare (aggregateNext index checkNext) canonNext finish
+        items 0 address (enterAggregate destination inst items index address left check checkNext) right check canon :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.aggregateReplayBetween
     destination inst type items index address compare checkNext canonNext finish frame growth present sized matched aligned bounds child ends checkAt canonAt
 
 /-- Structural comparison for nested memory records and tuples with string

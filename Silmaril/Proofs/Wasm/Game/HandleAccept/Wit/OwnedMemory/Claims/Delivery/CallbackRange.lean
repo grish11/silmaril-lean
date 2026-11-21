@@ -8,6 +8,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.CollectionVisit.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Public.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
@@ -2107,6 +2108,97 @@ private theorem liveVariantArmLookup (destination : RecordDestination) (inst : I
       have ⟨⟨name, member⟩, comparison⟩ := ih (tag := index) (by simpa using found)
       exact ⟨⟨name, List.mem_cons_of_mem _ member⟩, by rw [liveVariantArm, comparison]⟩
 
+private theorem compiledFieldMember {items : List Field} {types : List Stored.TypeOf}
+    (matching : Field.FieldsMatch items types) {item : Field} (member : item ∈ items) :
+    ∃ type ∈ types, item.LayoutMatches type := by
+  induction items generalizing types with
+  | nil => simp at member
+  | cons first rest ih =>
+    cases matching with
+    | cons head tail =>
+      rcases List.mem_cons.mp member with rfl | later
+      · exact ⟨_, List.mem_cons_self .., head⟩
+      · obtain ⟨type, mem, child⟩ := ih tail later
+        exact ⟨type, List.mem_cons_of_mem _ mem, child⟩
+
+private theorem recordCompiled {item : Field} {types : List (String × Stored.TypeOf)}
+    (matched : item.LayoutMatches (.record types)) (emitted : item.Emitted) :
+    ∃ fields, item = .aggregate (.record types) fields ∧ Field.FieldsMatch fields (types.map Prod.snd) ∧
+      ∀ child ∈ fields, child.Emitted := by
+  cases emitted with
+  | aggregate compiled => cases matched with | record matching => exact ⟨_, rfl, matching, compiled⟩
+  | @endpoint channel _ _ => cases channel <;> cases matched
+  | _ => cases matched
+
+private theorem tupleCompiled {item : Field} {types : List Stored.TypeOf}
+    (matched : item.LayoutMatches (.tuple types)) (emitted : item.Emitted) :
+    ∃ fields, item = .aggregate (.tuple types) fields ∧ Field.FieldsMatch fields types ∧
+      ∀ child ∈ fields, child.Emitted := by
+  cases emitted with
+  | aggregate compiled => cases matched with | tuple matching => exact ⟨_, rfl, matching, compiled⟩
+  | @endpoint channel _ _ => cases channel <;> cases matched
+  | _ => cases matched
+
+private theorem liveRecordMember (destination : RecordDestination) (inst : InstId)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {fields : List (String × Stored.TypeOf)} {name : String} {type : Stored.TypeOf}
+    (member : (name, type) ∈ fields) :
+    (type, liveCollectionField profile ready base bindings older destination inst type) ∈
+      liveRecordFields profile ready base bindings older destination inst fields := by
+  induction fields with
+  | nil => simp at member
+  | cons field rest ih =>
+    rcases List.mem_cons.mp member with rfl | later
+    · rw [liveRecordFields]; exact List.mem_cons_self ..
+    · rcases field with ⟨label, schema⟩
+      rw [liveRecordFields]
+      exact List.mem_cons_of_mem _ (ih later)
+
+private theorem liveTupleMember (destination : RecordDestination) (inst : InstId)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {types : List Stored.TypeOf} {type : Stored.TypeOf}
+    (member : type ∈ types) :
+    (type, liveCollectionField profile ready base bindings older destination inst type) ∈
+      liveTupleFields profile ready base bindings older destination inst types := by
+  induction types with
+  | nil => simp at member
+  | cons field rest ih =>
+    rw [liveTupleFields]
+    rcases List.mem_cons.mp member with rfl | later
+    · exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (ih later)
+
+private theorem aggregateChildRule {comparisons : List (Stored.TypeOf × FieldComparison grow sig)}
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
+    {destination : RecordDestination} {inst : InstId} {item : Field} {address : Nat} {type : Stored.TypeOf}
+    (matching : item.LayoutMatches type) {compare : FieldComparison grow sig} (member : (type, compare) ∈ comparisons)
+    (rule : PlacedFieldRule compare older origin destination inst item address) :
+    PlacedFieldRule (aggregateChild comparisons) older origin destination inst item address := by
+  intro index checkNext canonNext left right check canon frame grew width placed checkAt canonAt finish ends
+  exact ⟨compare, matching.type_eq ▸ member, rule index checkNext canonNext left right check canon frame grew width placed
+    checkAt canonAt finish ends⟩
+
+private theorem liveAggregateRule (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
+    (fields : List Field) (address : Nat) (matching : Field.LayoutMatches (.aggregate type fields) type)
+    (compare : FieldComparison grow sig)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
+    (children : ∀ item ∈ fields, ∀ reached slot, PlacedFieldRule compare older reached destination inst item slot) :
+    PlacedFieldRule (fun _ index address left right check canon checkNext canonNext finish =>
+      LiveAggregateThen profile ready base bindings destination inst compare fields index address checkNext canonNext finish
+        left right check canon) older origin destination inst (.aggregate type fields) address := by
+  intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+  obtain ⟨aligned, bytes, sized, bounds⟩ := placementInterval destination left.store (layout destination.width type) address placed
+  refine aggregate_replay_between (origin := left.store) destination inst type fields index address compare checkNext canonNext
+    finish frame (Core3.Grows.refl _) width sized matching aligned bounds ?_ (fun lhs rhs check canon paired grew =>
+      ends lhs rhs check canon paired (growth.trans grew)) checkAt canonAt
+  intro item member slot fits childIndex childCheck childCanon lhs rhs check canon paired grew checkBody canonBody done next
+  obtain ⟨reachedBytes, sizeAt, widened⟩ := grew.memSize sized
+  change (core3 grow).memSize? lhs.store.core destination.memory = some reachedBytes at sizeAt
+  have placedChild : placement destination lhs.store (layout destination.width item.type) slot = .ok () := by
+    simp [placement, fits.1, sizeAt, Nat.not_lt.mpr (fits.2.trans widened)]
+    rfl
+  exact children item member left.store slot childIndex childCheck childCanon lhs rhs check canon paired grew
+    (grew.memAddrType width) placedChild checkBody canonBody done next
+
 private theorem collectionFieldRule (destination : RecordDestination) (inst : InstId)
     {schema : Stored.TypeOf} (family : RecursiveCollectionType schema) (item : Field) (address : Nat)
     (matched : item.LayoutMatches schema) (emitted : item.Emitted) {root : Field} {rootSchema : Stored.TypeOf}
@@ -2243,6 +2335,29 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
     intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
     exact ⟨tag, selected, rfl, liveSumRule destination inst (.variant cases) arms tag address selected compare child
       index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
+  | @record types _ ih =>
+    obtain ⟨fields, rfl, matching, compiled⟩ := recordCompiled matched emitted
+    have rule := liveAggregateRule (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst (.record types) fields address (.record matching)
+      (aggregateChild (liveRecordFields profile ready base bindings older destination inst types)) (origin := origin) (older := older) (by
+        intro child member reached slot
+        obtain ⟨type, included, layout⟩ := compiledFieldMember matching member
+        obtain ⟨⟨name, _⟩, belongs, rfl⟩ := List.mem_map.mp included
+        exact aggregateChildRule layout (liveRecordMember destination inst belongs)
+          (ih name _ belongs child slot layout (compiled child member) (path.trans (.aggregate member (.self _)))))
+    intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+    exact ⟨fields, rfl, rule index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
+  | @tuple types _ ih =>
+    obtain ⟨fields, rfl, matching, compiled⟩ := tupleCompiled matched emitted
+    have rule := liveAggregateRule (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst (.tuple types) fields address (.tuple matching)
+      (aggregateChild (liveTupleFields profile ready base bindings older destination inst types)) (origin := origin) (older := older) (by
+        intro child member reached slot
+        obtain ⟨type, included, layout⟩ := compiledFieldMember matching member
+        exact aggregateChildRule layout (liveTupleMember destination inst included)
+          (ih type included child slot layout (compiled child member) (path.trans (.aggregate member (.self _)))))
+    intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+    exact ⟨fields, rfl, rule index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
 
 theorem linkedStringMapEntry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (index : Fin entries.length)
@@ -2717,6 +2832,8 @@ theorem linkedRecursiveCollectionBody {route : GiveEffectRoute} (site : PayloadR
   | option => cases collection
   | result => cases collection
   | variant => cases collection
+  | record => cases collection
+  | tuple => cases collection
   | fixed => cases collection
   | @list element child =>
     obtain ⟨entries, field, shapes, emitted⟩ := listCompiled matched linked.emitted

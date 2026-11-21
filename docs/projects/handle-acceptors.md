@@ -1476,6 +1476,23 @@ traps on the checked side, while the live canonical prefix likewise stops
 before executing the installed body. Canonical store takes valid root
 placement as a precondition; there is no claimed matching trap.
 
+`LiveDispatch.linked_recursive_collection_body` compares the installed bodies
+for list and map roots on both public give routes. One induction covers nested
+lists, maps (including allocating string keys), fixed arrays, records, tuples,
+and the active arms of options, results and variants. The compiled aggregate
+layout and the reached containing interval determine each field's slot. The
+checked path takes the aggregate bounds read, and the canonical path reads
+the live width before each field. Only a completed field advances to the
+next sibling. For sums, the full case layout justifies the payload slot and
+the compiled tag identifies the child comparison.
+
+This induction uses the reached allocator and live claim checks without
+requiring callback return or preservation of guest bytes or claims. The
+body comparison distinguishes suspension, checked refusal and canonical trap
+from success, which reaches the installed reply program. It does not yet
+compose all nested occurrence trails through the original caller's return or
+prove mixed worker and delivery session correspondence.
+
 ## Checking
 
 ```

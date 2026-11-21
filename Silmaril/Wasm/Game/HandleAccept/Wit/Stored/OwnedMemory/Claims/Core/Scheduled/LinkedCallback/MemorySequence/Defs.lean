@@ -114,7 +114,8 @@ def focus (mode : Track) (destination : RecordDestination) (inst : InstId) (item
 
 /-- Follow the actual memory programs in field order. With each sibling, the
 canonical cursor read precedes the child; only common success starts the rest. -/
-def Replay (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
+def ReplayBetween (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (mode : Track) (destination : RecordDestination) (inst : InstId) (compare : FieldComparison grow sig)
     (checkNext : CheckNext grow sig) (canonNext : CanonNext grow sig) (finish : Finish grow sig) :
     List Field → Nat → Nat → State grow sig → State grow sig → Cursor (E := core3 grow) (HostState sig) →
@@ -125,9 +126,12 @@ def Replay (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings
     let nextCheck := checkTail mode destination inst rest (index + 1) slot.2 checkNext
     let nextCanon := canonTail mode destination inst rest slot.2 canonNext
     let reference := focus mode destination inst item cursor right canon nextCanon
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (host bindings)) right mode.readLabels reference ∧
+    ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right mode.readLabels reference ∧
     compare item index slot.1 left reference check canon nextCheck nextCanon
-      (Replay profile ready bindings mode destination inst compare checkNext canonNext finish rest (index + 1) slot.2)
+      (ReplayBetween profile ready dispatch mode destination inst compare checkNext canonNext finish rest (index + 1) slot.2)
+
+abbrev Replay (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig)) :=
+  ReplayBetween profile ready (specDispatch ready (host (grow := grow) bindings))
 
 def MixedSlot (destination : RecordDestination) (bytes : Nat) (item : Field) (address : Nat) : Prop :=
   CanonicalHandle item ∨ StringField.Fits destination item ∧

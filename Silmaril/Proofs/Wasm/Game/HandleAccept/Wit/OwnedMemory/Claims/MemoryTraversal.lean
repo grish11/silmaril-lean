@@ -41,7 +41,8 @@ theorem sequenceTrack {compare : FieldComparison grow sig} (child : CarriesFinis
   induction items generalizing index cursor left right check canon with
   | nil => exact next left right check canon leading run
   | cons item rest ih =>
-    rw [Replay] at run ⊢
+    unfold Replay at run ⊢
+    rw [ReplayBetween] at run ⊢
     refine ⟨run.1, child item index _ _ _ check canon _ _ (leading.append (canonicalSilent mode run.1)) run.2 ?_⟩
     intro lhs rhs check canon path tail
     exact ih path tail

@@ -631,6 +631,10 @@ inductive RecursiveCollectionType : Stored.TypeOf → Prop where
       (∀ type, failure = some type → RecursiveCollectionType type) → RecursiveCollectionType (.result success failure)
   | variant {cases : List (String × Option Stored.TypeOf)} :
       (∀ name type, (name, some type) ∈ cases → RecursiveCollectionType type) → RecursiveCollectionType (.variant cases)
+  | record {fields : List (String × Stored.TypeOf)} :
+      (∀ name type, (name, type) ∈ fields → RecursiveCollectionType type) → RecursiveCollectionType (.record fields)
+  | tuple {types : List Stored.TypeOf} :
+      (∀ type, type ∈ types → RecursiveCollectionType type) → RecursiveCollectionType (.tuple types)
 
 def CollectionRoot : Stored.TypeOf → Prop
   | .list _ | .map .. => True
@@ -788,6 +792,24 @@ def LiveFixedThen (profile : ProfileKind) (ready : HostReady (HostState sig))
   RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] reference ∧
     liveElements destination inst stride child (aggregateNext index checkNext) canonNext finish entries 0 address left reference check canon
 
+def LiveAggregateThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (destination : RecordDestination) (inst : InstId) (child : LinkedCallback.MemorySequence.FieldComparison grow sig)
+    (items : List Stored.Endpoints.RecordLower.Field) (index address : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : LinkedCallback.MemorySequence.Finish grow sig) (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  open LinkedCallback.MemorySequence ReturnFrame.Occurrence in
+  let entered := enterAggregate destination inst items index address left check checkNext
+  RetainsActiveSlots profile ready (specDispatch ready base) left [.tau] entered ∧
+    ReplayBetween profile ready (specDispatch ready (LiveDispatch.host bindings base)) .fields destination inst child
+      (aggregateNext index checkNext) canonNext finish items 0 address entered right check canon
+
+def aggregateChild (comparisons : List (Stored.TypeOf × LinkedCallback.MemorySequence.FieldComparison grow sig)) :
+    LinkedCallback.MemorySequence.FieldComparison grow sig :=
+  fun item index address left right check canon checkNext canonNext finish =>
+    ∃ compare, (item.type, compare) ∈ comparisons ∧ compare item index address left right check canon checkNext canonNext finish
+
 mutual
 /-- Recursion follows the declared type, not the number of reached allocator
 returns. Each map selects the actual key rule before visiting its value. -/
@@ -833,6 +855,16 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
       LiveSumThen profile ready base bindings destination inst
         (liveVariantArm profile ready base bindings older destination inst cases tag)
         (cases.map Prod.snd) selected index address checkNext canonNext finish left right check canon
+  | .record fields => fun item index address left right check canon checkNext canonNext finish =>
+    ∃ items, item = .aggregate (.record fields) items ∧
+      LiveAggregateThen profile ready base bindings destination inst
+        (aggregateChild (liveRecordFields profile ready base bindings older destination inst fields))
+        items index address checkNext canonNext finish left right check canon
+  | .tuple types => fun item index address left right check canon checkNext canonNext finish =>
+    ∃ items, item = .aggregate (.tuple types) items ∧
+      LiveAggregateThen profile ready base bindings destination inst
+        (aggregateChild (liveTupleFields profile ready base bindings older destination inst types))
+        items index address checkNext canonNext finish left right check canon
   | .prim .string => fun item _ address left right check canon checkNext canonNext finish =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringKeyThen profile ready base bindings older destination inst str address left right check canon checkNext canonNext
@@ -853,10 +885,28 @@ def liveVariantArm (profile : ProfileKind) (ready : HostReady (HostState sig))
   | _ :: rest, tag + 1 => liveVariantArm profile ready base bindings older destination inst rest tag
   | _, _ => fun _ _ _ _ _ _ _ _ _ _ => False
 termination_by structural cases => cases
+
+def liveRecordFields (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × LinkedCallback.MemorySequence.FieldComparison grow sig)
+  | [] => []
+  | (_, type) :: rest => (type, liveCollectionField profile ready base bindings older destination inst type) ::
+      liveRecordFields profile ready base bindings older destination inst rest
+termination_by structural fields => fields
+
+def liveTupleFields (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId) :
+    List Stored.TypeOf → List (Stored.TypeOf × LinkedCallback.MemorySequence.FieldComparison grow sig)
+  | [] => []
+  | type :: rest => (type, liveCollectionField profile ready base bindings older destination inst type) ::
+      liveTupleFields profile ready base bindings older destination inst rest
+termination_by structural fields => fields
 end
 
 /-- Compare either public body for arbitrary list/map nesting with fixed
-arrays, active sum arms, and nominal, scalar, or string leaves. -/
+arrays, heterogeneous aggregates, active sum arms, and nominal, scalar, or string leaves. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
