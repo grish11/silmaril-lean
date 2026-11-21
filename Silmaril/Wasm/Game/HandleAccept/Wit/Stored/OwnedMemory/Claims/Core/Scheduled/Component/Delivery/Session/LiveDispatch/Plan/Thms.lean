@@ -22,11 +22,12 @@ theorem NestedPlan.source (plan : NestedPlan bindings profile ready base start l
 
 /-- Descend through compared nested bodies, then continue from the actual
 caller rejoin with the reached host. Only the completed case has the full
-checked observable trace. A cut records a reached configuration with no
-claim that an allocator returns or that the canonical suffix executes. -/
+checked observable trace as a guarantee. A cut records a reached configuration
+and a matching observable prefix, not execution of the unvisited suffix. -/
 theorem NestedPlan.runs (plan : NestedPlan bindings profile ready base start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     ∃ trace reached, Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming trace reached ∧
+      PayloadPrefix.visible trace <+: PayloadPrefix.visible labels ∧
       ((PayloadPrefix.visible labels = PayloadPrefix.visible trace ∧ HostFrame.Related.Paired older finish reached) ∨
         NestedCut bindings profile ready base older reached) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.runs plan paired
