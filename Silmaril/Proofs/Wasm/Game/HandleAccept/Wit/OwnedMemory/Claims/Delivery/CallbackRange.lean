@@ -2071,6 +2071,42 @@ private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) 
         (Core3.Grows.refl _) (by simpa only [Nat.zero_mul, Nat.add_zero, Track.checked, area] using checkBody)
         (by simp only [reference, body, cx, Nat.zero_mul, Nat.add_zero])
 
+private theorem variantCompiled {item : Field} {cases : List (String × Option Stored.TypeOf)}
+    (matched : item.LayoutMatches (.variant cases)) (emitted : item.Emitted) :
+    ∃ tag selected arm, item = .sum (.variant cases) (cases.map Prod.snd) tag selected ∧
+      (cases.map Prod.snd)[tag]? = some arm ∧ Field.ArmMatches selected arm ∧
+      ∀ child, selected = some child → child.Emitted := by
+  cases emitted with
+  | sum compiled => cases matched with | variant found matching => exact ⟨_, _, _, rfl, found, matching, compiled⟩
+  | @endpoint channel _ _ => cases channel <;> cases matched
+  | _ => cases matched
+
+private theorem variantLayouts (width : AddrType) (cases : List (String × Option Stored.TypeOf)) :
+    layoutCases width cases = (cases.map Prod.snd).map (layoutOption width) := by
+  induction cases with
+  | nil => simp only [layoutCases, List.map_nil]
+  | cons entry rest ih => rcases entry with ⟨_, _⟩; simp only [layoutCases, List.map_cons, ih]
+
+private theorem liveVariantArmLookup (destination : RecordDestination) (inst : InstId)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {cases : List (String × Option Stored.TypeOf)} {tag : Nat} {type : Stored.TypeOf}
+    (found : (cases.map Prod.snd)[tag]? = some (some type)) :
+    (∃ name, (name, some type) ∈ cases) ∧
+    liveVariantArm profile ready base bindings older destination inst cases tag =
+      liveCollectionField profile ready base bindings older destination inst type := by
+  induction cases generalizing tag with
+  | nil => simp at found
+  | cons entry rest ih =>
+    rcases entry with ⟨name, arm⟩
+    cases tag with
+    | zero =>
+      have selected : arm = some type := by simpa using found
+      subst arm
+      exact ⟨⟨name, by simp⟩, by rw [liveVariantArm]⟩
+    | succ index =>
+      have ⟨⟨name, member⟩, comparison⟩ := ih (tag := index) (by simpa using found)
+      exact ⟨⟨name, List.mem_cons_of_mem _ member⟩, by rw [liveVariantArm, comparison]⟩
+
 private theorem collectionFieldRule (destination : RecordDestination) (inst : InstId)
     {schema : Stored.TypeOf} (family : RecursiveCollectionType schema) (item : Field) (address : Nat)
     (matched : item.LayoutMatches schema) (emitted : item.Emitted) {root : Field} {rootSchema : Stored.TypeOf}
@@ -2182,6 +2218,31 @@ private theorem collectionFieldRule (destination : RecordDestination) (inst : In
       (if tag = 0 then comparison success else comparison failure) child index checkNext canonNext left right check canon
       frame growth width placed checkAt canonAt finish ends
     cases success <;> cases failure <;> exact ⟨tag, selected, rfl, compared⟩
+  | @variant cases _ ih =>
+    obtain ⟨tag, selected, arm, rfl, found, matching, compiled⟩ := variantCompiled matched emitted
+    let arms := cases.map Prod.snd
+    let compare := liveVariantArm profile ready base bindings older destination inst cases tag
+    have child : ∀ item, selected = some item →
+        layout destination.width (.variant cases : Stored.TypeOf) = variantLayout (arms.map (layoutOption destination.width)) ∧
+        some (layout destination.width item.type) ∈ arms.map (layoutOption destination.width) ∧
+        PlacedFieldRule compare older origin destination inst item (sumPayloadAddress destination.width arms address) := by
+      intro item equal
+      cases matching with
+      | none => contradiction
+      | @some field type exactLayout =>
+        cases equal
+        obtain ⟨⟨name, member⟩, compared⟩ := liveVariantArmLookup (profile := profile) (ready := ready)
+          (base := base) (bindings := bindings) (older := older) destination inst found
+        refine ⟨by rw [layout, variantLayouts], ?_, ?_⟩
+        · exact List.mem_map.mpr ⟨some type, List.mem_map.mpr ⟨(name, some type), member, rfl⟩,
+            by rw [exactLayout.type_eq, layoutOption]⟩
+        · change PlacedFieldRule (liveVariantArm profile ready base bindings older destination inst cases tag)
+            older origin destination inst item _
+          rw [compared]
+          exact ih name type member item _ exactLayout (compiled item rfl) (path.trans (.sum (.self _)))
+    intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+    exact ⟨tag, selected, rfl, liveSumRule destination inst (.variant cases) arms tag address selected compare child
+      index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends⟩
 
 theorem linkedStringMapEntry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (index : Fin entries.length)
@@ -2655,6 +2716,7 @@ theorem linkedRecursiveCollectionBody {route : GiveEffectRoute} (site : PayloadR
   | string => cases collection
   | option => cases collection
   | result => cases collection
+  | variant => cases collection
   | fixed => cases collection
   | @list element child =>
     obtain ⟨entries, field, shapes, emitted⟩ := listCompiled matched linked.emitted

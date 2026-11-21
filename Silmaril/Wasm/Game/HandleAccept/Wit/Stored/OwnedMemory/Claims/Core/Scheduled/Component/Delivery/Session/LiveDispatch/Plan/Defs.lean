@@ -629,6 +629,8 @@ inductive RecursiveCollectionType : Stored.TypeOf → Prop where
   | option {element} : RecursiveCollectionType element → RecursiveCollectionType (.option element)
   | result {success failure} : (∀ type, success = some type → RecursiveCollectionType type) →
       (∀ type, failure = some type → RecursiveCollectionType type) → RecursiveCollectionType (.result success failure)
+  | variant {cases : List (String × Option Stored.TypeOf)} :
+      (∀ name type, (name, some type) ∈ cases → RecursiveCollectionType type) → RecursiveCollectionType (.variant cases)
 
 def CollectionRoot : Stored.TypeOf → Prop
   | .list _ | .map .. => True
@@ -786,6 +788,7 @@ def LiveFixedThen (profile : ProfileKind) (ready : HostReady (HostState sig))
   RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] reference ∧
     liveElements destination inst stride child (aggregateNext index checkNext) canonNext finish entries 0 address left reference check canon
 
+mutual
 /-- Recursion follows the declared type, not the number of reached allocator
 returns. Each map selects the actual key rule before visiting its value. -/
 def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -825,6 +828,11 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
         | none => fun _ _ _ _ _ _ _ _ _ _ => False
       LiveSumThen profile ready base bindings destination inst (if tag = 0 then okCompare else errCompare)
         [success, failure] selected index address checkNext canonNext finish left right check canon
+  | .variant cases => fun item index address left right check canon checkNext canonNext finish =>
+    ∃ tag selected, item = .sum (.variant cases) (cases.map Prod.snd) tag selected ∧
+      LiveSumThen profile ready base bindings destination inst
+        (liveVariantArm profile ready base bindings older destination inst cases tag)
+        (cases.map Prod.snd) selected index address checkNext canonNext finish left right check canon
   | .prim .string => fun item _ address left right check canon checkNext canonNext finish =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringKeyThen profile ready base bindings older destination inst str address left right check canon checkNext canonNext
@@ -837,8 +845,18 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
       checkNext canonNext (fun () => finish)
 termination_by structural type => type
 
+def liveVariantArm (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId) :
+    List (String × Option Stored.TypeOf) → Nat → LinkedCallback.MemorySequence.FieldComparison grow sig
+  | (_, some type) :: _, 0 => liveCollectionField profile ready base bindings older destination inst type
+  | _ :: rest, tag + 1 => liveVariantArm profile ready base bindings older destination inst rest tag
+  | _, _ => fun _ _ _ _ _ _ _ _ _ _ => False
+termination_by structural cases => cases
+end
+
 /-- Compare either public body for arbitrary list/map nesting with fixed
-arrays, active option/result arms, and nominal, scalar, or string leaves. -/
+arrays, active sum arms, and nominal, scalar, or string leaves. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
