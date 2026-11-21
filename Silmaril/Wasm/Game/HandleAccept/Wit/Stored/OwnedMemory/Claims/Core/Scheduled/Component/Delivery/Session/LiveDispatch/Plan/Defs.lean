@@ -3227,4 +3227,18 @@ inductive ClassifiedWorkerTail (profile : ProfileKind) (ready : HostReady (HostS
         beforeRight label afterRight)
       (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) afterLeft trailing finish)
 
+/-- Continue from the actual resumed pair. A finite worker prefix can
+finish, reach another give, or stop at a genuine open boundary. Older
+origins follow the same scheduler steps on each side up to that cut. -/
+def RequestWorkerTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (request reference : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
+  let base := ComponentCall.hostWithComponent bindings callees
+  ∀ {labels finish}, Steps profile ready (specDispatch ready base) checked labels finish →
+    ClassifiedWorkerTail profile ready bindings callees older checked canonical labels finish
+      (fun added left right => RequestExitOccurrences profile ready base bindings request reference
+        (seen ++ PayloadPrefix.visible added) left right)
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

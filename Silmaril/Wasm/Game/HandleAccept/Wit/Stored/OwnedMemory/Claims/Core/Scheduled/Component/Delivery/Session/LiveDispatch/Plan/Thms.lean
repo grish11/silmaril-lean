@@ -386,6 +386,29 @@ theorem public_occurrence_exit_worker {route : GiveEffectRoute} (site : PayloadR
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.rejoinedOccurrenceWorker
     site checked canonical checkQuiet canonQuiet body
 
+open ReturnFrame.Occurrence in
+/-- Carry the original active and saved origins from the actual public pop
+to the next classified worker cut. Only actual continuation steps advance
+the paths; a divergent lookup or substituted pop remains a boundary. -/
+theorem public_occurrence_exit_tracked_worker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkLabels canonLabels observed : Trace grow sig} {value : route.output.Result}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered (.ok value)
+      observed left right) :
+    let base := ComponentCall.hostWithComponent bindings callees
+    ∃ (checkBody canonBody : Trace grow sig) (mark : Option Location),
+      Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+      (mark = some (.active 0 0) → ∃ checked canonical,
+        RequestWorkerTail profile ready bindings callees older site.start incoming observed checked canonical ∧
+        RejoinedWorkerTail profile ready bindings callees older checked canonical) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.rejoinedTrackedWorker
+    site checked canonical checkQuiet canonQuiet body
+
 /-- A finite callback prefix has a comparison even when it has not returned.
 On the actual marked return, both public collection routes take the reached
 range verdict. If the range passes but live preparation refuses, only the
@@ -1628,5 +1651,20 @@ theorem linked_public_collection_occurrences {route : GiveEffectRoute} (site : P
     PublicCollectionOccurrences profile ready bindings callees older site incoming type element entries :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.publicCollectionOccurrences
     site linked field checked silent paired selected prepared
+
+/-- Classify a real delivery interleaving followed by worker execution at
+the reached record. The cut may precede delivery completion if an open
+boundary is reached; it does not assert retention of a consumed event. -/
+theorem RequestWorkerTail.classify_after_delivery {callees : List (ComponentCall.Callee sig)}
+    {request reference delivered queued : Config (core3 grow) (HostState sig)} {seen deliveryLabels workerLabels : Trace grow sig}
+    {actions outgoing}
+    (tail : RequestWorkerTail profile ready bindings callees older request reference seen start incoming)
+    (delivery : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees) start incoming.host
+      actions deliveryLabels delivered outgoing)
+    (worker : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) delivered workerLabels queued) :
+    ClassifiedWorkerTail profile ready bindings callees older start incoming (deliveryLabels ++ workerLabels) queued
+      (fun added left right => RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees)
+        bindings request reference (seen ++ PayloadPrefix.visible added) left right) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.requestWorkerTailAfterDelivery tail delivery worker
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

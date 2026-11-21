@@ -1105,6 +1105,63 @@ private theorem mapWorkerTrack {callees : List (ComponentCall.Callee sig)} {trac
     exact .boundary split checked live paired (carry _ _ _ paired trail) cut lhs rhs tail
 
 open ReturnFrame.Occurrence in
+private theorem requestWorkerTail {callees : List (ComponentCall.Callee sig)}
+    {request reference : Config (core3 grow) (HostState sig)} {seen : Trace grow sig}
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      request reference seen start incoming)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    RequestWorkerTail profile ready bindings callees older request reference seen start incoming := by
+  intro labels finish run
+  refine mapWorkerTrack (classifyWithOccurrence run paired
+    (paired_outside (left := HostFrame.replace start incoming.host) paired)) ?_
+  intro added left right _ worker
+  obtain ⟨leading, referenceLabels, checkSeen, canonSeen, requestPaths⟩ := arrived
+  obtain ⟨_, _, _, _, movement⟩ := worker
+  refine ⟨leading ++ added, referenceLabels ++ added, ?_, ?_, ?_⟩
+  · rw [visibleAppend, checkSeen]
+  · rw [visibleAppend, canonSeen]
+  · intro place
+    obtain ⟨leftPlace, rightPlace, checkPath, canonPath⟩ := requestPaths place
+    obtain ⟨checkReached, checkTail, _⟩ := movement leftPlace
+    obtain ⟨canonReached, _, canonTail⟩ := movement rightPlace
+    exact ⟨checkReached, canonReached, checkPath.append checkTail, canonPath.append canonTail⟩
+
+open ReturnFrame.Occurrence in
+theorem rejoinedTrackedWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkLabels canonLabels observed : Trace grow sig} {value : route.output.Result}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered (.ok value)
+      observed left right) :
+    let base := ComponentCall.hostWithComponent bindings callees
+    ∃ (checkBody canonBody : Trace grow sig) (mark : Option Location),
+      Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+      (mark = some (.active 0 0) → ∃ checked canonical,
+        RequestWorkerTail profile ready bindings callees older site.start incoming observed checked canonical ∧
+        RejoinedWorkerTail profile ready bindings callees older checked canonical) := by
+  obtain ⟨checkBody, canonBody, mark, leftMark, rightMark, _, reply⟩ :=
+    CallbackRange.rebasePublicOccurrenceExit site checked canonical checkQuiet canonQuiet body
+  refine ⟨checkBody, canonBody, mark, leftMark, rightMark, fun active => ?_⟩
+  obtain ⟨checked, canonical, tracks, paired⟩ := reply active
+  exact ⟨checked, canonical, requestWorkerTail tracks paired, rejoinedTail paired⟩
+
+theorem requestWorkerTailAfterDelivery {callees : List (ComponentCall.Callee sig)}
+    {request reference delivered queued : Config (core3 grow) (HostState sig)} {seen deliveryLabels workerLabels : Trace grow sig}
+    {actions outgoing}
+    (tail : RequestWorkerTail profile ready bindings callees older request reference seen start incoming)
+    (delivery : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees) start incoming.host
+      actions deliveryLabels delivered outgoing)
+    (worker : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) delivered workerLabels queued) :
+    ClassifiedWorkerTail profile ready bindings callees older start incoming (deliveryLabels ++ workerLabels) queued
+      (fun added left right => RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees)
+        bindings request reference (seen ++ PayloadPrefix.visible added) left right) :=
+  tail (append delivery.runs.1.steps worker)
+
+open ReturnFrame.Occurrence in
 private theorem extendMark {callees : List (ComponentCall.Callee sig)}
     {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
     {mark : Option Location} {added : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
