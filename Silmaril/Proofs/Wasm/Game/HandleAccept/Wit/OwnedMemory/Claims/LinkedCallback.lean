@@ -663,6 +663,43 @@ theorem stringFieldThen {older : ReturnFrame.Substitutions (core3 grow) (HostSta
     ends value _ _ _ _ ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
       (growing.trans lhsRun.grows) rfl rfl⟩
 
+theorem flatSequenceCheckedCons (destination : RecordDestination) (inst : InstId) (item : Field)
+    (rest : List Field) (index : Nat) (leading : List FlatValue) (next : FlatSequenceCheckNext grow sig) :
+    flatSequenceChecked destination inst (item :: rest) index leading next =
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index .flat >>=
+        fun verdict => match verdict with
+        | .error issue => next (.error issue)
+        | .ok words => flatSequenceChecked destination inst rest (index + 1) (leading ++ (show List FlatValue from words)) next) := by
+  simp only [flatSequenceChecked, Record.Effects.flat, Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext result
+  cases result with
+  | error _ => rfl
+  | ok words =>
+    simp only [Prog.bind_assoc]
+    congr 1
+    funext tailResult
+    cases tailResult with
+    | error _ => rfl
+    | ok later =>
+      change next (.ok (leading ++ ((show List FlatValue from words) ++ later))) =
+        next (.ok ((leading ++ (show List FlatValue from words)) ++ later))
+      rw [List.append_assoc]
+
+theorem flatSequenceCanonicalCons (destination : RecordDestination) (inst : InstId) (item : Field)
+    (rest : List Field) (leading : List FlatValue) (next : FlatSequenceCanonNext grow sig) :
+    flatSequenceCanonical destination inst (item :: rest) leading next =
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width item .flat >>=
+        fun words => flatSequenceCanonical destination inst rest (leading ++ (show List FlatValue from words)) next) := by
+  let head : Session grow sig (List FlatValue) := CanonicalTree.field Limits.spec Quirks.none
+    (destination.context inst) destination.width item .flat
+  let tail : Session grow sig (List FlatValue) := CanonicalTree.flat Limits.spec Quirks.none
+    (destination.context inst) destination.width rest
+  change (head.bind (fun words => tail.bind (fun later => .pure (words ++ later)))).bind
+    (fun words => next (leading ++ words)) =
+    head.bind fun words => tail.bind fun later => next ((leading ++ words) ++ later)
+  simp only [Prog.bind_assoc, Prog.pure_bind', List.append_assoc]
+
 theorem flatSequenceReplay {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
     (destination : RecordDestination) (inst : InstId) (items : List Field) (index : Nat) (leading : List FlatValue)
     (compare : FlatFieldComparison grow sig) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
@@ -685,33 +722,8 @@ theorem flatSequenceReplay {older : ReturnFrame.Substitutions (core3 grow) (Host
   | cons item rest ih =>
     rw [FlatSequenceReplay]
     apply rules item (by simp) index _ _ left right check canon frame growth
-    · rw [checkAt]
-      congr 1
-      simp only [flatSequenceChecked, Record.Effects.flat, Prog.bind_eq, Prog.bind_assoc]
-      congr 1
-      funext result
-      cases result with
-      | error _ => rfl
-      | ok words =>
-        simp only [Prog.bind_assoc]
-        congr 1
-        funext tailResult
-        cases tailResult with
-        | error _ => rfl
-        | ok later =>
-          change checkNext (.ok (leading ++ ((show List FlatValue from words) ++ later))) =
-            checkNext (.ok ((leading ++ (show List FlatValue from words)) ++ later))
-          rw [List.append_assoc]
-    · rw [canonAt]
-      congr 1
-      let head : Session grow sig (List FlatValue) := CanonicalTree.field Limits.spec Quirks.none
-        (destination.context inst) destination.width item .flat
-      let tail : Session grow sig (List FlatValue) := CanonicalTree.flat Limits.spec Quirks.none
-        (destination.context inst) destination.width rest
-      change (head.bind (fun words => tail.bind (fun later => .pure (words ++ later)))).bind
-        (fun words => canonNext (leading ++ words)) =
-        head.bind (fun words => tail.bind (fun later => canonNext ((leading ++ words) ++ later)))
-      simp only [Prog.bind_assoc, Prog.pure_bind', List.append_assoc]
+    · exact checkAt.trans (congrArg check.control (flatSequenceCheckedCons destination inst item rest index leading checkNext))
+    · exact canonAt.trans (congrArg canon.control (flatSequenceCanonicalCons destination inst item rest leading canonNext))
     · intro words reached reference check canon paired grown checkAt canonAt
       exact ih (index + 1) (leading ++ words) paired grown (fun item member => rules item (List.mem_cons_of_mem _ member))
         checkAt canonAt

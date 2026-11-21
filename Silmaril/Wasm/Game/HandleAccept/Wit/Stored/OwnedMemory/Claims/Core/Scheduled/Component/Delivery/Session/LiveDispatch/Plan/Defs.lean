@@ -174,6 +174,52 @@ def RefusalSink.Covers (sink : RefusalSink grow sig) (profile : ProfileKind) (re
     left.ctl = check.control (next issue) → left.store = right.store →
     ComparedSlots profile ready base bindings start incoming seen left right offset → sink.exit next issue seen left right check
 
+abbrev FlatTrailFinish (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
+  List FlatValue → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig
+
+abbrev FlatFieldTrail (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
+  Stored.Endpoints.RecordLower.Field → Nat → LinkedCallback.FlatSequenceCheckNext grow sig →
+    LinkedCallback.FlatSequenceCanonNext grow sig → FlatTrailFinish grow sig → TrailFinish grow sig
+
+/-- Local flat induction rule at a reached field. Only common success can
+advance the sequence. Refusals use the checked error continuation; other
+exits are represented by the field's own path relation. -/
+def DerivesFlatFieldTrail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+    (destination : RecordDestination) (inst : InstId) (sink : RefusalSink grow sig)
+    (path : FlatFieldTrail grow sig) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
+  open Stored.Endpoints.RecordLower in
+  ∀ index checkNext canonNext finish before left right check canon,
+    LinkedCallback.ChildFrameOver older left right check canon → Core3.Grows origin.core left.store.core →
+    ComparedSlots profile ready base bindings start incoming before left right offset →
+    sink.admits (fun issue => checkNext (.error issue)) →
+    left.ctl = check.control (OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index .flat >>= checkNext) →
+    right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width item .flat >>= canonNext) →
+    (∀ words seen lhs rhs cursor peer, LinkedCallback.ChildFrameOver older lhs rhs cursor peer →
+      Core3.Grows origin.core lhs.store.core → ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) →
+      finish words seen lhs rhs cursor peer) →
+    path item index checkNext canonNext finish before left right check canon
+
+/-- Thread the actual flat words and cumulative occurrence history in order.
+An error continuation does not run the remaining fields on either side. -/
+def flatSequencePaths (destination : RecordDestination) (inst : InstId) (child : FlatFieldTrail grow sig)
+    (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig)
+    (finish : FlatTrailFinish grow sig) : List Stored.Endpoints.RecordLower.Field → Nat → List FlatValue → TrailFinish grow sig
+  | [], _, leading => finish leading
+  | item :: rest, index, leading =>
+    open LinkedCallback in
+    child item index
+      (fun verdict => match verdict with
+        | .error issue => checkNext (.error issue)
+        | .ok words => flatSequenceChecked destination inst rest (index + 1) (leading ++ words) checkNext)
+      (fun words => flatSequenceCanonical destination inst rest (leading ++ words) canonNext)
+      (fun words => flatSequencePaths destination inst child checkNext canonNext finish rest (index + 1) (leading ++ words))
+
 /-- The local induction interface for a compiled field. Only the field's
 actual success continuation advances a sibling; other branches are handled
 by that field's reached path comparison. -/
@@ -800,7 +846,7 @@ def HandlePathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (start incoming : Config (core3 grow) (HostState sig)) (seen : Trace grow sig) (offset : Nat)
     (item : Stored.Endpoints.RecordLower.Field) (index : Nat)
-    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig)
+    {Result : Type} (checkNext : Except Stored.Endpoints.RecordLower.Issue Result → Session grow sig (Ret (core3 grow)))
     (finish : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig)
     (left right : Config (core3 grow) (HostState sig))
     (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (sink : RefusalSink grow sig := .ignore) : Prop :=
@@ -871,6 +917,79 @@ abbrev StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig)
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (address : Nat) :=
   StringValuePaths profile ready base bindings older destination inst key (.memory address)
+
+/-- The recursive flat aggregate fragment. This is a proof domain, not a
+runtime support test. -/
+inductive FlatAggregateType : Stored.TypeOf → Prop where
+  | data {type} : PayloadPrefix.LocalDataType type → FlatAggregateType type
+  | handle {type} : NominalElement type → FlatAggregateType type
+  | string : FlatAggregateType (.prim .string)
+  | fixed {element length} : FlatAggregateType element → FlatAggregateType (.fixedList element length)
+  | record {fields : List (String × Stored.TypeOf)} :
+      (∀ name type, (name, type) ∈ fields → FlatAggregateType type) → FlatAggregateType (.record fields)
+  | tuple {types : List Stored.TypeOf} :
+      (∀ type, type ∈ types → FlatAggregateType type) → FlatAggregateType (.tuple types)
+
+def flatWordVisit (finish : FlatTrailFinish grow sig) : TrailFinish grow sig :=
+  fun seen lhs rhs check canon => ∃ words, finish words seen lhs rhs check canon
+
+def selectFlatPaths (paths : List (Stored.TypeOf × FlatFieldTrail grow sig)) : FlatFieldTrail grow sig :=
+  fun item index checkNext canonNext finish before left right check canon =>
+    ∃ child, (item.type, child) ∈ paths ∧ child item index checkNext canonNext finish before left right check canon
+
+def flatAggregatePaths (destination : RecordDestination) (inst : InstId) (child : FlatFieldTrail grow sig) :
+    FlatFieldTrail grow sig :=
+  fun item index checkNext canonNext finish before left right check canon =>
+    open Stored.Endpoints.RecordLower in
+    ∃ children, LinkedCallback.flatChildren item = some children ∧
+      flatSequencePaths destination inst child (fun verdict => checkNext (verdict.mapError (.nested index)))
+        canonNext finish children 0 [] before left right check canon
+
+mutual
+def liveFlatPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    Stored.TypeOf → FlatFieldTrail grow sig
+  | .prim .string => fun item _ checkNext canonNext finish before left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringValuePaths profile ready base bindings older destination inst str .flat start incoming left right check canon checkNext canonNext
+        (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset (flatWordVisit finish))
+        before offset
+  | .fixedList element _ => flatAggregatePaths destination inst
+      (liveFlatPaths profile ready base bindings older destination inst start incoming offset sink element)
+  | .record fields => flatAggregatePaths destination inst
+      (selectFlatPaths (liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink fields))
+  | .tuple types => flatAggregatePaths destination inst
+      (selectFlatPaths (liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink types))
+  | .own _ | .future _ | .stream _ | .errorContext => fun item index checkNext _ finish before left right check _ =>
+    HandlePathsThen profile ready base bindings start incoming before offset item index checkNext (flatWordVisit finish) left right check sink
+  | _ => fun _ _ _ _ finish before _ _ _ _ =>
+    LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish)
+termination_by structural type => type
+
+def liveFlatRecordPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | (_, type) :: rest =>
+    (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
+      liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink rest
+termination_by structural fields => fields
+
+def liveFlatTuplePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    List Stored.TypeOf → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | type :: rest =>
+    (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
+      liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink rest
+termination_by structural types => types
+end
 
 abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
   NominalElement type ∨ PayloadPrefix.LocalDataType type ∨ type = .prim .string
@@ -1682,6 +1801,23 @@ def LinkedMemoryRejoinPaths (profile : ProfileKind) (ready : HostReady (HostStat
       (publicRefusalSink profile ready base bindings site entered) (sig.payload site.tag)
       site.field 0 (flatNat pointer) site.reply site.referenceReply
       (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+      [] site.checked entered site.cursor peer
+
+/-- The original flat public entry and cumulative traversal. Only successful
+children contribute words; a typed refusal runs the checked reply alone. -/
+def LinkedFlatAggregateRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {type : Stored.TypeOf}
+    (site : PayloadRoot.Site grow sig (.flat type)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading entered peer, PayloadPrefix.visible leading = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place leading entered
+      (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+    entered.host = incoming.host ∧
+    liveFlatPaths profile ready base bindings older site.destination site.inst site.checked entered 0
+      (publicRefusalSink profile ready base bindings site entered) (sig.payload site.tag)
+      site.field 0 site.reply site.referenceReply
+      (fun _ _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
       [] site.checked entered site.cursor peer
 
 /-- The actual range verdict after an allocator return. A late reservation

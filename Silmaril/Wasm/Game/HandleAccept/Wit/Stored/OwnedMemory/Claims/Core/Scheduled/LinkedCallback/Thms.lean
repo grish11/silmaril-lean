@@ -269,6 +269,26 @@ theorem ChildFrameOver.string_field_replay {changes : ReturnFrame.Substitutions 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.stringFieldReplay
     destination inst str valid index output checkNext canonNext frame present realloc fit placed checkAt canonAt
 
+/-- A typed refusal skips the remaining fields. Flat words are appended
+only after the current field returns successfully. -/
+theorem flat_sequence_checked_cons (destination : RecordDestination) (inst : InstId) (item : Field)
+    (rest : List Field) (index : Nat) (leading : List FlatValue) (next : FlatSequenceCheckNext grow sig) :
+    flatSequenceChecked destination inst (item :: rest) index leading next =
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index .flat >>=
+        fun verdict => match verdict with
+        | .error issue => next (.error issue)
+        | .ok words => flatSequenceChecked destination inst rest (index + 1) (leading ++ (show List FlatValue from words)) next) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.flatSequenceCheckedCons
+    destination inst item rest index leading next
+
+theorem flat_sequence_canonical_cons (destination : RecordDestination) (inst : InstId) (item : Field)
+    (rest : List Field) (leading : List FlatValue) (next : FlatSequenceCanonNext grow sig) :
+    flatSequenceCanonical destination inst (item :: rest) leading next =
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width item .flat >>=
+        fun words => flatSequenceCanonical destination inst rest (leading ++ (show List FlatValue from words)) next) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.flatSequenceCanonicalCons
+    destination inst item rest leading next
+
 /-- Compose the actual flat sibling programs by their field cuts. The next
 field runs only on common success, using the reached cursor and flat words;
 each field rule retains its own refused, suspended and trapping prefixes. -/

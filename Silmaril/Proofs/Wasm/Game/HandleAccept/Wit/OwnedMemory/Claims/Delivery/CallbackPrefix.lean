@@ -630,21 +630,21 @@ theorem compiledStringPaths {destination : RecordDestination} {inst : InstId}
   exact ⟨str, field, stringValuePaths leading body
     (fun _ _ _ _ _ _ descriptors path => localFieldPaths path descriptors next)⟩
 
-theorem handleFieldPaths {item : Field} {index address offset : Nat}
+theorem handleValuePaths {item : Field} {index offset : Nat} {output : Stored.Lower.Output}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
-    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {finish : output.Result → LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
     (same : left.store = right.store)
     (run : LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
-      (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon
-      checkNext canonNext (fun () => finish))
+      (specDispatch ready (LiveDispatch.host bindings base)) item index output left right check canon checkNext canonNext finish)
     {sink : RefusalSink grow sig}
     (covers : sink.Covers profile ready base bindings start incoming offset)
     (admitted : sink.admits (fun issue => checkNext (.error issue)))
-    (next : ∀ observed lhs rhs cursor peer,
+    (next : ∀ value observed lhs rhs cursor peer,
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
-      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     HandlePathsThen profile ready base bindings start incoming seen offset item index checkNext visit left right check sink := by
   unfold LinkedCallback.HandleFieldThenBetween at run
   cases decision : liveLeafPlan left.store left.host.writer index item with
@@ -666,10 +666,26 @@ theorem handleFieldPaths {item : Field} {index address offset : Nat}
       exact .inr (.inl ⟨reason, [], _, _, appendComparedPaths leading
         ⟨_, _, lhsRun, rhsRun, lhsSeen, visibleLeaf rhsKind, rfl⟩, rfl, rfl⟩)
     | ok result =>
-      cases result
-      obtain ⟨lhsTrack, rhsTrack, done⟩ := continued () rfl
+      obtain ⟨lhsTrack, rhsTrack, done⟩ := continued result rfl
       have reached := appendComparedSlots leading ⟨_, _, lhsTrack, rhsTrack, lhsSeen, visibleLeaf rhsKind⟩
-      exact .inr (.inr ⟨[], _, _, check, canon, reached, rfl, next _ _ _ _ _ reached rfl done⟩)
+      exact .inr (.inr ⟨[], _, _, check, canon, reached, rfl, next result _ _ _ _ _ reached rfl done⟩)
+
+theorem handleFieldPaths {item : Field} {index address offset : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (same : left.store = right.store)
+    (run : LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon
+      checkNext canonNext (fun () => finish))
+    {sink : RefusalSink grow sig} (covers : sink.Covers profile ready base bindings start incoming offset)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    HandlePathsThen profile ready base bindings start incoming seen offset item index checkNext visit left right check sink :=
+  handleValuePaths leading same run covers admitted (fun () => next)
 
 theorem leafFieldLift {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf} {offset : Nat}
     {sink : RefusalSink grow sig} (covers : sink.Covers profile ready base bindings start incoming offset)
