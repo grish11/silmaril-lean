@@ -251,7 +251,7 @@ theorem collectionDescriptor (cx : LiftLowerContext (core3 grow)) (width : AddrT
     (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
     (checkAt : left.ctl = check.control (ListLower.publish cx width ptr count output >>= checkNext))
     (canonAt : right.ctl = canon.control (ListLower.publish cx width ptr count output >>= canonNext)) :
-    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext := by
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true := by
   have localProgram : Closed (ListLower.publish cx width ptr count output : P (core3 grow) Host output.Result) := by
     cases output with
     | flat => exact .pure _
@@ -259,6 +259,6 @@ theorem collectionDescriptor (cx : LiftLowerContext (core3 grow)) (width : AddrT
       have size : Closed (ptrSize cx : P (core3 grow) Host Nat) := closedGet.bind (fun _ => .pure _)
       exact size.bind fun bytes => (closedWrite cx address (intToLE bytes ptr)).bind fun _ =>
         closedWrite cx (address + bytes) (intToLE bytes count)
-  exact activeCut (closedCut localProgram left right check canon checkNext canonNext same checkAt canonAt)
+  exact closedCut localProgram left right check canon checkNext canonNext same checkAt canonAt
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront

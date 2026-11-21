@@ -29,9 +29,9 @@ private theorem rangePathsFrom {destination : RecordDestination} {area : Layout}
     (covers : sink.Covers profile ready base bindings start incoming offset) (admitted : sink.admits refuse)
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
     (run : CollectionRangePaths profile ready base bindings left right suffix 0 destination area entries pointer checked canonical
-      check refuse wrap children) :
+      check refuse wrap children left right suffix) :
     CollectionRangePaths profile ready base bindings start incoming (seen ++ suffix) offset destination area entries pointer
-      checked canonical check refuse wrap children sink := by
+      checked canonical check refuse wrap children left right suffix sink := by
   obtain ⟨bytes, sized, outcome⟩ := run
   refine ⟨bytes, sized, ?_⟩
   have trap (reason : TrapReason)
@@ -46,13 +46,13 @@ private theorem rangePathsFrom {destination : RecordDestination} {area : Layout}
     by_cases bounds : pointer + entries.length * area.size ≤ bytes
     · simp only [ite_eq_left bounds] at outcome ⊢
       intro issue refused
-      obtain ⟨peer, same, stopped, _⟩ := outcome issue refused
+      obtain ⟨peer, same, stopped, occurrences, _⟩ := outcome issue refused
       have reached := CallbackPrefix.appendComparedSlots leading stopped
-      exact ⟨peer, same, reached, covers refuse admitted (wrap issue) _ _ _ check rfl same reached⟩
+      exact ⟨peer, same, reached, occurrences, covers refuse admitted (wrap issue) _ _ _ check rfl same reached⟩
     · simp only [ite_eq_right bounds] at outcome ⊢
-      exact trap .outOfBounds outcome
+      exact ⟨trap .outOfBounds outcome.1, outcome.2⟩
   · simp only [ite_eq_left aligned] at outcome ⊢
-    exact trap .unalignedPointer outcome
+    exact ⟨trap .unalignedPointer outcome.1, outcome.2⟩
 
 theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
     {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
@@ -70,16 +70,16 @@ theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type 
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
       left right check canon path start incoming seen offset sink := by
   intro suffix finish steps
-  obtain ⟨lhs, rhs, reached, mark, marked, paired, compared, returns⟩ := run steps
-  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading compared, ?_⟩
+  obtain ⟨lhs, rhs, reached, mark, marked, paired, compared, occurrences, returns⟩ := run steps
+  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading compared, occurrences, ?_⟩
   intro pointer cursor top returning
   obtain ⟨range, failed, children⟩ := returns pointer cursor top returning
   refine ⟨range, rangePathsFrom covers admitted leading failed, ?_⟩
   intro bytes sized aligned bounds fresh
-  obtain ⟨lhs, rhs, peer, tracks, frame, width, size, align, bound, growth, checkAt, canonAt, body⟩ :=
+  obtain ⟨lhs, rhs, peer, tracks, occurrences, frame, width, size, align, bound, growth, checkAt, canonAt, body⟩ :=
     children bytes sized aligned bounds fresh
   have reached := CallbackPrefix.appendComparedSlots leading tracks
-  exact ⟨lhs, rhs, peer, reached, frame, width, size, align, bound, growth, checkAt, canonAt,
+  exact ⟨lhs, rhs, peer, reached, occurrences, frame, width, size, align, bound, growth, checkAt, canonAt,
     next pointer bytes (seen ++ suffix) lhs rhs cursor peer reached frame.store body⟩
 
 theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
@@ -103,7 +103,7 @@ theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {
     simp only [prepared] at run ⊢
     have reached := CallbackPrefix.appendComparedSlots leading run.2.2.1
     rw [List.append_nil] at reached
-    exact ⟨run.1, run.2.1, reached, covers _ admitted _ _ _ _ check rfl run.1 reached⟩
+    exact ⟨run.1, run.2.1, reached, run.2.2.2.1, covers _ admitted _ _ _ _ check rfl run.1 reached⟩
   | ok value =>
     cases value
     simp only [prepared] at run ⊢
@@ -119,7 +119,7 @@ theorem descriptorPaths {output : Stored.Lower.Output} {checkNext : ValueCheckNe
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
       finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     LocalPathsThen profile ready base bindings start incoming seen offset visit := by
-  obtain ⟨store, result, labels, shape, lhs, rhs, continued⟩ := run
+  obtain ⟨store, result, labels, shape, lhs, rhs, _, continued⟩ := run
   cases result with
   | error reason =>
     have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape

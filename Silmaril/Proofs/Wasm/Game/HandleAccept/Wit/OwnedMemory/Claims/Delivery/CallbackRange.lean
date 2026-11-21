@@ -194,7 +194,7 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
         (Field.listObjects entries) lhs first rfl checkedAt (not_ne_iff.mp misaligned) sized bounds
       obtain ⟨canonLabels, canonQuiet, right⟩ := canonicalRange
       refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩,
-        ⟨checkLabels, left⟩, ?_⟩
+        ⟨checkLabels, checkQuiet, left⟩, ⟨canonLabels, canonQuiet, right⟩, ?_⟩
       simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
         (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
     · simp only [ite_eq_right bounds] at checkedRange canonicalRange ⊢
@@ -298,7 +298,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart before offset := by
   unfold LiveCollectionPaths
   intro area mode first second leftEntry rightEntry seen finish path
-  obtain ⟨lhs, rhs, reached, mark, checkRun, canonRun, paired, checkSeen, canonSeen, growth, _, _, marked, _⟩ :=
+  obtain ⟨lhs, rhs, reached, mark, _, _, paired, checkSeen, canonSeen, growth, _, _, marked, occurrences⟩ :=
     CallbackPrefix.collectionPrefix (profile := profile) (ready := ready) destination inst type element entries output index
       checkNext canonNext frame width prepared checkAt canonAt embedder path
   have checkObserved : visible ([.tau, .tau, .tau] ++ lhs) = seen := by
@@ -317,12 +317,14 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) destination inst type element entries output index
     start incoming check canon checkNext canonNext width prepared checkAt canonAt depth).2
   refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading
-    (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), ?_⟩
+    (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), occurrences, ?_⟩
   intro pointer cursor atTop returning
   subst mark
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
     checkNext canonNext marked paired returning (frame.store ▸ width) growth
-  have ⟨peer, capacity, liveWidth, liveSize, frameAtReturn, outcomes⟩ := cut
+  obtain ⟨capacity, liveWidth, liveSize, outcomes⟩ := collectionRangeOccurrences (profile := profile) (ready := ready)
+    destination inst type element entries output index pointer checkNext canonNext marked paired returning
+    (frame.store ▸ width) growth occurrences
   have slotsAfter {left right : Config (core3 grow) (HostState sig)} {checkTail canonTail : Trace grow sig}
       (checkTau : ∀ label ∈ checkTail, label = .tau) (canonTau : ∀ label ∈ canonTail, label = .tau)
       (checkTracks : RetainsBelowTop profile ready (specDispatch ready base) finish checkTail left)
@@ -334,23 +336,14 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       ?_, ?_⟩
     · rw [← List.append_assoc, appendVisible, checkObserved, silent checkTau, List.append_nil]
     · rw [← List.append_assoc, appendVisible, canonObserved, silent canonTau, List.append_nil]
-  have traps (reason : TrapReason)
-      (checkStop : ∃ count, Steps profile ready (specDispatch ready base) finish
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg finish))
-      (canonStop : ∃ count, Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) reached
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg reached)) :
+  have traps (reason : TrapReason) (paths : ComparedOccurrencePaths profile ready base bindings start incoming
+      (seen ++ [.trap reason]) (StepDefs.trapCfg finish) (StepDefs.trapCfg reached)) :
       ComparedPaths profile ready base bindings leftStart rightStart ((before ++ seen) ++ [.trap reason])
         (StepDefs.trapCfg finish) (StepDefs.trapCfg reached) := by
-    obtain ⟨leftCount, checkSteps⟩ := checkStop
-    obtain ⟨rightCount, canonSteps⟩ := canonStop
-    have seenTrap (count : Nat) : visible (List.replicate count (.tau : Label (core3 grow) (HostState sig)) ++ [.trap reason]) =
-        [.trap reason] := by
-      rw [appendVisible, silent (fun _ member => List.eq_of_mem_replicate member)]
-      rfl
+    obtain ⟨checkLabels, canonLabels, pairedPaths, checkSeen, canonSeen, shared⟩ := paths
+    obtain ⟨_, checkPath, canonPath⟩ := pairedPaths none
     rw [List.append_assoc]
-    exact CallbackPrefix.appendComparedPaths leading ⟨_, _, appendRun checkRun checkSteps, appendRun canonRun canonSteps,
-      by rw [appendVisible, checkObserved, seenTrap], by rw [appendVisible, canonObserved, seenTrap],
-      congrArg StepDefs.lockdownSt sameStore⟩
+    exact CallbackPrefix.appendComparedPaths leading ⟨_, _, checkPath.steps, canonPath.steps, checkSeen, canonSeen, shared⟩
   refine ⟨cut, ?_, ?_⟩
   · refine ⟨capacity, liveSize, ?_⟩
     by_cases aligned : pointer = alignTo pointer (layout destination.width element).alignment
@@ -358,30 +351,23 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       by_cases bounds : pointer + entries.length * (layout destination.width element).size ≤ capacity
       · rw [ite_eq_left bounds] at outcomes ⊢
         intro issue fresh
-        rw [fresh] at outcomes
-        obtain ⟨⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩⟩ := outcomes
+        obtain ⟨peer, _, ⟨_, checkTau, checkTrails⟩, ⟨_, canonTau, canonTrails⟩, paths⟩ := outcomes
         have stopped : (checkedCollectionTail destination inst entries area index output pointer (.error issue) >>= checkNext) =
             checkNext (.error (LinkedCallback.CollectionVisit.afterAllocation index issue)) := by cases issue <;> rfl
-        change RetainsBelowTop profile ready (specDispatch ready base) finish _
-          { finish with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer
-            (.error issue) >>= checkNext) } at checkTracks
-        rw [stopped] at checkTracks
-        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTracks canonTracks, trivial⟩
+        dsimp only at checkTrails paths
+        rw [fresh, stopped] at checkTrails paths
+        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTrails.retains canonTrails.retains, paths, trivial⟩
       · rw [ite_eq_right bounds] at outcomes ⊢
-        exact traps .outOfBounds outcomes.1 outcomes.2
+        exact ⟨traps .outOfBounds outcomes, outcomes⟩
     · rw [ite_eq_left aligned] at outcomes ⊢
-      exact traps .unalignedPointer outcomes.1 outcomes.2
+      exact ⟨traps .unalignedPointer outcomes, outcomes⟩
   intro bytes sized aligned bounds fresh
   have capacityEq := Option.some.inj (liveSize.symm.trans sized)
-  rw [ite_eq_right (not_not_intro aligned), capacityEq, ite_eq_left bounds, fresh] at outcomes
-  obtain ⟨⟨checkTail, checkTau, checkTracks⟩, ⟨canonTail, canonTau, canonTracks⟩⟩ := outcomes
-  have frameAfter : LinkedCallback.ChildFrameOver older
-      { finish with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) }
-      { reached with ctl := peer.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) }
-      cursor peer :=
-    ⟨frameAtReturn.store, frameAtReturn.pending, frameAtReturn.results, frameAtReturn.cancels, frameAtReturn.blocked,
-      frameAtReturn.thread, frameAtReturn.frames, frameAtReturn.rest⟩
-  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks canonTracks, frameAfter, liveWidth, sized, aligned, bounds,
+  rw [ite_eq_right (not_not_intro aligned), capacityEq, ite_eq_left bounds] at outcomes
+  obtain ⟨peer, frameAfter, ⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩, paths⟩ := outcomes
+  dsimp only at frameAfter checkTracks paths
+  rw [fresh] at frameAfter checkTracks paths
+  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths, frameAfter, liveWidth, sized, aligned, bounds,
     growth, rfl, rfl, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
 
 private theorem collectionEntryVisiting (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
@@ -421,19 +407,25 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
         entered (Record.prepare store host.writer (Field.listObjects entries))) := by
       rw [Record.Effects.field] at checkAt
       exact checkAt
-    have track : RetainsActiveSlots profile ready (specDispatch ready base) start [.tau, .tau]
-        { start with ctl := check.control (entered (.error issue)) } := by
-      intro depth
-      refine .step (middle := .active 0 depth) (.get fetched) ?_
-        (.step (middle := .active 0 depth) (.hostGet rfl) rfl ?_)
-      · rw [ReturnFrame.Occurrence.transitionEdit, fetched]
-        rfl
+    have track (place : Location) : Prefix profile ready (specDispatch ready base) start place [.tau, .tau]
+        { start with ctl := check.control (entered (.error issue)) } place := by
+      refine .step (middle := place) (.get fetched) ?_
+        (.step (middle := place) (.hostGet rfl) ?_ ?_)
+      · rw [ReturnFrame.Occurrence.transitionEdit, fetched]; cases place <;> rfl
+      · cases place <;> rfl
       · rw [prepared]
         exact .done _ _
     have reached := CallbackPrefix.appendComparedSlots leading
-      ⟨[.tau, .tau], [], track, fun depth => .done incoming (.active 0 depth), rfl, rfl⟩
+      ⟨[.tau, .tau], [], fun depth => track (.active 0 depth), fun depth => .done incoming (.active 0 depth), rfl, rfl⟩
     rw [show visible ([.tau, .tau] : Trace grow sig) = [] from rfl, List.append_nil] at reached
-    exact ⟨frame.store, canonAt, by cases issue <;> exact reached, trivial⟩
+    have occurrences : ComparedOccurrencePaths profile ready base bindings start incoming []
+        { start with ctl := check.control (entered (.error issue)) } incoming := by
+      refine ⟨[.tau, .tau], [], ?_, rfl, rfl, frame.store⟩
+      intro mark
+      cases mark with
+      | none => exact ⟨none, Trail.absent (prefix_survives (track (.active 0 0))).1, .done _ _⟩
+      | some place => exact ⟨some place, (track place).toTrail, .done _ _⟩
+    exact ⟨frame.store, canonAt, by cases issue <;> exact reached, by cases issue <;> exact occurrences, trivial⟩
 
 theorem collectionEntryPathsFrom (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
@@ -872,7 +864,7 @@ theorem rejoinPublished {route : GiveEffectRoute} (site : PayloadRoot.Site grow 
   obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
   have terminal : CollectionSegment profile ready base bindings older left right check site.reply site.referenceReply 0
       (fun _ => False) := by
-    obtain ⟨store, outcome, labels, observed, lhs, rhs, continuation⟩ := publish
+    obtain ⟨store, outcome, labels, observed, lhs, rhs, _, continuation⟩ := publish
     cases outcome with
     | error reason =>
       exact ⟨canon, .trapped reason, labels, labels, _, _, lhs.steps, rhs.steps, rfl, rfl, rfl, rfl, [], leafTrap observed⟩
@@ -1001,11 +993,11 @@ private theorem livePublish (destination : RecordDestination) (inst : InstId) (p
     (leftAt : left.ctl = check.control (ListLower.publish (destination.context inst) destination.width pointer count output >>= fun value => checkNext (.ok value)))
     (rightAt : right.ctl = canon.control (ListLower.publish (destination.context inst) destination.width pointer count output >>= canonNext)) :
     LiveListPublish profile ready base bindings output checkNext canonNext finish left right check canon := by
-  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks⟩ :=
-    collection_descriptor_cut_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, occurrences⟩ :=
+    collection_descriptor_occurrences_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) (destination.context inst) destination.width
       output pointer count left right check canon (fun value => checkNext (.ok value)) canonNext paired.store leftAt rightAt
-  refine ⟨store, result, labels, observed, lhsRun, rhsRun, ?_⟩
+  refine ⟨store, result, labels, observed, lhsRun, rhsRun, fun mark => ⟨_, (occurrences mark).1, (occurrences mark).2⟩, ?_⟩
   intro value returned
   have chain := kept.trans lhsRun.grows
   subst result
@@ -2105,11 +2097,11 @@ private theorem stringValueCommit (cx : LiftLowerContext (core3 grow)) (width : 
     (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan pointer >>= canonNext)) :
     LiveValueCommit profile ready base bindings output checkNext canonNext (fun _ => LinkedCallback.ChildFrameOver older)
       left right check canon := by
-  obtain ⟨store, outcome, labels, seen, checked, reference, tracks⟩ := string_descriptor_cut_between
+  obtain ⟨store, outcome, labels, seen, checked, reference, tracks, occurrences⟩ := string_descriptor_occurrences
     (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     (reference := specDispatch ready (LiveDispatch.host bindings base)) cx width output plan pointer left right check canon
     (fun value => checkNext (.ok value)) canonNext frame.store checkAt canonAt
-  refine ⟨store, outcome, labels, seen, checked, reference, ?_⟩
+  refine ⟨store, outcome, labels, seen, checked, reference, fun mark => ⟨_, (occurrences mark).1, (occurrences mark).2⟩, ?_⟩
   intro value equal
   subst outcome
   exact ⟨fun depth => (tracks value rfl depth).1, fun depth => (tracks value rfl depth).2,
@@ -2466,14 +2458,14 @@ private theorem flatStringPaths (destination : RecordDestination) (inst : InstId
   have body := stringValueThen (profile := profile) (ready := ready) (base := base) (origin := origin)
     destination inst str .flat source path embedder frame growth (growth.memAddrType memoryWidth) rfl checkAt canonAt
     (finish := commit) (fun pointer lhs rhs cursor peer related grew lhsAt rhsAt => by
-      obtain ⟨store, outcome, labels, seen, checked, canonical, continued⟩ :=
+      obtain ⟨store, outcome, labels, seen, checked, canonical, occurrences, continued⟩ :=
         stringValueCommit (destination.context inst) destination.width .flat _ pointer related lhsAt rhsAt
-      exact ⟨store, outcome, labels, seen, checked, canonical, fun value equal =>
+      exact ⟨store, outcome, labels, seen, checked, canonical, occurrences, fun value equal =>
         let ⟨checkTracks, canonTracks, after⟩ := continued value equal
         ⟨checkTracks, canonTracks, after, grew.trans checked.grows⟩⟩)
   refine ⟨str, rfl, CallbackPrefix.stringValuePaths leading body ?_⟩
   intro _ lhs rhs cursor peer observed published tracks
-  obtain ⟨store, outcome, labels, seen, checked, canonical, continued⟩ := published
+  obtain ⟨store, outcome, labels, seen, checked, canonical, _, continued⟩ := published
   cases outcome with
   | error reason =>
     have trap := leafTrap seen
@@ -3606,7 +3598,7 @@ private theorem liftLinkedCollectionFailures {route : GiveEffectRoute} (site : P
   obtain ⟨entries, leading, entered, peer, field, quiet, entry, _, paths⟩ := body
   refine ⟨entries, leading, entered, peer, field, quiet, entry, ?_⟩
   intro area mode first second checkedEntry canonEntry seen checked callback
-  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, returns⟩ := paths callback
+  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, _, returns⟩ := paths callback
   refine ⟨lhs, rhs, canonical, mark, marked, ?_, ?_⟩
   · simpa only [List.nil_append] using CallbackPrefix.allocatorSteps compared
   intro pointer cursor active returned

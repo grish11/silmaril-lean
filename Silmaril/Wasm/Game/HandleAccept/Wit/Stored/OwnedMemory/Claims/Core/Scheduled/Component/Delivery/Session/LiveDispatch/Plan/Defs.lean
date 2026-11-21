@@ -448,14 +448,18 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
         let left := { checked with ctl := cursor.control (checkNext pointer verdict) }
         let right := { canonical with ctl := canon.control (canonNext pointer) }
         LinkedCallback.ChildFrameOver older left right cursor canon ∧
-        (∃ labels, RangeReturnTrails profile ready (specDispatch ready base) checked labels left) ∧
+        (∃ labels, (∀ label ∈ labels, label = .tau) ∧
+          RangeReturnTrails profile ready (specDispatch ready base) checked labels left) ∧
+        (∃ labels, (∀ label ∈ labels, label = .tau) ∧
+          RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical labels right) ∧
         ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right
     else traps .outOfBounds
 
 /-- Entry into the exact recursive bodies of a nested collection after its
 marked allocator returns, range checks pass and a fresh reservation succeeds.
-The frame and cumulative trails are for the reached state, not the state
-before the allocator. Memory-map placement keeps its allocation-time mode. -/
+The all-location trail starts at this field's entry, while the active-slot
+trail can start earlier. Both end at the same reached visitor states.
+Memory-map placement keeps its allocation-time mode. -/
 def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -464,7 +468,7 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
     (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig)) (pointer bytes : Nat)
-    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (observed : Trace grow sig)
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (observed localSeen : Trace grow sig)
     (visit : LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ => True)
     (leftStart : Config (core3 grow) (HostState sig) := start)
     (rightStart : Config (core3 grow) (HostState sig) := incoming) (offset : Nat := 0) : Prop :=
@@ -473,6 +477,7 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
   let mode := CanonicalTree.EntryMode.forOutput destination.width type output
   ∃ left right canon,
     ComparedSlots profile ready base bindings leftStart rightStart observed left right offset ∧
+    ComparedOccurrencePaths profile ready base bindings start incoming localSeen left right ∧
     LinkedCallback.ChildFrameOver older left right check canon ∧
     (core3 grow).memAddrType? left.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? left.store.core destination.memory = some bytes ∧
@@ -483,9 +488,9 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
     visit left right check canon
 
 /-- The unsuccessful branches of a marked range return, measured from the
-same origin as the recursive body. Range traps run on both sides. A fresh
-reservation failure follows only the checked issue continuation; the
-canonical cursor is at its unexecuted child program. -/
+recursive body origin and from the local field entry. Range traps run on both
+sides. A fresh reservation failure follows only the checked issue continuation;
+the canonical cursor is at its unexecuted child program. -/
 def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (leftStart rightStart : Config (core3 grow) (HostState sig)) (observed : Trace grow sig) (offset : Nat)
@@ -493,10 +498,14 @@ def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState s
     (pointer : Nat) (checked canonical : Config (core3 grow) (HostState sig))
     (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (refuse : IssueProgram grow sig) (wrap : Stored.Endpoints.RecordLower.Issue → Stored.Endpoints.RecordLower.Issue)
-    (children : Session grow sig (Ret (core3 grow))) (sink : RefusalSink grow sig := .ignore) : Prop :=
+    (children : Session grow sig (Ret (core3 grow)))
+    (leftEntry rightEntry : Config (core3 grow) (HostState sig)) (localSeen : Trace grow sig)
+    (sink : RefusalSink grow sig := .ignore) : Prop :=
   open Stored.Endpoints.RecordLower in
   let trap := fun reason => ComparedPaths profile ready base bindings leftStart rightStart (observed ++ [.trap reason])
-    (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+    (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
+    ComparedOccurrencePaths profile ready base bindings leftEntry rightEntry (localSeen ++ [.trap reason])
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
   ∃ bytes, (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
     else if pointer + entries.length * area.size ≤ bytes then
@@ -505,12 +514,15 @@ def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState s
           let stopped := { checked with ctl := check.control (refuse (wrap issue)) }
           let reference := { canonical with ctl := canon.control children }
           checked.store = canonical.store ∧ ComparedSlots profile ready base bindings leftStart rightStart observed
-            stopped reference offset ∧ sink.exit refuse (wrap issue) observed stopped reference check
+            stopped reference offset ∧
+          ComparedOccurrencePaths profile ready base bindings leftEntry rightEntry localSeen stopped reference ∧
+          sink.exit refuse (wrap issue) observed stopped reference check
     else trap .outOfBounds
 
 /-- Finite callback paths for an actual dynamic child. A live mark at the
 natural-pointer return is required to inspect the range. Failed range checks
-trap, and a failed fresh reservation does not enter the children. -/
+trap, and a failed fresh reservation does not enter the children. The
+all-location trails start before this field's preflight and install. -/
 def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -538,6 +550,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
       AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
       ComparedAllocatorPaths profile ready base bindings leftStart rightStart (leading ++ seen) finish reached offset ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming seen finish reached ∧
       ∀ pointer cursor, mark = some (.active 0 0) →
         finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
         CollectionRangeCut profile ready base bindings older finish reached cursor destination area entries.length pointer
@@ -546,12 +559,13 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
           (fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext) ∧
         CollectionRangePaths profile ready base bindings leftStart rightStart (leading ++ seen) offset destination area entries
           pointer finish reached cursor (fun issue => checkNext (.error issue)) (LinkedCallback.CollectionVisit.afterAllocation index)
-          (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) sink ∧
+          (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) start incoming seen sink ∧
         ∀ bytes, (core3 grow).memSize? finish.store.core destination.memory = some bytes →
           pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
           OwnedMemory.Claims.Record.prepare finish.store finish.host.writer (Field.listObjects entries) = .ok () →
           LiveCollectionChildren profile ready base bindings older destination inst type element entries index output checkNext
-            canonNext start incoming pointer bytes cursor (leading ++ seen) (visit pointer bytes (leading ++ seen)) leftStart rightStart offset
+            canonNext start incoming pointer bytes cursor (leading ++ seen) seen
+            (visit pointer bytes (leading ++ seen)) leftStart rightStart offset
 
 /-- The live dry run before a nested allocation either reaches the typed
 checked continuation alone or admits the finite allocator comparison. The
@@ -580,6 +594,7 @@ def LiveCollectionEntry (profile : ProfileKind) (ready : HostReady (HostState si
       (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext) ∧
     let stopped := { start with ctl := check.control (checkNext (.error refusal)) }
     ComparedSlots profile ready base bindings leftStart rightStart leading stopped incoming offset ∧
+    ComparedOccurrencePaths profile ready base bindings start incoming [] stopped incoming ∧
     sink.exit (fun reason => checkNext (.error reason)) refusal leading stopped incoming check
   | .ok () => (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width →
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
@@ -708,6 +723,7 @@ def LiveValueCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
     LocalLeafLabels result labels ∧
     CoreGrowthSteps profile ready (specDispatch ready base) left labels lhs ∧
     CoreGrowthSteps profile ready (specDispatch ready (LiveDispatch.host bindings base)) right labels rhs ∧
+    CoupledOccurrencePaths profile ready base bindings left right labels labels lhs rhs ∧
     ∀ value, result = .ok value →
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready base) left labels lhs ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right labels rhs ∧

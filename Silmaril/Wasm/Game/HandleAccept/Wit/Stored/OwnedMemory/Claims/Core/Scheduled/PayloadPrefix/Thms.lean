@@ -597,8 +597,21 @@ theorem write_cut_between {grow : SingleThreaded.GrowOracle} {Host : Type} {prof
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.write
     cx ptr data left right check canon checkNext canonNext same checkAt canonAt
 
-/-- Replay the actual pointer/count descriptor from the reached store, without
-consulting either dispatcher. A late trap keeps the first write, if it ran. -/
+/-- Compare actual pointer/count publication with trails for active and saved
+occurrences. A late trap keeps the first write, if it ran. -/
+theorem collection_descriptor_occurrences_between
+    {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Lower.Output) (ptr count : Nat)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (ListLower.publish cx width ptr count output >>= checkNext))
+    (canonAt : right.ctl = canon.control (ListLower.publish cx width ptr count output >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.collectionDescriptor
+    cx width output ptr count left right check canon checkNext canonNext same checkAt canonAt
+
+/-- Compare pointer/count publication without consulting either dispatcher. -/
 theorem collection_descriptor_cut_between {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
     {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Lower.Output) (ptr count : Nat)
@@ -607,8 +620,8 @@ theorem collection_descriptor_cut_between {grow : SingleThreaded.GrowOracle} {Ho
     (checkAt : left.ctl = check.control (ListLower.publish cx width ptr count output >>= checkNext))
     (canonAt : right.ctl = canon.control (ListLower.publish cx width ptr count output >>= canonNext)) :
     StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.collectionDescriptor
-    cx width output ptr count left right check canon checkNext canonNext same checkAt canonAt
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.activeCut
+    (collection_descriptor_occurrences_between cx width output ptr count left right check canon checkNext canonNext same checkAt canonAt)
 
 abbrev collection_descriptor_cut {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
     {dispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))} :=
