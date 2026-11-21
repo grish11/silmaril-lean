@@ -171,32 +171,73 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
   subst mark
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
     checkNext canonNext marked paired returning (frame.store ▸ width) growth
-  refine ⟨cut, ?_⟩
-  intro bytes sized aligned bounds fresh
-  unfold CollectionRangeCut at cut
-  obtain ⟨peer, capacity, liveWidth, liveSize, frameAtReturn, outcomes⟩ := cut
-  have capacityEq := Option.some.inj (liveSize.symm.trans sized)
-  rw [ite_eq_right (not_not_intro aligned), capacityEq, ite_eq_left bounds, fresh] at outcomes
-  obtain ⟨⟨checkTail, checkTau, checkTracks⟩, ⟨canonTail, canonTau, canonTracks⟩⟩ := outcomes
+  have ⟨peer, capacity, liveWidth, liveSize, frameAtReturn, outcomes⟩ := cut
   have leftInstall := fun depth => (PayloadPrefix.collection_install_tracks (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) destination inst type element entries output index start incoming check canon
     checkNext canonNext width prepared checkAt canonAt depth).1
   have rightInstall := fun depth => (PayloadPrefix.collection_install_tracks (profile := profile) (ready := ready)
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) destination inst type element entries output index
     start incoming check canon checkNext canonNext width prepared checkAt canonAt depth).2
+  have slotsAfter {left right : Config (core3 grow) (HostState sig)} {checkTail canonTail : Trace grow sig}
+      (checkTau : ∀ label ∈ checkTail, label = .tau) (canonTau : ∀ label ∈ canonTail, label = .tau)
+      (checkTracks : RetainsBelowTop profile ready (specDispatch ready base) finish checkTail left)
+      (canonTracks : RetainsBelowTop profile ready (specDispatch ready (LiveDispatch.host bindings base)) reached canonTail right) :
+      ComparedSlots profile ready base bindings leftStart rightStart (before ++ seen) left right offset := by
+    refine CallbackPrefix.appendComparedSlots leading
+      ⟨[.tau, .tau, .tau] ++ (lhs ++ checkTail), [.tau, .tau] ++ (rhs ++ canonTail),
+      marked.checkedTrail.through_return_suffix leftInstall checkTracks, marked.canonicalTrail.through_return_suffix rightInstall canonTracks,
+      ?_, ?_⟩
+    · rw [← List.append_assoc, appendVisible, checkObserved, silent checkTau, List.append_nil]
+    · rw [← List.append_assoc, appendVisible, canonObserved, silent canonTau, List.append_nil]
+  have traps (reason : TrapReason)
+      (checkStop : ∃ count, Steps profile ready (specDispatch ready base) finish
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg finish))
+      (canonStop : ∃ count, Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) reached
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg reached)) :
+      ComparedPaths profile ready base bindings leftStart rightStart ((before ++ seen) ++ [.trap reason])
+        (StepDefs.trapCfg finish) (StepDefs.trapCfg reached) := by
+    obtain ⟨leftCount, checkSteps⟩ := checkStop
+    obtain ⟨rightCount, canonSteps⟩ := canonStop
+    have seenTrap (count : Nat) : visible (List.replicate count (.tau : Label (core3 grow) (HostState sig)) ++ [.trap reason]) =
+        [.trap reason] := by
+      rw [appendVisible, silent (fun _ member => List.eq_of_mem_replicate member)]
+      rfl
+    rw [List.append_assoc]
+    exact CallbackPrefix.appendComparedPaths leading ⟨_, _, appendRun checkRun checkSteps, appendRun canonRun canonSteps,
+      by rw [appendVisible, checkObserved, seenTrap], by rw [appendVisible, canonObserved, seenTrap],
+      congrArg StepDefs.lockdownSt sameStore⟩
+  refine ⟨cut, ?_, ?_⟩
+  · refine ⟨capacity, liveSize, ?_⟩
+    by_cases aligned : pointer = alignTo pointer (layout destination.width element).alignment
+    · rw [ite_eq_right (not_not_intro aligned)] at outcomes ⊢
+      by_cases bounds : pointer + entries.length * (layout destination.width element).size ≤ capacity
+      · rw [ite_eq_left bounds] at outcomes ⊢
+        intro issue fresh
+        rw [fresh] at outcomes
+        obtain ⟨⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩⟩ := outcomes
+        have stopped : (checkedCollectionTail destination inst entries area index output pointer (.error issue) >>= checkNext) =
+            checkNext (.error (LinkedCallback.CollectionVisit.afterAllocation index issue)) := by cases issue <;> rfl
+        change RetainsBelowTop profile ready (specDispatch ready base) finish _
+          { finish with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer
+            (.error issue) >>= checkNext) } at checkTracks
+        rw [stopped] at checkTracks
+        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTracks canonTracks⟩
+      · rw [ite_eq_right bounds] at outcomes ⊢
+        exact traps .outOfBounds outcomes.1 outcomes.2
+    · rw [ite_eq_left aligned] at outcomes ⊢
+      exact traps .unalignedPointer outcomes.1 outcomes.2
+  intro bytes sized aligned bounds fresh
+  have capacityEq := Option.some.inj (liveSize.symm.trans sized)
+  rw [ite_eq_right (not_not_intro aligned), capacityEq, ite_eq_left bounds, fresh] at outcomes
+  obtain ⟨⟨checkTail, checkTau, checkTracks⟩, ⟨canonTail, canonTau, canonTracks⟩⟩ := outcomes
   have frameAfter : LinkedCallback.ChildFrameOver older
       { finish with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) }
       { reached with ctl := peer.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) }
       cursor peer :=
     ⟨frameAtReturn.store, frameAtReturn.pending, frameAtReturn.results, frameAtReturn.cancels, frameAtReturn.blocked,
       frameAtReturn.thread, frameAtReturn.frames, frameAtReturn.rest⟩
-  refine ⟨_, _, peer, CallbackPrefix.appendComparedSlots leading
-    ⟨[.tau, .tau, .tau] ++ (lhs ++ checkTail), [.tau, .tau] ++ (rhs ++ canonTail),
-    marked.checkedTrail.through_return_suffix leftInstall checkTracks, marked.canonicalTrail.through_return_suffix rightInstall canonTracks,
-    ?_, ?_⟩, frameAfter, liveWidth, sized, aligned, bounds, growth, rfl, rfl,
-      children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
-  · rw [← List.append_assoc, appendVisible, checkObserved, silent checkTau, List.append_nil]
-  · rw [← List.append_assoc, appendVisible, canonObserved, silent canonTau, List.append_nil]
+  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks canonTracks, frameAfter, liveWidth, sized, aligned, bounds,
+    growth, rfl, rfl, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
 
 private theorem collectionEntryVisiting (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
@@ -247,7 +288,7 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
     have reached := CallbackPrefix.appendComparedSlots leading
       ⟨[.tau, .tau], [], track, fun depth => .done incoming (.active 0 depth), rfl, rfl⟩
     rw [show visible ([.tau, .tau] : Trace grow sig) = [] from rfl, List.append_nil] at reached
-    cases issue <;> exact reached
+    exact ⟨frame.store, canonAt, by cases issue <;> exact reached⟩
 
 theorem collectionEntryPathsFrom (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
@@ -2993,7 +3034,7 @@ private theorem liftLinkedCollectionFailures {route : GiveEffectRoute} (site : P
   refine ⟨lhs, rhs, canonical, mark, marked, ?_, ?_⟩
   · simpa only [List.nil_append] using compared
   intro pointer cursor active returned
-  obtain ⟨range, _⟩ := returns pointer cursor active returned
+  obtain ⟨range, _, _⟩ := returns pointer cursor active returned
   have initial : Record.prepare site.checked.store site.checked.host.writer (Field.listObjects entries) = .ok () := by
     change Record.prepare site.start.store site.start.host.writer (Field.listObjects entries) = .ok ()
     simpa only [field, Field.objects] using prepared

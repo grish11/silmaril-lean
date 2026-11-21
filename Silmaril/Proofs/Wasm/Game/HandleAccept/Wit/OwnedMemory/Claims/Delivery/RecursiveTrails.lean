@@ -22,6 +22,35 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
   {start incoming : Config (core3 grow) (HostState sig)} {seen : Trace grow sig} {offset : Nat}
 
+private theorem rangePathsFrom {destination : RecordDestination} {area : Layout} {entries : List Field} {pointer : Nat}
+    {left right checked canonical : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {refuse children}
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (run : CollectionRangePaths profile ready base bindings left right suffix 0 destination area entries pointer checked canonical
+      check refuse children) :
+    CollectionRangePaths profile ready base bindings start incoming (seen ++ suffix) offset destination area entries pointer
+      checked canonical check refuse children := by
+  obtain ⟨bytes, sized, outcome⟩ := run
+  refine ⟨bytes, sized, ?_⟩
+  have trap (reason : TrapReason)
+      (stopped : ComparedPaths profile ready base bindings left right (suffix ++ [.trap reason])
+        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)) :
+      ComparedPaths profile ready base bindings start incoming ((seen ++ suffix) ++ [.trap reason])
+        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) := by
+    rw [List.append_assoc]
+    exact CallbackPrefix.appendComparedPaths leading stopped
+  by_cases aligned : pointer = alignTo pointer area.alignment
+  · simp only [ite_eq_right (not_not_intro aligned)] at outcome ⊢
+    by_cases bounds : pointer + entries.length * area.size ≤ bytes
+    · simp only [ite_eq_left bounds] at outcome ⊢
+      intro issue refused
+      obtain ⟨peer, same, stopped⟩ := outcome issue refused
+      exact ⟨peer, same, CallbackPrefix.appendComparedSlots leading stopped⟩
+    · simp only [ite_eq_right bounds] at outcome ⊢
+      exact trap .outOfBounds outcome
+  · simp only [ite_eq_left aligned] at outcome ⊢
+    exact trap .unalignedPointer outcome
+
 theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
     {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
     {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
@@ -39,8 +68,8 @@ theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type 
   obtain ⟨lhs, rhs, reached, mark, marked, paired, compared, returns⟩ := run steps
   refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendComparedPaths leading compared, ?_⟩
   intro pointer cursor top returning
-  obtain ⟨range, children⟩ := returns pointer cursor top returning
-  refine ⟨range, ?_⟩
+  obtain ⟨range, failed, children⟩ := returns pointer cursor top returning
+  refine ⟨range, rangePathsFrom leading failed, ?_⟩
   intro bytes sized aligned bounds fresh
   obtain ⟨lhs, rhs, peer, tracks, frame, width, size, align, bound, growth, checkAt, canonAt, body⟩ :=
     children bytes sized aligned bounds fresh
@@ -65,7 +94,8 @@ theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {
   cases prepared : Stored.OwnedMemory.Claims.Record.prepare left.store left.host.writer (Field.listObjects entries) with
   | error issue =>
     simp only [prepared] at run ⊢
-    simpa only [List.append_nil] using CallbackPrefix.appendComparedSlots leading run
+    refine ⟨run.1, run.2.1, ?_⟩
+    simpa only [List.append_nil] using CallbackPrefix.appendComparedSlots leading run.2.2
   | ok value =>
     cases value
     simp only [prepared] at run ⊢

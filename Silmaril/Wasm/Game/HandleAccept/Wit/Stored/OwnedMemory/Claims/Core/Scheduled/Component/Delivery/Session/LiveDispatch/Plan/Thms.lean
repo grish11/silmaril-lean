@@ -224,7 +224,9 @@ theorem LiveListPublish.rejoin {route : GiveEffectRoute} (site : PayloadRoot.Sit
 /-- On either linked public give route, derive the list or map trail from
 the actual compiler output and reached callbacks, then rejoin the original
 caller at descriptor publication. This covers recursive descendants, not
-just leaf elements. No finite stopped prefix must reach publication. -/
+just leaf elements. A nested collection carries the cumulative path to
+its actual range trap or stopped preparation as well as to child entry.
+No finite stopped prefix must reach publication. -/
 theorem linked_collection_rejoin_paths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
     (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
