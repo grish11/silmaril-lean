@@ -532,7 +532,7 @@ def liveElementsPaths (destination : RecordDestination) (inst : InstId) (stride 
 /-- The real descriptor program executes only after every element returns.
 The two paths share the descriptor result or canonical trap, not an assumed
 rollback of either descriptor write. -/
-def LiveListPublish (profile : ProfileKind) (ready : HostReady (HostState sig))
+def LiveValueCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) (output : Stored.Lower.Output)
     (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
@@ -549,6 +549,8 @@ def LiveListPublish (profile : ProfileKind) (ready : HostReady (HostState sig))
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready base) left labels lhs ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right labels rhs ∧
       finish value lhs rhs check canon
+
+abbrev LiveListPublish := @LiveValueCommit
 
 def liveListTail (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -811,21 +813,21 @@ def HandlePathsThen (profile : ProfileKind) (ready : HostReady (HostState sig))
 /-- A reached map key under the live dispatchers, from field placement
 through the recursive string plan. Only completed plans reach the supplied
 descriptor continuation. -/
-def StringKeyThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+def StringValueThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (destination : RecordDestination) (inst : InstId)
-    (key : LinkedCallback.StringField) (address : Nat)
+    (key : LinkedCallback.StringField) (output : Stored.Lower.Output)
     (left right : Config (core3 grow) (HostState sig)) (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (checkNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
     (finish : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
       PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop) : Prop :=
   let cx := destination.context inst
   let plan := storePlanFor Quirks.none destination.encoding destination.width key.value
-  let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width (.memory address) plan pointer >>=
+  let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>=
     fun result => checkNext (.ok result)
-  let canonical := fun pointer => PayloadPrefix.stringPlanTail cx destination.width (.memory address) plan pointer >>= canonNext
+  let canonical := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>= canonNext
   let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
   let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
   ∃ checkLabels canonLabels,
@@ -836,26 +838,39 @@ def StringKeyThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     LinkedCallback.ChildFrameOver older checkBody canonBody check canon ∧
     LiveStringReplay profile ready base bindings older cx checked canonical finish plan.steps.length checkBody canonBody check canon
 
-/-- The same string field along a cumulative occurrence path, including each
-finite allocator prefix and the descriptor continuation after actual return. -/
-def StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+abbrev StringKeyThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
-    (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (address : Nat)
+    (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (address : Nat) :=
+  StringValueThen profile ready base bindings older destination inst key (.memory address)
+
+/-- The same string field along a cumulative occurrence path, including each
+finite allocator prefix and the selected output continuation after actual return. -/
+def StringValuePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (output : Stored.Lower.Output)
     (start incoming left right : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
     (finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) (seen : Trace grow sig) (offset : Nat) : Prop :=
   let cx := destination.context inst
   let plan := storePlanFor Quirks.none destination.encoding destination.width key.value
-  let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width (.memory address) plan pointer >>=
+  let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>=
     fun result => checkNext (.ok result)
-  let canonical := fun pointer => PayloadPrefix.stringPlanTail cx destination.width (.memory address) plan pointer >>= canonNext
+  let canonical := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>= canonNext
   let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
   let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
   LiveStringPaths profile ready base bindings older cx checked canonical start incoming
     (fun pointer lhs rhs check canon observed => finish pointer observed lhs rhs check canon)
     plan.steps.length checkBody canonBody check canon seen offset
+
+abbrev StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (address : Nat) :=
+  StringValuePaths profile ready base bindings older destination inst key (.memory address)
 
 abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
   NominalElement type ∨ PayloadPrefix.LocalDataType type ∨ type = .prim .string
@@ -1626,6 +1641,23 @@ def LinkedCollectionRejoinPaths (profile : ProfileKind) (ready : HostReady (Host
         site.destination site.inst key element entries 0 route.output site.reply site.referenceReply
         (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
   | _ => False
+
+/-- The same reached string plan can return words or store a descriptor.
+On a finite allocator prefix the occurrence remains available without a reply. -/
+def LinkedStringRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ str leading entered peer,
+    site.field = str.field ∧ PayloadPrefix.visible leading = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place leading entered
+      (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+    entered.host = incoming.host ∧
+    StringValuePaths profile ready base bindings older site.destination site.inst str route.output
+      site.checked entered site.checked entered site.cursor peer site.reply site.referenceReply
+      (fun _ _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+      [] 0
 
 /-- The successful body continuation of a memory give is already the
 actual public reply; there is no separate root descriptor to publish. -/

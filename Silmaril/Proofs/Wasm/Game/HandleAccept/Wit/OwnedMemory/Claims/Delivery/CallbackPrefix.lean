@@ -571,16 +571,18 @@ theorem stringPaths {cx : LiftLowerContext (core3 grow)}
             PayloadPrefix.visible ([.tau] : Trace grow sig) from List.filter_append .., canonSeen]; simp [PayloadPrefix.visible]
         exact ⟨peer, ih rest.length shorter (appendComparedSlots reached ⟨_, _, checked, canonical, checkPopped, canonPopped⟩) tail⟩
 
-theorem stringKeyPaths {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField} {address : Nat}
+theorem stringValuePaths {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
     {first : Nat → LinkedCallback.MemorySequence.Finish grow sig}
     {second : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
-    (run : StringKeyThen profile ready base bindings older destination inst key address left right check canon checkNext canonNext first)
+    (run : StringValueThen profile ready base bindings older destination inst key output left right check canon checkNext canonNext first)
     (next : ∀ ptr lhs rhs check canon observed, first ptr lhs rhs check canon →
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → second ptr observed lhs rhs check canon) :
-    StringKeyPaths profile ready base bindings older destination inst key address start incoming left right check canon
+    StringValuePaths profile ready base bindings older destination inst key output start incoming left right check canon
       checkNext canonNext second seen offset := by
   obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, _, body⟩ := run
   have reached := appendComparedSlots leading ⟨checkLabels, canonLabels, checkEntry, canonEntry, checkSeen, canonSeen⟩
@@ -625,7 +627,7 @@ theorem compiledStringPaths {destination : RecordDestination} {inst : InstId}
         checkNext canonNext (fun _ observed _ _ _ _ =>
           LocalPathsThen profile ready base bindings start incoming observed offset visit) seen offset := by
   obtain ⟨str, field, body⟩ := run
-  exact ⟨str, field, stringKeyPaths leading body
+  exact ⟨str, field, stringValuePaths leading body
     (fun _ _ _ _ _ _ descriptors path => localFieldPaths path descriptors next)⟩
 
 theorem handleFieldPaths {item : Field} {index address offset : Nat}
@@ -819,7 +821,7 @@ theorem stringMapEntryPaths {destination : RecordDestination} {inst : InstId} {e
     LiveStringMapEntryPaths profile ready base bindings older destination inst element output start incoming seen offset
       field value index slot checkNext canonNext visit left right check canon := by
   obtain ⟨key, keyField, body⟩ := run
-  refine ⟨key, keyField, stringKeyPaths leading body ?_⟩
+  refine ⟨key, keyField, stringValuePaths leading body ?_⟩
   intro pointer lhs rhs cursor peer observed descriptors path
   obtain ⟨store, result, labels, kind, lhsRun, rhsRun, tail⟩ := descriptors
   cases result with

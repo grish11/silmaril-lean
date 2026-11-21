@@ -705,7 +705,7 @@ theorem rejoinPublished {route : GiveEffectRoute} (site : PayloadRoot.Site grow 
     {check canon : Cursor (E := core3 grow) (HostState sig)} {callerLabels seen offset}
     (caller : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) callerLabels checked (.active 0 offset))
     (leading : ComparedSlots profile ready base bindings checked canonical seen left right offset)
-    (publish : LiveListPublish profile ready base bindings route.output site.reply site.referenceReply
+    (publish : LiveValueCommit profile ready base bindings route.output site.reply site.referenceReply
       (fun _ => LinkedCallback.ChildFrameOver older) left right check canon) :
     CollectionSegmentReplies profile ready base bindings older site checked canonical (fun _ => False) offset := by
   obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
@@ -1893,16 +1893,28 @@ private theorem stringCompiled {item : Field} (matched : item.LayoutMatches (.pr
   | @endpoint channel _ _ => cases channel <;> cases matched
   | _ => cases matched
 
-private theorem stringFieldThen (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
-    (address : Nat) {root : Field} {rootSchema : Stored.TypeOf}
+private theorem stringValueThen (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
+    (output : Stored.Lower.Output) {root : Field} {rootSchema : Stored.TypeOf}
     (source : CollectionSource destination root rootSchema) (path : Field.Descendant root str.field)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
-    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)} :
-    PlacedFieldRule (liveCollectionField profile ready base bindings older destination inst (.prim .string))
-      older origin destination inst str.field address := by
-  intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
+    {index : Nat} {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (placed : rootPlacement destination left.store (.prim .string) output = .ok ())
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
+      destination.width str.field index output >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+      destination.width str.field output >>= canonNext)) {finish : Nat → Finish grow sig}
+    (ends : ∀ pointer lhs rhs cursor peer, LinkedCallback.ChildFrameOver older lhs rhs cursor peer →
+      Core3.Grows origin.core lhs.store.core →
+      let plan := storePlanFor Quirks.none destination.encoding destination.width str.value
+      lhs.ctl = cursor.control (stringPlanTail (destination.context inst) destination.width output plan pointer >>= fun res => checkNext (.ok res)) →
+      rhs.ctl = peer.control (stringPlanTail (destination.context inst) destination.width output plan pointer >>= canonNext) →
+      finish pointer lhs rhs cursor peer) :
+    StringValueThen profile ready base bindings older destination inst str output left right check canon checkNext canonNext finish := by
   let cx : LiftLowerContext (core3 grow) := destination.context inst
-  let output := Stored.Lower.Output.memory address
   let plan := storePlanFor Quirks.none destination.encoding destination.width str.value
   let payload : Stored.Payload (.prim .string) := ⟨.string str.value, .string str.valid⟩
   have fit := Field.Descendant.string_pre payload rfl path source.layout Quirks.none destination.encoding destination.width source.fits
@@ -1915,13 +1927,46 @@ private theorem stringFieldThen (destination : RecordDestination) (inst : InstId
   let canonical := fun pointer => stringPlanTail cx destination.width output plan pointer >>= canonNext
   let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
   let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
-  refine ⟨str, rfl, List.replicate reads .tau, [.tau], silent (fun _ member => List.eq_of_mem_replicate member),
+  refine ⟨List.replicate reads .tau, [.tau], silent (fun _ member => List.eq_of_mem_replicate member),
     rfl, lhs, rhs, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked,
       frame.thread, frame.frames, frame.rest⟩, ?_⟩
   refine CallbackPrefix.stringReplay (origin := origin) (left := checkBody) (right := canonBody) cx 0 plan.steps checked canonical
     ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
-    growth rfl rfl embedder ?_
-  intro pointer lhs rhs cursor peer paired grew checkAt canonAt
+    growth rfl rfl embedder ends
+
+private theorem stringValueCommit (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Stored.Lower.Output)
+    (plan : StorePlan) (pointer : Nat)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (checkAt : left.ctl = check.control (stringPlanTail cx width output plan pointer >>= fun value => checkNext (.ok value)))
+    (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan pointer >>= canonNext)) :
+    LiveValueCommit profile ready base bindings output checkNext canonNext (fun _ => LinkedCallback.ChildFrameOver older)
+      left right check canon := by
+  obtain ⟨store, outcome, labels, seen, checked, reference, tracks⟩ := string_descriptor_cut_between
+    (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    (reference := specDispatch ready (LiveDispatch.host bindings base)) cx width output plan pointer left right check canon
+    (fun value => checkNext (.ok value)) canonNext frame.store checkAt canonAt
+  refine ⟨store, outcome, labels, seen, checked, reference, ?_⟩
+  intro value equal
+  subst outcome
+  exact ⟨fun depth => (tracks value rfl depth).1, fun depth => (tracks value rfl depth).2,
+    ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩⟩
+
+private theorem stringFieldThen (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
+    (address : Nat) {root : Field} {rootSchema : Stored.TypeOf}
+    (source : CollectionSource destination root rootSchema) (path : Field.Descendant root str.field)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)} :
+    PlacedFieldRule (liveCollectionField profile ready base bindings older destination inst (.prim .string))
+      older origin destination inst str.field address := by
+  intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
+  let cx : LiftLowerContext (core3 grow) := destination.context inst
+  let output := Stored.Lower.Output.memory address
+  let plan := storePlanFor Quirks.none destination.encoding destination.width str.value
+  refine ⟨str, rfl, stringValueThen destination inst str output source path embedder frame growth width placed checkAt canonAt ?_⟩
+  intro pointer lhs rhs cursor peer paired grew _ checkAt canonAt
   obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks⟩ :=
     string_descriptor_cut_between cx destination.width output plan pointer lhs rhs cursor peer
       (fun result => checkNext (.ok result)) canonNext paired.store checkAt canonAt
@@ -3011,6 +3056,41 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
       exact RecursiveTrails.mapElementsPaths (RecursiveTrails.fieldPaths (publicRefusalCovers site entered) child)
         tracks same elements (rootVisitorAdmits site entered)
         (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
+
+theorem linkedStringRejoinPaths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) (schema : sig.payload site.tag = .prim .string)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedStringRejoinPaths profile ready base bindings older site incoming) base := by
+  refine site.parked_after_admission linked _ (fun fits placed _ => ?_) base embedder
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+  have source : CollectionSource site.destination site.field (sig.payload site.tag) :=
+    ⟨matched, Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits, preflightAllocator site linked⟩
+  obtain ⟨str, field⟩ := stringCompiled (schema ▸ matched) linked.emitted
+  have descent : site.field.Descendant str.field := by rw [field]; exact .self _
+  obtain ⟨leading, entered, quiet, installed, framePaired, enteredHost⟩ :=
+    LiveDispatch.entry_paired_tracks (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨peer, frame, canonAt⟩ := referenceFrame site (site.reference_at linked site.referenceReply) framePaired
+  have width := site.destination.check_width site.start.store linked.destination
+  have checkAt : site.checked.ctl = site.cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (site.destination.context site.inst) site.destination.width str.field 0 route.output >>= site.reply) := by
+    simp only [PayloadRoot.Site.checked, PayloadRoot.Site.withBody, field]
+  let finish : Nat → Finish grow sig := fun _ => LiveValueCommit profile ready base bindings route.output site.reply site.referenceReply
+    (fun _ => LinkedCallback.ChildFrameOver older)
+  rw [field] at canonAt
+  have body := stringValueThen (profile := profile) (ready := ready) (base := base) (origin := site.checked.store)
+    site.destination site.inst str route.output source descent embedder frame (Core3.Grows.refl _) width (schema ▸ placed)
+    checkAt canonAt (finish := finish) (fun pointer _ _ _ _ related _ lhsAt rhsAt =>
+      stringValueCommit (site.destination.context site.inst) site.destination.width route.output _ pointer related lhsAt rhsAt)
+  refine ⟨str, leading, entered, peer, field, silent ?_, installed, enteredHost,
+    CallbackPrefix.stringValuePaths (initialSlots site.checked entered) body
+      (fun _ _ _ _ _ _ committed tracks => rejoinPublished site (.done _ _) tracks committed)⟩
+  intro label member
+  have tau := List.all_eq_true.mp quiet label member
+  cases label <;> simp_all
 
 private theorem rejoinMemory {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}

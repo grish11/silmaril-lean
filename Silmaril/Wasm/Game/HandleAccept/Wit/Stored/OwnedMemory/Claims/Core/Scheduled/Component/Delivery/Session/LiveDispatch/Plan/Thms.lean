@@ -237,6 +237,18 @@ theorem linked_collection_rejoin_paths {route : GiveEffectRoute} (site : Payload
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedCollectionRejoinPaths
     site linked family collection schema paired selected embedder
 
+/-- Both linked give routes use the same reached, decreasing string plan.
+After an actual allocator return, compare the memory descriptor or flat words
+and rejoin the original callers. A finite parked prefix does not need to return. -/
+theorem linked_string_rejoin_paths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) (schema : sig.payload site.tag = .prim .string)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedStringRejoinPaths profile ready base bindings older site incoming) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedStringRejoinPaths
+    site linked schema paired selected embedder
+
 /-- Compare a placed memory root of the supported recursive fragment,
 including top-level strings, records, tuples, fixed arrays and active sums.
 The actual public entry guards supply placement and the compiled field;
