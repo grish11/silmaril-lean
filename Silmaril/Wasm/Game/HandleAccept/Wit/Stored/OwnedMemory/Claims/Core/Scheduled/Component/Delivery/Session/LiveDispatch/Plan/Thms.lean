@@ -263,9 +263,10 @@ theorem linked_memory_rejoin_paths {pointer : FlatValue} (site : PayloadRoot.Sit
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedMemoryRejoinPaths
     site linked family paired selected embedder
 
-/-- Follow actual public flat aggregates of strings, local scalars and
-nominal handles under the live dispatcher. The compiler supplies each
-child's shape, and only the reached common success joins both callers. -/
+/-- Follow actual public flat aggregates with allocating lists and maps,
+strings, local scalars and nominal handles under the live dispatcher.
+Layout determines the reached child programs; only common success joins
+both callers. -/
 theorem linked_flat_aggregate_rejoin_paths {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
     (linked : site.Linked bindings) (family : FlatAggregateType (sig.payload site.tag))
     (paired : HostFrame.Related.Paired older site.start incoming)

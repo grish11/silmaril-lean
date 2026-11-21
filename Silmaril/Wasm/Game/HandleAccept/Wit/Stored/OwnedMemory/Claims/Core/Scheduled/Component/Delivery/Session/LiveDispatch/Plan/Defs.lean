@@ -924,6 +924,8 @@ inductive FlatAggregateType : Stored.TypeOf → Prop where
   | data {type} : PayloadPrefix.LocalDataType type → FlatAggregateType type
   | handle {type} : NominalElement type → FlatAggregateType type
   | string : FlatAggregateType (.prim .string)
+  | list {element} : RecursiveCollectionType element → FlatAggregateType (.list element)
+  | map {key element} : RecursiveCollectionType element → FlatAggregateType (.map key element)
   | fixed {element length} : FlatAggregateType element → FlatAggregateType (.fixedList element length)
   | record {fields : List (String × Stored.TypeOf)} :
       (∀ name type, (name, type) ∈ fields → FlatAggregateType type) → FlatAggregateType (.record fields)
@@ -944,52 +946,6 @@ def flatAggregatePaths (destination : RecordDestination) (inst : InstId) (child 
     ∃ children, LinkedCallback.flatChildren item = some children ∧
       flatSequencePaths destination inst child (fun verdict => checkNext (verdict.mapError (.nested index)))
         canonNext finish children 0 [] before left right check canon
-
-mutual
-def liveFlatPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
-    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
-    Stored.TypeOf → FlatFieldTrail grow sig
-  | .prim .string => fun item _ checkNext canonNext finish before left right check canon =>
-    ∃ str : LinkedCallback.StringField, item = str.field ∧
-      StringValuePaths profile ready base bindings older destination inst str .flat start incoming left right check canon checkNext canonNext
-        (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset (flatWordVisit finish))
-        before offset
-  | .fixedList element _ => flatAggregatePaths destination inst
-      (liveFlatPaths profile ready base bindings older destination inst start incoming offset sink element)
-  | .record fields => flatAggregatePaths destination inst
-      (selectFlatPaths (liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink fields))
-  | .tuple types => flatAggregatePaths destination inst
-      (selectFlatPaths (liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink types))
-  | .own _ | .future _ | .stream _ | .errorContext => fun item index checkNext _ finish before left right check _ =>
-    HandlePathsThen profile ready base bindings start incoming before offset item index checkNext (flatWordVisit finish) left right check sink
-  | _ => fun _ _ _ _ finish before _ _ _ _ =>
-    LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish)
-termination_by structural type => type
-
-def liveFlatRecordPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
-    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
-    List (String × Stored.TypeOf) → List (Stored.TypeOf × FlatFieldTrail grow sig)
-  | [] => []
-  | (_, type) :: rest =>
-    (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
-      liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink rest
-termination_by structural fields => fields
-
-def liveFlatTuplePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
-    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
-    List Stored.TypeOf → List (Stored.TypeOf × FlatFieldTrail grow sig)
-  | [] => []
-  | type :: rest =>
-    (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
-      liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink rest
-termination_by structural types => types
-end
 
 abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
   NominalElement type ∨ PayloadPrefix.LocalDataType type ∨ type = .prim .string
@@ -1486,6 +1442,71 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
   | [] => []
   | type :: rest => (type, liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink type) ::
       liveTupleTrails profile ready base bindings older destination inst start incoming offset sink rest
+termination_by structural types => types
+end
+
+mutual
+def liveFlatPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    Stored.TypeOf → FlatFieldTrail grow sig
+  | .prim .string => fun item _ checkNext canonNext finish before left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringValuePaths profile ready base bindings older destination inst str .flat start incoming left right check canon checkNext canonNext
+        (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset (flatWordVisit finish))
+        before offset
+  | .list element => fun item index checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .dynamic (.list element) element entries ∧
+      LiveCollectionEntry profile ready base bindings older destination inst (.list element) element entries index
+        .flat checkNext canonNext left right check canon
+        (liveListTailPaths destination inst element entries index .flat
+          (liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink element)
+          checkNext canonNext
+          (fun seen _ _ _ _ => LocalPathsThen profile ready base bindings start incoming seen offset (flatWordVisit finish)))
+        start incoming before offset sink
+  | .map key element => fun item index checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
+    ∃ entries, item = .dynamic (.map key element) entryType entries ∧
+      LiveCollectionEntry profile ready base bindings older destination inst (.map key element) entryType entries index
+        .flat checkNext canonNext left right check canon
+        (liveMapTailPaths (liveMapEntryPaths profile ready base bindings older destination inst key element .flat start incoming offset
+          (liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink element))
+          destination inst key element entries index .flat checkNext canonNext
+          (fun seen _ _ _ _ => LocalPathsThen profile ready base bindings start incoming seen offset (flatWordVisit finish)))
+        start incoming before offset sink
+  | .fixedList element _ => flatAggregatePaths destination inst
+      (liveFlatPaths profile ready base bindings older destination inst start incoming offset sink element)
+  | .record fields => flatAggregatePaths destination inst
+      (selectFlatPaths (liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink fields))
+  | .tuple types => flatAggregatePaths destination inst
+      (selectFlatPaths (liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink types))
+  | .own _ | .future _ | .stream _ | .errorContext => fun item index checkNext _ finish before left right check _ =>
+    HandlePathsThen profile ready base bindings start incoming before offset item index checkNext (flatWordVisit finish) left right check sink
+  | _ => fun _ _ _ _ finish before _ _ _ _ =>
+    LocalPathsThen profile ready base bindings start incoming before offset (flatWordVisit finish)
+termination_by structural type => type
+
+def liveFlatRecordPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | (_, type) :: rest =>
+    (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
+      liveFlatRecordPaths profile ready base bindings older destination inst start incoming offset sink rest
+termination_by structural fields => fields
+
+def liveFlatTuplePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (sink : RefusalSink grow sig) :
+    List Stored.TypeOf → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | type :: rest =>
+    (type, liveFlatPaths profile ready base bindings older destination inst start incoming offset sink type) ::
+      liveFlatTuplePaths profile ready base bindings older destination inst start incoming offset sink rest
 termination_by structural types => types
 end
 
