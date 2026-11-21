@@ -1160,9 +1160,10 @@ theorem check_placement_tracks {World : Type} {placementReady : HostReady World}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.checkPlacementRun
     destination inst start area ptr cursor finish focused
 
+open ReturnFrame.Occurrence in
 /-- Enter the actual compiled root body, or trap before any child runs. A
 flat output has no placement steps; a memory output uses its reached store. -/
-theorem root_placement_steps (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+theorem root_placement_tracks (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
     (cursor : Cursor (E := core3 grow) (HostState sig))
     (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -1171,10 +1172,12 @@ theorem root_placement_steps (destination : RecordDestination) (inst : InstId) (
     let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 output >>= finish)
     match rootPlacement destination start.store type output with
-    | .ok () => ∃ labels, visible labels = [] ∧ Steps profile ready dispatch start labels { start with ctl := child }
-    | .error reason => ∃ count, Steps profile ready dispatch start
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementSteps destination inst type
+    | .ok () => ∃ labels, visible labels = [] ∧
+        ∀ place, Prefix profile ready dispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count, ∀ place, Trail profile ready dispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
+        ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementTracks destination inst type
     field output start cursor finish focused
 
 /-- The linked public `giveFlat` call reaches the same flat words as

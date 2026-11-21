@@ -15,6 +15,7 @@ namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Sch
 open Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon Silmaril.Wasm.Component.Engine
   Silmaril.Wasm.Component.Runtime
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core (Contract)
+open Machine.ReturnFrame.Occurrence (Edit Prefix)
 
 /-- The non-suspending interpreter resolves the caller from its live thread and task arenas. -/
 theorem runBody_currentInst {E : CoreEngine} {Host Result : Type} (next : Option InstId → P E Host Result)
@@ -521,14 +522,15 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
         { start with host := start.host.enter name type [.int .i32 handle, pointer]
                      ctl := ⟨thread, .prog (do
                        let result ← Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree (.memory (flatNat pointer))
                        return .flat (← finish start.host.nextTicket
                          (result.mapError .lowerPayload |>.map (fun _ => 0)))),
-                       .core core continuation :: segments⟩ :: rest } :=
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.parked_give_payload
     bindings name type handle pointer inst destination tree start thread profile ready
     parked calling linked caller mayLeave word destinationChecked selected impl embedder
@@ -551,14 +553,15 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
         { start with host := start.host.enter name type [.int .i32 handle]
                      ctl := ⟨thread, .prog (do
                        let result ← Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree .flat
                        return .flat (← writeCompletion (flatCompletion start.host.nextTicket
                          (ABI.flatten destination.width payload) (result.mapError .lowerPayload)))),
-                       .core core continuation :: segments⟩ :: rest } :=
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.parked_give_flat
     bindings name type handle inst destination payload tree start thread profile ready
     parked calling linked caller mayLeave destinationChecked selected schema impl embedder

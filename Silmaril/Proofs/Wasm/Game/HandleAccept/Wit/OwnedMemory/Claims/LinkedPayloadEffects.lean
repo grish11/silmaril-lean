@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Effects.Thms
 
@@ -16,7 +17,8 @@ open Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 
-theorem parked {sig : Signature} {grow : SingleThreaded.GrowOracle}
+open Machine.ReturnFrame.Occurrence in
+theorem parkedTracks {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
     (route : GiveEffectRoute) (inst : InstId) (destination : RecordDestination) (tree : OwnedMemory.Tree sig)
     (start : Machine.Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
@@ -31,10 +33,11 @@ theorem parked {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (admitted : route.admits destination tree)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
         { start with host := start.host.enter name type (route.args handle)
                      ctl := ⟨thread, .prog (route.run destination inst tree start.host.nextTicket),
-                       .core core continuation :: segments⟩ :: rest } := by
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) := by
   cases route with
   | memory pointer =>
     obtain ⟨labels, silent, steps⟩ := Plain.parked_give_payload bindings name type handle pointer inst destination

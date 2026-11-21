@@ -15,7 +15,7 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.
   Silmaril.Wasm.Component.Engine Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine
   Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower
-open ReturnFrame.Occurrence (RetainsBelowTop)
+open ReturnFrame.Occurrence (RetainsBelowTop Prefix)
 
 variable {grow : SingleThreaded.GrowOracle} {Host : Type}
   {profile : ProfileKind} {ready : HostReady Host}
@@ -160,14 +160,14 @@ theorem RecordDestination.compiled_payload_start {sig : Stored.Signature} {ready
     field.value = payload.val.value ∧ field.LayoutMatches type ∧
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
     match Record.prepare reached.store reached.host.writer field.objects with
-    | .error issue => Machine.Steps profile ready dispatch reached [.tau, .tau]
-        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest }
-    | .ok () => Machine.Steps profile ready dispatch reached [.tau, .tau, .tau]
+    | .error issue => ∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place
+    | .ok () => ∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
         { reached with ctl := ⟨thread, .prog (
           if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
             finish (.error (.preflight (.abi .allocationPrecondition)))
           else Internal.emitValue Limits.spec Quirks.none cx authority destination.width type field output >>= finish),
-          segments⟩ :: rest } :=
+          segments⟩ :: rest } place :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.compiled_payload_start
     reached destination inst type payload output field plan finish compiled destinationChecked focused
 

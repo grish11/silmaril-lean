@@ -1075,6 +1075,7 @@ private def admitGive {E : CoreEngine} {Host Result : Type} (inst : InstId)
     return .error .wrongContext
   selection
 
+open Machine.ReturnFrame.Occurrence in
 private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.GrowOracle} {Result : Type}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (args : List FlatValue)
     (start : Machine.Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (inst : InstId)
@@ -1091,10 +1092,11 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
       Plain.runBody selection start.store entered (some thread) = (start.store, entered, .ok (.ok selected)))
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
         { start with host := start.host.enter name type args
                      ctl := ⟨thread, .prog (next (.ok selected) >>= fun words => pure (.flat words)),
-                       .core core continuation :: segments⟩ :: rest } := by
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) := by
   let entered := start.host.enter name type args
   let saved := .core core continuation :: segments
   let admission := admitGive inst selection
@@ -1107,7 +1109,7 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
     rw [resolve_caller, caller]
     simp only [read_store, bne_self_eq_false, mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
     exact checked
-  obtain ⟨labels, silent, steps⟩ := body_steps_at admission active start.store entered (.ok selected) finish
+  obtain ⟨labels, silent, tracks⟩ := body_tracks_at admission active start.store entered (.ok selected) finish
     thread saved rest profile ready (specDispatch ready impl) rfl (some thread) (.inr rfl) evaluated
   have unpack : (route start.host.nextTicket bindings name type args >>= fun words => pure (.flat words)) =
       (admission >>= finish) := by rw [routed]; exact Prog.bind_assoc _ _ _
@@ -1117,22 +1119,35 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
         route state.nextTicket bindings name type args >>= fun words => pure (.flat words))) := by
     simp only [calloutBody, leaves, ite_true, embedder]
     rfl
-  have entry : Machine.Steps profile ready (specDispatch ready impl)
+  have entry (place : Location) : Prefix profile ready (specDispatch ready impl)
       { start with ctl := ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready impl
-          start.store thread (.embedder name type) args), saved⟩ :: rest } (.tau :: .tau :: labels)
-      { active with ctl := ⟨thread, .prog (finish (.ok selected)), saved⟩ :: rest } := by
-    refine .cons (.hostGet (by rw [installed])) (.cons (.hostSet rfl) ?_)
-    change Machine.Steps profile ready (specDispatch ready impl)
+          start.store thread (.embedder name type) args), saved⟩ :: rest } place (.tau :: .tau :: labels)
+      { active with ctl := ⟨thread, .prog (finish (.ok selected)), saved⟩ :: rest } place := by
+    refine .step (middle := place) (.hostGet (by rw [installed])) ?_
+      (.step (middle := place) (.hostSet rfl) (by cases place <;> rfl) ?_)
+    · rw [transitionEdit]
+      simp only [installed]
+      cases place <;> rfl
+    change Prefix profile ready (specDispatch ready impl)
       { start with host := entered, ctl := ⟨thread, .prog (route start.host.nextTicket bindings name type args >>=
-        fun words => pure (.flat words)), saved⟩ :: rest } labels _
+        fun words => pure (.flat words)), saved⟩ :: rest } place labels _ place
     rw [unpack]
-    exact steps
-  refine ⟨_, ?_, prepend_embedder_callout (impl := impl) parked calling entry⟩
-  change labels.all (· matches .tau) = true
-  apply List.all_eq_true.mpr
-  intro label member
-  have tau := List.all_eq_true.mp silent label member
-  cases label <;> first | rfl | contradiction
+    exact tracks place
+  refine ⟨.tau :: .tau :: .tau :: .tau :: .tau :: labels, ?_, ?_⟩
+  · change labels.all (· matches .tau) = true
+    apply List.all_eq_true.mpr
+    intro label member
+    have tau := List.all_eq_true.mp silent label member
+    cases label <;> first | rfl | contradiction
+  intro place
+  let shifted := ((Edit.push (.core core continuation)).follow place).getD place
+  refine .step (middle := shifted) (.coreCallout parked calling) ?_
+    (.step (middle := shifted) (.currentThread rfl) (by cases shifted <;> rfl)
+      (.step (middle := shifted) (.get rfl) (by cases shifted <;> rfl) (entry shifted)))
+  simp only [transitionEdit, parked, calling, shifted]
+  cases place with
+  | active activation _ => cases activation <;> rfl
+  | saved _ _ => rfl
 
 private theorem read_selection {sig : Signature} {grow : SingleThreaded.GrowOracle} {Result : Type}
     (handle : BitVec IntType.i32.width) (next : Option (Tree sig) → Session grow sig Result)
@@ -1141,6 +1156,7 @@ private theorem read_selection {sig : Signature} {grow : SingleThreaded.GrowOrac
       Plain.runBody (next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle))
         store state (some thread) := rfl
 
+open Machine.ReturnFrame.Occurrence in
 theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
     (pointer : FlatValue) (inst : InstId) (destination : RecordDestination) (tree : Tree sig)
@@ -1156,14 +1172,15 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (selected : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
         { start with host := start.host.enter name type [.int .i32 handle, pointer]
                      ctl := ⟨thread, .prog (do
                        let result ← Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree (.memory (flatNat pointer))
                        return .flat (← finish start.host.nextTicket
                          (result.mapError .lowerPayload |>.map (fun _ => 0)))),
-                       .core core continuation :: segments⟩ :: rest } := by
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) := by
   let selection := selectMemoryDestination (grow := grow) (sig := sig) destination [.int .i32 handle, pointer]
   let next : Except Claims.Core.Scheduled.Issue (Tree sig × Nat) → Session grow sig (List FlatValue)
     | .error issue => finish start.host.nextTicket (.error issue)
@@ -1207,6 +1224,7 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
   simp only [next, Prog.bind_eq, Prog.bind_assoc] at actual ⊢
   exact actual
 
+open Machine.ReturnFrame.Occurrence in
 theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
     (inst : InstId) (destination : RecordDestination) (payload : Stored.TypeOf) (tree : Tree sig)
@@ -1222,14 +1240,15 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (schema : rootHasSchema tree payload = true)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
         { start with host := start.host.enter name type [.int .i32 handle]
                      ctl := ⟨thread, .prog (do
                        let result ← Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree .flat
                        return .flat (← writeCompletion (flatCompletion start.host.nextTicket
                          (ABI.flatten destination.width payload) (result.mapError .lowerPayload)))),
-                       .core core continuation :: segments⟩ :: rest } := by
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) := by
   let selection := selectFlatDestination (grow := grow) (sig := sig) destination payload [.int .i32 handle]
   let reply := fun result => writeCompletion (grow := grow) (sig := sig)
     (flatCompletion start.host.nextTicket (ABI.flatten destination.width payload) result)

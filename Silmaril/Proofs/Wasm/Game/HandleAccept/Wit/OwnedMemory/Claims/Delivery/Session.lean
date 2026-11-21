@@ -1845,11 +1845,11 @@ theorem giveRoot {route : GiveEffectRoute} {bindings : List (Binding sig)} (site
       (phase = .entered → finish = site.checked ∧ body) := by
   cases cut with
   | refused issue silent run =>
-    exact ⟨.refused issue, _, _, .giveRefused site linked issue silent run, fun equal => by cases equal⟩
+    exact ⟨.refused issue, _, _, .giveRefused site linked issue silent run.steps, fun equal => by cases equal⟩
   | placementTrap reason count verdict run =>
-    exact ⟨.placementTrap reason, _, _, .givePlacementTrap site linked reason count verdict run, fun equal => by cases equal⟩
+    exact ⟨.placementTrap reason, _, _, .givePlacementTrap site linked reason count verdict run.steps, fun equal => by cases equal⟩
   | placed silent verdict prepared run body =>
-    exact ⟨.entered, _, _, .giveEntry site linked silent verdict prepared run, fun _ => ⟨rfl, body⟩⟩
+    exact ⟨.entered, _, _, .giveEntry site linked silent verdict prepared run.steps, fun _ => ⟨rfl, body⟩⟩
 
 theorem giveReturned {route : GiveEffectRoute} {bindings : List (Binding sig)} {callees : List (ComponentCall.Callee sig)}
     (site : PayloadRoot.Site grow sig route) (value : route.output.Result) {reached reference : State grow sig}

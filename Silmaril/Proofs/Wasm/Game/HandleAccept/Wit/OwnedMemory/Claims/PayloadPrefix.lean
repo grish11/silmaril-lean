@@ -29,6 +29,7 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims
+open ReturnFrame.Occurrence (Edit Location Prefix RetainsActiveSlots Trail prefix_survives)
 
 variable {E : CoreEngine} {Host Result Next : Type}
   {profile : ProfileKind} {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
@@ -1320,6 +1321,60 @@ theorem collectionInstall (destination : RecordDestination) (inst : InstId) (typ
   simpa only [mode] using collectionInstallMode destination inst type element entries output index left right cursor
     checkNext canonNext same reachedWidth prepared checkAt canonAt
 
+theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId)
+    (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
+    (finish : P (core3 grow) Host (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ∀ place, Prefix profile ready placementDispatch start place [.tau]
+        { start with ctl := cursor.control finish } place
+    | .error reason => ∃ count, ∀ place, Trail profile ready placementDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) Host).follow place) := by
+  by_cases aligned : ptr % area.alignment.bytes = 0
+  · let sizeCheck := fun (store : CStore (core3 grow)) =>
+      (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>=
+        fun size => trapIf (decide (ptr + area.size > size)) .outOfBounds) >>= fun _ => finish
+    have getAt : start.ctl = cursor.control (.op .get sizeCheck) := by
+      have boundsAt : start.ctl = cursor.control (checkInBounds (destination.context inst) ptr area.size >>= fun _ => finish) := by
+        simpa [checkAligned, trapIf, aligned] using focused
+      exact boundsAt
+    have trapped {reason : TrapReason} (atTrap : sizeCheck start.store = trap reason) (place : Location) :
+        Trail profile ready placementDispatch start (some place) [.tau, .trap reason]
+          (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) Host).follow place) :=
+      (Prefix.read_at place getAt).toTrail.append
+        (.step (.trap (congrArg cursor.control atTrap)) (.done _ _))
+    cases sized : (core3 grow).memSize? start.store.core destination.memory with
+    | none =>
+      have trapAt : sizeCheck start.store = trap (.internal "dangling memory address") := by
+        simp [sizeCheck, sized, orTrap, trap, Prog.bind_eq, Prog.bind]
+        congr 1
+        funext answer
+        exact nomatch answer
+      simp [placement, aligned, sized]
+      exact ⟨1, trapped trapAt⟩
+    | some size =>
+      by_cases fits : ptr + area.size ≤ size
+      · have done : sizeCheck start.store = finish := by
+          simp [sizeCheck, sized, orTrap, trapIf, Nat.not_lt.mpr fits]
+        simp [placement, aligned, sized, Nat.not_lt.mpr fits]
+        intro place
+        simpa only [done, Cursor.control] using
+          (Prefix.read_at (profile := profile) (ready := ready) (dispatch := placementDispatch) place getAt)
+      · have trapAt : sizeCheck start.store = trap .outOfBounds := by
+          simp [sizeCheck, sized, orTrap, trapIf, Nat.lt_of_not_ge fits, trap, Prog.bind_eq, Prog.bind]
+          congr 1
+          funext answer
+          exact nomatch answer
+        simp [placement, aligned, sized, Nat.lt_of_not_ge fits]
+        exact ⟨1, trapped trapAt⟩
+  · simp [checkAligned, trapIf, aligned, trap, Prog.bind_eq, Prog.bind] at focused
+    simp [placement, aligned]
+    exact ⟨0, fun _ => .step (.trap focused) (.done _ _)⟩
+
 theorem checkPlacementRun {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId)
     (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
@@ -1329,46 +1384,17 @@ theorem checkPlacementRun {placementDispatch : Call (core3 grow) → P (core3 gr
       checkInBounds (destination.context inst) ptr area.size
       finish)) :
     match placement destination start.store area ptr with
-    | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile ready placementDispatch start [.tau]
-        { start with ctl := cursor.control finish }
-    | .error reason => ∃ count, Machine.Steps profile ready placementDispatch start
+    | .ok () => RetainsActiveSlots profile ready placementDispatch start [.tau] { start with ctl := cursor.control finish }
+    | .error reason => ∃ count, Steps profile ready placementDispatch start
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) := by
-  by_cases aligned : ptr % area.alignment.bytes = 0
-  · let sizeCheck := fun (store : CStore (core3 grow)) =>
-      (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>=
-        fun size => trapIf (decide (ptr + area.size > size)) .outOfBounds) >>= fun _ => finish
-    have getAt : start.ctl = cursor.control (.op .get sizeCheck) := by
-      have boundsAt : start.ctl = cursor.control (checkInBounds (destination.context inst) ptr area.size >>= fun _ => finish) := by
-        simpa [checkAligned, trapIf, aligned] using focused
-      exact boundsAt
-    let read := Step.get (prof := profile) (hr := ready) (dispatch := placementDispatch) getAt
-    cases sized : (core3 grow).memSize? start.store.core destination.memory with
-    | none =>
-      have trapAt : sizeCheck start.store = trap (.internal "dangling memory address") := by
-        simp [sizeCheck, sized, orTrap, trap, Prog.bind_eq, Prog.bind]
-        congr 1
-        funext answer
-        exact nomatch answer
-      simp [placement, aligned, sized]
-      exact ⟨1, .cons read (.cons (.trap (congrArg cursor.control trapAt)) (.refl _))⟩
-    | some size =>
-      by_cases fits : ptr + area.size ≤ size
-      · have done : sizeCheck start.store = finish := by
-          simp [sizeCheck, sized, orTrap, trapIf, Nat.not_lt.mpr fits]
-        simp [placement, aligned, sized, Nat.not_lt.mpr fits]
-        intro depth
-        simpa only [done, Cursor.control] using
-          (ReturnFrame.Occurrence.Prefix.read (profile := profile) (ready := ready) (dispatch := placementDispatch) depth getAt)
-      · have trapAt : sizeCheck start.store = trap .outOfBounds := by
-          simp [sizeCheck, sized, orTrap, trapIf, Nat.lt_of_not_ge fits, trap, Prog.bind_eq, Prog.bind]
-          congr 1
-          funext answer
-          exact nomatch answer
-        simp [placement, aligned, sized, Nat.lt_of_not_ge fits]
-        exact ⟨1, .cons read (.cons (.trap (congrArg cursor.control trapAt)) (.refl _))⟩
-  · simp [checkAligned, trapIf, aligned, trap, Prog.bind_eq, Prog.bind] at focused
-    simp [placement, aligned]
-    exact ⟨0, .cons (.trap focused) (.refl _)⟩
+  have run := checkPlacementRunAll (profile := profile) (ready := ready) (placementDispatch := placementDispatch)
+    destination inst start area ptr cursor finish focused
+  cases placed : placement destination start.store area ptr with
+  | error reason =>
+    rw [placed] at run
+    obtain ⟨count, terminal⟩ := run
+    exact ⟨count, (terminal (.active 0 0)).steps⟩
+  | ok value => cases value; rw [placed] at run; exact fun depth => run (.active 0 depth)
 
 theorem checkPlacement {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId)
@@ -2982,7 +3008,7 @@ theorem localMemoryChild (destination : RecordDestination) (inst : InstId) {item
       exact aggregateChildRule destination inst _ _ (.tuple children)
         (fun child member => ih child member (fieldsMatchOfMem children member))
 
-theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+theorem rootPlacementTracks (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
     (cursor : Cursor (E := core3 grow) (HostState sig))
     (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -2992,9 +3018,10 @@ theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (ty
       (destination.context inst) destination.width field 0 output >>= finish)
     match rootPlacement destination start.store type output with
     | .ok () => ∃ labels, visible labels = [] ∧
-        Steps profile scheduledReady scheduledDispatch start labels { start with ctl := child }
-    | .error reason => ∃ count, Steps profile scheduledReady scheduledDispatch start
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) := by
+        ∀ place, Prefix profile scheduledReady scheduledDispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count, ∀ place, Trail profile scheduledReady scheduledDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
+        ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) := by
   cases output with
   | flat =>
     refine ⟨[], rfl, ?_⟩
@@ -3003,7 +3030,7 @@ theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (ty
     have entered : start = { start with ctl := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
         (destination.context inst) destination.width field 0 .flat >>= finish) } := by
       conv => rhs; rw [← focused]
-    exact entered ▸ .refl start
+    exact fun place => entered ▸ .done start place
   | memory ptr =>
     let area := layout destination.width type
     let body := Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -3014,7 +3041,7 @@ theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (ty
         body) := by
       rw [focused]
       simp only [Record.Effects.root, body, area, Prog.bind_eq, Prog.bind_assoc]
-    have run := checkPlacement (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
+    have run := checkPlacementRunAll (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
       destination inst start area ptr cursor body guardAt
     change (match placement destination start.store area ptr with
       | .ok () => _ | .error _ => _)
@@ -3050,7 +3077,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
-    exact ⟨.refused issue, [.tau, .tau], [], _, right, entry, .refl right, sameStore, rfl, rfl⟩
+    exact ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
   | ok passed =>
     cases passed
     rw [verdict] at entry
@@ -3058,7 +3085,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at entry
       exact ⟨.refused (.preflight (.abi .allocationPrecondition)), [.tau, .tau, .tau], [], _, right,
-        entry, .refl right, sameStore, rfl, rfl⟩
+        (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at entry
       let entered := { left with ctl := checkCursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -3066,7 +3093,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
       have continued := flatField (profile := profile) (scheduledReady := scheduledReady)
         (scheduledDispatch := scheduledDispatch) destination inst field certified 0 entered right sameStore
         checkCursor canonCursor sameThread checkNext canonNext rfl canonField
-      exact prependCheck entry (by simp) continued
+      exact prependCheck (prefix_survives (entry (.active 0 0))).1 (by simp) continued
 
 theorem parkedFlat (bindings : List (Binding sig)) (name : String) (type : V1.FuncType)
     (handleWord : BitVec IntType.i32.width) (destination : RecordDestination) (inst : InstId) (schema : TypeOf)
@@ -3170,7 +3197,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
-    exact .inl ⟨.refused issue, [.tau, .tau], [], _, right, entry, .refl right, sameStore, rfl, rfl⟩
+    exact .inl ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
   | ok passed =>
     cases passed
     rw [verdict] at entry
@@ -3178,7 +3205,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at entry
       exact .inl ⟨.refused (.preflight (.abi .allocationPrecondition)), [.tau, .tau, .tau], [], _, right,
-        entry, .refl right, sameStore, rfl, rfl⟩
+        (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at entry
       let area := layout destination.width (sig.payload tag)
@@ -3187,7 +3214,8 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
       let body := emit >>= checkNext
       let guarded := { left with ctl := checkCursor.control (Record.Effects.root recordClaims Limits.spec Quirks.none
         (destination.context inst) destination.width (sig.payload tag) field (.memory ptr) >>= checkNext) }
-      have entered : Machine.Steps profile scheduledReady scheduledDispatch left [.tau, .tau, .tau] guarded := entry
+      have entered : Machine.Steps profile scheduledReady scheduledDispatch left [.tau, .tau, .tau] guarded :=
+        (prefix_survives (entry (.active 0 0))).1
       have guardAt : guarded.ctl = checkCursor.control (do
         checkAligned ptr area.alignment.bytes
         checkInBounds (destination.context inst) ptr area.size

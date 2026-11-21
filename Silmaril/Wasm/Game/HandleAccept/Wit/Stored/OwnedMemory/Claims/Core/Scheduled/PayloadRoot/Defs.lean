@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 
 @[expose] public section
 
@@ -10,6 +11,7 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon Silmari
   Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine
 open Silmaril.Wasm.Execution.Core
 open Stored.Endpoints Stored.Endpoints.RecordLower PayloadPrefix
+open ReturnFrame.Occurrence (Edit Location Prefix Trail)
 
 structure Site (grow : SingleThreaded.GrowOracle) (sig : Signature) (route : GiveEffectRoute) where
   start : Config (core3 grow) (HostState sig)
@@ -88,21 +90,34 @@ structure Site.Linked (site : Site grow sig route) (bindings : List (Binding sig
   compiled : ∃ plan, Record.preflightValue (site.destination.context (grow := grow) site.inst) (sig.payload site.tag)
     site.payload route.output = .ok (site.field, plan)
 
+/-- The position of an older occurrence after the real Core callout push. -/
+def Site.entryPlace (site : Site grow sig route) (place : Location) : Location :=
+  ((Edit.push (.core site.core site.resume)).follow place).getD place
+
+def Site.EntryPrefix (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (impl : HostImpl (core3 grow) (HostState sig)) (labels : List (Label (core3 grow) (HostState sig)))
+    (reached : Config (core3 grow) (HostState sig)) : Prop :=
+  ∀ place, Prefix profile ready (specDispatch ready impl) site.start place labels reached (site.entryPlace place)
+
+def Site.EntryTrap (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (impl : HostImpl (core3 grow) (HostState sig)) (labels : List (Label (core3 grow) (HostState sig))) : Prop :=
+  ∀ place, Trail profile ready (specDispatch ready impl) site.start (some place) labels
+    (StepDefs.trapCfg site.checked) ((Edit.clear : Edit (core3 grow) (HostState sig)).follow (site.entryPlace place))
+
 /-- The actual prefix before the first recursive field. No recursive
 comparison, allocator return or completion delivery is assumed. -/
 inductive Cut (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (body : Prop := True) (impl : HostImpl (core3 grow) (HostState sig) := host bindings) : Prop where
   | refused (issue : RecordLower.Issue) {labels} (silent : visible labels = []) :
-      Steps profile ready (specDispatch ready impl) site.start labels (site.withBody (site.reply (.error issue))) →
+      site.EntryPrefix profile ready impl labels (site.withBody (site.reply (.error issue))) →
       Cut site profile ready bindings body impl
   | placementTrap (reason : TrapReason) (count : Nat)
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason) :
-      Steps profile ready (specDispatch ready impl) site.start (List.replicate count .tau ++ [.trap reason])
-        (StepDefs.trapCfg site.checked) → Cut site profile ready bindings body impl
+      site.EntryTrap profile ready impl (List.replicate count .tau ++ [.trap reason]) → Cut site profile ready bindings body impl
   | placed {labels} (silent : visible labels = [])
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())
       (prepared : Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ()) :
-      Steps profile ready (specDispatch ready impl) site.start labels site.checked → body →
+      site.EntryPrefix profile ready impl labels site.checked → body →
       Cut site profile ready bindings body impl
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot

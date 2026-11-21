@@ -101,12 +101,19 @@ theorem Prefix.append {before middle after : Config E Host} {leading trailing : 
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefix_append left right
 
 /-- A store read changes the focused program but does not edit any segment slot. -/
+theorem Prefix.read_at {before : Config E Host} {thread frames rest}
+    {next : CStore E → P E Host (Ret E)} (place : Location)
+    (focused : before.ctl = ⟨thread, .prog (.op (S := Eff E Host) .get next), frames⟩ :: rest) :
+    Prefix profile ready dispatch before place [.tau]
+      { before with ctl := ⟨thread, .prog (next before.store), frames⟩ :: rest } place :=
+  .step (.get focused) (by rw [transitionEdit, focused]; cases place <;> rfl) (.done _ _)
+
 theorem Prefix.read {before : Config E Host} {thread frames rest}
     {next : CStore E → P E Host (Ret E)} (depth : Nat)
     (focused : before.ctl = ⟨thread, .prog (.op (S := Eff E Host) .get next), frames⟩ :: rest) :
     Prefix profile ready dispatch before (.active 0 depth) [.tau]
       { before with ctl := ⟨thread, .prog (next before.store), frames⟩ :: rest } (.active 0 depth) :=
-  .step (.get focused) (by rw [transitionEdit, focused]; rfl) (.done _ _)
+  Prefix.read_at (.active 0 depth) focused
 
 /-- Pop the actual return frame, keeping every slot below it. -/
 theorem Prefix.pop_return {before : Config E Host} {thread frames rest value} {resume : Continuation E Host}
@@ -140,6 +147,12 @@ theorem Prefix.toTrail {before after : Config E Host} {labels : List (Label E Ho
     (run : Prefix profile ready dispatch before place labels after reached) :
     Trail profile ready dispatch before (some place) labels after (some reached) :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefixTrail run
+
+theorem Trail.steps {before after : Config E Host} {labels : List (Label E Host)} {place reached : Option Location}
+    (trail : Trail profile ready dispatch before place labels after reached) : Steps profile ready dispatch before labels after := by
+  induction trail with
+  | done => exact .refl _
+  | step step _ ih => exact .cons step ih
 
 theorem Trail.append {before middle after : Config E Host} {leading trailing : List (Label E Host)}
     {mark reached final : Option Location} (left : Trail profile ready dispatch before mark leading middle reached)

@@ -2411,19 +2411,19 @@ inductive ReachedRecursiveRoot (profile : ProfileKind) (ready : HostReady (HostS
     (incoming : Config (core3 grow) (HostState sig))
     {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route) : Prop where
   | refused {issue labels} (silent : PayloadPrefix.visible labels = [])
-      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
-        site.start (labels ++ [.tau, .tau, .tau]) (site.refusedReply issue))
+      (checked : ∀ place, ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start (some place) (labels ++ [.tau, .tau, .tau]) (site.refusedReply issue) (some place))
       (pending : PendingRecursiveRoot profile ready bindings callees older site incoming)
   | placementTrap {reason count}
       (verdict : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason)
-      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
-        site.start (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked))
+      (checked : site.EntryTrap profile ready (ComponentCall.hostWithComponent bindings callees)
+        (List.replicate count .tau ++ [.trap reason]))
       (pending : PendingRecursiveRoot profile ready bindings callees older site incoming)
   | placed {labels} (silent : PayloadPrefix.visible labels = [])
       (verdict : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())
       (prepared : OwnedMemory.Claims.Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ())
-      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
-        site.start labels site.checked)
+      (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) labels site.checked)
+      (pending : PendingRecursiveRoot profile ready bindings callees older site incoming)
       (body : RecursiveGivePaths profile ready bindings callees older incoming route site)
 
 /-- Compare a give at its actual Core installation. A compiler refusal

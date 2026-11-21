@@ -1352,4 +1352,31 @@ theorem RejoinedWorkerTail.classify_after_delivery {callees : List (ComponentCal
     (incoming.host.writer.accepted = start.host.writer.accepted → outgoing.writer.accepted = reached.host.writer.accepted) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyAfterDelivery tail empty between next
 
+open ReturnFrame.Occurrence in
+/-- Both real public root entries follow the same push for every previously
+installed occurrence, even though checked performs additional guard reads. -/
+theorem PendingRecursiveRoot.coupled_entry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (pending : PendingRecursiveRoot profile ready bindings callees older site incoming) :
+    ∃ canonLabels entered, PayloadPrefix.visible canonLabels = [] ∧
+      CoupledOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        site.start incoming checkLabels canonLabels site.checked entered :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.pendingCoupledEntry site checked pending
+
+open ReturnFrame.Occurrence in
+/-- Rebase the recursive allocator cut to the pre-callout public requests.
+The body starts below the fresh public reply frame, so every previously
+active slot uses the next depth in the traversal's derived certificate. -/
+theorem ComparedAllocatorPaths.at_public_request {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {entered lhs rhs : Config (core3 grow) (HostState sig)} {checkedEntry canonEntry seen : Trace grow sig}
+    (checked : site.EntryPrefix profile ready base checkedEntry site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (host bindings base))
+      incoming place canonEntry entered (site.entryPlace place))
+    (checkSilent : PayloadPrefix.visible checkedEntry = []) (canonSilent : PayloadPrefix.visible canonEntry = [])
+    (suspended : ComparedAllocatorPaths profile ready base bindings site.checked entered seen lhs rhs) :
+    ComparedAllocatorPaths profile ready base bindings site.start incoming seen lhs rhs :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.rebaseAllocatorAtRequest
+    site checked canonical checkSilent canonSilent suspended
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

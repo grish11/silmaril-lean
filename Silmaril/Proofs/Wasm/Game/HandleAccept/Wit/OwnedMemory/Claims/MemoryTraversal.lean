@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Traversal.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Public.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 
 public section
 
@@ -247,7 +248,8 @@ theorem parkedMemoryThen {pointer : FlatValue} (call : PayloadRoot.Site grow sig
     refine .placed silent verdict prepared run (listTreeTracks depth call.field 0 (flatNat pointer) _ _ _ _ _ _
       (.refl _ _) body ?_)
     intro lhs rhs check canon path atReturn
-    exact onReturn silent verdict prepared run () lhs rhs (rejoin call () path atReturn.1 atReturn.2.1 atReturn.2.2)
+    exact onReturn silent verdict prepared (PayloadRoot.Site.EntryPrefix.steps run) () lhs rhs
+      (rejoin call () path atReturn.1 atReturn.2.1 atReturn.2.2)
 
 theorem parkedFlatThen {schema : TypeOf} (call : PayloadRoot.Site grow sig (.flat schema))
     (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))
@@ -265,7 +267,8 @@ theorem parkedFlatThen {schema : TypeOf} (call : PayloadRoot.Site grow sig (.fla
     refine .placed silent verdict prepared run (flatTreeTracks flatDepth entryDepth call.field 0 _ _ _ _ _ _
       (.refl _ _) body ?_)
     intro words lhs rhs check canon path atReturn
-    exact onReturn silent verdict prepared run words lhs rhs (rejoin call words path atReturn.1 atReturn.2.1 atReturn.2.2)
+    exact onReturn silent verdict prepared (PayloadRoot.Site.EntryPrefix.steps run) words lhs rhs
+      (rejoin call words path atReturn.1 atReturn.2.1 atReturn.2.2)
 
 theorem parkedMemoryRejoined {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory pointer))
     (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))

@@ -317,12 +317,13 @@ theorem rootAdmission {route} {site : PayloadRoot.Site grow sig route} {body : P
   cases cut with
   | @refused issue labels silent run =>
     have seen : PayloadPrefix.visible (labels ++ [.tau, .tau, .tau]) = [] := by rw [visibleAppend, silent]; rfl
-    let stop := RootStop.refused issue seen (.giveRefused site linked issue silent run)
+    let stop := RootStop.refused issue seen (.giveRefused site linked issue silent run.steps)
     exact .stopped stop (.rootStop site linked stop)
   | placementTrap reason count verdict run =>
-    let stop := RootStop.placementTrap reason count (.givePlacementTrap site linked reason count verdict run)
+    let stop := RootStop.placementTrap reason count (.givePlacementTrap site linked reason count verdict run.steps)
     exact .stopped stop (.rootStop site linked stop)
-  | placed silent verdict prepared run compared => exact .entered (.giveEntry site linked silent verdict prepared run) compared
+  | placed silent verdict prepared run compared =>
+    exact .entered (.giveEntry site linked silent verdict prepared run.steps) compared
 
 theorem memoryAdmission {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) {callees : List (ComponentCall.Callee sig)} :
@@ -878,9 +879,20 @@ private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadR
       (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) site linked paired selected
     exact ⟨labels, entered, silentVisible quiet, installed, aligned, hostEq⟩
   cases cut with
-  | refused issue silent run => exact .refused silent (site.refusal_resumes issue run) pending
+  | refused issue silent run =>
+    refine .refused (issue := issue) silent (fun place => (run place).toTrail.append ?_) pending
+    let reply := route.reply site.destination site.start.host.nextTicket (.error issue)
+    have completion := Plain.give_completion_trail (profile := profile) (ready := ready)
+      (dispatch := specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      (start := site.withBody (site.reply (.error issue))) reply (site.entryPlace place) rfl
+    have restored : (ReturnFrame.Occurrence.Edit.pop : ReturnFrame.Occurrence.Edit (core3 grow) (HostState sig)).follow
+        (site.entryPlace place) = some place := by
+      cases place with
+      | active activation _ => cases activation <;> rfl
+      | saved _ _ => rfl
+    exact restored ▸ completion
   | placementTrap _ _ verdict run => exact .placementTrap verdict run pending
-  | placed silent verdict prepared run body => exact .placed silent verdict prepared run body
+  | placed silent verdict prepared run body => exact .placed silent verdict prepared run pending body
 
 theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)}
@@ -1130,5 +1142,37 @@ theorem classifyAfterDelivery {callees : List (ComponentCall.Callee sig)}
   obtain ⟨checked, live, roots⟩ := tail.delivery empty between
   have paired := LiveDispatch.paired_replace reached outgoing
   exact ⟨checked, live, classifyReplay (LiveDispatch.paired_replay paired next), roots⟩
+
+open ReturnFrame.Occurrence in
+theorem rebaseAllocatorAtRequest {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {entered lhs rhs : Config (core3 grow) (HostState sig)} {checkedEntry canonEntry seen : Trace grow sig}
+    (checked : site.EntryPrefix profile ready base checkedEntry site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (host bindings base))
+      incoming place canonEntry entered (site.entryPlace place))
+    (checkSilent : PayloadPrefix.visible checkedEntry = []) (canonSilent : PayloadPrefix.visible canonEntry = [])
+    (suspended : ComparedAllocatorPaths profile ready base bindings site.checked entered seen lhs rhs) :
+    ComparedAllocatorPaths profile ready base bindings site.start incoming seen lhs rhs := by
+  obtain ⟨checkTrace, canonTrace, movement, checkSeen, canonSeen, same⟩ := suspended
+  refine ⟨checkedEntry ++ checkTrace, canonEntry ++ canonTrace, ?_, ?_, ?_, same⟩
+  · intro depth
+    obtain ⟨reached, left, right⟩ := movement (depth + 1)
+    exact ⟨reached, (checked (.active 0 depth)).toTrail.append left, (canonical (.active 0 depth)).toTrail.append right⟩
+  · rw [visibleAppend, checkSilent, checkSeen, List.nil_append]
+  · rw [visibleAppend, canonSilent, canonSeen, List.nil_append]
+
+open ReturnFrame.Occurrence in
+theorem pendingCoupledEntry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (pending : PendingRecursiveRoot profile ready bindings callees older site incoming) :
+    ∃ canonLabels entered, PayloadPrefix.visible canonLabels = [] ∧
+      CoupledOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        site.start incoming checkLabels canonLabels site.checked entered := by
+  obtain ⟨canonLabels, entered, silent, canonical, _, _⟩ := pending
+  refine ⟨canonLabels, entered, silent, ?_⟩
+  intro place
+  cases place with
+  | none => exact ⟨none, Trail.absent checked.steps, Trail.absent (prefix_survives (canonical (.active 0 0))).1⟩
+  | some place => exact ⟨some (site.entryPlace place), (checked place).toTrail, (canonical place).toTrail⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

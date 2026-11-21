@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
+import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadRoot
 
 public section
@@ -16,6 +17,15 @@ open PayloadPrefix
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {route : GiveEffectRoute}
   {profile : ProfileKind} {ready : HostReady (HostState sig)} {bindings : List (Binding sig)}
+
+theorem Site.EntryPrefix.steps {site : Site grow sig route} {impl labels reached}
+    (run : site.EntryPrefix profile ready impl labels reached) : Steps profile ready (specDispatch ready impl) site.start labels reached :=
+  (ReturnFrame.Occurrence.prefix_survives (run (.active 0 0))).1
+
+theorem Site.EntryTrap.steps {site : Site grow sig route} {impl labels}
+    (run : site.EntryTrap profile ready impl labels) :
+    Steps profile ready (specDispatch ready impl) site.start labels (StepDefs.trapCfg site.checked) :=
+  (run (.active 0 0)).steps
 
 /-- Both linked give bindings use the very field described by the compiler
 certificate. This is a static fact, not a promise about live claims. -/
