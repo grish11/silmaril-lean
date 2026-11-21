@@ -1368,7 +1368,7 @@ def liveFixedPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
   fun before left right check canon =>
     let stride := (layout destination.width element).size
     let reference := { right with ctl := canon.control (Track.canonical (.elements stride) destination inst entries address >>= canonNext) }
-    RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] reference ∧
+    (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau] reference place) ∧
     liveElementsPaths destination inst stride child (aggregateNext index checkNext) canonNext finish entries 0 address
       before left reference check canon
 
@@ -1431,7 +1431,7 @@ def LiveFixedThen (profile : ProfileKind) (ready : HostReady (HostState sig))
   open ABI Stored.Endpoints.RecordLower LinkedCallback.MemorySequence ReturnFrame.Occurrence in
   let stride := (layout destination.width element).size
   let reference := { right with ctl := canon.control (Track.canonical (.elements stride) destination inst entries address >>= canonNext) }
-  RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] reference ∧
+  (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau] reference place) ∧
     liveElements destination inst stride child (aggregateNext index checkNext) canonNext finish entries 0 address left reference check canon
 
 def LiveAggregateThen (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1685,6 +1685,105 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
   | [] => []
   | type :: rest => (type, liveRecursivePaths profile ready base bindings older destination inst start incoming offset sink type) ::
       liveTupleTrails profile ready base bindings older destination inst start incoming offset sink rest
+termination_by structural types => types
+end
+
+/-- Memory shapes whose variable-size work is inside string leaves. This is
+a proof fragment: it adds no runtime condition on collection admission. -/
+inductive StructuralMemoryOccurrenceType : Stored.TypeOf → Prop where
+  | leaf {type} : TrailLeafType type → StructuralMemoryOccurrenceType type
+  | fixed {element length} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.fixedList element length)
+  | option {element} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.option element)
+  | result {success failure} : (∀ type, success = some type → StructuralMemoryOccurrenceType type) →
+      (∀ type, failure = some type → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.result success failure)
+  | variant {cases : List (String × Option Stored.TypeOf)} :
+      (∀ name type, (name, some type) ∈ cases → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.variant cases)
+  | record {fields : List (String × Stored.TypeOf)} :
+      (∀ name type, (name, type) ∈ fields → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.record fields)
+  | tuple {types : List Stored.TypeOf} :
+      (∀ type, type ∈ types → StructuralMemoryOccurrenceType type) → StructuralMemoryOccurrenceType (.tuple types)
+
+mutual
+def structuralMemoryOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    Stored.TypeOf → TrailFieldComparison grow sig
+  | .fixedList element length => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .fixed element length entries ∧
+      liveFixedPaths profile ready base bindings destination inst
+        (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element) element entries index address
+        checkNext canonNext finish before left right check canon
+  | .option element => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.option element) [none, some element] tag selected ∧
+      LocalOccurrenceThen profile ready base bindings start incoming before
+        (match selected with
+        | none => finish
+        | some arm => structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width [none, some element] address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .result success failure => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.result success failure) [success, failure] tag selected ∧
+      let okPaths : TrailFieldComparison grow sig := match success with
+        | some type => structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+        | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
+      let errorPaths : TrailFieldComparison grow sig := match failure with
+        | some type => structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+        | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
+      LocalOccurrenceThen profile ready base bindings start incoming before
+        (match selected with
+        | none => finish
+        | some arm => (if tag = 0 then okPaths else errorPaths) arm 0 (PayloadPrefix.sumPayloadAddress destination.width [success, failure] address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .variant cases => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.variant cases) (cases.map Prod.snd) tag selected ∧
+      LocalOccurrenceThen profile ready base bindings start incoming before
+        (match selected with
+        | none => finish
+        | some arm => structuralVariantOccurrencePaths profile ready base bindings older destination inst start incoming sink cases tag arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width (cases.map Prod.snd) address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .record fields => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate (.record fields) items ∧
+      liveAggregatePaths profile ready base bindings destination inst
+        (selectPathField (structuralRecordOccurrencePaths profile ready base bindings older destination inst start incoming sink fields))
+        items index address checkNext canonNext finish before left right check canon
+  | .tuple types => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate (.tuple types) items ∧
+      liveAggregatePaths profile ready base bindings destination inst
+        (selectPathField (structuralTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink types))
+        items index address checkNext canonNext finish before left right check canon
+  | type => leafOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+termination_by structural type => type
+
+def structuralVariantOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Option Stored.TypeOf) → Nat → TrailFieldComparison grow sig
+  | (_, some type) :: _, 0 => structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+  | _ :: rest, tag + 1 => structuralVariantOccurrencePaths profile ready base bindings older destination inst start incoming sink rest tag
+  | _, _ => fun _ _ _ _ _ _ _ _ _ _ _ => False
+termination_by structural cases => cases
+
+def structuralRecordOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × TrailFieldComparison grow sig)
+  | [] => []
+  | (_, type) :: rest => (type, structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) ::
+      structuralRecordOccurrencePaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural fields => fields
+
+def structuralTupleOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List Stored.TypeOf → List (Stored.TypeOf × TrailFieldComparison grow sig)
+  | [] => []
+  | type :: rest => (type, structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) ::
+      structuralTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink rest
 termination_by structural types => types
 end
 

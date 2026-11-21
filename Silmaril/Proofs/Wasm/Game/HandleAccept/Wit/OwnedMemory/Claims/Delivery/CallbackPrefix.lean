@@ -105,7 +105,7 @@ theorem coreInternal {protectedReturn thread core next frames rest store coreNex
   · intro _ _ _ _ _; simp [focused]
   · simp [CoreUpdateGrows, focused]
 
-private theorem unchangedTrail {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+theorem unchangedTrail {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {before after : Config (core3 grow) (HostState sig)} {trace}
     (tracks : ∀ place, Prefix profile ready dispatch before place trace after place) (mark : Option Location) :
     Trail profile ready dispatch before mark trace after mark := by
@@ -1161,7 +1161,7 @@ theorem recordTable (destination : RecordDestination) (inst : InstId) (fields : 
     cases field
     simp only [liveRecordFields, List.map_cons, liveTupleFields, ih]
 
-private theorem aggregateOccurrencePathsFrom {destination : RecordDestination} {inst : InstId}
+theorem aggregateOccurrencePathsFrom {destination : RecordDestination} {inst : InstId}
     {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
     {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
     {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
@@ -1295,6 +1295,43 @@ theorem sumPathsFrom {destination : RecordDestination} {inst : InstId}
     have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
     refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached,
       ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩, ?_⟩
+    cases selected with
+    | none => exact next _ _ _ _ _ reached rfl done
+    | some item =>
+      exact lift rfl item 0 _ _ _ check canon _ canonNext finish visit _ done reached rfl
+        (sink.nested _ admitted index) next
+
+theorem sumOccurrencePathsFrom {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {arms : List (Option Stored.TypeOf)} {selected : Option Field} {index address : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {sink : RefusalSink grow sig}
+    (lift : selected.isSome = true → LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveSumThen profile ready base bindings destination inst child arms selected index address
+      checkNext canonNext finish left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LocalOccurrenceThen profile ready base bindings start incoming seen
+      (match selected with
+      | none => visit
+      | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
+          (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) := by
+  obtain ⟨store, result, lhsLabels, rhsLabels, _, _, same, trails, tail⟩ := run
+  cases result with
+  | error reason =>
+    obtain ⟨prefixLabels, trapped⟩ := tail
+    exact .inl ⟨reason, prefixLabels, _, _, appendComparedOccurrences leading
+      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+  | ok result =>
+    cases result
+    obtain ⟨_, _, done⟩ := tail
+    have reached := appendComparedOccurrences leading ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩
+    refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, ?_⟩
     cases selected with
     | none => exact next _ _ _ _ _ reached rfl done
     | some item =>

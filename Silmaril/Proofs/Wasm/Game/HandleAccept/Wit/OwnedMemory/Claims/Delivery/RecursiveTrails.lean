@@ -220,7 +220,8 @@ theorem fixedPaths {destination : RecordDestination} {inst : InstId} {element : 
     liveFixedPaths profile ready base bindings destination inst paths element entries index address checkNext canonNext visit
       seen left right check canon := by
   obtain ⟨read, body⟩ := run
-  exact ⟨read, CallbackPrefix.liveElementsPathsFrom lift (canonicalRead leading read rfl) same body (sink.nested _ admitted index) next⟩
+  exact ⟨read, CallbackPrefix.liveElementsPathsFrom lift (canonicalRead leading (fun depth => read (.active 0 depth)) rfl)
+    same body (sink.nested _ admitted index) next⟩
 
 private theorem emptyLift :
     LiftsFieldPaths profile ready base bindings start incoming offset
@@ -250,9 +251,10 @@ private theorem variantLift (destination : RecordDestination) (inst : InstId)
 
 private theorem aggregateSelectionLift
     {fields : List (Stored.TypeOf × FieldComparison grow sig)} {paths : List (Stored.TypeOf × TrailFieldComparison grow sig)}
+    {history : Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
     (paired : ∀ type raw, (type, raw) ∈ fields → ∃ trail, (type, trail) ∈ paths ∧
-      LiftsFieldPaths profile ready base bindings start incoming offset raw trail sink) :
-    LiftsFieldPaths profile ready base bindings start incoming offset (aggregateChild fields) (selectPathField paths) sink := by
+      LiftsFieldPathsWith history raw trail sink) :
+    LiftsFieldPathsWith history (aggregateChild fields) (selectPathField paths) sink := by
   intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
   obtain ⟨raw, member, body⟩ := run
   obtain ⟨trail, present, lift⟩ := paired item.type raw member
@@ -353,5 +355,131 @@ theorem fieldPaths {destination : RecordDestination} {inst : InstId} {type : Sto
     intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
     obtain ⟨items, shape, body⟩ := run
     exact ⟨items, shape, CallbackPrefix.aggregatePathsFrom (tupleLift destination inst types children) leading same body admitted next⟩
+
+private theorem fixedOccurrencePaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {entries : List Field} {index address : Nat} {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (same : left.store = right.store)
+    (run : LiveFixedThen profile ready base bindings destination inst child element entries index address checkNext canonNext finish
+      left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveFixedPaths profile ready base bindings destination inst paths element entries index address checkNext canonNext visit
+      seen left right check canon := by
+  obtain ⟨read, body⟩ := run
+  have reached := CallbackPrefix.appendComparedOccurrences (after := []) leading
+    ⟨[], [.tau], fun mark => ⟨mark, .done _ _, CallbackPrefix.unchangedTrail read mark⟩, rfl, rfl, same⟩
+  rw [List.append_nil] at reached
+  exact ⟨read, CallbackPrefix.liveElementsPathsFrom lift reached same body (sink.nested _ admitted index) next⟩
+
+private theorem emptyOccurrenceLift :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (fun _ _ _ _ _ _ _ _ _ _ => False) (fun _ _ _ _ _ _ _ _ _ _ _ => False) sink := by
+  intro _ _ _ _ _ _ _ _ _ _ _ _ impossible
+  exact impossible.elim
+
+private theorem variantOccurrenceLift (destination : RecordDestination) (inst : InstId)
+    (cases : List (String × Option Stored.TypeOf)) (tag : Nat)
+    (arms : ∀ name type, (name, some type) ∈ cases → LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink) :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveVariantArm profile ready base bindings older destination inst cases tag)
+      (structuralVariantOccurrencePaths profile ready base bindings older destination inst start incoming sink cases tag) sink := by
+  induction cases generalizing tag with
+  | nil => cases tag <;> exact emptyOccurrenceLift
+  | cons field rest ih =>
+    obtain ⟨name, arm⟩ := field
+    cases tag with
+    | zero => cases arm with
+      | none => exact emptyOccurrenceLift
+      | some type => exact arms name type (List.mem_cons_self ..)
+    | succ tag =>
+      simpa only [liveVariantArm, structuralVariantOccurrencePaths] using
+        (ih tag (fun name type member => arms name type (List.mem_cons_of_mem _ member)))
+
+private theorem tupleOccurrenceLift (destination : RecordDestination) (inst : InstId) (types : List Stored.TypeOf)
+    (children : ∀ type ∈ types, LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink) :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (aggregateChild (liveTupleFields profile ready base bindings older destination inst types))
+      (selectPathField (structuralTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink types)) sink := by
+  apply aggregateSelectionLift
+  intro type raw member
+  induction types with
+  | nil => cases member
+  | cons schema rest ih =>
+    rw [liveTupleFields] at member
+    rcases List.mem_cons.mp member with equal | later
+    · cases equal
+      exact ⟨_, List.mem_cons_self .., children _ (List.mem_cons_self ..)⟩
+    · obtain ⟨trail, present, lift⟩ := ih (fun item belongs => children item (List.mem_cons_of_mem _ belongs)) later
+      exact ⟨trail, List.mem_cons_of_mem _ present, lift⟩
+
+private theorem recordOccurrencePaths (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf)) :
+    structuralRecordOccurrencePaths profile ready base bindings older destination inst start incoming sink fields =
+      structuralTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink (fields.map Prod.snd) := by
+  induction fields with
+  | nil => rfl
+  | cons field rest ih =>
+    cases field
+    simp only [structuralRecordOccurrencePaths, List.map_cons, structuralTupleOccurrencePaths, ih]
+
+theorem structuralFieldOccurrences {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming) (family : StructuralMemoryOccurrenceType type) :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink := by
+  induction family with
+  | leaf leaf =>
+    have lifted := CallbackPrefix.leafOccurrenceLift (destination := destination) (inst := inst) (older := older) covers leaf
+    rcases leaf with nominal | data | rfl
+    · cases nominal <;> exact lifted
+    · cases data with
+      | @primitive primitive notString => cases primitive <;> exact lifted
+      | enum | flags => exact lifted
+    · exact lifted
+  | fixed _ child =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨entries, shape, body⟩ := run
+    exact ⟨entries, shape, fixedOccurrencePaths child leading same body admitted next⟩
+  | option _ child =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨tag, selected, shape, body⟩ := run
+    refine ⟨tag, selected, shape, ?_⟩
+    cases selected <;> exact CallbackPrefix.sumOccurrencePathsFrom (fun _ => child) leading body admitted next
+  | @result success failure _ _ okChild errChild =>
+    cases success <;> cases failure <;>
+      intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    all_goals
+      obtain ⟨tag, selected, shape, body⟩ := run
+      refine ⟨tag, selected, shape, ?_⟩
+      by_cases ok : tag = 0 <;> simp only [ok, ↓reduceIte] at body ⊢ <;> cases selected <;> first
+        | exact CallbackPrefix.sumOccurrencePathsFrom (fun _ => emptyOccurrenceLift) leading body admitted next
+        | exact CallbackPrefix.sumOccurrencePathsFrom (fun _ => okChild _ rfl) leading body admitted next
+        | exact CallbackPrefix.sumOccurrencePathsFrom (fun _ => errChild _ rfl) leading body admitted next
+  | @variant cases _ arms =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨tag, selected, shape, body⟩ := run
+    refine ⟨tag, selected, shape, ?_⟩
+    cases selected <;> exact CallbackPrefix.sumOccurrencePathsFrom (fun _ => variantOccurrenceLift destination inst cases tag arms) leading body admitted next
+  | @record fields _ children =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨items, shape, body⟩ := run
+    have lift := tupleOccurrenceLift destination inst (fields.map Prod.snd) (fun type member => by
+      obtain ⟨⟨name, schema⟩, present, rfl⟩ := List.mem_map.mp member
+      exact children name schema present)
+    rw [← CallbackPrefix.recordTable destination inst, ← recordOccurrencePaths destination inst] at lift
+    exact ⟨items, shape, CallbackPrefix.aggregateOccurrencePathsFrom lift leading same body admitted next⟩
+  | @tuple types _ children =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨items, shape, body⟩ := run
+    exact ⟨items, shape, CallbackPrefix.aggregateOccurrencePathsFrom (tupleOccurrenceLift destination inst types children) leading same body admitted next⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails

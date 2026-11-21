@@ -6,6 +6,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Defs
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 
@@ -824,6 +825,17 @@ theorem memory_leaf_aggregate_occurrences {destination : RecordDestination} {ins
       (aggregateFieldPaths profile ready base bindings destination inst type
         (leafOccurrencePaths profile ready base bindings older destination inst start incoming sink)) sink :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.leafAggregateOccurrenceLift covers leaves
+
+/-- Derive cumulative occurrence paths through compiled fixed strides,
+heterogeneous fields and the selected arm of each sum. The reached leaf
+program supplies effects and stops; the schema supplies the child rule. -/
+theorem structural_memory_occurrences {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+    {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (family : StructuralMemoryOccurrenceType type) :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.structuralFieldOccurrences covers family
 
 /-- Track active and saved occurrences through the actual tag store. A tag
 trap takes neither branch; successful entry uses only the selected child. -/

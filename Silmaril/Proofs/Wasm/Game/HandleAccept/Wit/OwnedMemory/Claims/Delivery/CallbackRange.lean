@@ -2330,10 +2330,10 @@ private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) 
     change canon.control (((ptrType cx).bind elements).bind canonNext) = _
     rw [Prog.bind_assoc]
     rfl
-  refine ⟨fun depth => ?_, ?_⟩
-  · change Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right (.active 0 depth) [.tau] reference (.active 0 depth)
-    simpa only [reachedWidth, Cursor.control, reference] using (ReturnFrame.Occurrence.Prefix.read (profile := profile)
-      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) depth focus)
+  refine ⟨fun place => ?_, ?_⟩
+  · change Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau] reference place
+    simpa only [reachedWidth, Cursor.control, reference] using (Prefix.read_at (profile := profile)
+      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) place focus)
   · obtain ⟨modulo, bytes, sized, fits⟩ := placementInterval destination left.store
       (layout destination.width (.fixedList element length)) address placed
     rw [layout] at modulo fits
