@@ -168,7 +168,10 @@ for the entire toolchain. The linked ledgers give the precise domains and open g
   native-only context actions. Script digests were rechecked; 16 wrong
   expectations were rejected and five controls passed. This is test-wise
   agreement, not a proof about Wasmtime or the whole spec suite.
-- **Separate pending work:** #707 makes direct `ByteArray` writes kernel-evaluable.
+- **Direct `ByteArray` writes (#707, `f829ac70`):** `hi_mem_direct` checks the
+  concrete `"hi!"` fixture by reducing the direct byte-array runner rather than
+  transferring a `KMem` evaluation. This is a separate executable-path check,
+  not evidence of whole-engine equivalence or general acceptance.
 
 The WAST counts combine different kinds of evidence:
 
