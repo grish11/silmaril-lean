@@ -340,6 +340,12 @@ theorem LiveDispatch.interleaving_steps {actions labels incoming outgoing}
       (HostFrame.replace start incoming) labels (HostFrame.replace finish outgoing) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.interleavingSteps between
 
+/-- Replacing the reached host alone keeps the same active and saved
+frames, independently of any equality of accepted observations. -/
+theorem LiveDispatch.paired_replace (state : Config (core3 grow) (HostState sig)) (other : HostState sig) :
+    HostFrame.Related.Paired (fun _ _ => False) state (HostFrame.replace state other) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedReplace state other
+
 /-- The classified interleaving reconstructs the same accepted observations
 on the reached counterpart, even when a commit extends the observation list.
 It need not preserve the entry journal, or the entry event and claim state. -/

@@ -1272,4 +1272,28 @@ theorem GiveInstall.recursive_request_cut {callees : List (ComponentCall.Callee 
     DirectGiveAt bindings start ∨ ∃ request : CoreGiveRequest bindings start, RecursiveRequestCut profile ready callees request older incoming :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.recursiveInstallCut install paired
 
+/-- The next give after a common reply is classified from its reached
+install, not from a preselected route or replay of its checked-only body. -/
+theorem RejoinedWorkerTail.classify {callees : List (ComponentCall.Callee sig)}
+    (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyReplay (tail.replay run)
+
+/-- Execute the intervening delivery on the reached journals and classify
+the next Core cut. The next selector runs against the updated journals; an
+event may have been consumed or replaced before that selector is reached. -/
+theorem RejoinedWorkerTail.classify_after_delivery {callees : List (ComponentCall.Callee sig)}
+    (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)
+    (empty : ∀ first second, ¬ older first second) {actions reached outgoing queued done}
+    (between : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      start incoming.host actions labels reached outgoing)
+    (next : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached queued done) :
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels reached ∧
+    Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming labels (HostFrame.replace reached outgoing) ∧
+    ClassifiedWorkerTail profile ready bindings callees (fun _ _ => False) reached (HostFrame.replace reached outgoing) queued done ∧
+    (incoming.host.writer.accepted = start.host.writer.accepted → outgoing.writer.accepted = reached.host.writer.accepted) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyAfterDelivery tail empty between next
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

@@ -2409,4 +2409,38 @@ inductive RecursiveRequestCut (profile : ProfileKind) (ready : HostReady (HostSt
       (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
       (body : RecursiveGiveDomain selection → ReachedRecursiveGive profile ready callees selection older incoming)
 
+/-- The first reached cut in Core execution after a common reply. At a
+give installation the canonical side follows the reached live selector;
+the baseline tail witnesses only the checked execution. -/
+inductive ClassifiedWorkerTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | complete {other}
+      (live : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming labels other)
+      (paired : HostFrame.Related.Paired older finish other)
+  | request {leading label trailing beforeLeft beforeRight afterLeft}
+      (split : labels = leading ++ label :: trailing)
+      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start leading beforeLeft)
+      (live : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming leading beforeRight)
+      (paired : HostFrame.Related.Paired older beforeLeft beforeRight)
+      (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) beforeLeft label afterLeft)
+      (cut : DirectGiveAt bindings beforeLeft ∨ ∃ request : CoreGiveRequest bindings beforeLeft,
+        RecursiveRequestCut profile ready callees request older beforeRight)
+      (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) afterLeft trailing finish)
+  | boundary {leading label trailing beforeLeft beforeRight afterLeft afterRight}
+      (split : labels = leading ++ label :: trailing)
+      (checked : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start leading beforeLeft)
+      (live : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming leading beforeRight)
+      (paired : HostFrame.Related.Paired older beforeLeft beforeRight)
+      (boundary : HostFrame.Related.Boundary older beforeLeft beforeRight label afterLeft afterRight)
+      (checkedStep : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) beforeLeft label afterLeft)
+      (liveStep : Step profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        beforeRight label afterRight)
+      (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) afterLeft trailing finish)
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

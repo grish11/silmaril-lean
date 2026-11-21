@@ -980,4 +980,29 @@ theorem recursiveInstallCut {callees : List (ComponentCall.Callee sig)} {label}
   · exact .inr ⟨request, recursiveRequestCut request paired⟩
   · exact .inl direct
 
+theorem classifyReplay {callees : List (ComponentCall.Callee sig)}
+    (replay : PairedReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees)
+      older start incoming labels finish) : ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish := by
+  cases replay with
+  | complete live paired => exact .complete live paired
+  | request split checked live paired install tail =>
+    exact .request split checked live paired install (recursiveInstallCut install paired) tail
+  | boundary split checked live paired boundary stepLeft stepRight tail =>
+    exact .boundary split checked live paired boundary stepLeft stepRight tail
+
+theorem classifyAfterDelivery {callees : List (ComponentCall.Callee sig)}
+    (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)
+    (empty : ∀ first second, ¬ older first second) {actions reached outgoing queued done}
+    (between : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      start incoming.host actions labels reached outgoing)
+    (next : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached queued done) :
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels reached ∧
+    Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming labels (HostFrame.replace reached outgoing) ∧
+    ClassifiedWorkerTail profile ready bindings callees (fun _ _ => False) reached (HostFrame.replace reached outgoing) queued done ∧
+    (incoming.host.writer.accepted = start.host.writer.accepted → outgoing.writer.accepted = reached.host.writer.accepted) := by
+  obtain ⟨checked, live, roots⟩ := tail.delivery empty between
+  have paired := LiveDispatch.paired_replace reached outgoing
+  exact ⟨checked, live, classifyReplay (LiveDispatch.paired_replay paired next), roots⟩
+
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
