@@ -145,6 +145,7 @@ for the entire toolchain. The linked ledgers give the precise domains and open g
 | Evidence on `main` | What is proved | What it does not establish |
 | --- | --- | --- |
 | [REF and IR byte reading](../../Silmaril/Wasi/Component/Accept/Ref/Bridge/Thms.lean), #709 (`532414bea`) | `bytesOf?_toRefVal`: the reference machine (REF) and the component IR read the same bytes from a converted value. | Agreement of acceptance languages or machine runs. |
+| [Policy-parametric REF acceptance](../../Silmaril/Wasi/Component/Accept/Ref/Thms.lean), #802 (`feb9e3ce8`) | A successful finite `acceptRunWith` that records the bytes is sound for its `EnvPolicy` and the oracle's profile. For bytes that `decodeValid` accepts, the default system uses the typed policy and is contained in the untyped system. The linked host supplies `accept: func(list<u8>)`; no host waitable is ready. | Completeness of finite search, equality with the untyped language, or equivalence with the IR or arbitrary typed hosts. |
 | [Named decoder and start bridge](component-tests.md), #1020 (`568ec9b0c`) | `MultiX.startAdequacyFrag` discharges `Task.startAdequacyFrag` on `MultiImpFrag`: for the stated valid named reading, an IR ready instantiation and first-export play imply the REF outcome and ordered host log. The IR uses `profile neverFail`; REF uses `first.prof` with the logging host for the fixed `f: func(x: u32)` import. `starts_ref_of_ir'` gives the concrete `get` result `42` and log. | `Task.startAdequacyChecked` for every binary that passes the root checks. The parameter-name counterexample rules out the unguarded claim. |
 | [Quiet later-node failure](component-tests.md), #989 (`e39131465`) | For a valid P2 import-wired binary in `MultiImpFailFrag` with the fixed host import, quiet ready nodes followed by a quiet preparation or start failure at node `k ≥ 1` imply a REF instantiation trap under the bridge's `first.prof` and logging host. The guard does not require the successful-start fragment's `splitNodes` or `liftsCall` checks. | `Task.failRefWiredRest''` remains a hypothesis for the other cases. This proves neither general failure adequacy nor a broader successful-start theorem. |
 | [Typed-host acceptance sessions](../../Silmaril/Wasi/Component/Accept/Ref/HostSession/Thms.lean), #805 (`363a097a2`) | `HLinked2.sessAccepted_iff`: under `HLinked2.Adequate` and `HostTyped g`, REF sessions and IR plays answered by the same host agree on the existence of a logged `accept` carrying the bytes, for every stated Core profile and component choice profile. | Arbitrary hosts, unfinished calls, or a general equivalence from component bytes to a game denotation. |
@@ -167,9 +168,7 @@ for the entire toolchain. The linked ledgers give the precise domains and open g
   native-only context actions. Script digests were rechecked; 16 wrong
   expectations were rejected and five controls passed. This is test-wise
   agreement, not a proof about Wasmtime or the whole spec suite.
-- **Separate pending work:** #707 makes direct `ByteArray` writes kernel-evaluable;
-  #802 factors acceptance over an environment policy and makes the typed byte
-  system the default. Neither is counted as landed evidence here.
+- **Separate pending work:** #707 makes direct `ByteArray` writes kernel-evaluable.
 
 The WAST counts combine different kinds of evidence:
 
