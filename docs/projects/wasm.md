@@ -145,6 +145,7 @@ for the entire toolchain. The linked ledgers give the precise domains and open g
 | Evidence on `main` | What is proved | What it does not establish |
 | --- | --- | --- |
 | [REF and IR byte reading](../../Silmaril/Wasi/Component/Accept/Ref/Bridge/Thms.lean), #709 (`532414bea`) | `bytesOf?_toRefVal`: the reference machine (REF) and the component IR read the same bytes from a converted value. | Agreement of acceptance languages or machine runs. |
+| [Direct kernel memory run](../../Silmaril/Wasi/Component/Accept/Ref/Examples.lean), #707 (`bc74e4a5f`) | `hi_mem_direct`: the kernel evaluates a direct `ByteArray` run for the concrete `"hi!"` fixture. With the fixed `accept: func(list<u8>)` logging host and `first.prof` (`profile neverFail`), invoking `run` proves membership in `bytesSystemUntyped`. | This does not transfer a `KMem` evaluation, prove general acceptance, or establish equivalence of memory engines. |
 | [Policy-parametric REF acceptance](../../Silmaril/Wasi/Component/Accept/Ref/Thms.lean), #802 (`feb9e3ce8`) | A successful finite `acceptRunWith` that records the bytes is sound for its `EnvPolicy` and the oracle's profile. For bytes that `decodeValid` accepts, the default system uses the typed policy and is contained in the untyped system. The linked host supplies `accept: func(list<u8>)`; no host waitable is ready. | Completeness of finite search, equality with the untyped language, or equivalence with the IR or arbitrary typed hosts. |
 | [Named decoder and start bridge](component-tests.md), #1020 (`568ec9b0c`) | `MultiX.startAdequacyFrag` discharges `Task.startAdequacyFrag` on `MultiImpFrag`: for the stated valid named reading, an IR ready instantiation and first-export play imply the REF outcome and ordered host log. The IR uses `profile neverFail`; REF uses `first.prof` with the logging host for the fixed `f: func(x: u32)` import. `starts_ref_of_ir'` gives the concrete `get` result `42` and log. | `Task.startAdequacyChecked` for every binary that passes the root checks. The parameter-name counterexample rules out the unguarded claim. |
 | [Quiet later-node failure](component-tests.md), #989 (`e39131465`) | For a valid P2 import-wired binary in `MultiImpFailFrag` with the fixed host import, quiet ready nodes followed by a quiet preparation or start failure at node `k ≥ 1` imply a REF instantiation trap under the bridge's `first.prof` and logging host. The guard does not require the successful-start fragment's `splitNodes` or `liftsCall` checks. | `Task.failRefWiredRest''` remains a hypothesis for the other cases. This proves neither general failure adequacy nor a broader successful-start theorem. |
@@ -168,11 +169,6 @@ for the entire toolchain. The linked ledgers give the precise domains and open g
   native-only context actions. Script digests were rechecked; 16 wrong
   expectations were rejected and five controls passed. This is test-wise
   agreement, not a proof about Wasmtime or the whole spec suite.
-- **Direct `ByteArray` writes (#707, `f829ac70`):** `hi_mem_direct` checks the
-  concrete `"hi!"` fixture by reducing the direct byte-array runner rather than
-  transferring a `KMem` evaluation. This is a separate executable-path check,
-  not evidence of whole-engine equivalence or general acceptance.
-
 The WAST counts combine different kinds of evidence:
 
 - **Deterministic execution:** return and trap rows use Core reduction at
