@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Correspondence.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Dispatch.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Defs
 
 @[expose] public section
 
@@ -447,6 +448,7 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
         let left := { checked with ctl := cursor.control (checkNext pointer verdict) }
         let right := { canonical with ctl := canon.control (canonNext pointer) }
         LinkedCallback.ChildFrameOver older left right cursor canon ∧
+        (∃ labels, RangeReturnTrails profile ready (specDispatch ready base) checked labels left) ∧
         ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right
     else traps .outOfBounds
 
@@ -2487,6 +2489,34 @@ def PendingRecursiveRoot (profile : ProfileKind) (ready : HostReady (HostState s
       (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
     HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = incoming.host
 
+/-- The checked side records the typed reply and pops its Core caller. The
+canonical side stays at the exact already reached child entry, so its older
+occurrences keep their pre-reply positions. -/
+def PublicCollectionRefusalOccurrences (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (incoming checked canonical : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (type element : Stored.TypeOf) (entries : List Stored.Endpoints.RecordLower.Field) (pointer : Nat) : Prop :=
+  open Stored.Endpoints.RecordLower ABI PayloadPrefix ReturnFrame.Occurrence in
+  let area := layout site.destination.width element
+  let mode := CanonicalTree.EntryMode.forOutput site.destination.width type route.output
+  ∀ bytes, (core3 grow).memSize? checked.store.core site.destination.memory = some bytes →
+    pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+    ∀ issue, OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .error issue →
+      let reply := route.reply site.destination site.start.host.nextTicket (.error (LinkedCallback.CollectionVisit.afterAllocation 0 issue))
+      let child := canonicalCollectionTail site.destination site.inst entries area route.output pointer mode >>= site.referenceReply
+      ∃ (canon : Cursor (E := core3 grow) (HostState sig)) (segments : List (Seg (core3 grow) (HostState sig)))
+          (checkLabels canonLabels : Trace grow sig),
+        let resumed := (core3 grow).resume checked.store.core site.core (.values reply.2)
+        let left := { checked with host := checked.host.record reply.1, ctl := ⟨cursor.thread, .core resumed site.resume, segments⟩ :: cursor.rest }
+        let right := { canonical with ctl := canon.control child }
+        visible checkLabels = seen ∧ visible canonLabels = seen ∧ left.store = right.store ∧
+        ∀ mark : Option Location, ∃ atReply,
+          Trail profile ready (specDispatch ready base) site.start mark checkLabels left
+            (atReply.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow) ∧
+          Trail profile ready (specDispatch ready (host bindings base)) incoming mark canonLabels right atReply
+
 /-- From the original public request to the actual installed collection
 allocator, then to the first range/recheck outcome if that occurrence returns.
 The initial checked and reference programs are the real public entries. -/
@@ -2517,7 +2547,8 @@ def PublicCollectionOccurrences (profile : ProfileKind) (ready : HostReady (Host
           CollectionRangeOccurrences profile ready base bindings older site.start incoming finish reached seen
             cursor site.destination area entries.length pointer (Stored.Endpoints.RecordLower.Field.listObjects entries)
             (fun addr verdict => PayloadPrefix.checkedCollectionTail site.destination site.inst entries area 0 route.output addr verdict >>= site.reply)
-            (fun addr => PayloadPrefix.canonicalCollectionTail site.destination site.inst entries area route.output addr mode >>= site.referenceReply))
+            (fun addr => PayloadPrefix.canonicalCollectionTail site.destination site.inst entries area route.output addr mode >>= site.referenceReply) ∧
+          PublicCollectionRefusalOccurrences profile ready base bindings site incoming finish reached seen cursor type element entries pointer)
 
 /-- Classify the reached guard before recursive traversal starts. A
 checked placement trap has its actual lockdown; it is not evidence that

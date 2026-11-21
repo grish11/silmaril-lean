@@ -1214,10 +1214,56 @@ private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked c
   · simp only [ite_eq_right misaligned] at verdict ⊢
     by_cases fits : pointer + count * area.size ≤ bytes
     · simp only [ite_eq_left fits] at verdict ⊢
-      obtain ⟨canon, frame, paths⟩ := verdict
-      exact ⟨canon, frame, by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths⟩
+      obtain ⟨canon, frame, returned, paths⟩ := verdict
+      exact ⟨canon, frame, returned, by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths⟩
     · simp only [ite_eq_right fits] at verdict ⊢
       simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict
+
+open Stored.Endpoints.RecordLower ABI PayloadPrefix ReturnFrame.Occurrence in
+private theorem finishCollectionRefusal {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (type element : Stored.TypeOf) (entries : List Field) (pointer : Nat)
+    {checked canonical : Config (core3 grow) (HostState sig)} {seen : Trace grow sig}
+    {cursor : Cursor (E := core3 grow) (HostState sig)} {leading : Trace grow sig}
+    (caller : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) leading checked (.active 0 1)) :
+    let area := layout site.destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput site.destination.width type route.output
+    CollectionRangeOccurrences profile ready base bindings older site.start incoming checked canonical seen
+      cursor site.destination area entries.length pointer (Field.listObjects entries)
+      (fun addr verdict => checkedCollectionTail site.destination site.inst entries area 0 route.output addr verdict >>= site.reply)
+      (fun addr => canonicalCollectionTail site.destination site.inst entries area route.output addr mode >>= site.referenceReply) →
+    PublicCollectionRefusalOccurrences profile ready base bindings site incoming checked canonical seen cursor type element entries pointer := by
+  intro area mode range
+  unfold PublicCollectionRefusalOccurrences
+  dsimp only
+  intro bytes sized aligned bounds issue failed
+  obtain ⟨capacity, _, atCapacity, verdict⟩ := range
+  have sameCapacity := Option.some.inj (atCapacity.symm.trans sized)
+  have fits : pointer + entries.length * area.size ≤ capacity := by simpa only [sameCapacity] using bounds
+  by_cases misaligned : pointer ≠ alignTo pointer area.alignment
+  · exact False.elim (misaligned aligned)
+  simp only [ite_eq_right misaligned, ite_eq_left fits] at verdict
+  obtain ⟨canon, _, ⟨localLabels, tracks⟩, paths⟩ := verdict
+  let refused := LinkedCallback.CollectionVisit.afterAllocation 0 issue
+  let reply := route.reply site.destination site.start.host.nextTicket (.error refused)
+  have stop : (checkedCollectionTail site.destination site.inst entries area 0 route.output pointer (.error issue) >>= site.reply) =
+      site.reply (.error refused) := by cases issue <;> rfl
+  rw [failed, stop] at tracks paths
+  let reached := { checked with ctl := cursor.control (site.reply (.error refused)) }
+  obtain ⟨segments, atCaller⟩ := site.reached_caller (reached := reached) (body := site.reply (.error refused))
+    rfl (caller.append (tracks.retains 0))
+  have atReply : reached.ctl = ⟨cursor.thread, .prog (do return .flat (← writeCompletion reply)),
+      .core site.core site.resume :: segments⟩ :: cursor.rest := by
+    simp only [reached, Cursor.control, atCaller, PayloadRoot.Site.reply, reply]
+  obtain ⟨leftLabels, rightLabels, paths, leftSeen, rightSeen, store⟩ := paths
+  refine ⟨canon, segments, leftLabels ++ [.tau, .tau, .tau], rightLabels, ?_, rightSeen, store, ?_⟩
+  · rw [visibleAppend, leftSeen]
+    exact List.append_nil _
+  · intro mark
+    obtain ⟨next, left, right⟩ := paths mark
+    refine ⟨next, left.append ?_, right⟩
+    cases next with
+    | none => exact Trail.absent (Plain.give_completion_steps reply atReply)
+    | some place => exact Plain.give_completion_trail reply place atReply
 
 theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
@@ -1252,6 +1298,10 @@ theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoo
   refine ⟨leftLabels, rightLabels, reached, mark, installed, ?_, ?_⟩
   · simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths
   · intro pointer cursor active returning
-    simpa only [List.nil_append] using rebaseRange entry (returns pointer cursor active returning)
+    have range := rebaseRange entry (returns pointer cursor active returning)
+    have allocator := installed.checkedTrail
+    rw [active] at allocator
+    obtain ⟨_, caller⟩ := CallbackRange.collectionCaller site linked type element entries field live allocator
+    exact ⟨range, finishCollectionRefusal site type element entries pointer caller range⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

@@ -193,7 +193,8 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
         (ready := ready) (dispatch := specDispatch ready base) checked inst area entries.length pointer
         (Field.listObjects entries) lhs first rfl checkedAt (not_ne_iff.mp misaligned) sized bounds
       obtain ⟨canonLabels, canonQuiet, right⟩ := canonicalRange
-      refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩, ?_⟩
+      refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩,
+        ⟨checkLabels, left⟩, ?_⟩
       simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
         (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
     · simp only [ite_eq_right bounds] at checkedRange canonicalRange ⊢
@@ -1397,7 +1398,7 @@ theorem refusalReply {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig
   exact ⟨canon, lhs, rhs, segments, checkTau, canonTau,
     appendRun (prefix_survives (checkedRun 0)).1 (Plain.give_completion_steps reply atReply), canonRun⟩
 
-private theorem collectionCaller {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+theorem collectionCaller {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (type element : Stored.TypeOf) (entries : List Field)
     (field : site.field = .dynamic type element entries)
     (prepared : Stored.OwnedMemory.Claims.Record.prepare site.checked.store site.checked.host.writer (Field.listObjects entries) = .ok ())

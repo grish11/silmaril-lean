@@ -93,6 +93,10 @@ theorem RecordDestination.listRange_body (destination : RecordDestination) (inst
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.list_range_body
     destination inst area count pointer store host thread
 
+theorem RangeReturnTrails.retains (tracks : RangeReturnTrails profile ready dispatch before trace after) :
+    RetainsBelowTop profile ready dispatch before trace after :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.range_return_retains tracks
+
 /-- The real allocator pop tracks every active and saved occurrence through the
 live range check. Only a reached trap clears the remaining active occurrences. -/
 theorem RecordDestination.listRange_resume_tracks (destination : RecordDestination) (inst : InstId) (area : Layout)
