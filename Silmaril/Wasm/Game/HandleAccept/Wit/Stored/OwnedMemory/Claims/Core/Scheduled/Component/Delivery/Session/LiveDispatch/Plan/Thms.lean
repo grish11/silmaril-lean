@@ -197,6 +197,33 @@ theorem AllocatorMark.local_list_replies {route : GiveEffectRoute} (site : Paylo
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.localListReplies
     site linked element entries data field pointer
 
+/-- Replay a reached memory-map return through every compiled data entry,
+descriptor writes, and the original public `givePayload` caller reply.
+The canonical offsets are those selected when the allocation was installed. -/
+theorem AllocatorMark.local_map_replies {outputPointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory outputPointer))
+    (linked : site.Linked bindings) (key : WIT.KeyType) (element : Stored.TypeOf) (entries : List Field)
+    (keyData : PayloadPrefix.LocalDataType (.prim key.toPrimitive)) (valueData : PayloadPrefix.LocalDataType element)
+    (field : site.field = .dynamic (.map key element) (.record (mapEntryFields key element)) entries) (pointer : Nat)
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {checked canonical : Config (core3 grow) (HostState sig)}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {checkTrace canonTrace} :
+    let area := layout site.destination.width (.record (mapEntryFields key element))
+    let mode := CanonicalTree.EntryMode.memoryMap site.destination.width key element
+    let output := (GiveEffectRoute.memory outputPointer).output
+    let first := PayloadPrefix.checkedCollectionResume site.destination site.inst entries area 0 output site.reply
+    let second := PayloadPrefix.canonicalCollectionResume site.destination site.inst entries area output site.referenceReply mode
+    AllocatorMark profile ready base bindings older
+      (PayloadPrefix.collectionEntry site.destination site.inst area entries.length (specDispatch ready base) site.checked site.cursor first)
+      (PayloadPrefix.collectionEntry site.destination site.inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
+        (site.reference site.referenceReply) site.cursor second) checkTrace canonTrace checked canonical (some (.active 0 0)) →
+    HostFrame.Related.Paired wider checked canonical →
+    checked.ctl = { check with frames := .prog first :: check.frames }.control (.pure (.nat pointer)) →
+    Core3.Grows site.checked.store.core checked.store.core →
+    CollectionReplies profile ready base bindings older site checked canonical
+      (PayloadPrefix.canonicalCollectionTail site.destination site.inst entries area output pointer mode >>= site.referenceReply) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.localMapReplies
+    site linked key element entries keyData valueData field pointer
+
 /-- On a valid reached range with failed live preparation, execute exactly
 the checked refusal reply. This applies to the actual map entry mode as
 well as ordinary list placement; canonical never enters those children. -/
