@@ -145,6 +145,51 @@ def ComparedSlots (profile : ProfileKind) (ready : HostReady (HostState sig))
       rightStart (.active 0 (depth + offset)) canonLabels right (.active 0 depth)) ∧
     PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen
 
+/-- A continuation receives the visible history at its actual reached pair. -/
+abbrev TrailFinish (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
+  Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig
+
+abbrev TrailFieldComparison (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
+  Stored.Endpoints.RecordLower.Field → Nat → Nat → LinkedCallback.MemorySequence.CheckNext grow sig →
+    LinkedCallback.MemorySequence.CanonNext grow sig → TrailFinish grow sig → TrailFinish grow sig
+
+/-- The local induction interface for a compiled field. Only the field's
+actual success continuation advances a sibling; other branches are handled
+by that field's reached path comparison. -/
+def LiftsFieldPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+    (field : LinkedCallback.MemorySequence.FieldComparison grow sig) (paths : TrailFieldComparison grow sig) : Prop :=
+  ∀ item index address left right check canon checkNext canonNext finish visit before,
+    field item index address left right check canon checkNext canonNext finish →
+    ComparedSlots profile ready base bindings start incoming before left right offset →
+    left.store = right.store →
+    (∀ seen lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) →
+    paths item index address checkNext canonNext visit before left right check canon
+
+/-- Follow the same slots, width reads and suffix programs as `ReplayBetween`,
+but hand the cumulative visible history to the remaining sibling traversal. -/
+def replayBetweenPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (mode : LinkedCallback.MemorySequence.Track) (destination : RecordDestination) (inst : InstId)
+    (child : TrailFieldComparison grow sig) (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig)
+    (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig) (finish : TrailFinish grow sig) :
+    List Stored.Endpoints.RecordLower.Field → Nat → Nat → TrailFinish grow sig
+  | [], _, _, before, left, right, check, canon => finish before left right check canon
+  | item :: rest, index, cursor, before, left, right, check, canon =>
+    open LinkedCallback.MemorySequence in
+    let slot := mode.slot destination.width item cursor
+    let nextCheck := checkTail mode destination inst rest (index + 1) slot.2 checkNext
+    let nextCanon := canonTail mode destination inst rest slot.2 canonNext
+    let reference := focus mode destination inst item cursor right canon nextCanon
+    ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      right mode.readLabels reference ∧
+    child item index slot.1 nextCheck nextCanon
+      (replayBetweenPaths profile ready base bindings mode destination inst child checkNext canonNext finish
+        rest (index + 1) slot.2) before left reference check canon
+
 /-- A cumulative view of the actual string plan. Compare a finite stopped
 allocator prefix at its reached state; to continue, it must pop the marked
 occurrence. Only a finished plan reaches the consumer. -/
@@ -725,6 +770,26 @@ def StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (fun pointer lhs rhs check canon observed => finish pointer observed lhs rhs check canon)
     plan.steps.length checkBody canonBody check canon seen offset
 
+abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
+  NominalElement type ∨ PayloadPrefix.LocalDataType type ∨ type = .prim .string
+
+/-- The trail comparison for the leaf cases of the compiled field visitor.
+The corresponding theorem restricts this view to the certified leaf schemas. -/
+def liveLeafPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) : Stored.TypeOf → TrailFieldComparison grow sig
+  | .prim .string => fun item _ address checkNext canonNext finish before left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringKeyPaths profile ready base bindings older destination inst str address start incoming left right check canon
+        checkNext canonNext (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset finish)
+        before offset
+  | .prim _ | .enum _ | .flags _ => fun _ _ _ _ _ finish before _ _ _ _ =>
+    LocalPathsThen profile ready base bindings start incoming before offset finish
+  | _ => fun item index _ checkNext _ finish before left right check _ =>
+    HandlePathsThen profile ready base bindings start incoming before offset item index checkNext finish left right check
+
 abbrev StringKeyReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -896,6 +961,37 @@ def aggregateChild (comparisons : List (Stored.TypeOf × LinkedCallback.MemorySe
     LinkedCallback.MemorySequence.FieldComparison grow sig :=
   fun item index address left right check canon checkNext canonNext finish =>
     ∃ compare, (item.type, compare) ∈ comparisons ∧ compare item index address left right check canon checkNext canonNext finish
+
+/-- The actual aggregate bounds read precedes the field-by-field replay. -/
+def liveAggregatePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (destination : RecordDestination) (inst : InstId) (child : TrailFieldComparison grow sig)
+    (items : List Stored.Endpoints.RecordLower.Field) (index address : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : TrailFinish grow sig) : TrailFinish grow sig :=
+  open LinkedCallback.MemorySequence ReturnFrame.Occurrence in
+  fun before left right check canon =>
+    let entered := enterAggregate destination inst items index address left check checkNext
+    RetainsActiveSlots profile ready (specDispatch ready base) left [.tau] entered ∧
+      replayBetweenPaths profile ready base bindings .fields destination inst child
+        (aggregateNext index checkNext) canonNext finish items 0 address before entered right check canon
+
+def selectFieldPaths (paths : Stored.TypeOf → TrailFieldComparison grow sig) : TrailFieldComparison grow sig :=
+  fun item => paths item.type item
+
+/-- Leaf-only aggregates are one instance of the common sibling fold. -/
+inductive TrailLeafAggregate : Stored.TypeOf → Prop where
+  | record {fields} : (∀ field ∈ fields, TrailLeafType field.2) → TrailLeafAggregate (.record fields)
+  | tuple {types} : (∀ type ∈ types, TrailLeafType type) → TrailLeafAggregate (.tuple types)
+
+def aggregateFieldPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
+    (paths : Stored.TypeOf → TrailFieldComparison grow sig) : TrailFieldComparison grow sig :=
+  fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate type items ∧
+      liveAggregatePaths profile ready base bindings destination inst (selectFieldPaths paths) items index address
+        checkNext canonNext finish before left right check canon
 
 mutual
 /-- Recursion follows the declared type, not the number of reached allocator

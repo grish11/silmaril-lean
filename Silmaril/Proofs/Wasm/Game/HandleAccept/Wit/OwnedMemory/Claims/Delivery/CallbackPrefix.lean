@@ -467,6 +467,34 @@ private theorem visibleLeaf {Result : Type} {outcome : Except TrapReason Result}
       from List.filter_append .., invisible (by simp)]
     rfl
 
+theorem replayBetweenPathsFrom {mode : LinkedCallback.MemorySequence.Track} {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {entries : List Field} {index address offset : Nat} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldPaths profile ready base bindings start incoming offset child paths)
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (same : left.store = right.store)
+    (run : LinkedCallback.MemorySequence.ReplayBetween profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      mode destination inst child checkNext canonNext finish entries index address left right check canon)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    replayBetweenPaths profile ready base bindings mode destination inst paths checkNext canonNext visit
+      entries index address seen left right check canon := by
+  induction entries generalizing index address seen left right check canon with
+  | nil => exact next seen left right check canon leading same run
+  | cons item rest ih =>
+    rw [LinkedCallback.MemorySequence.ReplayBetween] at run
+    rw [replayBetweenPaths]
+    obtain ⟨read, body⟩ := run
+    have quiet : PayloadPrefix.visible (mode.readLabels (grow := grow) (sig := sig)) = [] := by cases mode <;> rfl
+    have reached := appendComparedSlots (after := []) leading ⟨[], _, (fun _ => .done _ _), read, rfl, quiet⟩
+    rw [List.append_nil] at reached
+    exact ⟨read, lift _ _ _ _ _ _ _ _ _ _ _ _ body reached same
+      (fun _ _ _ _ _ tracks shared tail => ih tracks shared tail)⟩
+
 theorem stringPaths {cx : LiftLowerContext (core3 grow)}
     {checkNext canonNext : Nat → Session grow sig (Ret (core3 grow))}
     {leftStart rightStart : Config (core3 grow) (HostState sig)}
@@ -536,10 +564,13 @@ theorem stringKeyPaths {destination : RecordDestination} {inst : InstId} {key : 
 theorem localFieldPaths {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
-    {finish : LinkedCallback.MemorySequence.Finish grow sig} {offset : Nat}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
-    (run : LiveLocalFieldThen profile ready base bindings checkNext canonNext finish left right check canon) :
-    LocalPathsThen profile ready base bindings start incoming seen offset (fun _ => finish) := by
+    (run : LiveLocalFieldThen profile ready base bindings checkNext canonNext finish left right check canon)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LocalPathsThen profile ready base bindings start incoming seen offset visit := by
   obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, same, cut⟩ := run
   cases result with
   | error reason =>
@@ -549,23 +580,27 @@ theorem localFieldPaths {left right : Config (core3 grow) (HostState sig)}
   | ok value =>
     cases value
     obtain ⟨lhsTrack, rhsTrack, done⟩ := cut
-    exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon,
-      appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩, rfl, done⟩
+    have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
+    exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, rfl, next _ _ _ _ _ reached rfl done⟩
 
 theorem compiledStringPaths {destination : RecordDestination} {inst : InstId}
     {item : Field} {index address : Nat} {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
-    {finish : LinkedCallback.MemorySequence.Finish grow sig} {offset : Nat}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
     (run : liveCollectionField profile ready base bindings older destination inst (.prim .string) item index address
-      left right check canon checkNext canonNext finish) :
+      left right check canon checkNext canonNext finish)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringKeyPaths profile ready base bindings older destination inst str address start incoming left right check canon
         checkNext canonNext (fun _ observed _ _ _ _ =>
-          LocalPathsThen profile ready base bindings start incoming observed offset (fun _ => finish)) seen offset := by
+          LocalPathsThen profile ready base bindings start incoming observed offset visit) seen offset := by
   obtain ⟨str, field, body⟩ := run
-  exact ⟨str, field, stringKeyPaths leading body (fun _ _ _ _ _ _ descriptors path => localFieldPaths path descriptors)⟩
+  exact ⟨str, field, stringKeyPaths leading body
+    (fun _ _ _ _ _ _ descriptors path => localFieldPaths path descriptors next)⟩
 
 theorem handleFieldPaths {item : Field} {index address offset : Nat}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -577,7 +612,7 @@ theorem handleFieldPaths {item : Field} {index address offset : Nat}
       (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon
       checkNext canonNext (fun () => finish))
     (next : ∀ observed lhs rhs cursor peer,
-      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset →
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
       finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     HandlePathsThen profile ready base bindings start incoming seen offset item index checkNext visit left right check := by
   unfold LinkedCallback.HandleFieldThenBetween at run
@@ -603,7 +638,133 @@ theorem handleFieldPaths {item : Field} {index address offset : Nat}
       cases result
       obtain ⟨lhsTrack, rhsTrack, done⟩ := continued () rfl
       have reached := appendComparedSlots leading ⟨_, _, lhsTrack, rhsTrack, lhsSeen, visibleLeaf rhsKind⟩
-      exact .inr (.inr ⟨[], _, _, check, canon, reached, rfl, next _ _ _ _ _ reached done⟩)
+      exact .inr (.inr ⟨[], _, _, check, canon, reached, rfl, next _ _ _ _ _ reached rfl done⟩)
+
+theorem leafFieldLift {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf} {offset : Nat}
+    (leaf : TrailLeafType type) :
+    LiftsFieldPaths profile ready base bindings start incoming offset
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (liveLeafPaths profile ready base bindings older destination inst start incoming offset type) := by
+  rcases leaf with nominal | data | rfl
+  · cases nominal <;> intro _ _ _ _ _ _ _ _ _ _ _ _ run leading same next <;> exact handleFieldPaths leading same run next
+  · cases data with
+    | @primitive primitive nons =>
+      cases primitive <;> first
+        | exact (nons rfl).elim
+        | intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ next; exact localFieldPaths leading run next
+    | enum | flags =>
+      intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ next
+      exact localFieldPaths leading run next
+  · intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ next
+    exact compiledStringPaths leading run next
+
+theorem aggregateChildLift {comparisons : List (Stored.TypeOf × LinkedCallback.MemorySequence.FieldComparison grow sig)}
+    {paths : Stored.TypeOf → TrailFieldComparison grow sig} {offset : Nat}
+    (lift : ∀ type raw, (type, raw) ∈ comparisons → LiftsFieldPaths profile ready base bindings start incoming offset raw (paths type)) :
+    LiftsFieldPaths profile ready base bindings start incoming offset (aggregateChild comparisons) (selectFieldPaths paths) := by
+  intro item index address left right check canon checkNext canonNext finish visit before run leading same next
+  obtain ⟨raw, member, body⟩ := run
+  exact lift item.type raw member item index address left right check canon checkNext canonNext finish visit before body leading same next
+
+theorem aggregatePathsFrom {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {items : List Field} {index address offset : Nat} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldPaths profile ready base bindings start incoming offset child paths)
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (same : left.store = right.store)
+    (run : LiveAggregateThen profile ready base bindings destination inst child items index address checkNext canonNext finish
+      left right check canon)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveAggregatePaths profile ready base bindings destination inst paths items index address checkNext canonNext visit
+      seen left right check canon := by
+  obtain ⟨read, body⟩ := run
+  have reached := appendComparedSlots (after := []) leading ⟨[.tau], [], read, (fun _ => .done _ _), rfl, rfl⟩
+  rw [List.append_nil] at reached
+  exact ⟨read, replayBetweenPathsFrom lift reached same body next⟩
+
+theorem recordTable (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf)) :
+    liveRecordFields profile ready base bindings older destination inst fields =
+      liveTupleFields profile ready base bindings older destination inst (fields.map Prod.snd) := by
+  induction fields with
+  | nil => rfl
+  | cons field rest ih =>
+    cases field
+    simp only [liveRecordFields, List.map_cons, liveTupleFields, ih]
+
+theorem tupleFieldLift {destination : RecordDestination} {inst : InstId} {types : List Stored.TypeOf} {offset : Nat}
+    (leaves : ∀ type ∈ types, TrailLeafType type) :
+    LiftsFieldPaths profile ready base bindings start incoming offset
+      (aggregateChild (liveTupleFields profile ready base bindings older destination inst types))
+      (selectFieldPaths (liveLeafPaths profile ready base bindings older destination inst start incoming offset)) := by
+  apply aggregateChildLift
+  intro type raw member
+  induction types with
+  | nil => cases member
+  | cons schema rest ih =>
+    rw [liveTupleFields] at member
+    rcases List.mem_cons.mp member with equal | later
+    · cases equal
+      exact leafFieldLift (leaves _ (List.mem_cons_self ..))
+    · exact ih (fun item present => leaves item (List.mem_cons_of_mem _ present)) later
+
+theorem leafAggregateLift {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf} {offset : Nat}
+    (leaves : TrailLeafAggregate type) :
+    LiftsFieldPaths profile ready base bindings start incoming offset
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (aggregateFieldPaths profile ready base bindings destination inst type
+        (liveLeafPaths profile ready base bindings older destination inst start incoming offset)) := by
+  cases leaves with
+  | @record fields declared =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same next
+    obtain ⟨items, aligned, body⟩ := run
+    rw [recordTable destination inst] at body
+    have types : ∀ field ∈ fields.map Prod.snd, TrailLeafType field := by
+      intro type member
+      obtain ⟨field, inFields, rfl⟩ := List.mem_map.mp member
+      exact declared field inFields
+    exact ⟨items, aligned, aggregatePathsFrom (tupleFieldLift types) leading same body next⟩
+  | tuple declared =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same next
+    obtain ⟨items, aligned, body⟩ := run
+    exact ⟨items, aligned, aggregatePathsFrom (tupleFieldLift declared) leading same body next⟩
+
+theorem sumPathsFrom {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {arms : List (Option Stored.TypeOf)} {selected : Option Field} {index address offset : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : selected.isSome = true → LiftsFieldPaths profile ready base bindings start incoming offset child paths)
+    (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
+    (run : LiveSumThen profile ready base bindings destination inst child arms selected index address
+      checkNext canonNext finish left right check canon)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LocalPathsThen profile ready base bindings start incoming seen offset
+      (match selected with
+      | none => visit
+      | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
+          (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) := by
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhsRun, rhsRun, same, tail⟩ := run
+  cases result with
+  | error reason =>
+    obtain ⟨prefixLabels, trapped⟩ := tail
+    exact .inl ⟨reason, prefixLabels, _, _, appendComparedPaths leading
+      ⟨lhsLabels, rhsLabels, lhsRun, rhsRun, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+  | ok result =>
+    cases result
+    obtain ⟨lhsTrack, rhsTrack, done⟩ := tail
+    have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
+    refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, rfl, ?_⟩
+    cases selected with
+    | none => exact next _ _ _ _ _ reached rfl done
+    | some item => exact lift rfl item 0 _ _ _ check canon _ canonNext finish visit _ done reached rfl next
 
 theorem stringMapEntryPaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
     {output : Stored.Lower.Output} {field value : Field} {index slot offset : Nat}

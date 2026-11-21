@@ -581,7 +581,8 @@ theorem reached_handle_field_paths {item : Field} {index address offset : Nat}
       ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
       finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) :
     HandlePathsThen profile ready base bindings start incoming labels offset item index checkNext visit left right check :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.handleFieldPaths leading same run next
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.handleFieldPaths leading same run
+    (fun seen lhs rhs cursor peer tracks _ => next seen lhs rhs cursor peer tracks)
 
 /-- Carry the key's actual allocator and descriptor path into the value,
 including the width read of the reached canonical placement. -/
@@ -601,6 +602,38 @@ theorem LiveStringMapEntryThen.paths {destination : RecordDestination} {inst : I
     LiveStringMapEntryPaths profile ready base bindings older destination inst element output start incoming labels offset
       field value index slot checkNext canonNext visit left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryPaths leading run next
+
+/-- Compose actual bounds and width reads with the certified child programs
+of a heterogeneous record or tuple, without a per-child trace premise. -/
+theorem leaf_aggregate_field_lifts {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf} {offset : Nat}
+    (leaves : TrailLeafAggregate type) :
+    LiftsFieldPaths profile ready base bindings start incoming offset
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (aggregateFieldPaths profile ready base bindings destination inst type
+        (liveLeafPaths profile ready base bindings older destination inst start incoming offset)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.leafAggregateLift leaves
+
+/-- Preserve tracked slots through the actual tag store. A tag trap takes
+neither branch; successful entry uses only the selected child induction. -/
+theorem LiveSumThen.paths {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {arms : List (Option Stored.TypeOf)} {selected : Option Field} {index address offset : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : selected.isSome = true → LiftsFieldPaths profile ready base bindings start incoming offset child paths)
+    (leading : ComparedSlots profile ready base bindings start incoming labels left right offset)
+    (run : LiveSumThen profile ready base bindings destination inst child arms selected index address
+      checkNext canonNext finish left right check canon)
+    (next : ∀ seen lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) :
+    LocalPathsThen profile ready base bindings start incoming labels offset
+      (match selected with
+      | none => visit
+      | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
+          (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext visit) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.sumPathsFrom lift leading run next
 
 /-- Compare the reached string-key nominal map paths through the original public
 caller rejoins. A finite suspended key keeps its accumulated occurrence path;
