@@ -274,26 +274,34 @@ abbrev FlatFieldTrail (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
 /-- Local flat induction rule at a reached field. Only common success can
 advance the sequence. Refusals use the checked error continuation; other
 exits are represented by the field's own path relation. -/
-def DerivesFlatFieldTrail (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+def DerivesFlatFieldTrailWith (history : Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
-    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
     (destination : RecordDestination) (inst : InstId) (sink : RefusalSink grow sig)
     (path : FlatFieldTrail grow sig) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
   open Stored.Endpoints.RecordLower in
   ∀ index checkNext canonNext finish before left right check canon,
     LinkedCallback.ChildFrameOver older left right check canon → Core3.Grows origin.core left.store.core →
-    ComparedSlots profile ready base bindings start incoming before left right offset →
+    history before left right →
     sink.admits (fun issue => checkNext (.error issue)) →
     left.ctl = check.control (OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width item index .flat >>= checkNext) →
     right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
       (destination.context inst) destination.width item .flat >>= canonNext) →
     (∀ words seen lhs rhs cursor peer, LinkedCallback.ChildFrameOver older lhs rhs cursor peer →
-      Core3.Grows origin.core lhs.store.core → ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      Core3.Grows origin.core lhs.store.core → history seen lhs rhs →
       lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) →
       finish words seen lhs rhs cursor peer) →
     path item index checkNext canonNext finish before left right check canon
+
+
+abbrev DerivesFlatFieldTrail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+    (destination : RecordDestination) (inst : InstId) (sink : RefusalSink grow sig)
+    (path : FlatFieldTrail grow sig) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
+  DerivesFlatFieldTrailWith (fun seen left right => ComparedSlots profile ready base bindings start incoming seen left right offset)
+    older origin destination inst sink path item
 
 /-- Thread the actual flat words and cumulative occurrence history in order.
 An error continuation does not run the remaining fields on either side. -/
@@ -1120,26 +1128,30 @@ def noFlatChild : FlatFieldTrail grow sig := fun _ _ _ _ _ _ _ _ _ _ => False
 
 /-- The selected arm runs before the flat tag and coercion tail; the actual
 checked error continuation skips that tail. -/
-def flatSumPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
-    (width : AddrType) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+def flatSumPathsWith (tail : TrailFinish grow sig → TrailFinish grow sig) (width : AddrType) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
     (pick : Nat → FlatFieldTrail grow sig) : FlatFieldTrail grow sig :=
   fun item index checkNext canonNext finish before left right check canon =>
     open LinkedCallback ABI in
     ∃ tag selected, item = .sum type arms tag selected ∧
       match selected with
-      | none => LocatedLocalPathsThen profile ready base bindings start incoming left right before offset (flatWordVisit finish)
+      | none => tail (flatWordVisit finish) before left right check canon
       | some child =>
         let haves := flatten width child.type
         pick tag child 0 (flatSumCheckNext width type arms.length tag index haves checkNext)
           (fun words => flatSumTail width type arms.length tag haves words >>= canonNext)
-          (fun _ observed lhs rhs _ _ =>
-            LocatedLocalPathsThen profile ready base bindings start incoming lhs rhs observed offset (flatWordVisit finish))
+          (fun _ => tail (flatWordVisit finish))
           before left right check canon
 
 abbrev TrailLeafType (type : Stored.TypeOf) : Prop :=
   NominalElement type ∨ PayloadPrefix.LocalDataType type ∨ type = .prim .string
+
+abbrev flatSumPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+    (width : AddrType) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+    (pick : Nat → FlatFieldTrail grow sig) : FlatFieldTrail grow sig :=
+  flatSumPathsWith (fun visit seen lhs rhs _ _ => LocatedLocalPathsThen profile ready base bindings start incoming lhs rhs seen offset visit)
+    width type arms pick
 
 /-- The trail comparison for the leaf cases of the compiled field visitor.
 The corresponding theorem restricts this view to the certified leaf schemas. -/
@@ -2001,6 +2013,94 @@ def liveFlatVariantPaths (profile : ProfileKind) (ready : HostReady (HostState s
 termination_by structural cases => cases
 end
 
+mutual
+def structuralFlatOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    Stored.TypeOf → FlatFieldTrail grow sig
+  | .prim .string => fun item _ checkNext canonNext finish before left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringValueOccurrencePaths profile ready base bindings older destination inst str .flat start incoming left right check canon checkNext canonNext
+        (fun _ seen _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming seen (flatWordVisit finish)) before
+  | .list element => fun item index checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .dynamic (.list element) element entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index .flat
+        checkNext canonNext start incoming left right before check canon
+        (liveListTailPaths destination inst element entries index .flat
+          (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element)
+          checkNext canonNext (fun seen _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming seen (flatWordVisit finish))) sink
+  | .map key element => fun item index checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
+    ∃ entries, item = .dynamic (.map key element) entryType entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map key element) entryType entries index .flat
+        checkNext canonNext start incoming left right before check canon
+        (liveMapTailPaths (mapEntryOccurrencePaths profile ready base bindings older destination inst key element .flat start incoming
+          (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element))
+          destination inst key element entries index .flat checkNext canonNext
+          (fun seen _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming seen (flatWordVisit finish))) sink
+  | .fixedList element _ => flatAggregatePaths destination inst
+      (structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink element)
+  | .option element => flatSumPathsWith (fun visit seen _ _ _ _ =>
+      LocalOccurrenceThen profile ready base bindings start incoming seen visit) destination.width
+      (.option element) [none, some element]
+      (fun _ => structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink element)
+  | .result success failure =>
+    let first := match success with
+      | none => noFlatChild
+      | some type => structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+    let second := match failure with
+      | none => noFlatChild
+      | some type => structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+    flatSumPathsWith (fun visit seen _ _ _ _ =>
+      LocalOccurrenceThen profile ready base bindings start incoming seen visit) destination.width (.result success failure) [success, failure]
+      (fun tag => if tag = 0 then first else second)
+  | .variant cases => flatSumPathsWith (fun visit seen _ _ _ _ =>
+      LocalOccurrenceThen profile ready base bindings start incoming seen visit) destination.width
+      (.variant cases) (cases.map Prod.snd) (structuralFlatVariantOccurrencePaths profile ready base bindings older destination inst start incoming sink cases)
+  | .record fields => flatAggregatePaths destination inst
+      (selectFlatPaths (structuralFlatRecordOccurrencePaths profile ready base bindings older destination inst start incoming sink fields))
+  | .tuple types => flatAggregatePaths destination inst
+      (selectFlatPaths (structuralFlatTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink types))
+  | .own _ | .future _ | .stream _ | .errorContext => fun item index checkNext _ finish before left right check _ =>
+    HandleOccurrenceThen profile ready base bindings start incoming left right before item index check checkNext (flatWordVisit finish) sink
+  | _ => fun _ _ _ _ finish before _ _ _ _ =>
+    LocalOccurrenceThen profile ready base bindings start incoming before (flatWordVisit finish)
+termination_by structural type => type
+
+def structuralFlatRecordOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | (_, type) :: rest =>
+    (type, structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type) ::
+      structuralFlatRecordOccurrencePaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural fields => fields
+
+def structuralFlatTupleOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List Stored.TypeOf → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | type :: rest =>
+    (type, structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type) ::
+      structuralFlatTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural types => types
+
+def structuralFlatVariantOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Option Stored.TypeOf) → Nat → FlatFieldTrail grow sig
+  | [], _ | (_, none) :: _, 0 => noFlatChild
+  | (_, some type) :: _, 0 => structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type
+  | _ :: rest, tag + 1 => structuralFlatVariantOccurrencePaths profile ready base bindings older destination inst start incoming sink rest tag
+termination_by structural cases => cases
+end
+
 /-- Compare either public body for arbitrary list/map nesting with fixed
 arrays, heterogeneous aggregates, active sum arms, and nominal, scalar, or string leaves. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2346,6 +2446,76 @@ def LinkedFlatAggregateRejoinPaths (profile : ProfileKind) (ready : HostReady (H
       (publicRefusalSink profile ready base bindings site entered) (sig.payload site.tag)
       site.field 0 site.reply site.referenceReply
       (fun _ _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0 afterReturn)
+      [] site.checked entered site.cursor peer
+
+/-- The installed caller's mark is separate from older request origins. If
+it is not at the reached reply slot, the relation records its actual
+coordinate or loss instead of asserting a rejoin of the original caller. -/
+def PublicOccurrenceExit (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (entered : Config (core3 grow) (HostState sig))
+    (verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result) (seen : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∃ checkBody canonBody mark,
+    CoupledOccurrencePaths profile ready base bindings site.checked entered checkBody canonBody left right ∧
+    PayloadPrefix.visible checkBody = seen ∧ PayloadPrefix.visible canonBody = seen ∧ left.store = right.store ∧
+    Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+    Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+    (mark = some (.active 0 0) →
+      let reply := route.reply site.destination site.start.host.nextTicket verdict
+      ∃ checked canonical,
+        checked.host = left.host.record reply.1 ∧
+        (∀ place, Trail profile ready (specDispatch ready base) left (some place) [.tau, .tau, .tau] checked
+          ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) ∧
+        match verdict with
+        | .error _ => canonical = right
+        | .ok _ => canonical.host = right.host ∧ HostFrame.Related.Paired older checked canonical ∧
+          ∀ place, Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) right (some place) [.tau] canonical
+            ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place))
+
+/-- After a checked-only reply the corresponding older origins can be at
+different positions. Both still follow their own reached machine path. -/
+def RequestExitOccurrences (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∃ checkLabels canonLabels, PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧
+    ∀ mark : Location, ∃ leftMark rightMark,
+      Trail profile ready (specDispatch ready base) start (some mark) checkLabels checked leftMark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some mark) canonLabels canonical rightMark
+
+def RequestExitKind (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {α : Type}
+    (verdict : Except Stored.Endpoints.RecordLower.Issue α) (stopped checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
+  match verdict with
+  | .error _ => canonical = stopped
+  | .ok _ => HostFrame.Related.Paired older checked canonical
+
+def publicOccurrenceSink (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (entered : Config (core3 grow) (HostState sig)) : RefusalSink grow sig where
+  admits next := ∀ issue, ∃ reported, next issue = site.reply (.error reported)
+  nested _ closed index issue := closed (.nested index issue)
+  exit next issue seen left right _ := ∃ reported, next issue = site.reply (.error reported) ∧
+    PublicOccurrenceExit profile ready base bindings older site entered (.error reported) seen left right
+
+/-- The flat body resolves each reached compiled field and accumulates older
+active and saved tracks all the way to the actual public reply. The canonical
+entry retains its paths from the live original request. -/
+def LinkedFlatOccurrenceBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {type : Stored.TypeOf}
+    (site : PayloadRoot.Site grow sig (.flat type)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ canonLabels entered peer, PayloadPrefix.visible canonLabels = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
+    structuralFlatOccurrencePaths profile ready base bindings older site.destination site.inst site.checked entered
+      (publicOccurrenceSink profile ready base bindings older site entered) (sig.payload site.tag)
+      site.field 0 site.reply site.referenceReply
+      (fun words seen left right _ _ => PublicOccurrenceExit profile ready base bindings older site entered (.ok words) seen left right)
       [] site.checked entered site.cursor peer
 
 /-- The actual range verdict after an allocator return. A late reservation

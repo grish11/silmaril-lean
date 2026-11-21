@@ -23,20 +23,22 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {origin : CStore (core3 grow)}
   {start incoming : Config (core3 grow) (HostState sig)} {offset : Nat} {sink : RefusalSink grow sig}
 
-theorem sequence (destination : RecordDestination) (inst : InstId) (items : List Field)
+variable {history : Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+
+theorem sequenceWith (destination : RecordDestination) (inst : InstId) (items : List Field)
     (child : FlatFieldTrail grow sig) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
     (finish : FlatTrailFinish grow sig) (index : Nat) (leading : List FlatValue)
     {before : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (rules : ∀ item ∈ items, DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset
+    (rules : ∀ item ∈ items, DerivesFlatFieldTrailWith history older origin
       destination inst sink child item)
     (admitted : sink.admits (fun issue => checkNext (.error issue)))
     (frame : ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
-    (trail : ComparedSlots profile ready base bindings start incoming before left right offset)
+    (trail : history before left right)
     (checkAt : left.ctl = check.control (flatSequenceChecked destination inst items index leading checkNext))
     (canonAt : right.ctl = canon.control (flatSequenceCanonical destination inst items leading canonNext))
     (ends : ∀ words seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
-      Core3.Grows origin.core lhs.store.core → ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      Core3.Grows origin.core lhs.store.core → history seen lhs rhs →
       lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
     flatSequencePaths destination inst child checkNext canonNext finish items index leading before left right check canon := by
   induction items generalizing index leading before left right check canon with
@@ -53,6 +55,51 @@ theorem sequence (destination : RecordDestination) (inst : InstId) (items : List
     · intro words seen lhs rhs cursor peer paired grown trails checked canonical
       exact ih (index + 1) (leading ++ (show List FlatValue from words)) (fun later member => rules later (List.mem_cons_of_mem _ member))
         paired grown trails checked canonical
+
+theorem aggregateWith (destination : RecordDestination) (inst : InstId) (items : List Field) (index : Nat)
+    (child : FlatFieldTrail grow sig) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
+    (finish : FlatTrailFinish grow sig) {before : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (rules : ∀ item ∈ items, DerivesFlatFieldTrailWith history older origin
+      destination inst sink child item)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (frame : ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (trail : history before left right)
+    (checkAt : left.ctl = check.control (do
+      let verdict ← Stored.OwnedMemory.Claims.Record.Effects.flat recordClaims Limits.spec Quirks.none
+        (destination.context inst) destination.width items 0
+      checkNext (verdict.mapError (.nested index))))
+    (canonAt : right.ctl = canon.control (CanonicalTree.flat Limits.spec Quirks.none (destination.context inst)
+      destination.width items >>= canonNext))
+    (ends : ∀ words seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
+      Core3.Grows origin.core lhs.store.core → history seen lhs rhs →
+      lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
+    flatSequencePaths destination inst child (fun verdict => checkNext (verdict.mapError (.nested index)))
+      canonNext finish items 0 [] before left right check canon := by
+  have noLeading (verdict : Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) : verdict.map ([] ++ ·) = verdict := by
+    cases verdict <;> rfl
+  exact sequenceWith destination inst items child (fun verdict => checkNext (verdict.mapError (.nested index))) canonNext
+    finish 0 [] rules (sink.nested _ admitted index) frame growth trail
+    (by simpa only [flatSequenceChecked, noLeading] using checkAt) (by simpa [flatSequenceCanonical] using canonAt) ends
+
+
+theorem sequence (destination : RecordDestination) (inst : InstId) (items : List Field)
+    (child : FlatFieldTrail grow sig) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
+    (finish : FlatTrailFinish grow sig) (index : Nat) (leading : List FlatValue)
+    {before : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (rules : ∀ item ∈ items, DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset
+      destination inst sink child item)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (frame : ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (trail : ComparedSlots profile ready base bindings start incoming before left right offset)
+    (checkAt : left.ctl = check.control (flatSequenceChecked destination inst items index leading checkNext))
+    (canonAt : right.ctl = canon.control (flatSequenceCanonical destination inst items leading canonNext))
+    (ends : ∀ words seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
+      Core3.Grows origin.core lhs.store.core → ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
+    flatSequencePaths destination inst child checkNext canonNext finish items index leading before left right check canon :=
+  sequenceWith destination inst items child checkNext canonNext finish index leading rules admitted frame growth trail checkAt canonAt ends
 
 theorem aggregate (destination : RecordDestination) (inst : InstId) (items : List Field) (index : Nat)
     (child : FlatFieldTrail grow sig) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
@@ -73,12 +120,8 @@ theorem aggregate (destination : RecordDestination) (inst : InstId) (items : Lis
       Core3.Grows origin.core lhs.store.core → ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
       lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
     flatSequencePaths destination inst child (fun verdict => checkNext (verdict.mapError (.nested index)))
-      canonNext finish items 0 [] before left right check canon := by
-  have noLeading (verdict : Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) : verdict.map ([] ++ ·) = verdict := by
-    cases verdict <;> rfl
-  exact sequence destination inst items child (fun verdict => checkNext (verdict.mapError (.nested index))) canonNext
-    finish 0 [] rules (sink.nested _ admitted index) frame growth trail
-    (by simpa only [flatSequenceChecked, noLeading] using checkAt) (by simpa [flatSequenceCanonical] using canonAt) ends
+      canonNext finish items 0 [] before left right check canon :=
+  aggregateWith destination inst items index child checkNext canonNext finish rules admitted frame growth trail checkAt canonAt ends
 
 theorem recordMember (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf))
     {name : String} {type : Stored.TypeOf} (member : (name, type) ∈ fields) :
@@ -144,17 +187,48 @@ private theorem sumTail (width : AddrType) (type : Stored.TypeOf) (count tag : N
   exact CallbackPrefix.locatedLocalPaths frame trail cut fun words _ _ _ grew paired reached lhsAt rhsAt =>
     ⟨words, ends words _ _ _ _ _ paired grew reached lhsAt rhsAt⟩
 
-theorem sum (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+private theorem sumTailOccurrences (width : AddrType) (type : Stored.TypeOf) (count tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
+    (finish : FlatTrailFinish grow sig) {before : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (trail : ComparedOccurrencePaths profile ready base bindings start incoming before left right)
+    (checkAt : left.ctl = check.control (flatSumTail width type count tag haves words >>= fun result => checkNext (.ok result)))
+    (canonAt : right.ctl = canon.control (flatSumTail width type count tag haves words >>= canonNext))
+    (ends : ∀ words seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
+      Core3.Grows origin.core lhs.store.core → ComparedOccurrencePaths profile ready base bindings start incoming seen lhs rhs →
+      lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
+    LocalOccurrenceThen profile ready base bindings start incoming before (flatWordVisit finish) := by
+  have cut :=
+    PayloadPrefix.variant_tail_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (reference := specDispatch ready (LiveDispatch.host bindings base)) count ((flatten width type).drop 1) tag haves words
+      (keep := fun store => Core3.Grows origin.core store.core) left right (frame.store ▸ growth)
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext
+      (by simpa only [flatSumTail, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt) canonAt
+  exact CallbackPrefix.localCutOccurrences frame trail cut fun words _ _ _ grew paired reached lhsAt rhsAt =>
+    ⟨words, ends words _ _ _ _ _ paired grew reached lhsAt rhsAt⟩
+
+theorem sumWith {tail : TrailFinish grow sig → TrailFinish grow sig}
+    (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
     (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)
-    (derive : ∀ field, selected = some field → DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset
+    (finishTail : ∀ (haves : List CoreType) (words : List FlatValue) (checkNext : FlatSequenceCheckNext grow sig)
+      (canonNext : FlatSequenceCanonNext grow sig) (finish : FlatTrailFinish grow sig) before left right check canon,
+      ChildFrameOver older left right check canon → Core3.Grows origin.core left.store.core → history before left right →
+      left.ctl = check.control (flatSumTail destination.width type arms.length tag haves words >>= fun result => checkNext (.ok result)) →
+      right.ctl = canon.control (flatSumTail destination.width type arms.length tag haves words >>= canonNext) →
+      (∀ result seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
+        Core3.Grows origin.core lhs.store.core → history seen lhs rhs →
+        lhs.ctl = cursor.control (checkNext (.ok result)) → rhs.ctl = peer.control (canonNext result) →
+        finish result seen lhs rhs cursor peer) → tail (flatWordVisit finish) before left right check canon)
+    (derive : ∀ field, selected = some field → DerivesFlatFieldTrailWith history older origin
       destination inst sink (pick tag) field) :
-    DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset destination inst sink
-      (flatSumPaths profile ready base bindings start incoming offset destination.width type arms pick) (.sum type arms tag selected) := by
+    DerivesFlatFieldTrailWith history older origin destination inst sink
+      (flatSumPathsWith tail destination.width type arms pick) (.sum type arms tag selected) := by
   intro index checkNext canonNext finish before left right check canon frame growth trail admitted checkAt canonAt ends
   refine ⟨tag, selected, rfl, ?_⟩
   cases selected with
   | none =>
-    apply sumTail destination.width type arms.length tag [] [] checkNext canonNext finish frame growth trail _ _ ends
+    apply finishTail [] [] checkNext canonNext finish before left right check canon frame growth trail _ _ ends
     · rw [checkAt]
       let body : Session grow sig (List FlatValue) := flatSumTail destination.width type arms.length tag [] []
       change check.control ((body.bind fun value => .pure (.ok value)).bind checkNext) = _
@@ -190,6 +264,73 @@ theorem sum (destination : RecordDestination) (inst : InstId) (type : Stored.Typ
       simp only [flatSumTail, lowerFlatVariantWith, valid, ↓reduceIte, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
       exact Prog.bind_assoc _ _ _
     · intro words seen lhs rhs cursor peer paired grew tracks checkAt canonAt
-      exact sumTail destination.width type arms.length tag haves words checkNext canonNext finish paired grew tracks checkAt canonAt ends
+      exact finishTail haves words checkNext canonNext finish seen lhs rhs cursor peer paired grew tracks checkAt canonAt ends
+
+
+theorem sumOccurrences
+    (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+    (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)
+    (derive : ∀ field, selected = some field → DerivesFlatFieldTrailWith (ComparedOccurrencePaths profile ready base bindings start incoming) older origin
+      destination inst sink (pick tag) field) :
+    DerivesFlatFieldTrailWith (ComparedOccurrencePaths profile ready base bindings start incoming) older origin destination inst sink
+      (flatSumPathsWith (fun visit seen _ _ _ _ =>
+        LocalOccurrenceThen profile ready base bindings start incoming seen visit) destination.width type arms pick) (.sum type arms tag selected) :=
+  sumWith destination inst type arms tag selected valid pick
+    (fun haves words checkNext canonNext finish _ _ _ _ _ =>
+      sumTailOccurrences destination.width type arms.length tag haves words checkNext canonNext finish) derive
+
+
+theorem sum (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+    (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)
+    (derive : ∀ field, selected = some field → DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset
+      destination inst sink (pick tag) field) :
+    DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset destination inst sink
+      (flatSumPaths profile ready base bindings start incoming offset destination.width type arms pick) (.sum type arms tag selected) :=
+  sumWith destination inst type arms tag selected valid pick
+    (fun haves words checkNext canonNext finish _ _ _ _ _ =>
+      sumTail destination.width type arms.length tag haves words checkNext canonNext finish) derive
+
+theorem recordOccurrenceMember (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf))
+    {name : String} {type : Stored.TypeOf} (member : (name, type) ∈ fields) :
+    (type, structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type) ∈
+      structuralFlatRecordOccurrencePaths profile ready base bindings older destination inst start incoming sink fields := by
+  induction fields with
+  | nil => simp at member
+  | cons first rest ih =>
+    rcases List.mem_cons.mp member with equal | later
+    · subst first
+      exact List.mem_cons_self ..
+    · obtain ⟨label, schema⟩ := first
+      exact List.mem_cons_of_mem _ (ih later)
+
+theorem tupleOccurrenceMember (destination : RecordDestination) (inst : InstId) (types : List Stored.TypeOf)
+    {type : Stored.TypeOf} (member : type ∈ types) :
+    (type, structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type) ∈
+      structuralFlatTupleOccurrencePaths profile ready base bindings older destination inst start incoming sink types := by
+  induction types with
+  | nil => simp at member
+  | cons first rest ih =>
+    rcases List.mem_cons.mp member with rfl | later
+    · exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (ih later)
+
+theorem variantOccurrenceMember (destination : RecordDestination) (inst : InstId)
+    {cases : List (String × Option Stored.TypeOf)} {tag : Nat} {type : Stored.TypeOf}
+    (found : (cases.map Prod.snd)[tag]? = some (some type)) :
+    (∃ name, (name, some type) ∈ cases) ∧
+    structuralFlatVariantOccurrencePaths profile ready base bindings older destination inst start incoming sink cases tag =
+      structuralFlatOccurrencePaths profile ready base bindings older destination inst start incoming sink type := by
+  induction cases generalizing tag with
+  | nil => simp at found
+  | cons entry rest ih =>
+    obtain ⟨name, arm⟩ := entry
+    cases tag with
+    | zero =>
+      have selected : arm = some type := by simpa using found
+      subst arm
+      exact ⟨⟨name, by simp⟩, rfl⟩
+    | succ index =>
+      obtain ⟨⟨name, member⟩, equal⟩ := ih (tag := index) (by simpa using found)
+      exact ⟨⟨name, List.mem_cons_of_mem _ member⟩, by rw [structuralFlatVariantOccurrencePaths, equal]⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FlatTrails

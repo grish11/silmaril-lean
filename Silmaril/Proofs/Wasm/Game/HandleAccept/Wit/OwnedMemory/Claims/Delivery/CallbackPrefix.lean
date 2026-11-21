@@ -609,6 +609,35 @@ theorem locatedLocalPaths {Result : Type} {keep : CStore (core3 grow) → Prop}
     exact .inr ⟨PayloadPrefix.visible canonical, _, _, check, canon, reached, paths,
       next words _ _ _ kept ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ reached rfl rfl⟩
 
+
+theorem localCutOccurrences {Result : Type} {keep : CStore (core3 grow) → Prop}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext canonNext : Result → Session grow sig (Ret (core3 grow))}
+    {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (cut : PayloadPrefix.LocalCutKeepingBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) keep left right check canon checkNext canonNext true)
+    (next : ∀ words observed lhs rhs,
+      keep lhs.store → LinkedCallback.ChildFrameOver older lhs rhs check canon →
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
+      lhs.ctl = check.control (checkNext words) → rhs.ctl = canon.control (canonNext words) → visit observed lhs rhs check canon) :
+    LocalOccurrenceThen profile ready base bindings start incoming seen visit := by
+  obtain ⟨store, result, checked, canonical, _, _, matched, outcome, trails⟩ := cut
+  have paths : ComparedOccurrencePaths profile ready base bindings left right (PayloadPrefix.visible canonical)
+      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
+      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=
+    ⟨checked, canonical, fun mark => ⟨localOccurrenceEnd result mark, trails mark⟩, matched, rfl, by cases result <;> rfl⟩
+  cases result with
+  | error reason =>
+    obtain ⟨prior, trap⟩ := outcome
+    exact .inl ⟨reason, prior, _, _, appendComparedOccurrences leading (trap ▸ paths), rfl, rfl⟩
+  | ok words =>
+    obtain ⟨kept, _, _⟩ := outcome
+    have reached := appendComparedOccurrences leading paths
+    exact .inr ⟨PayloadPrefix.visible canonical, _, _, check, canon, reached,
+      next words _ _ _ kept ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ reached rfl rfl⟩
+
 theorem rebaseLocatedLocalPaths {left right : Config (core3 grow) (HostState sig)} {offset : Nat}
     {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
     (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
@@ -963,20 +992,20 @@ private theorem localFieldOccurrences {left right : Config (core3 grow) (HostSta
     have reached := appendComparedOccurrences leading ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩
     exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, next _ _ _ _ _ reached rfl cut.2.2⟩
 
-private theorem handleFieldOccurrences {item : Field} {index address : Nat}
+theorem handleValueOccurrences {item : Field} {index : Nat} {output : Stored.Lower.Output}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
-    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output} {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {finish : output.Result → LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
     (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
     (same : left.store = right.store)
     (run : LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
-      (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon checkNext canonNext
-      (fun () => finish))
+      (specDispatch ready (LiveDispatch.host bindings base)) item index output left right check canon checkNext canonNext
+      finish)
     {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
     (admitted : sink.admits (fun issue => checkNext (.error issue)))
-    (next : ∀ observed lhs rhs cursor peer,
+    (next : ∀ value observed lhs rhs cursor peer,
       ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
-      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     HandleOccurrenceThen profile ready base bindings start incoming left right seen item index check checkNext visit sink := by
   unfold LinkedCallback.HandleFieldThenBetween at run
   cases decision : liveLeafPlan left.store left.host.writer index item with
@@ -999,10 +1028,27 @@ private theorem handleFieldOccurrences {item : Field} {index address : Nat}
       exact .inr (.inl ⟨reason, [], _, _, appendComparedOccurrences leading
         ⟨_, _, fun mark => ⟨_, trails mark⟩, lhsSeen, visibleLeaf rhsKind, rfl⟩, rfl, rfl⟩)
     | ok result =>
-      cases result
-      obtain ⟨_, _, done⟩ := continued () rfl
+      obtain ⟨_, _, done⟩ := continued result rfl
       have reached := appendComparedOccurrences leading ⟨_, _, fun mark => ⟨_, trails mark⟩, lhsSeen, visibleLeaf rhsKind, rfl⟩
-      exact .inr (.inr ⟨[], _, _, check, canon, reached, next _ _ _ _ _ reached rfl done⟩)
+      exact .inr (.inr ⟨[], _, _, check, canon, reached, next result _ _ _ _ _ reached rfl done⟩)
+
+
+private theorem handleFieldOccurrences {item : Field} {index address : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (same : left.store = right.store)
+    (run : LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) item index (.memory address) left right check canon checkNext canonNext
+      (fun () => finish))
+    {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    HandleOccurrenceThen profile ready base bindings start incoming left right seen item index check checkNext visit sink :=
+  handleValueOccurrences leading same run covers admitted (fun () => next)
 
 theorem leafOccurrenceLift {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf} {sink : RefusalSink grow sig}
     (covers : sink.CoversOccurrences profile ready base bindings start incoming) (leaf : TrailLeafType type) :

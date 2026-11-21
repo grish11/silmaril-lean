@@ -317,6 +317,41 @@ theorem linked_flat_aggregate_rejoin_paths {type : Stored.TypeOf} (site : Payloa
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedFlatAggregateRejoinPaths
     site linked family paired selected embedder
 
+/-- Derive all-location paths through the reached flat body from the linked
+compiler and the live request. The installed caller is followed separately;
+at its reply slot, success pops on both sides and a typed late refusal pops
+only on checked. Traps and finite suspensions do not promise a reply. -/
+theorem linked_flat_occurrence_body {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedFlatOccurrenceBody profile ready base bindings older site incoming) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedFlatOccurrenceBody
+    site linked family paired selected embedder
+
+/-- Rebase the derived body and reply paths to each original request origin.
+A checked-only reply moves checked origins through the pop, while canonical
+origins stop at the exact unexecuted suffix. -/
+theorem public_occurrence_exit_from_request {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {entered left right : Config (core3 grow) (HostState sig)} {checkLabels canonLabels seen : Trace grow sig}
+    {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
+    (checked : site.EntryPrefix profile ready base checkLabels site.checked)
+    (canonical : ∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready base bindings older site entered verdict seen left right) :
+    ∃ (checkBody canonBody : Trace grow sig) (mark : Option ReturnFrame.Occurrence.Location),
+      ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+      ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        entered (some (.active 0 0)) canonBody right mark ∧
+      RequestExitOccurrences profile ready base bindings site.start incoming seen left right ∧
+      (mark = some (.active 0 0) → ∃ checked canonical,
+        RequestExitOccurrences profile ready base bindings site.start incoming seen checked canonical ∧
+        RequestExitKind older verdict right checked canonical) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.rebasePublicOccurrenceExit
+    site checked canonical checkQuiet canonQuiet body
+
 /-- A finite callback prefix has a comparison even when it has not returned.
 On the actual marked return, both public collection routes take the reached
 range verdict. If the range passes but live preparation refuses, only the
