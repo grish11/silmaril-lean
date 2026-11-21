@@ -139,7 +139,7 @@ theorem collection_paths_from (destination : RecordDestination) (inst : InstId) 
     {leftStart rightStart : Config (core3 grow) (HostState sig)} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings leftStart rightStart labels start incoming offset) :
     LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon (fun _ _ _ _ _ _ => True) leftStart rightStart labels offset :=
+      start incoming check canon (fun _ _ _ _ _ _ _ => True) leftStart rightStart labels offset :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.collectionEntryPathsFrom
     destination inst type element entries index output checkNext canonNext frame checkAt canonAt embedder leading
 
@@ -221,20 +221,19 @@ theorem LiveListPublish.rejoin {route : GiveEffectRoute} (site : PayloadRoot.Sit
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.rejoinPublished
     site caller leading publish
 
-/-- On either linked public give route, derive the cumulative list-body trail
-from the actual compiler output and reached callbacks, then rejoin the
-original caller at descriptor publication. This leaf fragment covers scalar,
-allocating string and nominal-handle element types. A finite suspended
-callback, a typed stop or a trap need not reach publication. -/
-theorem linked_list_rejoin_paths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (linked : site.Linked bindings) {element : Stored.TypeOf} (leaf : TrailLeafType element)
-    (schema : sig.payload site.tag = .list element)
+/-- On either linked public give route, derive the list or map trail from
+the actual compiler output and reached callbacks, then rejoin the original
+caller at descriptor publication. This covers recursive descendants, not
+just leaf elements. No finite stopped prefix must reach publication. -/
+theorem linked_collection_rejoin_paths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
+    (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    PayloadRoot.Cut site profile ready bindings (LinkedListRejoinPaths profile ready base bindings older site element incoming) base :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedListRejoinPaths
-    site linked leaf schema paired selected embedder
+    PayloadRoot.Cut site profile ready bindings (LinkedCollectionRejoinPaths profile ready base bindings older site incoming type) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedCollectionRejoinPaths
+    site linked family collection schema paired selected embedder
 
 /-- Both public routes finish the actual allocating string key before
 entering its recursively allocating map/list value. The same compiler
@@ -606,14 +605,14 @@ theorem LiveStringMapEntryThen.paths {destination : RecordDestination} {inst : I
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {compare : LinkedCallback.MemorySequence.FieldComparison grow sig}
     {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
-    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Nat → TrailFinish grow sig}
     (leading : ComparedSlots profile ready base bindings start incoming labels left right offset)
     (run : LiveStringMapEntryThen profile ready base bindings older destination inst element output
       field value index slot compare checkNext canonNext finish left right check canon)
     (next : ∀ ptr seen lhs rhs cursor peer,
-      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset →
+      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset → lhs.store = rhs.store →
       compare value 1 ptr lhs rhs cursor peer (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish →
-      visit seen lhs rhs cursor peer) :
+      visit ptr seen lhs rhs cursor peer) :
     LiveStringMapEntryPaths profile ready base bindings older destination inst element output start incoming labels offset
       field value index slot checkNext canonNext visit left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryPaths leading run next

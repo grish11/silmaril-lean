@@ -349,7 +349,7 @@ def LiveCollectionEntry (profile : ProfileKind) (ready : HostReady (HostState si
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ _ _ => True)
+    (visit : Nat → Nat → TrailFinish grow sig := fun _ _ _ _ _ _ _ => True)
     (leftStart : Config (core3 grow) (HostState sig) := start)
     (rightStart : Config (core3 grow) (HostState sig) := incoming) (leading : Trace grow sig := []) (offset : Nat := 0) : Prop :=
   open Stored.Endpoints.RecordLower in
@@ -362,7 +362,7 @@ def LiveCollectionEntry (profile : ProfileKind) (ready : HostReady (HostState si
       { start with ctl := check.control (checkNext (.error refusal)) } incoming offset
   | .ok () => (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width →
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart leading offset
+      start incoming check canon visit leftStart rightStart leading offset
 
 /-- A reached collection segment. The slot offset counts removed frames.
 On checked refusal, the canonical program is the actual unexecuted suffix
@@ -505,6 +505,17 @@ def liveListTail (profile : ProfileKind) (ready : HostReady (HostState sig))
     (publishCanonical destination inst pointer entries.length output canonNext)
     (LiveListPublish profile ready base bindings output checkNext canonNext finish) entries 0 pointer
 
+def liveListTailPaths (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
+    (child : TrailFieldComparison grow sig)
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
+    (publish : TrailFinish grow sig) : Nat → Nat → TrailFinish grow sig :=
+  open ABI LinkedCallback.MemorySequence in
+  fun pointer _ => liveElementsPaths destination inst (layout destination.width element).size child
+    (publishChecked destination inst pointer entries.length index output checkNext)
+    (publishCanonical destination inst pointer entries.length output canonNext) publish entries 0 pointer
+
 /-- A decreasing comparison for nested list elements under the two live
 dispatchers. Each allocation uses its own occurrence trail and rechecks
 the actual reached writer before taking the child branch. -/
@@ -521,8 +532,8 @@ def liveNominalList (profile : ProfileKind) (ready : HostReady (HostState sig))
     ∃ element entries, item = .dynamic (.list element) element entries ∧
       LiveCollectionEntry profile ready base bindings older destination inst (.list element) element entries index
         (.memory address) checkNext canonNext left right check canon
-        (liveListTail profile ready base bindings destination inst element entries index (.memory address)
-          (liveNominalList profile ready base bindings older destination inst depth) checkNext canonNext (fun () => finish))
+        (fun pointer bytes _ => liveListTail profile ready base bindings destination inst element entries index (.memory address)
+          (liveNominalList profile ready base bindings older destination inst depth) checkNext canonNext (fun () => finish) pointer bytes)
 
 /-- Enter the actual public bodies. The collection visitor sees the
 children only at a valid return with a fresh successful reservation. -/
@@ -872,7 +883,7 @@ def LiveStringMapEntryPaths (profile : ProfileKind) (ready : HostReady (HostStat
     (output : Stored.Lower.Output) (start incoming : Config (core3 grow) (HostState sig))
     (seen : Trace grow sig) (offset : Nat) (field value : Stored.Endpoints.RecordLower.Field) (index slot : Nat)
     (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
-    (visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig)
+    (visit : Nat → TrailFinish grow sig)
     (left right : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
   open Stored.Endpoints.RecordLower ABI LinkedCallback.MemorySequence in
@@ -889,7 +900,7 @@ def LiveStringMapEntryPaths (profile : ProfileKind) (ready : HostReady (HostStat
       | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width value 1 (.memory valuePtr)) >>= report
     let canonical := fun () => mapValueProgram destination inst mode value afterKey canonNext
     StringKeyPaths profile ready base bindings older destination inst key address start incoming left right check canon
-      checked canonical (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset visit)
+      checked canonical (fun _ observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset (visit valuePtr))
       seen offset
 
 def liveCollectionMapEntry (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -900,6 +911,75 @@ def liveCollectionMapEntry (profile : ProfileKind) (ready : HostReady (HostState
   if key = .string then LiveStringMapEntryThen profile ready base bindings older destination inst element output
   else LiveMapEntryThen profile ready base bindings destination inst
     (Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput destination.width (.map key element) output)
+
+abbrev MapEntryTrail (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
+  Stored.Endpoints.RecordLower.Field → Stored.Endpoints.RecordLower.Field → Nat → Nat →
+    LinkedCallback.MemorySequence.CheckNext grow sig → LinkedCallback.MemorySequence.CanonNext grow sig →
+    TrailFinish grow sig → TrailFinish grow sig
+
+/-- Select the reached map key program before the recursive value. The
+canonical entry mode is fixed by the allocation's output, not the value. -/
+def liveMapEntryPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (key : WIT.KeyType) (element : Stored.TypeOf) (output : Stored.Lower.Output)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) (child : TrailFieldComparison grow sig) : MapEntryTrail grow sig :=
+  open ABI LinkedCallback.MemorySequence in
+  fun field value index slot checkNext canonNext finish before left right check canon =>
+    let after := fun addr => child value 1 addr (aggregateNext index checkNext) canonNext finish
+    if key = .string then
+      LiveStringMapEntryPaths profile ready base bindings older destination inst element output start incoming before offset
+        field value index slot checkNext canonNext after left right check canon
+    else
+      let keyArea := layout destination.width field.type
+      let valuePtr := alignTo (alignTo slot keyArea.alignment + keyArea.size) (layout destination.width value.type).alignment
+      LocalPathsThen profile ready base bindings start incoming before offset (after valuePtr)
+
+def liveMapElementsPaths (entry : MapEntryTrail grow sig)
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf)
+    (output : Stored.Lower.Output) (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig)
+    (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig) (finish : TrailFinish grow sig) :
+    List Stored.Endpoints.RecordLower.Field → Nat → Nat → TrailFinish grow sig
+  | [], _, _, before, left, right, check, canon => finish before left right check canon
+  | item :: rest, index, pointer, before, left, right, check, canon =>
+    open Stored.Endpoints.RecordLower ABI LinkedCallback.MemorySequence in
+    let entryType : Stored.TypeOf := .record (mapEntryFields key element)
+    let stride := (layout destination.width entryType).size
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.map key element) output
+    ∃ (payload : Stored.Payload (.prim key.toPrimitive)) (value : Field),
+      let keyField := Field.data (.prim key.toPrimitive) payload
+      item = .aggregate entryType [keyField, value] ∧
+      entry keyField value index pointer
+        (checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext)
+        (fun () => CanonicalTree.elements Limits.spec Quirks.none (destination.context inst) destination.width
+          rest mode stride (pointer + stride) >>= canonNext)
+        (liveMapElementsPaths entry destination inst key element output checkNext canonNext finish
+          rest (index + 1) (pointer + stride)) before left right check canon
+
+def liveMapTailPaths (entry : MapEntryTrail grow sig)
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf)
+    (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
+    (publish : TrailFinish grow sig) : Nat → Nat → TrailFinish grow sig :=
+  open LinkedCallback.MemorySequence in
+  fun pointer _ => liveMapElementsPaths entry destination inst key element output
+    (publishChecked destination inst pointer entries.length index output checkNext)
+    (publishCanonical destination inst pointer entries.length output canonNext) publish entries 0 pointer
+
+def liveFixedPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (destination : RecordDestination) (inst : InstId) (child : TrailFieldComparison grow sig)
+    (element : Stored.TypeOf) (entries : List Stored.Endpoints.RecordLower.Field) (index address : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (finish : TrailFinish grow sig) : TrailFinish grow sig :=
+  open ABI LinkedCallback.MemorySequence ReturnFrame.Occurrence in
+  fun before left right check canon =>
+    let stride := (layout destination.width element).size
+    let reference := { right with ctl := canon.control (Track.canonical (.elements stride) destination inst entries address >>= canonNext) }
+    RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] reference ∧
+    liveElementsPaths destination inst stride child (aggregateNext index checkNext) canonNext finish entries 0 address
+      before left reference check canon
 
 /-- Both dispatchers run the actual local operations. Traps keep the stores
 at the reached fault; only a successful field enters the continuation. -/
@@ -1021,17 +1101,17 @@ def liveCollectionField (profile : ProfileKind) (ready : HostReady (HostState si
     ∃ entries, item = .dynamic (.list element) element entries ∧
       LiveCollectionEntry profile ready base bindings older destination inst (.list element) element entries index
         (.memory address) checkNext canonNext left right check canon
-        (liveListTail profile ready base bindings destination inst element entries index (.memory address)
-          (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish))
+        (fun pointer bytes _ => liveListTail profile ready base bindings destination inst element entries index (.memory address)
+          (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish) pointer bytes)
   | .map key element => fun item index address left right check canon checkNext canonNext finish =>
     let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
     let output := Stored.Lower.Output.memory address
     ∃ entries, item = .dynamic (.map key element) entryType entries ∧
       LiveCollectionEntry profile ready base bindings older destination inst (.map key element) entryType entries index
         output checkNext canonNext left right check canon
-        (liveMapTailWith profile ready base bindings (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
+        (fun pointer bytes _ => liveMapTailWith profile ready base bindings (liveCollectionMapEntry profile ready base bindings older destination inst key element output)
           destination inst key element entries index output
-          (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish))
+          (liveCollectionField profile ready base bindings older destination inst element) checkNext canonNext (fun () => finish) pointer bytes)
   | .fixedList element length => fun item index address left right check canon checkNext canonNext finish =>
     ∃ entries, item = .fixed element length entries ∧
       LiveFixedThen profile ready base bindings destination inst (liveCollectionField profile ready base bindings older destination inst element)
@@ -1103,6 +1183,115 @@ def liveTupleFields (profile : ProfileKind) (ready : HostReady (HostState sig))
   | type :: rest => (type, liveCollectionField profile ready base bindings older destination inst type) ::
       liveTupleFields profile ready base bindings older destination inst rest
 termination_by structural fields => fields
+end
+
+def selectPathField (paths : List (Stored.TypeOf × TrailFieldComparison grow sig)) : TrailFieldComparison grow sig :=
+  fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ compare, (item.type, compare) ∈ paths ∧ compare item index address checkNext canonNext finish before left right check canon
+
+mutual
+/-- Thread one occurrence origin through the actual compiled shape. At a
+dynamic child preserve its marked allocator cut; only entered descendants
+may proceed to their descriptor and the next sibling. -/
+def liveRecursivePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) : Stored.TypeOf → TrailFieldComparison grow sig
+  | .list element => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .dynamic (.list element) element entries ∧
+      LiveCollectionEntry profile ready base bindings older destination inst (.list element) element entries index
+        (.memory address) checkNext canonNext left right check canon
+        (liveListTailPaths destination inst element entries index (.memory address)
+          (liveRecursivePaths profile ready base bindings older destination inst start incoming offset element)
+          checkNext canonNext (fun observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset finish))
+        start incoming before offset
+  | .map key element => fun item index address checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
+    let output := Stored.Lower.Output.memory address
+    ∃ entries, item = .dynamic (.map key element) entryType entries ∧
+      LiveCollectionEntry profile ready base bindings older destination inst (.map key element) entryType entries index
+        output checkNext canonNext left right check canon
+        (liveMapTailPaths (liveMapEntryPaths profile ready base bindings older destination inst key element output start incoming offset
+          (liveRecursivePaths profile ready base bindings older destination inst start incoming offset element))
+          destination inst key element entries index output checkNext canonNext
+          (fun observed _ _ _ _ => LocalPathsThen profile ready base bindings start incoming observed offset finish))
+        start incoming before offset
+  | .fixedList element length => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .fixed element length entries ∧
+      liveFixedPaths profile ready base bindings destination inst
+        (liveRecursivePaths profile ready base bindings older destination inst start incoming offset element) element entries index address
+        checkNext canonNext finish before left right check canon
+  | .option element => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.option element) [none, some element] tag selected ∧
+      LocalPathsThen profile ready base bindings start incoming before offset
+        (match selected with
+        | none => finish
+        | some arm => liveRecursivePaths profile ready base bindings older destination inst start incoming offset element arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width [none, some element] address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .result success failure => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.result success failure) [success, failure] tag selected ∧
+      let okPaths : TrailFieldComparison grow sig := match success with
+        | some type => liveRecursivePaths profile ready base bindings older destination inst start incoming offset type
+        | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
+      let errorPaths : TrailFieldComparison grow sig := match failure with
+        | some type => liveRecursivePaths profile ready base bindings older destination inst start incoming offset type
+        | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
+      LocalPathsThen profile ready base bindings start incoming before offset
+        (match selected with
+        | none => finish
+        | some arm => (if tag = 0 then okPaths else errorPaths) arm 0 (PayloadPrefix.sumPayloadAddress destination.width [success, failure] address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .variant cases => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.variant cases) (cases.map Prod.snd) tag selected ∧
+      LocalPathsThen profile ready base bindings start incoming before offset
+        (match selected with
+        | none => finish
+        | some arm => liveVariantPaths profile ready base bindings older destination inst start incoming offset cases tag arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width (cases.map Prod.snd) address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .record fields => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate (.record fields) items ∧
+      liveAggregatePaths profile ready base bindings destination inst
+        (selectPathField (liveRecordTrails profile ready base bindings older destination inst start incoming offset fields))
+        items index address checkNext canonNext finish before left right check canon
+  | .tuple types => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate (.tuple types) items ∧
+      liveAggregatePaths profile ready base bindings destination inst
+        (selectPathField (liveTupleTrails profile ready base bindings older destination inst start incoming offset types))
+        items index address checkNext canonNext finish before left right check canon
+  | type => liveLeafPaths profile ready base bindings older destination inst start incoming offset type
+termination_by structural type => type
+
+def liveVariantPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) :
+    List (String × Option Stored.TypeOf) → Nat → TrailFieldComparison grow sig
+  | (_, some type) :: _, 0 => liveRecursivePaths profile ready base bindings older destination inst start incoming offset type
+  | _ :: rest, tag + 1 => liveVariantPaths profile ready base bindings older destination inst start incoming offset rest tag
+  | _, _ => fun _ _ _ _ _ _ _ _ _ _ _ => False
+termination_by structural cases => cases
+
+def liveRecordTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × TrailFieldComparison grow sig)
+  | [] => []
+  | (_, type) :: rest => (type, liveRecursivePaths profile ready base bindings older destination inst start incoming offset type) ::
+      liveRecordTrails profile ready base bindings older destination inst start incoming offset rest
+termination_by structural fields => fields
+
+def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat) :
+    List Stored.TypeOf → List (Stored.TypeOf × TrailFieldComparison grow sig)
+  | [] => []
+  | type :: rest => (type, liveRecursivePaths profile ready base bindings older destination inst start incoming offset type) ::
+      liveTupleTrails profile ready base bindings older destination inst start incoming offset rest
+termination_by structural types => types
 end
 
 /-- Compare either public body for arbitrary list/map nesting with fixed
@@ -1334,23 +1523,26 @@ def CollectionSegmentReplies (profile : ProfileKind) (ready : HostReady (HostSta
         (∀ dispatch, Steps profile ready dispatch before [.tau, .tau, .tau] left) ∧ right.ctl = canon.control stop
     | .trapped reason => left.ctl = [] ∧ right.ctl = [] ∧ ∃ leading, PayloadPrefix.visible canonLabels = leading ++ [.trap reason]
 
-/-- From actual list allocation and placement, visit the reached elements
-in order. At the descriptor continuation, the accumulated trail suffices
-to rejoin the original public caller or prove the actual descriptor trap. -/
-def LinkedListRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+/-- From actual collection allocation and placement, visit the reached
+descendants in order. At the descriptor continuation, the accumulated trail
+suffices to rejoin the original caller or prove the actual descriptor trap. -/
+def LinkedCollectionRejoinPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
-    (site : PayloadRoot.Site grow sig route) (element : Stored.TypeOf)
-    (incoming : Config (core3 grow) (HostState sig)) : Prop :=
-  LinkedCollectionBody profile ready base bindings older site (.list element) element incoming
-    fun entered entries pointer _ =>
-      open LinkedCallback.MemorySequence in
-      liveElementsPaths site.destination site.inst (ABI.layout site.destination.width element).size
-        (liveLeafPaths profile ready base bindings older site.destination site.inst site.checked entered 0 element)
-        (publishChecked site.destination site.inst pointer entries.length 0 route.output site.reply)
-        (publishCanonical site.destination site.inst pointer entries.length route.output site.referenceReply)
+    (site : PayloadRoot.Site grow sig route) (incoming : Config (core3 grow) (HostState sig)) : Stored.TypeOf → Prop
+  | .list element =>
+    LinkedCollectionBody profile ready base bindings older site (.list element) element incoming fun entered entries =>
+      liveListTailPaths site.destination site.inst element entries 0 route.output
+        (liveRecursivePaths profile ready base bindings older site.destination site.inst site.checked entered 0 element)
+        site.reply site.referenceReply
         (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
-        entries 0 pointer
+  | .map key element =>
+    LinkedCollectionBody profile ready base bindings older site (.map key element) (.record (ABI.mapEntryFields key element)) incoming
+      fun entered entries => liveMapTailPaths (liveMapEntryPaths profile ready base bindings older site.destination site.inst key element
+        route.output site.checked entered 0 (liveRecursivePaths profile ready base bindings older site.destination site.inst site.checked entered 0 element))
+        site.destination site.inst key element entries 0 route.output site.reply site.referenceReply
+        (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
+  | _ => False
 
 /-- A marked string-key map return either traps or refuses before any entry,
 or reaches the recursive body with the original checked caller still tracked. -/

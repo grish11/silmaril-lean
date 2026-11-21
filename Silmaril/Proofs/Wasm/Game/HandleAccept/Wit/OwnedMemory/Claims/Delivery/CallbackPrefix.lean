@@ -450,7 +450,7 @@ theorem appendComparedPaths {leftStart rightStart left right lhs rhs : Config (c
     (List.filter_append ..).trans (congrArg₂ List.append checkSeen leftSeen),
     (List.filter_append ..).trans (congrArg₂ List.append canonSeen rightSeen), same⟩
 
-private theorem visibleLeaf {Result : Type} {outcome : Except TrapReason Result} {labels : Trace grow sig}
+theorem visibleLeaf {Result : Type} {outcome : Except TrapReason Result} {labels : Trace grow sig}
     (classified : LocalLeafLabels outcome labels) :
     PayloadPrefix.visible labels = (match outcome with | .ok _ => [] | .error reason => [.trap reason]) := by
   cases outcome with
@@ -793,14 +793,14 @@ theorem stringMapEntryPaths {destination : RecordDestination} {inst : InstId} {e
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {compare : LinkedCallback.MemorySequence.FieldComparison grow sig}
     {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
-    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Nat → TrailFinish grow sig}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
     (run : LiveStringMapEntryThen profile ready base bindings older destination inst element output
       field value index slot compare checkNext canonNext finish left right check canon)
     (next : ∀ ptr observed lhs rhs cursor peer,
-      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset →
+      ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
       compare value 1 ptr lhs rhs cursor peer (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish →
-      visit observed lhs rhs cursor peer) :
+      visit ptr observed lhs rhs cursor peer) :
     LiveStringMapEntryPaths profile ready base bindings older destination inst element output start incoming seen offset
       field value index slot checkNext canonNext visit left right check canon := by
   obtain ⟨key, keyField, body⟩ := run
@@ -818,6 +818,6 @@ theorem stringMapEntryPaths {destination : RecordDestination} {inst : InstId} {e
     have reached := appendComparedSlots path ⟨labels, labels ++ widthRead, lhsTrack,
       fun depth => (rhsTrack depth).append (widthTrack depth), silent,
       (List.filter_append ..).trans (congrArg₂ List.append silent widthSilent)⟩
-    exact .inr ⟨[], _, _, cursor, peer, reached, rfl, next _ _ _ _ _ _ reached valueRun⟩
+    exact .inr ⟨[], _, _, cursor, peer, reached, rfl, next _ _ _ _ _ _ reached rfl valueRun⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix

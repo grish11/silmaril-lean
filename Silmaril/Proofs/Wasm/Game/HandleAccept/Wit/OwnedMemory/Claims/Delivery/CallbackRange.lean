@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Plan.Defs
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCollection.Thms
@@ -214,7 +215,7 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
     {leftStart rightStart : Config (core3 grow) (HostState sig)} {before : Trace grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings leftStart rightStart before start incoming offset) :
     LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon visit leftStart rightStart before offset := by
+      start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart before offset := by
   unfold LiveCollectionEntry
   cases prepared : Record.prepare start.store start.host.writer (Field.listObjects entries) with
   | ok result =>
@@ -263,7 +264,7 @@ theorem collectionEntryPathsFrom (destination : RecordDestination) (inst : InstI
     {leftStart rightStart : Config (core3 grow) (HostState sig)} {before : Trace grow sig} {offset : Nat}
     (leading : ComparedSlots profile ready base bindings leftStart rightStart before start incoming offset) :
     LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
-      start incoming check canon (fun _ _ _ _ _ _ => True) leftStart rightStart before offset :=
+      start incoming check canon (fun _ _ _ _ _ _ _ => True) leftStart rightStart before offset :=
   collectionEntryVisiting destination inst type element entries index output checkNext canonNext frame checkAt canonAt embedder
     (fun _ _ _ _ _ _ => True) (by unfold CollectionVisitor; intros; exact True.intro) leading
 
@@ -2903,40 +2904,50 @@ theorem linkedStringRecursiveMapBody {route : GiveEffectRoute} (site : PayloadRo
       base :=
   linkedRecursiveCollectionBody site linked (.map family) True.intro schema paired selected embedder
 
-theorem linkedListRejoinPaths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (linked : site.Linked bindings) {element : Stored.TypeOf} (leaf : TrailLeafType element)
-    (schema : sig.payload site.tag = .list element)
+private theorem liftLinkedCollection {route : GiveEffectRoute} {site : PayloadRoot.Site grow sig route}
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    {type element : Stored.TypeOf}
+    {raw : Config (core3 grow) (HostState sig) → List Field → Nat → Nat → Finish grow sig}
+    {visit : Config (core3 grow) (HostState sig) → List Field → Nat → Nat → TrailFinish grow sig}
+    (body : LinkedCollectionBody profile ready base bindings older site type element incoming (fun entered entries ptr bytes _ =>
+      raw entered entries ptr bytes))
+    (next : ∀ entered entries pointer bytes observed lhs rhs cursor peer,
+      ComparedSlots profile ready base bindings site.checked entered observed lhs rhs → lhs.store = rhs.store →
+      raw entered entries pointer bytes lhs rhs cursor peer → visit entered entries pointer bytes observed lhs rhs cursor peer) :
+    LinkedCollectionBody profile ready base bindings older site type element incoming visit := by
+  obtain ⟨entries, leading, entered, peer, shape, quiet, entry, host, paths⟩ := body
+  exact ⟨entries, leading, entered, peer, shape, quiet, entry, host,
+    RecursiveTrails.allocationPaths (initialSlots site.checked entered) paths (next entered entries)⟩
+
+theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
+    (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    PayloadRoot.Cut site profile ready bindings (LinkedListRejoinPaths profile ready base bindings older site element incoming) base := by
-  have family : RecursiveCollectionType element := by
-    rcases leaf with nominal | data | rfl
-    · exact .leaf nominal
-    · exact .data data
-    · exact .string
+    PayloadRoot.Cut site profile ready bindings (LinkedCollectionRejoinPaths profile ready base bindings older site incoming type) base := by
   have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
-    (.list family) True.intro schema paired selected embedder
+    family collection schema paired selected embedder
   cases cut with
   | refused issue quiet run => exact .refused issue quiet run
   | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
   | placed silent verdict prepared path body =>
     refine .placed silent verdict prepared path ?_
-    obtain ⟨entries, leading, entered, peer, shape, quiet, entry, host, paths⟩ := body
-    refine ⟨entries, leading, entered, peer, shape, quiet, entry, host, ?_⟩
-    intro seen finish path
-    obtain ⟨lhs, rhs, reached, mark, marked, aligned, compared, returned⟩ := paths path
-    refine ⟨lhs, rhs, reached, mark, marked, aligned, compared, ?_⟩
-    intro pointer cursor top returning
-    obtain ⟨range, children⟩ := returned pointer cursor top returning
-    refine ⟨range, ?_⟩
-    intro bytes sized aligned bounds fresh
-    obtain ⟨left, right, canon, tracks, frame, width, size, align, bound, growth, checkAt, canonAt, elements⟩ :=
-      children bytes sized aligned bounds fresh
-    refine ⟨left, right, canon, tracks, frame, width, size, align, bound, growth, checkAt, canonAt, ?_⟩
-    exact CallbackPrefix.liveElementsPathsFrom (CallbackPrefix.leafFieldLift leaf) tracks frame.store elements
-      (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
+    cases family with
+    | leaf nominal => cases nominal <;> cases collection
+    | data data => cases data <;> cases collection
+    | string | fixed | option | result | variant | record | tuple => cases collection
+    | list child =>
+      refine liftLinkedCollection body ?_
+      intro entered entries pointer bytes observed lhs rhs cursor peer tracks same elements
+      exact CallbackPrefix.liveElementsPathsFrom (RecursiveTrails.fieldPaths child) tracks same elements
+        (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
+    | map child =>
+      refine liftLinkedCollection body ?_
+      intro entered entries pointer bytes observed lhs rhs cursor peer tracks same elements
+      exact RecursiveTrails.mapElementsPaths (RecursiveTrails.fieldPaths child) tracks same elements
+        (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
 
 theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (nominal : NominalElement element)
