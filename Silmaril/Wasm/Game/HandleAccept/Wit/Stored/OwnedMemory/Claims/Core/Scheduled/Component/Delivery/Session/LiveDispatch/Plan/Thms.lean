@@ -172,6 +172,31 @@ theorem AllocatorMark.collection_range (destination : RecordDestination) (inst :
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.collectionRange
     destination inst type element entries output index pointer checkNext canonNext
 
+/-- Finish a reached allocating list root on either scheduled public give
+route. The compiler certificate determines the entries. The installed mark
+and its lower-slot trail identify the original Core caller; a returned pointer
+does not promise successful range checks, element writes or publication. -/
+theorem AllocatorMark.local_list_replies {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field)
+    (data : PayloadPrefix.LocalDataType element) (field : site.field = .dynamic (.list element) element entries) (pointer : Nat)
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {checked canonical : Config (core3 grow) (HostState sig)}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {checkTrace canonTrace} :
+    let area := layout site.destination.width element
+    let first := PayloadPrefix.checkedCollectionResume site.destination site.inst entries area 0 route.output site.reply
+    let second := PayloadPrefix.canonicalCollectionResume site.destination site.inst entries area route.output site.referenceReply
+    AllocatorMark profile ready base bindings older
+      (PayloadPrefix.collectionEntry site.destination site.inst area entries.length (specDispatch ready base) site.checked site.cursor first)
+      (PayloadPrefix.collectionEntry site.destination site.inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
+        (site.reference site.referenceReply) site.cursor second) checkTrace canonTrace checked canonical (some (.active 0 0)) →
+    HostFrame.Related.Paired wider checked canonical →
+    checked.ctl = { check with frames := .prog first :: check.frames }.control (.pure (.nat pointer)) →
+    Core3.Grows site.checked.store.core checked.store.core →
+    CollectionReplies profile ready base bindings older site checked canonical
+      (PayloadPrefix.canonicalCollectionTail site.destination site.inst entries area route.output pointer >>= site.referenceReply) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.localListReplies
+    site linked element entries data field pointer
+
 theorem NestedPlan.source (plan : NestedPlan bindings profile ready base start labels finish) :
     Steps profile ready (specDispatch ready base) start labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.source plan
