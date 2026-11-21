@@ -2487,6 +2487,38 @@ def PendingRecursiveRoot (profile : ProfileKind) (ready : HostReady (HostState s
       (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
     HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = incoming.host
 
+/-- From the original public request to the actual installed collection
+allocator, then to the first range/recheck outcome if that occurrence returns.
+The initial checked and reference programs are the real public entries. -/
+def PublicCollectionOccurrences (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (incoming : Config (core3 grow) (HostState sig)) (type element : Stored.TypeOf)
+    (entries : List Stored.Endpoints.RecordLower.Field) : Prop :=
+  let base := ComponentCall.hostWithComponent bindings callees
+  let area := ABI.layout site.destination.width element
+  let mode := Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput site.destination.width type route.output
+  let first := PayloadPrefix.checkedCollectionResume site.destination site.inst entries area 0 route.output site.reply
+  let second := PayloadPrefix.canonicalCollectionResume site.destination site.inst entries area route.output site.referenceReply mode
+  ∃ entered, ∃ canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+    ComparedOccurrencePaths profile ready base bindings site.start incoming [] site.checked entered ∧
+    ∀ {seen finish}, ClosedCallbackPrefix bindings profile ready base (fun resume => (∃ peer, older resume peer) ∨ resume = first)
+      (PayloadPrefix.collectionEntry site.destination site.inst area entries.length (specDispatch ready base) site.checked site.cursor first) seen finish →
+      ∃ checkLabels canonLabels reached mark,
+        AllocatorMark profile ready base bindings older
+          (PayloadPrefix.collectionEntry site.destination site.inst area entries.length (specDispatch ready base) site.checked site.cursor first)
+          (PayloadPrefix.collectionEntry site.destination site.inst area entries.length
+            (specDispatch ready (host bindings base)) entered canon second) checkLabels canonLabels finish reached mark ∧
+        ComparedOccurrencePaths profile ready base bindings site.start incoming seen finish reached ∧
+        (∀ pointer (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+          mark = some (.active 0 0) →
+          finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
+          CollectionRangeOccurrences profile ready base bindings older site.start incoming finish reached seen
+            cursor site.destination area entries.length pointer (Stored.Endpoints.RecordLower.Field.listObjects entries)
+            (fun addr verdict => PayloadPrefix.checkedCollectionTail site.destination site.inst entries area 0 route.output addr verdict >>= site.reply)
+            (fun addr => PayloadPrefix.canonicalCollectionTail site.destination site.inst entries area route.output addr mode >>= site.referenceReply))
+
 /-- Classify the reached guard before recursive traversal starts. A
 checked placement trap has its actual lockdown; it is not evidence that
 the unexecuted canonical program has trapped at the same point. -/

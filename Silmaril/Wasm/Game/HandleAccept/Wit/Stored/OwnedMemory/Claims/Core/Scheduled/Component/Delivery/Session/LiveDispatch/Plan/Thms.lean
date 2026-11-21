@@ -1446,4 +1446,20 @@ theorem PendingRecursiveRoot.compared_entry {route : GiveEffectRoute} (site : Pa
         site.start incoming [] site.checked entered :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.pendingComparedEntry site checked silent pending
 
+/-- Rebase the reached allocator and range outcomes to the original
+scheduled `givePayload` or `giveFlat`, including older saved occurrences.
+The installed mark distinguishes a suspended or lost return from a pop. -/
+theorem linked_public_collection_occurrences {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
+    {type element : Stored.TypeOf} {entries : List Field}
+    (field : site.field = .dynamic type element entries)
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (silent : PayloadPrefix.visible checkLabels = [])
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (prepared : Stored.OwnedMemory.Claims.Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ()) :
+    PublicCollectionOccurrences profile ready bindings callees older site incoming type element entries :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.publicCollectionOccurrences
+    site linked field checked silent paired selected prepared
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

@@ -3221,7 +3221,7 @@ theorem linkedStringMapReturnPaths {route : GiveEffectRoute} (site : PayloadRoot
     ⟨lhs, rhs, checkRun, canonRun, rfl, seen.symm⟩
   exact .inr ⟨left, right, canon, visible lhs, leading, linkedStringMapPaths site element entries 0 pointer caller leading body⟩
 
-private theorem referenceFrame {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+theorem referenceFrame {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {entered : Config (core3 grow) (HostState sig)}
     {body : Session grow sig (Ret (core3 grow))}
     (focus : (site.reference site.referenceReply).ctl = site.cursor.control body)

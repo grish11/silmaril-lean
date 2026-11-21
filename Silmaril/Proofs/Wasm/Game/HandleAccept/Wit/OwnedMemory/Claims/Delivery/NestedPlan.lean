@@ -867,6 +867,15 @@ private theorem rejoinedTail {callees : List (ComponentCall.Callee sig)}
   exact ⟨between.runs.1.steps, replace ▸ LiveDispatch.interleaving_steps between,
     fun roots => (LiveDispatch.interleaving_paired_roots between roots).2⟩
 
+private theorem pendingRecursiveRoot {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} (linked : site.Linked bindings)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree) :
+    PendingRecursiveRoot profile ready bindings callees older site incoming := by
+  obtain ⟨labels, entered, quiet, installed, aligned, hostEq⟩ := LiveDispatch.entry_paired_tracks
+    (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) site linked paired selected
+  exact ⟨labels, entered, silentVisible quiet, installed, aligned, hostEq⟩
+
 private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} (linked : site.Linked bindings)
     (paired : HostFrame.Related.Paired older site.start incoming)
@@ -874,10 +883,8 @@ private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadR
     (cut : PayloadRoot.Cut site profile ready bindings (RecursiveGivePaths profile ready bindings callees older incoming route site)
       (ComponentCall.hostWithComponent bindings callees)) :
     ReachedRecursiveRoot profile ready bindings callees older incoming site := by
-  have pending : PendingRecursiveRoot profile ready bindings callees older site incoming := by
-    obtain ⟨labels, entered, quiet, installed, aligned, hostEq⟩ := LiveDispatch.entry_paired_tracks
-      (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) site linked paired selected
-    exact ⟨labels, entered, silentVisible quiet, installed, aligned, hostEq⟩
+  have pending : PendingRecursiveRoot profile ready bindings callees older site incoming :=
+    pendingRecursiveRoot site linked paired selected
   cases cut with
   | refused issue silent run =>
     refine .refused (issue := issue) silent (fun place => (run place).toTrail.append ?_) pending
@@ -1191,5 +1198,60 @@ theorem pendingComparedEntry {route : GiveEffectRoute} (site : PayloadRoot.Site 
   cases mark with
   | none => exact ⟨none, Trail.absent checked.steps, Trail.absent (prefix_survives (canonical (.active 0 0))).1⟩
   | some place => exact ⟨some (site.entryPlace place), (checked place).toTrail, (canonical place).toTrail⟩
+
+private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
+    {seen : Trace grow sig} {cursor destination area count pointer plan checkNext canonNext}
+    (entry : ComparedOccurrencePaths profile ready base bindings leftStart rightStart [] leftEntry rightEntry)
+    (localRange : CollectionRangeOccurrences profile ready base bindings older leftEntry rightEntry checked canonical seen
+      cursor destination area count pointer plan checkNext canonNext) :
+    CollectionRangeOccurrences profile ready base bindings older leftStart rightStart checked canonical seen
+      cursor destination area count pointer plan checkNext canonNext := by
+  obtain ⟨bytes, width, sized, verdict⟩ := localRange
+  refine ⟨bytes, width, sized, ?_⟩
+  by_cases misaligned : pointer ≠ ABI.alignTo pointer area.alignment
+  · simp only [ite_eq_left misaligned] at verdict ⊢
+    simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict
+  · simp only [ite_eq_right misaligned] at verdict ⊢
+    by_cases fits : pointer + count * area.size ≤ bytes
+    · simp only [ite_eq_left fits] at verdict ⊢
+      obtain ⟨canon, frame, paths⟩ := verdict
+      exact ⟨canon, frame, by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths⟩
+    · simp only [ite_eq_right fits] at verdict ⊢
+      simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict
+
+theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {callees : List (ComponentCall.Callee sig)} {checkLabels : Trace grow sig}
+    {type element : Stored.TypeOf} {entries : List Stored.Endpoints.RecordLower.Field}
+    (field : site.field = .dynamic type element entries)
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (silent : PayloadPrefix.visible checkLabels = [])
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (prepared : Stored.OwnedMemory.Claims.Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ()) :
+    PublicCollectionOccurrences profile ready bindings callees older site incoming type element entries := by
+  unfold PublicCollectionOccurrences
+  obtain ⟨entered, aligned, _, entry⟩ := pendingComparedEntry site checked silent (pendingRecursiveRoot site linked paired selected)
+  have bodyAt := site.reference_at linked site.referenceReply
+  rw [field] at bodyAt
+  obtain ⟨canon, frame, canonAt⟩ := CallbackRange.referenceFrame site bodyAt aligned
+  have checkAt : site.checked.ctl = site.cursor.control
+      (Stored.OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none (site.destination.context site.inst)
+        site.destination.width (.dynamic type element entries) 0 route.output >>= site.reply) := by
+    simp only [PayloadRoot.Site.checked, PayloadRoot.Site.withBody, field]
+  have live : Stored.OwnedMemory.Claims.Record.prepare site.checked.store site.checked.host.writer
+      (Stored.Endpoints.RecordLower.Field.listObjects entries) = .ok () := by
+    change Stored.OwnedMemory.Claims.Record.prepare site.start.store site.start.host.writer _ = .ok ()
+    simpa only [field, Stored.Endpoints.RecordLower.Field.objects] using prepared
+  have width := site.destination.check_width site.start.store linked.destination
+  refine ⟨entered, canon, entry, ?_⟩
+  intro seen finish callback
+  obtain ⟨leftLabels, rightLabels, reached, mark, installed, paths, returns⟩ :=
+    CallbackRange.collectionOccurrences (base := ComponentCall.hostWithComponent bindings callees)
+      site.destination site.inst type element entries route.output 0 site.reply site.referenceReply
+      frame (frame.store ▸ width) live checkAt canonAt rfl callback
+  refine ⟨leftLabels, rightLabels, reached, mark, installed, ?_, ?_⟩
+  · simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths
+  · intro pointer cursor active returning
+    simpa only [List.nil_append] using rebaseRange entry (returns pointer cursor active returning)
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
