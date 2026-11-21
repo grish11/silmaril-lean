@@ -169,7 +169,7 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (cx : LiftLowerContext (core3 grow))
     (checkNext canonNext : Nat → Session grow sig (Ret (core3 grow)))
     (leftStart rightStart : Config (core3 grow) (HostState sig))
-    (finish : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+    (finish : Nat → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
       PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop)
     (length : Nat) (left right : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (seen : Trace grow sig) : Prop :=
@@ -183,7 +183,7 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
     ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ visible labels) lhs rhs ∧
     match result with
     | .error _ => lhs.ctl = [] ∧ rhs.ctl = []
-    | .ok (.done pointer) => finish pointer lhs rhs check canon
+    | .ok (.done pointer) => finish pointer (seen ++ visible labels) lhs rhs check canon
     | .ok (.call pointer oldSize alignment size rest _) =>
       let first := stringPlanResume cx rest checkNext
       let second := stringPlanResume cx rest canonNext
@@ -1027,9 +1027,9 @@ def StringValueThen (profile : ProfileKind) (ready : HostReady (HostState sig))
   let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
   ∃ checkLabels canonLabels,
     PayloadPrefix.visible checkLabels = [] ∧ PayloadPrefix.visible canonLabels = [] ∧
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready base) left checkLabels checkBody ∧
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base))
-      right canonLabels canonBody ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base) left place checkLabels checkBody place) ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      right place canonLabels canonBody place) ∧
     LinkedCallback.ChildFrameOver older checkBody canonBody check canon ∧
     LiveStringReplay profile ready base bindings older cx checked canonical finish plan.steps.length checkBody canonBody check canon
 
@@ -1060,6 +1060,27 @@ def StringValuePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
   LiveStringPaths profile ready base bindings older cx checked canonical start incoming
     (fun pointer lhs rhs check canon observed => finish pointer observed lhs rhs check canon)
     plan.steps.length checkBody canonBody check canon seen offset
+
+/-- Follow every initial occurrence from the incoming field through the real
+entry guards and the reached string plan, including finite allocator cuts. -/
+def StringValueOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField) (output : Stored.Lower.Output)
+    (start incoming left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
+    (finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) (seen : Trace grow sig) : Prop :=
+  let cx := destination.context inst
+  let plan := storePlanFor Quirks.none destination.encoding destination.width key.value
+  let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>=
+    fun result => checkNext (.ok result)
+  let canonical := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>= canonNext
+  let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
+  let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
+  LiveStringOccurrences profile ready base bindings older cx checked canonical start incoming finish
+    plan.steps.length checkBody canonBody check canon seen
 
 abbrev StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))

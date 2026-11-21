@@ -1088,6 +1088,30 @@ private theorem nominalListRule (destination : RecordDestination) (inst : InstId
               (ih family child slot (entries_match_of_mem shapes member) (compiled child member)))
             checkNext canonNext (fun () => finish) (fun _ => ends)) (initialSlots left right)⟩
 
+private theorem mapPlacementOccurrences (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType)
+    (element : Stored.TypeOf) (output : Stored.Lower.Output)
+    (before : Config (core3 grow) (HostState sig)) (canon : Cursor (E := core3 grow) (HostState sig))
+    (next : AddrType → Session grow sig (Ret (core3 grow)))
+    (width : (core3 grow).memAddrType? before.store.core destination.memory = some destination.width)
+    (atPlacement : before.ctl = canon.control (mapFieldPlacement (destination.context inst)
+      (CanonicalTree.EntryMode.forOutput destination.width (.map key element) output) next)) :
+    ∃ labels, visible labels = [] ∧ ∀ place, Prefix profile ready
+      (specDispatch ready (LiveDispatch.host bindings base)) before place labels
+      { before with ctl := canon.control (next destination.width) } place := by
+  cases output with
+  | memory address =>
+    have same : before = { before with ctl := canon.control (next destination.width) } := by
+      cases before
+      simp_all [mapFieldPlacement, CanonicalTree.EntryMode.forOutput]
+    exact ⟨[], rfl, fun place => same ▸ .done before place⟩
+  | flat =>
+    have reached : ptrTypeIn before.store (destination.context inst) = destination.width := by
+      simp [ptrTypeIn, RecordDestination.context, CanonOpts.ptrType, width]
+    refine ⟨[.tau], rfl, fun place => ?_⟩
+    change before.ctl = canon.control (.op .get (fun store => next (ptrTypeIn store (destination.context inst)))) at atPlacement
+    simpa only [reached, Cursor.control] using (Prefix.read_at (profile := profile)
+      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) place atPlacement)
+
 private theorem mapPlacement (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType)
     (element : Stored.TypeOf) (output : Stored.Lower.Output)
     (before : Config (core3 grow) (HostState sig)) (canon : Cursor (E := core3 grow) (HostState sig))
@@ -1095,22 +1119,11 @@ private theorem mapPlacement (destination : RecordDestination) (inst : InstId) (
     (width : (core3 grow).memAddrType? before.store.core destination.memory = some destination.width)
     (atPlacement : before.ctl = canon.control (mapFieldPlacement (destination.context inst)
       (CanonicalTree.EntryMode.forOutput destination.width (.map key element) output) next)) :
-    ∃ labels, visible labels = [] ∧ ReturnFrame.Occurrence.RetainsActiveSlots profile ready
+    ∃ labels, visible labels = [] ∧ RetainsActiveSlots profile ready
       (specDispatch ready (LiveDispatch.host bindings base)) before labels
       { before with ctl := canon.control (next destination.width) } := by
-  cases output with
-  | memory address =>
-    have same : before = { before with ctl := canon.control (next destination.width) } := by
-      cases before
-      simp_all [mapFieldPlacement, CanonicalTree.EntryMode.forOutput]
-    exact ⟨[], rfl, fun depth => same ▸ .done before (.active 0 depth)⟩
-  | flat =>
-    have reached : ptrTypeIn before.store (destination.context inst) = destination.width := by
-      simp [ptrTypeIn, RecordDestination.context, CanonOpts.ptrType, width]
-    refine ⟨[.tau], rfl, fun depth => ?_⟩
-    change before.ctl = canon.control (.op .get (fun store => next (ptrTypeIn store (destination.context inst)))) at atPlacement
-    simpa only [reached, Cursor.control] using (ReturnFrame.Occurrence.Prefix.read (profile := profile)
-      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) depth atPlacement)
+  obtain ⟨labels, quiet, paths⟩ := mapPlacementOccurrences destination inst key element output before canon next width atPlacement
+  exact ⟨labels, quiet, fun depth => paths (.active 0 depth)⟩
 
 theorem stringMapKey (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
     (output : Stored.Lower.Output) (key : LinkedCallback.StringField) (value root : Field) {schema : Stored.TypeOf}
@@ -1159,13 +1172,13 @@ theorem stringMapKey (destination : RecordDestination) (inst : InstId) (element 
   obtain ⟨placed, checkTracks⟩ := map_key_placement (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     destination inst .string element keyPayload value origin basePtr bytes count entryIndex width sized aligned bounds entry issueIndex
     left (frame.store ▸ growth) check checkNext checkAt
-  obtain ⟨canonLabels, canonQuiet, canonTracks⟩ := mapPlacement (profile := profile) (ready := ready) (base := base)
+  obtain ⟨canonLabels, canonQuiet, canonTracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base)
     (bindings := bindings) destination inst .string element output right canon _ currentWidth canonAt
   let checkKey := { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
     key.field 0 keyOutput >>= following) }
   let canonKey := { right with ctl := canon.control (CanonicalTree.field Limits.spec Quirks.none cx destination.width
     key.field keyOutput >>= afterKey destination.width) }
-  obtain ⟨reads, keyLeft, keyRight⟩ := string_plan_entry_between (profile := profile) (ready := ready)
+  obtain ⟨reads, keyLeft, keyRight⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst
     key.value key.valid 0 keyOutput checkKey canonKey check canon following (afterKey destination.width) frame.store currentWidth
     realloc fit placed rfl rfl
@@ -2073,7 +2086,7 @@ private theorem stringValueThen (destination : RecordDestination) (inst : InstId
   let payload : Stored.Payload (.prim .string) := ⟨.string str.value, .string str.valid⟩
   have fit := Field.Descendant.string_pre payload rfl path source.layout Quirks.none destination.encoding destination.width source.fits
   obtain ⟨alloc, realloc⟩ := source.allocator str.field path rfl
-  obtain ⟨reads, lhs, rhs⟩ := string_plan_entry_between (profile := profile) (ready := ready)
+  obtain ⟨reads, lhs, rhs⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) (reference := specDispatch ready (LiveDispatch.host bindings base))
     destination inst str.value str.valid index output left right check canon checkNext canonNext frame.store
     (frame.store ▸ width) realloc fit placed checkAt canonAt
@@ -3085,9 +3098,11 @@ theorem linkedStringMapPaths {route : GiveEffectRoute} (site : PayloadRoot.Site 
     dsimp only at stage
     obtain ⟨key, value, selected, keyRun⟩ := stage checkAt canonAt
     obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkTracks, canonTracks, _, replay⟩ := keyRun
-    have placed := CallbackPrefix.appendComparedSlots leading ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩
+    have tracksLeft := fun depth => checkTracks (.active 0 depth)
+    have tracksRight := fun depth => canonTracks (.active 0 depth)
+    have placed := CallbackPrefix.appendComparedSlots leading ⟨checkLabels, canonLabels, tracksLeft, tracksRight, checkSeen, canonSeen⟩
     rw [List.append_nil] at placed
-    refine ⟨key, value, selected, ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩,
+    refine ⟨key, value, selected, ⟨checkLabels, canonLabels, tracksLeft, tracksRight, checkSeen, canonSeen⟩,
       CallbackPrefix.stringPaths ?_ placed replay⟩
     intro ptr lhs rhs cursor peer observed localCut accumulated
     obtain ⟨reached, outcome, lhsTrace, rhsTrace, leftFinal, rightFinal, leftRun, rightRun, same, traceSame, result⟩ := localCut

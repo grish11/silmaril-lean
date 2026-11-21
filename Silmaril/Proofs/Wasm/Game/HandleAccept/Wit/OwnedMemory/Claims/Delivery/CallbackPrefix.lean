@@ -620,10 +620,14 @@ theorem stringOccurrences {cx : LiftLowerContext (core3 grow)}
     {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
     {ends : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
       PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop}
+    {finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
     {length : Nat} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (leading : ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right)
-    (run : LiveStringReplay profile ready base bindings older cx checkNext canonNext ends length left right check canon) :
-    LiveStringOccurrences profile ready base bindings older cx checkNext canonNext leftStart rightStart ends length left right check canon seen := by
+    (run : LiveStringReplay profile ready base bindings older cx checkNext canonNext ends length left right check canon)
+    (next : ∀ pointer observed lhs rhs cursor peer, ends pointer lhs rhs cursor peer →
+      ComparedOccurrencePaths profile ready base bindings leftStart rightStart observed lhs rhs →
+      finish pointer observed lhs rhs cursor peer) :
+    LiveStringOccurrences profile ready base bindings older cx checkNext canonNext leftStart rightStart finish length left right check canon seen := by
   induction length using Nat.strong_induction_on generalizing left right check canon seen with
   | ind length ih =>
     rw [LiveStringReplay] at run
@@ -638,7 +642,7 @@ theorem stringOccurrences {cx : LiftLowerContext (core3 grow)}
       have silent : PayloadPrefix.visible labels = [] := visibleLeaf observed
       rw [silent, List.append_nil] at reached
       cases front with
-      | done => exact matched
+      | done => exact next _ _ _ _ _ _ matched (by simpa only [silent, List.append_nil] using reached)
       | call ptr oldSize alignment size rest shorter =>
         intro observed reachedCall path
         obtain ⟨checkLabels, canonLabels, reference, mark, _, _, checkSeen, canonSeen, paired,
@@ -825,9 +829,34 @@ theorem stringValuePaths {destination : RecordDestination} {inst : InstId} {key 
     StringValuePaths profile ready base bindings older destination inst key output start incoming left right check canon
       checkNext canonNext second seen offset := by
   obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, _, body⟩ := run
-  have reached := appendComparedSlots leading ⟨checkLabels, canonLabels, checkEntry, canonEntry, checkSeen, canonSeen⟩
+  have reached := appendComparedSlots leading ⟨checkLabels, canonLabels, fun depth => checkEntry (.active 0 depth),
+    fun depth => canonEntry (.active 0 depth), checkSeen, canonSeen⟩
   rw [List.append_nil] at reached
   exact stringPaths next reached body
+
+theorem stringValueOccurrencePaths {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {ends : Nat → LinkedCallback.MemorySequence.Finish grow sig}
+    {finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : StringValueThen profile ready base bindings older destination inst key output left right check canon checkNext canonNext ends)
+    (next : ∀ pointer observed lhs rhs cursor peer, ends pointer lhs rhs cursor peer →
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → finish pointer observed lhs rhs cursor peer) :
+    StringValueOccurrencePaths profile ready base bindings older destination inst key output start incoming left right check canon
+      checkNext canonNext finish seen := by
+  obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, frame, body⟩ := run
+  refine stringOccurrences (seen := seen) ?_ body next
+  have reached := appendComparedOccurrences (after := []) leading
+    ⟨checkLabels, canonLabels, ?_, checkSeen, canonSeen, frame.store⟩
+  · simpa only [List.append_nil] using reached
+  · intro mark
+    cases mark with
+    | none => exact ⟨none, .absent (prefix_survives (checkEntry (.active 0 0))).1,
+        .absent (prefix_survives (canonEntry (.active 0 0))).1⟩
+    | some place => exact ⟨some place, (checkEntry place).toTrail, (canonEntry place).toTrail⟩
 
 theorem localFieldPaths {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}

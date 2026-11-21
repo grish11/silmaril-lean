@@ -1664,11 +1664,11 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
     let cx := destination.context inst
     let plan := storePlanFor Quirks.none destination.encoding destination.width str
     let body := runStoreSteps cx 0 plan.steps
-    ∃ reads, ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
+    ∃ reads, (∀ place, Prefix profile scheduledReady scheduledDispatch left place (List.replicate reads .tau)
       { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
-          fun value => checkNext (.ok value)) } ∧
-      ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady refDispatch right [.tau]
-        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } := by
+          fun value => checkNext (.ok value)) } place) ∧
+      ∀ place, Prefix profile scheduledReady refDispatch right place [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place := by
   let cx := destination.context (grow := grow) inst
   let payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload (.prim .string) := ⟨.string str, .string valid⟩
   have width : ptrTypeIn right.store cx = destination.width := by
@@ -1696,26 +1696,26 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
       rfl
   change right.ctl = canonCursor.control (enteredBody >>= canonNext) at canonAt
   rw [program] at canonAt
-  have reference (depth : Nat) : ReturnFrame.Occurrence.Prefix profile scheduledReady refDispatch right (.active 0 depth)
-      [.tau] { right with ctl := canonCursor.control (rest destination.width >>= canonNext) } (.active 0 depth) := by
-    simpa only [width, Cursor.control, Prog.bind_eq] using (ReturnFrame.Occurrence.Prefix.read (profile := profile)
-      (ready := scheduledReady) (dispatch := refDispatch) depth canonAt)
+  have reference (place : Location) : Prefix profile scheduledReady refDispatch right place
+      [.tau] { right with ctl := canonCursor.control (rest destination.width >>= canonNext) } place := by
+    simpa only [width, Cursor.control, Prog.bind_eq] using (Prefix.read_at (profile := profile)
+      (ready := scheduledReady) (dispatch := refDispatch) place canonAt)
   change ∀ place, Prefix profile scheduledReady scheduledDispatch left place (List.replicate reads .tau)
     { left with ctl := checkCursor.control (enteredBody >>= fun value => checkNext (.ok value)) } place at entered
   rw [program] at entered
-  have checkRead (depth : Nat) : ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch
+  have checkRead (place : Location) : Prefix profile scheduledReady scheduledDispatch
       { left with ctl := checkCursor.control ((Prog.op .get fun store => rest (ptrTypeIn store cx)) >>=
-          fun value => checkNext (.ok value)) } (.active 0 depth) [.tau]
-      { left with ctl := checkCursor.control (rest destination.width >>= fun value => checkNext (.ok value)) } (.active 0 depth) := by
+          fun value => checkNext (.ok value)) } place [.tau]
+      { left with ctl := checkCursor.control (rest destination.width >>= fun value => checkNext (.ok value)) } place := by
     have reachedWidth : ptrTypeIn left.store cx = destination.width := same ▸ width
     simpa only [Cursor.control, reachedWidth, Prog.bind_eq] using
-      (ReturnFrame.Occurrence.Prefix.read (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch)
+      (Prefix.read_at (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch)
         (before := { left with ctl := checkCursor.control ((Prog.op .get fun store => rest (ptrTypeIn store cx)) >>=
-          fun value => checkNext (.ok value)) }) depth rfl)
+          fun value => checkNext (.ok value)) }) place rfl)
   refine ⟨reads + 1, ?_, ?_⟩
-  · intro depth
+  · intro place
     simpa only [List.replicate_add, List.replicate_one, rest, Prog.bind_eq, Prog.bind_assoc] using
-      (entered (.active 0 depth)).append (checkRead depth)
+      (entered place).append (checkRead place)
   · simpa only [rest, Prog.bind_eq, Prog.bind_assoc] using reference
 
 theorem stringReallocFocus (cx : LiftLowerContext E) (ptr : Nat) (oldSize : Option Nat)
@@ -2300,9 +2300,9 @@ theorem mapKeyPlacement
     left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
       (.aggregate type [keyField, valField]) issueIndex (.memory addr) >>= checkNext) →
     placement destination left.store keyArea keyPtr = .ok () ∧
-    ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady scheduledDispatch left [.tau]
+    ∀ place, Prefix profile scheduledReady scheduledDispatch left place [.tau]
       { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
-          keyField 0 (.memory keyPtr) >>= following) } := by
+          keyField 0 (.memory keyPtr) >>= following) } place := by
   intro cx type addr keyArea keyPtr valPtr keyField following checkAt
   let area := layout destination.width type
   let keyBody : Session grow sig (Except RecordLower.Issue Unit) :=
@@ -2345,7 +2345,7 @@ theorem mapKeyPlacement
       cases result with
       | error issue => rfl
       | ok value => cases value; rfl
-  have guard := checkPlacementRun (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
+  have guard := checkPlacementRunAll (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
     destination inst left area addr check (keyBody >>= following) guardAt
   rw [placed] at guard
   obtain ⟨_, keyPlaced, _⟩ := mapEntryPlacement destination inst key element growth width sized aligned bounds entry
@@ -2393,7 +2393,7 @@ theorem localMapKeyThen {reference : Call (core3 grow) → Session grow sig (Ret
   have first := localDataAt (reference := reference) (profile := profile) (scheduledReady := scheduledReady)
     (scheduledDispatch := scheduledDispatch) destination inst (.prim key.toPrimitive) keyData keyPayload 0 keyPtr origin entered
     right growth ⟨typed, keyPlaced⟩ same check canon thread following refFollowing rfl canonAt
-  apply prependLocalCut guard rfl
+  apply prependLocalCut (fun depth => guard (.active 0 depth)) rfl
   exact first
 
 private theorem localMapEntry {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}

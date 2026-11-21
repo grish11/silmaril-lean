@@ -417,8 +417,41 @@ theorem string_plan_entry {grow : SingleThreaded.GrowOracle} {sig : Signature} {
           fun value => checkNext (.ok value)) } ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
+  by
+    obtain ⟨reads, checked, canonical⟩ :=
+      Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry (refDispatch := dispatch)
+        destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+    exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩
+
+/-- All coordinates stay fixed through the actual checked entry guards and
+the canonical width read before the first string allocation. -/
+theorem string_plan_entry_occurrences {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : ProfileKind}
+    {ready : HostReady (HostState sig)} {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
+    (index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
+    (checkCursor canonCursor : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store)
+    (present : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    {addr : Nat} (realloc : destination.realloc = some addr)
+    (fit : StoreStringPre Quirks.none destination.encoding destination.width str)
+    (placed : rootPlacement destination left.store (.prim .string) output = .ok ())
+    (checkAt : left.ctl = checkCursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data (.prim .string) ⟨.string str, .string valid⟩) index output >>= checkNext))
+    (canonAt : right.ctl = canonCursor.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data (.prim .string) ⟨.string str, .string valid⟩) output >>= canonNext)) :
+    let cx := destination.context inst
+    let plan := storePlanFor Quirks.none destination.encoding destination.width str
+    let body := runStoreSteps cx 0 plan.steps
+    ∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch left place (List.replicate reads .tau)
+      { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } place) ∧
+      ∀ place, ReturnFrame.Occurrence.Prefix profile ready reference right place [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry
     destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+
 
 /-- Enter a string plan when the same local reads run under two different
 dispatchers. The first allocator call has not yet executed. -/
@@ -446,8 +479,11 @@ theorem string_plan_entry_between {grow : SingleThreaded.GrowOracle} {sig : Sign
           fun value => checkNext (.ok value)) } ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry
-    destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+  by
+    obtain ⟨reads, checked, canonical⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
+      (dispatch := dispatch) (reference := reference)
+      destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+    exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩
 
 theorem local_data_leaf_frame_between {ready : HostReady (HostState sig)}
     {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -686,9 +722,9 @@ theorem map_key_placement
     left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
       (.aggregate type [keyField, valField]) issueIndex (.memory addr) >>= checkNext) →
     placement destination left.store keyArea keyPtr = .ok () ∧
-    ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left [.tau]
+    ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch left place [.tau]
       { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
-          keyField 0 (.memory keyPtr) >>= following) } :=
+          keyField 0 (.memory keyPtr) >>= following) } place :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.mapKeyPlacement
     destination inst key element keyPayload valField origin base bytes count index width sized aligned bounds entry issueIndex left growth check checkNext
 

@@ -523,11 +523,33 @@ theorem string_plan_occurrences {cx : LiftLowerContext (core3 grow)}
     {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
     {ends : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
       PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop}
+    {finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
     {length : Nat} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {seen : Trace grow sig}
     (leading : ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right)
-    (run : LiveStringReplay profile ready base bindings older cx checkNext canonNext ends length left right check canon) :
-    LiveStringOccurrences profile ready base bindings older cx checkNext canonNext leftStart rightStart ends length left right check canon seen :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringOccurrences leading run
+    (run : LiveStringReplay profile ready base bindings older cx checkNext canonNext ends length left right check canon)
+    (next : ∀ pointer observed lhs rhs cursor peer, ends pointer lhs rhs cursor peer →
+      ComparedOccurrencePaths profile ready base bindings leftStart rightStart observed lhs rhs →
+      finish pointer observed lhs rhs cursor peer) :
+    LiveStringOccurrences profile ready base bindings older cx checkNext canonNext leftStart rightStart finish length left right check canon seen :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringOccurrences leading run next
+
+/-- Extend the incoming occurrence paths through a reached string field, or
+through the placed string key of a map, and its actual decreasing plan. -/
+theorem string_value_occurrence_paths {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output} {left right : Config (core3 grow) (HostState sig)}
+    {seen : Trace grow sig}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {ends : Nat → LinkedCallback.MemorySequence.Finish grow sig}
+    {finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : StringValueThen profile ready base bindings older destination inst key output left right check canon checkNext canonNext ends)
+    (next : ∀ pointer observed lhs rhs cursor peer, ends pointer lhs rhs cursor peer →
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → finish pointer observed lhs rhs cursor peer) :
+    StringValueOccurrencePaths profile ready base bindings older destination inst key output start incoming left right check canon
+      checkNext canonNext finish seen :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringValueOccurrencePaths leading run next
 
 /-- Compare the actual string-key plan in either map placement mode. Static
 fit and allocator availability follow the compiled descendant path. Compare
