@@ -2518,6 +2518,21 @@ def LinkedFlatOccurrenceBody (profile : ProfileKind) (ready : HostReady (HostSta
       (fun words seen left right _ _ => PublicOccurrenceExit profile ready base bindings older site entered (.ok words) seen left right)
       [] site.checked entered site.cursor peer
 
+/-- The memory body uses the same exit relation as flat lowering. Each
+child visits the real memory program and contributes its reached paths. -/
+def LinkedMemoryOccurrenceBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ canonLabels entered peer, PayloadPrefix.visible canonLabels = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
+    structuralMemoryOccurrencePaths profile ready base bindings older site.destination site.inst site.checked entered
+      (publicOccurrenceSink profile ready base bindings older site entered) (sig.payload site.tag)
+      site.field 0 (flatNat pointer) site.reply site.referenceReply
+      (fun seen left right _ _ => PublicOccurrenceExit profile ready base bindings older site entered (.ok ()) seen left right)
+      [] site.checked entered site.cursor peer
+
 /-- The actual range verdict after an allocator return. A late reservation
 refusal runs only the checked completion; canonical is at child entry with
 the reached store, before any element write or descriptor publication. -/
@@ -2975,6 +2990,14 @@ structure RejoinedWorkerTail (profile : ProfileKind) (ready : HostReady (HostSta
       canonical labels (HostFrame.replace finish outgoing) ∧
     (canonical.host.writer.accepted = checked.host.writer.accepted → outgoing.writer.accepted = finish.host.writer.accepted)
 
+/-- The all-location body for the route chosen by the reached live selector. -/
+def RecursiveGiveOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (incoming : Config (core3 grow) (HostState sig)) : (route : GiveEffectRoute) → PayloadRoot.Site grow sig route → Prop
+  | .memory _, site => LinkedMemoryOccurrenceBody profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+  | .flat _, site => LinkedFlatOccurrenceBody profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+
 /-- The recursive body and caller paths for whichever ABI the live selector
 chose. A reached reply carries its next worker comparison, but neither a
 reply nor an allocator return is required. -/
@@ -3109,6 +3132,9 @@ inductive ReachedRecursiveGive (profile : ProfileKind) (ready : HostReady (HostS
       (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
       (linked : (selection.site tag payload arity children field).Linked bindings)
       (cut : ReachedRecursiveRoot profile ready bindings callees older incoming (selection.site tag payload arity children field))
+      (occurrences : PayloadRoot.Cut (selection.site tag payload arity children field) profile ready bindings
+        (RecursiveGiveOccurrencePaths profile ready bindings callees older incoming route (selection.site tag payload arity children field))
+        (ComponentCall.hostWithComponent bindings callees))
 
 /-- The comparison domain for a successfully compiled root. A compiler
 refusal does not need the recursive body theorem at all. -/

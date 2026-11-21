@@ -867,6 +867,29 @@ private theorem rejoinedTail {callees : List (ComponentCall.Callee sig)}
   exact ⟨between.runs.1.steps, replace ▸ LiveDispatch.interleaving_steps between,
     fun roots => (LiveDispatch.interleaving_paired_roots between roots).2⟩
 
+open ReturnFrame.Occurrence in
+theorem rejoinedOccurrenceWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkLabels canonLabels observed : Trace grow sig} {value : route.output.Result}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered (.ok value)
+      observed left right) :
+    let base := ComponentCall.hostWithComponent bindings callees
+    ∃ (checkBody canonBody : Trace grow sig) (mark : Option Location),
+      Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+      (mark = some (.active 0 0) → ∃ checked canonical,
+        RequestExitOccurrences profile ready base bindings site.start incoming observed checked canonical ∧
+        RejoinedWorkerTail profile ready bindings callees older checked canonical) := by
+  obtain ⟨checkBody, canonBody, mark, leftMark, rightMark, _, reply⟩ :=
+    CallbackRange.rebasePublicOccurrenceExit site checked canonical checkQuiet canonQuiet body
+  exact ⟨checkBody, canonBody, mark, leftMark, rightMark, fun active =>
+    let ⟨checked, canonical, tracks, paired⟩ := reply active
+    ⟨checked, canonical, tracks, rejoinedTail paired⟩⟩
+
 private theorem pendingRecursiveRoot {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} (linked : site.Linked bindings)
     (paired : HostFrame.Related.Paired older site.start incoming)
@@ -930,7 +953,13 @@ theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveReques
       selected.trans (congrArg some picked)
     have tail (left right : Config (core3 grow) (HostState sig)) (aligned : HostFrame.Related.Paired older left right) :
         RejoinedWorkerTail profile ready bindings callees older left right := rejoinedTail aligned
-    refine .compiled preflight picked linked (classifyRecursiveRoot _ linked paired liveRoot ?_)
+    have occurrences : PayloadRoot.Cut (selection.site tag payload arity children field) profile ready bindings
+        (RecursiveGiveOccurrencePaths profile ready bindings callees older incoming route (selection.site tag payload arity children field))
+        (ComponentCall.hostWithComponent bindings callees) := by
+      cases route with
+      | memory pointer => exact CallbackRange.linkedMemoryOccurrenceBody _ linked supported paired liveRoot rfl
+      | flat schema => exact CallbackRange.linkedFlatOccurrenceBody _ linked supported paired liveRoot rfl
+    refine .compiled preflight picked linked (classifyRecursiveRoot _ linked paired liveRoot ?_) occurrences
     cases route with
     | memory pointer =>
       exact CallbackRange.linkedMemoryRejoinPaths (profile := profile) (ready := ready)

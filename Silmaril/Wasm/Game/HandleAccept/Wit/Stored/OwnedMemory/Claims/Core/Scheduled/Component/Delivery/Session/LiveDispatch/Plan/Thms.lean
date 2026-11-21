@@ -330,6 +330,17 @@ theorem linked_flat_occurrence_body {type : Stored.TypeOf} (site : PayloadRoot.S
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedFlatOccurrenceBody
     site linked family paired selected embedder
 
+/-- Derive the reached memory body, including allocations inside compiled
+children, and classify the marked original caller's success or late stop. -/
+theorem linked_memory_occurrence_body {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryOccurrenceBody profile ready base bindings older site incoming) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedMemoryOccurrenceBody
+    site linked family paired selected embedder
+
 /-- Rebase the derived body and reply paths to each original request origin.
 A checked-only reply moves checked origins through the pop, while canonical
 origins stop at the exact unexecuted suffix. -/
@@ -350,6 +361,29 @@ theorem public_occurrence_exit_from_request {route : GiveEffectRoute} (site : Pa
         RequestExitOccurrences profile ready base bindings site.start incoming seen checked canonical ∧
         RequestExitKind older verdict right checked canonical) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.rebasePublicOccurrenceExit
+    site checked canonical checkQuiet canonQuiet body
+
+open ReturnFrame.Occurrence in
+/-- A reached common public reply enables actual worker replay and closed
+delivery at the resumed pair, under the same fixed live dispatcher. The
+reply paths originate at the original request, not a reset caller. -/
+theorem public_occurrence_exit_worker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkLabels canonLabels observed : Trace grow sig} {value : route.output.Result}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered (.ok value)
+      observed left right) :
+    let base := ComponentCall.hostWithComponent bindings callees
+    ∃ (checkBody canonBody : Trace grow sig) (mark : Option Location),
+      Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+      (mark = some (.active 0 0) → ∃ checked canonical,
+        RequestExitOccurrences profile ready base bindings site.start incoming observed checked canonical ∧
+        RejoinedWorkerTail profile ready bindings callees older checked canonical) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.rejoinedOccurrenceWorker
     site checked canonical checkQuiet canonQuiet body
 
 /-- A finite callback prefix has a comparison even when it has not returned.
