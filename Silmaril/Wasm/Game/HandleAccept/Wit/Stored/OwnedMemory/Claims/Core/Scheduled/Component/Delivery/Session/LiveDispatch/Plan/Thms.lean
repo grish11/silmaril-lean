@@ -781,6 +781,50 @@ theorem leaf_aggregate_field_lifts {destination : RecordDestination} {inst : Ins
         (liveLeafPaths profile ready base bindings older destination inst start incoming offset)) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.leafAggregateLift leaves
 
+/-- Lift the reached scalar, string and nominal memory programs to an
+all-location continuation, distinguishing a checked refusal from a trap. -/
+theorem memory_leaf_occurrence_lift {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf} {sink : RefusalSink grow sig}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming) (leaf : TrailLeafType type) :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (leafOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.leafOccurrenceLift covers leaf
+
+/-- Accumulate every occurrence through actual canonical sibling focus
+and the reached compiled child. A stop or a trap never advances siblings. -/
+theorem memory_sequence_occurrence_paths {mode : LinkedCallback.MemorySequence.Track}
+    {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {entries : List Field} {index address : Nat} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {sink : RefusalSink grow sig} {seen : Trace grow sig}
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (same : left.store = right.store)
+    (run : LinkedCallback.MemorySequence.ReplayBetween profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      mode destination inst child checkNext canonNext finish entries index address left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    replayBetweenPaths profile ready base bindings mode destination inst paths checkNext canonNext visit
+      entries index address seen left right check canon :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.replayBetweenOccurrencePathsFrom
+    lift leading same run admitted next
+
+/-- Heterogeneous records and tuples select the scalar, string or nominal
+child rule from the compiled slot's declared schema. The actual bounds read,
+each reached sibling and its eventual stop carry the cumulative history. -/
+theorem memory_leaf_aggregate_occurrences {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+    {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (leaves : TrailLeafAggregate type) :
+    LiftsFieldOccurrencePaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (aggregateFieldPaths profile ready base bindings destination inst type
+        (leafOccurrencePaths profile ready base bindings older destination inst start incoming sink)) sink :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.leafAggregateOccurrenceLift covers leaves
+
 /-- Track active and saved occurrences through the actual tag store. A tag
 trap takes neither branch; successful entry uses only the selected child. -/
 theorem LiveSumThen.paths {destination : RecordDestination} {inst : InstId}

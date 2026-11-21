@@ -310,23 +310,35 @@ def flatSequencePaths (destination : RecordDestination) (inst : InstId) (child :
       (fun words => flatSequenceCanonical destination inst rest (leading ++ words) canonNext)
       (fun words => flatSequencePaths destination inst child checkNext canonNext finish rest (index + 1) (leading ++ words))
 
-/-- The local induction interface for a compiled field. Only the field's
-actual success continuation advances a sibling; other branches are handled
-by that field's reached path comparison. -/
-def LiftsFieldPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+/-- A compiled field advances its sibling only at the actual success
+continuation, carrying the chosen occurrence history to that reached pair. -/
+def LiftsFieldPathsWith (history : Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
     (field : LinkedCallback.MemorySequence.FieldComparison grow sig) (paths : TrailFieldComparison grow sig)
     (sink : RefusalSink grow sig := .ignore) : Prop :=
   ∀ item index address left right check canon checkNext canonNext finish visit before,
     field item index address left right check canon checkNext canonNext finish →
-    ComparedSlots profile ready base bindings start incoming before left right offset →
+    history before left right →
     left.store = right.store →
     sink.admits (fun issue => checkNext (.error issue)) →
     (∀ seen lhs rhs cursor peer,
-      ComparedSlots profile ready base bindings start incoming seen lhs rhs offset → lhs.store = rhs.store →
+      history seen lhs rhs → lhs.store = rhs.store →
       finish lhs rhs cursor peer → visit seen lhs rhs cursor peer) →
     paths item index address checkNext canonNext visit before left right check canon
+
+abbrev LiftsFieldPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (offset : Nat)
+    (field : LinkedCallback.MemorySequence.FieldComparison grow sig) (paths : TrailFieldComparison grow sig)
+    (sink : RefusalSink grow sig := .ignore) : Prop :=
+  LiftsFieldPathsWith (fun seen left right => ComparedSlots profile ready base bindings start incoming seen left right offset)
+    field paths sink
+
+abbrev LiftsFieldOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig))
+    (field : LinkedCallback.MemorySequence.FieldComparison grow sig) (paths : TrailFieldComparison grow sig)
+    (sink : RefusalSink grow sig := .ignore) : Prop :=
+  LiftsFieldPathsWith (ComparedOccurrencePaths profile ready base bindings start incoming) field paths sink
 
 /-- Follow the same slots, width reads and suffix programs as `ReplayBetween`,
 but hand the cumulative visible history to the remaining sibling traversal. -/
@@ -1146,6 +1158,56 @@ def liveLeafPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     LocatedLocalPathsThen profile ready base bindings start incoming left right before offset finish
   | _ => fun item index _ checkNext _ finish before left right check _ =>
     HandlePathsThen profile ready base bindings start incoming before offset item index checkNext finish left right check sink
+
+/-- At a closed leaf, retain the exact cumulative trap or feed the reached
+return into the surrounding visitor. -/
+def LocalOccurrenceThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (seen : Trace grow sig) (finish : TrailFinish grow sig) : Prop :=
+  (∃ reason leading lhs rhs,
+    ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ (leading ++ [.trap reason])) lhs rhs ∧
+    lhs.ctl = [] ∧ rhs.ctl = []) ∨
+  (∃ more lhs rhs check canon,
+    ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ more) lhs rhs ∧
+    finish (seen ++ more) lhs rhs check canon)
+
+/-- A nominal guard can stop the checked field without running the
+canonical leaf or any sibling. The occurrence history ends at that pair. -/
+def HandleOccurrenceThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming left right : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (item : Stored.Endpoints.RecordLower.Field) (index : Nat) {Result : Type}
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue Result → Session grow sig (Ret (core3 grow)))
+    (finish : TrailFinish grow sig) (sink : RefusalSink grow sig) : Prop :=
+  (∃ issue, liveLeafPlan left.store left.host.writer index item = .error issue ∧
+    let refused := { left with ctl := check.control (checkNext (.error issue)) }
+    ComparedOccurrencePaths profile ready base bindings start incoming seen refused right ∧
+    sink.exit (fun reason => checkNext (.error reason)) issue seen refused right check) ∨
+  LocalOccurrenceThen profile ready base bindings start incoming seen finish
+
+def RefusalSink.CoversOccurrences (sink : RefusalSink grow sig) (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∀ next, sink.admits next → ∀ issue seen left right check,
+    left.ctl = check.control (next issue) →
+    ComparedOccurrencePaths profile ready base bindings start incoming seen left right → sink.exit next issue seen left right check
+
+/-- Actual memory leaves, including a string's reached descriptor write
+and the nominal leaf's one-sided guard stop. -/
+def leafOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) : Stored.TypeOf → TrailFieldComparison grow sig
+  | .prim .string => fun item _ address checkNext canonNext finish seen left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringValueOccurrencePaths profile ready base bindings older destination inst str (.memory address)
+        start incoming left right check canon checkNext canonNext
+        (fun _ observed _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming observed finish) seen
+  | .prim _ | .enum _ | .flags _ => fun _ _ _ _ _ finish seen _ _ _ _ =>
+    LocalOccurrenceThen profile ready base bindings start incoming seen finish
+  | _ => fun item index _ checkNext _ finish seen left right check _ =>
+    HandleOccurrenceThen profile ready base bindings start incoming left right seen item index check checkNext finish sink
 
 abbrev StringKeyReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
