@@ -235,6 +235,24 @@ theorem linked_collection_rejoin_paths {route : GiveEffectRoute} (site : Payload
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedCollectionRejoinPaths
     site linked family collection schema paired selected embedder
 
+/-- A finite callback prefix has a comparison even when it has not returned.
+On the actual marked return, both public collection routes take the reached
+range verdict. If the range passes but live preparation refuses, only the
+checked machine records a completion and rejoins its original caller. -/
+theorem linked_collection_return_failures {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
+    (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (match type with
+      | .list element => LinkedCollectionReturnFailures profile ready base bindings older site incoming type element
+      | .map key element => LinkedCollectionReturnFailures profile ready base bindings older site incoming type
+          (.record (ABI.mapEntryFields key element))
+      | _ => False) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedCollectionReturnFailures
+    site linked family collection schema paired selected embedder
+
 /-- Both public routes finish the actual allocating string key before
 entering its recursively allocating map/list value. The same compiler
 evidence discharges both the key plan and the value recursion. -/

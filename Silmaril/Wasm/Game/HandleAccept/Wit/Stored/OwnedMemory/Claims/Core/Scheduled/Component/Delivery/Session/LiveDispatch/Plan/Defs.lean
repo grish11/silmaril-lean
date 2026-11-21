@@ -1544,6 +1544,72 @@ def LinkedCollectionRejoinPaths (profile : ProfileKind) (ready : HostReady (Host
         (fun _ _ _ _ _ => CollectionSegmentReplies profile ready base bindings older site site.checked entered (fun _ => False) 0)
   | _ => False
 
+/-- The actual range verdict after an allocator return. A late reservation
+refusal runs only the checked completion; canonical is at child entry with
+the reached store, before any element write or descriptor publication. -/
+def CollectionReturnFailure (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (type element : Stored.TypeOf)
+    (entries : List Stored.Endpoints.RecordLower.Field) (pointer : Nat)
+    (checked canonical : Config (core3 grow) (HostState sig))
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  open Stored.Endpoints.RecordLower ABI PayloadPrefix in
+  let area := layout site.destination.width element
+  let mode := CanonicalTree.EntryMode.forOutput site.destination.width type route.output
+  let checkedDispatch := specDispatch ready base
+  let canonDispatch := specDispatch ready (LiveDispatch.host bindings base)
+  let trap := fun reason => ∃ leftCount rightCount,
+    Steps profile ready checkedDispatch checked (List.replicate leftCount .tau ++ [.trap reason]) (StepDefs.trapCfg checked) ∧
+    Steps profile ready canonDispatch canonical (List.replicate rightCount .tau ++ [.trap reason]) (StepDefs.trapCfg canonical)
+  checked.store = canonical.store ∧ ∃ bytes,
+    (core3 grow).memSize? checked.store.core site.destination.memory = some bytes ∧
+    if pointer ≠ alignTo pointer area.alignment then trap .unalignedPointer
+    else if pointer + entries.length * area.size ≤ bytes then
+      ∀ issue, OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .error issue →
+        let child := canonicalCollectionTail site.destination site.inst entries area route.output pointer mode >>= site.referenceReply
+        let reply := route.reply site.destination site.start.host.nextTicket (.error (LinkedCallback.CollectionVisit.afterAllocation 0 issue))
+        ∃ (canon : Cursor (E := core3 grow) (HostState sig)) (lhs rhs : Trace grow sig)
+          (segments : List (Seg (core3 grow) (HostState sig))),
+          visible lhs = [] ∧ visible rhs = [] ∧
+          Steps profile ready checkedDispatch checked (lhs ++ [.tau, .tau, .tau])
+            { checked with
+              host := checked.host.record reply.1
+              ctl := ⟨check.thread, .core ((core3 grow).resume checked.store.core site.core (.values reply.2)) site.resume,
+                segments⟩ :: check.rest } ∧
+          ReturnFrame.Occurrence.RetainsBelowTop profile ready canonDispatch canonical rhs
+            { canonical with ctl := canon.control child }
+    else trap .outOfBounds
+
+/-- Classify each finite supported root callback prefix. Only an actual
+return of the installed allocator occurrence can enter the failure cut. -/
+def LinkedCollectionReturnFailures (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (incoming : Config (core3 grow) (HostState sig))
+    (type element : Stored.TypeOf) : Prop :=
+  open Stored.Endpoints.RecordLower ABI PayloadPrefix in
+  ∃ (entries : List Field) (leading : Trace grow sig) (entered : Config (core3 grow) (HostState sig))
+    (peer : Cursor (E := core3 grow) (HostState sig)),
+    site.field = .dynamic type element entries ∧ visible leading = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place leading entered
+      (((ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+    let area := layout site.destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput site.destination.width type route.output
+    let lhs := checkedCollectionResume site.destination site.inst entries area 0 route.output site.reply
+    let rhs := canonicalCollectionResume site.destination site.inst entries area route.output site.referenceReply mode
+    let checkedEntry := collectionEntry site.destination site.inst area entries.length (specDispatch ready base) site.checked site.cursor lhs
+    let canonEntry := collectionEntry site.destination site.inst area entries.length
+      (specDispatch ready (LiveDispatch.host bindings base)) entered peer rhs
+    ∀ {seen checked}, ClosedCallbackPrefix bindings profile ready base
+        (fun resume => (∃ other, older resume other) ∨ resume = lhs) checkedEntry seen checked →
+      ∃ checkLabels canonLabels canonical mark,
+        AllocatorMark profile ready base bindings older checkedEntry canonEntry checkLabels canonLabels checked canonical mark ∧
+        ComparedPaths profile ready base bindings site.checked entered seen checked canonical ∧
+        ∀ pointer cursor, mark = some (.active 0 0) →
+          checked.ctl = { cursor with frames := .prog lhs :: cursor.frames }.control (.pure (.nat pointer)) →
+          CollectionReturnFailure profile ready base bindings site type element entries pointer checked canonical cursor
+
 /-- A marked string-key map return either traps or refuses before any entry,
 or reaches the recursive body with the original checked caller still tracked. -/
 def LinkedStringMapReturn (profile : ProfileKind) (ready : HostReady (HostState sig))

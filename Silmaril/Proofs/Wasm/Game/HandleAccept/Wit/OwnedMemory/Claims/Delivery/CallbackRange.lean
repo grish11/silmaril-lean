@@ -2949,6 +2949,80 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
       exact RecursiveTrails.mapElementsPaths (RecursiveTrails.fieldPaths child) tracks same elements
         (fun _ _ _ _ _ terminal _ publish => rejoinPublished site (.done _ _) terminal publish)
 
+private theorem collectionReturnFailure {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (type element : Stored.TypeOf) (entries : List Field) (pointer : Nat)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {checked canonical : Config (core3 grow) (HostState sig)} {check : Cursor (E := core3 grow) (HostState sig)}
+    {leading : Trace grow sig}
+    (caller : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) leading checked (.active 0 1))
+    (range : CollectionRangeCut profile ready base bindings older checked canonical check site.destination
+      (layout site.destination.width element) entries.length pointer (Field.listObjects entries)
+      (fun addr verdict => checkedCollectionTail site.destination site.inst entries (layout site.destination.width element)
+        0 route.output addr verdict >>= site.reply)
+      (fun addr => canonicalCollectionTail site.destination site.inst entries (layout site.destination.width element)
+        route.output addr (CanonicalTree.EntryMode.forOutput site.destination.width type route.output) >>= site.referenceReply)) :
+    CollectionReturnFailure profile ready base bindings site type element entries pointer checked canonical check := by
+  have ⟨_, bytes, _, sized, frame, verdict⟩ := range
+  refine ⟨frame.store, bytes, sized, ?_⟩
+  by_cases aligned : pointer = alignTo pointer (layout site.destination.width element).alignment
+  · simp only [ite_eq_right (not_not_intro aligned)] at verdict ⊢
+    by_cases bounds : pointer + entries.length * (layout site.destination.width element).size ≤ bytes
+    · simp only [ite_eq_left bounds]
+      intro issue refused
+      obtain ⟨canon, lhs, rhs, segments, checkQuiet, canonQuiet, checkRun, canonRun⟩ :=
+        refusalReply site type element entries 0 pointer bytes range caller sized aligned bounds refused
+      exact ⟨canon, lhs, rhs, segments, silent checkQuiet, silent canonQuiet, checkRun, canonRun⟩
+    · simp only [ite_eq_right bounds] at verdict ⊢
+      obtain ⟨⟨leftCount, left⟩, ⟨rightCount, right⟩⟩ := verdict
+      exact ⟨leftCount, rightCount, left, right⟩
+  · simp only [ite_eq_left aligned] at verdict ⊢
+    obtain ⟨⟨leftCount, left⟩, ⟨rightCount, right⟩⟩ := verdict
+    exact ⟨leftCount, rightCount, left, right⟩
+
+private theorem liftLinkedCollectionFailures {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {type element : Stored.TypeOf}
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    {visit : Config (core3 grow) (HostState sig) → List Field → Nat → Nat → TrailFinish grow sig}
+    (prepared : Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ())
+    (body : LinkedCollectionBody profile ready base bindings older site type element incoming visit) :
+    LinkedCollectionReturnFailures profile ready base bindings older site incoming type element := by
+  obtain ⟨entries, leading, entered, peer, field, quiet, entry, _, paths⟩ := body
+  refine ⟨entries, leading, entered, peer, field, quiet, entry, ?_⟩
+  intro area mode first second checkedEntry canonEntry seen checked callback
+  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, returns⟩ := paths callback
+  refine ⟨lhs, rhs, canonical, mark, marked, ?_, ?_⟩
+  · simpa only [List.nil_append] using compared
+  intro pointer cursor active returned
+  obtain ⟨range, _⟩ := returns pointer cursor active returned
+  have initial : Record.prepare site.checked.store site.checked.host.writer (Field.listObjects entries) = .ok () := by
+    change Record.prepare site.start.store site.start.host.writer (Field.listObjects entries) = .ok ()
+    simpa only [field, Field.objects] using prepared
+  have trail := marked.checkedTrail
+  rw [active] at trail
+  obtain ⟨_, caller⟩ := collectionCaller site linked type element entries field initial trail
+  exact collectionReturnFailure site type element entries pointer caller range
+
+theorem linkedCollectionReturnFailures {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {type : Stored.TypeOf} (family : RecursiveCollectionType type)
+    (collection : CollectionRoot type) (schema : sig.payload site.tag = type)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (match type with
+      | .list element => LinkedCollectionReturnFailures profile ready base bindings older site incoming type element
+      | .map key element => LinkedCollectionReturnFailures profile ready base bindings older site incoming type
+          (.record (mapEntryFields key element))
+      | _ => False) base := by
+  have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
+    family collection schema paired selected embedder
+  cases cut with
+  | refused issue quiet run => exact .refused issue quiet run
+  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
+  | placed quiet verdict prepared path body =>
+    refine .placed quiet verdict prepared path ?_
+    cases type <;> first | exact liftLinkedCollectionFailures site linked prepared body | contradiction
+
 theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) (element : Stored.TypeOf) (entries : List Field) (nominal : NominalElement element)
     (field : site.field = .dynamic (.map .string element) (.record (mapEntryFields .string element)) entries)
