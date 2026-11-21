@@ -109,6 +109,57 @@ theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {
     simp only [prepared] at run ⊢
     exact fun width => allocationPaths covers admitted leading (run width) next
 
+theorem collectionEntryOccurrences {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {visit : Nat → Nat → Finish grow sig} {path : Nat → Nat → TrailFinish grow sig}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      left right check canon (fun pointer bytes _ => visit pointer bytes))
+    (next : ∀ pointer bytes observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
+      visit pointer bytes lhs rhs cursor peer → path pointer bytes observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming left right seen check canon path sink := by
+  unfold LiveCollectionEntry at run
+  unfold LiveCollectionOccurrenceEntry
+  cases prepared : Stored.OwnedMemory.Claims.Record.prepare left.store left.host.writer (Field.listObjects entries) with
+  | error issue =>
+    simp only [prepared] at run ⊢
+    have reached := CallbackPrefix.appendComparedOccurrences leading run.2.2.2.1
+    rw [List.append_nil] at reached
+    exact ⟨reached, covers _ admitted _ _ _ _ check rfl reached⟩
+  | ok value =>
+    cases value
+    simp only [prepared] at run ⊢
+    intro width suffix finish steps
+    obtain ⟨lhs, rhs, reached, mark, marked, paired, _, occurrences, returns⟩ := run width steps
+    refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendComparedOccurrences leading occurrences, ?_⟩
+    intro pointer cursor active returning
+    obtain ⟨_, ⟨bytes, sized, failed⟩, children⟩ := returns pointer cursor active returning
+    refine ⟨bytes, sized, ?_⟩
+    by_cases misaligned : pointer ≠ ABI.alignTo pointer (ABI.layout destination.width element).alignment
+    · rw [ite_eq_left misaligned] at failed ⊢
+      simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2
+    · rw [ite_eq_right misaligned] at failed ⊢
+      by_cases fits : pointer + entries.length * (ABI.layout destination.width element).size ≤ bytes
+      · rw [ite_eq_left fits] at failed ⊢
+        refine ⟨?_, ?_⟩
+        · intro issue stale
+          obtain ⟨peer, _, _, stopped, _⟩ := failed issue stale
+          have rebased := CallbackPrefix.appendComparedOccurrences leading stopped
+          exact ⟨peer, rebased, covers _ admitted _ _ _ _ cursor rfl rebased⟩
+        · intro fresh
+          obtain ⟨lhs, rhs, peer, _, paths, frame, _, _, _, _, growth, checkAt, canonAt, body⟩ :=
+            children bytes sized (Classical.not_not.mp misaligned) fits fresh
+          have rebased := CallbackPrefix.appendComparedOccurrences leading paths
+          exact ⟨lhs, rhs, peer, rebased, frame, growth, checkAt, canonAt, next pointer bytes _ lhs rhs cursor peer rebased body⟩
+      · rw [ite_eq_right fits] at failed ⊢
+        simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2
+
 theorem descriptorPaths {output : Stored.Lower.Output} {checkNext : ValueCheckNext grow sig output}
     {canonNext : ValueCanonNext grow sig output} {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -130,6 +181,28 @@ theorem descriptorPaths {output : Stored.Lower.Output} {checkNext : ValueCheckNe
     have reached := CallbackPrefix.appendComparedSlots leading
       ⟨labels, labels, leftTracks, rightTracks, rfl, rfl⟩
     exact .inr ⟨PayloadPrefix.visible labels, _, _, check, canon, reached, rfl, next value _ _ _ _ _ reached rfl finished⟩
+
+theorem descriptorOccurrences {output : Stored.Lower.Output} {checkNext : ValueCheckNext grow sig output}
+    {canonNext : ValueCanonNext grow sig output} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {finish : ValueFinish grow sig output} {visit : TrailFinish grow sig}
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveValueCommit profile ready base bindings output checkNext canonNext finish left right check canon)
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LocalOccurrenceThen profile ready base bindings start incoming seen visit := by
+  obtain ⟨store, result, labels, shape, _, _, paths, continued⟩ := run
+  cases result with
+  | error reason =>
+    have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape
+    exact .inl ⟨reason, [], _, _, CallbackPrefix.appendComparedOccurrences leading
+      ⟨labels, labels, paths, trapped, trapped, rfl⟩, rfl, rfl⟩
+  | ok value =>
+    obtain ⟨_, _, finished⟩ := continued value rfl
+    have reached := CallbackPrefix.appendComparedOccurrences leading
+      ⟨labels, labels, paths, rfl, rfl, rfl⟩
+    exact .inr ⟨PayloadPrefix.visible labels, _, _, check, canon, reached, next value _ _ _ _ _ reached rfl finished⟩
 
 private theorem canonicalRead {left right reached : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
@@ -356,6 +429,35 @@ theorem fieldPaths {destination : RecordDestination} {inst : InstId} {type : Sto
     obtain ⟨items, shape, body⟩ := run
     exact ⟨items, shape, CallbackPrefix.aggregatePathsFrom (tupleLift destination inst types children) leading same body admitted next⟩
 
+theorem listOccurrencePaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {finish : ValueFinish grow sig output} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (lift : LiftsFieldOccurrencePaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst (.list element) element entries index output
+      checkNext canonNext left right check canon
+      (fun pointer bytes _ => liveListTail profile ready base bindings destination inst element entries index output child checkNext canonNext finish pointer bytes))
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index output
+      checkNext canonNext start incoming left right seen check canon
+      (liveListTailPaths destination inst element entries index output paths checkNext canonNext
+        (fun observed _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming observed visit)) sink := by
+  apply collectionEntryOccurrences covers admitted leading run
+  intro pointer bytes observed lhs rhs cursor peer history body
+  have shared : lhs.store = rhs.store := by
+    obtain ⟨_, _, _, _, _, shared⟩ := history
+    exact shared
+  refine CallbackPrefix.liveElementsPathsFrom lift history shared body (sink.nested _ admitted index) ?_
+  intro _ _ _ _ _ historyAtDescriptor _ published
+  exact descriptorOccurrences historyAtDescriptor published next
+
 private theorem fixedOccurrencePaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
     {entries : List Field} {index address : Nat} {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
     {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
@@ -445,6 +547,10 @@ theorem structuralFieldOccurrences {destination : RecordDestination} {inst : Ins
       | @primitive primitive notString => cases primitive <;> exact lifted
       | enum | flags => exact lifted
     · exact lifted
+  | list _ child =>
+    intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
+    obtain ⟨entries, shape, body⟩ := run
+    exact ⟨entries, shape, listOccurrencePaths covers child leading body admitted (fun () => next)⟩
   | fixed _ child =>
     intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
     obtain ⟨entries, shape, body⟩ := run

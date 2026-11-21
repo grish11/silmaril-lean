@@ -837,6 +837,26 @@ theorem structural_memory_occurrences {destination : RecordDestination} {inst : 
       (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink type) sink :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.structuralFieldOccurrences covers family
 
+/-- Extend a cumulative history through a reached dynamic allocation,
+including the exact stopped canonical suffix on fresh reservation failure. -/
+theorem collection_entry_occurrences {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {visit : Nat → Nat → LinkedCallback.MemorySequence.Finish grow sig} {path : Nat → Nat → TrailFinish grow sig}
+    {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming labels left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      left right check canon (fun pointer bytes _ => visit pointer bytes))
+    (next : ∀ pointer bytes observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
+      visit pointer bytes lhs rhs cursor peer → path pointer bytes observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming left right labels check canon path sink :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.collectionEntryOccurrences covers admitted leading run next
+
 /-- Track active and saved occurrences through the actual tag store. A tag
 trap takes neither branch; successful entry uses only the selected child. -/
 theorem LiveSumThen.paths {destination : RecordDestination} {inst : InstId}

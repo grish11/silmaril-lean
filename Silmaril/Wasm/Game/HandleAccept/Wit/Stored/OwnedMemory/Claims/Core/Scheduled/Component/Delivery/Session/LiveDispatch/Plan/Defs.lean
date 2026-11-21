@@ -1193,6 +1193,82 @@ def RefusalSink.CoversOccurrences (sink : RefusalSink grow sig) (profile : Profi
     left.ctl = check.control (next issue) →
     ComparedOccurrencePaths profile ready base bindings start incoming seen left right → sink.exit next issue seen left right check
 
+/-- The range branch of the actual marked return. Misalignment and bounds
+traps retain the reached prefix. A fresh reservation failure stops canonical
+before the child program, and only a successful reservation enters it. -/
+def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (start incoming checked canonical : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (destination : RecordDestination) (area : ABI.Layout) (entries : List Stored.Endpoints.RecordLower.Field)
+    (pointer : Nat) (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (refuse : IssueProgram grow sig) (wrap : Stored.Endpoints.RecordLower.Issue → Stored.Endpoints.RecordLower.Issue)
+    (checkedChildren canonicalChildren : Session grow sig (Ret (core3 grow)))
+    (visit : Nat → TrailFinish grow sig) (sink : RefusalSink grow sig) : Prop :=
+  open Stored.Endpoints.RecordLower in
+  let trap := fun reason => ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ [.trap reason])
+    (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+  ∃ bytes, (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
+    if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
+    else if pointer + entries.length * area.size ≤ bytes then
+      (∀ issue, OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .error issue →
+        ∃ canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+          let stopped := { checked with ctl := check.control (refuse (wrap issue)) }
+          let reference := { canonical with ctl := canon.control canonicalChildren }
+          ComparedOccurrencePaths profile ready base bindings start incoming seen stopped reference ∧
+          sink.exit refuse (wrap issue) seen stopped reference check) ∧
+      (OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .ok () →
+        ∃ left right canon, ComparedOccurrencePaths profile ready base bindings start incoming seen left right ∧
+          LinkedCallback.ChildFrameOver older left right check canon ∧ Core3.Grows origin.core left.store.core ∧
+          left.ctl = check.control checkedChildren ∧ right.ctl = canon.control canonicalChildren ∧
+          visit bytes seen left right check canon)
+    else trap .outOfBounds
+
+/-- Rebase an actual dynamic field at the reached occurrence coordinates.
+Every classified finite allocator prefix is compared, but only the return
+of the installed occurrence admits the range branch. -/
+def LiveCollectionOccurrenceEntry (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+    (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
+    (start incoming left right : Config (core3 grow) (HostState sig)) (before : Trace grow sig)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (visit : Nat → Nat → TrailFinish grow sig) (sink : RefusalSink grow sig) : Prop :=
+  open Stored.Endpoints.RecordLower ABI PayloadPrefix in
+  match OwnedMemory.Claims.Record.prepare left.store left.host.writer (Field.listObjects entries) with
+  | .error issue =>
+    let refusal := match issue with
+      | .preflight reason => Issue.field index (.beforeAllocation reason)
+      | reason => Issue.nested index reason
+    let stopped := { left with ctl := check.control (checkNext (.error refusal)) }
+    ComparedOccurrencePaths profile ready base bindings start incoming before stopped right ∧
+    sink.exit (fun reason => checkNext (.error reason)) refusal before stopped right check
+  | .ok () =>
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width type output
+    let first := checkedCollectionResume destination inst entries area index output checkNext
+    let second := canonicalCollectionResume destination inst entries area output canonNext mode
+    let leftEntry := collectionEntry destination inst area entries.length (specDispatch ready base) left check first
+    let rightEntry := collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
+      right canon second
+    (core3 grow).memAddrType? right.store.core destination.memory = some destination.width →
+    ∀ {seen finish}, ClosedCallbackPrefix bindings profile ready base
+        (fun resume => (∃ peer, older resume peer) ∨ resume = first) leftEntry seen finish →
+      ∃ checkLabels canonLabels reached mark,
+        AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
+        HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
+        ComparedOccurrencePaths profile ready base bindings start incoming (before ++ seen) finish reached ∧
+        ∀ pointer cursor, mark = some (.active 0 0) →
+          finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
+          CollectionOccurrenceRangeThen profile ready base bindings older left.store start incoming finish reached (before ++ seen)
+            destination area entries pointer cursor (fun issue => checkNext (.error issue))
+            (LinkedCallback.CollectionVisit.afterAllocation index)
+            (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext)
+            (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) (visit pointer) sink
+
 /-- Actual memory leaves, including a string's reached descriptor write
 and the nominal leaf's one-sided guard stop. -/
 def leafOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1688,10 +1764,11 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
 termination_by structural types => types
 end
 
-/-- Memory shapes whose variable-size work is inside string leaves. This is
-a proof fragment: it adds no runtime condition on collection admission. -/
+/-- Memory shapes covered by the cumulative occurrence fold. This is a proof
+fragment: it adds no runtime condition on collection admission. -/
 inductive StructuralMemoryOccurrenceType : Stored.TypeOf → Prop where
   | leaf {type} : TrailLeafType type → StructuralMemoryOccurrenceType type
+  | list {element} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.list element)
   | fixed {element length} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.fixedList element length)
   | option {element} : StructuralMemoryOccurrenceType element → StructuralMemoryOccurrenceType (.option element)
   | result {success failure} : (∀ type, success = some type → StructuralMemoryOccurrenceType type) →
@@ -1709,6 +1786,13 @@ def structuralMemoryOccurrencePaths (profile : ProfileKind) (ready : HostReady (
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
     (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
     Stored.TypeOf → TrailFieldComparison grow sig
+  | .list element => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .dynamic (.list element) element entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index
+        (.memory address) checkNext canonNext start incoming left right before check canon
+        (liveListTailPaths destination inst element entries index (.memory address)
+          (structuralMemoryOccurrencePaths profile ready base bindings older destination inst start incoming sink element)
+          checkNext canonNext (fun observed _ _ _ _ => LocalOccurrenceThen profile ready base bindings start incoming observed finish)) sink
   | .fixedList element length => fun item index address checkNext canonNext finish before left right check canon =>
     ∃ entries, item = .fixed element length entries ∧
       liveFixedPaths profile ready base bindings destination inst
