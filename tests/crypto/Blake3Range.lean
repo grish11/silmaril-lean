@@ -79,3 +79,52 @@ example : Compression.Collision (Compression.graph constantRun) := by
   rcases lhs.agreeOrCollision rhs with agree | collision
   · cases agree
   · exact collision
+
+private def openEOF (shape : Shape) (bytes : Bytes) : Option Opening :=
+  match shape with
+  | .leaf .. => some (.leaf bytes)
+  | .fork left right => do
+    let prefixBytes := bytes.take left.size
+    let leftCV ← eval? run false left (disclose left prefixBytes)
+    let tail ← openEOF right (bytes.drop left.size)
+    return .fork (.opaque leftCV) tail
+
+#eval show IO Unit from do
+  for size in [0, 1, 64, 65, 128, 129, 1024, 1025, 2048, 2049, 3072, 3073, 4096, 4097] do
+    let bytes := testInput size
+    let some name := hash? run bytes | throw (IO.userError s!"hash failed at {size} bytes")
+    let some edge := openEOF (geometry 0 size) bytes | throw (IO.userError s!"EOF opening failed at {size} bytes")
+    let count := min size 1
+    let hit := verifyRangeWithEOF? run size size name edge (size - count) count
+    unless (hit.map Subtype.val) == some (bytes.drop (size - count)) do
+      throw (IO.userError s!"EOF/range mismatch at {size} bytes")
+
+#eval show IO Unit from do
+  unless (verifyEOF? run 1025 1025 digest suffixOpening).isSome do
+    throw (IO.userError "a final-chunk opening should check EOF independently of the range")
+  for size in [1025, 1026] do
+    unless (verifyRangeWithEOF? run size size digest prefixOpening 0 1).isNone do
+      throw (IO.userError s!"the opaque last chunk must not authenticate {size} bytes")
+  unless (verifyEOF? run 1026 1026 digest (.fork (.opaque leftCV) (.leaf [20, 0]))).isNone do
+    throw (IO.userError "identical padded blocks with different final block lengths cannot share this digest")
+  unless (verifyEOF? run 1024 1025 digest suffixOpening).isNone do
+    throw (IO.userError "the extent cap should apply to EOF checking")
+
+example {whole : Bytes} {size offset count : Nat} {name : Bytes}
+    (actual : hash? run whole = some name)
+    (accepted : {fragment : Bytes // Checked concrete size name offset fragment ∧
+      CheckedEOF concrete size name ∧ fragment.length = count}) :
+    Slice whole offset accepted.val ∨ ∃ left right : Input, left ≠ right ∧ compress32 left = compress32 right :=
+  accepted.property.1.sliceOrConcreteCollisionOfEOF accepted.property.2.1 (root_graph.mp actual)
+
+example {left right name : Bytes} (lh : hash? run left = some name) (rh : hash? run right = some name) :
+    left = right ∨ ∃ lhs rhs : Input, lhs ≠ rhs ∧ compress32 lhs = compress32 rhs :=
+  (Named.eqOrCollision (root_graph.mp lh) (root_graph.mp rh)).imp id concrete_collision_iff.mp
+
+example : Compression.Collision (Compression.graph constantRun) := by
+  have lhs : Named (Compression.graph constantRun) (digestBytes iv) (List.replicate 65 0) :=
+    root_graph.mp (by decide +kernel)
+  have rhs : Named (Compression.graph constantRun) (digestBytes iv) (List.replicate 129 0) :=
+    root_graph.mp (by decide +kernel)
+  have difference : (List.replicate 65 (0 : UInt8)).length ≠ (List.replicate 129 (0 : UInt8)).length := by decide
+  exact (lhs.checkedEOF.extentOrCollision rhs).resolve_left difference

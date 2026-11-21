@@ -44,13 +44,42 @@ security bound. Opaque nodes contribute no byte equality.
 
 `Checked.sliceOrCollision` specializes this to a verifier opening versus a
 fully disclosed actual payload that names to the digest and whose actual length
-equals the proof context's `size`. **The checker does not independently
-authenticate a claimed extent.** For example, an opening of the first chunk of
+equals the proof context's `size`. A range check alone does not authenticate
+its claimed extent. For example, an opening of the first chunk of
 a 1025-byte object can pass with a claim of 1026 bytes if the last chunk remains
 opaque. The compared ROOT inputs can literally be the same, so this ambiguity
-does not produce a compression collision. The regression checks this case. A
-format must bring a trusted extent or prove its own length/EOF binding before
-using the fixed-context result to make claims about the object's actual EOF.
+does not produce a compression collision. A caller may use this API with a
+trusted extent or use the checked EOF API below.
+
+## Authenticated extent
+
+`verifyEOF?` checks the canonical right edge down to the disclosed final
+chunk; the left siblings can remain opaque. `verifyRangeWithEOF?` checks a
+single opening for both claims. `Checked.sliceOrConcreteCollisionOfEOF` also
+combines facts from separate openings under the same digest and claimed extent.
+Against any actually named unkeyed BLAKE3 payload it gives a slice of that
+payload or distinct concrete compression inputs with equal words 0–7. No
+trusted length, equal geometry, or existence of preimages for opaque CVs is
+assumed. The actual named payload is required to extract the collision or
+establish the slice; accepting an opening does not prove that any whole
+payload with the digest exists. The CAS bridge supplies that reference from a
+compatible store hit. `Named.eqOrCollision` gives the analogous full-payload
+binding-or-collision result, including across lengths.
+
+The EOF comparison starts by decoding the equal ROOT digests to equal
+256-bit outputs. At each comparison distinct actual inputs give a collision;
+equal parent inputs give equal right CVs in the ordered parent block. Parent
+and final chunk inputs have disjoint flags in the same ROOT mode, so the two
+paths cannot end at different depths without a collision. At the final
+chunk, the checked non-ROOT counter identifies its chunk index without
+truncation. For a chunk at the ROOT, geometry gives index zero instead; the
+compression counter there is the output-block counter. Equal final inputs
+give equal unpadded block lengths, and comparison backward through actual
+non-final steps uses `CHUNK_START` to align the number of preceding full
+blocks. The extent is `1024 * finalChunkIndex + finalChunkLength`. This
+handles the zero-byte root, a full final block or chunk at an exact boundary,
+and equal padded blocks with different reported block lengths. There is no
+cross-extent partial-overlap theorem for range openings that omit EOF.
 
 ## Concrete profile
 
@@ -79,12 +108,15 @@ The regression uses the upstream input pattern `byte[i] = i mod 251`.
 
 Bao outboard, Bao streaming, and Iroh should refine their respective decoded
 events to this kernel, rather than requiring a new hash argument per format.
-State should carry the expected digest, extent policy, byte cursor, and
-authenticated CV frontier indexed by canonical subtree geometry. Check length
+State should carry the expected digest, extent policy (trusted or pending
+checked EOF), byte cursor, and authenticated CV frontier indexed by canonical
+subtree geometry. Check length
 arithmetic, wire framing, node order, truncation, trailing data, and the format's
-completion policy separately. A staged fragment may be released only once its
-local trace has a verified path to the expected root; receiving a CV or a
-length field alone is not that check. No streaming transition, buffering bound,
+completion policy separately. Before releasing an arbitrary-object slice under
+this kernel, require both a verified range path and either a trusted extent or
+checked EOF; receiving a CV or length field alone is not either check. A decoder
+that learns EOF late must stage data or acquire EOF separately before release.
+No streaming transition, buffering bound,
 or parser proof is supplied here. `verifyRange?` is a reference batch evaluator:
 it builds an eager shape, so choose a resource-appropriate extent cap before
 using it and separately bound parsing, disclosure size and buffering. A future
