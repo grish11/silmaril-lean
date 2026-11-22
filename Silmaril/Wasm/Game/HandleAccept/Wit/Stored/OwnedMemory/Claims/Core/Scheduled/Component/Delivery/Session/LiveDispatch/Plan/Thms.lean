@@ -3209,6 +3209,8 @@ shorter-run induction, including inside allocator and cancellation callbacks.
 An unresolved cancel enters the hook after the actual request write and
 installation. Its executed marked pop leads to the reached readiness decision,
 or to the actual trapped or exhausted prefix of that decision.
+When the original Core caller is active at that decision, compare its live
+finish and executed reply, or follow its executed park through the mixed suffix.
 A non-early wait enters the scheduler fold before any caller reply. Exhausted
 and trapped deliveries retain their reached endpoints without rejoining. Other
 component sites remain at their exact install cut with the reached outcome. -/

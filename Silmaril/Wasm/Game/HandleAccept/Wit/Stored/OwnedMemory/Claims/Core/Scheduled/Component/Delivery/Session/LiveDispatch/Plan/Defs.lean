@@ -684,8 +684,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | cancelTerminal {changes reached peer left right checked trailing finish}
-      (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right)
+  | cancelTerminal {changes reached peer left right checked canonical trailing finish marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
       (exit : CancelFinishExit profile ready base bindings changes left right trailing finish)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
@@ -704,6 +705,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         left right trailing True)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | cancelParked {changes reached peer left right checked canonical trailing finish mark}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right [mark])
+      (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
+      (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
