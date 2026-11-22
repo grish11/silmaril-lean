@@ -8519,13 +8519,28 @@ private theorem directGivePreludePath (impl : HostImpl (core3 grow) (HostState s
     (name : String) (kind : V1.FuncType) (args : List FlatValue)
     (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (focused : start.ctl = check.control (specDispatch ready impl (.hostCallout (.embedder name kind) args))) :
-    ComponentQuietPath profile ready (specDispatch ready impl) check start [id, id]
+    FramedQuietPath profile ready (specDispatch ready impl) check start [id, id]
       { start with ctl := check.control (calloutBody Limits.spec Quirks.none ready impl start.store
         check.thread (.embedder name kind) args) } := by
   cases check with
   | mk thread frames rest =>
-    refine .step (.currentThread focused) (by rw [transitionEdit, focused]; rfl) ?_
-    exact .step (.get rfl) rfl (.done _)
+    refine FramedQuietPath.step (.currentThread focused) (by rw [transitionEdit, focused]; rfl) rfl ?_
+    exact FramedQuietPath.step (.get rfl) rfl rfl .done
+
+open ReturnFrame.Occurrence in
+private theorem frameGiveInstall {left right : Config (core3 grow) (HostState sig)}
+    (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
+    (leftWriter : left.host.writer = start.host.writer) (rightWriter : right.host.writer = incoming.host.writer) :
+    VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right := by
+  have paths := (CallbackPrefix.transportPaths installed none).choose_spec
+  obtain ⟨checked, canonical⟩ := paths
+  cases checked.steps with
+  | cons step nil =>
+    cases nil
+    cases canonical.steps with
+    | cons peer rest =>
+      cases rest
+      exact .framed (.same step leftWriter (.done _)) (.same peer rightWriter (.done _))
 
 open ReturnFrame.Occurrence in
 private theorem quietCheckedShort {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -8630,22 +8645,24 @@ private theorem cutDirectGivePrelude (name : String) (kind : V1.FuncType) (args 
     (rightFocus : right.ctl = canon.control (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
     (site : PairedComponentSite older left right check canon)
     (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
+    (installation : VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right)
     (run : Steps profile ready (specDispatch ready base) left labels finish) :
     DirectGivePreludeCut profile ready base bindings older name kind args destination schema check canon start incoming left right labels finish := by
   have checked := directGivePreludePath (profile := profile) base name kind args check leftFocus
   have canonical := directGivePreludePath (profile := profile) (LiveDispatch.host bindings base) name kind args canon rightFocus
-  rcases splitSilent (count := 2) (checked.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
+  rcases splitSilent (count := 2) (checked.1.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
   · let leftBody := { left with ctl := check.control (calloutBody Limits.spec Quirks.none ready base
         left.store check.thread (.embedder name kind) args) }
     let rightBody := { right with ctl := canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
         right.store canon.thread (.embedder name kind) args) }
     have paths : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
         leftBody rightBody [some (.active 0 0)] :=
-      retainComparedOccurrences installed (fun place => ⟨checked.track place, canonical.track place⟩)
-    exact .inr ⟨trailing, leftBody, rightBody, split, rfl, rfl, rfl, rfl, rfl, rfl, site, paths, residual,
+      retainComparedOccurrences installed (fun place => ⟨checked.1.track place, canonical.1.track place⟩)
+    exact .inr ⟨trailing, leftBody, rightBody, split, rfl, rfl, rfl, rfl, rfl, rfl, site, paths,
+      installation.append (.framed checked.2 canonical.2), residual,
       fun leftFrame rightFrame => cutDirectHostRefusal name kind args destination schema inst linked embedder
         leftFrame rightFrame rfl rfl site paths residual⟩
-  · exact .inl (compareQuietShort checked canonical site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+  · exact .inl (compareQuietShort checked.1 canonical.1 site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
 
 private theorem pairComponentFocus {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {program}
     (left : start.ctl = check.control program) (right : incoming.ctl = canon.control program)
@@ -9890,14 +9907,14 @@ private theorem selectorReadStep
   have read : Step profile ready dispatch start .tau _ := .hostGet focus
   exact ⟨read, .step read (by rw [transitionEdit, focus]; rfl) (.done _)⟩
 
-private theorem commonSelectorRefusalPaths (request : GiveSelector bindings) (thread : Option ThreadId)
-    {frames rest peerFrames peerRest} {issue : Scheduled.Issue}
+private theorem commonSelectorPaths (request : GiveSelector bindings) (thread : Option ThreadId)
+    {frames rest peerFrames peerRest} {selected : Except Scheduled.Issue (SelectionValue sig request.schema)}
     (source : HostState sig)
     (checkNext canonNext : Except Scheduled.Issue (SelectionValue sig request.schema) → Session grow sig (Ret (core3 grow)))
     (leftAt : start.ctl = (PayloadPrefix.Cursor.mk thread frames rest).control (request.program >>= checkNext))
     (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk thread peerFrames peerRest).control (request.program >>= canonNext))
     (sameStore : start.store = incoming.store)
-    (refused : Plain.runBody request.program start.store source (some thread) = (start.store, source, .ok (.error issue)))
+    (evaluated : Plain.runBody request.program start.store source (some thread) = (start.store, source, .ok selected))
     (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
       Stored.Endpoints.Core.childFromHistory source.writer.accepted handle =
         Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle ∧
@@ -9905,10 +9922,10 @@ private theorem commonSelectorRefusalPaths (request : GiveSelector bindings) (th
         Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle) :
     ∃ count,
       FramedQuietPath profile ready (specDispatch ready base) ⟨thread, frames, rest⟩ start (List.replicate count id)
-        { start with ctl := (PayloadPrefix.Cursor.mk thread frames rest).control (checkNext (.error issue)) } ∧
+        { start with ctl := (PayloadPrefix.Cursor.mk thread frames rest).control (checkNext selected) } ∧
       FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) ⟨thread, peerFrames, peerRest⟩
         incoming (List.replicate count id)
-          { incoming with ctl := (PayloadPrefix.Cursor.mk thread peerFrames peerRest).control (canonNext (.error issue)) } := by
+          { incoming with ctl := (PayloadPrefix.Cursor.mk thread peerFrames peerRest).control (canonNext selected) } := by
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frames, rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, peerFrames, peerRest⟩
   generalize scanned : scanSelector start.store thread request.program = normal
@@ -9923,16 +9940,16 @@ private theorem commonSelectorRefusalPaths (request : GiveSelector bindings) (th
   dsimp only [check, canon] at left right
   rw [scanned] at left
   rw [peerScanned] at right
-  rw [← scanSelectorEval start.store thread source request.program, scanned] at refused
+  rw [← scanSelectorEval start.store thread source request.program, scanned] at evaluated
   cases certified with
   | verdict verdict =>
-    have same : verdict = .error issue := Except.ok.inj (congrArg (·.2.2) refused)
+    have same : verdict = selected := Except.ok.inj (congrArg (·.2.2) evaluated)
     subst verdict
     exact ⟨count, left, right⟩
-  | trapped reason => cases refused
+  | trapped reason => cases evaluated
   | lookup handle decode demanded =>
-    have verdict : decode (Stored.Endpoints.Core.childFromHistory source.writer.accepted handle) = .error issue :=
-      Except.ok.inj (congrArg (·.2.2) refused)
+    have verdict : decode (Stored.Endpoints.Core.childFromHistory source.writer.accepted handle) = selected :=
+      Except.ok.inj (congrArg (·.2.2) evaluated)
     obtain ⟨checkedValue, canonicalValue⟩ := reads handle demanded
     let leftRead := { start with ctl := check.control (select handle >>= fun found => checkNext (decode found)) }
     let rightRead := { incoming with ctl := canon.control (select handle >>= fun found => canonNext (decode found)) }
@@ -10017,6 +10034,7 @@ private theorem cutGiveCommonRefusal (request : GiveSelector bindings) (thread :
     (site : PairedComponentSite older left right ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
     (paths : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
       left right [some (.active 0 0)])
+    (entryWriters : VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right)
     (run : Steps profile ready (specDispatch ready base) left bodyLabels finish)
     (paired : HostFrame.Related.Paired older start incoming)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -10047,7 +10065,7 @@ private theorem cutGiveCommonRefusal (request : GiveSelector bindings) (thread :
   have journal : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] leftEntered :=
     checkedSelectorJournalPath request check leftAt
   have sameStore : left.store = right.store := site.data.1
-  obtain ⟨count, checked, canonical⟩ := commonSelectorRefusalPaths (start := leftEntered) (incoming := right)
+  obtain ⟨count, checked, canonical⟩ := commonSelectorPaths (start := leftEntered) (incoming := right)
     request thread left.host checkNext canonNext rfl rightAt sameStore refused (fun handle demand => ⟨rfl, reads handle demand⟩)
   let selected := { leftEntered with ctl := check.control (checkNext (.error issue)) }
   let peer := { right with ctl := canon.control (canonNext (.error issue)) }
@@ -10059,9 +10077,6 @@ private theorem cutGiveCommonRefusal (request : GiveSelector bindings) (thread :
     rw [(selectorRefusalReplies request right.store thread left.host.nextTicket issue).2]
   have writing := checkedCompletionPath (start := selected) (profile := profile) (ready := ready) (base := base) reply checkedAt
   have beforeReply := journal.append checked
-  have entryWriters : VisitorWriterPath profile ready base bindings start incoming
-      [.tau, .tau, .tau] [.tau, .tau, .tau] left right :=
-    .callbackBoundary .giveEntry (WriterPaths.ofTransport paths)
   have canonWriters : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) right
       (List.replicate count .tau) peer [] := by
     simpa only [List.length_replicate] using canonical.2
@@ -10298,6 +10313,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
       ⟨some worker, .prog resume :: peerFrames, peerRest⟩)
     (paths : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
       left right [some (.active 0 0)])
+    (entryWriters : VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right)
     (run : Steps profile ready (specDispatch ready base) left bodyLabels finish)
     (paired : HostFrame.Related.Paired older start incoming)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -10323,10 +10339,39 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
       Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle =
         Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle
     · have sameStore := site.data.1
-      obtain ⟨checkCount, canonCount, leftPath, rightPath⟩ := request.entry_tracks (profile := profile)
-        (ready := ready) left right (some worker) leftAt rightAt embedder sameStore selected reads
+      let checkCursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, .prog resume :: frames, rest⟩
+      let canonCursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, .prog resume :: peerFrames, peerRest⟩
+      have checkedBody := leftAt
+      have canonicalBody := rightAt
+      rw [(request.body_split (ready := ready) (base := base) left.store (some worker) base embedder).1] at checkedBody
+      rw [(request.body_split (ready := ready) (base := base) right.store (some worker) base embedder).2] at canonicalBody
+      let checkNext := fun verdict => request.checkedContinuation left.store (some worker) (left.host.nextTicket, verdict)
+      let canonNext := request.canonicalContinuation right.store (some worker)
+      let leftEntered := { left with
+        host := left.host.enter request.name request.kind request.args
+        ctl := checkCursor.control (request.program >>= checkNext) }
+      have journal : FramedQuietPath profile ready (specDispatch ready base) checkCursor left [id, id] leftEntered :=
+        checkedSelectorJournalPath request checkCursor checkedBody
+      obtain ⟨canonCount, checked, canonical⟩ := commonSelectorPaths (profile := profile) (ready := ready) (base := base)
+        (start := leftEntered) (incoming := right)
+        request (some worker) left.host checkNext canonNext rfl canonicalBody sameStore selected
+        (fun handle wanted => ⟨rfl, reads handle wanted⟩)
+      let checkCount := 2 + canonCount
+      have checkedPath : FramedQuietPath profile ready (specDispatch ready base) checkCursor left (List.replicate checkCount id)
+          { leftEntered with ctl := checkCursor.control (checkNext (.ok root)) } := by
+        rw [List.replicate_add]
+        exact journal.append checked
+      have leftPath (place : Location) : Prefix profile ready (specDispatch ready base) left place
+          (List.replicate checkCount .tau) { leftEntered with ctl := checkCursor.control (checkNext (.ok root)) } place := by
+        simpa only [List.length_replicate] using checkedPath.1.track place
+      have rightPath (place : Location) : Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place
+          (List.replicate canonCount .tau) { right with ctl := canonCursor.control (canonNext (.ok root)) } place := by
+        simpa only [List.length_replicate] using canonical.1.track place
       rcases splitSilent (count := checkCount) (leftPath (.active 0 0)).toTrail.steps run with ⟨remaining, split, residual⟩ | short
       · have moved := retainComparedOccurrences paths (fun place => ⟨leftPath place, rightPath place⟩)
+        have selectedWriters := entryWriters.append (.framed
+          (by simpa only [List.length_replicate] using checkedPath.2)
+          (by simpa only [List.length_replicate] using canonical.2))
         have seen (count : Nat) : PayloadPrefix.visible ([.tau, .tau, .tau] ++ List.replicate count .tau : Trace grow sig) = [] := by
           rw [visibleAppend, visibleTaus]
           rfl
@@ -10354,7 +10399,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
           CallbackSliceEnd.directGiveSelected (resume := resume) (check := check) (canon := canon)
             (left := checkedEntry) (right := canonicalEntry)
             (ticket := left.host.nextTicket) request root
-            (giveBodyAtEntryFrontier ((seen checkCount).trans (seen canonCount).symm) sameStore moved residual)
+            ⟨(seen checkCount).trans (seen canonCount).symm, sameStore, moved, residual, selectedWriters⟩
             ⟨admitted.caller, admitted.mayLeave, admitted.unconfined, admitted.destination, admitted.selectedRoute⟩
             selectedSite rfl pending
         cases checked : request.preflight (grow := grow) root with
@@ -10384,7 +10429,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
     by_cases reads : ∀ handle, request.lookupDemand left.store (some worker) = some handle →
       Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle =
         Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle
-    · rcases cutGiveCommonRefusal request (some worker) entered leftAt rightAt site paths run paired embedder selected reads with
+    · rcases cutGiveCommonRefusal request (some worker) entered leftAt rightAt site paths entryWriters run paired embedder selected reads with
         cut | ⟨used, _, _, _, _, split, moved, writers, seen, replySite, checked, canonical, residual⟩
       · exact .inr cut
       exact crossDirectGiveRefusal (after := ⟨some worker, frames, rest⟩) (canon := ⟨some worker, peerFrames, peerRest⟩)
@@ -10392,6 +10437,31 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
       exact lookupMismatch handle demand different
+
+open ReturnFrame.Occurrence in
+private theorem cutShortGivePrelude (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (checkedFocus : left.ctl = check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)))
+    (canonicalFocus : right.ctl = canon.control
+      (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
+    (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
+    (installWriters : VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (early : ComponentEarlyPrefix profile ready base bindings older check canon left right labels finish 2)
+    (actual : Steps profile ready (specDispatch ready base) left labels finish) :
+    CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish := by
+  obtain ⟨short, peer, compared, endpoint, _, _⟩ := early
+  have checked := directGivePreludePath (profile := profile) (ready := ready) base name kind args check checkedFocus
+  have canonical := directGivePreludePath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
+    name kind args canon canonicalFocus
+  have peerRun := (compared.choose_spec.1 none).2.steps
+  obtain ⟨_, leftPath⟩ := quietCheckedShort checked.1 actual short
+  obtain ⟨_, rightPath⟩ := quietCheckedShort canonical.1 peerRun short
+  have moved := retainComparedOccurrences installed (fun place => ⟨leftPath place, rightPath place⟩)
+  have writers := installWriters.append (.framed (takeQuietWriterPath checked.2 actual (Nat.le_of_lt short))
+    (takeQuietWriterPath canonical.2 peerRun (Nat.le_of_lt short)))
+  exact callbackTerminalSlice paired (.directGiveFinite (right := peer) ⟨rfl, endpoint.data.1, moved, .refl _, writers⟩)
 
 open ReturnFrame.Occurrence in
 private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings start)
@@ -10416,21 +10486,12 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
   let caller : Seg (core3 grow) (HostState sig) := .core request.core request.next
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨request.thread, caller :: request.frames, request.rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨request.thread, caller :: peerFrames, peerRest⟩
+  have installWriters := frameGiveInstall paths rfl rfl
   have prelude := cutDirectGivePrelude request.name request.kind request.args request.destination request.schema request.inst
-    request.linked embedder (check := check) (canon := canon) rfl rfl site paths actual
-  rcases prelude with ⟨short, peer, compared, endpoint, _, _⟩ |
-      ⟨_, left, right, entered, leftHost, rightHost, leftStore, _, leftAt, rightAt, bodySite, bodyPaths, bodyRun, _⟩
-  · let call : Call (core3 grow) := .hostCallout (.embedder request.name request.kind) request.args
-    have checkPath := directGivePreludePath (profile := profile) (ready := ready)
-      (start := { start with ctl := check.control (specDispatch ready base call) })
-      base request.name request.kind request.args check rfl
-    have canonPath := directGivePreludePath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
-      (start := { incoming with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) call) })
-      request.name request.kind request.args canon rfl
-    obtain ⟨_, leftPath⟩ := quietCheckedShort checkPath actual short
-    obtain ⟨_, rightPath⟩ := quietCheckedShort canonPath (compared.choose_spec.1 none).2.steps short
-    have moved := retainComparedOccurrences paths (fun place => ⟨leftPath place, rightPath place⟩)
-    exact callbackTerminalSlice paired (.directGiveFinite (right := peer) (giveBodyAtEntryFrontier rfl endpoint.data.1 moved (.refl _)))
+    request.linked embedder (check := check) (canon := canon) rfl rfl site paths installWriters actual
+  rcases prelude with early |
+      ⟨_, left, right, entered, leftHost, rightHost, leftStore, _, leftAt, rightAt, bodySite, bodyPaths, bodyWriters, bodyRun, _⟩
+  · exact cutShortGivePrelude request.name request.kind request.args rfl rfl paths installWriters paired early actual
   · rcases boundary with two | ⟨issue, refused, reads⟩
     swap
     · have refusal : Plain.runBody request.selector.program left.store left.host (some request.thread) =
@@ -10444,7 +10505,7 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
         rw [leftStore] at wanted
         simpa only [leftHost, rightHost] using reads handle wanted
       rcases cutGiveCommonRefusal (left := left) (right := right) request.selector request.thread entered
-          leftAt rightAt bodySite bodyPaths bodyRun paired embedder refusal agree with
+          leftAt rightAt bodySite bodyPaths bodyWriters bodyRun paired embedder refusal agree with
           cut | ⟨used, live, trailing, reached, peer, split, moved, writers, observed, replySite, leftReply, rightReply, remainder⟩
       · exact cut
       rcases cutWaitableCorePop (bindings := bindings) (core := request.core) (resume := request.next)
@@ -10547,21 +10608,22 @@ private theorem classifiedGiveCrossing
       cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired
     let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: frames, rest⟩
     let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: peerFrames, peerRest⟩
+    have installWriters := frameGiveInstall paths rfl rfl
     have prelude := cutDirectGivePrelude name kind args destination schema inst linked embedder
-      (check := check) (canon := canon) rfl rfl site paths actual
+      (check := check) (canon := canon) rfl rfl site paths installWriters actual
     have boundary := callbackTerminalSlice paired (.directGiveEntry (check := check) (canon := canon)
       linked rfl rfl site paths leftMark rightMark prelude actual)
-    rcases prelude with _ | ⟨_, body, peerBody, entered, _, _, _, _, bodyAt, peerAt, bodySite, bodyPaths, bodyRun, _⟩
-    · exact .inr boundary
+    rcases prelude with early | ⟨_, body, peerBody, entered, _, _, _, _, bodyAt, peerAt, bodySite, bodyPaths, bodyWriters, bodyRun, _⟩
+    · exact .inr (cutShortGivePrelude name kind args rfl rfl paths installWriters paired early actual)
     cases thread with
     | some worker =>
       exact crossActiveDirectGive ⟨name, kind, args, inst, destination, schema, linked⟩ worker install
-        entered bodyAt peerAt bodySite bodyPaths bodyRun paired embedder compare boundary
+        entered bodyAt peerAt bodySite bodyPaths bodyWriters bodyRun paired embedder compare boundary
     | none =>
       let request : GiveSelector bindings := ⟨name, kind, args, inst, destination, schema, linked⟩
       have refused : Plain.runBody request.program body.store body.host (some none) = (body.store, body.host, .ok (.error .wrongContext)) := by
         cases schema <;> rfl
-      rcases cutGiveCommonRefusal (left := body) (right := peerBody) request none entered bodyAt peerAt bodySite bodyPaths bodyRun
+      rcases cutGiveCommonRefusal (left := body) (right := peerBody) request none entered bodyAt peerAt bodySite bodyPaths bodyWriters bodyRun
           paired embedder refused (by simp [request, GiveSelector.lookupDemand, giveLookupDemand, Plain.callerInstance]) with
           cut | ⟨_, _, _, _, _, split, moved, writers, seen, replySite, checked, canonical, residual⟩
       · exact .inr cut

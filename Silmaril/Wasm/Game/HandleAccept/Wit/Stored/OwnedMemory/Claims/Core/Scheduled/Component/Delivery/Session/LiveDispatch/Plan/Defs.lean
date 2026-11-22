@@ -518,6 +518,7 @@ def DirectGivePreludeCut (profile : ProfileKind) (ready : HostReady (HostState s
       PairedComponentSite older left right check canon ∧
       OccurrenceTransport profile ready base bindings entry peerEntry [.tau, .tau, .tau] [.tau, .tau, .tau]
         left right [some (.active 0 0)] ∧
+      VisitorWriterPath profile ready base bindings entry peerEntry [.tau, .tau, .tau] [.tau, .tau, .tau] left right ∧
       Steps profile ready (specDispatch ready base) left trailing finish ∧
       (check.thread = none → canon.thread = none →
         DirectHostRefusalCut profile ready base bindings older name kind args destination schema
