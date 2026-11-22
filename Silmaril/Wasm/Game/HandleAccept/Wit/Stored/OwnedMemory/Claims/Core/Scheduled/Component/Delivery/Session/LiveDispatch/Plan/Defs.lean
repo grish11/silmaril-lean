@@ -1015,7 +1015,7 @@ def LiveMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState sig))
       let rhs := localLeafEnd atKey right.host store canon.thread canon.frames canon.rest valCanon result
       Steps profile ready checked left checkLabels lhs ∧ LocalSteps profile ready canonical atKey canonLabels rhs ∧
       visible checkLabels = visible canonLabels ∧
-      CoupledOccurrencePaths profile ready base bindings left atKey checkLabels canonLabels lhs rhs ∧
+      OccurrenceTransport profile ready base bindings left atKey checkLabels canonLabels lhs rhs ∧
       match result with
       | .error reason => ∃ leading, visible canonLabels = leading ++ [.trap reason]
       | .ok () =>
@@ -1638,8 +1638,6 @@ def StringMapEntryTransport (profile : ProfileKind) (ready : HostReady (HostStat
           (∃ observed lhs rhs, ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs ∧
             visit valuePtr observed lhs rhs cursor peer)) before start incoming
 
-/-- Select the reached map key program before the recursive value. The
-canonical entry mode is fixed by the allocation's output, not the value. -/
 def stringMapEntryTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
@@ -1649,6 +1647,23 @@ def stringMapEntryTransportPaths (profile : ProfileKind) (ready : HostReady (Hos
     StringMapEntryTransport profile ready base bindings older destination inst element output start incoming
       (fun pointer => child value 1 pointer (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
       field value index slot checkNext canonNext
+
+/-- Select the reached key program before the recursive value. The
+canonical entry mode is fixed by the allocation's output, not the value. -/
+def mapEntryTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (key : WIT.KeyType) (element : Stored.TypeOf) (output : Stored.Lower.Output)
+    (start incoming : Config (core3 grow) (HostState sig)) (child : TrailFieldComparison grow sig) : MapEntryTrail grow sig :=
+  if key = .string then
+    stringMapEntryTransportPaths profile ready base bindings older destination inst element output start incoming child
+  else
+    open ABI LinkedCallback.MemorySequence in
+    fun field value index slot checkNext canonNext finish before _ _ _ _ =>
+      let keyArea := layout destination.width field.type
+      let valuePtr := alignTo (alignTo slot keyArea.alignment + keyArea.size) (layout destination.width value.type).alignment
+      LocalTransportThen profile ready base bindings start incoming before
+        (child value 1 valuePtr (aggregateNext index checkNext) canonNext finish)
 
 def liveMapEntryPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -2035,7 +2050,7 @@ inductive RecursiveAllocatingTransportType : Stored.TypeOf → Prop where
   | data {type} : PayloadPrefix.LocalDataType type → RecursiveAllocatingTransportType type
   | string : RecursiveAllocatingTransportType (.prim .string)
   | list {element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.list element)
-  | stringMap {element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.map .string element)
+  | map {key element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.map key element)
 
 /-- Follow the compiled child at each reached list slot. In the string
 case, the measured allocator plan transports the history into the actual
@@ -2051,15 +2066,15 @@ def recursiveAllocatingTransportPaths (profile : ProfileKind) (ready : HostReady
         (liveListTailPaths destination inst element entries index (.memory address)
           (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element) checkNext canonNext
           (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed finish)) sink
-  | .map .string element => fun item index address checkNext canonNext finish before left right check canon =>
-    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields .string element)
+  | .map key element => fun item index address checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
     let output := Stored.Lower.Output.memory address
-    ∃ entries, item = .dynamic (.map .string element) entryType entries ∧
-      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map .string element) entryType entries index
+    ∃ entries, item = .dynamic (.map key element) entryType entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map key element) entryType entries index
         output checkNext canonNext start incoming left right before check canon
-        (liveMapTailPaths (stringMapEntryTransportPaths profile ready base bindings older destination inst element output start incoming
+        (liveMapTailPaths (mapEntryTransportPaths profile ready base bindings older destination inst key element output start incoming
           (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element))
-          destination inst .string element entries index output checkNext canonNext
+          destination inst key element entries index output checkNext canonNext
           (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed finish)) sink
   | .prim .string => fun item _ address checkNext canonNext finish seen left right check canon =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧

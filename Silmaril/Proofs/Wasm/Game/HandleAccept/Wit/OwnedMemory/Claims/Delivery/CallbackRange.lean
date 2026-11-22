@@ -1770,7 +1770,8 @@ private theorem liveMapEntry (destination : RecordDestination) (inst : InstId) (
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst key element keyData keyPayload value
       origin basePtr bytes count idx width sized aligned bounds entry idx left atKey growth frame.store
       check canon frame.thread checkNext pending true checkAt rfl
-  refine ⟨keyRead, quiet, tracks, store, result, lhs, rhs, checkRun, canonRun, observed, fun mark => ⟨_, occurrences mark⟩, ?_⟩
+  refine ⟨keyRead, quiet, tracks, store, result, lhs, rhs, checkRun, canonRun, observed,
+    CallbackPrefix.localLeafTransport occurrences, ?_⟩
   cases result with
   | error reason => exact keyResult
   | ok data =>

@@ -91,6 +91,15 @@ theorem stationaryTransport {left right lhs rhs : Config (core3 grow) (HostState
     · exact (prefix_survives (checkPath place)).2.symm.trans leftAt
     · exact (prefix_survives (canonPath place)).2.symm.trans rightAt
 
+theorem appendQuietCanonicalTransport {left right reached : Config (core3 grow) (HostState sig)}
+    {labels : Trace grow sig}
+    (history : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (read : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place labels reached place)
+    (quiet : PayloadPrefix.visible labels = []) (same : left.store = reached.store) :
+    ComparedOccurrenceTransport profile ready base bindings start incoming seen left reached := by
+  simpa only [List.append_nil] using appendComparedTransport (more := []) history
+    ⟨[], labels, stationaryTransport (fun place => .done left place) read, rfl, quiet, same⟩
+
 private theorem append {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {before middle after : Config (core3 grow) (HostState sig)} {leading trailing}
     (front : Steps profile ready dispatch before leading middle) (back : Steps profile ready dispatch middle trailing after) :
