@@ -444,9 +444,8 @@ def HandleFieldThenBetween (profile : ProfileKind) (ready : HostReady (HostState
     (next : output.Result → State grow sig → State grow sig → Cursor (E := core3 grow) (HostState sig) →
       Cursor (E := core3 grow) (HostState sig) → Prop) : Prop :=
   match liveLeafPlan left.store left.host.writer index item with
-  | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place,
-      ReturnFrame.Occurrence.Prefix profile ready dispatch left place labels
-        { left with ctl := check.control (checkNext (.error issue)) } place
+  | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧
+      LeafGuardSteps profile ready dispatch left labels { left with ctl := check.control (checkNext (.error issue)) } none
   | .ok plan =>
     let spent := plan.elim left.host (fun spend => { left.host with writer := spend.apply left.host.writer })
     ∃ (store : CStore (core3 grow)) (result : Except TrapReason output.Result)
@@ -462,7 +461,10 @@ def HandleFieldThenBetween (profile : ProfileKind) (ready : HostReady (HostState
         ReturnFrame.Occurrence.Trail profile ready reference right mark canonLabels
           (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result)
           (localOccurrenceEnd result mark)) ∧
-      (∀ update, plan = some update → ExclusiveLeafWriterFlow update left.host right.host
+      (GuardedLeafSteps profile ready dispatch reference left right leading checkLabels canonLabels
+        (localLeafEnd left spent store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result)
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) plan ∧
+      ∀ update, plan = some update → ExclusiveLeafWriterFlow update left.host right.host
         (localLeafEnd left spent store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result).host
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result).host) ∧
       ∀ value, result = .ok value →

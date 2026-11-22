@@ -115,6 +115,22 @@ theorem CheckedSpendFlow.discrepancies {left right checked canonical : State sig
     checked.ClaimDiscrepancies canonical (fun probe => pending probe ∨ probe ∈ spends) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.spendFlowDiscrepancies flow related
 
+open PayloadPrefix Stored.OwnedMemory.Claims in
+/-- Consume an actual checked prefix of the compiled handle leaf. The raw
+peer waits through the guard, then executes only the corresponding local
+body steps. A spend is counted only once its assignment executes. -/
+theorem cutGuardedLeafPrefix {leftEnd rightEnd : Config (core3 grow) (HostState sig)}
+    {guard checked canonical remaining : Trace grow sig} {plan : Option Spend}
+    (path : GuardedLeafSteps profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      start incoming guard checked canonical leftEnd rightEnd plan)
+    (split : guard ++ checked = labels ++ remaining) (same : start.store = incoming.store)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ used peer spends, finish.store = peer.store ∧ visible labels = visible used ∧
+      OccurrenceTransport profile ready base bindings start incoming labels used finish peer ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer spends ∧
+      used = labels.drop guard.length ∧ spends = if guard.length ≤ labels.length then plan.toList else [] :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutGuardedLeaf path split same run
+
 /-- Compare an executed shared host read of a recursive claim plan after its store read.
 Neither side commits the prospective dry-run spends. -/
 theorem compareReachedRecordPrepare (plan : List Object)

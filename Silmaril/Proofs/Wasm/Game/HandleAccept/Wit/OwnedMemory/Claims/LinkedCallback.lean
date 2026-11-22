@@ -934,12 +934,12 @@ theorem handleFieldThenBetween {dispatch reference : Call (core3 grow) → Sessi
   | error issue => simpa only [planned, Cursor.control] using run
   | ok plan =>
     rw [planned] at run
-    obtain ⟨store, result, leading, checkLabels, canonLabels, grew, silent, checkTrace, canonTrace, checked, canonical, trails, tracks, flow⟩ := run
+    obtain ⟨store, result, leading, checkLabels, canonLabels, grew, silent, checkTrace, canonTrace, checked, canonical, trails, tracks, steps, flow⟩ := run
     have canonThread := frame.thread
     refine ⟨store, result, leading, checkLabels, canonLabels, silent, checkTrace, canonTrace, checked, ?_, ?_, ?_, ?_⟩
     · simpa only [canonThread] using canonical
     · simpa only [canonThread] using trails
-    · simpa only [canonThread] using flow
+    · simpa only [canonThread] using And.intro steps flow
     · intro value success
       obtain ⟨checkTrack, canonTrack⟩ := tracks value success
       refine ⟨checkTrack, by simpa only [canonThread, localLeafEnd, Cursor.control] using canonTrack, ?_⟩

@@ -11,6 +11,8 @@ import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+
 public section
 
 namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
@@ -2196,7 +2198,8 @@ theorem handleValueOccurrences {item : Field} {index : Nat} {output : Stored.Low
   cases decision : liveLeafPlan left.store left.host.writer index item with
   | error issue =>
     rw [decision] at run
-    obtain ⟨labels, tau, retained⟩ := run
+    obtain ⟨labels, tau, steps⟩ := run
+    have retained := steps.tracks
     have silent := invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have reached := appendComparedOccurrences (after := []) leading
       ⟨labels, [], fun mark => ⟨mark, unchangedTrail retained mark, .done _ _⟩, silent, rfl, same⟩
@@ -2235,7 +2238,8 @@ theorem handleValueTransport {item : Field} {index : Nat} {output : Stored.Lower
   cases decision : liveLeafPlan left.store left.host.writer index item with
   | error issue =>
     rw [decision] at run
-    obtain ⟨labels, tau, retained⟩ := run
+    obtain ⟨labels, tau, steps⟩ := run
+    have retained := steps.tracks
     have silent := invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have reached := appendComparedTransport (more := []) leading
       ⟨labels, [], stationaryTransport retained (fun place => .done right place), silent, rfl,
@@ -2335,7 +2339,8 @@ theorem handleValuePaths {item : Field} {index offset : Nat} {output : Stored.Lo
   cases decision : liveLeafPlan left.store left.host.writer index item with
   | error issue =>
     rw [decision] at run
-    obtain ⟨labels, tau, retained⟩ := run
+    obtain ⟨labels, tau, steps⟩ := run
+    have retained := steps.tracks
     have silent := invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have reached := appendComparedSlots leading ⟨labels, [], fun depth => retained (.active 0 depth), fun _ => .done _ _, silent, rfl⟩
     rw [List.append_nil] at reached

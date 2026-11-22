@@ -35,6 +35,8 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.Ca
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+
 public section
 
 namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
@@ -2956,6 +2958,122 @@ private theorem driveFlatScalar {origin : CStore (core3 grow)} (destination : Re
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]) rfl
       (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt) run
 
+open PayloadPrefix ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem leafGuardPrefix {target : Config (core3 grow) (HostState sig)} {planned remaining : Trace grow sig}
+    {plan : Option Spend} (path : LeafGuardSteps profile ready (specDispatch ready base) start planned target plan)
+    (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    finish.store = start.store ∧ visible labels = [] ∧
+    finish.host = (if remaining.isEmpty then plan else none).elim start.host
+      (fun spend => { start.host with writer := spend.apply start.host.writer }) ∧
+    ∀ place, Prefix profile ready (specDispatch ready base) start place labels finish place := by
+  induction run generalizing plan planned with
+  | refl state =>
+    cases remaining with
+    | nil =>
+      subst planned
+      cases path
+      exact ⟨rfl, rfl, rfl, fun place => .done _ _⟩
+    | cons first rest => exact ⟨rfl, rfl, rfl, fun place => .done _ _⟩
+  | @cons before middle finish label labels step tail ih =>
+    cases path with
+    | done => simp at split
+    | read expected edit store host back =>
+      obtain ⟨rfl, shorter⟩ := List.cons.inj split
+      cases labelledStepUnique step expected
+      obtain ⟨same, quiet, writer, paths⟩ := ih back shorter
+      exact ⟨same.trans store, quiet, by rw [writer, host], fun place => .step step (by rw [edit]; rfl) (paths place)⟩
+    | commit expected edit store host =>
+      obtain ⟨rfl, empty⟩ := List.cons.inj split
+      obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.mp empty.symm
+      cases labelledStepUnique step expected
+      cases tail
+      exact ⟨store, rfl, host, fun place => .step step (by rw [edit]; rfl) (.done _ _)⟩
+
+open ReturnFrame.Occurrence in
+private theorem pairedLeafPrefix {leftEnd rightEnd : Config (core3 grow) (HostState sig)}
+    {planned remaining : Trace grow sig}
+    (path : PairedLeafSteps profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      start incoming planned leftEnd rightEnd)
+    (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ peer, finish.store = peer.store ∧ finish.host = start.host ∧ peer.host = incoming.host ∧
+      OccurrenceTransport profile ready base bindings start incoming labels labels finish peer := by
+  induction run generalizing incoming planned with
+  | refl state =>
+    have same : state.store = incoming.store := by cases path <;> assumption
+    exact ⟨incoming, same, rfl, rfl, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place)⟩
+  | @cons before middle finish label labels step tail ih =>
+    cases path with
+    | done => simp at split
+    | @step _ _ _ _ _ _ action _ same checked raw checkedHost rawHost checkedEdit agree rest =>
+      obtain ⟨sameLabel, shorter⟩ := List.cons.inj split
+      subst label
+      cases labelledStepUnique step checked
+      obtain ⟨peer, stores, leftHost, rightHost, move, paths, transported⟩ := ih rest shorter
+      let edit := transitionEdit before action
+      refine ⟨peer, stores, leftHost.trans checkedHost, rightHost.trans rawHost, fun mark => move (mark.bind edit.follow), ?_, ?_⟩
+      · intro mark
+        obtain ⟨lhs, rhs⟩ := paths (mark.bind edit.follow)
+        exact ⟨.step step lhs, .step raw (by rw [agree]; exact rhs)⟩
+      · intro older marks outside
+        have moved := outside.edit edit
+        have leftStorage := step_edit step
+        have rightStorage := step_edit raw
+        rw [agree] at rightStorage
+        change _ = edit.apply _ at leftStorage rightStorage
+        rw [← leftStorage, ← rightStorage] at moved
+        simpa only [List.map_map, Function.comp_def] using transported older _ moved
+
+open PayloadPrefix ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem cutRefusedLeaf {target : Config (core3 grow) (HostState sig)} {guard remaining : Trace grow sig}
+    (path : LeafGuardSteps profile ready (specDispatch ready base) start guard target none)
+    (split : guard = labels ++ remaining) (same : start.store = incoming.store)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    finish.store = incoming.store ∧ visible labels = [] ∧
+    OccurrenceTransport profile ready base bindings start incoming labels [] finish incoming ∧
+    CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer incoming.host.writer [] := by
+  obtain ⟨store, quiet, host, paths⟩ := leafGuardPrefix path split run
+  have unchanged : finish.host = start.host := by simpa using host
+  exact ⟨store.trans same, quiet, CallbackPrefix.stationaryTransport paths (fun place => .done _ place), congrArg HostState.writer unchanged, rfl⟩
+
+open PayloadPrefix ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+theorem cutGuardedLeaf {leftEnd rightEnd : Config (core3 grow) (HostState sig)} {guard checked canonical remaining : Trace grow sig}
+    {plan : Option Spend}
+    (path : GuardedLeafSteps profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      start incoming guard checked canonical leftEnd rightEnd plan)
+    (split : guard ++ checked = labels ++ remaining) (same : start.store = incoming.store)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ used peer spends, finish.store = peer.store ∧ visible labels = visible used ∧
+      OccurrenceTransport profile ready base bindings start incoming labels used finish peer ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer spends ∧
+      used = labels.drop guard.length ∧ spends = if guard.length ≤ labels.length then plan.toList else [] := by
+  obtain ⟨committed, guarded, rfl, body⟩ := path
+  rcases List.append_eq_append_iff.mp split with ⟨front, labelSplit, checkSplit⟩ | ⟨front, guardSplit, _⟩
+  · have tracks := guarded.tracks
+    have entered := (prefix_survives (tracks (.active 0 0))).1
+    have suffix := stripExactPrefix entered (labelSplit ▸ run)
+    obtain ⟨_, quiet, host, _⟩ := leafGuardPrefix guarded (List.append_nil guard).symm entered
+    obtain ⟨peer, stores, leftHost, rightHost, path⟩ := pairedLeafPrefix body checkSplit suffix
+    have movement := CallbackPrefix.transportAppend (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place)) path
+    refine ⟨front, peer, plan.toList, stores, ?_, ?_, ?_, ?_, ?_⟩
+    · rw [labelSplit, visibleAppend, quiet, List.nil_append]
+    · simpa only [labelSplit, List.nil_append, List.map_nil, List.append_nil] using movement.choose_spec.1
+    · refine ⟨?_, congrArg HostState.writer rightHost⟩
+      rw [leftHost, host]
+      cases plan <;> rfl
+    · simp [labelSplit]
+    · simp [labelSplit]
+  · obtain ⟨store, quiet, host, paths⟩ := leafGuardPrefix guarded guardSplit run
+    refine ⟨[], incoming, (if front.isEmpty then plan else none).toList, store.trans same, quiet,
+      CallbackPrefix.stationaryTransport paths (fun place => .done _ place), ?_, ?_, ?_⟩
+    · refine ⟨?_, rfl⟩
+      rw [host]
+      cases (if front.isEmpty then plan else none) <;> rfl
+    · apply (List.drop_eq_nil_of_le _).symm
+      simp [guardSplit]
+    · cases front with
+      | nil => simp [guardSplit]
+      | cons first rest => simp [guardSplit]
+
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback ReturnFrame.Occurrence in
 private theorem driveFlatHandle {origin : CStore (core3 grow)} (destination : RecordDestination) (inst : InstId) (budget : Nat)
     (item : Field) (nominal : CanonicalHandle item) :
@@ -2967,26 +3085,24 @@ private theorem driveFlatHandle {origin : CStore (core3 grow)} (destination : Re
     checkNext canonNext growth checkAt canonAt (next := fun value lhs rhs cursor peer =>
       FlatVisitFocus older origin checkNext canonNext lhs rhs cursor peer)
     (fun words _ _ _ _ related grown lhs rhs => .returned words related grown lhs rhs)
-  have stop (ending : StringSliceEnd profile ready base bindings older
-      (fun _ => FlatVisitFocus older origin checkNext canonNext) left right actual finish []) :
-      FlatVisitRun profile ready base bindings older origin checkNext canonNext left right actual finish :=
-    ⟨[], [], actual, left, right, [], rfl, rfl,
-      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), frame.store, run, ending⟩
   unfold LinkedCallback.HandleFieldThenBetween at leaf
   cases decision : liveLeafPlan left.store left.host.writer index item with
   | error issue =>
     rw [decision] at leaf
-    obtain ⟨guard, tau, tracks⟩ := leaf
+    obtain ⟨guard, tau, guardRun⟩ := leaf
+    have tracks := guardRun.tracks
     have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
     cases alignLocalBody (prefix_survives (tracks (.active 0 0))).1 run (noBranchOfVisible quiet (by simp)) with
-    | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
+    | inside split nonempty tail =>
+      obtain ⟨store, observed, movement, _⟩ := cutRefusedLeaf guardRun split frame.store run
+      exact ⟨actual, [], [], finish, right, [], (List.append_nil _).symm, observed.symm, movement, store, .refl _, .localPrefix nonempty tail⟩
     | reached split tail =>
       exact ⟨guard, [], _, { left with ctl := check.control (checkNext (.error issue)) }, right, [], split, quiet.symm,
         CallbackPrefix.stationaryTransport tracks (fun place => .done right place), frame.store, tail,
         .descriptor (pointer := 0) (cursor := check) (peer := canon) (.refused issue rfl)⟩
   | ok plan =>
     rw [decision] at leaf
-    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
+    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, ⟨path, _⟩, continued⟩ := leaf
     have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
     have observed : visible (guard ++ checkLabels) = visible canonLabels := by
       rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
@@ -2995,7 +3111,9 @@ private theorem driveFlatHandle {origin : CStore (core3 grow)} (destination : Re
       rw [CallbackPrefix.visibleLeaf rightKind]
       cases verdict <;> simp [workerBranchLabel]
     cases alignLocalBody checkRun run (noBranchOfVisible observed localOnly) with
-    | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
+    | inside split nonempty tail =>
+      obtain ⟨used, peer, _, store, observed, movement, _, _, _⟩ := cutGuardedLeaf path split frame.store run
+      exact ⟨actual, used, [], finish, peer, [], (List.append_nil _).symm, observed.symm, movement, store, .refl _, .localPrefix nonempty tail⟩
     | reached split tail =>
       refine ⟨guard ++ checkLabels, canonLabels, _, _, _, [], split, observed.symm,
         CallbackPrefix.localLeafTransport tracks, ?_, tail, ?_⟩
@@ -6091,11 +6209,13 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
     cases decision : liveLeafPlan start.store start.host.writer index item with
     | error issue =>
       rw [decision] at leaf
-      obtain ⟨guard, tau, tracks⟩ := leaf
+      obtain ⟨guard, tau, guardRun⟩ := leaf
+      have tracks := guardRun.tracks
       have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
       cases alignLocalBody (prefix_survives (tracks (.active 0 0))).1 actual (noBranchOfVisible quiet (by simp)) with
-      | inside _ nonempty tail =>
-        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, ⟨[], rfl, rfl⟩, .inside nonempty tail⟩
+      | inside split nonempty tail =>
+        obtain ⟨store, observed, movement, flow⟩ := cutRefusedLeaf guardRun split frame.store actual
+        exact ⟨labels, [], [], finish, incoming, (List.append_nil _).symm, observed, store, movement, .refl _, ⟨[], flow⟩, .inside nonempty tail⟩
       | reached split tail =>
         refine ⟨guard, [], _, _, incoming, split, quiet, ?_,
           CallbackPrefix.stationaryTransport tracks (fun place => .done _ place), tail, ⟨[], rfl, rfl⟩,
@@ -6103,7 +6223,7 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
         exact frame.store
     | ok plan =>
       rw [decision] at leaf
-      obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
+      obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, ⟨path, _⟩, continued⟩ := leaf
       have flow : CheckedSpendFlow start.host.writer incoming.host.writer
           (localLeafEnd start (plan.elim start.host (fun spend => { start.host with writer := spend.apply start.host.writer }))
             store check.thread check.frames check.rest (fun value => checkTail (.ok value)) verdict).host.writer
@@ -6118,8 +6238,9 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
         rw [CallbackPrefix.visibleLeaf rightKind]
         cases verdict <;> simp [workerBranchLabel]
       cases alignLocalBody checkRun actual (noBranchOfVisible observed localOnly) with
-      | inside _ nonempty tail =>
-        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, ⟨[], rfl, rfl⟩, .inside nonempty tail⟩
+      | inside split nonempty tail =>
+        obtain ⟨used, peer, spends, store, observed, movement, flow, _, _⟩ := cutGuardedLeaf path split frame.store actual
+        exact ⟨labels, used, [], finish, peer, (List.append_nil _).symm, observed, store, movement, .refl _, ⟨spends, flow⟩, .inside nonempty tail⟩
       | reached split tail =>
         have movement := CallbackPrefix.localLeafTransport tracks
         cases verdict with
@@ -6527,17 +6648,20 @@ private theorem driveMemoryHandle {origin : CStore (core3 grow)} (destination : 
   cases decision : liveLeafPlan start.store start.host.writer index item with
   | error issue =>
     rw [decision] at leaf
-    obtain ⟨guard, tau, tracks⟩ := leaf
+    obtain ⟨guard, tau, guardRun⟩ := leaf
+    have tracks := guardRun.tracks
     have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
     cases alignLocalBody (prefix_survives (tracks (.active 0 0))).1 actual (noBranchOfVisible quiet (by simp)) with
-    | inside _ nonempty tail => exact stationaryMemoryVisit frame.store actual (.localPrefix nonempty tail)
+    | inside split nonempty tail =>
+      obtain ⟨store, seen, movement, _⟩ := cutRefusedLeaf guardRun split frame.store actual
+      exact ⟨labels, [], [], finish, incoming, [], (List.append_nil _).symm, seen, store, movement, .refl _, .boundary (.localPrefix nonempty tail)⟩
     | reached split tail =>
       exact ⟨guard, [], _, { start with ctl := check.control (checkNext (.error issue)) }, incoming, [], split, quiet, frame.store,
         CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place), tail,
         .refused issue check rfl (.field canon item address canonNext canonAt)⟩
   | ok plan =>
     rw [decision] at leaf
-    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
+    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, ⟨path, _⟩, continued⟩ := leaf
     have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
     have observed : visible (guard ++ checkLabels) = visible canonLabels := by
       rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
@@ -6546,7 +6670,9 @@ private theorem driveMemoryHandle {origin : CStore (core3 grow)} (destination : 
       rw [CallbackPrefix.visibleLeaf rightKind]
       cases verdict <;> simp [workerBranchLabel]
     cases alignLocalBody checkRun actual (noBranchOfVisible observed localOnly) with
-    | inside _ nonempty tail => exact stationaryMemoryVisit frame.store actual (.localPrefix nonempty tail)
+    | inside split nonempty tail =>
+      obtain ⟨used, peer, _, store, seen, movement, _, _, _⟩ := cutGuardedLeaf path split frame.store actual
+      exact ⟨labels, used, [], finish, peer, [], (List.append_nil _).symm, seen, store, movement, .refl _, .boundary (.localPrefix nonempty tail)⟩
     | reached split tail =>
       refine ⟨guard ++ checkLabels, canonLabels, _, _, _, [], split, observed, ?_,
         CallbackPrefix.localLeafTransport tracks, tail, ?_⟩

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 
 @[expose] public section
 
@@ -9,6 +10,7 @@ namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Sch
 open Silmaril.Wasm.Component.Canon Silmaril.Wasm.Component.Engine Silmaril.Wasm.Component.Runtime
   Silmaril.Wasm.Execution.Core
 open Stored.Endpoints.RecordLower (Field)
+open Silmaril.Wasm.Component Silmaril.Wasm.Component.Machine ReturnFrame.Occurrence
 
 /-- An exclusive leaf schedules precisely one spend after its live check.
 An error context checks the reached arena without spending anything. -/
@@ -22,5 +24,26 @@ def liveLeafPlan {sig : Signature} {grow : SingleThreaded.GrowOracle}
   | .context id =>
     if (store.errCtx? id).isNone then .error (.field index (.beforeAllocation .missingContext)) else .ok none
   | _ => .ok none
+
+/-- The checked guard reads the reached state and may finish with one concrete
+claim assignment. Every proper prefix of the guard leaves the writer unchanged. -/
+inductive LeafGuardSteps {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))) :
+    Config (core3 grow) (HostState sig) → List (Label (core3 grow) (HostState sig)) →
+    Config (core3 grow) (HostState sig) → Option Spend → Prop where
+  | done (state) : LeafGuardSteps profile ready dispatch state [] state none
+  | read {before middle after labels spend}
+      (step : Step profile ready dispatch before .tau middle)
+      (edit : transitionEdit before .tau = .same)
+      (store : middle.store = before.store) (host : middle.host = before.host)
+      (tail : LeafGuardSteps profile ready dispatch middle labels after spend) :
+      LeafGuardSteps profile ready dispatch before (.tau :: labels) after spend
+  | commit {before after spend}
+      (step : Step profile ready dispatch before .tau after)
+      (edit : transitionEdit before .tau = .same)
+      (store : after.store = before.store)
+      (host : after.host = { before.host with writer := spend.apply before.host.writer }) :
+      LeafGuardSteps profile ready dispatch before [.tau] after (some spend)
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled

@@ -23,6 +23,8 @@ import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+
 public section
 
 namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
@@ -620,7 +622,8 @@ private theorem nominalElements (destination : RecordDestination) (inst : InstId
     cases live : liveLeafPlan left.store left.host.writer index item with
     | error issue =>
       rw [live] at leaf
-      obtain ⟨labels, tau, tracks⟩ := leaf
+      obtain ⟨labels, tau, steps⟩ := leaf
+      have tracks := steps.tracks
       exact ⟨canon, .refused issue, labels, [], _, right, (prefix_survives (tracks (.active 0 0))).1, .refl _,
         frame.store, silent tau, _, ⟨[], item :: rest, rfl, by simp, by simp⟩, rfl, canonAt,
         fun depth => tracks (.active 0 depth), fun depth => .done _ _⟩
@@ -1317,7 +1320,8 @@ private theorem nominalMapValue (destination : RecordDestination) (inst : InstId
   cases live : liveLeafPlan left.store left.host.writer 1 value with
   | error issue =>
     rw [live] at leaf
-    obtain ⟨labels, quiet, tracks⟩ := leaf
+    obtain ⟨labels, quiet, steps⟩ := leaf
+    have tracks := steps.tracks
     exact ⟨canon, .refused (.nested issueIndex issue), labels, [], _, right, (prefix_survives (tracks (.active 0 0))).1,
       .refl _, frame.store, silent quiet, pending, rfl, rfl, canonAt, fun depth => tracks (.active 0 depth), fun depth => .done _ _⟩
   | ok plan =>

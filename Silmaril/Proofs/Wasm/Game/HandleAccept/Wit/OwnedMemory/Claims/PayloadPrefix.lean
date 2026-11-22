@@ -16,6 +16,8 @@ import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Lower.Thms
 
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+
 public section
 
 namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix
@@ -612,7 +614,8 @@ private theorem handleKeeping (destination : RecordDestination) (inst : InstId) 
   cases verdict : liveLeafPlan left.store left.host.writer index item with
   | error issue =>
     rw [verdict] at paired
-    obtain ⟨labels, allTau, tracks⟩ := paired
+    obtain ⟨labels, allTau, steps⟩ := paired
+    have tracks := steps.tracks
     exact ⟨.refused issue, labels, [], _, right, (ReturnFrame.Occurrence.prefix_survives (tracks (.active 0 0))).1,
       .refl right, same, silent allTau, trivial, rfl⟩
   | ok plan =>

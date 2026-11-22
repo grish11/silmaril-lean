@@ -52,8 +52,8 @@ theorem RecordDestination.compare_handle_leaf_between {grow : SingleThreaded.Gro
     (canonAt : canonical.ctl = ⟨thread, .prog (Endpoints.RecordLower.CanonicalTree.leaf Component.Limits.spec Quirks.none
       (destination.context inst) destination.width item output >>= canonNext), canonFrames⟩ :: canonRest) :
     match liveLeafPlan checked.store checked.host.writer index item with
-    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ∀ place, Prefix profile ready dispatch checked place labels
-        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest } place
+    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ LeafGuardSteps profile ready dispatch checked labels
+        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest } none
     | .ok plan =>
       let host := plan.elim checked.host (fun spend => { checked.host with writer := spend.apply checked.host.writer })
       ∃ reached outcome leading checkLabels canonLabels,
@@ -74,6 +74,9 @@ theorem RecordDestination.compare_handle_leaf_between {grow : SingleThreaded.Gro
             (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) (.ok value)) ∧
           RetainsActiveSlots profile ready reference canonical canonLabels
             (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value))) ∧
+        GuardedLeafSteps profile ready dispatch reference checked canonical leading checkLabels canonLabels
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome)
+          (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome) plan ∧
         ∀ update, plan = some update → ExclusiveLeafWriterFlow update checked.host canonical.host
           (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome).host
           (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome).host :=
