@@ -57,12 +57,17 @@ def scan [DecidableEq Key] (read : Name → Except (Fault Name) (Block Name Key 
         pure groups.flatten
       else .error (.invalidNode name)
 
-/-- `.ok none` is closed-view absence, never a translation of a read failure. -/
-def lookup [LinearOrder Key] (codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)) (read : Read Name)
-    (width fuel : Nat) (root : Name) (key : Key) : Except (Fault Name) (Option Payload) := do
+/-- The complete read view, after checking both the tree structure and global key order. -/
+def closedMap [LinearOrder Key] (codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name))
+    (read : Read Name) (width fuel : Nat) (root : Name) : Except (Fault Name) (OrderedMap Key Payload) := do
   let entries ← scan (readBlock codec read) width fuel none root
   match OrderedMap.ofEntries? entries with
-  | some map => .ok (map.lookup? key)
+  | some map => .ok map
   | none => .error (.invalidNode root)
+
+/-- `.ok none` is closed-view absence, never a translation of a read failure. -/
+def lookup [LinearOrder Key] (codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)) (read : Read Name)
+    (width fuel : Nat) (root : Name) (key : Key) : Except (Fault Name) (Option Payload) :=
+  (closedMap codec read width fuel root).map (·.lookup? key)
 
 end Silmaril.Formats.Dasl.Prolly

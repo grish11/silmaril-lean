@@ -158,6 +158,9 @@ silmaril comorphism logic.pl_fol := Silmaril.Logic.Institution.Examples.plToFol
   (facts := [Silmaril.Logic.Institution.Examples.plToFol_modelExpansive])
 ```
 
+The [PER constraint institution](per-constraints.md) also registers a Boolean room
+and two answered CNF problems translated from dictionaries (SAT and UNS).
+
 ## Database and explorer
 
 Tables `institutions`, `comorphisms`, `morphisms`, `rooms`, `corridors` (edge endpoints in the

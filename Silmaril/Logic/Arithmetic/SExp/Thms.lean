@@ -24,6 +24,9 @@ open Silmaril.Logic.Smt (SE)
 open Silmaril.Logic.Smt.SExpr.Writer (LegalExpr)
 open Silmaril.Logic.Concrete (SExpCodec)
 
+theorem readTerm?_encodeTerm {depth : Nat} (term : Term depth) : readTerm? depth (encodeTerm term) = some term :=
+  Proofs.Logic.Arithmetic.SExp.readTerm?_encode term
+
 theorem decodeFormula_eq_some_iff {n : ℕ} {e : SE} {φ : Formula n} :
     decodeFormula n e = some φ ↔ encodeFormula φ = e :=
   Proofs.Logic.Arithmetic.SExp.decodeFormula_eq_some_iff

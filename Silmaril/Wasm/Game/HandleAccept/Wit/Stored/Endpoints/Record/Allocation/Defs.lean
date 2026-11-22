@@ -19,4 +19,10 @@ inductive Descendant : Field → Field → Prop where
       Descendant (.dynamic type element entries) leaf
   | sum {type arms tag child leaf} : Descendant child leaf → Descendant (.sum type arms tag (some child)) leaf
 
+/-- The static allocator option is available at each pointer-bearing compiled
+descendant. This says nothing about a callback's behavior or return. -/
+def AllocatorFor (realloc : Option Nat) (root : Field) : Prop :=
+  ∀ child, Descendant root child → Silmaril.Wasm.Component.Validation.containsPtr child.type = true →
+    ∃ addr, realloc = some addr
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower.Field

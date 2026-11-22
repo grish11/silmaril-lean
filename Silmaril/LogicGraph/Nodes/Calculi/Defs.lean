@@ -3,6 +3,7 @@ module
 public import Silmaril.Calculi.LambdaCube.PER.PTSMorphism
 public import Silmaril.Calculi.LambdaCube.STLC.Defs
 public import Silmaril.Calculi.LambdaCube.Semantics
+public import Silmaril.LogicGraph.Nodes.Calculi.PERConstraints.Defs
 public import Silmaril.Project.Registry.Institution.Defs
 
 /-!

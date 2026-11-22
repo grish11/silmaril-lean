@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Dasl.Wire.Defs
+public import Silmaril.Formats.Dasl.Wire.Profile.Defs
 
 @[expose] public section
 
@@ -26,6 +27,15 @@ def canonicalOrder {Name : Type} : {index : JsonIx} → RawSyn String (Drisl.Sca
   | _, .objCons key head tail => .objCons key (canonicalOrder head) (canonicalOrder tail)
 
 def canonicalModel (value : Shallow Cid) : Cbor.Value := Drisl.emitModel Drisl.i64Cbor cidCodec true (toOrdered value)
+
+def canonicalBdaslModel (value : Shallow BdaslCid) : Cbor.Value :=
+  Drisl.emitModel Drisl.i64Cbor bdaslCidCodec true (toOrdered value)
+
+/-- Bounds and canonical-map conditions on the actual model used by the
+BDASL serializer, with the typed-link guard kept explicit. -/
+def BdaslEncodable (value : Shallow BdaslCid) : Prop :=
+  (∀ link ∈ Drisl.links (toOrdered value), linkSupported link = true) ∧
+    (canonicalBdaslModel value).Encodable ∧ Drisl.canonicalMaps (canonicalBdaslModel value) = true
 
 namespace Bounds
 

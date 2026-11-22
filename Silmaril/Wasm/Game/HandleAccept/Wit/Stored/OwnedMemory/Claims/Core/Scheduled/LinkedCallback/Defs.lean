@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Defs
 public import Silmaril.Wasm.Component.Reference.Canon.Lift.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 
@@ -230,6 +231,13 @@ inductive StringPlanCut (profile : ProfileKind) (ready : HostReady (HostState si
       (canonical : CoreGrowthSteps profile ready (specDispatch ready (host bindings)) right labels
         (stringReallocEntry ready bindings cx ptr oldSize alignment size rest canonNext { right with store } canon))
       (silent : LocalLeafLabels (.ok ()) labels)
+      (tracked : ∀ depth,
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) left (.active 0 depth) labels
+          (stringReallocEntry ready bindings cx ptr oldSize alignment size rest checkNext { left with store } check)
+          (.active 0 (depth + 1)) ∧
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) right (.active 0 depth) labels
+          (stringReallocEntry ready bindings cx ptr oldSize alignment size rest canonNext { right with store } canon)
+          (.active 0 (depth + 1)))
       (paired : HostFrame.Related.Paired (ReturnFrame.Extend changes (stringPlanResume cx rest checkNext)
           (stringPlanResume cx rest canonNext))
         (stringReallocEntry ready bindings cx ptr oldSize alignment size rest checkNext { left with store } check)
@@ -261,6 +269,11 @@ inductive StringReplayLayer (profile : ProfileKind) (ready : HostReady (HostStat
         (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result))
       (canonical : CoreGrowthSteps profile ready (specDispatch ready (host bindings)) right labels
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result))
+      (tracked : ∀ pointer, result = .ok pointer → ∀ depth,
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) left (.active 0 depth) labels
+          { left with store, ctl := check.control (checkNext pointer) } (.active 0 depth) ∧
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) right (.active 0 depth) labels
+          { right with store, ctl := canon.control (canonNext pointer) } (.active 0 depth))
       (finished : ∀ pointer, result = .ok pointer → finish
         { left with store, ctl := check.control (checkNext pointer) }
         { right with store, ctl := canon.control (canonNext pointer) } check canon pointer) :
@@ -272,6 +285,13 @@ inductive StringReplayLayer (profile : ProfileKind) (ready : HostReady (HostStat
       (canonical : CoreGrowthSteps profile ready (specDispatch ready (host bindings)) right labels
         (stringReallocEntry ready bindings cx ptr oldSize alignment size rest canonNext { right with store } canon))
       (silent : LocalLeafLabels (.ok ()) labels)
+      (tracked : ∀ depth,
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) left (.active 0 depth) labels
+          (stringReallocEntry ready bindings cx ptr oldSize alignment size rest checkNext { left with store } check)
+          (.active 0 (depth + 1)) ∧
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings)) right (.active 0 depth) labels
+          (stringReallocEntry ready bindings cx ptr oldSize alignment size rest canonNext { right with store } canon)
+          (.active 0 (depth + 1)))
       (replay :
         let dispatch := specDispatch ready (host (grow := grow) bindings)
         let leftEntry := stringReallocEntry ready bindings cx ptr oldSize alignment size rest checkNext { left with store } check
@@ -294,6 +314,11 @@ inductive StringReplayLayer (profile : ProfileKind) (ready : HostReady (HostStat
                 let after := { last with ctl := cursor.control (runStoreSteps cx value rest >>= checkNext) }
                 let otherAfter := { other with ctl := otherCursor.control (runStoreSteps cx value rest >>= canonNext) }
                 Step profile ready dispatch last .tau after ∧ Step profile ready dispatch other .tau otherAfter ∧
+                (∀ depth,
+                  ReturnFrame.Occurrence.Prefix profile ready dispatch left (.active 0 depth)
+                    (labels ++ (leftLabels ++ [.tau])) after (.active 0 depth) ∧
+                  ReturnFrame.Occurrence.Prefix profile ready dispatch right (.active 0 depth)
+                    (labels ++ (rightLabels ++ [.tau])) otherAfter (.active 0 depth)) ∧
                 smaller rest.length shorter after otherAfter cursor otherCursor)) :
         StringReplayLayer profile ready bindings older cx checkNext canonNext finish length smaller left right check canon
 
@@ -309,8 +334,8 @@ def StringReplay (profile : ProfileKind) (ready : HostReady (HostState sig)) (bi
     left right check canon
 termination_by length
 
-/-- Compare a shared local result segment and continue only on common
-success. The terminal lock-down segment on a trap is kept as reached. -/
+/-- Compare a shared local result segment. Successful execution tracks the
+active slots into the next consumer; traps retain the reached lockdown. -/
 def LocalThen {Result : Type} (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
     (left right : State grow sig) (check canon : Cursor (E := core3 grow) (HostState sig))
     (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
@@ -318,14 +343,14 @@ def LocalThen {Result : Type} (profile : ProfileKind) (ready : HostReady (HostSt
       Cursor (E := core3 grow) (HostState sig) → Prop) : Prop :=
   let dispatch := specDispatch ready (host bindings)
   ∃ (store : CStore (core3 grow)) (result : Except TrapReason Result) (labels : List (Label (core3 grow) (HostState sig))),
-    LocalLeafLabels result labels ∧
-    CoreGrowthSteps profile ready dispatch left labels
-      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
-    CoreGrowthSteps profile ready dispatch right labels
-      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
-    ∀ value, result = .ok value → next value
-      { left with store, ctl := check.control (checkNext value) }
-      { right with store, ctl := canon.control (canonNext value) } check canon
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest checkNext
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext
+    LocalLeafLabels result labels ∧ CoreGrowthSteps profile ready dispatch left labels (lhs result) ∧
+    CoreGrowthSteps profile ready dispatch right labels (rhs result) ∧
+    ∀ value, result = .ok value →
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left labels (lhs (.ok value)) ∧
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right labels (rhs (.ok value)) ∧
+      next value (lhs (.ok value)) (rhs (.ok value)) check canon
 
 /-- A string field installs the actual plan, allows suspended callback
 prefixes, and starts the next comparison only after its own result succeeds. -/
@@ -344,8 +369,8 @@ def StringFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig)) 
   let canonical := fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext
   let lhs := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
   let rhs := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
-  ∃ reads, Steps profile ready dispatch left (List.replicate reads .tau) lhs ∧
-    Step profile ready dispatch right .tau rhs ∧
+  ∃ reads, ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left (List.replicate reads .tau) lhs ∧
+    ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right [.tau] rhs ∧
     StringReplay profile ready bindings older cx checked canonical plan.steps.length lhs rhs check canon
       (fun lhs rhs check canon _ => LocalThen profile ready bindings lhs rhs check canon
         (fun value => checkNext (.ok value)) canonNext next)
@@ -356,9 +381,10 @@ structure StringField where
 
 def StringField.field (item : StringField) : Field := .data (.prim .string) ⟨.string item.value, .string item.valid⟩
 
-/-- On refusal only the checked live guard advances. On success the next
-field sees the spent writer and the reached canonical store. On trap neither
-side enters a success continuation, and the reached effects are retained. -/
+/-- On refusal only the checked live guard advances, retaining the caller
+slots. On success the same slots reach the next field along with the spent
+writer and the reached canonical store. On trap neither side enters a success
+continuation, and the reached effects are retained. -/
 def HandleFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
     (item : Field) (index : Nat) (output : Stored.Lower.Output) (left right : State grow sig)
     (check canon : Cursor (E := core3 grow) (HostState sig))
@@ -368,7 +394,7 @@ def HandleFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig)) 
       Cursor (E := core3 grow) (HostState sig) → Prop) : Prop :=
   let dispatch := specDispatch ready (host bindings)
   match liveLeafPlan left.store left.host.writer index item with
-  | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ Steps profile ready dispatch left labels
+  | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left labels
       { left with ctl := check.control (checkNext (.error issue)) }
   | .ok plan =>
     let spent := plan.elim left.host (fun spend => { left.host with writer := spend.apply left.host.writer })
@@ -379,9 +405,12 @@ def HandleFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig)) 
         (localLeafEnd left spent store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result) ∧
       Steps profile ready dispatch right canonLabels
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
-      ∀ value, result = .ok value → next value
-        { left with store, host := spent, ctl := check.control (checkNext (.ok value)) }
-        { right with store, ctl := canon.control (canonNext value) } check canon
+      ∀ value, result = .ok value →
+        let lhs := { left with store, host := spent, ctl := check.control (checkNext (.ok value)) }
+        let rhs := { right with store, ctl := canon.control (canonNext value) }
+        ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left (leading ++ checkLabels) lhs ∧
+        ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right canonLabels rhs ∧
+        next value lhs rhs check canon
 
 def flatSequenceChecked (destination : RecordDestination) (inst : InstId) (items : List Field) (index : Nat)
     (leading : List FlatValue) (finish : Except Endpoints.RecordLower.Issue (List FlatValue) → Session grow sig (Ret (core3 grow))) :
@@ -450,11 +479,56 @@ def FlatAggregateThen (compare : FlatFieldComparison grow sig)
   FlatSequenceReplay compare older destination inst (fun verdict => checkNext (verdict.mapError (.nested index)))
     canonNext finish children 0 [] left right check canon
 
+def LocalFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
+    (output : Stored.Lower.Output) (left right : State grow sig) (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (finish : output.Result → State grow sig → State grow sig → Cursor (E := core3 grow) (HostState sig) →
+      Cursor (E := core3 grow) (HostState sig) → Prop) : Prop :=
+  ∃ store result checkLabels canonLabels,
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
+    Steps profile ready (specDispatch ready (host bindings)) left checkLabels lhs ∧
+    Steps profile ready (specDispatch ready (host bindings)) right canonLabels rhs ∧
+    visible checkLabels = visible canonLabels ∧
+    match result with
+    | .ok value =>
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (host bindings)) left checkLabels lhs ∧
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (host bindings)) right canonLabels rhs ∧
+      finish value lhs rhs check canon
+    | .error reason => ∃ leading, visible canonLabels = leading ++ [.trap reason]
+
+def flatSumTail (width : AddrType) (type : TypeOf) (count tag : Nat) (haves : List CoreType) (words : List FlatValue) :
+    Session grow sig (List FlatValue) :=
+  lowerFlatVariantWith count ((flatten width type).drop 1) tag haves (pure words)
+
+def flatSumCheckNext (width : AddrType) (type : TypeOf) (count tag index : Nat) (haves : List CoreType)
+    (next : FlatSequenceCheckNext grow sig) : FlatSequenceCheckNext grow sig
+  | .error issue => next (.error (.nested index issue))
+  | .ok words => flatSumTail width type count tag haves words >>= fun coerced => next (.ok coerced)
+
+def FlatSumThen (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
+    (compare : FlatFieldComparison grow sig) (width : AddrType) (type : TypeOf) (count tag : Nat) (selected : Option Field)
+    (index : Nat) (left right : State grow sig) (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig) (finish : FlatResultCut grow sig) : Prop :=
+  let tailAt := fun haves words (reached reference : State grow sig) (check canon : Cursor (E := core3 grow) (HostState sig)) =>
+    let body := flatSumTail width type count tag haves words
+    reached.ctl = check.control (body >>= fun coerced => checkNext (.ok coerced)) ∧
+    reference.ctl = canon.control (body >>= canonNext) ∧
+    LocalFieldThen profile ready bindings .flat reached reference check canon checkNext canonNext finish
+  match selected with
+  | none => tailAt [] [] left right check canon
+  | some child =>
+    let haves := flatten width child.type
+    compare child 0 left right check canon (flatSumCheckNext width type count tag index haves checkNext)
+      (fun words => flatSumTail width type count tag haves words >>= canonNext) (tailAt haves)
+
 def flatChildren : Field → Option (List Field)
   | .aggregate _ children | .fixed _ _ children => some children
+  | .sum _ _ _ selected => some selected.toList
   | _ => none
 
-/-- Depth bounds only aggregate descent; the caller's leaf rule handles
+/-- Depth bounds only aggregate and selected-arm descent; the caller's leaf rule handles
 other fields, including their own independently justified return cuts. -/
 def FlatNestedFits (leaf : Field → Prop) : Nat → Field → Prop
   | 0, field => leaf field
@@ -462,14 +536,22 @@ def FlatNestedFits (leaf : Field → Prop) : Nat → Field → Prop
     | none => leaf field
     | some children => ∀ child ∈ children, FlatNestedFits leaf depth child
 
-def nestedFlatComparison (leaves : FlatFieldComparison grow sig)
+def FlatTagBounds (field : Field) : Prop :=
+  ∀ {type arms tag selected}, field.Descendant (.sum type arms tag selected) → tag < arms.length
+
+def nestedFlatComparison (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
+    (leaves : FlatFieldComparison grow sig)
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId) :
     Nat → FlatFieldComparison grow sig
   | 0 => leaves
   | depth + 1 => fun field index left right check canon checkNext canonNext finish => match flatChildren field with
     | none => leaves field index left right check canon checkNext canonNext finish
-    | some children => FlatAggregateThen (nestedFlatComparison leaves older destination inst depth) older destination inst
-      children index left right check canon checkNext canonNext finish
+    | some children =>
+      let compare := nestedFlatComparison profile ready bindings leaves older destination inst depth
+      match field with
+      | .sum type arms tag selected => FlatSumThen profile ready bindings compare destination.width type arms.length tag selected
+          index left right check canon checkNext canonNext finish
+      | _ => FlatAggregateThen compare older destination inst children index left right check canon checkNext canonNext finish
 
 def stringFlatComparison (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId) :
@@ -488,6 +570,16 @@ def mixedFlatComparison (profile : ProfileKind) (ready : HostReady (HostState si
     (CanonicalHandle field ∧ HandleFieldThen profile ready bindings field index .flat left right check canon checkNext canonNext next) ∨
     stringFlatComparison profile ready bindings older destination inst field index left right check canon checkNext canonNext next
 
+/-- The actual callback prefix and its local return suffix, with exact labels
+and the older active slots tracked through the pop and subsequent checks. -/
+def ReturnRangeTrace (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
+    (start reached : State grow sig) (labels : List (Label (core3 grow) (HostState sig))) (after : State grow sig)
+    (mark : Option ReturnFrame.Occurrence.Location) : Prop :=
+  let dispatch := specDispatch ready (host bindings)
+  ∃ lead tail, labels = lead ++ tail ∧ Steps profile ready dispatch start lead reached ∧
+    ReturnFrame.Occurrence.Trail profile ready dispatch start mark lead reached mark ∧
+    ReturnFrame.Occurrence.RetainsBelowTop profile ready dispatch reached tail after
+
 /-- Stop at the reached range/recheck cut without executing any children.
 On a valid range the checked continuation receives the real live verdict
 (which can refuse); the canonical continuation receives only the pointer.
@@ -499,7 +591,7 @@ inductive RangeCutOver (profile : ProfileKind) (ready : HostReady (HostState sig
     (destination : RecordDestination) (area : Layout) (count pointer : Nat) (plan : List Object)
     (checkNext : Nat → Except Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (canonNext : Nat → Session grow sig (Ret (core3 grow))) (seen : List (Label (core3 grow) (HostState sig)))
-    (allowCommon : Prop := True) : Prop where
+    (allowCommon : Prop := True) (mark : Option ReturnFrame.Occurrence.Location := none) : Prop where
   | reached {reference : State grow sig} {canonCursor : Cursor (E := core3 grow) (HostState sig)} {bytes : Nat}
       {checkLabels canonLabels : List (Label (core3 grow) (HostState sig))}
       (width : (core3 grow).memAddrType? last.store.core destination.memory = some destination.width)
@@ -507,22 +599,22 @@ inductive RangeCutOver (profile : ProfileKind) (ready : HostReady (HostState sig
       (aligned : pointer = alignTo pointer area.alignment) (bounds : pointer + count * area.size ≤ bytes)
       (frame : ChildFrameOver changes last reference cursor canonCursor)
       (growth : Core3.Grows left.store.core last.store.core)
-      (checked : Steps profile ready (specDispatch ready (host bindings)) left checkLabels
-        { last with ctl := cursor.control (checkNext pointer (Record.prepare last.store last.host.writer plan)) })
-      (canonical : Steps profile ready (specDispatch ready (host bindings)) right canonLabels
-        { reference with ctl := canonCursor.control (canonNext pointer) })
+      (checked : ReturnRangeTrace profile ready bindings left last checkLabels
+        { last with ctl := cursor.control (checkNext pointer (Record.prepare last.store last.host.writer plan)) } mark)
+      (canonical : ReturnRangeTrace profile ready bindings right reference canonLabels
+        { reference with ctl := canonCursor.control (canonNext pointer) } mark)
       (checkSeen : visible checkLabels = seen) (canonSeen : visible canonLabels = seen) :
-      RangeCutOver profile ready bindings changes resume left right last cursor destination area count pointer plan checkNext canonNext seen allowCommon
+      RangeCutOver profile ready bindings changes resume left right last cursor destination area count pointer plan checkNext canonNext seen allowCommon mark
   | trapped {reference : State grow sig} {reason : TrapReason}
       {checkLabels canonLabels : List (Label (core3 grow) (HostState sig))}
       (stores : last.store = reference.store)
       (checked : Steps profile ready (specDispatch ready (host bindings)) left checkLabels (StepDefs.trapCfg last))
       (canonical : Steps profile ready (specDispatch ready (host bindings)) right canonLabels (StepDefs.trapCfg reference))
       (checkSeen : visible checkLabels = seen ++ [.trap reason]) (canonSeen : visible canonLabels = seen ++ [.trap reason]) :
-      RangeCutOver profile ready bindings changes resume left right last cursor destination area count pointer plan checkNext canonNext seen allowCommon
+      RangeCutOver profile ready bindings changes resume left right last cursor destination area count pointer plan checkNext canonNext seen allowCommon mark
   | common (pop : CollectionCommonPopOver profile ready bindings changes left right
       { last with ctl := cursor.control (resume (.nat pointer)) } seen) (allowed : allowCommon) :
-      RangeCutOver profile ready bindings changes resume left right last cursor destination area count pointer plan checkNext canonNext seen allowCommon
+      RangeCutOver profile ready bindings changes resume left right last cursor destination area count pointer plan checkNext canonNext seen allowCommon mark
 
 abbrev RangeCut (profile : ProfileKind) (ready : HostReady (HostState sig)) (bindings : List (Binding sig))
     (first second : ReturnFrame.Continuation (core3 grow) (HostState sig)) :=
@@ -547,8 +639,10 @@ def CollectionReplayFor (profile : ProfileKind) (ready : HostReady (HostState si
   let checked := collectionEntry destination inst area entries.length dispatch left check first
   let canonical := collectionEntry destination inst area entries.length dispatch right canon second
   let changes := ReturnFrame.Extend older first second
-  Steps profile ready dispatch left [.tau, .tau, .tau] checked ∧
-  Steps profile ready dispatch right [.tau, .tau] canonical ∧
+  (∀ depth, ReturnFrame.Occurrence.Prefix profile ready dispatch left (.active 0 depth)
+    [.tau, .tau, .tau] checked (.active 0 (depth + 1))) ∧
+  (∀ depth, ReturnFrame.Occurrence.Prefix profile ready dispatch right (.active 0 depth)
+    [.tau, .tau] canonical (.active 0 (depth + 1))) ∧
   ∀ {last seen protectedReturn}, PrefixFor profile ready bindings protectedReturn checked seen last →
     (∀ first second, changes first second → protectedReturn first) →
     ∃ leftLabels rightLabels other mark,
@@ -556,6 +650,8 @@ def CollectionReplayFor (profile : ProfileKind) (ready : HostReady (HostState si
       CoreGrowthSteps profile ready dispatch canonical rightLabels other ∧
       visible leftLabels = seen ∧ visible rightLabels = seen ∧
       HostFrame.Related.Paired changes last other ∧
+      ReturnFrame.Occurrence.Outside older (ReturnFrame.Occurrence.segmentStorage last)
+        (ReturnFrame.Occurrence.segmentStorage other) mark ∧
       ReturnFrame.Occurrence.Trail profile ready dispatch checked (some (.active 0 0)) leftLabels last mark ∧
       ReturnFrame.Occurrence.Trail profile ready dispatch canonical (some (.active 0 0)) rightLabels other mark ∧
       ∀ pointer cursor, mark = some (ReturnFrame.Occurrence.Location.active 0 0) →
@@ -578,7 +674,7 @@ def CollectionReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
     fun checked canonical last cursor pointer seen =>
       RangeCutOver profile ready bindings older first checked canonical last cursor destination area entries.length pointer
         (Field.listObjects entries) (fun ptr live => checkedCollectionTail destination inst entries area index output ptr live >>= checkNext)
-        (fun ptr => canonicalCollectionTail destination inst entries area output ptr mode >>= canonNext) seen False
+        (fun ptr => canonicalCollectionTail destination inst entries area output ptr mode >>= canonNext) seen False (some (.active 0 0))
 
 /-- Allocator descent from the two actual dynamic-field programs. The cut
 hands the entry interpreters back to the caller rather than requiring

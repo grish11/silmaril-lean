@@ -32,6 +32,14 @@ theorem scan_sound [DecidableEq Key] {read : Name → Except (Fault Name) (Block
     entries = flatten level node :=
   Proofs.Formats.Dasl.ProllyScan.scan_sound address width fuel level node agrees checked
 
+theorem closedMap_sound [LinearOrder Key] {codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)}
+    (policy : Policy Key) {map : OrderedMap Key Payload} {address : Block Name Key Payload → Name} {store : Store Name}
+    (stored : Stored codec address (build policy map) store) (bound : store.Binding) {read : Read Name}
+    (sound : Read.Sound read store) {fuel : Nat} {found : OrderedMap Key Payload}
+    (checked : closedMap codec read policy.width fuel ((build policy map).rootName address) = .ok found) :
+    map = found :=
+  Proofs.Formats.Dasl.ProllyScan.closed_map_sound policy stored bound sound checked
+
 /-- Both positive and negative answers are correct against every binding reference
 including the reader and the canonical encoding. Name uniqueness is not needed. -/
 theorem lookup_sound [LinearOrder Key] {codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)}
