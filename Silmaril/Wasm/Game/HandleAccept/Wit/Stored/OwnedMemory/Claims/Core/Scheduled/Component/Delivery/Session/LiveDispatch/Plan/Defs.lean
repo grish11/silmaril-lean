@@ -560,11 +560,12 @@ suffix. The input mark is the allocator's returned top occurrence, not an
 arbitrary frame with an equal continuation. -/
 def CollectionRangeTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (checked canonical lhs rhs : Config (core3 grow) (HostState sig)) : Prop :=
+    (checked canonical lhs rhs : Config (core3 grow) (HostState sig)) (observed : Trace grow sig) : Prop :=
   ∀ {leftStart rightStart checkTrace canonTrace},
     OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace checked canonical [some (.active 0 0)] →
     ∃ leftTail rightTail, OccurrenceTransport profile ready base bindings leftStart rightStart
-      (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs
+      (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs ∧
+      PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store
 
 /-- Cumulative paths through the real collection return. A fresh verdict
 selects the checked continuation only; the canonical child program is still
@@ -580,7 +581,7 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
     (canonNext : Nat → Session grow sig (Ret (core3 grow))) : Prop :=
   let traps := fun reason => ComparedOccurrencePaths profile ready base bindings leftStart rightStart
     (seen ++ [.trap reason]) (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
-    CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+    CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) [.trap reason]
   ∃ bytes, (core3 grow).memAddrType? checked.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then traps .unalignedPointer
@@ -595,7 +596,7 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
         (∃ labels, (∀ label ∈ labels, label = .tau) ∧
           RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical labels right) ∧
         ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right ∧
-        CollectionRangeTransport profile ready base bindings checked canonical left right
+        CollectionRangeTransport profile ready base bindings checked canonical left right []
     else traps .outOfBounds
 
 /-- Entry into the exact recursive bodies of a nested collection after its
@@ -621,7 +622,7 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
   ∃ left right canon,
     ComparedSlots profile ready base bindings leftStart rightStart observed left right offset ∧
     ComparedOccurrencePaths profile ready base bindings start incoming localSeen left right ∧
-    (∃ labels peers, OccurrenceTransport profile ready base bindings start incoming labels peers left right) ∧
+    ComparedOccurrenceTransport profile ready base bindings start incoming localSeen left right ∧
     LinkedCallback.ChildFrameOver older left right check canon ∧
     (core3 grow).memAddrType? left.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? left.store.core destination.memory = some bytes ∧
@@ -650,8 +651,8 @@ def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState s
     (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
     ComparedOccurrencePaths profile ready base bindings leftEntry rightEntry (localSeen ++ [.trap reason])
       (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
-    (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers
-      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical))
+    ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry (localSeen ++ [.trap reason])
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
   ∃ bytes, (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
     else if pointer + entries.length * area.size ≤ bytes then
@@ -662,7 +663,7 @@ def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState s
           checked.store = canonical.store ∧ ComparedSlots profile ready base bindings leftStart rightStart observed
             stopped reference offset ∧
           ComparedOccurrencePaths profile ready base bindings leftEntry rightEntry localSeen stopped reference ∧
-          (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers stopped reference) ∧
+          ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry localSeen stopped reference ∧
           sink.exit refuse (wrap issue) observed stopped reference check
     else trap .outOfBounds
 
@@ -1316,6 +1317,18 @@ def LocalOccurrenceThen (profile : ProfileKind) (ready : HostReady (HostState si
     ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ more) lhs rhs ∧
     finish (seen ++ more) lhs rhs check canon)
 
+/-- A local operation either reaches a common trap or passes its augmented
+history to the next actual continuation. -/
+def LocalTransportThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (seen : Trace grow sig) (finish : TrailFinish grow sig) : Prop :=
+  (∃ reason leading lhs rhs,
+    ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ (leading ++ [.trap reason])) lhs rhs ∧
+    lhs.ctl = [] ∧ rhs.ctl = []) ∨
+  (∃ more lhs rhs check canon,
+    ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ more) lhs rhs ∧
+    finish (seen ++ more) lhs rhs check canon)
+
 /-- A nominal guard can stop the checked field without running the
 canonical leaf or any sibling. The occurrence history ends at that pair. -/
 def HandleOccurrenceThen (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1344,7 +1357,7 @@ before the child program, and only a successful reservation enters it. -/
 def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
-    (start incoming leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (start incoming leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)) (seen localSeen : Trace grow sig)
     (destination : RecordDestination) (area : ABI.Layout) (entries : List Stored.Endpoints.RecordLower.Field)
     (pointer : Nat) (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (refuse : IssueProgram grow sig) (wrap : Stored.Endpoints.RecordLower.Issue → Stored.Endpoints.RecordLower.Issue)
@@ -1353,8 +1366,8 @@ def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (Ho
   open Stored.Endpoints.RecordLower in
   let trap := fun reason => ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ [.trap reason])
     (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
-    (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers
-      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical))
+    ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry (localSeen ++ [.trap reason])
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
   ∃ bytes, (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
     else if pointer + entries.length * area.size ≤ bytes then
@@ -1363,11 +1376,11 @@ def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (Ho
           let stopped := { checked with ctl := check.control (refuse (wrap issue)) }
           let reference := { canonical with ctl := canon.control canonicalChildren }
           ComparedOccurrencePaths profile ready base bindings start incoming seen stopped reference ∧
-          (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers stopped reference) ∧
+          ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry localSeen stopped reference ∧
           sink.exit refuse (wrap issue) seen stopped reference check) ∧
       (OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .ok () →
         ∃ left right canon, ComparedOccurrencePaths profile ready base bindings start incoming seen left right ∧
-          (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers left right) ∧
+          ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry localSeen left right ∧
           LinkedCallback.ChildFrameOver older left right check canon ∧ Core3.Grows origin.core left.store.core ∧
           left.ctl = check.control checkedChildren ∧ right.ctl = canon.control canonicalChildren ∧
           visit bytes seen left right check canon)
@@ -1415,7 +1428,7 @@ def LiveCollectionOccurrenceEntry (profile : ProfileKind) (ready : HostReady (Ho
           ([.tau, .tau] ++ canonLabels) finish reached [mark] ∧
         ∀ pointer cursor, mark = some (.active 0 0) →
           finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
-          CollectionOccurrenceRangeThen profile ready base bindings older left.store start incoming left right finish reached (before ++ seen)
+          CollectionOccurrenceRangeThen profile ready base bindings older left.store start incoming left right finish reached (before ++ seen) seen
             destination area entries pointer cursor (fun issue => checkNext (.error issue))
             (LinkedCallback.CollectionVisit.afterAllocation index)
             (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext)
@@ -1687,7 +1700,7 @@ def LiveLocalFieldThen (profile : ProfileKind) (ready : HostReady (HostState sig
     let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
     Steps profile ready checked left lhsLabels lhs ∧ Steps profile ready canonical right rhsLabels rhs ∧
     PayloadPrefix.visible lhsLabels = PayloadPrefix.visible rhsLabels ∧
-    CoupledOccurrencePaths profile ready base bindings left right lhsLabels rhsLabels lhs rhs ∧
+    OccurrenceTransport profile ready base bindings left right lhsLabels rhsLabels lhs rhs ∧
     match result with
     | .error reason => ∃ leading, PayloadPrefix.visible rhsLabels = leading ++ [.trap reason]
     | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile ready checked left lhsLabels lhs ∧
@@ -1988,6 +2001,35 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
       liveTupleTrails profile ready base bindings older destination inst start incoming offset sink rest
 termination_by structural types => types
 end
+
+/-- Supported first transport subfamily: arbitrarily nested dynamic lists
+with locally emitted scalar or allocating string leaves. -/
+inductive RecursiveListTransportType : Stored.TypeOf → Prop where
+  | data {type} : PayloadPrefix.LocalDataType type → RecursiveListTransportType type
+  | string : RecursiveListTransportType (.prim .string)
+  | list {element} : RecursiveListTransportType element → RecursiveListTransportType (.list element)
+
+/-- Follow the compiled child at each reached list slot. In the string
+case, the measured allocator plan transports the history into the actual
+descriptor continuation. -/
+def recursiveListTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) : Stored.TypeOf → TrailFieldComparison grow sig
+  | .list element => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .dynamic (.list element) element entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index
+        (.memory address) checkNext canonNext start incoming left right before check canon
+        (liveListTailPaths destination inst element entries index (.memory address)
+          (recursiveListTransportPaths profile ready base bindings older destination inst start incoming sink element) checkNext canonNext
+          (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed finish)) sink
+  | .prim .string => fun item _ address checkNext canonNext finish seen left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringValueOccurrencePaths profile ready base bindings older destination inst str (.memory address)
+        start incoming left right check canon checkNext canonNext
+        (fun _ _ _ _ _ _ => ∃ seen, LocalTransportThen profile ready base bindings start incoming seen finish) seen start incoming
+  | _ => fun _ _ _ _ _ finish seen _ _ _ _ => LocalTransportThen profile ready base bindings start incoming seen finish
+termination_by structural type => type
 
 /-- The cumulative memory fold covers the same fragment as the compiled
 recursive visitor, with no additional runtime admission condition. -/

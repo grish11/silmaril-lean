@@ -1513,13 +1513,13 @@ theorem localFieldPaths {left right : Config (core3 grow) (HostState sig)}
     obtain ⟨before, trapped⟩ := cut
     exact .inl ⟨reason, before, _, _, appendComparedPaths leading
       ⟨lhsLabels, rhsLabels, lhs, rhs, same.trans trapped, trapped, rfl⟩,
-      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+      ⟨lhsLabels, rhsLabels, transportPaths trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok value =>
     cases value
     obtain ⟨lhsTrack, rhsTrack, done⟩ := cut
     have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
     exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached,
-      ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩, next _ _ _ _ _ reached rfl done⟩
+      ⟨lhsLabels, rhsLabels, transportPaths trails, rfl, same.symm, rfl⟩, next _ _ _ _ _ reached rfl done⟩
 
 private theorem localFieldOccurrences {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -1536,10 +1536,31 @@ private theorem localFieldOccurrences {left right : Config (core3 grow) (HostSta
   | error reason =>
     obtain ⟨before, trapped⟩ := cut
     exact .inl ⟨reason, before, _, _, appendComparedOccurrences leading
+      ⟨lhsLabels, rhsLabels, transportPaths trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+  | ok value =>
+    cases value
+    have reached := appendComparedOccurrences leading ⟨lhsLabels, rhsLabels, transportPaths trails, rfl, same.symm, rfl⟩
+    exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, next _ _ _ _ _ reached rfl cut.2.2⟩
+
+theorem localFieldTransport {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveLocalFieldThen profile ready base bindings checkNext canonNext finish left right check canon)
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LocalTransportThen profile ready base bindings start incoming seen visit := by
+  obtain ⟨store, result, lhsLabels, rhsLabels, _, _, same, trails, cut⟩ := run
+  cases result with
+  | error reason =>
+    obtain ⟨before, trapped⟩ := cut
+    exact .inl ⟨reason, before, _, _, appendComparedTransport leading
       ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok value =>
     cases value
-    have reached := appendComparedOccurrences leading ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩
+    have reached := appendComparedTransport leading ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩
     exact .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, next _ _ _ _ _ reached rfl cut.2.2⟩
 
 theorem handleValueOccurrences {item : Field} {index : Nat} {output : Stored.Lower.Output}

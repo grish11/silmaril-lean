@@ -143,14 +143,15 @@ private theorem rangeFrames {checked canonical lhs rhs : Config (core3 grow) (Ho
     | true => simp [segmentStorage, segmentAt, locked rfl] at leftAt
 
 private theorem rangeTransport {checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
-    {leftLabels rightLabels : Trace grow sig} {trapped : Bool}
+    {leftLabels rightLabels observed : Trace grow sig} {trapped : Bool}
     (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
     (right : RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical rightLabels rhs trapped)
-    (locked : trapped = true → lhs.ctl = []) :
-    CollectionRangeTransport profile ready base bindings checked canonical lhs rhs := by
+    (locked : trapped = true → lhs.ctl = []) (checkSeen : visible leftLabels = observed) (canonSeen : visible rightLabels = observed)
+    (same : lhs.store = rhs.store) :
+    CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed := by
   intro leftStart rightStart checkTrace canonTrace leading
   obtain ⟨move, trails, retained⟩ := leading
-  refine ⟨leftLabels, rightLabels, rangeMove grow sig trapped ∘ move, ?_, ?_⟩
+  refine ⟨leftLabels, rightLabels, ⟨rangeMove grow sig trapped ∘ move, ?_, ?_⟩, checkSeen, canonSeen, same⟩
   · intro mark
     obtain ⟨lhs, rhs⟩ := trails mark
     exact ⟨lhs.append (left _), rhs.append (right _)⟩
@@ -229,11 +230,14 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg canonical) true) :
       ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ [.trap reason])
         (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
-      CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) := by
+      CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) [.trap reason] := by
     obtain ⟨leftCount, left⟩ := left
     obtain ⟨rightCount, right⟩ := right
-    exact ⟨CallbackPrefix.appendComparedOccurrences leading (comparedRange left right (trapVisible leftCount reason)
-      (trapVisible rightCount reason) (congrArg StepDefs.lockdownSt frame.store)), rangeTransport left right (fun _ => rfl)⟩
+    have same := congrArg StepDefs.lockdownSt frame.store
+    have leftSeen := trapVisible (grow := grow) (sig := sig) leftCount reason
+    have rightSeen := trapVisible (grow := grow) (sig := sig) rightCount reason
+    exact ⟨CallbackPrefix.appendComparedOccurrences leading (comparedRange left right leftSeen rightSeen same),
+      rangeTransport left right (fun _ => rfl) leftSeen rightSeen same⟩
   by_cases misaligned : pointer ≠ alignTo pointer area.alignment
   · simp only [ite_eq_left misaligned] at checkedRange canonicalRange ⊢
     exact traps .unalignedPointer checkedRange canonicalRange
@@ -248,7 +252,7 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
         ⟨checkLabels, checkQuiet, left⟩, ⟨canonLabels, canonQuiet, right⟩, ?_, ?_⟩
       · simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
           (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
-      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible)
+      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) (silent checkQuiet) (silent canonQuiet) frame.store
     · simp only [ite_eq_right bounds] at checkedRange canonicalRange ⊢
       exact traps .outOfBounds checkedRange canonicalRange
 
@@ -372,11 +376,11 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
     (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), occurrences, transport, ?_⟩
   intro pointer cursor atTop returning
   subst mark
-  have continued {left right : Config (core3 grow) (HostState sig)}
-      (suffix : CollectionRangeTransport profile ready base bindings finish reached left right) :
-      ∃ labels peers, OccurrenceTransport profile ready base bindings start incoming labels peers left right := by
-    obtain ⟨labels, peers, paths⟩ := suffix transport
-    exact ⟨_, _, paths⟩
+  have continued {left right : Config (core3 grow) (HostState sig)} {observed : Trace grow sig}
+      (suffix : CollectionRangeTransport profile ready base bindings finish reached left right observed) :
+      ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ observed) left right := by
+    obtain ⟨labels, peers, paths, leftSeen, rightSeen, shared⟩ := suffix transport
+    exact ⟨_, _, paths, by rw [appendVisible, checkObserved, leftSeen], by rw [appendVisible, canonObserved, rightSeen], shared⟩
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
     checkNext canonNext marked paired returning (frame.store ▸ width) growth
   obtain ⟨capacity, liveWidth, liveSize, outcomes⟩ := collectionRangeOccurrences (profile := profile) (ready := ready)
@@ -413,7 +417,8 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
             checkNext (.error (LinkedCallback.CollectionVisit.afterAllocation index issue)) := by cases issue <;> rfl
         dsimp only at checkTrails paths range
         rw [fresh, stopped] at checkTrails paths range
-        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTrails.retains canonTrails.retains, paths, continued range, trivial⟩
+        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTrails.retains canonTrails.retains, paths,
+          by simpa only [List.append_nil] using continued range, trivial⟩
       · rw [ite_eq_right bounds] at outcomes ⊢
         exact ⟨traps .outOfBounds outcomes.1, outcomes.1, continued outcomes.2⟩
     · rw [ite_eq_left aligned] at outcomes ⊢
@@ -424,7 +429,8 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
   obtain ⟨peer, frameAfter, ⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩, paths, range⟩ := outcomes
   dsimp only at frameAfter checkTracks paths range
   rw [fresh] at frameAfter checkTracks paths range
-  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths, continued range, frameAfter, liveWidth, sized,
+  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths,
+    by simpa only [List.append_nil] using continued range, frameAfter, liveWidth, sized,
     aligned, bounds, growth, rfl, rfl, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
 
 private theorem collectionEntryVisiting (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
@@ -2102,7 +2108,7 @@ private theorem localFieldThen (destination : RecordDestination) (inst : InstId)
       (.memory address) origin left right (frame.store ▸ growth)
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, width]) placed
       (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
-  refine ⟨store, result, lhsTrace, rhsTrace, lhs, rhs.steps, observed, fun mark => ⟨_, trails mark⟩, ?_⟩
+  refine ⟨store, result, lhsTrace, rhsTrace, lhs, rhs.steps, observed, CallbackPrefix.localLeafTransport trails, ?_⟩
   cases result with
   | error reason => exact cut
   | ok val =>
@@ -2200,7 +2206,7 @@ private theorem stringFieldThen (destination : RecordDestination) (inst : InstId
   obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, trails⟩ :=
     string_descriptor_occurrences cx destination.width output plan pointer lhs rhs cursor peer
       (fun result => checkNext (.ok result)) canonNext paired.store checkAt canonAt
-  refine ⟨store, result, labels, labels, lhsRun.steps, rhsRun.steps, rfl, fun mark => ⟨_, trails mark⟩, ?_⟩
+  refine ⟨store, result, labels, labels, lhsRun.steps, rhsRun.steps, rfl, CallbackPrefix.localLeafTransport trails, ?_⟩
   cases result with
   | error reason => exact ⟨[], leafTrap observed⟩
   | ok val =>

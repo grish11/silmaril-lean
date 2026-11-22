@@ -109,7 +109,7 @@ theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {
     simp only [prepared] at run ⊢
     exact fun width => allocationPaths covers admitted leading (run width) next
 
-theorem collectionEntryOccurrences {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+theorem collectionEntryOccurrencesWith {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
     {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
     {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -119,9 +119,10 @@ theorem collectionEntryOccurrences {destination : RecordDestination} {inst : Ins
     (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
     (run : LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
       left right check canon (fun pointer bytes _ => visit pointer bytes))
-    (next : ∀ pointer bytes observed lhs rhs cursor peer,
-      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
-      visit pointer bytes lhs rhs cursor peer → path pointer bytes observed lhs rhs cursor peer) :
+    (next : ∀ pointer bytes suffix lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ suffix) lhs rhs →
+      ComparedOccurrenceTransport profile ready base bindings left right suffix lhs rhs →
+      visit pointer bytes lhs rhs cursor peer → path pointer bytes (seen ++ suffix) lhs rhs cursor peer) :
     LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
       start incoming left right seen check canon path sink := by
   unfold LiveCollectionEntry at run
@@ -156,9 +157,45 @@ theorem collectionEntryOccurrences {destination : RecordDestination} {inst : Ins
           obtain ⟨lhs, rhs, peer, _, paths, retained, frame, _, _, _, _, growth, checkAt, canonAt, body⟩ :=
             children bytes sized (Classical.not_not.mp misaligned) fits fresh
           have rebased := CallbackPrefix.appendComparedOccurrences leading paths
-          exact ⟨lhs, rhs, peer, rebased, retained, frame, growth, checkAt, canonAt, next pointer bytes _ lhs rhs cursor peer rebased body⟩
+          exact ⟨lhs, rhs, peer, rebased, retained, frame, growth, checkAt, canonAt,
+            next pointer bytes suffix lhs rhs cursor peer rebased retained body⟩
       · rw [ite_eq_right fits] at failed ⊢
         exact ⟨by simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2.1, failed.2.2⟩
+
+theorem collectionEntryOccurrences {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {visit : Nat → Nat → Finish grow sig} {path : Nat → Nat → TrailFinish grow sig}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      left right check canon (fun pointer bytes _ => visit pointer bytes))
+    (next : ∀ pointer bytes observed lhs rhs cursor peer,
+      ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
+      visit pointer bytes lhs rhs cursor peer → path pointer bytes observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming left right seen check canon path sink :=
+  collectionEntryOccurrencesWith covers admitted leading run (fun _ _ _ _ _ _ _ paths _ body => next _ _ _ _ _ _ _ paths body)
+
+theorem collectionEntryTransport {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {visit : Nat → Nat → Finish grow sig} {path : Nat → Nat → TrailFinish grow sig}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      left right check canon (fun pointer bytes _ => visit pointer bytes))
+    (next : ∀ pointer bytes observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      visit pointer bytes lhs rhs cursor peer → path pointer bytes observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming left right seen check canon path sink :=
+  collectionEntryOccurrencesWith covers admitted (CallbackPrefix.comparedTransportPaths leading) run
+    (fun _ _ _ _ _ _ _ _ paths body => next _ _ _ _ _ _ _ (CallbackPrefix.appendComparedTransport leading paths) body)
 
 theorem descriptorPaths {output : Stored.Lower.Output} {checkNext : ValueCheckNext grow sig output}
     {canonNext : ValueCanonNext grow sig output} {left right : Config (core3 grow) (HostState sig)}
@@ -213,21 +250,17 @@ theorem descriptorTransport {output : Stored.Lower.Output} {checkNext : ValueChe
     (next : ∀ value observed lhs rhs cursor peer,
       ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
       finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
-    (∃ reason lhs rhs,
-      ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ [.trap reason]) lhs rhs ∧
-      lhs.ctl = [] ∧ rhs.ctl = []) ∨
-    (∃ observed lhs rhs,
-      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs ∧ visit observed lhs rhs check canon) := by
+    LocalTransportThen profile ready base bindings start incoming seen visit := by
   obtain ⟨store, result, labels, shape, _, _, paths, continued⟩ := run
   cases result with
   | error reason =>
     have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape
-    exact .inl ⟨reason, _, _, CallbackPrefix.appendComparedTransport leading
+    exact .inl ⟨reason, [], _, _, CallbackPrefix.appendComparedTransport leading
       ⟨labels, labels, paths, trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok value =>
     obtain ⟨_, _, finished⟩ := continued value rfl
     have reached := CallbackPrefix.appendComparedTransport leading ⟨labels, labels, paths, rfl, rfl, rfl⟩
-    exact .inr ⟨_, _, _, reached, next value _ _ _ _ _ reached finished⟩
+    exact .inr ⟨_, _, _, check, canon, reached, next value _ _ _ _ _ reached finished⟩
 
 private theorem canonicalRead {left right reached : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)
@@ -483,6 +516,32 @@ theorem listOccurrencePaths {destination : RecordDestination} {inst : InstId} {e
   intro _ _ _ _ _ historyAtDescriptor _ published
   exact descriptorOccurrences historyAtDescriptor published next
 
+theorem listTransportPaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {finish : ValueFinish grow sig output} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (lift : LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst (.list element) element entries index output
+      checkNext canonNext left right check canon
+      (fun pointer bytes _ => liveListTail profile ready base bindings destination inst element entries index output child checkNext canonNext finish pointer bytes))
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index output
+      checkNext canonNext start incoming left right seen check canon
+      (liveListTailPaths destination inst element entries index output paths checkNext canonNext
+        (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed visit)) sink := by
+  apply collectionEntryTransport covers admitted leading run
+  intro pointer bytes observed lhs rhs cursor peer history body
+  refine CallbackPrefix.liveElementsPathsFrom lift history history.choose_spec.choose_spec.2.2.2 body (sink.nested _ admitted index) ?_
+  intro _ _ _ _ _ historyAtDescriptor _ published
+  exact descriptorTransport historyAtDescriptor published next
+
 private theorem mapEntryOccurrences {destination : RecordDestination} {inst : InstId} {key : WIT.KeyType}
     {element : Stored.TypeOf} {output : Stored.Lower.Output} {field value : Field} {index pointer : Nat}
     {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
@@ -711,5 +770,36 @@ theorem structuralFieldOccurrences {destination : RecordDestination} {inst : Ins
     intro item index address left right check canon checkNext canonNext finish visit before run leading same admitted next
     obtain ⟨items, shape, body⟩ := run
     exact ⟨items, shape, CallbackPrefix.aggregateOccurrencePathsFrom (tupleOccurrenceLift destination inst types children) leading same body admitted next⟩
+
+theorem recursiveListTransport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (family : RecursiveListTransportType type) :
+    LiftsFieldTransportPaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (recursiveListTransportPaths profile ready base bindings older destination inst start incoming sink type) sink := by
+  induction family with
+  | data data =>
+    cases data with
+    | @primitive primitive nonstring =>
+      cases primitive <;> first
+        | exact (nonstring rfl).elim
+        | intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ _ next
+          exact CallbackPrefix.localFieldTransport leading run next
+    | enum | flags =>
+      intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ _ next
+      exact CallbackPrefix.localFieldTransport leading run next
+  | string =>
+    intro _ _ _ _ _ _ _ _ _ _ _ before run leading _ _ next
+    obtain ⟨str, shape, body⟩ := run
+    refine ⟨str, shape, CallbackPrefix.stringValueOccurrencePathsFrom (CallbackPrefix.comparedTransportPaths leading)
+      ⟨before, leading⟩ body ?_⟩
+    intro _ _ _ _ _ _ published _ transported
+    obtain ⟨observed, reached⟩ := transported
+    exact ⟨observed, CallbackPrefix.localFieldTransport reached published next⟩
+  | list _ child =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next
+    obtain ⟨entries, shape, body⟩ := run
+    exact ⟨entries, shape, listTransportPaths covers child leading body admitted
+      (fun () observed lhs rhs cursor peer paths => next observed lhs rhs cursor peer paths paths.choose_spec.choose_spec.2.2.2)⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails

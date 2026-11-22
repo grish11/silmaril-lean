@@ -1074,11 +1074,7 @@ theorem descriptor_occurrence_transport {output : Stored.Lower.Output}
     (next : ∀ value observed lhs rhs cursor peer,
       ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
       finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
-    (∃ reason lhs rhs,
-      ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ [.trap reason]) lhs rhs ∧
-      lhs.ctl = [] ∧ rhs.ctl = []) ∨
-    (∃ observed lhs rhs,
-      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs ∧ visit observed lhs rhs check canon) :=
+    LocalTransportThen profile ready base bindings start incoming seen visit :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.descriptorTransport leading run next
 
 /-- Carry all enclosing marks through a reached string-key map entry,
@@ -1099,6 +1095,16 @@ theorem string_map_entry_occurrence_transport {destination : RecordDestination} 
     StringMapEntryTransport profile ready base bindings older destination inst element output start incoming visit
       field value index slot checkNext canonNext seen left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryTransport leading run next
+
+/-- Derive every child lift by induction on the supported scalar/string
+list schema. The premises do not supply any equivalent child histories. -/
+theorem recursive_list_occurrence_transport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+    {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (family : RecursiveListTransportType type) :
+    LiftsFieldTransportPaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (recursiveListTransportPaths profile ready base bindings older destination inst start incoming sink type) sink :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.recursiveListTransport covers family
 
 /-- Heterogeneous records and tuples select the scalar, string or nominal
 child rule from the compiled slot's declared schema. The actual bounds read,
