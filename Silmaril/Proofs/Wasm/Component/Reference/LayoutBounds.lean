@@ -82,4 +82,34 @@ theorem field_fits (fields : List Layout) (base index offset : Nat) (field : Lay
   rw [shifted, recordLayout, Layout.size_rounded]
   exact Nat.add_le_add_left (align_ge _ _) _
 
+private theorem case_limits (cases : List (Option Layout)) (field : Layout) (member : some field ∈ cases) :
+    field.alignment.bytes ∣ (maxCaseAlignment cases).bytes ∧ field.size ≤ maxCaseSize cases := by
+  induction cases with
+  | nil => simp at member
+  | cons head rest ih =>
+    cases head with
+    | none => exact ih ((List.mem_cons.mp member).resolve_left (by simp))
+    | some head =>
+      rcases List.mem_cons.mp member with same | later
+      · cases Option.some.inj same
+        exact ⟨join_left _ _, Nat.le_max_left _ _⟩
+      · obtain ⟨alignment, size⟩ := ih later
+        exact ⟨Nat.dvd_trans alignment (join_right _ _), Nat.le_trans size (Nat.le_max_right _ _)⟩
+
+theorem variant_fits (cases : List (Option Layout)) (base : Nat) (field : Layout)
+    (aligned : (variantLayout cases).alignment.bytes ∣ base) (member : some field ∈ cases) :
+    let offset := alignTo (base + (discriminantAlignment cases.length).bytes) (maxCaseAlignment cases)
+    offset % field.alignment.bytes = 0 ∧ offset + field.size ≤ base + (variantLayout cases).size := by
+  let payload := maxCaseAlignment cases
+  let tag := discriminantAlignment cases.length
+  have shift := align_shift base tag.bytes payload (Nat.dvd_trans (join_right tag payload) aligned)
+  obtain ⟨childAlign, childSize⟩ := case_limits cases field member
+  change alignTo (base + tag.bytes) payload % field.alignment.bytes = 0 ∧
+    alignTo (base + tag.bytes) payload + field.size ≤ base + (variantLayout cases).size
+  refine ⟨Nat.mod_eq_zero_of_dvd (Nat.dvd_trans childAlign (Nat.dvd_of_mod_eq_zero (align_mod _ _))), ?_⟩
+  rw [shift]
+  have rounded := align_ge (alignTo tag.bytes payload + maxCaseSize cases) (tag.join payload)
+  change alignTo tag.bytes payload + maxCaseSize cases ≤ (variantLayout cases).size at rounded
+  omega
+
 end Silmaril.Proofs.Wasm.Component.Reference.LayoutBounds

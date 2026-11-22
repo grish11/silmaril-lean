@@ -31,6 +31,15 @@ theorem preflightValue_value {E : CoreEngine} (cx : LiftLowerContext E) (type : 
   simp only [preflightValue, bind, Except.bind, Except.mapError] at compiled
   split at compiled <;> first | contradiction | exact RecordLower.compileValue_value _ _ _ _ _ _ _ compiled
 
+/-- Both public payload routes obtain the recursive node shape from their
+actual preflight, independently of the authority available at a later visit. -/
+theorem preflightValue_emitted {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf)
+    (payload : Payload type) (output : Stored.Lower.Output) (field : RecordLower.Field)
+    (objects : List RecordLower.Object) (compiled : preflightValue cx type payload output = .ok (field, objects)) :
+    field.Emitted := by
+  simp only [preflightValue, bind, Except.bind, Except.mapError] at compiled
+  split at compiled <;> first | contradiction | exact RecordLower.compileValue_emitted _ _ _ _ _ _ _ compiled
+
 /-- The recursive layout certificate for either public payload output. -/
 theorem preflightValue_layout {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf)
     (payload : Payload type) (output : Stored.Lower.Output) (field : RecordLower.Field)

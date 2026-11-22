@@ -26,6 +26,12 @@ namespace Silmaril.Logic.TypeTheory.ExtensionalMLTT.SExp
 open Silmaril.Logic.Smt (SE)
 open Silmaril.Logic.Smt.SExpr.Writer (LegalExpr)
 
+theorem readTm?_encodeTm {depth : Nat} (term : ETm depth) : readTm? depth (encodeTm term) = some term :=
+  Proofs.Logic.TypeTheory.ExtensionalMLTT.SExp.readTm?_encodeTm term
+
+theorem readCtx?_encodeCtx (context : ECtx) : readCtx? (encodeCtx context) = some context :=
+  Proofs.Logic.TypeTheory.ExtensionalMLTT.SExp.readCtx?_encodeCtx context
+
 theorem decodeJdg_encodeJdg (J : EJdg) : decodeJdg (encodeJdg J) = some J :=
   Proofs.Logic.TypeTheory.ExtensionalMLTT.SExp.decodeJdg_encodeJdg J
 

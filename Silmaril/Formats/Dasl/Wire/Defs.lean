@@ -22,14 +22,17 @@ abbrev Cid := Drisl.Cid .dasl
   | .obj cid => IsObjectCid cid
   | .blob cid => IsRawCid cid
 
-@[expose] def cidCodec : Drisl.CidCodec (Link Cid) where
+/-- Preserve the raw/object distinction after checking the selected CID profile. -/
+@[expose] def cidCodecFor (profile : Drisl.CidProfile) : Drisl.CidCodec (Link (Drisl.Cid profile)) where
   bytes
     | .obj cid | .blob cid => cid.val
   parse? bytes := do
-    let cid ← (Drisl.Cid.codec .dasl).parse? bytes
+    let cid ← (Drisl.Cid.codec profile).parse? bytes
     if cid.val[1]? = some 0x71 then some (.obj cid)
     else if cid.val[1]? = some 0x55 then some (.blob cid)
     else none
+
+@[expose] def cidCodec : Drisl.CidCodec (Link Cid) := cidCodecFor .dasl
 
 /-- Forget field order. For duplicate entries this keeps the first; the wire reader rejects duplicates. -/
 @[expose] def dictFields {Name : Type} : List (String × Shallow Name) →

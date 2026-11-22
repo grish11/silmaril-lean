@@ -21,6 +21,10 @@ open Silmaril.Logic.Concrete (SExpCodec)
 
 variable {opArity relArity : String → Option ℕ}
 
+theorem readTerm?_encodeTerm {depth : Nat} (term : Term (named opArity relArity) depth) :
+    readTerm? opArity relArity depth (encodeTerm term) = some term :=
+  Proofs.Logic.Institution.Examples.UFOL.SExp.readTerm?_encode term
+
 theorem decodeFormula_eq_some_iff {k : ℕ} {e : SE} {φ : Formula (named opArity relArity) k} :
     decodeFormula opArity relArity k e = some φ ↔ encodeFormula φ = e :=
   Proofs.Logic.Institution.Examples.UFOL.SExp.decodeFormula_eq_some_iff

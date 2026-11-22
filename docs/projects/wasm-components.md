@@ -69,13 +69,55 @@ registration. For actual linked components, `Linked2.sessObs_eq` needs the
 adequate wire and the corresponding importer/exporter instances, discharged
 within `Linked2.sessAdequacy_full` for that class;
 `HLinked2.sessAdequacy_full` also requires typed host handling and retains
-the host run. The flat Core-module wiring fixture proves neither the linked
-instantiation/store correspondence nor an observation map for all prefixes.
+the host run. Those linked results do not apply to the flat Core-module
+wiring: its consumer imports a Core instance directly, not via the nested
+components and canonical trampolines of `Linked2.toRef`.
+
+The [flat wiring regression](../../tests/wasm/inductive-component/Regression.lean)
+checks one runtime witness independently of `Simple`: reference instantiation
+resolves `env.get` to the provider at Core address 0 and lifts `run` at address
+1. The entire ready Core store agrees with sequential checked Core
+instantiation from the empty store. The reference call of `run` returns
+`u32 42` with the Core store of the unique deterministic terminal Core
+configuration (`i32 42`). The same call is a complete Core scalar-game
+activation; translating the store's host-code type preserves all its fields
+and rejects host functions. A Core import resolved to a Wasm function is not
+a game host move.
+
+`DirectLift.terminalReadback` goes beyond this witness: it inverts any stock
+terminal `Calls` trace from the existing one-owner `readyCfg` frame, not just
+an interpreter trace. It needs a fresh call id, a reusable thread slot, a
+name lookup in the supplied export table and a direct lift at the scalar
+question's resolved Core address. The game instance must be well formed at
+the shared store and have no host imports. The ABI is synchronous and
+float-free, with default options, specification limits, at most 16 flat
+inputs and one flat result, and no ABI memory or resource operations. Core
+steps themselves are not required to preserve the store.
+
+Readback gives `Entry.Finishes` and a store-bearing scalar-game `Activation`.
+The final Core stores agree after renaming the host-code type. A reference trap
+can reflect a Core trap, a Core throw, or a normal Core result rejected by the
+ABI (for example, a surrogate returned as `char`). The typed Core game answer
+retains that distinction. No registration or proof that arbitrary component
+instantiation establishes `readyCfg` is inferred; nor does the result cover
+resumption after lockdown, other owners, host moves or arbitrary prefixes.
 The stock `Simple.adequacy` identifies only trap-last plays; observing the
 retained store after a trap would distinguish its existing witnesses.
 
+For the start-free two-module direct wire, `DirectWire.instantiates_iff`
+derives the ready configuration from the stock preparation and resolution
+checks. `DirectWire.terminalForwardOfInstantiation` follows a given finite
+Core `Entry.Finishes` from the resolved address and constructs a stock
+reference `Calls` derivation at the named lift, without fuel or a Core
+determinism hypothesis. It keeps the mapped final Core store even when the
+ABI rejects a normal Core result. Together with readback,
+`DirectWire.terminalObservationIff` equates the reachable pairs of reported
+ABI outcome and mapped final Core store on this boundary. It does not equate
+Core results with component values or identify complete traces; host imports,
+divergence, and nested component links are outside this theorem.
+
 ```sh
-make check CHECK_TARGETS='+Silmaril.Wasm.Component.IntrinsicWiring.Lift.Observation.Thms'
+make check CHECK_TARGETS='+Silmaril.Wasm.Component.Reference.DirectLift.Init.Thms +Silmaril.Wasm.Component.Reference.DirectLift.Thms'
 ```
 
 ## What ships

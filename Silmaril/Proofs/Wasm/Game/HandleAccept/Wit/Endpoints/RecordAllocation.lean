@@ -153,4 +153,78 @@ theorem descendant {root child : Field} {type : TypeOf} (path : Field.Descendant
         (by simpa only [Fits, Field.value, Lower.fits, Val.resultCheck, Field.armValue] using fits)
       exact ih next admitted
 
+private theorem recordPointer {types : List (String × TypeOf)} {fields : List Field} {child : Field}
+    (certificate : Field.FieldsMatch fields (types.map Prod.snd)) (member : child ∈ fields)
+    (pointer : ∀ {type}, child.LayoutMatches type → Validation.containsPtr type = true) :
+    Validation.containsPtrFields types = true := by
+  induction types generalizing fields with
+  | nil => cases certificate; simp at member
+  | cons _ _ ih =>
+    cases certificate with
+    | cons first rest =>
+      apply Bool.or_eq_true_iff.mpr
+      rcases List.mem_cons.mp member with rfl | tail
+      · exact .inl (pointer first)
+      · exact .inr (ih rest tail)
+
+private theorem tuplePointer {types : List TypeOf} {fields : List Field} {child : Field}
+    (certificate : Field.FieldsMatch fields types) (member : child ∈ fields)
+    (pointer : ∀ {type}, child.LayoutMatches type → Validation.containsPtr type = true) :
+    Validation.containsPtrList types = true := by
+  induction types generalizing fields with
+  | nil => cases certificate; simp at member
+  | cons _ _ ih =>
+    cases certificate with
+    | cons first rest =>
+      apply Bool.or_eq_true_iff.mpr
+      rcases List.mem_cons.mp member with rfl | tail
+      · exact .inl (pointer first)
+      · exact .inr (ih rest tail)
+
+private theorem casePointer {types : List (String × Option TypeOf)} {tag : Nat} {selected : Option TypeOf}
+    (arm : (types.map Prod.snd)[tag]? = some selected)
+    (pointer : Validation.containsPtrOpt selected = true) : Validation.containsPtrCases types = true := by
+  induction types generalizing tag with
+  | nil => simp at arm
+  | cons head tail ih =>
+    apply Bool.or_eq_true_iff.mpr
+    cases tag with
+    | zero =>
+      have equal : head.2 = selected := by simpa using arm
+      exact .inl (equal.symm ▸ pointer)
+    | succ tag => exact .inr (ih (tag := tag) (by simpa using arm))
+
+theorem descendantPointer {root child : Field} {type : TypeOf} (path : Field.Descendant root child)
+    (certificate : root.LayoutMatches type) (pointer : Validation.containsPtr child.type = true) :
+    Validation.containsPtr type = true := by
+  induction path generalizing type with
+  | self _ => exact certificate.type_eq ▸ pointer
+  | aggregate member _ ih =>
+    cases certificate with
+    | record checked => exact recordPointer checked member (fun matched => ih matched pointer)
+    | tuple checked => exact tuplePointer checked member (fun matched => ih matched pointer)
+  | fixed member _ ih =>
+    cases certificate with
+    | fixed _ checked =>
+      rw [Validation.containsPtr]
+      exact ih (entriesMember checked member) pointer
+  | dynamic _ _ _ => cases certificate <;> rfl
+  | sum _ ih =>
+    cases certificate with
+    | variant arm checked => cases checked with | some payload => exact casePointer arm (ih payload pointer)
+    | optionSome checked =>
+      rw [Validation.containsPtr]
+      exact ih checked pointer
+    | resultOk checked => cases checked with | some payload => exact Bool.or_eq_true_iff.mpr (.inl (ih payload pointer))
+    | resultError checked => cases checked with | some payload => exact Bool.or_eq_true_iff.mpr (.inr (ih payload pointer))
+
+theorem descendantTrans {root child leaf : Field} (first : Field.Descendant root child)
+    (second : Field.Descendant child leaf) : Field.Descendant root leaf := by
+  induction first with
+  | self _ => exact second
+  | aggregate member _ ih => exact .aggregate member (ih second)
+  | fixed member _ ih => exact .fixed member (ih second)
+  | dynamic member _ ih => exact .dynamic member (ih second)
+  | sum _ ih => exact .sum (ih second)
+
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.RecordAllocation

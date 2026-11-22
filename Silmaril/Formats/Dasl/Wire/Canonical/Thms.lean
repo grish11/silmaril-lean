@@ -27,6 +27,11 @@ theorem canonical_roundtrip (value : Shallow Cid)
     render? value = some bytes ∧ parse? bytes = some value :=
   Proofs.Formats.Dasl.WireCanonical.roundtrip value valid encodable ordered
 
+theorem bdasl_roundtrip (value : Shallow BdaslCid) (valid : BdaslEncodable value) :
+    let bytes := (canonicalBdaslModel value).encode.toByteArray
+    Profile.bdasl.render? value = some bytes ∧ Profile.bdasl.parse? bytes = some value :=
+  Proofs.Formats.Dasl.WireCanonical.bdasl_roundtrip value valid
+
 theorem parse_renderBounded {value : Shallow Cid} {bytes : ByteArray}
     (rendered : renderBounded? value = some bytes) : parse? bytes = some value := by
   unfold renderBounded? at rendered

@@ -29,11 +29,23 @@ theorem PartialCodec.list_roundtrip (codec : PartialCodec Source Target) {items 
 def PartialCodec.listCodec (codec : PartialCodec Source Target) : PartialCodec (List Source) (List Target) :=
   ⟨codec.listEncode, codec.listDecode, fun _ _ => codec.list_roundtrip⟩
 
-def TotalCodec.listCodec (codec : TotalCodec Source Target) : TotalCodec (List Source) (List Target) :=
-  ⟨codec.listEncode, codec.partial.listDecode, Proofs.Formats.Dasl.Encode.list_roundtrip codec⟩
+theorem TotalCodec.list_roundtrip (codec : TotalCodec Source Target) (items : List Source) :
+    codec.partial.listDecode (codec.listEncode items) = some items :=
+  Proofs.Formats.Dasl.Encode.list_roundtrip codec items
 
-def listOf (item : TotalCodec Source (Tree Ref Name)) : TotalCodec (List Source) (Tree Ref Name) :=
+@[expose] def TotalCodec.listCodec (codec : TotalCodec Source Target) : TotalCodec (List Source) (List Target) :=
+  ⟨codec.listEncode, codec.partial.listDecode, codec.list_roundtrip⟩
+
+theorem TotalCodec.listCodec_encode (codec : TotalCodec Source Target) (items : List Source) :
+    codec.listCodec.encode items = codec.listEncode items := by rw [TotalCodec.listCodec]
+
+@[expose] def listOf (item : TotalCodec Source (Tree Ref Name)) : TotalCodec (List Source) (Tree Ref Name) :=
   item.listCodec.then list
+
+theorem listOf_encode (item : TotalCodec Source (Tree Ref Name)) (items : List Source) :
+    (listOf item).encode items = list.encode (items.map item.encode) := by
+  unfold listOf TotalCodec.listCodec
+  rfl
 
 def partialListOf (item : PartialCodec Source (Tree Ref Name)) : PartialCodec (List Source) (Tree Ref Name) :=
   item.listCodec.then list.partial

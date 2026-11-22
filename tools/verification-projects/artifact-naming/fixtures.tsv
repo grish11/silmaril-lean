@@ -1,0 +1,4 @@
+id	profile	codec	algorithm	cid_hex	payload_hex
+hello	dasl	raw	sha256	015512205891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03	68656c6c6f0a
+title	dasl	drisl	sha256	017112201eb1e5b0325857265ea2e0af7a697aa7d12b51f137c100b17106be3d64791649	6853696c6d6172696c
+empty	bdasl	raw	blake3	01551e20af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262	-

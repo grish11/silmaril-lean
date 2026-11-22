@@ -9,6 +9,10 @@ namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower.Field
 
 open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.Wasm.Component.Canon
 
+theorem Descendant.trans {root child leaf : Field} (first : Descendant root child)
+    (second : Descendant child leaf) : Descendant root leaf :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.RecordAllocation.descendantTrans first second
+
 /-- The root's allocation check at the linked width entails the allocation
 preconditions of every active compiled descendant. This is a static value
 fact, not a range, authority, or allocator-return guarantee. -/
@@ -30,5 +34,12 @@ theorem Descendant.string_pre {root : Field} {type : TypeOf} (payload : Payload 
     StoreStringPre quirks encoding width str := by
   have fits := (path.fits layout quirks encoding width admitted).2
   simpa only [Field.type, Field.value, represents, Lower.fits, decide_eq_true_eq] using fits
+
+/-- Every pointer-bearing active descendant is covered by the original
+schema's canonical option check. -/
+theorem Descendant.containsPtr {root child : Field} {type : TypeOf}
+    (path : Descendant root child) (certificate : root.LayoutMatches type)
+    (pointer : Validation.containsPtr child.type = true) : Validation.containsPtr type = true :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.RecordAllocation.descendantPointer path certificate pointer
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower.Field

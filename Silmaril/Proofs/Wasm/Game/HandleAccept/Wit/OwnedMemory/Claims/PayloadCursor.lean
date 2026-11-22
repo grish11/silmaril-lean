@@ -6,6 +6,7 @@ public import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Width.Thms
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
+import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 
 public section
 
@@ -18,6 +19,7 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core (LocalIssue)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 open Silmaril.Wasm.Game.HandleAccept.Wit
+open Silmaril.Wasm.Component.Machine.ReturnFrame.Occurrence
 
 variable {grow : SingleThreaded.GrowOracle} {Host : Type}
   {profile : ProfileKind} {ready : HostReady Host}
@@ -57,6 +59,17 @@ theorem memory_cursor (run : CoreGrowthSteps profile ready dispatch before trace
   apply run.read_width (destination.context inst) rfl (check_width destination before.store checked) next
   simpa only [memorySequence, bind_assoc, next] using focused
 
+theorem list_range_focus (cx : LiftLowerContext (core3 grow)) (area : Layout) (count : Nat)
+    (finish : Nat → P (core3 grow) Host (Ret (core3 grow))) :
+    (allocateListRange cx area count >>= finish) =
+      .op (.call (.reallocate cx 0 0 area.alignment.bytes (count * area.size))) (listRangeResume cx area count finish) := by
+  unfold allocateListRange allocate reallocate callNat callRet perform Prog.lift
+  simp only [bind_assoc]
+  apply congrArg (Prog.op (S := Eff (core3 grow) Host)
+    (.call (.reallocate cx 0 0 area.alignment.bytes (count * area.size))))
+  funext result
+  cases result <;> rfl
+
 theorem list_range_install (cx : LiftLowerContext (core3 grow)) (area : Layout) (count : Nat)
     (finish : Nat → P (core3 grow) Host (Ret (core3 grow))) {thread segments rest}
     (focused : after.ctl = ⟨thread, .prog (allocateListRange cx area count >>= finish),
@@ -64,15 +77,7 @@ theorem list_range_install (cx : LiftLowerContext (core3 grow)) (area : Layout) 
     let request := Call.reallocate cx 0 0 area.alignment.bytes (count * area.size)
     Step profile ready dispatch after .tau { after with ctl :=
       ⟨thread, .prog (dispatch request), .prog (listRangeResume cx area count finish) :: segments⟩ :: rest } := by
-  have unfoldCall : (allocateListRange cx area count >>= finish) =
-      .op (.call (.reallocate cx 0 0 area.alignment.bytes (count * area.size))) (listRangeResume cx area count finish) := by
-    unfold allocateListRange allocate reallocate callNat callRet perform Prog.lift
-    simp only [bind_assoc]
-    apply congrArg (Prog.op (S := Eff (core3 grow) Host)
-      (.call (.reallocate cx 0 0 area.alignment.bytes (count * area.size))))
-    funext result
-    cases result <;> rfl
-  rw [unfoldCall] at focused
+  rw [list_range_focus] at focused
   exact Machine.Step.call focused
 
 theorem list_range_body (destination : RecordDestination) (inst : InstId) (area : Layout)
@@ -114,7 +119,7 @@ theorem list_range_resume (destination : RecordDestination) (inst : InstId) (are
     let body := validateListRange (destination.context inst) area count pointer
     match (Plain.runBody body after.store after.host (some thread)).2.2 with
     | .ok value => ∃ labels, (∀ label ∈ labels, label = .tau) ∧
-        Machine.Steps profile ready dispatch after labels
+        RetainsBelowTop profile ready dispatch after labels
           { after with ctl := ⟨thread, .prog (finish value), segments⟩ :: rest }
     | .error (.trapped reason) => ∃ count, Machine.Steps profile ready dispatch after
         (List.replicate count .tau ++ [.trap reason]) (Machine.StepDefs.trapCfg after)
@@ -133,9 +138,11 @@ theorem list_range_resume (destination : RecordDestination) (inst : InstId) (are
     rw [← answer, readOnly]
   cases verdict with
   | ok value =>
-    obtain ⟨labels, silent, tail⟩ := Plain.runBody_thread_steps body reached after.store after.host value
+    obtain ⟨labels, silent, tail⟩ := Plain.runBody_thread_tracks body reached after.store after.host value
       finish thread segments rest profile ready dispatch rfl evaluation
-    refine ⟨.tau :: labels, ?_, .cons pop tail⟩
+    have returnedSlots : RetainsBelowTop profile ready dispatch after [.tau] reached := by
+      simpa only [reached, resumes] using (Prefix.pop_return (profile := profile) (ready := ready) (dispatch := dispatch) returned)
+    refine ⟨.tau :: labels, ?_, fun depth => (returnedSlots depth).append (tail depth)⟩
     intro label member
     rcases List.mem_cons.mp member with rfl | member
     · rfl
@@ -180,7 +187,7 @@ theorem list_range_recheck {sig : Stored.Signature} {ready : HostReady (HostStat
     (sized : (core3 grow).memSize? reached.store.core destination.memory = some bytes)
     (bounds : pointer + count * area.size ≤ bytes) :
     ∃ labels, (∀ label ∈ labels, label = .tau) ∧
-      Machine.Steps profile ready dispatch reached labels
+      RetainsBelowTop profile ready dispatch reached labels
         { reached with ctl := ⟨thread, .prog (finish pointer
           (Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer plan)),
           segments⟩ :: rest } := by
@@ -197,19 +204,19 @@ theorem list_range_recheck {sig : Stored.Signature} {ready : HostReady (HostStat
     destination inst area count pointer recheck resume resumes returned
   dsimp only at resumed
   rw [valid] at resumed
-  obtain ⟨labels, silent, steps⟩ := resumed
-  have reads : Machine.Steps profile ready dispatch
+  obtain ⟨labels, silent, tracks⟩ := resumed
+  have reads : RetainsActiveSlots profile ready dispatch
       { reached with ctl := ⟨thread, .prog (recheck pointer), segments⟩ :: rest } [.tau, .tau]
       { reached with ctl := ⟨thread, .prog (finish pointer
         (Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer plan)),
         segments⟩ :: rest } :=
-    .cons (.get rfl) (.cons (.hostGet rfl) (.refl _))
+    fun _ => .step (.get rfl) rfl (.step (.hostGet rfl) rfl (.done _ _))
   refine ⟨labels ++ [.tau, .tau], ?_, ?_⟩
   · intro label member
     rcases List.mem_append.mp member with inPrefix | inReads
     · exact silent label inPrefix
     · simpa using inReads
-  · exact append_steps steps reads
+  · exact fun depth => (tracks depth).append (reads depth)
 
 theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (HostState sig)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}

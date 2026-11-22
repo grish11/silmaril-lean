@@ -49,6 +49,32 @@ def Field.type : Field → TypeOf
   | .dynamic type _ _ => type
   | .sum type _ _ _ => type
 
+/-- Unlike a layout certificate, this describes the nodes emitted by the
+recursive compiler. In particular a map entry has a checked primitive key
+and a recursively emitted value, not an opaque data record. -/
+inductive Field.Emitted : Field → Prop where
+  | primitive {primitive : WIT.Primitive} (payload : Payload (.prim primitive)) : Emitted (.data (.prim primitive) payload)
+  | enum {cases : List String} (payload : Payload (.enum cases)) :
+      Lower.checkSchema (.enum cases) = .ok () → Emitted (.data (.enum cases) payload)
+  | flags {labels : List String} (payload : Payload (.flags labels)) :
+      Lower.checkSchema (.flags labels) = .ok () → Emitted (.data (.flags labels) payload)
+  | endpoint {channel : Channel} {element : Element} {id : EndId} : Emitted (.endpoint channel element id)
+  | context {id : ErrCtxId} : Emitted (.context id)
+  | owner {receipt : OwnedMemory.Receipt} : Emitted (.owner receipt)
+  | aggregate {type : TypeOf} {fields : List Field} : (∀ field ∈ fields, Emitted field) → Emitted (.aggregate type fields)
+  | fixed {element : TypeOf} {length : Nat} {entries : List Field} :
+      (∀ field ∈ entries, Emitted field) → Emitted (.fixed element length entries)
+  | list {element : TypeOf} {entries : List Field} : (∀ field ∈ entries, Emitted field) → Emitted (.dynamic (.list element) element entries)
+  | map {key : WIT.KeyType} {element : TypeOf} {entries : List Field} :
+      (∀ entry ∈ entries, ∃ (checked : Payload (.prim key.toPrimitive)) (value : Field),
+      entry = .aggregate (.record (mapEntryFields key element)) [.data (.prim key.toPrimitive) checked, value]) →
+      (∀ (checked : Payload (.prim key.toPrimitive)) (value : Field),
+        .aggregate (.record (mapEntryFields key element)) [.data (.prim key.toPrimitive) checked, value] ∈ entries →
+          Emitted value) →
+      Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries)
+  | sum {type : TypeOf} {arms : List (Option TypeOf)} {tag : Nat} {selected : Option Field} :
+      (∀ field, selected = some field → Emitted field) → Emitted (.sum type arms tag selected)
+
 mutual
 /-- The canonical value described by the active compiled fields. This erases
 nominal owner identities for comparison with the ABI; it confers no authority. -/
