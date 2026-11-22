@@ -129,6 +129,64 @@ theorem cutComponentLowerEntry (callee : ComponentCall.Callee sig) (caller : Cal
       CallbackPrefix.stationaryTransport left right, aligned, residual⟩
   · exact .inr short
 
+set_option maxHeartbeats 2000000 in
+theorem cutComponentAdmitted (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (focused : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ())
+    (observed : callee.ChildObservationsAgree start.host.writer.accepted incoming.host.writer.accepted start.store cx args)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let plan := callee.childPreflight start.host.writer.accepted start.store cx args
+    let reached := fun (state : Config (core3 grow) (HostState sig)) atFrames atRest =>
+      { state with
+        host := state.host.enter callee.name callee.coreType args
+        ctl := ⟨some active, .prog (ComponentCall.acceptPlanned callee caller state.host.nextTicket plan), atFrames⟩ :: atRest }
+    (∃ peerFrames peerRest suffix, labels = List.replicate 7 .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau)
+        (reached start frames rest) (reached incoming peerFrames peerRest) ∧
+      PairedComponentSite older (reached start frames rest) (reached incoming peerFrames peerRest)
+        ⟨some active, frames, rest⟩ ⟨some active, peerFrames, peerRest⟩ ∧
+      Steps profile ready (specDispatch ready base) (reached start frames rest) suffix finish) ∨ labels.length < 7 := by
+  dsimp only
+  obtain ⟨peerFrames, peerRest, peerFocus, aligned⟩ := paired.retarget focused (.prog (.pure (.cancel .none)))
+    (start.host.enter callee.name callee.coreType args) (incoming.host.enter callee.name callee.coreType args)
+  have sameStore := paired.data.1
+  have plan : callee.childPreflight start.host.writer.accepted start.store cx args =
+      callee.childPreflight incoming.host.writer.accepted incoming.store cx args :=
+    (ComponentCall.child_preflight_agrees callee observed).trans
+      (congrArg (fun store => callee.childPreflight incoming.host.writer.accepted store cx args) sameStore)
+  have leftEntry := ComponentCall.invoke_lower_entry (prof := profile) (ready := ready) (dispatch := specDispatch ready base)
+    callee caller record focused
+  have rightEntry := ComponentCall.invoke_lower_entry (prof := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) callee caller (sameStore ▸ record) peerFocus
+  let entered (state : Config (core3 grow) (HostState sig)) atFrames atRest :=
+    { state with
+      host := state.host.enter callee.name callee.coreType args
+      ctl := ⟨some active, .prog (ComponentCall.invokeLower callee caller state.host subtask cx args pos ft limits results),
+        atFrames⟩ :: atRest }
+  have left := fun place => (leftEntry place).append (ComponentCall.invoke_lower_admitted
+    (config := entered start frames rest) callee caller start.host liveThread liveTask context admitted rfl place)
+  have right := fun place => (rightEntry place).append (ComponentCall.invoke_lower_admitted
+    (config := entered incoming peerFrames peerRest) callee caller incoming.host
+    (sameStore ▸ liveThread) (sameStore ▸ liveTask) context (sameStore ▸ admitted) rfl place)
+  change ∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+    incoming place (List.replicate 7 .tau)
+    { incoming with
+      host := incoming.host.enter callee.name callee.coreType args
+      ctl := ⟨some active, .prog (ComponentCall.acceptPlanned callee caller incoming.host.nextTicket
+        (callee.childPreflight incoming.host.writer.accepted incoming.store cx args)), peerFrames⟩ :: peerRest } place at right
+  rw [← plan] at right
+  rcases splitSilent (count := 7) (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · exact .inl ⟨peerFrames, peerRest, suffix, split, CallbackPrefix.stationaryTransport left right, aligned, residual⟩
+  · exact .inr short
+
 private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
     {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :

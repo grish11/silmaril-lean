@@ -110,6 +110,22 @@ theorem plan_children_agrees (callee : Callee sig) (cx : LiftLowerContext (core3
       exact congrArg (fun result => some <$> result) selected
     · simp [selectChildren, arity]; rfl
 
+theorem child_preflight_agrees (callee : Callee sig) {left right : List (Tree sig)}
+    {store : CStore (core3 grow)} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    (agrees : callee.ChildObservationsAgree left right store cx args) :
+    callee.childPreflight left store cx args = callee.childPreflight right store cx args := by
+  unfold Callee.childPreflight
+  cases schema : Stored.OwnedMemory.checkSchema (sig.payload callee.tag) with
+  | error _ => rfl
+  | ok checked =>
+    cases checked
+    have capacity := agrees.capacity schema
+    by_cases full : left.length + 1 ≥ 2 ^ 32
+    · simp only [ite_eq_left full, ite_eq_left (capacity.mp full)]
+    · have peer := fun exhausted => full (capacity.mpr exhausted)
+      have plans := plan_children_agrees callee cx args store (agrees.lookups schema (Nat.lt_of_not_ge full))
+      simpa only [ite_eq_right full, ite_eq_right peer] using plans
+
 theorem invoke_lower_entry (callee : Callee sig) (caller : CallerId)
     {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
     {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}

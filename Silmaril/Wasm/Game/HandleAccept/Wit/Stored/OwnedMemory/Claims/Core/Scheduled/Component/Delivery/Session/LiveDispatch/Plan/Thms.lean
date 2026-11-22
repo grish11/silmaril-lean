@@ -102,6 +102,36 @@ theorem cut_component_lower_entry (callee : ComponentCall.Callee sig) (caller : 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentLowerEntry
     callee caller focused record run paired
 
+/-- Consume the actual entry and admitted guard steps, then expose the shared pre-lift
+decision with separate tickets and every enclosing occurrence intact. A finite checked
+run ending earlier does not authorize a completed admission. -/
+theorem cut_component_admitted (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (focused : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ())
+    (observed : callee.ChildObservationsAgree start.host.writer.accepted incoming.host.writer.accepted start.store cx args)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let plan := callee.childPreflight start.host.writer.accepted start.store cx args
+    let reached := fun (state : Config (core3 grow) (HostState sig)) atFrames atRest =>
+      { state with
+        host := state.host.enter callee.name callee.coreType args
+        ctl := ⟨some active, .prog (ComponentCall.acceptPlanned callee caller state.host.nextTicket plan), atFrames⟩ :: atRest }
+    (∃ peerFrames peerRest suffix, labels = List.replicate 7 .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau)
+        (reached start frames rest) (reached incoming peerFrames peerRest) ∧
+      PairedComponentSite older (reached start frames rest) (reached incoming peerFrames peerRest)
+        ⟨some active, frames, rest⟩ ⟨some active, peerFrames, peerRest⟩ ∧
+      Steps profile ready (specDispatch ready base) (reached start frames rest) suffix finish) ∨ labels.length < 7 :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentAdmitted
+    callee caller focused record liveThread liveTask context admitted observed run paired
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}

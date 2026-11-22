@@ -72,6 +72,14 @@ theorem plan_children_agrees (callee : Callee sig) (cx : LiftLowerContext (core3
     planChildren callee cx args store left = planChildren callee cx args store right :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.plan_children_agrees callee cx args store agrees
 
+/-- Shared preflight follows from the reached capacity and child observations, not from
+agreement on an entire history. Schema rejection demands neither observation. -/
+theorem child_preflight_agrees (callee : Callee sig) {left right : List (Tree sig)}
+    {store : CStore (core3 grow)} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    (agrees : callee.ChildObservationsAgree left right store cx args) :
+    callee.childPreflight left store cx args = callee.childPreflight right store cx args :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.child_preflight_agrees callee agrees
+
 /-- The actual `invokeLower` guard reads the live store, active thread and task. An
 admitted call advances without changing its host, store or occurrence slots. -/
 theorem invoke_lower_admitted {prof : ProfileKind} {ready : HostReady (HostState sig)}
