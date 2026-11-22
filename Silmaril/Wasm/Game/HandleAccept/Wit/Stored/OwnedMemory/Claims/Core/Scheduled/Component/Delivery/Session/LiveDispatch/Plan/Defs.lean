@@ -124,6 +124,46 @@ def componentStoreOp : (Eff (core3 grow) (HostState sig)).Op → Bool
   | .get | .modify _ | .currentThread | .choose _ | .trap _ => true
   | _ => false
 
+/-- Parameters obtained from the reached callout checks and live handle lookup. -/
+structure WaitableCalloutEntry where
+  inst : InstId
+  set : WsetId
+  ptr : Nat
+
+def waitableCalloutHost (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) : CanonHost (core3 grow) :=
+  .builtin (if poll then .waitableSetPoll mem else .waitableSetWait mem) inst
+
+/-- The shared entry of the public poll and wait programs, before either can
+select an event or change the waiter's count. -/
+def waitableCalloutEntry (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue) :
+    Session grow sig WaitableCalloutEntry := do
+  let thread ← currentThread
+  let store ← getStore
+  match calloutEntry store thread (waitableCalloutHost poll mem inst) with
+  | some reason => trap reason
+  | none => withArgs2 args fun index ptr => do
+    let current ← Builtins.enterWaitableBuiltin
+    let set ← Builtins.expectWset (← handlesGet current index)
+    pure ⟨current, set, ptr⟩
+
+def waitableCalloutBody (poll : Bool) (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) :
+    Session grow sig (Ret (core3 grow)) := do
+  let event ← if poll then wsetPoll entry.set else wsetWait entry.set
+  let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
+  pure (.flat [i32Flat code])
+
+/-- Record the event consumed by the public poll's actual buffer program.
+Only the code becomes a flat result for Core. -/
+def pollCalloutObservation (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue) :
+    Session grow sig (AsyncRef.EventTuple × Nat) := do
+  let entry ← waitableCalloutEntry true mem inst args
+  let event ← wsetPoll entry.set
+  let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
+  pure (event, code)
+
+def pollCalloutResult (observation : AsyncRef.EventTuple × Nat) : Session grow sig (Ret (core3 grow)) :=
+  .pure (.flat [i32Flat observation.2])
+
 /-- The frontier of an executed store-only component prefix. A pending
 operation is not a refusal, and a trap does not run either continuation. -/
 inductive ComponentStoreFrontier {Result : Type}
@@ -144,6 +184,32 @@ inductive ComponentStoreFrontier {Result : Type}
       (boundary : suffix = [] ∨ (¬ closed ∧ componentStoreOp op = false))
   | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
       (paired : HostFrame.Related.Paired older left right)
+
+/-- The end of the actual finite public poll cut. At reply focus the installed
+caller is still live; only the rejoined case consumes its original slot. -/
+inductive PollCalloutExit (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | exhausted (noMore : suffix = []) (endpoint : finish = left)
+  | trapped (checked : left.ctl = []) (canonical : right.ctl = []) (paired : HostFrame.Related.Paired older left right)
+  | rejoined (observation : AsyncRef.EventTuple × Nat) {thread core resume frames rest peerFrames peerRest remaining}
+      (checked : left.ctl = ⟨thread, .prog (pollCalloutResult observation), .core core resume :: frames⟩ :: rest)
+      (canonical : right.ctl = ⟨thread, .prog (pollCalloutResult observation), .core core resume :: peerFrames⟩ :: peerRest)
+      (split : suffix = .tau :: remaining)
+      (residual : Steps profile ready (specDispatch ready base)
+        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
+          frames⟩ :: rest } remaining finish)
+      (paired : HostFrame.Related.Paired older
+        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
+          frames⟩ :: rest }
+        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat observation.2])) resume,
+          peerFrames⟩ :: peerRest })
+      (pop : OccurrenceTransport profile ready base bindings left right [.tau] [.tau]
+        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
+          frames⟩ :: rest }
+        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat observation.2])) resume,
+          peerFrames⟩ :: peerRest })
 
 /-- The reached endpoint of a successful validation path. Publication can
 reach the reply focus without returning to the caller or delivering an event. -/

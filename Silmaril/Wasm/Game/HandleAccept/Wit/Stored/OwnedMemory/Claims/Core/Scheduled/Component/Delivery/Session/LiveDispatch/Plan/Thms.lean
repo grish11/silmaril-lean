@@ -321,6 +321,75 @@ theorem cut_waitable_selection (poll : Bool) (ws : WsetId)
     _ checkNext canonNext (fun _ => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.waitableSelectionEffects poll ws)
     leftFocus rightFocus paired run
 
+/-- Follow the actual public poll or wait entry, including the defining-instance
+check, argument decoder, current-instance checks and handle lookup. A reached
+trap or exhausted prefix does not supply a waitable set or a caller reply. -/
+theorem cut_waitable_callout_entry (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (specDispatch ready base (.hostCallout (waitableCalloutHost poll mem inst) args)))
+    (rightFocus : incoming.ctl = canon.control (specDispatch ready (LiveDispatch.host bindings base)
+      (.hostCallout (waitableCalloutHost poll mem inst) args)))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (waitableCalloutBody poll mem) (waitableCalloutBody poll mem)
+        reached peer suffix True ∧ reached.host = start.host ∧ peer.host = incoming.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableCalloutEntry
+    poll mem inst args leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+/-- Recover the public waitable callout and both original caller occurrences
+from an executed Core install. Older active and saved marks are transported
+across the push; the new mark denotes the installed caller, not the reply. -/
+theorem cut_waitable_callout_install (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
+    {thread core resume frames rest label next}
+    (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (waitableCalloutHost poll mem inst) args)
+    (taken : Step profile ready (specDispatch ready base) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest,
+      let caller : Seg (core3 grow) (HostState sig) := .core core resume
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: peerFrames, peerRest⟩
+      let request := Call.hostCallout (waitableCalloutHost poll mem inst) args
+      let reached := { start with ctl := check.control (specDispatch ready base request) }
+      let peer := { incoming with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) request) }
+      label = .tau ∧ next = reached ∧ PairedComponentSite older reached peer check canon ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
+      segmentAt (segmentStorage reached) (.active 0 0) = some caller ∧
+      segmentAt (segmentStorage peer) (.active 0 0) = some caller :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableCalloutInstall
+    poll mem inst args focused calling taken paired
+
+open ReturnFrame.Occurrence in
+/-- Follow an executed public poll from its Core install through the reached
+selection and buffer program. The returned case has already consumed the
+original Core frame; its residual comes from the same checked derivation.
+Finite exhaustion (including at reply focus) and traps do not pop it. -/
+theorem cut_public_poll (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
+    {thread core resume frames rest label installed}
+    (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (waitableCalloutHost true mem inst) args)
+    (step : Step profile ready (specDispatch ready base) start label installed)
+    (run : Steps profile ready (specDispatch ready base) installed labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest leading suffix reached peer,
+      let caller : Seg (core3 grow) (HostState sig) := .core core resume
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: peerFrames, peerRest⟩
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      (∃ mark, OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer [mark]) ∧
+      (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+        reached peer [some (.active 0 0)]) ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon pollCalloutResult pollCalloutResult reached peer suffix True ∧
+      PollCalloutExit profile ready base bindings older reached peer suffix finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicPoll
+    mem inst args focused calling step run paired
+
 /-- Follow the same actual run from selection through event-buffer writes. A
 returned frontier records the event and code together. A late buffer trap
 keeps the earlier event consumption and does not run either continuation. -/
