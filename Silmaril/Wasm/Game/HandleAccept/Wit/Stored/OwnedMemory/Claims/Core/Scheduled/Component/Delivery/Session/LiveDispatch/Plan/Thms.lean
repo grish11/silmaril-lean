@@ -300,6 +300,49 @@ theorem cut_component_store_body {Result : Type} (body : Session grow sig Result
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
     body checkNext canonNext False.elim leftFocus rightFocus paired run
 
+/-- Extract the reached poll result (including an empty poll) or the selection
+shared with wait. The same executed shuffle is used on the peer. Taking an
+event reads and updates the live store; no particular producer or pending
+record is assumed. An exhausted prefix need not reach the buffer program. -/
+theorem cut_waitable_selection (poll : Bool) (ws : WsetId)
+    (checkNext canonNext : AsyncRef.EventTuple → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control ((if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= checkNext))
+    (rightFocus : incoming.ctl = canon.control ((if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= canonNext))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
+    _ checkNext canonNext (fun _ => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.waitableSelectionEffects poll ws)
+    leftFocus rightFocus paired run
+
+/-- Follow the same actual run from selection through event-buffer writes. A
+returned frontier records the event and code together. A late buffer trap
+keeps the earlier event consumption and does not run either continuation. -/
+theorem cut_waitable_delivery (poll : Bool) (ws : WsetId) (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
+    (checkNext canonNext : Nat → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control ((if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= fun event =>
+      unpackEvent cx ptr event >>= checkNext))
+    (rightFocus : incoming.ctl = canon.control ((if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= fun event =>
+      unpackEvent cx ptr event >>= canonNext))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (fun outcome : AsyncRef.EventTuple × Nat => checkNext outcome.2)
+        (fun outcome => canonNext outcome.2) reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableDelivery
+    poll ws cx ptr checkNext canonNext check canon leftFocus rightFocus paired run
+
 open ReturnFrame.Occurrence in
 /-- Follow the reached admitted argument observer, from the live caller read
 through direct or spilled lifting and the caller-position write. Only a reached

@@ -253,6 +253,22 @@ private theorem componentTrapUnique {reason : TrapReason} {cursor : PayloadPrefi
     simp_all
   exact Op.trap.inj operation
 
+private theorem componentChoiceActual {choice : ChoiceKind} {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume : choice.Resp → Session grow sig (Ret (core3 grow))} {label reached}
+    (focus : start.ctl = cursor.control (.op (.choose choice) resume))
+    (step : Step profile ready (specDispatch ready base) start label reached) :
+    ∃ result, label = .choice choice result ∧ reached = { start with ctl := cursor.control (resume result) } ∧
+      Allowed profile choice result := by
+  cases cursor
+  cases step
+  case choose result found allowed =>
+    rw [focus] at found
+    cases found
+    exact ⟨_, rfl, rfl, allowed⟩
+  all_goals try (cases (show Fault start _ from by assumption))
+  all_goals simp_all [PayloadPrefix.Cursor.control, StepDefs.HostReadyCfg]
+  all_goals obtain ⟨operation, _⟩ := progOpEq focus.1.2.1; cases operation
+
 private def storePreserves (invariant : CStore (core3 grow) → Prop) : (Eff (core3 grow) (HostState sig)).Op → Prop
   | .modify update => ∀ store, invariant store → invariant (update store)
   | _ => True
@@ -308,13 +324,16 @@ private theorem cutComponentStoreBodyFramed {Result : Type} {closed : Prop} (bod
         have sameThread : check.thread = canon.thread := by
           obtain ⟨frames, rest, focus, _⟩ := HostFrame.Related.Paired.retarget paired rfl (.prog (.pure (.cancel .none))) start.host incoming.host
           exact (congrArg (fun ctl : List (Activation (core3 grow) (HostState sig)) => ctl.head?.map (·.thread)) focus |> Option.some.inj).symm
-        have localStep (response : (Eff (core3 grow) (HostState sig)).Resp op) (updated : CStore (core3 grow))
+        have localStep {action : Label (core3 grow) (HostState sig)}
+            (response : (Eff (core3 grow) (HostState sig)).Resp op) (updated : CStore (core3 grow))
             (updatedInv : invariant updated)
-            (leftStep : Step profile ready (specDispatch ready base) start .tau
+            (leftStep : Step profile ready (specDispatch ready base) start action
               { start with store := updated, ctl := check.control (next response >>= checkNext) })
-            (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+            (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming action
               { incoming with store := updated, ctl := canon.control (next response >>= canonNext) })
-            (leftEdit : transitionEdit start .tau = .same) (rightEdit : transitionEdit incoming .tau = .same) :
+            (leftEdit : transitionEdit start action = .same) (rightEdit : transitionEdit incoming action = .same)
+            (executed : action = .tau ∨ (label = action ∧
+              middle = { start with store := updated, ctl := check.control (next response >>= checkNext) })) :
             ∃ leading trailing reached peer, label :: suffix = leading ++ trailing ∧
               OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
               Steps profile ready (specDispatch ready base) reached trailing finish ∧
@@ -323,7 +342,14 @@ private theorem cutComponentStoreBodyFramed {Result : Type} {closed : Prop} (bod
               (reached.ctl ≠ [] → invariant reached.store ∧ ∀ place,
                 Prefix profile ready (specDispatch ready base) start place leading reached place ∧
                 Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
-          obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep first
+          have actually : label = action ∧ middle = { start with store := updated, ctl := check.control (next response >>= checkNext) } := by
+            rcases executed with rfl | alignment
+            · obtain ⟨silent, endpoint⟩ := silentStepUnique leftStep first
+              exact ⟨silent, endpoint.symm⟩
+            · exact alignment
+          obtain ⟨sameLabel, sameEndpoint⟩ := actually
+          subst label
+          subst middle
           let nextPeer := { incoming with store := updated, ctl := canon.control (next response >>= canonNext) }
           have aligned : PairedComponentSite older
               { start with store := updated, ctl := check.control (next response >>= checkNext) } nextPeer check canon :=
@@ -337,12 +363,12 @@ private theorem cutComponentStoreBodyFramed {Result : Type} {closed : Prop} (bod
             | op _ continuations => exact continuations response
           obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier, leftHost, rightHost, retained⟩ :=
             ih (next response) followingCertified followingPreserves updatedInv rfl (show nextPeer.ctl = _ from rfl) aligned tail
-          have leftAt place : Prefix profile ready (specDispatch ready base) start place [.tau] _ place :=
+          have leftAt place : Prefix profile ready (specDispatch ready base) start place [action] _ place :=
             .step leftStep (by rw [leftEdit]; rfl) (.done _ place)
-          have rightAt place : Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place [.tau] nextPeer place :=
+          have rightAt place : Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place [action] nextPeer place :=
             .step rightStep (by rw [rightEdit]; rfl) (.done _ place)
           have movement := CallbackPrefix.stationaryTransport (bindings := bindings) leftAt rightAt
-          refine ⟨.tau :: leading, trailing, reached, peer, congrArg (.tau :: ·) split, ?_, residual, frontier, leftHost, rightHost, ?_⟩
+          refine ⟨action :: leading, trailing, reached, peer, congrArg (action :: ·) split, ?_, residual, frontier, leftHost, rightHost, ?_⟩
           · simpa only [List.map_nil, List.append_nil, List.singleton_append] using
               (CallbackPrefix.transportAppend movement moved).choose_spec.1
           · intro live
@@ -351,18 +377,22 @@ private theorem cutComponentStoreBodyFramed {Result : Type} {closed : Prop} (bod
         cases op with
         | get =>
           exact localStep start.store start.store initial (.get leftOp) (same ▸ .get rightOp)
-            (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
+            (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl) (.inl rfl)
         | modify update =>
           have updatedInv : invariant (update start.store) := by
             cases preserves with
             | op allowed _ => exact allowed _ initial
           exact localStep () (update start.store) updatedInv (.modify leftOp)
             (by rw [same]; exact .modify rightOp)
-            (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
+            (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl) (.inl rfl)
         | currentThread =>
           exact localStep check.thread start.store initial (.currentThread leftOp)
             (by rw [same, sameThread]; exact .currentThread rightOp)
-            (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
+            (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl) (.inl rfl)
+        | choose choice =>
+          obtain ⟨answer, actualLabel, actualNext, allowed⟩ := componentChoiceActual leftOp first
+          exact localStep answer start.store initial (.choose answer leftOp allowed)
+            (by rw [same]; exact .choose answer rightOp allowed) rfl rfl (.inr ⟨actualLabel, actualNext⟩)
         | trap reason =>
           obtain ⟨rfl, rfl⟩ := componentTrapUnique leftOp first
           refine ⟨[.trap reason], suffix, StepDefs.trapCfg start, StepDefs.trapCfg incoming, rfl, ?_, tail,
@@ -844,6 +874,73 @@ private theorem storeEffectWrite (cx : LiftLowerContext (core3 grow)) (ptr : Nat
   split
   · exact storeEffectTrap _
   · exact storeEffectModify _
+
+private theorem selectWaitableEffects (ws : WsetId) :
+    StoreEffects (wsetGetPendingEvent ws : Session grow sig AsyncRef.EventTuple) := by
+  have takeEffects (waitable : Waitable) : StoreEffects (Waitable.getPendingEvent waitable : Session grow sig AsyncRef.EventTuple) := by
+    unfold Waitable.getPendingEvent
+    refine storeEffectGet.bind fun _ => ?_
+    split
+    · exact storeEffectTrap _
+    · exact (storeEffectModify _).bind fun _ => .pure _
+  unfold wsetGetPendingEvent getObj
+  refine Prog.Every.bind (storeEffectGet.bind fun _ => ?_) fun record => ?_
+  · split
+    · exact .pure _
+    · exact storeEffectTrap _
+  have shuffled : StoreEffects (Canon.shuffle record.elems : Session grow sig (List Waitable)) :=
+    .op rfl fun _ => .pure _
+  refine shuffled.bind fun _ => (storeEffectModify _).bind fun _ => storeEffectGet.bind fun _ => ?_
+  split
+  · exact takeEffects _
+  · exact storeEffectTrap _
+
+theorem waitableSelectionEffects (poll : Bool) (ws : WsetId) :
+    Prog.Every (fun op => componentStoreOp op = true)
+      ((if poll then wsetPoll ws else wsetGetPendingEvent ws) : Session grow sig AsyncRef.EventTuple) := by
+  cases poll with
+  | false => exact selectWaitableEffects ws
+  | true =>
+    change StoreEffects (wsetPoll ws : Session grow sig AsyncRef.EventTuple)
+    unfold wsetPoll wsetHasPendingEvent gets
+    refine (storeEffectGet.bind fun _ => .pure _).bind fun _ => ?_
+    split
+    · exact selectWaitableEffects ws
+    · exact .pure _
+
+private theorem waitableBufferEffects (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (event : AsyncRef.EventTuple) :
+    StoreEffects (unpackEvent cx ptr event : Session grow sig Nat) := by
+  unfold unpackEvent checkAligned
+  exact (storeEffectTrapIf _ _).bind fun _ => (storeEffectBounds _ _ _).bind fun _ =>
+    (storeEffectWrite _ _ _).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
+
+theorem cutWaitableDelivery (poll : Bool) (ws : WsetId) (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
+    (checkNext canonNext : Nat → Session grow sig (Ret (core3 grow)))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (leftFocus : start.ctl = check.control ((if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= fun event =>
+      unpackEvent cx ptr event >>= checkNext))
+    (rightFocus : incoming.ctl = canon.control ((if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= fun event =>
+      unpackEvent cx ptr event >>= canonNext))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (fun outcome : AsyncRef.EventTuple × Nat => checkNext outcome.2)
+        (fun outcome => canonNext outcome.2) reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
+  let body : Session grow sig (AsyncRef.EventTuple × Nat) :=
+    (if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= fun event =>
+      unpackEvent cx ptr event >>= fun code => .pure (event, code)
+  have certified : StoreEffects body :=
+    (waitableSelectionEffects poll ws).bind fun event => (waitableBufferEffects cx ptr event).bind fun code => .pure (event, code)
+  have rearrange (next : Nat → Session grow sig (Ret (core3 grow))) :
+      (body >>= next ∘ Prod.snd) = (if poll then wsetPoll ws else wsetGetPendingEvent ws) >>= fun event =>
+        unpackEvent cx ptr event >>= next := by
+    simp only [body, Prog.bind_eq, Prog.bind_assoc, Prog.pure_bind', Function.comp_apply]
+  exact cutComponentStoreBody body (checkNext ∘ Prod.snd) (canonNext ∘ Prod.snd) (fun _ => certified)
+    (by simpa only [rearrange] using leftFocus) (by simpa only [rearrange] using rightFocus) paired run
 
 private theorem resultLowerEffects (cx : LiftLowerContext (core3 grow)) (cursor : FlatCursor)
     (results : Nat) (indirect : results ≤ 1) (handle : Option Nat) :

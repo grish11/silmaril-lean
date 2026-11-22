@@ -121,7 +121,7 @@ def PairedComponentSite (changes : ReturnFrame.Substitutions (core3 grow) (HostS
 /-- The operations that can be compared using just the reached shared store
 and active thread, without consulting either embedder. -/
 def componentStoreOp : (Eff (core3 grow) (HostState sig)).Op → Bool
-  | .get | .modify _ | .currentThread | .trap _ => true
+  | .get | .modify _ | .currentThread | .choose _ | .trap _ => true
   | _ => false
 
 /-- The frontier of an executed store-only component prefix. A pending
