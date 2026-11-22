@@ -285,6 +285,176 @@ private theorem visibleTaus (count : Nat) :
     rw [List.replicate_succ]
     exact (visibleAppend [_] _).trans ih
 
+open PayloadPrefix ReturnFrame.Occurrence in
+theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
+    {checkNext canonNext : Nat → Session grow sig (Ret (core3 grow))}
+    {check canon : Cursor (E := core3 grow) (HostState sig)} {length budget : Nat}
+    {describe : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      Cursor (E := core3 grow) (HostState sig) → Cursor (E := core3 grow) (HostState sig) → Prop}
+    (paths : LiveStringReplay profile ready base bindings older cx checkNext canonNext describe length start incoming check canon)
+    (same : start.store = incoming.store)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    StringRunSlice profile ready base bindings older describe start incoming labels finish := by
+  classical
+  induction length using Nat.strong_induction_on generalizing start incoming check canon labels with
+  | ind length ih =>
+    rw [LiveStringReplay] at paths
+    obtain ⟨store, result, localLabels, _observed, checked, _canonical, localTrail, visit⟩ := paths
+    cases alignWorkerBody checked.steps actual with
+    | inside _ nonempty localTail =>
+      exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
+        CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
+        same, actual, .localPrefix nonempty localTail⟩
+    | departure _ split shared _ branch _ _ step tail =>
+      exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
+        CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
+        same, actual, .localChoice split branch.2 shared step tail⟩
+    | @reached remaining split remainder =>
+      cases result with
+      | error reason => exact ⟨localLabels, localLabels, remaining, _, _, [], split, rfl, localTrail, rfl,
+          remainder, .trap rfl rfl⟩
+      | ok front =>
+        obtain ⟨_, _, visit⟩ := visit front rfl
+        cases front with
+        | done pointer => exact ⟨localLabels, localLabels, remaining, _, _, [], split, rfl, localTrail, rfl,
+            remainder, .descriptor visit⟩
+        | call pointer oldSize alignment size rest smaller =>
+          have boundedLocal : remaining.length ≤ budget := by
+            rw [split, List.length_append] at bounded
+            omega
+          rcases sliceInstalledCallback visit.1 (by decide) remainder
+            (fun smaller run pair => compare (Nat.lt_of_lt_of_le smaller boundedLocal) run pair) with
+            beforeInstall | ⟨checkCall, canonCall, trailing, reached, reference, installSplit, input, boundary⟩
+          · exact ⟨localLabels, localLabels, remaining, _, _, [], split, rfl, localTrail, rfl, remainder,
+              .installPrefix beforeInstall⟩
+          obtain ⟨checkProof, canonProof, referenceProof, mark, _, _, checkSeen, canonSeen, paired, _,
+            tracked, movement, index, returns⟩ := visit.2 input
+          change (checkCall, canonCall, reference) = (checkProof, canonProof, referenceProof) at index
+          rcases Prod.mk.inj index with ⟨rfl, paths⟩
+          rcases Prod.mk.inj paths with ⟨rfl, rfl⟩
+          have reachedRun : Steps profile ready (specDispatch ready base) reached trailing finish := by
+            cases boundary with
+            | exhausted => exact .refl _
+            | boundary _ step tail => exact .cons step tail
+          have ending (stopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
+              reached.ctl = { cursor with frames := .prog (stringPlanResume cx rest checkNext) :: cursor.frames }.control (.pure (.nat value))) :
+              StringRunSlice profile ready base bindings older describe start incoming labels finish := by
+            exact ⟨localLabels ++ .tau :: checkCall, localLabels ++ .tau :: canonCall, trailing, reached, reference,
+              [mark], by rw [split, installSplit]; simp [List.append_assoc],
+              by rw [visibleAppend, visibleAppend]; exact congrArg (PayloadPrefix.visible localLabels ++ ·) (canonSeen.trans checkSeen.symm),
+              (CallbackPrefix.transportAppend localTrail movement).choose_spec.1, paired.data.1,
+              reachedRun, .callback tracked paired boundary stopped⟩
+          by_cases atTop : mark = some (.active 0 0)
+          · by_cases returning : ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
+              reached.ctl = { cursor with frames := .prog (stringPlanResume cx rest checkNext) :: cursor.frames }.control (.pure (.nat value))
+            · obtain ⟨value, cursor, focus⟩ := returning
+              cases reachedRun with
+              | refl => exact ending (.inl rfl)
+              | @cons _ next _ label residual first tail =>
+                have pop : Step profile ready (specDispatch ready base) reached .tau
+                    { reached with ctl := cursor.control (stringPlanResume cx rest checkNext (.nat value)) } := .popProg focus
+                obtain ⟨rfl, rfl⟩ := silentStepUnique pop first
+                obtain ⟨peer, _, _, transported, continued⟩ := returns value cursor atTop focus
+                have smallerRun : residual.length < labels.length := by
+                  rw [split, installSplit]
+                  simp only [List.length_append, List.length_cons, List.length_replicate]
+                  omega
+                obtain ⟨checkLabels, canonLabels, trailing, reached, reference, marks, used, observed, travel, store, after, ending⟩ :=
+                  ih rest.length smaller continued paired.data.1 tail (Nat.le_trans (Nat.le_of_lt smallerRun) bounded)
+                have movement := (CallbackPrefix.transportAppend
+                  (CallbackPrefix.transportAppend localTrail transported).choose_spec.1 travel).choose_spec.1
+                refine ⟨localLabels ++ (.tau :: checkCall ++ [.tau]) ++ checkLabels,
+                  localLabels ++ (.tau :: canonCall ++ [.tau]) ++ canonLabels, trailing, reached, reference, marks,
+                  ?_, ?_, by simpa only [List.map_nil, List.append_nil] using movement, store, after, ending⟩
+                · rw [split, installSplit, used]
+                  simp only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.cons_append, List.nil_append]
+                · have quiet (trace : Trace grow sig) : PayloadPrefix.visible (.tau :: trace ++ [.tau]) = PayloadPrefix.visible trace := by
+                    change PayloadPrefix.visible (trace ++ [.tau]) = PayloadPrefix.visible trace
+                    rw [visibleAppend, show PayloadPrefix.visible ([.tau] : Trace grow sig) = [] from rfl, List.append_nil]
+                  have view (middle next : Trace grow sig) :
+                      PayloadPrefix.visible (localLabels ++ (.tau :: middle ++ [.tau]) ++ next) =
+                        PayloadPrefix.visible localLabels ++ PayloadPrefix.visible middle ++ PayloadPrefix.visible next :=
+                    (visibleAppend ..).trans (congrArg (· ++ PayloadPrefix.visible next)
+                      ((visibleAppend ..).trans (congrArg (PayloadPrefix.visible localLabels ++ ·) (quiet middle))))
+                  rw [view canonCall canonLabels, view checkCall checkLabels, canonSeen, checkSeen, observed]
+            · exact ending (.inr (.inr returning))
+          · exact ending (.inr (.inl atTop))
+
+open PayloadPrefix ReturnFrame.Occurrence in
+theorem driveStringValue {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output} {budget : Nat}
+    {describe : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      Cursor (E := core3 grow) (HostState sig) → Cursor (E := core3 grow) (HostState sig) → Prop}
+    (field : StringValueThen profile ready base bindings older destination inst key output start incoming check canon checkNext canonNext describe)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    StringRunSlice profile ready base bindings older describe start incoming labels finish := by
+  obtain ⟨checkEntry, canonEntry, checkQuiet, canonQuiet, entry, enterPeer, frame, body⟩ := field
+  have same : start.store = incoming.store := frame.store
+  cases alignWorkerBody (entry (.active 0 0)).toTrail.steps actual with
+  | inside _ nonempty localTail =>
+    exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
+      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
+      same, actual, .localPrefix nonempty localTail⟩
+  | departure _ split shared _ branch _ _ step tail =>
+    exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
+      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
+      same, actual, .localChoice split branch.2 shared step tail⟩
+  | @reached remaining split remainder =>
+    have shorter : remaining.length ≤ budget := by rw [split, List.length_append] at bounded; omega
+    obtain ⟨checked, canonical, trailing, reached, peer, marks, used, observed, traces, same, tail, ending⟩ :=
+      driveStringSlice body frame.store remainder shorter compare
+    exact ⟨checkEntry ++ checked, canonEntry ++ canonical, trailing, reached, peer, marks,
+      by rw [split, used, List.append_assoc],
+      by rw [visibleAppend, visibleAppend, checkQuiet, canonQuiet, observed],
+      by simpa only [List.map_nil, List.append_nil] using
+        (CallbackPrefix.transportAppend (CallbackPrefix.stationaryTransport entry enterPeer) traces).choose_spec.1,
+      same, tail, ending⟩
+
+open PayloadPrefix ReturnFrame.Occurrence in
+theorem driveStringCommit {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output} {budget : Nat}
+    {published : LinkedCallback.MemorySequence.ValueFinish grow sig output}
+    (field : StringValueThen profile ready base bindings older destination inst key output start incoming check canon checkNext canonNext
+      (fun _ => LiveValueCommit profile ready base bindings output checkNext canonNext published))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, published value lhs rhs cursor peer) start incoming labels finish := by
+  obtain ⟨checked, canonical, trailing, reached, reference, marks, split, observed, movement, same, remainder, ending⟩ :=
+    driveStringValue field actual bounded compare
+  have stop (stopped : StringSliceEnd profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, published value lhs rhs cursor peer) reached reference trailing finish marks) :
+      StringRunSlice profile ready base bindings older (fun _ lhs rhs cursor peer => ∃ value, published value lhs rhs cursor peer)
+        start incoming labels finish :=
+    ⟨checked, canonical, trailing, reached, reference, marks, split, observed, movement, same, remainder, stopped⟩
+  cases ending with
+  | localPrefix nonempty tail => exact stop (.localPrefix nonempty tail)
+  | localChoice split choice shared step tail => exact stop (.localChoice split choice shared step tail)
+  | installPrefix short => exact stop (.installPrefix short)
+  | callback mark paired ending noPop => exact stop (.callback mark paired ending noPop)
+  | trap checked canonical => exact stop (.trap checked canonical)
+  | @descriptor pointer cursor peer commit =>
+    obtain ⟨store, verdict, effects, _view, checkedWrite, _canonicalWrite, writes, continues⟩ := commit
+    cases alignWorkerBody checkedWrite.steps remainder with
+    | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
+    | departure _ split shared _ choice _ _ step tail => exact stop (.localChoice split choice.2 shared step tail)
+    | @reached suffix used tail =>
+      have reachedWrites := (CallbackPrefix.transportAppend movement writes).choose_spec.1
+      refine ⟨checked ++ effects, canonical ++ effects, suffix, _, _, [],
+        by rw [split, used, List.append_assoc],
+        by rw [visibleAppend, visibleAppend, observed],
+        by simpa only [List.nil_append, List.map_nil] using reachedWrites, ?_, tail, ?_⟩
+      · cases verdict <;> rfl
+      · cases verdict with
+        | error reason => exact .trap rfl rfl
+        | ok value => exact .descriptor (pointer := pointer) ⟨value, (continues value rfl).2.2⟩
+
 private theorem visiblePrefix {left right : Trace grow sig} (initial : left <+: right) :
     PayloadPrefix.visible left <+: PayloadPrefix.visible right := by
   obtain ⟨tail, rfl⟩ := initial

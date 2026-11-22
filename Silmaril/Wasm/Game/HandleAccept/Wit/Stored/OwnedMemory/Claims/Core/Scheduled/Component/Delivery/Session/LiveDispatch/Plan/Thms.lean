@@ -780,6 +780,36 @@ theorem string_plan_replay (cx : LiftLowerContext (core3 grow)) (pointer : Nat) 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringReplay
     cx pointer steps checkNext canonNext frame growth checkAt canonAt embedder finish
 
+/-- Drive the compiled string field with the actual checked run. A finite
+callback can leave the allocation open; only a matched, executed pop of the
+installed occurrence advances to the smaller plan. -/
+theorem StringValueThen.drive_actual {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output} {budget : Nat}
+    {describe : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop}
+    (field : StringValueThen profile ready base bindings older destination inst key output start incoming check canon checkNext canonNext describe)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    StringRunSlice profile ready base bindings older describe start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveStringValue field actual bounded compare
+
+/-- Continue past allocation only through the actual memory descriptor
+write or flat emission, returning its checked residual at the reached state. -/
+theorem StringValueThen.drive_commit {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
+    {output : Stored.Lower.Output} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output} {budget : Nat}
+    {published : LinkedCallback.MemorySequence.ValueFinish grow sig output}
+    (field : StringValueThen profile ready base bindings older destination inst key output start incoming check canon checkNext canonNext
+      (fun _ => LiveValueCommit profile ready base bindings output checkNext canonNext published))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, published value lhs rhs cursor peer) start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveStringCommit field actual bounded compare
+
 /-- Extend an already reached occurrence pair through every reached string
 instruction and classified allocator cut, including repeated marked returns. -/
 theorem string_plan_occurrences {cx : LiftLowerContext (core3 grow)}

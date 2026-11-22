@@ -373,6 +373,62 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
                 LiveStringReplay profile ready base bindings older cx checkNext canonNext finish rest.length after referenceAfter cursor peer
 termination_by length
 
+def workerBranchLabel : Label (core3 grow) (HostState sig) → Prop
+  | .choice _ _ | .host _ => True
+  | _ => False
+
+/-- A string-plan traversal stops at the actual descriptor continuation, a
+trap, a finite cut before the next local frontier, or an installed callback
+whose exact mark has not popped with a pointer. -/
+inductive StringSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (describe : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop)
+    (checked canonical : Config (core3 grow) (HostState sig))
+    (trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) :
+    List (Option ReturnFrame.Occurrence.Location) → Prop where
+  | descriptor {pointer cursor peer} (reached : describe pointer checked canonical cursor peer) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | trap (left : checked.ctl = []) (right : canonical.ctl = []) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | localPrefix {reached remaining} (nonempty : remaining ≠ [])
+      (localTail : Steps profile ready (specDispatch ready base) finish remaining reached) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | localChoice {leading taken suffix middle next} (split : trailing = leading ++ taken :: suffix)
+      (choice : workerBranchLabel taken)
+      (shared : Steps profile ready (specDispatch ready base) checked leading middle)
+      (step : Step profile ready (specDispatch ready base) middle taken next)
+      (tail : Steps profile ready (specDispatch ready base) next suffix finish) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | installPrefix (short : trailing.length < 1) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | callback {checkEntry canonEntry checkLabels canonLabels mark first second}
+      (tracked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels checked canonical mark)
+      (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) checked canonical)
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) checked trailing finish)
+      (notPopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (pointer : Nat)
+        (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+        checked.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish [mark]
+
+/-- The compared part of an actual checked string run. The residual is
+always an execution from the reached checked state, not a new callback or
+a canonical execution of the remainder. -/
+def StringRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (describe : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop)
+    (checked canonical : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ checkLabels canonLabels trailing reached peer marks,
+    actual = checkLabels ++ trailing ∧
+    PayloadPrefix.visible canonLabels = PayloadPrefix.visible checkLabels ∧
+    OccurrenceTransport profile ready base bindings checked canonical checkLabels canonLabels reached peer marks ∧
+    reached.store = peer.store ∧ Steps profile ready (specDispatch ready base) reached trailing finish ∧
+    StringSliceEnd profile ready base bindings older describe reached peer trailing finish marks
+
 /-- Two finite paths, compared at their reached stores and visible labels. -/
 def ComparedPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -3982,10 +4038,6 @@ def CompilerStopSuffix (profile : ProfileKind) (ready : HostReady (HostState sig
       Steps profile ready (specDispatch ready (host bindings base)) incoming leading entered ∧
       HostFrame.Related.Paired older selection.canonicalPending entered ∧ entered.host = incoming.host ∧
       RequestExitOccurrences profile ready base bindings origin reference seen (selection.compilerRefused issue) entered)
-
-def workerBranchLabel : Label (core3 grow) (HostState sig) → Prop
-  | .choice _ _ | .host _ => True
-  | _ => False
 
 /-- Align a selected body execution with the given checked run. Departure
 requires a different reached oracle answer or embedder action and leaves
