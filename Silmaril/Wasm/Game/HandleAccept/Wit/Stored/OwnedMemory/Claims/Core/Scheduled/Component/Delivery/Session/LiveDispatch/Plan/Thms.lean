@@ -60,6 +60,19 @@ theorem fold_callback_slices (cross : CallbackGiveCrossing profile ready base bi
     CallbackSlice profile ready base bindings older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.foldCallbackSlices cross run paired
 
+/-- Rebase both paths of a checked-only reply through an enclosing visitor's
+actual prefix. After the refusal each active or saved occurrence has its
+own checked and canonical endpoint; the residual is still checked only. -/
+theorem CheckedOnlyGiveReply.prepend {route : GiveEffectRoute} {destination ticket issue}
+    {left right checkStop canonStop : Config (core3 grow) (HostState sig)}
+    {checkPrefix canonPrefix checkBody canonBody trailing : Trace grow sig} {marks}
+    (leading : OccurrenceTransport profile ready base bindings start incoming checkPrefix canonPrefix left right marks)
+    (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue left right checkStop canonStop
+      checkBody canonBody trailing finish) :
+    CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming checkStop canonStop
+      (checkPrefix ++ checkBody) (canonPrefix ++ canonBody) trailing finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.prependCheckedOnlyReply leading reply
+
 /-- Strip the reached silent install and compare only its actual callback
 tail. Both visitors can consume the resulting exact callback index. -/
 theorem PairedAllocatorInstall.slice_callback

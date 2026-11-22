@@ -231,19 +231,45 @@ inductive ExecutedCallbackCut (profile : ProfileKind) (ready : HostReady (HostSt
       (tail : Steps profile ready (specDispatch ready base) next trailing finish)
       (smaller : trailing.length < actual.length)
 
-/-- A compared piece cut from the original callback derivation. The residual
-is either empty or starts at a reached, not yet compared action. -/
+/-- A typed give reply executed only on the checked side. The canonical
+trace ends at the reached pending configuration, not at a matching pop. -/
+def CheckedOnlyGiveReply (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (route : GiveEffectRoute) (destination : RecordDestination) (ticket : Nat)
+    (issue : Stored.Endpoints.RecordLower.Issue)
+    (start incoming left right : Config (core3 grow) (HostState sig))
+    (checkLeading canonLeading trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∃ suffix checked,
+    trailing = [.tau, .tau, .tau] ++ suffix ∧
+    Steps profile ready (specDispatch ready base) start checkLeading left ∧
+    Steps profile ready (specDispatch ready base) left [.tau, .tau, .tau] checked ∧
+    Steps profile ready (specDispatch ready base) checked suffix finish ∧
+    checked.store = left.store ∧
+    checked.host = left.host.record (route.reply destination ticket (.error issue)).1 ∧
+    ∀ cursor : Option Location, ∃ checkedMark canonMark,
+      Trail profile ready (specDispatch ready base) start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark
+
+/-- The terminal cut of a compared callback. A checked-only reply has its
+own executed paths and residual; it is not a paired callback segment. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
-    (reached : Config (core3 grow) (HostState sig)) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
-  | exhausted : CallbackSliceEnd profile ready base bindings changes reached [] reached
+    (reached peer : Config (core3 grow) (HostState sig)) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | exhausted : CallbackSliceEnd profile ready base bindings changes reached peer [] reached
   | boundary {label next trailing finish}
       (kind : CallbackWorkerBoundary bindings ready (specDispatch ready base) (fun resume => ∃ peer, changes resume peer)
         reached label next)
       (step : Step profile ready (specDispatch ready base) reached label next)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached (label :: trailing) finish
+      CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
+  | refused {label next route destination ticket issue left right checkLeading canonLeading trailing finish}
+      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+      (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
+      (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue reached peer left right
+        checkLeading canonLeading trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checkLeading ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -253,7 +279,7 @@ def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
   ∃ checkLabels canonLabels trailing reached peer,
     actual = checkLabels ++ trailing ∧
     ExecutedCallbackSegment profile ready base bindings changes checked canonical checkLabels canonLabels reached peer ∧
-    CallbackSliceEnd profile ready base bindings changes reached trailing finish
+    CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
 
 /-- The induction hypothesis available inside a reached give, including
 callbacks with freshly extended substitutions. -/
@@ -305,7 +331,7 @@ def InstalledCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState
     actual = List.replicate checkCount .tau ++ checkLabels ++ trailing ∧
     AllocatorCallbackPrefix profile ready base bindings older first second checkEntry canonEntry
       (some (checkLabels, canonLabels, peer)) (PayloadPrefix.visible checkLabels) reached ∧
-    CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached trailing finish
+    CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached peer trailing finish
 
 /-- A checked trace may reach an open store update that cannot be used to
 transport a linked-memory width. This is a comparison boundary, not a
@@ -406,7 +432,7 @@ inductive StringSliceEnd (profile : ProfileKind) (ready : HostReady (HostState s
   | callback {checkEntry canonEntry checkLabels canonLabels mark first second}
       (tracked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels checked canonical mark)
       (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) checked canonical)
-      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) checked trailing finish)
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) checked canonical trailing finish)
       (notPopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (pointer : Nat)
         (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
         checked.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))) :
@@ -4210,7 +4236,7 @@ def CollectionRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig
       AllocatorMark profile ready base bindings older leftEntry rightEntry checked canonical reached peer mark ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached peer ∧
       OccurrenceTransport profile ready base bindings start incoming checkTrace canonTrace reached peer [mark] ∧
-      CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached trailing finish ∧
+      CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached peer trailing finish ∧
       ((trailing = [] ∨ mark ≠ some (.active 0 0) ∨
         ¬ ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
           reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))) ∨
@@ -4584,17 +4610,15 @@ def MemoryVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
 pending. Occurrences on the two sides now follow independent paths. -/
 def MemoryVisitRefusedReply (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (incoming left right : Config (core3 grow) (HostState sig)) (issue : Stored.Endpoints.RecordLower.Issue)
     (checkLeading canonLeading actual trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  open ReturnFrame.Occurrence in
-  trailing.length < 3 ∨ ∃ suffix checked,
-    trailing = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
-    Steps profile ready (specDispatch ready base) checked suffix finish ∧
-    checked.host = left.host.record ((GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.error issue)).1 ∧
-    ∀ cursor : Option Location, ∃ checkedMark canonMark,
-      Trail profile ready (specDispatch ready base) site.start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
-      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark
+  trailing.length < 3 ∨
+    CheckedOnlyGiveReply profile ready base bindings (.memory pointer) site.destination site.start.host.nextTicket issue
+      site.start incoming left right checkLeading canonLeading trailing finish ∧
+    ∀ {label next}, GiveInstall bindings (specDispatch ready base) site.start label next →
+      CallbackSlice profile ready base bindings older site.start incoming actual finish
 
 /-- A common reply carries the complete request and its original occurrence
 paths. A reached uncertified growth step is explicit, not silently replayed. -/
@@ -4640,8 +4664,8 @@ def MemoryVisitWithReply (profile : ProfileKind) (ready : HostReady (HostState s
         MemoryVisitCommonReply profile ready base bindings older site incoming left right
           checkEntry checked (canonEntry ++ canonical) actual trailing finish) ∧
       ∀ issue (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)), left.ctl = check.control (site.reply (.error issue)) →
-        MemoryVisitRefusedReply profile ready base bindings site incoming left right issue
-          (checkEntry ++ checked) (canonEntry ++ canonical) actual trailing finish)
+        MemoryVisitRefusedReply profile ready base bindings older site incoming left right issue
+          (checkEntry ++ checked) (canonEntry ++ canonical) (checkEntry ++ actual) trailing finish)
 
 /-- On the placed branch, distinguish a finite prefix inside entry from
 an actually reached body. No canonical body path is used in the short case. -/

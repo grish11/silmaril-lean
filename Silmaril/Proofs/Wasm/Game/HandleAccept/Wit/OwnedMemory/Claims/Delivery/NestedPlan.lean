@@ -164,7 +164,7 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
     cases cutExecutedCallback run paired with
     | complete segment => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
     | @boundary leading label trailing reached peer next split front kind step tail smaller =>
-      have stop (ending : CallbackSliceEnd profile ready base bindings older reached (label :: trailing) finish) :
+      have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
           CallbackSlice profile ready base bindings older start incoming labels finish :=
         ⟨leading, leading, label :: trailing, reached, peer, split, front, ending⟩
       cases kind with
@@ -193,6 +193,53 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
       | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
       | write focus => exact stop (.boundary (.write focus) step tail)
       | nonGrowingUpdate failed => exact stop (.boundary (.nonGrowingUpdate failed) step tail)
+
+private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish) :
+    Steps profile ready (specDispatch ready base) start labels finish := by
+  cases ending with
+  | exhausted => exact .refl _
+  | boundary _ step tail => exact .cons step tail
+  | refused _ _ reply =>
+    obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
+    exact append front (append completed tail)
+
+private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {resume value}
+    (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish)
+    (focus : start.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (.pure value)) :
+    Steps profile ready (specDispatch ready base) start labels finish := by
+  cases ending with
+  | exhausted => exact .refl _
+  | boundary _ step tail => exact .cons step tail
+  | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+
+private theorem checkedOnlyReplySlice {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {route : GiveEffectRoute} {destination ticket issue left right checkLeading canonLeading trailing label next}
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
+    (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming left right
+      checkLeading canonLeading trailing finish) :
+    CallbackSlice profile ready base bindings changes start incoming (checkLeading ++ trailing) finish :=
+  ⟨[], [], _, start, incoming, rfl,
+    ⟨.refl _, rfl, paired, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place)⟩,
+    .refused install observed reply⟩
+
+theorem prependCheckedOnlyReply {route : GiveEffectRoute} {destination ticket issue}
+    {left right checkStop canonStop : Config (core3 grow) (HostState sig)}
+    {checkPrefix canonPrefix checkBody canonBody trailing : Trace grow sig} {marks}
+    (leading : OccurrenceTransport profile ready base bindings start incoming checkPrefix canonPrefix left right marks)
+    (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue left right checkStop canonStop
+      checkBody canonBody trailing finish) :
+    CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming checkStop canonStop
+      (checkPrefix ++ checkBody) (canonPrefix ++ canonBody) trailing finish := by
+  obtain ⟨move, before, _⟩ := leading
+  obtain ⟨suffix, checked, split, front, complete, tail, stored, recorded, paths⟩ := reply
+  refine ⟨suffix, checked, split, append (before none).1.steps front, complete, tail, stored, recorded, fun place => ?_⟩
+  obtain ⟨checkedMark, canonicalMark, checkPath, canonPath⟩ := paths (move place)
+  exact ⟨checkedMark, canonicalMark,
+    (List.append_assoc _ _ _).symm ▸ (before place).1.append checkPath, (before place).2.append canonPath⟩
 
 theorem sliceInstalledCallback
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
@@ -374,10 +421,7 @@ theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
           change (checkCall, canonCall, reference) = (checkProof, canonProof, referenceProof) at index
           rcases Prod.mk.inj index with ⟨rfl, paths⟩
           rcases Prod.mk.inj paths with ⟨rfl, rfl⟩
-          have reachedRun : Steps profile ready (specDispatch ready base) reached trailing finish := by
-            cases boundary with
-            | exhausted => exact .refl _
-            | boundary _ step tail => exact .cons step tail
+          have reachedRun := callbackEndSteps boundary
           have ending (stopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
               reached.ctl = { cursor with frames := .prog (stringPlanResume cx rest checkNext) :: cursor.frames }.control (.pure (.nat value))) :
               StringRunSlice profile ready base bindings older describe start incoming labels finish := by
@@ -390,7 +434,7 @@ theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
           · by_cases returning : ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
               reached.ctl = { cursor with frames := .prog (stringPlanResume cx rest checkNext) :: cursor.frames }.control (.pure (.nat value))
             · obtain ⟨value, cursor, focus⟩ := returning
-              cases reachedRun with
+              cases returningCallbackEndSteps boundary focus with
               | refl => exact ending (.inl rfl)
               | @cons _ next _ label residual first tail =>
                 have pop : Step profile ready (specDispatch ready base) reached .tau
@@ -2259,10 +2303,7 @@ theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {
       by_cases returning : ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
           reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))
       · obtain ⟨pointer, cursor, focus⟩ := returning
-        have actualTail : Steps profile ready (specDispatch ready base) reached trailing finish := by
-          cases boundary with
-          | exhausted => exact .refl _
-          | boundary _ step tail => exact .cons step tail
+        have actualTail := returningCallbackEndSteps boundary focus
         have history : ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible checked) reached peer := by
           refine ⟨_, _, CallbackPrefix.transportPaths movement, ?_, ?_, paired.data.1⟩
           · exact visibleAppend ([.tau, .tau, .tau] : Trace grow sig) checked
@@ -3214,10 +3255,7 @@ private theorem driveMemoryCollection {origin : CStore (core3 grow)} {budget : N
     let leftTrace : Trace grow sig := [.tau, .tau, .tau] ++ checked
     let rightTrace : Trace grow sig := [.tau, .tau] ++ canonical
     have observed : visible leftTrace = visible rightTrace := seen.symm
-    have tail : Steps profile ready (specDispatch ready base) reached trailing finish := by
-      cases ending with
-      | exhausted => exact .refl _
-      | boundary _ step remainder => exact .cons step remainder
+    have tail := callbackEndSteps ending
     rcases returned with pending | ⟨pointer, cursor, _, active, _, _, _, range, fresh⟩
     · exact ⟨leftTrace, rightTrace, trailing, reached, peer, [mark], split, observed, paired.data.1, movement, tail,
         .boundary (.callback tracked paired ending pending)⟩
@@ -3638,17 +3676,21 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     have completed := Plain.give_completion_steps (profile := profile) (ready := ready)
       (dispatch := specDispatch ready base) reply atReply
     rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
-    · have smaller : suffix.length < actual.length := by
-        simp only [split, divided, List.length_append, List.length_replicate]; omega
-      refine .inr ⟨suffix, _, divided, smaller, tail, rfl, fun place => ?_⟩
-      obtain ⟨checkedLead, canonicalLead⟩ := leading place
-      cases reached : move (atEntry place) with
-      | none =>
-        rw [reached] at checkedLead canonicalLead
-        exact ⟨none, none, checkedLead.append (.absent completed), canonicalLead⟩
-      | some prior =>
-        rw [reached] at checkedLead canonicalLead
-        exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
+    · have refused : CheckedOnlyGiveReply profile ready base bindings (.memory pointer) site.destination site.start.host.nextTicket
+          issue site.start incoming left right (checkEntry ++ checked) (entry ++ canonical) trailing finish := by
+        refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, fun place => ?_⟩
+        obtain ⟨checkedLead, canonicalLead⟩ := leading place
+        cases reached : move (atEntry place) with
+        | none =>
+          rw [reached] at checkedLead canonicalLead
+          exact ⟨none, none, checkedLead.append (.absent completed), canonicalLead⟩
+        | some prior =>
+          rw [reached] at checkedLead canonicalLead
+          exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
+      refine .inr ⟨refused, fun install => ?_⟩
+      rw [split, ← List.append_assoc]
+      refine checkedOnlyReplySlice paired install ?_ refused
+      rw [visibleAppend, visibleAppend, checkQuiet, silentVisible quiet, seen]
     · exact .inl short
 
 theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
