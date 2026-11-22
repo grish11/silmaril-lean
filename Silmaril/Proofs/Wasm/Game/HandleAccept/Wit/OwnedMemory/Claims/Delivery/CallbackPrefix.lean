@@ -588,22 +588,24 @@ theorem executeClassifiedPrefix {protectedReturn checkLabels}
 
 private theorem allocatorCallbackEvidence
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
-    (path : AllocatorCallbackPrefix profile ready base bindings older first second start incoming seen finish)
+    {index : CallbackPathIndex grow sig}
+    (path : AllocatorCallbackPrefix profile ready base bindings older first second start incoming index seen finish)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) start incoming) :
     ∃ checkLabels canonLabels reached,
       PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
       Core3.Grows start.store.core finish.store.core ∧
-      OccurrenceTransport profile ready base bindings start incoming checkLabels canonLabels finish reached := by
+      OccurrenceTransport profile ready base bindings start incoming checkLabels canonLabels finish reached ∧
+      index.Matches checkLabels canonLabels reached := by
   cases path with
-  | executed run => exact ⟨_, _, _, rfl, run.observed, run.paired, run.checkedRun.grows, run.occurrences⟩
+  | executed run => exact ⟨_, _, _, rfl, run.observed, run.paired, run.checkedRun.grows, run.occurrences, rfl⟩
   | closed path =>
     obtain ⟨checkLabels, canonLabels, reached, _, _, _, aligned, checkSeen, canonSeen, growth, _, _, _, _, _,
       move, _, trails, invariant⟩ := replayMarked path embedder (fun _ _ edge => by cases edge with
         | existing previous => exact .inl ⟨_, previous⟩
         | current => exact .inr rfl) paired (paired_outside (left := HostFrame.replace start incoming.host) paired)
-    exact ⟨checkLabels, canonLabels, reached, checkSeen, canonSeen, aligned, growth, move, trails, invariant⟩
+    exact ⟨checkLabels, canonLabels, reached, checkSeen, canonSeen, aligned, growth, ⟨move, trails, invariant⟩, trivial⟩
 
 private theorem throughAllocatorInstall
     {checkEntry canonEntry peer : Config (core3 grow) (HostState sig)}
@@ -803,22 +805,24 @@ private theorem stringVisitorCallback (cx : LiftLowerContext (core3 grow)) (ptr 
       ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: steps) >>= checkNext))
     (canonAt : incoming.ctl = canon.control (runStoreSteps cx ptr
       ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: steps) >>= canonNext))
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {index : CallbackPathIndex grow sig} :
     let first := PayloadPrefix.stringPlanResume cx steps checkNext
     let second := PayloadPrefix.stringPlanResume cx steps canonNext
     let checkEntry := LinkedCallback.stringReallocEntry ready bindings cx ptr oldSize alignment size steps checkNext start check
     let canonEntry := stringAllocatorEntry (specDispatch ready (LiveDispatch.host bindings base)) cx ptr oldSize alignment size incoming canon second
-    AllocatorCallbackPrefix profile ready base bindings older first second checkEntry canonEntry seen finish →
+    AllocatorCallbackPrefix profile ready base bindings older first second checkEntry canonEntry index seen finish →
     ∃ checkLabels canonLabels reached mark,
       PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
       Core3.Grows start.store.core finish.store.core ∧
       AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels finish reached mark ∧
-      OccurrenceTransport profile ready base bindings start incoming (.tau :: checkLabels) (.tau :: canonLabels) finish reached [mark] := by
+      OccurrenceTransport profile ready base bindings start incoming (.tau :: checkLabels) (.tau :: canonLabels) finish reached [mark] ∧
+      index.Matches checkLabels canonLabels reached := by
   intro first second checkEntry canonEntry callback
   obtain ⟨_, _, paired⟩ := frame.string_realloc_pair (profile := profile) (ready := ready) (bindings := bindings)
     cx ptr oldSize alignment size steps checkNext canonNext checkAt canonAt
-  obtain ⟨checkLabels, canonLabels, peer, checkSeen, canonSeen, aligned, growth, replay⟩ :=
+  obtain ⟨checkLabels, canonLabels, peer, checkSeen, canonSeen, aligned, growth, replay, exactPath⟩ :=
     allocatorCallbackEvidence callback embedder paired
   have checked := PayloadPrefix.string_realloc_install (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     cx ptr oldSize alignment size steps checkNext start check checkAt
@@ -839,7 +843,7 @@ private theorem stringVisitorCallback (cx : LiftLowerContext (core3 grow)) (ptr 
     (fun place => .step checked (leftEdit ▸ pushed first place) (.done _ _))
     (fun place => .step canonical (rightEdit ▸ pushed second place) (.done _ _))
     (leftEdit ▸ step_edit checked) (rightEdit ▸ step_edit canonical) (frame.outside_installed (.pure .unit) (.pure .unit)) replay
-  exact ⟨checkLabels, canonLabels, peer, mark, checkSeen, canonSeen, aligned, growth, tracked, movement⟩
+  exact ⟨checkLabels, canonLabels, peer, mark, checkSeen, canonSeen, aligned, growth, tracked, movement, exactPath⟩
 
 open PayloadPrefix in
 theorem collectionVisitorCallback (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
@@ -854,7 +858,8 @@ theorem collectionVisitorCallback (destination : RecordDestination) (inst : Inst
       (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
     (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
       (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {pathIndex : CallbackPathIndex grow sig} :
     let area := layout destination.width element
     let first := checkedCollectionResume destination inst entries area index output checkNext
     let second := canonicalCollectionResume destination inst entries area output canonNext
@@ -862,7 +867,7 @@ theorem collectionVisitorCallback (destination : RecordDestination) (inst : Inst
     let checkEntry := collectionEntry destination inst area entries.length (specDispatch ready base) start check first
     let canonEntry := collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
       incoming canon second
-    AllocatorCallbackPrefix profile ready base bindings older first second checkEntry canonEntry seen finish →
+    AllocatorCallbackPrefix profile ready base bindings older first second checkEntry canonEntry pathIndex seen finish →
     ∃ checkLabels canonLabels reached mark,
       PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
@@ -870,11 +875,11 @@ theorem collectionVisitorCallback (destination : RecordDestination) (inst : Inst
       AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels finish reached mark ∧
       ComparedOccurrencePaths profile ready base bindings start incoming seen finish reached ∧
       OccurrenceTransport profile ready base bindings start incoming ([.tau, .tau, .tau] ++ checkLabels)
-        ([.tau, .tau] ++ canonLabels) finish reached [mark] := by
+        ([.tau, .tau] ++ canonLabels) finish reached [mark] ∧ pathIndex.Matches checkLabels canonLabels reached := by
   intro area first second checkEntry canonEntry callback
   obtain ⟨_, _, paired⟩ := frame.collection_install_pair (profile := profile) (ready := ready) (bindings := bindings)
     destination inst type element entries output index checkNext canonNext width prepared checkAt canonAt
-  obtain ⟨checkLabels, canonLabels, peer, checkSeen, canonSeen, aligned, growth, replay⟩ :=
+  obtain ⟨checkLabels, canonLabels, peer, checkSeen, canonSeen, aligned, growth, replay, exactPath⟩ :=
     allocatorCallbackEvidence callback embedder paired
   have checked := fun place => (PayloadPrefix.collection_install_occurrences (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) destination inst type element entries output index start incoming check canon
@@ -891,7 +896,7 @@ theorem collectionVisitorCallback (destination : RecordDestination) (inst : Inst
   obtain ⟨mark, tracked, movement⟩ := throughAllocatorInstall checked canonical leftStorage rightStorage
     (frame.outside_installed (.pure .unit) (.pure .unit)) replay
   exact ⟨checkLabels, canonLabels, peer, mark, checkSeen, canonSeen, aligned, growth, tracked,
-    ⟨_, _, transportPaths movement, checkSeen, canonSeen, aligned.data.1⟩, movement⟩
+    ⟨_, _, transportPaths movement, checkSeen, canonSeen, aligned.data.1⟩, movement, exactPath⟩
 
 open PayloadPrefix in
 theorem actualCollectionInstall (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
@@ -1166,18 +1171,23 @@ theorem stringReplay (cx : LiftLowerContext (core3 grow)) (pointer : Nat) (steps
         (growth.trans checked.grows) rfl rfl
     | call ptr oldSize alignment size rest shorter =>
       dsimp only
-      intro seen reached path
       let action : StoreStep := oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)
       let lhs := { left with store, ctl := check.control (runStoreSteps cx ptr (action :: rest) >>= checkNext) }
       let rhs := { right with store, ctl := canon.control (runStoreSteps cx ptr (action :: rest) >>= canonNext) }
       have middle : LinkedCallback.ChildFrameOver older lhs rhs check canon :=
         ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+      refine ⟨?_, ?_⟩
+      · obtain ⟨_, _, installed⟩ := middle.string_realloc_pair (profile := profile) (ready := ready) (bindings := bindings)
+          cx ptr oldSize alignment size rest checkNext canonNext rfl rfl
+        exact ⟨.cons (PayloadPrefix.string_realloc_install cx ptr oldSize alignment size rest checkNext lhs check rfl) (.refl _),
+          .cons (PayloadPrefix.string_realloc_install cx ptr oldSize alignment size rest canonNext rhs canon rfl) (.refl _), installed⟩
+      intro index seen reached path
       obtain ⟨checkLabels, canonLabels, reference, mark, checkSeen, canonSeen, paired,
-        callGrowth, marked, installed⟩ := stringVisitorCallback (profile := profile) (ready := ready)
+        callGrowth, marked, installed, exactPath⟩ := stringVisitorCallback (profile := profile) (ready := ready)
         cx ptr oldSize alignment size rest checkNext canonNext middle rfl rfl embedder path
       obtain ⟨_, leftRun, rightRun⟩ := transportPaths installed none
       refine ⟨checkLabels, canonLabels, reference, mark, leftRun.steps, rightRun.steps, checkSeen, canonSeen, paired,
-        callGrowth, marked, installed, ?_⟩
+        callGrowth, marked, installed, exactPath, ?_⟩
       intro value cursor atMark returning
       cases atMark
       obtain ⟨peer, residual, _, _, leftPop, rightPop, _, referenceAt⟩ := pop marked paired returning rfl
@@ -1215,11 +1225,12 @@ theorem stringReplayMap {cx : LiftLowerContext (core3 grow)}
     cases front with
     | done pointer => exact next pointer _ _ _ _ matched
     | call ptr oldSize alignment size rest shorter =>
-      intro seen reached path
+      refine ⟨matched.1, ?_⟩
+      intro index seen reached path
       obtain ⟨checkLabels, canonLabels, reference, mark, lhs, rhs, checkSeen, canonSeen, paired,
-        growth, marked, trails, returning⟩ := matched path
+        growth, marked, trails, exactPath, returning⟩ := matched.2 path
       refine ⟨checkLabels, canonLabels, reference, mark, lhs, rhs, checkSeen, canonSeen, paired,
-        growth, marked, trails, ?_⟩
+        growth, marked, trails, exactPath, ?_⟩
       intro value cursor atMark focus
       obtain ⟨peer, checked, canonical, movement, tail⟩ := returning value cursor atMark focus
       exact ⟨peer, checked, canonical, movement, ih rest.length shorter tail⟩
@@ -1412,14 +1423,15 @@ theorem stringOccurrencesFrom {cx : LiftLowerContext (core3 grow)}
       cases front with
       | done => exact next _ _ _ _ _ _ matched (by simpa only [silent, List.append_nil] using reached) ⟨_, localHistory⟩
       | call ptr oldSize alignment size rest shorter =>
-        intro observed reachedCall path
+        refine ⟨matched.1, ?_⟩
+        intro index observed reachedCall path
         obtain ⟨checkLabels, canonLabels, reference, mark, _, _, checkSeen, canonSeen, paired,
-          _, marked, movement, returning⟩ := matched path
+          _, marked, movement, exactPath, returning⟩ := matched.2 path
         have sameStore := (HostFrame.Related.Paired.data paired).1
         have suspended := (transportAppend localTransport movement).choose_spec.1
         refine ⟨checkLabels, canonLabels, reference, mark, marked, paired,
           appendComparedOccurrences reached ⟨_, _, transportPaths movement, checkSeen, canonSeen, sameStore⟩,
-          ⟨_, _, by simpa only [List.map_nil, List.append_nil] using suspended⟩, ?_⟩
+          ⟨_, _, by simpa only [List.map_nil, List.append_nil] using suspended⟩, exactPath, ?_⟩
         intro value cursor atMark focus
         obtain ⟨peer, _, _, returned, residual⟩ := returning value cursor atMark focus
         have silentPop (raw : Trace grow sig) (observedAs : PayloadPrefix.visible raw = observed) :
@@ -1658,15 +1670,16 @@ theorem stringPaths {cx : LiftLowerContext (core3 grow)}
       cases front with
       | done pointer => exact ⟨reached, next pointer _ _ _ _ seen matched reached⟩
       | call ptr oldSize alignment size rest shorter =>
-        intro observed reachedCall path
+        refine ⟨matched.1, ?_⟩
+        intro index observed reachedCall path
         obtain ⟨checkLabels, canonLabels, reference, mark, _, _, checkSeen, canonSeen, paired,
-          _, marked, _, returning⟩ := matched path
+          _, marked, _, exactPath, returning⟩ := matched.2 path
         have sameStore := HostFrame.Related.Paired.data paired |>.1
         have live := allocatorPaths
           (stringInstallTracks _ cx ptr oldSize alignment size rest checkNext _ check rfl)
           (stringInstallTracks _ cx ptr oldSize alignment size rest canonNext _ canon rfl)
           marked checkSeen canonSeen sameStore
-        refine ⟨checkLabels, canonLabels, reference, mark, marked, paired, appendAllocatorPaths reached live, ?_⟩
+        refine ⟨checkLabels, canonLabels, reference, mark, marked, paired, appendAllocatorPaths reached live, exactPath, ?_⟩
         intro value cursor atMark focus
         obtain ⟨peer, checked, canonical, _, tail⟩ := returning value cursor atMark focus
         have checkPopped : PayloadPrefix.visible (.tau :: checkLabels ++ [.tau]) = observed := by

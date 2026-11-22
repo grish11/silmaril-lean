@@ -52,6 +52,26 @@ theorem cut_executed_callback
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutExecutedCallback run paired
 
+/-- Fold the actual checked callback with a local rule for reached give
+installs. The rule may use the fold on strictly shorter checked subruns. -/
+theorem fold_callback_slices (cross : CallbackGiveCrossing profile ready base bindings)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    CallbackSlice profile ready base bindings older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.foldCallbackSlices cross run paired
+
+/-- Strip the reached silent install and compare only its actual callback
+tail. Both visitors can consume the resulting exact callback index. -/
+theorem PairedAllocatorInstall.slice_callback
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkCount canonCount : Nat}
+    (installed : PairedAllocatorInstall profile ready base bindings older first second start incoming checkEntry canonEntry
+      checkCount canonCount)
+    (positive : 0 < checkCount) (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (compare : ShorterCallbackSlices profile ready base bindings labels.length) :
+    InstalledCallbackSlice profile ready base bindings older first second checkEntry canonEntry checkCount labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.sliceInstalledCallback installed positive run compare
+
 /-- Classify the actual checked callback derivation without choosing an
 allocator return or supplying an independent callback execution. Only
 reached synchronous reads with compatible candidate queries are crossed. -/

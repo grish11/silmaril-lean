@@ -148,6 +148,61 @@ theorem cutExecutedCallback
     have smaller : trailing.length < labels.length := by simp [split, List.length_append]; omega
     exact .boundary split compared kind step tail smaller
 
+theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bindings)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    CallbackSlice profile ready base bindings older start incoming labels finish := by
+  induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels finish older with
+  | ind budget ih =>
+    cases cutExecutedCallback run paired with
+    | complete segment => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
+    | @boundary leading label trailing reached peer next split front kind step tail smaller =>
+      have stop (ending : CallbackSliceEnd profile ready base bindings older reached (label :: trailing) finish) :
+          CallbackSlice profile ready base bindings older start incoming labels finish :=
+        ⟨leading, leading, label :: trailing, reached, peer, split, front, ending⟩
+      cases kind with
+      | give install =>
+        have available : ShorterCallbackSlices profile ready base bindings (label :: trailing).length := by
+          intro _ _ _ _ actual shorter actualRun actualPair
+          have cutLength : (label :: trailing).length ≤ budget := by
+            rw [← size, split, List.length_append]
+            omega
+          exact ih actual.length (Nat.lt_of_lt_of_le shorter cutLength) actualRun actualPair rfl
+        rcases cross install tail front.paired available with
+          ⟨consumed, canonLabels, residual, replied, peerReply, used, reply, rest⟩ | ending
+        · have remaining : residual.length < budget := by
+            have lengths := congrArg List.length used
+            simp only [List.length_append] at lengths
+            omega
+          obtain ⟨checked, canonical, trailing, reached, peer, suffix, continued, ending⟩ :=
+            ih residual.length remaining rest reply.paired rfl
+          exact ⟨leading ++ (label :: consumed) ++ checked, leading ++ canonLabels ++ canonical, trailing, reached, peer,
+            by rw [split, used, suffix]; simp only [List.append_assoc, List.cons_append],
+            CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front reply) continued, ending⟩
+        · obtain ⟨checked, canonical, trailing, reached, peer, tailSplit, nested, ending⟩ := ending
+          exact ⟨leading ++ checked, leading ++ canonical, trailing, reached, peer,
+            by rw [split, tailSplit, List.append_assoc], CallbackPrefix.appendExecutedCallbacks front nested, ending⟩
+      | read focus openRead => exact stop (.boundary (.read focus openRead) step tail)
+      | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
+      | write focus => exact stop (.boundary (.write focus) step tail)
+      | nonGrowingUpdate failed => exact stop (.boundary (.nonGrowingUpdate failed) step tail)
+
+theorem sliceInstalledCallback
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkCount canonCount : Nat}
+    (installed : PairedAllocatorInstall profile ready base bindings older first second start incoming checkEntry canonEntry
+      checkCount canonCount)
+    (positive : 0 < checkCount) (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (compare : ShorterCallbackSlices profile ready base bindings labels.length) :
+    InstalledCallbackSlice profile ready base bindings older first second checkEntry canonEntry checkCount labels finish := by
+  rcases splitSilent installed.checkedRun run with ⟨residual, split, tail⟩ | inside
+  · have smaller : residual.length < labels.length := by
+      simp only [split, List.length_append, List.length_replicate]
+      omega
+    obtain ⟨checked, canonical, trailing, reached, peer, splitTail, segment, ending⟩ := compare smaller tail installed.paired
+    exact .inr ⟨checked, canonical, trailing, reached, peer, by rw [split, splitTail, List.append_assoc], .executed segment, ending⟩
+  · exact .inl inside
+
 private theorem faultUnique {before : Config (core3 grow) (HostState sig)} {left right : String}
     (first : Fault before left) (second : Fault before right) : left = right := by
   cases first <;> cases second <;> simp_all
