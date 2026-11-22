@@ -164,6 +164,43 @@ theorem cut_component_lift_start (callee : ComponentCall.Callee sig) (caller : C
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentLiftStart
     callee caller record leftFocus rightFocus callerRecord live run paired
 
+/-- Consume the actual checked derivation while the focused programs run the
+same store-local body with different continuations. The finite prefix ends
+at an executed result, a trap, exhaustion, or the first other operation. -/
+theorem cut_component_store_body {Result : Type} (body : Session grow sig Result)
+    (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (body >>= checkNext))
+    (rightFocus : incoming.ctl = canon.control (body >>= canonNext))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
+    body checkNext canonNext leftFocus rightFocus paired run
+
+/-- Follow the reached admitted argument observer, from the live caller read
+through direct or spilled lifting and the caller-position write. Only a reached
+result enters payload validation with the common values and distinct tickets. -/
+theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.ok planned)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.ok planned)))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (ComponentCall.acceptPayload callee caller leftTicket planned)
+        (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix :=
+  cut_component_store_body (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller)
+    _ _ leftFocus rightFocus paired run
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}

@@ -116,6 +116,32 @@ def PairedComponentSite (changes : ReturnFrame.Substitutions (core3 grow) (HostS
     { left with ctl := leftCursor.control (.pure (.cancel .none)) }
     { right with ctl := rightCursor.control (.pure (.cancel .none)) }
 
+/-- The operations that can be compared using just the reached shared store
+and active thread, without consulting either embedder. -/
+def componentStoreOp : (Eff (core3 grow) (HostState sig)).Op → Bool
+  | .get | .modify _ | .currentThread | .trap _ => true
+  | _ => false
+
+/-- The frontier of an executed store-only component prefix. A pending
+operation is not a refusal, and a trap does not run either continuation. -/
+inductive ComponentStoreFrontier {Result : Type}
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
+    (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig) : Prop where
+  | returned (result : Result)
+      (checked : left.ctl = check.control (checkNext result))
+      (canonical : right.ctl = canon.control (canonNext result))
+      (paired : PairedComponentSite older left right check canon)
+  | pending (op : (Eff (core3 grow) (HostState sig)).Op)
+      (next : (Eff (core3 grow) (HostState sig)).Resp op → Session grow sig Result)
+      (checked : left.ctl = check.control (.op op (fun response => next response >>= checkNext)))
+      (canonical : right.ctl = canon.control (.op op (fun response => next response >>= canonNext)))
+      (paired : PairedComponentSite older left right check canon)
+      (boundary : suffix = [] ∨ componentStoreOp op = false)
+  | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
+      (paired : HostFrame.Related.Paired older left right)
+
 /-- Replay the exact extracted prefix, including silent steps. The selected
 mark can move between active and saved storage or disappear; all other
 locations also retain their actual scheduler paths. -/
