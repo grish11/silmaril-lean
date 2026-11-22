@@ -164,7 +164,7 @@ def pollCalloutObservation (mem : (core3 grow).MemAddr) (inst : InstId) (args : 
   let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
   pure (event, code)
 
-def pollCalloutResult (observation : AsyncRef.EventTuple × Nat) : Session grow sig (Ret (core3 grow)) :=
+def waitableFlatReply (observation : AsyncRef.EventTuple × Nat) : Session grow sig (Ret (core3 grow)) :=
   .pure (.flat [i32Flat observation.2])
 
 /-- Run the actual waiter count update, readiness read and optional early
@@ -212,17 +212,17 @@ inductive ComponentStoreFrontier {Result : Type}
   | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
       (paired : HostFrame.Related.Paired older left right)
 
-/-- The end of the actual finite public poll cut. At reply focus the installed
+/-- The end of the actual finite public poll or wait cut. At reply focus the installed
 caller is still live; only the rejoined case consumes its original slot. -/
-inductive PollCalloutExit (profile : ProfileKind) (ready : HostReady (HostState sig))
+inductive WaitableCalloutExit (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
   | exhausted (noMore : suffix = []) (endpoint : finish = left)
   | trapped (checked : left.ctl = []) (canonical : right.ctl = []) (paired : HostFrame.Related.Paired older left right)
   | rejoined (observation : AsyncRef.EventTuple × Nat) {thread core resume frames rest peerFrames peerRest remaining}
-      (checked : left.ctl = ⟨thread, .prog (pollCalloutResult observation), .core core resume :: frames⟩ :: rest)
-      (canonical : right.ctl = ⟨thread, .prog (pollCalloutResult observation), .core core resume :: peerFrames⟩ :: peerRest)
+      (checked : left.ctl = ⟨thread, .prog (waitableFlatReply observation), .core core resume :: frames⟩ :: rest)
+      (canonical : right.ctl = ⟨thread, .prog (waitableFlatReply observation), .core core resume :: peerFrames⟩ :: peerRest)
       (split : suffix = .tau :: remaining)
       (residual : Steps profile ready (specDispatch ready base)
         { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
@@ -564,7 +564,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | pollTerminal {changes reached peer left right checked trailing finish mark check canon}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right [mark])
-      (frontier : ComponentStoreFrontier changes check canon pollCalloutResult pollCalloutResult left right trailing True)
+      (frontier : ComponentStoreFrontier changes check canon waitableFlatReply waitableFlatReply left right trailing True)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish

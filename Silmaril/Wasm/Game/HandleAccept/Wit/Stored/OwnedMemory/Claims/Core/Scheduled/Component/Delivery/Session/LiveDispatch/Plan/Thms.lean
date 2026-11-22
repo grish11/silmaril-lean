@@ -387,6 +387,35 @@ theorem cut_waitable_wait_park (mem : (core3 grow).MemAddr) (entry : WaitableCal
     mem entry leftFocus rightFocus paired run
 
 open ReturnFrame.Occurrence in
+/-- Compare the executed resumption of a reached saved wait program, including
+its Core slot. The live saved-slot read, not any earlier event, identifies
+the resumed program; no delivery or Core pop has occurred at the resume. -/
+theorem cut_waitable_wait_resume (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {waiter resumer afterResume frames rest core resume savedFrames label next}
+    (scheduled : start.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+    (found : start.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
+    (step : Step profile ready (specDispatch ready base) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest peerSaved,
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some waiter, .core core resume :: savedFrames,
+        ⟨resumer, .prog (afterResume ()), frames⟩ :: rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some waiter, .core core resume :: peerSaved,
+        ⟨resumer, .prog (afterResume ()), peerFrames⟩ :: peerRest⟩
+      let reached := { (start.setCont waiter none) with
+        store := StepDefs.threadStatusSt waiter .running start.store
+        ctl := check.control (waitableWaitContinue mem entry) }
+      let peer := { (incoming.setCont waiter none) with
+        store := StepDefs.threadStatusSt waiter .running incoming.store
+        ctl := canon.control (waitableWaitContinue mem entry) }
+      label = .tau ∧ next = reached ∧ PairedComponentSite older reached peer check canon ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer ∧
+      Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0)) [.tau] reached (some (.active 0 0)) ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
+        [.tau] peer (some (.active 0 0)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableWaitResume
+    mem entry scheduled found step paired
+
+open ReturnFrame.Occurrence in
 /-- Recover the public waitable callout and both original caller occurrences
 from an executed Core install. Older active and saved marks are transported
 across the push; the new mark denotes the installed caller, not the reply. -/
@@ -431,10 +460,59 @@ theorem cut_public_poll (mem : (core3 grow).MemAddr) (inst : InstId) (args : Lis
       (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
         reached peer [some (.active 0 0)]) ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon pollCalloutResult pollCalloutResult reached peer suffix True ∧
-      PollCalloutExit profile ready base bindings older reached peer suffix finish :=
+      ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicPoll
     mem inst args focused calling step run paired
+
+open ReturnFrame.Occurrence in
+/-- Follow the post-wait program, including the actual waiting-count decrement,
+live event selection and buffer writes. A missing or consumed event can trap;
+only an executed pop at the returned focus resumes the Core caller. -/
+theorem cut_waitable_wait_delivery (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (waitableWaitContinue mem entry), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (waitableWaitContinue mem entry), .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, .core core resume :: frames, rest⟩
+      ⟨thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older ⟨thread, .core core resume :: frames, rest⟩
+        ⟨thread, .core core resume :: peerFrames, peerRest⟩ waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] → ∀ place,
+        Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableWaitDelivery
+    mem entry leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+/-- Cross the executed saved wait resume and keep its actual checked residual
+through the fresh delivery program. Event selection uses the reached store,
+and the saved Core occurrence is tracked independently of the event. -/
+theorem cut_resumed_wait_delivery (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {waiter resumer afterResume frames rest core resume savedFrames label next}
+    (scheduled : start.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+    (found : start.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
+    (step : Step profile ready (specDispatch ready base) start label next)
+    (run : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ leading suffix reached peer check canon,
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] →
+        Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
+          (.tau :: leading) reached (some (.active 0 0)) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
+          (.tau :: leading) peer (some (.active 0 0))) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutResumedWaitDelivery
+    mem entry scheduled found step run paired
 
 /-- Follow the same actual run from selection through event-buffer writes. A
 returned frontier records the event and code together. A late buffer trap

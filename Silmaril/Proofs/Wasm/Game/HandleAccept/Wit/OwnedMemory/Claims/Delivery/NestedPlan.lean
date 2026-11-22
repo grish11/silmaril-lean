@@ -1064,6 +1064,67 @@ theorem cutWaitableWaitPark (mem : (core3 grow).MemAddr) (entry : WaitableCallou
     exact outside.edit edit
 
 open ReturnFrame.Occurrence in
+theorem cutWaitableWaitResume (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {waiter resumer afterResume frames rest core resume savedFrames label next}
+    (scheduled : start.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+    (found : start.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
+    (step : Step profile ready (specDispatch ready base) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest peerSaved,
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some waiter, .core core resume :: savedFrames,
+        ⟨resumer, .prog (afterResume ()), frames⟩ :: rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some waiter, .core core resume :: peerSaved,
+        ⟨resumer, .prog (afterResume ()), peerFrames⟩ :: peerRest⟩
+      let reached := { (start.setCont waiter none) with
+        store := StepDefs.threadStatusSt waiter .running start.store
+        ctl := check.control (waitableWaitContinue mem entry) }
+      let peer := { (incoming.setCont waiter none) with
+        store := StepDefs.threadStatusSt waiter .running incoming.store
+        ctl := canon.control (waitableWaitContinue mem entry) }
+      label = .tau ∧ next = reached ∧ PairedComponentSite older reached peer check canon ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer ∧
+      Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0)) [.tau] reached (some (.active 0 0)) ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
+        [.tau] peer (some (.active 0 0)) := by
+  obtain ⟨peerFrames, peerRest, peerSaved, peerFocus, peerFound, framed⟩ :=
+    ReturnFrame.Related.Paired.resume_core paired scheduled found (.prog (afterResume ())) (.prog (.pure (.cancel .none)))
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some waiter, .core core resume :: savedFrames,
+    ⟨resumer, .prog (afterResume ()), frames⟩ :: rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some waiter, .core core resume :: peerSaved,
+    ⟨resumer, .prog (afterResume ()), peerFrames⟩ :: peerRest⟩
+  let reached := { (start.setCont waiter none) with
+    store := StepDefs.threadStatusSt waiter .running start.store
+    ctl := check.control (waitableWaitContinue mem entry) }
+  let peer := { (incoming.setCont waiter none) with
+    store := StepDefs.threadStatusSt waiter .running incoming.store
+    ctl := canon.control (waitableWaitContinue mem entry) }
+  have checked : Step profile ready (specDispatch ready base) start .tau reached := .resumeThread scheduled found
+  have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer :=
+    .resumeThread peerFocus peerFound
+  obtain ⟨rfl, rfl⟩ := silentStepUnique checked step
+  have updated := congrArg (StepDefs.threadStatusSt waiter .running) (HostFrame.Related.Paired.data paired).1
+  have aligned : PairedComponentSite older reached peer check canon := by
+    simpa only [PairedComponentSite, reached, peer, check, canon, updated, PayloadPrefix.Cursor.control,
+      HostFrame.Related.Paired, HostFrame.replace, Config.setCont] using
+      ReturnFrame.Related.Paired.set_store framed (StepDefs.threadStatusSt waiter .running start.store)
+  let edit : Edit (core3 grow) (HostState sig) := .resume waiter.idx
+  have leftEdit : transitionEdit start .tau = edit := by rw [transitionEdit, scheduled]
+  have rightEdit : transitionEdit incoming .tau = edit := by rw [transitionEdit, peerFocus]
+  have trail (place : Option Location) :
+      Trail profile ready (specDispatch ready base) start place [.tau] reached (place.bind edit.follow) ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place [.tau] peer (place.bind edit.follow) :=
+    ⟨.step checked (by rw [leftEdit]; exact .done _ _), .step canonical (by rw [rightEdit]; exact .done _ _)⟩
+  refine ⟨peerFrames, peerRest, peerSaved, rfl, rfl, aligned, ⟨(·.bind edit.follow), trail, ?_⟩, ?_⟩
+  · intro previous marks outside
+    change OutsideMarks previous (segmentStorage reached) (segmentStorage peer) (marks.map (·.bind edit.follow))
+    rw [step_edit checked, step_edit canonical, leftEdit, rightEdit]
+    exact outside.edit edit
+  · change Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0)) [.tau] reached (some (.active 0 0)) ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
+        [.tau] peer (some (.active 0 0))
+    simpa [edit, Edit.follow, Location.resume] using trail (some (.saved waiter.idx 0))
+
+open ReturnFrame.Occurrence in
 theorem cutWaitableCalloutInstall (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
     {thread core resume frames rest label next}
     (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
@@ -1157,6 +1218,24 @@ private theorem cutWaitableCorePop {thread core resume frames rest peerFrames pe
       rw [step_edit taken, step_edit canonical, leftEdit, rightEdit]
       exact outside.edit _
 
+private theorem cutWaitableBodyExit {thread core resume frames rest peerFrames peerRest}
+    (frontier : ComponentStoreFrontier older ⟨thread, .core core resume :: frames, rest⟩
+      ⟨thread, .core core resume :: peerFrames, peerRest⟩ waitableFlatReply waitableFlatReply start incoming labels True)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    WaitableCalloutExit profile ready base bindings older start incoming labels finish := by
+  cases frontier with
+  | returned observation checked canonical paired =>
+    rcases cutWaitableCorePop (bindings := bindings) checked canonical paired run with done | popped
+    · exact .exhausted done.1 done.2
+    · obtain ⟨_, split, tail, paired, transport, _⟩ := popped
+      exact .rejoined observation checked canonical split tail paired transport
+  | pending _ _ _ _ _ boundary =>
+    rcases boundary with rfl | ⟨notClosed, _⟩
+    · cases run
+      exact .exhausted rfl rfl
+    · exact (notClosed trivial).elim
+  | trapped checked canonical paired => exact .trapped checked canonical paired
+
 private theorem selectWaitableEffects (ws : WsetId) :
     StoreEffects (wsetGetPendingEvent ws : Session grow sig AsyncRef.EventTuple) := by
   have takeEffects (waitable : Waitable) : StoreEffects (Waitable.getPendingEvent waitable : Session grow sig AsyncRef.EventTuple) := by
@@ -1196,12 +1275,77 @@ private theorem waitableBufferEffects (cx : LiftLowerContext (core3 grow)) (ptr 
   exact (storeEffectTrapIf _ _).bind fun _ => (storeEffectBounds _ _ _).bind fun _ =>
     (storeEffectWrite _ _ _).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
 
+open ReturnFrame.Occurrence in
+theorem cutWaitableWaitDelivery (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (waitableWaitContinue mem entry), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (waitableWaitContinue mem entry), .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, .core core resume :: frames, rest⟩
+      ⟨thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older ⟨thread, .core core resume :: frames, rest⟩
+        ⟨thread, .core core resume :: peerFrames, peerRest⟩ waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] → ∀ place,
+        Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
+  let body : Session grow sig (AsyncRef.EventTuple × Nat) := do
+    modifyStore (CStore.wsetDecWaitingSt entry.set)
+    let event ← wsetGetPendingEvent entry.set
+    let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
+    pure (event, code)
+  have program : (waitableWaitContinue mem entry : Session grow sig (Ret (core3 grow))) = body >>= waitableFlatReply := by
+    simp [body, waitableWaitContinue, waitableFlatReply, Prog.bind_assoc]
+  have certified : StoreEffects body :=
+    (storeEffectModify _).bind fun _ => (selectWaitableEffects entry.set).bind fun event =>
+      (waitableBufferEffects (Builtins.eventCx mem entry.inst) entry.ptr event).bind fun _ => .pure _
+  rw [program] at leftFocus rightFocus
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, retained⟩ :=
+    cutComponentStoreBodyFramed (bindings := bindings) body _ _ (closed := True) (fun _ => certified)
+      (trivialPreserves body) trivial leftFocus rightFocus paired run
+  exact ⟨leading, suffix, reached, peer, split, moved, residual, frontier, cutWaitableBodyExit frontier residual,
+    fun live => (retained live).2⟩
+
+open ReturnFrame.Occurrence in
+theorem cutResumedWaitDelivery (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {waiter resumer afterResume frames rest core resume savedFrames label next}
+    (scheduled : start.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+    (found : start.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
+    (step : Step profile ready (specDispatch ready base) start label next)
+    (run : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ leading suffix reached peer check canon,
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] →
+        Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
+          (.tau :: leading) reached (some (.active 0 0)) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
+          (.tau :: leading) peer (some (.active 0 0))) := by
+  obtain ⟨_, _, _, rfl, rfl, site, resumed, leftMark, rightMark⟩ :=
+    cutWaitableWaitResume (bindings := bindings) mem entry scheduled found step paired
+  obtain ⟨leading, suffix, reached, peer, split, body, residual, frontier, exit, retained⟩ :=
+    cutWaitableWaitDelivery (bindings := bindings) mem entry rfl rfl site run
+  have joined := (CallbackPrefix.transportAppend resumed body).choose_spec.1
+  refine ⟨leading, suffix, reached, peer, _, _, by rw [split]; rfl, ?_, residual, frontier, exit, ?_⟩
+  · simpa only [List.singleton_append, List.map_nil, List.append_nil] using joined
+  · intro live
+    obtain ⟨left, right⟩ := retained live (.active 0 0)
+    exact ⟨leftMark.append left.toTrail, rightMark.append right.toTrail⟩
+
 private theorem pollCalloutDispatch (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue) :
     specDispatch ready base (.hostCallout (waitableCalloutHost true mem inst) args) =
-      (pollCalloutObservation mem inst args >>= pollCalloutResult : Session grow sig (Ret (core3 grow))) := by
+      (pollCalloutObservation mem inst args >>= waitableFlatReply : Session grow sig (Ret (core3 grow))) := by
   rw [waitableCalloutDispatch]
   change (waitableCalloutEntry true mem inst args >>= fun entry => waitableCalloutBody true mem entry) = _
-  simp [pollCalloutObservation, waitableCalloutBody, pollCalloutResult, Prog.bind_assoc]
+  simp [pollCalloutObservation, waitableCalloutBody, waitableFlatReply, Prog.bind_assoc]
 
 open ReturnFrame.Occurrence in
 private theorem cutPollCalloutBody (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
@@ -1215,7 +1359,7 @@ private theorem cutPollCalloutBody (mem : (core3 grow).MemAddr) (inst : InstId) 
       labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon pollCalloutResult pollCalloutResult reached peer suffix True ∧
+      ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
       reached.host = start.host ∧ peer.host = incoming.host ∧
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
@@ -1227,7 +1371,7 @@ private theorem cutPollCalloutBody (mem : (core3 grow).MemAddr) (inst : InstId) 
       (waitableSelectionEffects true entry.set).bind fun event =>
         (waitableBufferEffects (Builtins.eventCx mem entry.inst) entry.ptr event).bind fun _ => .pure _
   obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, paths⟩ :=
-    cutComponentStoreBodyFramed body pollCalloutResult pollCalloutResult (closed := True) (fun _ => certified)
+    cutComponentStoreBodyFramed body waitableFlatReply waitableFlatReply (closed := True) (fun _ => certified)
       (trivialPreserves body) trivial leftFocus rightFocus paired run
   exact ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, fun live => (paths live).2⟩
 
@@ -1248,8 +1392,8 @@ theorem cutPublicPoll (mem : (core3 grow).MemAddr) (inst : InstId) (args : List 
       (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
         reached peer [some (.active 0 0)]) ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon pollCalloutResult pollCalloutResult reached peer suffix True ∧
-      PollCalloutExit profile ready base bindings older reached peer suffix finish := by
+      ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish := by
   obtain ⟨peerFrames, peerRest, rfl, rfl, site, install, _, _⟩ :=
     cutWaitableCalloutInstall (bindings := bindings) true mem inst args focused calling step paired
   obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, retained⟩ :=
@@ -1275,18 +1419,7 @@ theorem cutPublicPoll (mem : (core3 grow).MemAddr) (inst : InstId) (args : List 
       obtain ⟨left, right⟩ := retained live place
       exact framed previous marks before place unmarked first second
         ((prefix_survives left).2.symm.trans leftAt) ((prefix_survives right).2.symm.trans rightAt)
-  · cases frontier with
-    | returned observation checked canonical paired =>
-      rcases cutWaitableCorePop (bindings := bindings) checked canonical paired residual with done | popped
-      · exact .exhausted done.1 done.2
-      · obtain ⟨_, split, tail, paired, transport, _⟩ := popped
-        exact .rejoined observation checked canonical split tail paired transport
-    | pending _ _ _ _ _ boundary =>
-      rcases boundary with rfl | ⟨notClosed, _⟩
-      · cases residual
-        exact .exhausted rfl rfl
-      · exact (notClosed trivial).elim
-    | trapped checked canonical paired => exact .trapped checked canonical paired
+  · exact cutWaitableBodyExit frontier residual
 
 theorem cutWaitableDelivery (poll : Bool) (ws : WsetId) (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
     (checkNext canonNext : Nat → Session grow sig (Ret (core3 grow)))
