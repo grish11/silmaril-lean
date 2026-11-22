@@ -46,6 +46,12 @@ theorem lowerOnStart_every (lim : Limits) (q : Quirks) (caller : CallerId)
   Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift.lowerOnStart_every
     lim q caller get modify fail
 
+/-- All recursively reached modifications in direct and spilled argument
+lifting preserve the caller shapes, while their positions and other store data may change. -/
+theorem lowerOnStart_caller_shape (lim : Limits) (q : Quirks) (caller : CallerId) :
+    Prog.Every LowerSt.argumentLiftOp (lowerOnStart lim q caller : P E σ (List Val)) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift.lowerOnStart_caller_shape lim q caller
+
 namespace P.Inv
 
 variable {I : CStore E → Prop} {W : σ → Prop}

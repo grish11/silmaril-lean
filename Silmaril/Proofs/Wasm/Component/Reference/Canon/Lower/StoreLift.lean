@@ -12,11 +12,7 @@ open Silmaril.Wasm.Component.AsyncRef
 
 variable {E : CoreEngine} {σ α β : Type}
 
-private def storeOp : Op E σ → Prop
-  | .get | .modify _ | .trap _ => True
-  | _ => False
-
-private abbrev Local (program : P E σ α) : Prop := Prog.Every storeOp program
+private abbrev Local (program : P E σ α) : Prop := Prog.Every LowerSt.argumentLiftOp program
 
 private theorem pure (value : α) : Local (Prog.pure value : P E σ α) := .pure value
 
@@ -47,8 +43,9 @@ private theorem orTrap (reason : TrapReason) (value : Option α) :
 
 private theorem getStore : Local (Canon.getStore : P E σ (CStore E)) := .lift trivial
 
-private theorem modifyStore (update : CStore E → CStore E) :
-    Local (Canon.modifyStore update : P E σ Unit) := .lift trivial
+private theorem modifyStore (update : CStore E → CStore E)
+    (preserves : ∀ store caller, LowerSt.callerShape (update store) caller = LowerSt.callerShape store caller) :
+    Local (Canon.modifyStore update : P E σ Unit) := .lift preserves
 
 private theorem getObj {Key : Type} (field : ArenaField E Key α) (index : Key) :
     Local (Canon.getObj field index : P E σ α) := bind getStore fun _ => orTrap _ _
@@ -99,7 +96,7 @@ private theorem handlesRemove (inst : InstId) (index : Nat) :
   refine bind (getObj _ _) fun _ => ?_
   split
   · exact trap _
-  · exact bind (modifyStore _) fun _ => pure _
+  · exact bind (modifyStore _ (fun _ _ => rfl)) fun _ => pure _
 
 private theorem expectResource (entry : HandleEntry) :
     Local (Canon.expectResource entry : P E σ HandleObjId) := by
@@ -115,7 +112,7 @@ private theorem liftBorrow (lim : Limits) (cx : LiftLowerContext E) (rt : RtId) 
   unfold Canon.liftBorrow
   split
   · exact bind (handlesGet _ _) fun _ => bind (expectResource _) fun _ => bind (getObj _ _) fun _ =>
-      bind (trapIf _ _) fun _ => bind (modifyStore _) fun _ => pure _
+      bind (trapIf _ _) fun _ => bind (modifyStore _ (fun _ _ => rfl)) fun _ => pure _
   · exact internal _
 
 private theorem liftAsyncValue (lim : Limits) (kind : EndKind) (cx : LiftLowerContext E)
@@ -127,7 +124,7 @@ private theorem liftAsyncValue (lim : Limits) (kind : EndKind) (cx : LiftLowerCo
     · exact bind (getObj _ _) fun _ => bind (trapIf _ _) fun _ => bind (trapIf _ _) fun _ =>
         bind (trapIf _ _) fun _ => bind (trapIf _ _) fun _ => pure _
     · exact trap _
-  exact bind (handlesRemove _ _) fun _ => bind (checked _) fun _ => bind (modifyStore _) fun _ => pure _
+  exact bind (handlesRemove _ _) fun _ => bind (checked _) fun _ => bind (modifyStore _ (fun _ _ => rfl)) fun _ => pure _
 
 private theorem liftErrorContext (lim : Limits) (cx : LiftLowerContext E) (index : Nat) :
     Local (Canon.liftErrorContext lim cx index : P E σ ErrCtxId) :=
@@ -431,17 +428,27 @@ private theorem liftFlatValues (lim : Limits) (q : Quirks) (cx : LiftLowerContex
 
 private theorem maybeOnProgress (subtask : SubtaskId) :
     Local (Canon.maybeOnProgress subtask : P E σ Unit) :=
-  bind (getObj _ _) fun _ => ite (modifyStore _) (pure ())
+  bind (getObj _ _) fun _ => ite (modifyStore _ (fun _ _ => rfl)) (pure ())
 
-private theorem lowerOnStart (lim : Limits) (q : Quirks) (caller : CallerId) :
-    Local (Canon.lowerOnStart lim q caller : P E σ (List Val)) := by
+private theorem callerShape_setPos (store : CStore E) (caller observed : CallerId) (pos : Nat) :
+    LowerSt.callerShape (LowerSt.setCallerPosSt caller pos store) observed = LowerSt.callerShape store observed := by
+  unfold LowerSt.callerShape LowerSt.setCallerPosSt CStore.caller?
+  rw [ArenaField.get?_modify]
+  split
+  · cases ArenaField.callers.get? store observed with
+    | none => rfl
+    | some record => cases record <;> rfl
+  · rfl
+
+public theorem lowerOnStart_caller_shape (lim : Limits) (q : Quirks) (caller : CallerId) :
+    Prog.Every LowerSt.argumentLiftOp (Canon.lowerOnStart lim q caller : P E σ (List Val)) := by
   unfold Canon.lowerOnStart
   refine bind (getObj _ _) fun record => ?_
   cases record with
   | lower subtask cx args pos ft limit results =>
-    exact bind (maybeOnProgress subtask) fun _ => bind (modifyStore _) fun _ =>
-      bind (liftFlatValues lim q cx limit ⟨args, pos⟩ _) fun _ =>
-        bind (modifyStore _) fun _ => pure _
+    exact bind (maybeOnProgress subtask) fun _ => bind (modifyStore _ (fun _ _ => rfl)) fun _ =>
+      bind (liftFlatValues lim q cx limit ⟨args, pos⟩ _) fun (_, next) =>
+        bind (modifyStore _ (fun store observed => callerShape_setPos store caller observed next.pos)) fun _ => pure _
   | host => exact internal _
   | sub => exact internal _
 
@@ -456,6 +463,6 @@ public theorem lowerOnStart_every (lim : Limits) (q : Quirks) (caller : CallerId
     | @op op _ allowed _ ih =>
       refine .op ?_ ih
       cases op <;> first | exact get | exact modify _ | exact fail _ | exact False.elim allowed
-  exact weaken (lowerOnStart lim q caller)
+  exact weaken (lowerOnStart_caller_shape lim q caller)
 
 end Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift

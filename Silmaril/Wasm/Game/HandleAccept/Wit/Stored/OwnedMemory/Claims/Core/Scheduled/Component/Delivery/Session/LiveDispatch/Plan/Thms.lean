@@ -183,10 +183,12 @@ theorem cut_component_store_body {Result : Type} (body : Session grow sig Result
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
     body checkNext canonNext False.elim leftFocus rightFocus paired run
 
+open ReturnFrame.Occurrence in
 /-- Follow the reached admitted argument observer, from the live caller read
 through direct or spilled lifting and the caller-position write. Only a reached
 result enters payload validation with the common values and distinct tickets.
-Recursive lifting is closed under store effects, so there is no nonlocal frontier. -/
+On a live cut it preserves ABI shape and the exact active/saved locations,
+not the position, memory, or handle state. A trap still takes lockdown. -/
 theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (caller : CallerId)
     {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -200,11 +202,12 @@ theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (ca
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon (ComponentCall.acceptPayload callee caller leftTicket planned)
         (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix True ∧
-      reached.host = start.host ∧ peer.host = incoming.host :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
-    (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller) _ _
-    (fun _ => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.observedArgumentsEffects caller)
-    leftFocus rightFocus paired run
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      (reached.ctl ≠ [] → (∀ id, LowerSt.callerShape reached.store id = LowerSt.callerShape start.store id) ∧
+        ∀ place, Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+          Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutObservedArguments
+    callee caller leftFocus rightFocus paired run
 
 /-- Follow the real preflight-refusal path without lifting the rejected payload.
 Only a reached skip result enters the ticket-specific refusal continuations. -/

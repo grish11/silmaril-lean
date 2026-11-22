@@ -253,11 +253,17 @@ private theorem componentTrapUnique {reason : TrapReason} {cursor : PayloadPrefi
     simp_all
   exact Op.trap.inj operation
 
+private def storePreserves (invariant : CStore (core3 grow) → Prop) : (Eff (core3 grow) (HostState sig)).Op → Prop
+  | .modify update => ∀ store, invariant store → invariant (update store)
+  | _ => True
+
 open PayloadPrefix ReturnFrame.Occurrence in
 set_option maxHeartbeats 3000000 in
-theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session grow sig Result)
+private theorem cutComponentStoreBodyFramed {Result : Type} {closed : Prop} (body : Session grow sig Result)
     (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
     (certified : closed → Prog.Every (fun op => componentStoreOp op = true) body)
+    {invariant : CStore (core3 grow) → Prop}
+    (preserves : Prog.Every (storePreserves invariant) body) (initial : invariant start.store)
     {check canon : Cursor (E := core3 grow) (HostState sig)}
     (leftFocus : start.ctl = check.control (body >>= checkNext))
     (rightFocus : incoming.ctl = canon.control (body >>= canonNext))
@@ -268,11 +274,15 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix closed ∧
-      reached.host = start.host ∧ peer.host = incoming.host := by
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      (reached.ctl ≠ [] → invariant reached.store ∧ ∀ place,
+        Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
   induction labels generalizing start incoming body with
   | nil =>
     cases run
-    refine ⟨[], [], finish, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _), .refl _, ?_, rfl, rfl⟩
+    refine ⟨[], [], finish, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _), .refl _, ?_, rfl, rfl,
+      fun _ => ⟨initial, fun place => ⟨.done _ place, .done _ place⟩⟩⟩
     cases body with
     | pure result => exact .returned result leftFocus rightFocus paired
     | op op next => exact .pending op next leftFocus rightFocus paired (.inl rfl)
@@ -280,7 +290,7 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
     cases body with
     | pure result =>
       exact ⟨[], label :: suffix, start, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
-        run, .returned result leftFocus rightFocus paired, rfl, rfl⟩
+        run, .returned result leftFocus rightFocus paired, rfl, rfl, fun _ => ⟨initial, fun place => ⟨.done _ place, .done _ place⟩⟩⟩
     | op op next =>
       have leftOp : start.ctl = check.control (.op op (fun response => next response >>= checkNext)) := leftFocus
       have rightOp : incoming.ctl = canon.control (.op op (fun response => next response >>= canonNext)) := rightFocus
@@ -290,7 +300,8 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
           cases certified proven with
           | op allowed _ => rw [localOp] at allowed; contradiction
         exact ⟨[], label :: suffix, start, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
-          run, .pending op next leftOp rightOp paired (.inr ⟨notClosed, localOp⟩), rfl, rfl⟩
+          run, .pending op next leftOp rightOp paired (.inr ⟨notClosed, localOp⟩), rfl, rfl,
+          fun _ => ⟨initial, fun place => ⟨.done _ place, .done _ place⟩⟩⟩
       cases run with
       | @cons _ middle _ _ _ first tail =>
         have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
@@ -298,6 +309,7 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
           obtain ⟨frames, rest, focus, _⟩ := HostFrame.Related.Paired.retarget paired rfl (.prog (.pure (.cancel .none))) start.host incoming.host
           exact (congrArg (fun ctl : List (Activation (core3 grow) (HostState sig)) => ctl.head?.map (·.thread)) focus |> Option.some.inj).symm
         have localStep (response : (Eff (core3 grow) (HostState sig)).Resp op) (updated : CStore (core3 grow))
+            (updatedInv : invariant updated)
             (leftStep : Step profile ready (specDispatch ready base) start .tau
               { start with store := updated, ctl := check.control (next response >>= checkNext) })
             (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
@@ -307,7 +319,10 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
               OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
               Steps profile ready (specDispatch ready base) reached trailing finish ∧
               ComponentStoreFrontier older check canon checkNext canonNext reached peer trailing closed ∧
-              reached.host = start.host ∧ peer.host = incoming.host := by
+              reached.host = start.host ∧ peer.host = incoming.host ∧
+              (reached.ctl ≠ [] → invariant reached.store ∧ ∀ place,
+                Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+                Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
           obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep first
           let nextPeer := { incoming with store := updated, ctl := canon.control (next response >>= canonNext) }
           have aligned : PairedComponentSite older
@@ -317,30 +332,41 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
             intro proven
             cases certified proven with
             | op _ continuations => exact continuations response
-          obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier, leftHost, rightHost⟩ :=
-            ih (next response) followingCertified rfl (show nextPeer.ctl = _ from rfl) aligned tail
-          have movement : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] _ nextPeer :=
-            CallbackPrefix.stationaryTransport (fun place => .step leftStep (by rw [leftEdit]; rfl) (.done _ place))
-              (fun place => .step rightStep (by rw [rightEdit]; rfl) (.done _ place))
-          refine ⟨.tau :: leading, trailing, reached, peer, congrArg (.tau :: ·) split, ?_, residual, frontier, leftHost, rightHost⟩
-          simpa only [List.map_nil, List.append_nil, List.singleton_append] using
-            (CallbackPrefix.transportAppend movement moved).choose_spec.1
+          have followingPreserves : Prog.Every (storePreserves invariant) (next response) := by
+            cases preserves with
+            | op _ continuations => exact continuations response
+          obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier, leftHost, rightHost, retained⟩ :=
+            ih (next response) followingCertified followingPreserves updatedInv rfl (show nextPeer.ctl = _ from rfl) aligned tail
+          have leftAt place : Prefix profile ready (specDispatch ready base) start place [.tau] _ place :=
+            .step leftStep (by rw [leftEdit]; rfl) (.done _ place)
+          have rightAt place : Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place [.tau] nextPeer place :=
+            .step rightStep (by rw [rightEdit]; rfl) (.done _ place)
+          have movement := CallbackPrefix.stationaryTransport (bindings := bindings) leftAt rightAt
+          refine ⟨.tau :: leading, trailing, reached, peer, congrArg (.tau :: ·) split, ?_, residual, frontier, leftHost, rightHost, ?_⟩
+          · simpa only [List.map_nil, List.append_nil, List.singleton_append] using
+              (CallbackPrefix.transportAppend movement moved).choose_spec.1
+          · intro live
+            obtain ⟨keeps, paths⟩ := retained live
+            exact ⟨keeps, fun place => ⟨(leftAt place).append (paths place).1, (rightAt place).append (paths place).2⟩⟩
         cases op with
         | get =>
-          exact localStep start.store start.store (.get leftOp) (same ▸ .get rightOp)
+          exact localStep start.store start.store initial (.get leftOp) (same ▸ .get rightOp)
             (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
         | modify update =>
-          exact localStep () (update start.store) (.modify leftOp)
+          have updatedInv : invariant (update start.store) := by
+            cases preserves with
+            | op allowed _ => exact allowed _ initial
+          exact localStep () (update start.store) updatedInv (.modify leftOp)
             (by rw [same]; exact .modify rightOp)
             (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
         | currentThread =>
-          exact localStep check.thread start.store (.currentThread leftOp)
+          exact localStep check.thread start.store initial (.currentThread leftOp)
             (by rw [same, sameThread]; exact .currentThread rightOp)
             (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
         | trap reason =>
           obtain ⟨rfl, rfl⟩ := componentTrapUnique leftOp first
           refine ⟨[.trap reason], suffix, StepDefs.trapCfg start, StepDefs.trapCfg incoming, rfl, ?_, tail,
-            .trapped rfl rfl ?_, rfl, rfl⟩
+            .trapped rfl rfl ?_, rfl, rfl, fun live => False.elim (live rfl)⟩
           · have tracking := CallbackPrefix.localLeafTransport (check := check) (canon := canon) (checkNext := checkNext)
               (left := start) (right := incoming) (store := start.store) (leftHost := start.host) (rightHost := incoming.host)
               (checked := [.trap reason]) (canonical := [.trap reason]) (canonNext := canonNext) (result := .error reason)
@@ -358,6 +384,30 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
           · simpa only [StepDefs.trapCfg, same] using
               (HostFrame.Related.Paired.set_store paired (StepDefs.lockdownSt incoming.store)).clear_control
         | _ => exact False.elim (localOp rfl)
+
+open PayloadPrefix in
+theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session grow sig Result)
+    (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
+    (certified : closed → Prog.Every (fun op => componentStoreOp op = true) body)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (body >>= checkNext))
+    (rightFocus : incoming.ctl = canon.control (body >>= canonNext))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix closed ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
+  have trivialPreserves (program : Session grow sig Result) : Prog.Every (storePreserves (fun _ => True)) program := by
+    induction program with
+    | pure result => exact .pure result
+    | op op next ih => exact .op (by cases op <;> simp [storePreserves]) ih
+  obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier, left, right, _⟩ :=
+    cutComponentStoreBodyFramed (bindings := bindings) body checkNext canonNext certified (trivialPreserves body) trivial
+      leftFocus rightFocus paired run
+  exact ⟨leading, trailing, reached, peer, split, moved, residual, frontier, left, right⟩
 
 private abbrev ComponentStoreEdit (grow : SingleThreaded.GrowOracle) := CStore (core3 grow) → CStore (core3 grow)
 
@@ -641,12 +691,12 @@ private abbrev StoreEffects {Result : Type} (body : Session grow sig Result) : P
   Prog.Every (fun op => componentStoreOp op = true) body
 
 private theorem storeEffects_of_map {Result Projected : Type} (project : Result → Projected)
-    (body : Session grow sig Result) (mapped : StoreEffects (project <$> body)) :
-    StoreEffects body := by
+    (body : Session grow sig Result) {allow : (Eff (core3 grow) (HostState sig)).Op → Prop}
+    (mapped : Prog.Every allow (project <$> body)) : Prog.Every allow body := by
   induction body with
   | pure result => exact .pure result
   | op op tail ih =>
-    change StoreEffects (.op op (fun response => project <$> tail response)) at mapped
+    change Prog.Every allow (.op op (fun response => project <$> tail response)) at mapped
     cases mapped with
     | op allowed rest => exact .op allowed fun response => ih response (rest response)
 
@@ -657,6 +707,40 @@ theorem observedArgumentsEffects (caller : CallerId) :
   apply storeEffects_of_map (List.map Stored.OwnedMemory.Observed.value)
   rw [Stored.OwnedMemory.projectLowerOnStart]
   exact lowerOnStart_every _ _ _ rfl (fun _ => rfl) (fun _ => rfl)
+
+open ReturnFrame.Occurrence in
+theorem cutObservedArguments (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.ok planned)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.ok planned)))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (ComponentCall.acceptPayload callee caller leftTicket planned)
+        (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      (reached.ctl ≠ [] → (∀ id, LowerSt.callerShape reached.store id = LowerSt.callerShape start.store id) ∧
+        ∀ place, Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+          Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
+  let body := (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller : Session grow sig _)
+  have lifted : Prog.Every LowerSt.argumentLiftOp body := by
+    apply storeEffects_of_map (List.map Stored.OwnedMemory.Observed.value)
+    rw [Stored.OwnedMemory.projectLowerOnStart]
+    exact lowerOnStart_caller_shape _ _ _
+  have framed {Result : Type} {program : Session grow sig Result} (cert : Prog.Every LowerSt.argumentLiftOp program) :
+      Prog.Every (storePreserves (fun store => ∀ id, LowerSt.callerShape store id = LowerSt.callerShape start.store id)) program := by
+    induction cert with
+    | pure result => exact .pure result
+    | @op op _ allowed _ ih =>
+      refine .op ?_ ih
+      cases op <;> try trivial
+      exact fun store keeps id => (allowed store id).trans (keeps id)
+  exact cutComponentStoreBodyFramed body _ _ (fun _ => observedArgumentsEffects caller) (framed lifted)
+    (fun _ => rfl) leftFocus rightFocus paired run
 
 private theorem storeEffectGet : StoreEffects (getStore : Session grow sig (CStore (core3 grow))) :=
   .op rfl fun snapshot => .pure snapshot
