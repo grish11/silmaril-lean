@@ -313,12 +313,12 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (step : Step profile ready (specDispatch ready base) reached label next)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
-  | observation {changes reached peer label next trailing finish thread resume frames rest}
+  | observation {changes reached peer next otherNext trailing finish thread resume frames rest}
       (focus : reached.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (different : resume reached.host ≠ resume peer.host)
-      (step : Step profile ready (specDispatch ready base) reached label next)
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] next otherNext)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)

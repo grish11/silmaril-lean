@@ -658,6 +658,75 @@ theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow)
     rw [transitionEdit, atPeer]
     cases place <;> rfl
 
+theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread resume frames rest label middle trailing}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label middle)
+    (tail : Steps profile ready (specDispatch ready base) middle trailing finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (different : resume start.host ≠ resume incoming.host) :
+    CallbackSliceEnd profile ready base bindings changes start incoming (label :: trailing) finish := by
+  obtain ⟨rfl, rfl⟩ := actualHostGet focus step
+  obtain ⟨peerFrames, peerRest, atPeer, _⟩ := paired.retarget focus (.prog (resume start.host)) start.host incoming.host
+  refine .observation (otherNext := { incoming with ctl := ⟨thread, .prog (resume incoming.host), peerFrames⟩ :: peerRest })
+    focus different (stationaryTransport ?_ ?_) tail
+  · intro place
+    refine .step (.hostGet focus) ?_ (.done _ _)
+    rw [transitionEdit, focus]
+    cases place <;> rfl
+  · intro place
+    refine .step (.hostGet atPeer) ?_ (.done _ _)
+    rw [transitionEdit, atPeer]
+    cases place <;> rfl
+
+theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread value resume frames rest}
+    (focus : start.ctl = ⟨thread, .prog (.op (.hostSet value) resume), frames⟩ :: rest)
+    (paired : HostFrame.Related.Paired changes start incoming) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau] [.tau]
+      { start with host := value, ctl := ⟨thread, .prog (resume ()), frames⟩ :: rest } peer := by
+  obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume ())) value value
+  refine ⟨_, .cons (by simp [CoreUpdateGrows, focus]) (.hostSet focus) (.refl _), rfl, aligned,
+    stationaryTransport ?_ ?_⟩
+  · intro place
+    refine .step (.hostSet focus) ?_ (.done _ _)
+    rw [transitionEdit, focus]
+    cases place <;> rfl
+  · intro place
+    refine .step (.hostSet atPeer) ?_ (.done _ _)
+    rw [transitionEdit, atPeer]
+    cases place <;> rfl
+
+theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread read frames rest left right next}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (checked : read start.host = .op (.hostSet left) (fun _ => next))
+    (canonical : read incoming.host = .op (.hostSet right) (fun _ => next)) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau, .tau] [.tau, .tau]
+      { start with host := left, ctl := ⟨thread, .prog next, frames⟩ :: rest } peer := by
+  obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog next) left right
+  have leftRead : Step profile ready (specDispatch ready base) start .tau
+      { start with ctl := ⟨thread, .prog (.op (.hostSet left) (fun _ => next)), frames⟩ :: rest } := by
+    rw [← checked]
+    exact .hostGet focus
+  have rightRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+      { incoming with ctl := ⟨thread, .prog (.op (.hostSet right) (fun _ => next)), peerFrames⟩ :: peerRest } := by
+    rw [← canonical]
+    exact .hostGet atPeer
+  refine ⟨_, .cons (by simp [CoreUpdateGrows, focus]) leftRead
+    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _)), rfl, aligned, stationaryTransport ?_ ?_⟩
+  · intro place
+    refine .step (middle := place) leftRead ?_ (.step (.hostSet rfl) ?_ (.done _ _))
+    · rw [transitionEdit, focus]
+      cases place <;> rfl
+    · cases place <;> rfl
+  · intro place
+    refine .step (middle := place) rightRead ?_ (.step (.hostSet rfl) ?_ (.done _ _))
+    · rw [transitionEdit, atPeer]
+      cases place <;> rfl
+    · cases place <;> rfl
+
 private theorem allocatorCallbackEvidence
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
     {index : CallbackPathIndex grow sig}

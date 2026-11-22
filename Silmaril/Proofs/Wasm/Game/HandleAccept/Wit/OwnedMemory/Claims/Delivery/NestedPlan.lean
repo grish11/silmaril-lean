@@ -197,9 +197,31 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
           exact ⟨leading ++ [label] ++ checked, leading ++ [label] ++ canonical, trailing, lhs, rhs,
             by rw [split, used]; simp only [List.append_assoc, List.cons_append, List.nil_append],
             CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front read) continued, ending⟩
-        · exact stop (.observation focus agrees step tail)
+        · by_cases journal : ∃ left right next,
+              resume reached.host = .op (.hostSet left) (fun _ => next) ∧
+                resume peer.host = .op (.hostSet right) (fun _ => next)
+          · obtain ⟨left, right, nextProgram, checkedWrite, canonicalWrite⟩ := journal
+            obtain ⟨afterWrite, compared⟩ := CallbackPrefix.compareReachedJournalUpdate focus front.paired checkedWrite canonicalWrite
+            rcases splitSilent (count := 2) compared.checkedRun.steps (.cons step tail) with ⟨remaining, consumed, actual⟩ | _
+            · have decreases : remaining.length < budget := by
+                rw [← size, split, consumed, List.length_append, List.length_append, List.length_replicate]
+                omega
+              obtain ⟨checked, canonical, trailing, lhs, rhs, used, continued, ending⟩ :=
+                ih remaining.length decreases actual compared.paired rfl
+              exact ⟨leading ++ [.tau, .tau] ++ checked, leading ++ [.tau, .tau] ++ canonical, trailing, lhs, rhs,
+                by rw [split, consumed, used]; simp only [List.replicate_succ, List.replicate_zero, List.append_assoc],
+                CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front compared) continued, ending⟩
+            · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
+          · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
       | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
-      | write focus => exact stop (.boundary (.write focus) step tail)
+      | write focus =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique (.hostSet focus) step
+        obtain ⟨afterWrite, compared⟩ := CallbackPrefix.compareReachedHostWrite focus front.paired
+        obtain ⟨checked, canonical, trailing, lhs, rhs, used, continued, ending⟩ :=
+          ih trailing.length (size ▸ smaller) tail compared.paired rfl
+        exact ⟨leading ++ [.tau] ++ checked, leading ++ [.tau] ++ canonical, trailing, lhs, rhs,
+          by rw [split, used]; simp only [List.append_assoc, List.cons_append, List.nil_append],
+          CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front compared) continued, ending⟩
       | nonGrowingUpdate failed => exact stop (.boundary (.nonGrowingUpdate failed) step tail)
 
 private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -208,7 +230,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   cases ending with
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
-  | observation _ _ step tail => exact .cons step tail
+  | observation _ _ paths tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
@@ -229,7 +251,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   cases ending with
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
-  | observation _ _ step tail => exact .cons step tail
+  | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
