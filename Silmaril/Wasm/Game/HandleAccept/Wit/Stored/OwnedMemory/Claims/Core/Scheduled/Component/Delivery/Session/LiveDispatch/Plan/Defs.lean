@@ -3932,7 +3932,8 @@ inductive RecursiveGiveEntryAlignment (profile : ProfileKind) (ready : HostReady
 
 /-- Replay the closed part of the actual suffix after a common public reply.
 A further give is classified at its reached pair, with the real checked
-installation and tail. Other boundary actions are not replayed here. -/
+installation and tail. The suffix transports enclosing occurrences across
+the closed steps, but does not replay any open action or protected pop. -/
 def RejoinedCallbackReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -3945,6 +3946,7 @@ def RejoinedCallbackReplay (profile : ProfileKind) (ready : HostReady (HostState
     Steps profile ready (specDispatch ready (host bindings base)) canonical leading rhs ∧
     HostFrame.Related.Paired older lhs rhs ∧
     CoupledOccurrencePaths profile ready base bindings request reference (checkPrefix ++ leading) (canonPrefix ++ leading) lhs rhs ∧
+    OccurrenceTransport profile ready base bindings checked canonical leading leading lhs rhs ∧
     ((remaining = [] ∧ lhs = finish) ∨
       ∃ label tail next, remaining = label :: tail ∧ Step profile ready dispatch lhs label next ∧
         Steps profile ready dispatch next tail finish ∧
@@ -3978,7 +3980,15 @@ def PublicTransportWorkerAlignment (profile : ProfileKind) (ready : HostReady (H
           ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical ∧
         RejoinedWorkerTail profile ready bindings callees older checked canonical ∧
         RejoinedCallbackReplay profile ready bindings callees older site.start incoming checked canonical
-          ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) suffix finish
+          ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) suffix finish ∧
+        ∀ {retained enclosingLeft enclosingRight leftTrace rightTrace cursor},
+          AllocatorMark profile ready base bindings retained enclosingLeft enclosingRight leftTrace rightTrace site.start incoming cursor →
+          ∃ reached,
+            AllocatorMark profile ready base bindings retained enclosingLeft enclosingRight
+              (leftTrace ++ ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]))
+              (rightTrace ++ ((canonEntry ++ canonBody) ++ [.tau])) checked canonical reached ∧
+            ClassifiedWorkerTail profile ready bindings callees older checked canonical suffix finish
+              (WorkerOccurrencePrefix profile ready bindings callees retained checked canonical reached)
 
 /-- Match an actual checked run against a marked public body endpoint.
 Only an executed reply pop supplies a worker suffix. A common return carries
@@ -4044,5 +4054,57 @@ def LinkedFlatWorkerBody (profile : ProfileKind) (ready : HostReady (HostState s
     (fun checkEntry canonEntry entered issue seen left right => PayloadPrefix.visible checkEntry = [] →
       PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
         site.start incoming incoming checkEntry canonEntry [] seen actual finish)
+
+/-- The recursive visitor and its actual worker observations for the ABI
+selected at a reached public request. -/
+def RecursiveWorkerBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : (route : GiveEffectRoute) → PayloadRoot.Site grow sig route → Prop
+  | .memory _, site => LinkedMemoryWorkerBody profile ready bindings callees older site incoming actual finish
+  | .flat _, site => LinkedFlatWorkerBody profile ready bindings callees older site incoming actual finish
+
+/-- Classify the compiled route at the executed installation, not at a
+separately chosen callback run. Refusing compilation leaves the reached
+canonical continuation pending. -/
+inductive ActualSelectedGive (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (callees : List (ComponentCall.Callee sig)) {bindings : List (Binding sig)}
+    {start : Config (core3 grow) (HostState sig)} {request : CoreGiveRequest bindings start}
+    {route : GiveEffectRoute} (selection : request.Selected route)
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (incoming : Config (core3 grow) (HostState sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | compilerRefused {issue} (preflight : selection.preflight = .error issue)
+      (cut : RecursiveGiveEntryAlignment profile ready callees selection older incoming actual finish)
+  | compiled {tag payload arity children field plan} (preflight : selection.preflight = .ok (field, plan))
+      (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
+      (linked : (selection.site tag payload arity children field).Linked bindings)
+      (cut : PayloadRoot.Cut (selection.site tag payload arity children field) profile ready bindings
+        (RecursiveWorkerBody profile ready bindings callees older incoming actual finish route
+          (selection.site tag payload arity children field)) (ComponentCall.hostWithComponent bindings callees))
+      (entry : RecursiveGiveEntryAlignment profile ready callees selection older incoming actual finish)
+
+/-- After a common nested reply, follow the closed part of its actual
+residual up to the next boundary. Only the original allocator occurrence
+can authorize its pop, and only an executed pop exposes a new residual. -/
+def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (retained : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (checkEntry canonEntry checked canonical : Config (core3 grow) (HostState sig))
+    (checkTrace canonTrace actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  let base := ComponentCall.hostWithComponent bindings callees
+  ∃ leading remaining lhs rhs mark,
+    actual = leading ++ remaining ∧
+    Steps profile ready (specDispatch ready base) checked leading lhs ∧
+    Steps profile ready (specDispatch ready (host bindings base)) canonical leading rhs ∧
+    Steps profile ready (specDispatch ready base) lhs remaining finish ∧
+    AllocatorMark profile ready base bindings retained checkEntry canonEntry
+      (checkTrace ++ leading) (canonTrace ++ leading) lhs rhs mark ∧
+    ∀ value (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+      lhs.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure value) →
+      ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
+        (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

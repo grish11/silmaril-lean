@@ -1149,6 +1149,19 @@ theorem linked_flat_worker_body {type : Stored.TypeOf} (site : PayloadRoot.Site 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedFlatWorkerBody
     site linked family paired selected embedder run
 
+/-- Apply the recursive memory or flat visitor to the checked tail at the
+extracted installation. An actual common reply carries enclosing occurrences
+into the next classified worker cut; a late typed reply is checked-only. -/
+theorem GiveInstall.actual_selected_give {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {label}
+    {next : Config (core3 grow) (HostState sig)}
+    (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next labels finish)
+    (family : RecursiveGiveDomain selection) (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree) :
+    ActualSelectedGive profile ready callees selection older incoming (label :: labels) finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedGive selection install tail family paired selected
+
 /-- Derive every child lift by induction on the compiled recursive memory
 schema, including heterogeneous fields and the selected sum arm. No child
 histories are supplied as premises. -/
@@ -1812,6 +1825,23 @@ theorem AllocatorMark.classified_worker_tail {callees : List (ComponentCall.Call
         AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older checkEntry canonEntry
           (checkTrace ++ added) (canonTrace ++ added) left right reached) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyAllocatorTail tracked paired run
+
+open ReturnFrame.Occurrence in
+/-- Resume the enclosing allocator only if its marked occurrence really
+pops in the extracted residual after the nested give's common reply. -/
+theorem RejoinedCallbackReplay.allocator_residual {callees : List (ComponentCall.Callee sig)}
+    {request reference checkEntry canonEntry : Config (core3 grow) (HostState sig)}
+    {checkTrace canonTrace checkPrefix canonPrefix : Trace grow sig} {mark : Option Location}
+    {retained : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (replay : RejoinedCallbackReplay profile ready bindings callees older request reference start incoming
+      checkPrefix canonPrefix labels finish)
+    (tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings retained
+      checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (installed : segmentAt (segmentStorage canonEntry) (.active 0 0) = some (.prog second)) :
+    RejoinedAllocatorResidual profile ready bindings callees retained checkEntry canonEntry start incoming
+      checkTrace canonTrace labels finish first second :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.rejoinedAllocatorResidual replay tracked installed
 
 open ReturnFrame.Occurrence in
 /-- Accumulate the enclosing traversal's occurrences and the new allocator
