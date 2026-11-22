@@ -3373,6 +3373,50 @@ theorem cut_cancel_delivery (async : Bool) (subtask : SubtaskId)
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelDelivery
     async subtask leftFocus rightFocus paired run
 
+open ReturnFrame.Occurrence in
+/-- Compare the live cancellation finish. `[BLOCKED]` is a flat reply with
+no delivery observation; a resolved branch consumes its current event. -/
+theorem cut_cancel_finish (subtask : SubtaskId)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (cancelFinish subtask), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (cancelFinish subtask), .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, .core core resume :: frames, rest⟩
+      ⟨thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      CancelFinishExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] → ∀ place,
+        Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelFinish
+    subtask leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+/-- Drive the finish from an executed resume of the currently selected slot.
+This identifies the reached saved occurrence, not an earlier overwritten one. -/
+theorem cut_resumed_cancel_finish (subtask : SubtaskId)
+    {waiter resumer afterResume frames rest core resume savedFrames label next}
+    (scheduled : start.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+    (found : start.cont? waiter = some ⟨some waiter, .prog (cancelFinish subtask), .core core resume :: savedFrames⟩)
+    (step : Step profile ready (specDispatch ready base) start label next)
+    (run : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ leading suffix reached peer,
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      CancelFinishExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] →
+        Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
+          (.tau :: leading) reached (some (.active 0 0)) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
+          (.tau :: leading) peer (some (.active 0 0))) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutResumedCancelFinish
+    subtask scheduled found step run paired
+
 /-- Classify the actually executed hook prefix under the mixed live
 dispatcher. At a reply focus, consume only the installed occurrence's pop. -/
 theorem classify_cancel_hook_callbacks {callees : List (ComponentCall.Callee sig)}

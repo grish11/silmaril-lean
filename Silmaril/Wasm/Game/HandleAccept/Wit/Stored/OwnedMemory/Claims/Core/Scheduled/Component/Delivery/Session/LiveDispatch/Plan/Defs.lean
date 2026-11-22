@@ -252,6 +252,15 @@ def cancelDeliveryObservation (subtask : SubtaskId) : Session grow sig (AsyncRef
   let record ← getObj ArenaField.subtasks subtask
   pure (event, AsyncRef.subtaskCancelResult (some record.state))
 
+/-- Recheck at the reached finish, not at the hook install or wait decision.
+Returning `[BLOCKED]` does not consume any pending event. -/
+def cancelFinishObservation (subtask : SubtaskId) : Session grow sig (Option AsyncRef.EventTuple × Nat) := do
+  modifyStore (CStore.setSyncWaiterSt (.subtask subtask) none)
+  if ← Builtins.subtaskResolvedNow subtask then
+    let (event, code) ← cancelDeliveryObservation subtask
+    pure (some event, code)
+  else pure (none, AsyncRef.subtaskCancelResult none)
+
 /-- Record the event consumed by the public poll's actual buffer program.
 Only the code becomes a flat result for Core. -/
 def pollCalloutObservation (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue) :
@@ -301,31 +310,36 @@ inductive ComponentStoreFrontier {Result : Type}
   | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
       (paired : HostFrame.Related.Paired older left right)
 
-/-- The end of the actual finite public poll or wait cut. At reply focus the installed
+/-- The end of an actual finite flat-result callout cut. At reply focus the installed
 caller is still live; only the rejoined case consumes its original slot. -/
-inductive WaitableCalloutExit (profile : ProfileKind) (ready : HostReady (HostState sig))
+inductive FlatCalloutExit {Observation : Type} (code : Observation → Nat)
+    (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
   | exhausted (noMore : suffix = []) (endpoint : finish = left)
   | trapped (checked : left.ctl = []) (canonical : right.ctl = []) (paired : HostFrame.Related.Paired older left right)
-  | rejoined (observation : AsyncRef.EventTuple × Nat) {thread core resume frames rest peerFrames peerRest remaining}
-      (checked : left.ctl = ⟨thread, .prog (waitableFlatReply observation), .core core resume :: frames⟩ :: rest)
-      (canonical : right.ctl = ⟨thread, .prog (waitableFlatReply observation), .core core resume :: peerFrames⟩ :: peerRest)
+  | rejoined (observation : Observation) {thread core resume frames rest peerFrames peerRest remaining}
+      (checked : left.ctl = ⟨thread, .prog (.pure (.flat [i32Flat (code observation)])), .core core resume :: frames⟩ :: rest)
+      (canonical : right.ctl = ⟨thread, .prog (.pure (.flat [i32Flat (code observation)])), .core core resume :: peerFrames⟩ :: peerRest)
       (split : suffix = .tau :: remaining)
       (residual : Steps profile ready (specDispatch ready base)
-        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
+        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat (code observation)])) resume,
           frames⟩ :: rest } remaining finish)
       (paired : HostFrame.Related.Paired older
-        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
+        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat (code observation)])) resume,
           frames⟩ :: rest }
-        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat observation.2])) resume,
+        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat (code observation)])) resume,
           peerFrames⟩ :: peerRest })
       (pop : OccurrenceTransport profile ready base bindings left right [.tau] [.tau]
-        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat observation.2])) resume,
+        { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat (code observation)])) resume,
           frames⟩ :: rest }
-        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat observation.2])) resume,
+        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat (code observation)])) resume,
           peerFrames⟩ :: peerRest })
+
+abbrev WaitableCalloutExit := FlatCalloutExit (grow := grow) (sig := sig) (Prod.snd : AsyncRef.EventTuple × Nat → Nat)
+
+abbrev CancelFinishExit := FlatCalloutExit (grow := grow) (sig := sig) (Prod.snd : Option AsyncRef.EventTuple × Nat → Nat)
 
 /-- The reached endpoint of a successful validation path. Publication can
 reach the reply focus without returning to the caller or delivering an event. -/
