@@ -44,6 +44,21 @@ theorem LiveDispatch.GiveSelector.refusal_bodies (request : LiveDispatch.GiveSel
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorRefusalBodies
     request start thread other impl embedder refused reads
 
+/-- Both live bodies lock down on a dangling caller read, not an ABI
+refusal. Only the checked entry journal write has already executed. -/
+theorem LiveDispatch.GiveSelector.trap_bodies (request : LiveDispatch.GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (other : HostState sig)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {reason : TrapReason} (trapped : Plain.callerInstance start.store thread = .error (.trapped reason)) :
+    let entered := start.host.enter request.name request.kind request.args
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready impl start.store thread (.embedder request.name request.kind) request.args)
+      start.store start.host (some thread) = (start.store, entered, .error (.trapped reason)) ∧
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) start.store thread
+      (.embedder request.name request.kind) request.args) start.store other (some thread) = (start.store, other, .error (.trapped reason)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorTrapBodies
+    request start thread other impl embedder trapped
+
 /-- The give overlay does not replace the program installed at an on-cancel
 request. The installed program can still consult the reached host later. -/
 theorem LiveDispatch.cancel_dispatch (callback : CancelRef) :

@@ -2514,6 +2514,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
+  | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -2540,6 +2541,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -8156,8 +8158,23 @@ private theorem directRefusalBodyTracks (impl : HostImpl (core3 grow) (HostState
   exact ⟨labels.length, replicated ▸ paths⟩
 
 open ReturnFrame.Occurrence in
-private theorem crossActiveDirectGiveRefusal (request : GiveSelector bindings) (worker : ThreadId)
+private theorem directTrapBodyTracks (impl : HostImpl (core3 grow) (HostState sig))
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (body : Session grow sig (Ret (core3 grow)))
+    {journal : HostState sig} {reason : TrapReason}
+    (focus : start.ctl = check.control body)
+    (evaluated : Plain.runBody body start.store start.host (some check.thread) = (start.store, journal, .error (.trapped reason))) :
+    ∃ count, ∀ mark, Trail profile ready (specDispatch ready impl) start mark (List.replicate count .tau ++ [.trap reason])
+      (StepDefs.trapCfg { start with host := journal }) (mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow) := by
+  have focused : start.ctl = check.control (body >>= Prog.pure) := by
+    simpa only [Prog.bind_eq, Prog.bind_pure] using focus
+  exact Plain.runBody_trap_tracks body start start.store journal reason Prog.pure check.thread check.frames check.rest
+    profile ready (specDispatch ready impl) focused evaluated
+
+open ReturnFrame.Occurrence in
+private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker : ThreadId)
     {left right : Config (core3 grow) (HostState sig)} {resume frames rest peerFrames peerRest} {bodyLabels}
+    {installed : Config (core3 grow) (HostState sig)}
+    (install : GiveInstall bindings (specDispatch ready base) start .tau installed)
     (entered : labels = [.tau, .tau] ++ bodyLabels)
     (leftAt : left.ctl = (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
       (calloutBody Limits.spec Quirks.none ready base left.store (some worker) (.embedder request.name request.kind) request.args))
@@ -8174,8 +8191,46 @@ private theorem crossActiveDirectGiveRefusal (request : GiveSelector bindings) (
     (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
-  rcases request.result left (some worker) with trapped | ⟨verdict, selected⟩
-  · exact .inr boundary
+  rcases request.result left (some worker) with ⟨reason, trapped⟩ | ⟨verdict, selected⟩
+  · obtain ⟨checked, canonical⟩ := request.trap_bodies (ready := ready) (base := base) left (some worker) right.host base embedder trapped
+    have sameStore := site.data.1
+    obtain ⟨checkCount, leftPath⟩ := directTrapBodyTracks (profile := profile) (ready := ready) base _ _ leftAt checked
+    obtain ⟨canonCount, rightPath⟩ := directTrapBodyTracks (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
+      _ _ rightAt (sameStore ▸ canonical)
+    have visibleTrap (count : Nat) : PayloadPrefix.visible (List.replicate count .tau ++ [.trap reason] : Trace grow sig) = [.trap reason] := by
+      rw [visibleAppend, visibleTaus]
+      rfl
+    cases alignLocalBody (leftPath none).steps run (noBranchOfVisible (visibleTrap _) (by simp [workerBranchLabel])) with
+    | inside _ nonempty tail =>
+      have actual : Steps profile ready (specDispatch ready base) start (.tau :: labels) finish := by
+        rw [entered]
+        exact append (paths.choose_spec.1 none).1.steps run
+      exact .inr (callbackTerminalSlice paired (.entryPrefix install actual nonempty tail))
+    | @reached remaining split residual =>
+      obtain ⟨move, before, framed⟩ := paths
+      have lost : OccurrenceTransport profile ready base bindings start incoming
+          ([.tau, .tau, .tau] ++ (List.replicate checkCount .tau ++ [.trap reason]))
+          ([.tau, .tau, .tau] ++ (List.replicate canonCount .tau ++ [.trap reason]))
+          (StepDefs.trapCfg { left with host := left.host.enter request.name request.kind request.args })
+          (StepDefs.trapCfg right) [none] := by
+        refine ⟨fun mark => (move mark).bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow, ?_, ?_⟩
+        · intro mark
+          exact ⟨(before mark).1.append (leftPath _), (before mark).2.append (rightPath _)⟩
+        · intro changes marks outside
+          have cleared := (framed changes _ outside).edit (.clear : Edit (core3 grow) (HostState sig))
+          simpa only [segmentStorage, StepDefs.trapCfg, Edit.apply, List.cons_append, List.nil_append,
+            List.map_nil, List.map_cons, List.map_map, Function.comp_def, Option.bind_some, Edit.follow] using cleared
+      have seen (count : Nat) : PayloadPrefix.visible ([.tau, .tau, .tau] ++ (List.replicate count .tau ++ [.trap reason]) : Trace grow sig) = [.trap reason] := by
+        rw [visibleAppend, visibleTrap]
+        rfl
+      have used : .tau :: labels = ([.tau, .tau, .tau] ++ (List.replicate checkCount .tau ++ [.trap reason])) ++ remaining := by
+        rw [entered]
+        change [.tau, .tau, .tau] ++ bodyLabels = _
+        exact (congrArg ([.tau, .tau, .tau] ++ ·) split).trans (List.append_assoc ..).symm
+      apply Or.inr
+      rw [used]
+      exact callbackTerminalSlice paired (.directGiveTrap
+        ⟨(seen _).trans (seen _).symm, congrArg StepDefs.lockdownSt sameStore, lost, residual⟩ (seen _) rfl rfl)
   cases verdict with
   | ok => exact .inr boundary
   | error issue =>
@@ -8247,7 +8302,7 @@ private theorem classifiedGiveCrossing
     · exact .inr boundary
     cases thread with
     | some worker =>
-      exact crossActiveDirectGiveRefusal ⟨name, kind, args, inst, destination, schema, linked⟩ worker
+      exact crossActiveDirectGive ⟨name, kind, args, inst, destination, schema, linked⟩ worker install
         entered bodyAt peerAt bodySite bodyPaths bodyRun paired embedder boundary
     | none =>
       rcases refuse rfl rfl with _ | ⟨suffix, left, right, replySplit, moved, _, _, leftAt, rightAt, replyPair, residual⟩

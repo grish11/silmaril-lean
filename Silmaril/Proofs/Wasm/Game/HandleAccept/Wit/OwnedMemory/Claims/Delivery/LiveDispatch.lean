@@ -944,6 +944,13 @@ private def effective {Result : Type} (store : CStore (core3 grow)) (thread : Op
     (words : Session grow sig Result) : Session grow sig Result :=
   if threadMayLeave store thread then words else confine words
 
+private theorem giveCalloutBody (request : GiveSelector bindings) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (impl : HostImpl (core3 grow) (HostState sig)) :
+    calloutBody Limits.spec Quirks.none ready impl store thread (.embedder request.name request.kind) request.args =
+      (effective store thread (impl.embedder request.name request.kind request.args) >>= fun words => pure (.flat words)) := by
+  simp only [calloutBody, effective]
+  split <;> rfl
+
 private theorem evalEffectiveBind {Value Result : Type} (program : Session grow sig Value)
     (next : Value → Session grow sig Result) (store : CStore (core3 grow)) (state : HostState sig)
     (thread : Option ThreadId) (fixed : confine program = program) :
@@ -1105,15 +1112,10 @@ theorem giveSelectorRefusalBodies (request : GiveSelector bindings)
     Plain.runBody (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) start.store thread
       (.embedder request.name request.kind) request.args) start.store other (some thread) = (start.store, other, .ok (.flat reply.2)) := by
   obtain ⟨checked, canonical⟩ := evalGiveRefusal (base := base) request start thread other impl embedder refused reads
-  have program (dispatch : HostImpl (core3 grow) (HostState sig)) :
-      calloutBody Limits.spec Quirks.none ready dispatch start.store thread (.embedder request.name request.kind) request.args =
-      (effective start.store thread (dispatch.embedder request.name request.kind request.args) >>= fun words => pure (.flat words)) := by
-    simp only [calloutBody, effective]
-    split <;> rfl
   constructor
-  · rw [program, runBind, checked]
+  · rw [giveCalloutBody request, runBind, checked]
     rfl
-  · rw [program, runBind, canonical]
+  · rw [giveCalloutBody request, runBind, canonical]
     rfl
 
 theorem pairedAdmissionRefusalTracks (request : CoreGiveRequest bindings start)
@@ -1180,6 +1182,21 @@ private theorem evalReferenceTrap (request : GiveSelector bindings) (store : CSt
     Plain.runBody (effective store thread ((LiveDispatch.host bindings base).embedder request.name request.kind request.args))
       store other (some thread) = (store, other, .error (.trapped reason)) := by
   rw [referenceSplit request, evalEffectiveBind _ _ _ _ _ (confineSelector request), selectorCallerTrap request store thread _ trapped]
+
+theorem giveSelectorTrapBodies (request : GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (other : HostState sig)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
+    {reason : TrapReason} (trapped : Plain.callerInstance start.store thread = .error (.trapped reason)) :
+    let entered := start.host.enter request.name request.kind request.args
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready impl start.store thread (.embedder request.name request.kind) request.args)
+      start.store start.host (some thread) = (start.store, entered, .error (.trapped reason)) ∧
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) start.store thread
+      (.embedder request.name request.kind) request.args) start.store other (some thread) = (start.store, other, .error (.trapped reason)) := by
+  constructor
+  · rw [giveCalloutBody request, runBind, evalChecked request start thread impl embedder,
+      selectorCallerTrap request start.store thread _ trapped]
+  · rw [giveCalloutBody request, runBind, evalReferenceTrap request start.store thread other trapped]
 
 theorem pairedAdmissionTrap (request : CoreGiveRequest bindings start)
     (impl : HostImpl (core3 grow) (HostState sig))
