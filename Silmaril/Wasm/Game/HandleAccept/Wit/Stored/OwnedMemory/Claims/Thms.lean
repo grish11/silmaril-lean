@@ -107,6 +107,18 @@ theorem State.ClaimDiscrepancies.registrationChecks {sig : Signature} {left righ
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.discrepancies_registration_checks
     related tree owners endpoints
 
+/-- A differing registration test has a live conflict at a requested nominal
+claim. A historical owner alone cannot witness a conflict between the writers. -/
+theorem State.ClaimDiscrepancies.registrationConflict {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) {tree : Tree sig}
+    (disagree : ¬ left.RegistrationChecksAgree right tree) :
+    (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
+      id ∉ (left.accepted.flatMap rootReceipts).map receiptId ∧
+      ¬ ((Spend.owner id).Live left ↔ (Spend.owner id).Live right)) ∨
+    (∃ id ∈ rootEndpoints tree, pending (.endpoint id) ∧
+      ¬ ((Spend.endpoint id).Live left ↔ (Spend.endpoint id).Live right)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.discrepancies_registration_conflict related disagree
+
 theorem State.ClaimDiscrepancies.register {sig : Signature} {left right lhs rhs : State sig} {pending : Spend → Prop}
     (related : left.ClaimDiscrepancies right pending) {tree : Tree sig}
     (first : left.register tree = .ok lhs) (second : right.register tree = .ok rhs) :

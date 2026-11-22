@@ -250,6 +250,34 @@ theorem discrepancies_registration_checks {sig : Signature} {left right : State 
     apply or_congr Iff.rfl
     rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, observed]
 
+theorem discrepancies_registration_conflict {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) {tree : OwnedMemory.Tree sig}
+    (disagree : ¬ left.RegistrationChecksAgree right tree) :
+    (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
+      id ∉ (left.accepted.flatMap rootReceipts).map receiptId ∧
+      ¬ ((Spend.owner id).Live left ↔ (Spend.owner id).Live right)) ∨
+    (∃ id ∈ rootEndpoints tree, pending (.endpoint id) ∧
+      ¬ ((Spend.endpoint id).Live left ↔ (Spend.endpoint id).Live right)) := by
+  classical
+  by_contra noConflict
+  apply disagree
+  constructor
+  · intro id demand
+    simp only [List.map_append, List.mem_append, ← related.accepted]
+    by_cases historic : id ∈ (left.accepted.flatMap rootReceipts).map receiptId
+    · simp only [historic, true_or]
+    · apply or_congr Iff.rfl
+      by_cases disputed : pending (.owner id)
+      · by_contra notLiveEqual
+        exact noConflict (.inl ⟨id, demand, disputed, historic, notLiveEqual⟩)
+      · have observed : left.ownerObservation id = right.ownerObservation id := related.observe (.owner id) disputed
+        rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, observed]
+  · intro id demand
+    by_cases disputed : pending (.endpoint id)
+    · by_contra notLiveEqual
+      exact noConflict (.inr ⟨id, demand, disputed, notLiveEqual⟩)
+    · exact related.observe (.endpoint id) disputed
+
 theorem discrepancies_register {sig : Signature} {left right lhs rhs : State sig} {pending : Spend → Prop}
     (related : left.ClaimDiscrepancies right pending) {tree : OwnedMemory.Tree sig}
     (first : left.register tree = .ok lhs) (second : right.register tree = .ok rhs) :
