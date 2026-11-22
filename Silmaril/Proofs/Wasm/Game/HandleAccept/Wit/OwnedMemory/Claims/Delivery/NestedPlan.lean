@@ -7899,7 +7899,7 @@ theorem cutCancelHookInstall (async : Bool) (subtask : SubtaskId) (hook : Cancel
       let reached := { start with ctl := ⟨thread, .prog body, .prog resume :: frames⟩ :: rest }
       let peer := { incoming with ctl := ⟨thread, .prog body, .prog resume :: peerFrames⟩ :: peerRest }
       labels = .tau :: suffix ∧ Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      HostFrame.Related.Paired older reached peer ∧
+      HostFrame.Related.Paired (ReturnFrame.Extend older resume resume) reached peer ∧
       OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer [some (.active 0 0)] := by
   cases run with
   | refl => exact .inl ⟨rfl, rfl⟩
@@ -7916,7 +7916,7 @@ theorem cutCancelHookInstall (async : Bool) (subtask : SubtaskId) (hook : Cancel
     obtain ⟨rfl, rfl⟩ := silentStepUnique checked first
     have focused := pairComponentFocus leftFocus rightFocus paired
     obtain ⟨otherFrames, otherRest, shape, aligned⟩ :=
-      focused.push_shared leftFocus (.prog body) (.prog resume)
+      focused.push leftFocus body resume resume
     rw [rightFocus, List.cons.injEq, Activation.mk.injEq] at shape
     obtain ⟨⟨_, _, rfl⟩, rfl⟩ := shape
     have leftEdit : transitionEdit start .tau = .push (.prog resume) := by rw [transitionEdit, leftFocus]; rfl
@@ -7970,6 +7970,38 @@ private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
   foldCallbackSlicesWith (classifiedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl)
     (some ⟨classifiedComponentCrossing⟩) (some ⟨classifiedPollCrossing⟩) (some ⟨classifiedWaitCrossing⟩)
     (some ⟨classifiedWaitResumeCrossing⟩) run paired
+
+open ReturnFrame.Occurrence in
+theorem classifyCancelHookCallbacks {callees : List (ComponentCall.Callee sig)}
+    (async : Bool) (subtask : SubtaskId) (hook : CancelRef)
+    {thread frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (cancelAfterRequestWrite async subtask hook), frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (cancelAfterRequestWrite async subtask hook), peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    CancelHookCallbackSlice profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      (cancelHookReturn async subtask) start incoming labels finish := by
+  rcases cutCancelHookInstall (bindings := bindings) async subtask hook leftFocus rightFocus paired run with empty | installed
+  · exact .inl empty
+  obtain ⟨suffix, split, residual, related, install⟩ := installed
+  obtain ⟨checked, canonical, trailing, reached, peer, used, compared, ending⟩ := foldMixedCallbacks residual related
+  obtain ⟨move, whole, tracks⟩ := CallbackPrefix.transportAppend install compared.occurrences
+  let mark := move (some (.active 0 0))
+  have aligned := pairComponentFocus (check := ⟨thread, frames, rest⟩) (canon := ⟨thread, peerFrames, peerRest⟩)
+    leftFocus rightFocus paired
+  have outside : OutsideMarks older (segmentStorage start) (segmentStorage incoming) [] :=
+    fun place _ => paired_outside (left := HostFrame.replace start incoming.host) aligned place (by simp)
+  have kept : Outside older (segmentStorage reached) (segmentStorage peer) mark := by
+    apply outsideMarks_singleton.mp
+    obtain ⟨_, _, retained⟩ := whole
+    exact retained older [] outside
+  obtain ⟨checkMark, canonMark⟩ := tracks (some (.active 0 0))
+  have tracked : AllocatorMark profile ready (ComponentCall.hostWithComponent bindings callees) bindings older _ _
+      checked canonical reached peer mark := ⟨kept, checkMark, canonMark, CallbackPrefix.transportPaths compared.occurrences⟩
+  refine .inr ⟨_, _, checked, canonical, trailing, reached, peer, mark, by rw [split, used], install, whole,
+    tracked, ending, ?_⟩
+  intro value cursor returning
+  exact alignAllocatorPop tracked compared.paired returning rfl (callbackEndSteps ending)
 
 open ReturnFrame.Occurrence in
 theorem classifyParkedWaitCallbacks {callees : List (ComponentCall.Callee sig)}

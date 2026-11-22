@@ -3300,7 +3300,7 @@ theorem cut_cancel_hook_install (async : Bool) (subtask : SubtaskId) (hook : Can
       let reached := { start with ctl := ⟨thread, .prog body, .prog resume :: frames⟩ :: rest }
       let peer := { incoming with ctl := ⟨thread, .prog body, .prog resume :: peerFrames⟩ :: peerRest }
       labels = .tau :: suffix ∧ Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      HostFrame.Related.Paired older reached peer ∧
+      HostFrame.Related.Paired (ReturnFrame.Extend older resume resume) reached peer ∧
       OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer [some (.active 0 0)] :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelHookInstall
     async subtask hook leftFocus rightFocus paired run
@@ -3328,6 +3328,20 @@ theorem cut_cancel_delivery (async : Bool) (subtask : SubtaskId)
         Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelDelivery
     async subtask leftFocus rightFocus paired run
+
+/-- Classify the actually executed hook prefix under the mixed live
+dispatcher. At a reply focus, consume only the installed occurrence's pop. -/
+theorem classify_cancel_hook_callbacks {callees : List (ComponentCall.Callee sig)}
+    (async : Bool) (subtask : SubtaskId) (hook : CancelRef)
+    {thread frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (cancelAfterRequestWrite async subtask hook), frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (cancelAfterRequestWrite async subtask hook), peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    CancelHookCallbackSlice profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      (cancelHookReturn async subtask) start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyCancelHookCallbacks
+    async subtask hook leftFocus rightFocus paired run
 
 /-- Compare an executed wait park and its actual mixed suffix, transporting
 the original Core caller across intervening work and any reached resumption.

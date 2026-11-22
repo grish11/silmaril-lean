@@ -4656,6 +4656,28 @@ def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
         OccurrenceTransport profile ready base bindings leftStart rightStart leftLabels rightLabels left right [some (.active 0 0)] →
         OccurrenceTransport profile ready base bindings leftStart rightStart (leftLabels ++ [.tau]) (rightLabels ++ [.tau]) resumed peer
 
+/-- Compare the actual suffix of a reached cancellation-hook installation.
+The installed occurrence can be lost or displaced; only its executed pop
+enters the checked continuation, even if an equal hook frame is in focus. -/
+def CancelHookCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (resume : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  (actual = [] ∧ finish = checked) ∨
+    ∃ checkEntry canonEntry checkLabels canonLabels trailing reached peer mark,
+      actual = .tau :: (checkLabels ++ trailing) ∧
+      OccurrenceTransport profile ready base bindings checked canonical [.tau] [.tau] checkEntry canonEntry [some (.active 0 0)] ∧
+      OccurrenceTransport profile ready base bindings checked canonical (.tau :: checkLabels) (.tau :: canonLabels) reached peer [mark] ∧
+      AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels reached peer mark ∧
+      CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older resume resume) reached peer trailing finish ∧
+      ∀ value (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+        reached.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (.pure value) →
+        ActualMarkedPop profile ready base bindings older checkEntry canonEntry reached peer checkLabels canonLabels
+          mark cursor resume resume value trailing finish
+
 /-- Track the caller installed at the start of a component result path.
 Resolution alone leaves the reply in focus. Only the checked residual's actual
 pop of that occurrence can consume it; a missing or displaced mark cannot. -/
