@@ -2511,6 +2511,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
+  | directGiveEntry _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
@@ -2536,6 +2537,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | directGiveEntry _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -5153,31 +5155,25 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
       exact reject split moved residual site left right
 
 open ReturnFrame.Occurrence in
-private theorem cutSharedComponentInstall {callees : List (ComponentCall.Callee sig)}
-    {hostId : HostFuncId} {caller : CallerId} {call : Session grow sig (Ret (core3 grow))} {thread frames rest resume label next}
-    (resolved : specDispatch ready (ComponentCall.hostWithComponent bindings callees) (.hostFunc hostId caller) = call)
-    (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
-    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+private theorem cutProgramCallInstall {call : Call (core3 grow)} {thread frames rest resume label next}
+    (commonFocus : Focus (core3 grow) (HostState sig))
+    (focused : start.ctl = ⟨thread, .prog (.op (.call call) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready base) start label next)
     (paired : HostFrame.Related.Paired older start incoming) :
     ∃ peerFrames peerRest,
-      let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
-      let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
-      label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older reached peer ∧
-      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
-        start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
+      let reached := { start with ctl := ⟨thread, .prog (specDispatch ready base call), .prog resume :: frames⟩ :: rest }
+      let peer := { incoming with ctl := ⟨thread, .prog (specDispatch ready (LiveDispatch.host bindings base) call),
+        .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older
+        { reached with ctl := ⟨thread, commonFocus, .prog resume :: frames⟩ :: rest }
+        { peer with ctl := ⟨thread, commonFocus, .prog resume :: peerFrames⟩ :: peerRest } ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
       segmentAt (segmentStorage reached) (.active 0 0) = some (.prog resume) ∧
       segmentAt (segmentStorage peer) (.active 0 0) = some (.prog resume) ∧
       Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) := by
-  let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
-  have checkResolved : specDispatch ready base (.hostFunc hostId caller) = call := resolved
-  have peerResolved : specDispatch ready (LiveDispatch.host bindings base) (.hostFunc hostId caller) = call := resolved
-  obtain ⟨peerFrames, peerRest, peerFocus, entered⟩ := ReturnFrame.Related.Paired.push_shared paired focused (.prog call) (.prog resume)
-  let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
-  let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
-  have checked : Step profile ready (specDispatch ready base) start .tau reached := by
-    simpa only [reached, checkResolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) focused)
-  have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer := by
-    simpa only [peerResolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) peerFocus)
+  obtain ⟨peerFrames, peerRest, peerFocus, entered⟩ := ReturnFrame.Related.Paired.push_shared paired focused commonFocus (.prog resume)
+  let checked := Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) focused
+  let canonical := Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) peerFocus
   have leftEdit : transitionEdit start .tau = .push (.prog resume) := by rw [transitionEdit, focused]
   have rightEdit : transitionEdit incoming .tau = .push (.prog resume) := by rw [transitionEdit, peerFocus]
   have shifted (place : Option Location) : place.bind (Edit.push (.prog resume)).follow = place.map Location.pushed := by
@@ -5196,6 +5192,26 @@ private theorem cutSharedComponentInstall {callees : List (ComponentCall.Callee 
     exact outside.push _ _
   · rw [step_edit checked, step_edit canonical, leftEdit, rightEdit]
     exact outside_push _ _ (paired_outside (left := HostFrame.replace start incoming.host) paired)
+
+open ReturnFrame.Occurrence in
+private theorem cutSharedComponentInstall {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {call : Session grow sig (Ret (core3 grow))} {thread frames rest resume label next}
+    (resolved : specDispatch ready (ComponentCall.hostWithComponent bindings callees) (.hostFunc hostId caller) = call)
+    (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest,
+      let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
+      let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older reached peer ∧
+      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
+      segmentAt (segmentStorage reached) (.active 0 0) = some (.prog resume) ∧
+      segmentAt (segmentStorage peer) (.active 0 0) = some (.prog resume) ∧
+      Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) := by
+  have peerResolved : specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees))
+      (.hostFunc hostId caller) = call := resolved
+  simpa only [resolved, peerResolved] using cutProgramCallInstall (bindings := bindings) (.prog call) focused taken paired
 
 open ReturnFrame.Occurrence in
 theorem cutLinkedComponentInstall {callees : List (ComponentCall.Callee sig)}
@@ -7921,7 +7937,6 @@ private theorem classifiedGiveCrossing
   intro changes checked canonical next finish label trailing install actual paired compare
   apply Or.inr
   have run := Steps.cons install.step actual
-  have unclassified := callbackTerminalSlice paired (.boundary (.give install) install.step actual)
   rcases install.request with ⟨⟨request⟩⟩ | direct
   · by_cases reads : ∀ handle, request.lookupDemand = some handle →
         Stored.Endpoints.Core.childFromHistory checked.host.writer.accepted handle =
@@ -7950,7 +7965,11 @@ private theorem classifiedGiveCrossing
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
       exact callbackTerminalSlice paired (.lookup request install demand different actual)
-  · exact unclassified
+  · obtain ⟨name, kind, args, thread, resume, frames, rest, inst, destination, schema, focused, linked⟩ := direct
+    obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, leftMark, rightMark, _⟩ :=
+      cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired
+    exact callbackTerminalSlice paired (.directGiveEntry (check := ⟨thread, .prog resume :: frames, rest⟩)
+      (canon := ⟨thread, .prog resume :: peerFrames, peerRest⟩) linked rfl rfl site paths leftMark rightMark actual)
 
 theorem classifyGiveCallbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)

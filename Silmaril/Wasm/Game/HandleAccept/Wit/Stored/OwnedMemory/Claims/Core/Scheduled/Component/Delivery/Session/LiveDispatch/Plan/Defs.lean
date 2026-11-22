@@ -602,6 +602,18 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (run : Steps profile ready (specDispatch ready base) reached actual finish) (nonempty : remaining ≠ [])
       (rest : Steps profile ready (specDispatch ready base) finish remaining entry) :
       CallbackSliceEnd profile ready base bindings changes reached peer actual finish
+  | directGiveEntry {changes reached peer left right name kind args inst destination schema resume check canon trailing finish}
+      (linked : resolveBinding bindings name kind =
+        .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)
+      (checkedFocus : left.ctl = check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)))
+      (canonicalFocus : right.ctl = canon.control
+        (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
+      (site : PairedComponentSite changes left right check canon)
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
+      (checkedMark : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 0) = some (.prog resume))
+      (canonicalMark : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 0) = some (.prog resume))
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | lookup {changes reached peer label next trailing finish handle} (request : CoreGiveRequest bindings reached)
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (demand : request.lookupDemand = some handle)
