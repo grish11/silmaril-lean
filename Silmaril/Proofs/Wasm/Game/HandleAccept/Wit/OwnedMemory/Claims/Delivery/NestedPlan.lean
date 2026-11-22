@@ -3957,15 +3957,13 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
       exact reject split moved residual site left right
 
 open ReturnFrame.Occurrence in
-theorem cutLinkedComponentInstall {callees : List (ComponentCall.Callee sig)}
-    {hostId : HostFuncId} {caller : CallerId} {callee : ComponentCall.Callee sig}
-    {thread frames rest resume label next}
-    (linked : callees.filter (·.hostId == hostId) = [callee])
+private theorem cutSharedComponentInstall {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {call : Session grow sig (Ret (core3 grow))} {thread frames rest resume label next}
+    (resolved : specDispatch ready (ComponentCall.hostWithComponent bindings callees) (.hostFunc hostId caller) = call)
     (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
     (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
     (paired : HostFrame.Related.Paired older start incoming) :
     ∃ peerFrames peerRest,
-      let call := ComponentCall.invoke callee caller
       let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
       let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
       label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older reached peer ∧
@@ -3975,15 +3973,13 @@ theorem cutLinkedComponentInstall {callees : List (ComponentCall.Callee sig)}
       segmentAt (segmentStorage peer) (.active 0 0) = some (.prog resume) ∧
       Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) := by
   let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
-  let call : Session grow sig (Ret (core3 grow)) := ComponentCall.invoke callee caller
-  have resolved : specDispatch ready base (.hostFunc hostId caller) = call := by
-    simp only [dispatch, base, ComponentCall.hostWithComponent, linked, call]
+  have checkResolved : specDispatch ready base (.hostFunc hostId caller) = call := resolved
   have peerResolved : specDispatch ready (LiveDispatch.host bindings base) (.hostFunc hostId caller) = call := resolved
   obtain ⟨peerFrames, peerRest, peerFocus, entered⟩ := ReturnFrame.Related.Paired.push_shared paired focused (.prog call) (.prog resume)
   let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
   let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
   have checked : Step profile ready (specDispatch ready base) start .tau reached := by
-    simpa only [resolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) focused)
+    simpa only [reached, checkResolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) focused)
   have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer := by
     simpa only [peerResolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) peerFocus)
   have leftEdit : transitionEdit start .tau = .push (.prog resume) := by rw [transitionEdit, focused]
@@ -4004,6 +4000,27 @@ theorem cutLinkedComponentInstall {callees : List (ComponentCall.Callee sig)}
     exact outside.push _ _
   · rw [step_edit checked, step_edit canonical, leftEdit, rightEdit]
     exact outside_push _ _ (paired_outside (left := HostFrame.replace start incoming.host) paired)
+
+open ReturnFrame.Occurrence in
+theorem cutLinkedComponentInstall {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {callee : ComponentCall.Callee sig}
+    {thread frames rest resume label next}
+    (linked : callees.filter (·.hostId == hostId) = [callee])
+    (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest,
+      let call := ComponentCall.invoke callee caller
+      let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
+      let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older reached peer ∧
+      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
+      segmentAt (segmentStorage reached) (.active 0 0) = some (.prog resume) ∧
+      segmentAt (segmentStorage peer) (.active 0 0) = some (.prog resume) ∧
+      Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) := by
+  refine cutSharedComponentInstall ?_ focused taken paired
+  simp only [dispatch, ComponentCall.hostWithComponent, linked]
 
 open ReturnFrame.Occurrence in
 theorem cutAdmittedComponent (callee : ComponentCall.Callee sig) (caller : CallerId)
@@ -4107,6 +4124,99 @@ theorem classifyLinkedComponentAdmission {callees : List (ComponentCall.Callee s
   exact ⟨peerFrames, peerRest, silent, install,
     cutAdmittedComponent callee caller rfl record liveThread liveTask context admitted aligned leftMark rightMark outside run⟩
 
+open ReturnFrame.Occurrence in
+private theorem sharedComponentInstallTransport {left right : Config (core3 grow) (HostState sig)}
+    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
+    (checked : segmentAt (segmentStorage left) (.active 0 0) = some (.prog resume))
+    (canonical : segmentAt (segmentStorage right) (.active 0 0) = some (.prog resume)) :
+    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right := by
+  obtain ⟨move, paths, retained⟩ := installed
+  refine ⟨move, paths, ?_⟩
+  intro older marks outside place off first second leftAt rightAt
+  by_cases top : place = .active 0 0
+  · subst place
+    obtain rfl := Option.some.inj (leftAt.symm.trans checked)
+    obtain rfl := Option.some.inj (rightAt.symm.trans canonical)
+    exact .same _
+  · exact retained older marks outside place (fun member => by
+      rcases List.mem_cons.mp member with equal | member
+      · exact top (Option.some.inj equal)
+      · exact off member) first second leftAt rightAt
+
+private def badComponentLinkProgram (issue : Scheduled.Issue) : Session grow sig (Ret (core3 grow)) := do
+  let state ← hostGet
+  hostSet (state.enter "component accept" ⟨[], []⟩ [])
+  ComponentCall.reject state.nextTicket issue
+
+private def badLinkEntry (state : Config (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (issue : Scheduled.Issue) :
+    Config (core3 grow) (HostState sig) :=
+  { state with
+    host := state.host.enter "component accept" ⟨[], []⟩ []
+    ctl := cursor.control (ComponentCall.reject state.host.nextTicket issue) }
+
+open ReturnFrame.Occurrence in
+private theorem badLinkEntryPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (issue : Scheduled.Issue) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = cursor.control (badComponentLinkProgram issue)) :
+    ComponentQuietPath profile ready dispatch cursor start [id, id] (badLinkEntry start cursor issue) := by
+  cases cursor
+  refine .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) ?_
+  exact .step (.hostSet rfl) rfl (.done _)
+
+open ReturnFrame.Occurrence in
+private theorem cutComponentBadLink {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {thread frames rest resume label next}
+    (bad : ¬ ∃ callee, callees.filter (·.hostId == hostId) = [callee])
+    (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ComponentLinkFailure profile ready bindings callees older start incoming finish label labels := by
+  let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+  let issue : Scheduled.Issue := if (callees.filter (·.hostId == hostId)).isEmpty then .unlinkedImport else .ambiguousBinding
+  have resolved : specDispatch ready base (.hostFunc hostId caller) = badComponentLinkProgram issue := by
+    cases linked : callees.filter (·.hostId == hostId) with
+    | nil => simp only [dispatch, base, ComponentCall.hostWithComponent, issue, linked, badComponentLinkProgram]
+    | cons first others =>
+      cases others with
+      | nil => exact (bad ⟨first, linked⟩).elim
+      | cons second remaining => simp only [dispatch, base, ComponentCall.hostWithComponent, issue, linked, badComponentLinkProgram]
+  obtain ⟨peerFrames, peerRest, rfl, rfl, entered, marked, leftMark, rightMark, _⟩ :=
+    cutSharedComponentInstall resolved focused step paired
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: peerFrames, peerRest⟩
+  let left := { start with ctl := check.control (badComponentLinkProgram issue) }
+  let right := { incoming with ctl := canon.control (badComponentLinkProgram issue) }
+  have installed := sharedComponentInstallTransport marked leftMark rightMark
+  have entry := badLinkEntryPath (start := left) (profile := profile) (ready := ready) (specDispatch ready base) issue check rfl
+  have canonEntry := badLinkEntryPath (start := right) (profile := profile) (ready := ready)
+    (specDispatch ready (LiveDispatch.host bindings base)) issue canon rfl
+  have site (leftHost rightHost : HostState sig) : PairedComponentSite older { left with host := leftHost }
+      { right with host := rightHost } check canon := by
+    obtain ⟨_, _, focus, retargeted⟩ := HostFrame.Related.Paired.retarget (left := left) (right := right) entered
+      rfl (.prog (.pure (.cancel .none))) leftHost rightHost
+    simp only [right, check, canon, PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
+    obtain ⟨rfl, rfl⟩ := focus
+    exact retargeted
+  rcases splitSilent (count := 2) (entry.track (.active 0 0)).toTrail.steps tail with ⟨remaining, split, residual⟩ | short
+  · obtain ⟨leading, suffix, reached, peer, bodySplit, moved, after, outcome⟩ := cutObservedReject (bindings := bindings)
+      (leftTicket := left.host.nextTicket) (rightTicket := right.host.nextTicket)
+      issue (start := badLinkEntry left check issue) (incoming := badLinkEntry right canon issue)
+      rfl rfl (site _ _) residual
+    have intoReject := CallbackPrefix.stationaryTransport (bindings := bindings) entry.track canonEntry.track
+    have crossed := (CallbackPrefix.transportAppend intoReject moved).choose_spec.1
+    refine ⟨([.tau, .tau] : Trace grow sig) ++ leading, suffix, reached, peer, check, canon, rfl, ?_, ?_, after, outcome⟩
+    · rw [split, bodySplit, List.append_assoc]
+      rfl
+    · simpa only [List.map_nil, List.append_nil, List.singleton_append, List.length_cons, List.length_nil,
+        List.replicate_succ, List.replicate_zero] using (CallbackPrefix.transportAppend installed crossed).choose_spec.1
+  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := compareQuietShort (bindings := bindings) entry canonEntry (site left.host right.host)
+      ⟨_, rfl⟩ ⟨_, rfl⟩ tail short
+    exact ⟨labels, [], finish, peer, check, canon, rfl, (List.append_nil _).symm,
+      (CallbackPrefix.transportAppend installed moved).choose_spec.1, .refl _, .inl ⟨rfl, endpoint⟩⟩
+
 private theorem classifyComponentInstallOutcome {callees : List (ComponentCall.Callee sig)} {label next}
     (step : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
     (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next labels finish)
@@ -4118,8 +4228,10 @@ private theorem classifyComponentInstallOutcome {callees : List (ComponentCall.C
   · obtain ⟨callee, subtask, cx, args, pos, ft, limits, results, entry, task, linked, record, liveThread, liveTask, context, admitted⟩ := admits
     obtain ⟨peerFrames, peerRest, silent, installed, body⟩ :=
       classifyLinkedComponentAdmission linked focused step tail paired record liveThread liveTask context admitted
-    exact .inr ⟨callee, cx, args, peerFrames, peerRest, linked, silent, installed, body⟩
-  · exact .inl admits
+    exact .inr (.inr ⟨callee, cx, args, peerFrames, peerRest, linked, silent, installed, body⟩)
+  · by_cases linked : ∃ callee, callees.filter (·.hostId == hostId) = [callee]
+    · exact .inl ⟨linked, admits⟩
+    · exact .inr (.inl ⟨linked, cutComponentBadLink linked focused step tail paired⟩)
 
 theorem classifyComponentWorkerPrefix {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
@@ -6486,26 +6598,6 @@ private theorem crossComponentReply {origin reference reached peer : Config (cor
           by simpa only [List.cons_append] using whole⟩
     · exact .inr boundary
   · exact .inr boundary
-
-open ReturnFrame.Occurrence in
-private theorem sharedComponentInstallTransport {left right : Config (core3 grow) (HostState sig)}
-    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
-    (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
-    (checked : segmentAt (segmentStorage left) (.active 0 0) = some (.prog resume))
-    (canonical : segmentAt (segmentStorage right) (.active 0 0) = some (.prog resume)) :
-    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right := by
-  obtain ⟨move, paths, retained⟩ := installed
-  refine ⟨move, paths, ?_⟩
-  intro older marks outside place off first second leftAt rightAt
-  by_cases top : place = .active 0 0
-  · subst place
-    obtain rfl := Option.some.inj (leftAt.symm.trans checked)
-    obtain rfl := Option.some.inj (rightAt.symm.trans canonical)
-    exact .same _
-  · exact retained older marks outside place (fun member => by
-      rcases List.mem_cons.mp member with equal | member
-      · exact top (Option.some.inj equal)
-      · exact off member) first second leftAt rightAt
 
 private theorem crossComponentBodyReply
     {left right startBody peerBody reached peer : Config (core3 grow) (HostState sig)}

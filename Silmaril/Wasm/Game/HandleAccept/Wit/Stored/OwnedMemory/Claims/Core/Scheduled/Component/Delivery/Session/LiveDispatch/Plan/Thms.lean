@@ -210,8 +210,9 @@ theorem classify_linked_component_admission {callees : List (ComponentCall.Calle
     linked focused taken run paired record liveThread liveTask context admitted
 
 /-- Cut the finite checked worker derivation at the actual boundary. A reached
-component install is classified from the fixed dispatcher and live arena guards;
-its admitted branch compares the exact installed body and marked reply. -/
+component install is classified from the fixed dispatcher and live arena guards.
+Missing or ambiguous linkage compares the executed diagnostic prefix and lockdown
+when reached; admission compares the exact installed body and marked reply. -/
 theorem classify_component_worker_prefix {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
