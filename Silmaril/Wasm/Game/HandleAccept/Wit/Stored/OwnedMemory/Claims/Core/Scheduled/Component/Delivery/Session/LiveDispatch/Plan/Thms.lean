@@ -26,6 +26,13 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {start finish incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
 
+/-- Classify the actual checked callback derivation without choosing an
+allocator return or supplying an independent callback execution. -/
+theorem ClosedCallbackPrefix.classify_actual {protectedReturn}
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.classifyActual run
+
 /-- An actual Core engine step in the callback needs no host-write,
 dispatch or readiness premise. The reached store need not equal the old one. -/
 theorem ClosedCallbackPrefix.core_internal {protectedReturn thread core next frames rest store coreNext}

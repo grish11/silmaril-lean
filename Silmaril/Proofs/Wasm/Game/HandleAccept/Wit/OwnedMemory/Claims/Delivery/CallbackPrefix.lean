@@ -37,6 +37,77 @@ private theorem append {dispatch : Call (core3 grow) → Session grow sig (Ret (
   | refl => exact back
   | cons step _ ih => exact .cons step (ih back)
 
+private theorem unchangedOrGive {label}
+    (step : Step profile ready (specDispatch ready base) start label finish) :
+    UnchangedAt bindings start ∨ GiveInstall bindings (specDispatch ready base) start label finish := by
+  classical
+  cases step
+  case call focused =>
+    rename_i _ target _ _ _
+    by_cases unchanged : Unchanged bindings target
+    · left
+      constructor
+      · intro _ _ _ _ _ other
+        have shape := other.symm.trans focused
+        simp only [List.cons.injEq, Activation.mk.injEq, Focus.prog.injEq] at shape
+        have programs := shape.1.2.1
+        injection programs with operation _
+        injection operation with same
+        simpa only [same] using unchanged
+      · intros; simp_all
+    · exact .inr (.direct focused unchanged)
+  case coreCallout focused calling =>
+    rename_i _ _ _ _ _ callee args
+    by_cases unchanged : Unchanged bindings (.hostCallout (E := core3 grow) callee args)
+    · left
+      constructor <;> intros <;> simp_all
+    · exact .inr (.core focused calling unchanged)
+  case' fault failed => cases failed
+  all_goals (left; constructor <;> intros <;> simp_all [StepDefs.HostReadyCfg])
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    have programs := heads.1.2.1
+    injection programs with operation _
+    cases operation
+
+theorem classifyActual {protectedReturn} {labels : Trace grow sig}
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
+  classical
+  induction run with
+  | refl state => exact .complete (.done state)
+  | @cons before next after label trailing step tail ih =>
+    have stop (cut : CallbackWorkerBoundary bindings (specDispatch ready base) protectedReturn before label next) :
+        ClassifiedCallbackRun bindings profile ready base protectedReturn before (label :: trailing) after :=
+      .boundary (leading := []) rfl (.done before) (.refl before) cut step tail
+    rcases unchangedOrGive (bindings := bindings) step with unchanged | install
+    · by_cases interior : HostFrame.InteriorFor protectedReturn before
+      · by_cases noWrite : NoHostAssignment before
+        · by_cases grows : CoreUpdateGrows before
+          · have extend {leading reached}
+                (closed : ClosedCallbackPrefix bindings profile ready base protectedReturn next (PayloadPrefix.visible leading) reached) :
+                ClosedCallbackPrefix bindings profile ready base protectedReturn before (PayloadPrefix.visible (label :: leading)) reached := by
+              change ClosedCallbackPrefix bindings profile ready base protectedReturn before (PayloadPrefix.visible ([label] ++ leading)) reached
+              rw [show PayloadPrefix.visible ([label] ++ leading) = PayloadPrefix.visible [label] ++ PayloadPrefix.visible leading from List.filter_append ..]
+              exact .step interior unchanged noWrite grows step closed
+            cases ih with
+            | complete closed => exact .complete (extend closed)
+            | boundary split closed prefixSteps cut actual rest =>
+              exact .boundary (congrArg (label :: ·) split) (extend closed) (.cons step prefixSteps) cut actual rest
+          · exact stop (.nonGrowingUpdate grows)
+        · unfold NoHostAssignment at noWrite
+          push Not at noWrite
+          obtain ⟨_, _, _, _, _, focus⟩ := noWrite
+          exact stop (.write focus)
+      · unfold HostFrame.InteriorFor at interior
+        rw [not_and_or] at interior
+        push Not at interior
+        rcases interior with ⟨_, _, _, _, focus⟩ | ⟨_, retained, _, _, _, _, focus⟩
+        · exact stop (.read focus)
+        · exact stop (.protectedPop retained focus)
+    · exact stop (.give install)
+
 private theorem invisible {labels : Trace grow sig} (silent : labels.all (· matches .tau) = true) :
     PayloadPrefix.visible labels = [] := by
   apply List.filter_eq_nil_iff.mpr

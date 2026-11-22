@@ -49,6 +49,38 @@ inductive ClosedCallbackPrefix (bindings : List (Binding sig)) (profile : Profil
         .prog (syncLiftCandidates task (start.store.instCandidates (ready start.host) inst)), frames⟩ :: rest } seen finish) :
       ClosedCallbackPrefix bindings profile ready base protectedReturn start seen finish
 
+/-- The first executed action not covered by the ordinary callback rule.
+This is a proof cut, not a new runtime rejection. -/
+inductive CallbackWorkerBoundary (bindings : List (Binding sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (protectedReturn : ReturnFrame.Continuation (core3 grow) (HostState sig) → Prop)
+    (before : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
+    (next : Config (core3 grow) (HostState sig)) : Prop where
+  | give (install : GiveInstall bindings dispatch before label next)
+  | read {thread resume frames rest}
+      (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+  | protectedPop {thread value resume frames rest} (retained : protectedReturn resume)
+      (focus : before.ctl = ⟨thread, .prog (.pure value), .prog resume :: frames⟩ :: rest)
+  | write {thread value resume frames rest}
+      (focus : before.ctl = ⟨thread, .prog (.op (.hostSet value) resume), frames⟩ :: rest)
+  | nonGrowingUpdate (failed : ¬ CoreUpdateGrows before)
+
+/-- Extract a closed prefix from the actual finite derivation, leaving any
+boundary action and the rest of the checked run at their original states. -/
+inductive ClassifiedCallbackRun (bindings : List (Binding sig)) (profile : ProfileKind)
+    (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (protectedReturn : ReturnFrame.Continuation (core3 grow) (HostState sig) → Prop)
+    (start : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | complete (closed : ClosedCallbackPrefix bindings profile ready base protectedReturn start (PayloadPrefix.visible labels) finish)
+  | boundary {leading label trailing reached next}
+      (split : labels = leading ++ label :: trailing)
+      (closed : ClosedCallbackPrefix bindings profile ready base protectedReturn start (PayloadPrefix.visible leading) reached)
+      (prefixSteps : Steps profile ready (specDispatch ready base) start leading reached)
+      (cut : CallbackWorkerBoundary bindings (specDispatch ready base) protectedReturn reached label next)
+      (actual : Step profile ready (specDispatch ready base) reached label next)
+      (tail : Steps profile ready (specDispatch ready base) next trailing finish)
+
 /-- Every initial occurrence follows the same reached coordinate on both
 paths, even if checked journal steps add silent labels. This includes saved
 locations and records loss without assuming later return. -/
