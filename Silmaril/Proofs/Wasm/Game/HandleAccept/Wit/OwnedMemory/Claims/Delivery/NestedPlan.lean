@@ -831,6 +831,29 @@ theorem driveCompiledFlat {origin : CStore (core3 grow)} {root item : Field} {sc
         cases result with
         | returned words paired grew checked canonical => exact .returned words paired grew checked canonical
         | refused issue checked => exact .refused (.nested index issue) checked) ending⟩
+  | fixed element length items children ih =>
+    intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+    have noLeading (verdict : Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) : verdict.map ([] ++ ·) = verdict := by
+      cases verdict <;> rfl
+    rw [Record.Effects.field] at checkAt
+    rw [CanonicalTree.field] at canonAt
+    obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail, ending⟩ :=
+      driveFlatSequence destination inst items 0 []
+        (fun item member => ih item member (path.trans (.fixed member (.self item))))
+        (fun verdict => checkNext (verdict.mapError (.nested index))) canonNext frame growth
+        (by
+          let body : Session grow sig (Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) :=
+            Record.Effects.flat recordClaims Limits.spec Quirks.none (destination.context inst) destination.width items 0
+          change left.ctl = check.control ((body.bind fun verdict => .pure (verdict.mapError (.nested index))).bind checkNext) at checkAt
+          rw [Prog.bind_assoc] at checkAt
+          change left.ctl = check.control (body.bind fun verdict => checkNext (verdict.mapError (.nested index))) at checkAt
+          simpa only [flatSequenceChecked, noLeading, Prog.bind_eq] using checkAt)
+        (by simpa only [flatSequenceCanonical, List.nil_append] using! canonAt) run bounded
+    exact ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail,
+      mapStringEnd (fun _ _ _ result => by
+        cases result with
+        | returned words paired grew checked canonical => exact .returned words paired grew checked canonical
+        | refused issue checked => exact .refused (.nested index issue) checked) ending⟩
 
 private theorem visiblePrefix {left right : Trace grow sig} (initial : left <+: right) :
     PayloadPrefix.visible left <+: PayloadPrefix.visible right := by

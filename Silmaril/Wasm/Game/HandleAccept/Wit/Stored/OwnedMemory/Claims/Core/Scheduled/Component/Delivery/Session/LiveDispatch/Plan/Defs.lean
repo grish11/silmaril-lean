@@ -4616,7 +4616,7 @@ def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostSt
       ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
         (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
-/-- Flat scalar, nominal handle and string fields, aggregates, and selected sums. This is a
+/-- Flat scalar, nominal handle and string fields, aggregates, fixed arrays and selected sums. This is a
 proof domain, not a runtime check for support. -/
 inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
   | handle (item : Stored.Endpoints.RecordLower.Field) (nominal : CanonicalHandle item) : FlatVisitShape item
@@ -4626,6 +4626,8 @@ inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
       (emitted : item.Emitted) : FlatVisitShape item
   | aggregate (type : Stored.TypeOf) (fields : List Stored.Endpoints.RecordLower.Field)
       (children : ∀ field ∈ fields, FlatVisitShape field) : FlatVisitShape (.aggregate type fields)
+  | fixed (element : Stored.TypeOf) (length : Nat) (items : List Stored.Endpoints.RecordLower.Field)
+      (children : ∀ field ∈ items, FlatVisitShape field) : FlatVisitShape (.fixed element length items)
   | sum (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf)) (tag : Nat)
       (selected : Option Stored.Endpoints.RecordLower.Field)
       (matched : Stored.Endpoints.RecordLower.Field.LayoutMatches (.sum type arms tag selected) type)
