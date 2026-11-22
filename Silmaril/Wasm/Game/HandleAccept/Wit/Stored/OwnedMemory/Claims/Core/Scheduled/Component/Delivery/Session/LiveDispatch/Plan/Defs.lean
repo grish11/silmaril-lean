@@ -972,6 +972,25 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer labels labels left right [mark])
       (writers : VisitorWriterPath profile ready base bindings reached peer labels labels left right) :
       CallbackSliceEnd profile ready base bindings changes reached peer labels left
+  | componentObserverTerminal {changes wider reached peer left right leading trailing finish mark}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (terminal : (trailing = [] ∧ PairedComponentSite wider left right check canon) ∨
+        (left.ctl = [] ∧ right.ctl = [] ∧ HostFrame.Related.Paired wider left right))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right [mark])
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | componentPreflightMismatch {changes reached peer left right leading trailing finish mark}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {callee : ComponentCall.Callee sig}
+      {caller leftTicket rightTicket leftPlan rightPlan}
+      (checked : left.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket leftPlan))
+      (canonical : right.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket rightPlan))
+      (different : leftPlan ≠ rightPlan)
+      (history : reached.host.writer.accepted ≠ peer.host.writer.accepted)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right [mark])
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | componentRefusedTerminal {changes wider reached peer left right leading trailing finish mark}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (frontier : ComponentStoreFrontier (Result := Unit) wider check canon
@@ -5302,8 +5321,10 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
     (start incoming reached peer : Config (core3 grow) (HostState sig)) (leading suffix : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop where
   | pending (exhausted : suffix = []) (paired : PairedComponentSite wider reached peer check canon)
+      (writers : VisitorWriterPath profile ready base bindings start incoming leading leading reached peer)
   | trapped (checked : reached.ctl = []) (canonical : peer.ctl = [])
       (paired : HostFrame.Related.Paired wider reached peer)
+      (writers : VisitorWriterPath profile ready base bindings start incoming leading leading reached peer)
   | registrationMismatch {tree : Stored.OwnedMemory.Tree sig}
       (mismatch : ReachedRegistrationMismatch profile ready base bindings reached peer check canon leftTicket rightTicket caller tree)
       (paired : PairedComponentSite wider reached peer check canon)
