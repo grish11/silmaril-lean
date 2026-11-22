@@ -1767,7 +1767,7 @@ def LiveSumThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest rhsNext result
     Steps profile ready checked left lhsLabels lhs ∧ Steps profile ready canonical right rhsLabels rhs ∧
     visible lhsLabels = visible rhsLabels ∧
-    CoupledOccurrencePaths profile ready base bindings left right lhsLabels rhsLabels lhs rhs ∧
+    OccurrenceTransport profile ready base bindings left right lhsLabels rhsLabels lhs rhs ∧
     match result with
     | .error reason => ∃ leading, visible rhsLabels = leading ++ [.trap reason]
     | .ok () => RetainsActiveSlots profile ready checked left lhsLabels lhs ∧
@@ -2043,18 +2043,13 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
 termination_by structural types => types
 end
 
-/-- Enclosing-mark transport through nested dynamic lists and string-key
-maps with scalar, allocating string or guarded nominal leaves. -/
-inductive RecursiveAllocatingTransportType : Stored.TypeOf → Prop where
-  | nominal {type} : NominalElement type → RecursiveAllocatingTransportType type
-  | data {type} : PayloadPrefix.LocalDataType type → RecursiveAllocatingTransportType type
-  | string : RecursiveAllocatingTransportType (.prim .string)
-  | list {element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.list element)
-  | map {key element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.map key element)
+/-- The enclosing-mark invariant covers the compiled memory visitor's
+recursive fragment; it is not a runtime admission predicate. -/
+abbrev RecursiveAllocatingTransportType := RecursiveCollectionType
 
-/-- Follow the compiled child at each reached list slot. In the string
-case, the measured allocator plan transports the history into the actual
-descriptor continuation. -/
+mutual
+/-- Follow each reached child of the compiled memory visitor, carrying the
+enclosing marks through the real placement, allocator and continuation. -/
 def recursiveAllocatingTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
@@ -2076,6 +2071,51 @@ def recursiveAllocatingTransportPaths (profile : ProfileKind) (ready : HostReady
           (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element))
           destination inst key element entries index output checkNext canonNext
           (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed finish)) sink
+  | .fixedList element length => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .fixed element length entries ∧
+      liveFixedPaths profile ready base bindings destination inst
+        (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element)
+        element entries index address checkNext canonNext finish before left right check canon
+  | .option element => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.option element) [none, some element] tag selected ∧
+      LocalTransportThen profile ready base bindings start incoming before
+        (match selected with
+        | none => finish
+        | some arm => recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width [none, some element] address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .result success failure => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.result success failure) [success, failure] tag selected ∧
+      let okPaths : TrailFieldComparison grow sig := match success with
+        | some type => recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type
+        | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
+      let errorPaths : TrailFieldComparison grow sig := match failure with
+        | some type => recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type
+        | none => fun _ _ _ _ _ _ _ _ _ _ _ => False
+      LocalTransportThen profile ready base bindings start incoming before
+        (match selected with
+        | none => finish
+        | some arm => (if tag = 0 then okPaths else errorPaths) arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width [success, failure] address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .variant cases => fun item index address checkNext canonNext finish before _ _ _ _ =>
+    ∃ tag selected, item = .sum (.variant cases) (cases.map Prod.snd) tag selected ∧
+      LocalTransportThen profile ready base bindings start incoming before
+        (match selected with
+        | none => finish
+        | some arm => recursiveVariantTransportPaths profile ready base bindings older destination inst start incoming sink cases tag arm 0
+            (PayloadPrefix.sumPayloadAddress destination.width (cases.map Prod.snd) address)
+            (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+  | .record fields => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate (.record fields) items ∧
+      liveAggregatePaths profile ready base bindings destination inst
+        (selectPathField (recursiveRecordTransportPaths profile ready base bindings older destination inst start incoming sink fields))
+        items index address checkNext canonNext finish before left right check canon
+  | .tuple types => fun item index address checkNext canonNext finish before left right check canon =>
+    ∃ items, item = .aggregate (.tuple types) items ∧
+      liveAggregatePaths profile ready base bindings destination inst
+        (selectPathField (recursiveTupleTransportPaths profile ready base bindings older destination inst start incoming sink types))
+        items index address checkNext canonNext finish before left right check canon
   | .prim .string => fun item _ address checkNext canonNext finish seen left right check canon =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringValueOccurrencePaths profile ready base bindings older destination inst str (.memory address)
@@ -2086,6 +2126,37 @@ def recursiveAllocatingTransportPaths (profile : ProfileKind) (ready : HostReady
   | _ => fun item index _ checkNext _ finish seen left right check _ =>
     HandleTransportThen profile ready base bindings start incoming left right seen item index check checkNext finish sink
 termination_by structural type => type
+
+def recursiveVariantTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Option Stored.TypeOf) → Nat → TrailFieldComparison grow sig
+  | (_, some type) :: _, 0 => recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type
+  | _ :: rest, tag + 1 => recursiveVariantTransportPaths profile ready base bindings older destination inst start incoming sink rest tag
+  | _, _ => fun _ _ _ _ _ _ _ _ _ _ _ => False
+termination_by structural cases => cases
+
+def recursiveRecordTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × TrailFieldComparison grow sig)
+  | [] => []
+  | (_, type) :: rest => (type, recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) ::
+      recursiveRecordTransportPaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural fields => fields
+
+def recursiveTupleTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List Stored.TypeOf → List (Stored.TypeOf × TrailFieldComparison grow sig)
+  | [] => []
+  | type :: rest => (type, recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) ::
+      recursiveTupleTransportPaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural types => types
+end
 
 /-- The cumulative memory fold covers the same fragment as the compiled
 recursive visitor, with no additional runtime admission condition. -/

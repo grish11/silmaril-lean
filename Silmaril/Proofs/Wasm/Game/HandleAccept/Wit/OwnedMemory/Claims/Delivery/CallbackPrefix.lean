@@ -1965,13 +1965,13 @@ theorem sumPathsFrom {destination : RecordDestination} {inst : InstId}
     obtain ⟨prefixLabels, trapped⟩ := tail
     exact .inl ⟨reason, prefixLabels, _, _, appendComparedPaths leading
       ⟨lhsLabels, rhsLabels, lhsRun, rhsRun, same.trans trapped, trapped, rfl⟩,
-      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+      ⟨lhsLabels, rhsLabels, transportPaths trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok result =>
     cases result
     obtain ⟨lhsTrack, rhsTrack, done⟩ := tail
     have reached := appendComparedSlots leading ⟨lhsLabels, rhsLabels, lhsTrack, rhsTrack, rfl, same.symm⟩
     refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached,
-      ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩, ?_⟩
+      ⟨lhsLabels, rhsLabels, transportPaths trails, rfl, same.symm, rfl⟩, ?_⟩
     cases selected with
     | none => exact next _ _ _ _ _ reached rfl done
     | some item =>
@@ -2003,11 +2003,11 @@ theorem sumOccurrencePathsFrom {destination : RecordDestination} {inst : InstId}
   | error reason =>
     obtain ⟨prefixLabels, trapped⟩ := tail
     exact .inl ⟨reason, prefixLabels, _, _, appendComparedOccurrences leading
-      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+      ⟨lhsLabels, rhsLabels, transportPaths trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok result =>
     cases result
     obtain ⟨_, _, done⟩ := tail
-    have reached := appendComparedOccurrences leading ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩
+    have reached := appendComparedOccurrences leading ⟨lhsLabels, rhsLabels, transportPaths trails, rfl, same.symm, rfl⟩
     refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, ?_⟩
     cases selected with
     | none => exact next _ _ _ _ _ reached rfl done

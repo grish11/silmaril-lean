@@ -865,6 +865,139 @@ theorem structuralFieldOccurrences {destination : RecordDestination} {inst : Ins
     obtain ⟨items, shape, body⟩ := run
     exact ⟨items, shape, CallbackPrefix.aggregateOccurrencePathsFrom (tupleOccurrenceLift destination inst types children) leading same body admitted next⟩
 
+private theorem fixedTransport {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {entries : List Field} {index address : Nat} {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (same : left.store = right.store)
+    (run : LiveFixedThen profile ready base bindings destination inst child element entries index address checkNext canonNext finish
+      left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveFixedPaths profile ready base bindings destination inst paths element entries index address checkNext canonNext visit
+      seen left right check canon := by
+  obtain ⟨read, body⟩ := run
+  have reached := CallbackPrefix.appendQuietCanonicalTransport leading read rfl same
+  exact ⟨read, CallbackPrefix.liveElementsPathsFrom lift reached same body (sink.nested _ admitted index) next⟩
+
+private theorem sumTransport {destination : RecordDestination} {inst : InstId}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {arms : List (Option Stored.TypeOf)} {selected : Option Field} {index address : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : selected.isSome = true → LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveSumThen profile ready base bindings destination inst child arms selected index address
+      checkNext canonNext finish left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LocalTransportThen profile ready base bindings start incoming seen
+      (match selected with
+      | none => visit
+      | some item => paths item 0 (PayloadPrefix.sumPayloadAddress destination.width arms address)
+          (aggregateNext index checkNext) canonNext visit) := by
+  obtain ⟨store, result, lhsLabels, rhsLabels, _, _, same, trails, tail⟩ := run
+  cases result with
+  | error reason =>
+    obtain ⟨prefixLabels, trapped⟩ := tail
+    exact .inl ⟨reason, prefixLabels, _, _, CallbackPrefix.appendComparedTransport leading
+      ⟨lhsLabels, rhsLabels, trails, same.trans trapped, trapped, rfl⟩, rfl, rfl⟩
+  | ok result =>
+    cases result
+    obtain ⟨_, _, done⟩ := tail
+    have reached := CallbackPrefix.appendComparedTransport leading ⟨lhsLabels, rhsLabels, trails, rfl, same.symm, rfl⟩
+    refine .inr ⟨PayloadPrefix.visible lhsLabels, _, _, check, canon, reached, ?_⟩
+    cases selected with
+    | none => exact next _ _ _ _ _ reached rfl done
+    | some item =>
+      exact lift rfl item 0 _ _ _ check canon _ canonNext finish visit _ done reached rfl
+        (sink.nested _ admitted index) next
+
+private theorem emptyTransportLift :
+    LiftsFieldTransportPaths profile ready base bindings start incoming
+      (fun _ _ _ _ _ _ _ _ _ _ => False) (fun _ _ _ _ _ _ _ _ _ _ _ => False) sink := by
+  intro _ _ _ _ _ _ _ _ _ _ _ _ impossible
+  exact impossible.elim
+
+private theorem variantTransportLift (destination : RecordDestination) (inst : InstId)
+    (cases : List (String × Option Stored.TypeOf)) (tag : Nat)
+    (arms : ∀ name type, (name, some type) ∈ cases → LiftsFieldTransportPaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) sink) :
+    LiftsFieldTransportPaths profile ready base bindings start incoming
+      (liveVariantArm profile ready base bindings older destination inst cases tag)
+      (recursiveVariantTransportPaths profile ready base bindings older destination inst start incoming sink cases tag) sink := by
+  induction cases generalizing tag with
+  | nil => cases tag <;> exact emptyTransportLift
+  | cons field rest ih =>
+    obtain ⟨name, arm⟩ := field
+    cases tag with
+    | zero => cases arm with
+      | none => exact emptyTransportLift
+      | some type => exact arms name type (List.mem_cons_self ..)
+    | succ tag =>
+      simpa only [liveVariantArm, recursiveVariantTransportPaths] using
+        (ih tag (fun name type member => arms name type (List.mem_cons_of_mem _ member)))
+
+private theorem tupleTransportLift (destination : RecordDestination) (inst : InstId) (types : List Stored.TypeOf)
+    (children : ∀ type ∈ types, LiftsFieldTransportPaths profile ready base bindings start incoming
+      (liveCollectionField profile ready base bindings older destination inst type)
+      (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) sink) :
+    LiftsFieldTransportPaths profile ready base bindings start incoming
+      (aggregateChild (liveTupleFields profile ready base bindings older destination inst types))
+      (selectPathField (recursiveTupleTransportPaths profile ready base bindings older destination inst start incoming sink types)) sink := by
+  apply aggregateSelectionLift
+  intro type raw member
+  induction types with
+  | nil => cases member
+  | cons schema rest ih =>
+    rw [liveTupleFields] at member
+    rcases List.mem_cons.mp member with equal | later
+    · cases equal
+      exact ⟨_, List.mem_cons_self .., children _ (List.mem_cons_self ..)⟩
+    · obtain ⟨trail, present, lift⟩ := ih (fun item belongs => children item (List.mem_cons_of_mem _ belongs)) later
+      exact ⟨trail, List.mem_cons_of_mem _ present, lift⟩
+
+private theorem recordTransportPaths (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf)) :
+    recursiveRecordTransportPaths profile ready base bindings older destination inst start incoming sink fields =
+      recursiveTupleTransportPaths profile ready base bindings older destination inst start incoming sink (fields.map Prod.snd) := by
+  induction fields with
+  | nil => rfl
+  | cons field rest ih =>
+    cases field
+    simp only [recursiveRecordTransportPaths, List.map_cons, recursiveTupleTransportPaths, ih]
+
+private theorem aggregateTransport {destination : RecordDestination} {inst : InstId}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {items : List Field} {index address : Nat} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (same : left.store = right.store)
+    (run : LiveAggregateThen profile ready base bindings destination inst child items index address checkNext canonNext finish
+      left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveAggregatePaths profile ready base bindings destination inst paths items index address checkNext canonNext visit
+      seen left right check canon := by
+  obtain ⟨read, body⟩ := run
+  have placement : ComparedOccurrenceTransport profile ready base bindings left right []
+      (enterAggregate destination inst items index address left check checkNext) right :=
+    ⟨[.tau], [], CallbackPrefix.stationaryTransport read (fun place => .done right place), rfl, rfl, same⟩
+  have reached := CallbackPrefix.appendComparedTransport leading placement
+  rw [List.append_nil] at reached
+  exact ⟨CallbackPrefix.comparedTransportPaths placement,
+    CallbackPrefix.replayBetweenTransportFrom lift reached body (sink.nested _ admitted index) next⟩
+
 theorem recursiveAllocatingTransport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
     (covers : sink.CoversOccurrences profile ready base bindings start incoming)
     (family : RecursiveAllocatingTransportType type) :
@@ -872,7 +1005,7 @@ theorem recursiveAllocatingTransport {destination : RecordDestination} {inst : I
       (liveCollectionField profile ready base bindings older destination inst type)
       (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) sink := by
   induction family with
-  | nominal nominal =>
+  | leaf nominal =>
     cases nominal <;> intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next <;>
       exact CallbackPrefix.handleValueTransport leading run covers admitted (fun () => next)
   | data data =>
@@ -903,5 +1036,41 @@ theorem recursiveAllocatingTransport {destination : RecordDestination} {inst : I
     obtain ⟨entries, shape, body⟩ := run
     exact ⟨entries, shape, mapTransportPaths covers child leading body admitted
       (fun () observed lhs rhs cursor peer paths => next observed lhs rhs cursor peer paths paths.choose_spec.choose_spec.2.2.2)⟩
+  | fixed _ child =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading same admitted next
+    obtain ⟨entries, shape, body⟩ := run
+    exact ⟨entries, shape, fixedTransport child leading same body admitted next⟩
+  | option _ child =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next
+    obtain ⟨tag, selected, shape, body⟩ := run
+    refine ⟨tag, selected, shape, ?_⟩
+    cases selected <;> exact sumTransport (fun _ => child) leading body admitted next
+  | @result success failure _ _ okChild errChild =>
+    cases success <;> cases failure <;>
+      intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next
+    all_goals
+      obtain ⟨tag, selected, shape, body⟩ := run
+      refine ⟨tag, selected, shape, ?_⟩
+      by_cases ok : tag = 0 <;> simp only [ok, ↓reduceIte] at body ⊢ <;> cases selected <;> first
+        | exact sumTransport (fun _ => emptyTransportLift) leading body admitted next
+        | exact sumTransport (fun _ => okChild _ rfl) leading body admitted next
+        | exact sumTransport (fun _ => errChild _ rfl) leading body admitted next
+  | @variant cases _ arms =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next
+    obtain ⟨tag, selected, shape, body⟩ := run
+    refine ⟨tag, selected, shape, ?_⟩
+    cases selected <;> exact sumTransport (fun _ => variantTransportLift _ _ cases tag arms) leading body admitted next
+  | @record fields _ children =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading same admitted next
+    obtain ⟨items, shape, body⟩ := run
+    have lift := tupleTransportLift destination inst (fields.map Prod.snd) (fun type member => by
+      obtain ⟨⟨name, schema⟩, present, rfl⟩ := List.mem_map.mp member
+      exact children name schema present)
+    rw [← CallbackPrefix.recordTable destination inst, ← recordTransportPaths destination inst] at lift
+    exact ⟨items, shape, aggregateTransport lift leading same body admitted next⟩
+  | @tuple types _ children =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading same admitted next
+    obtain ⟨items, shape, body⟩ := run
+    exact ⟨items, shape, aggregateTransport (tupleTransportLift destination inst types children) leading same body admitted next⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails

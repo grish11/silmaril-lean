@@ -2317,7 +2317,7 @@ private theorem liveSumRule (destination : RecordDestination) (inst : InstId) (t
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt])
       (frame.store ▸ Core3.Grows.refl left.store.core) checkAt canonAt true
   refine ⟨store, result, lhsLabels, rhsLabels, lhs, rhs.steps, observed,
-    fun mark => ⟨_, (occurrences mark).1, (occurrences mark).2⟩, ?_⟩
+    CallbackPrefix.localLeafTransport occurrences, ?_⟩
   cases result with
   | error reason => exact cut
   | ok value =>

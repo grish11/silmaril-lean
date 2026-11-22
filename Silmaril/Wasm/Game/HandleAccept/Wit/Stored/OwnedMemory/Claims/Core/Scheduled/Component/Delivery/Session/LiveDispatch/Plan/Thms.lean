@@ -1096,8 +1096,8 @@ theorem string_map_entry_occurrence_transport {destination : RecordDestination} 
       field value index slot checkNext canonNext seen left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryTransport leading run next
 
-/-- Derive every child lift by induction on the supported list and map
-schemas, including allocating strings and live nominal guards. No child
+/-- Derive every child lift by induction on the compiled recursive memory
+schema, including heterogeneous fields and the selected sum arm. No child
 histories are supplied as premises. -/
 theorem recursive_allocating_occurrence_transport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
     {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
