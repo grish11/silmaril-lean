@@ -17,6 +17,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
@@ -3533,5 +3534,113 @@ theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoo
     rw [active] at allocator
     obtain ⟨_, caller⟩ := CallbackRange.collectionCaller site linked type element entries field live allocator
     exact ⟨range, finishCollectionRefusal site type element entries pointer caller range⟩
+
+open ReturnFrame.Occurrence in
+private theorem consumeMemoryVisitReply {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    {left right checked canonical : Config (core3 grow) (HostState sig)} {actual consumed trailing : Trace grow sig}
+    {verdict : Except Stored.Endpoints.RecordLower.Issue Unit}
+    (split : actual = consumed ++ trailing)
+    (residual : Steps profile ready (specDispatch ready base) left trailing finish)
+    (reply : MemoryVisitCompletion profile ready base bindings older site left right checked canonical verdict) :
+    MemoryVisitPublicReply profile ready base bindings older site left right verdict actual trailing finish := by
+  rcases splitSilent (count := 3) (reply.2.1 (.active 0 0)).steps residual with ⟨suffix, divided, tail⟩ | short
+  · exact .inr ⟨suffix, checked, canonical, divided, by simp only [split, divided, List.length_append, List.length_replicate]; omega,
+      tail, reply⟩
+  · exact .inl short
+
+open ReturnFrame.Occurrence in
+private def LinkedMemoryResidualBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) (budget : Nat) : Prop :=
+  ∃ canonEntry entered, PayloadPrefix.visible canonEntry = [] ∧
+    (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonEntry entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
+    ∀ actual finish, Steps profile ready (specDispatch ready base) site.checked actual finish → actual.length ≤ budget →
+      MemoryVisitWithReply profile ready base bindings older site entered actual finish
+
+open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (shape : MemoryVisitShape site.field)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {budget : Nat} (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryResidualBody profile ready base bindings older site incoming budget) base := by
+  refine site.parked_after_admission linked _ (fun fits placed _ => ?_) base embedder
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+  have fit := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits
+  have width := site.destination.check_width site.start.store linked.destination
+  have position : placement site.destination site.checked.store (layout site.destination.width site.field.type) (flatNat pointer) = .ok () :=
+    matched.type_eq.symm ▸ placed
+  obtain ⟨aligned, bytes, sized, bounds⟩ := CallbackRange.placementInterval site.destination site.checked.store _ _ position
+  obtain ⟨entry, entered, quiet, installed, related, hostSame⟩ :=
+    LiveDispatch.entry_paired_tracks (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨peer, frame, canonAt⟩ := CallbackRange.referenceFrame site (site.reference_at linked site.referenceReply) related
+  refine ⟨entry, entered, silentVisible quiet, installed, hostSame, fun actual finish run bounded => ?_⟩
+  have visit := driveCompiledMemory (origin := site.checked.store) site.destination site.inst (flatNat pointer) shape
+      matched fit (CallbackRange.preflightAllocator site linked) (.self _) embedder width sized ⟨aligned, bounds⟩ compare
+      0 site.reply site.referenceReply site.checked entered site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, store, ⟨move, paths, outside⟩, residual, endpoint⟩ := visit
+  refine ⟨checked, canonical, trailing, left, right, marks, move, split, seen, store, paths, outside, residual, endpoint, fun active => ?_⟩
+  have marked := (paths (some (.active 0 0))).1
+  rw [active] at marked
+  obtain ⟨_, equal, caller⟩ := marked.survives
+  cases equal
+  constructor
+  · rintro ⟨check, canon, paired, checkAt, canonAt⟩
+    obtain ⟨checked, canonical, _, _, _, recorded, unchanged, rejoined, checkPop, canonPop⟩ :=
+      LinkedCallback.MemorySequence.resume_returned_give site () paired caller checkAt canonAt
+    exact consumeMemoryVisitReply site split residual
+      (show MemoryVisitCompletion profile ready base bindings older site left right checked canonical (.ok ()) from
+        ⟨recorded, checkPop _, unchanged, rejoined, canonPop _⟩)
+  · intro issue check checkAt
+    obtain ⟨segments, frames⟩ := site.reached_caller checkAt caller
+    let reply := (GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.error issue)
+    have atReply : left.ctl = ⟨check.thread, .prog (do return .flat (← writeCompletion reply)),
+        .core site.core site.resume :: segments⟩ :: check.rest := by
+      simpa only [Cursor.control, frames, PayloadRoot.Site.reply, reply] using checkAt
+    exact consumeMemoryVisitReply site split residual
+      (show MemoryVisitCompletion profile ready base bindings older site left right _ right (.error issue) from
+        ⟨rfl, fun place => Plain.give_completion_trail reply place atReply, rfl⟩)
+
+theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (shape : MemoryVisitShape site.field)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) site.start labels finish)
+    (compare : ShorterCallbackSlices profile ready base bindings labels.length) :
+    PayloadRoot.Cut site profile ready bindings (ActualMemoryRequestRun profile ready base bindings older site incoming labels finish) base := by
+  cases linkedMemoryResidualBody site linked shape paired selected embedder compare with
+  | refused issue quiet entered => exact .refused issue quiet entered
+  | placementTrap reason count verdict entered => exact .placementTrap reason count verdict entered
+  | @placed entry quiet verdict prepared entered body =>
+    refine .placed quiet verdict prepared entered ⟨entry, entered, quiet, ?_⟩
+    cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
+    | inside split nonempty tail => exact .inl ⟨_, split, nonempty, tail⟩
+    | @reached residual split tail =>
+      obtain ⟨canonEntry, canon, silent, tracks, host, visit⟩ := body
+      have bounded : residual.length ≤ labels.length := by rw [split, List.length_append]; omega
+      exact .inr ⟨canonEntry, canon, residual, split, silent, tracks, host, visit residual finish tail bounded⟩
+
+theorem actualSelectedMemoryRequest {pointer : FlatValue} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected (.memory pointer)) {field : Stored.Endpoints.RecordLower.Field} {plan label}
+    {next : Config (core3 grow) (HostState sig)}
+    (compiled : selection.preflight = .ok (field, plan)) (shape : MemoryVisitShape field)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (tail : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+    ∃ tag payload arity children, selection.tree = .tag ⟨tag, payload⟩ arity children ∧
+      let site := selection.site tag payload arity children field
+      site.Linked bindings ∧ PayloadRoot.Cut site profile ready bindings
+        (ActualMemoryRequestRun profile ready base bindings older site incoming (label :: labels) finish) base := by
+  obtain ⟨tag, payload, arity, children, root, linked⟩ := selection.compiler_success compiled
+  exact ⟨tag, payload, arity, children, root, linked, actualMemoryRequest _ linked shape paired
+    (selected.trans (congrArg some root)) embedder (.cons install.step tail) compare⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

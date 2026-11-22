@@ -2003,7 +2003,7 @@ private theorem mapCompiled {item : Field} {key : WIT.KeyType} {element : Stored
   | @endpoint channel _ _ => cases channel <;> cases matched
   | primitive | enum | flags | context | owner | aggregate | fixed | list | sum => cases matched
 
-private theorem preflightAllocator {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+theorem preflightAllocator {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) : Field.AllocatorFor site.destination.realloc site.field := by
   intro child desc pointer
   obtain ⟨plan, compiled⟩ := linked.compiled
@@ -2313,7 +2313,7 @@ private theorem liveCompiledMapVisitor (destination : RecordDestination) (inst :
     have valuePath : Field.Descendant root value := entryPath.trans (.aggregate (by simp) (.self _))
     exact ⟨payload, value, shape, ⟨layout.type_eq, entryPath⟩, child value valuePath layout emitted⟩
 
-private theorem placementInterval (destination : RecordDestination) (before : CStore (core3 grow))
+theorem placementInterval (destination : RecordDestination) (before : CStore (core3 grow))
     (area : Layout) (address : Nat) (placed : placement destination before area address = .ok ()) :
     address % area.alignment.bytes = 0 ∧ ∃ bytes,
       (core3 grow).memSize? before.core destination.memory = some bytes ∧ address + area.size ≤ bytes := by

@@ -2301,4 +2301,36 @@ theorem compiled_memory_elements {origin : CStore (core3 grow)} {root : Field} {
     destination inst element entries index pointer address matching shapes paths rootLayout fits allocates embedder width sized
     aligned bounds frame growth checkAt canonAt actual bounded compare
 
+/-- Use the live public entry guards and the finite compiled memory visitor
+to find the original marked reply in the actual checked residual. -/
+theorem actual_memory_request {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (shape : MemoryVisitShape site.field)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) site.start labels finish)
+    (compare : ShorterCallbackSlices profile ready base bindings labels.length) :
+    PayloadRoot.Cut site profile ready bindings (ActualMemoryRequestRun profile ready base bindings older site incoming labels finish) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualMemoryRequest
+    site linked shape paired selected embedder run compare
+
+/-- Recover the recursive memory site from the successful compiler result
+of the selected request at an actual give installation. -/
+theorem GiveInstall.actual_selected_memory_request {pointer : FlatValue} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected (.memory pointer)) {field : Field} {plan label}
+    {next : Config (core3 grow) (HostState sig)}
+    (compiled : selection.preflight = .ok (field, plan)) (shape : MemoryVisitShape field)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (tail : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+    ∃ tag payload arity children, selection.tree = .tag ⟨tag, payload⟩ arity children ∧
+      let site := selection.site tag payload arity children field
+      site.Linked bindings ∧ PayloadRoot.Cut site profile ready bindings
+        (ActualMemoryRequestRun profile ready base bindings older site incoming (label :: labels) finish) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedMemoryRequest
+    selection compiled shape install tail paired selected embedder compare
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch
