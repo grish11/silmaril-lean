@@ -251,6 +251,17 @@ def ComparedOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostStat
     CoupledOccurrencePaths profile ready base bindings leftStart rightStart checkLabels canonLabels left right ∧
     PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧ left.store = right.store
 
+/-- One pair of reached traces witnesses both the visible prefix and the
+transport of all enclosing marks. No temporary allocator mark remains open
+at this cut. -/
+def ComparedOccurrenceTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (leftStart rightStart : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ checkLabels canonLabels,
+    OccurrenceTransport profile ready base bindings leftStart rightStart checkLabels canonLabels left right ∧
+    PayloadPrefix.visible checkLabels = seen ∧ PayloadPrefix.visible canonLabels = seen ∧ left.store = right.store
+
 /-- Cumulative all-location trails through the actual string plan. A finite
 callback path need not reach a pop. Only the installed frame's actual return
 continues the decreasing residual plan. -/
@@ -440,6 +451,13 @@ abbrev LiftsFieldOccurrencePaths (profile : ProfileKind) (ready : HostReady (Hos
     (field : LinkedCallback.MemorySequence.FieldComparison grow sig) (paths : TrailFieldComparison grow sig)
     (sink : RefusalSink grow sig := .ignore) : Prop :=
   LiftsFieldPathsWith (ComparedOccurrencePaths profile ready base bindings start incoming) field paths sink
+
+abbrev LiftsFieldTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig))
+    (field : LinkedCallback.MemorySequence.FieldComparison grow sig) (paths : TrailFieldComparison grow sig)
+    (sink : RefusalSink grow sig := .ignore) : Prop :=
+  LiftsFieldPathsWith (ComparedOccurrenceTransport profile ready base bindings start incoming) field paths sink
 
 /-- Follow the same slots, width reads and suffix programs as `ReplayBetween`,
 but hand the cumulative visible history to the remaining sibling traversal. -/
@@ -855,7 +873,7 @@ def LiveValueCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
     LocalLeafLabels result labels ∧
     CoreGrowthSteps profile ready (specDispatch ready base) left labels lhs ∧
     CoreGrowthSteps profile ready (specDispatch ready (LiveDispatch.host bindings base)) right labels rhs ∧
-    CoupledOccurrencePaths profile ready base bindings left right labels labels lhs rhs ∧
+    OccurrenceTransport profile ready base bindings left right labels labels lhs rhs ∧
     ∀ value, result = .ok value →
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready base) left labels lhs ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready (LiveDispatch.host bindings base)) right labels rhs ∧
@@ -1205,7 +1223,8 @@ def StringValueOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostS
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
     (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
-    (finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) (seen : Trace grow sig) : Prop :=
+    (finish : Nat → Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig) (seen : Trace grow sig)
+    (leftBody : Config (core3 grow) (HostState sig) := left) (rightBody : Config (core3 grow) (HostState sig) := right) : Prop :=
   let cx := destination.context inst
   let plan := storePlanFor Quirks.none destination.encoding destination.width key.value
   let checked := fun pointer => PayloadPrefix.stringPlanTail cx destination.width output plan pointer >>=
@@ -1214,7 +1233,7 @@ def StringValueOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostS
   let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
   let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
   LiveStringOccurrences profile ready base bindings older cx checked canonical start incoming finish
-    plan.steps.length checkBody canonBody check canon seen
+    plan.steps.length checkBody canonBody check canon seen leftBody rightBody
 
 abbrev StringKeyPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -1463,7 +1482,7 @@ def LiveStringMapEntryThen (profile : ProfileKind) (ready : HostReady (HostState
             let canonEnd := localLeafEnd rhs rhs.host store peer.thread peer.frames peer.rest canonical result
             LocalLeafLabels result labels ∧ CoreGrowthSteps profile ready checkDispatch lhs labels checkEnd ∧
             CoreGrowthSteps profile ready canonDispatch rhs labels canonEnd ∧
-            CoupledOccurrencePaths profile ready base bindings lhs rhs labels labels checkEnd canonEnd ∧
+            OccurrenceTransport profile ready base bindings lhs rhs labels labels checkEnd canonEnd ∧
             match result with
             | .error _ => True
             | .ok () =>
@@ -1558,6 +1577,37 @@ def mapEntryOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostStat
       let valuePtr := alignTo (alignTo slot keyArea.alignment + keyArea.size) (layout destination.width value.type).alignment
       LocalOccurrenceThen profile ready base bindings start incoming before
         (child value 1 valuePtr (aggregateNext index checkNext) canonNext finish)
+
+/-- A reached string key transports all enclosing marks through its plan,
+descriptor and placement. The value continuation is available only after
+the descriptor and canonical placement have executed. -/
+def StringMapEntryTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (element : Stored.TypeOf) (output : Stored.Lower.Output) (start incoming : Config (core3 grow) (HostState sig))
+    (visit : Nat → TrailFinish grow sig) (field value : Stored.Endpoints.RecordLower.Field) (index slot : Nat)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig) :
+    TrailFinish grow sig :=
+  open Stored.Endpoints.RecordLower ABI LinkedCallback.MemorySequence in
+  fun before left right check canon =>
+    ∃ key : LinkedCallback.StringField, field = key.field ∧
+      let cx := destination.context inst
+      let mode := CanonicalTree.EntryMode.forOutput destination.width (.map .string element) output
+      let keyArea := layout destination.width key.field.type
+      let address := alignTo slot keyArea.alignment
+      let afterKey := address + keyArea.size
+      let valuePtr := alignTo afterKey (layout destination.width value.type).alignment
+      let report := aggregateNext index checkNext
+      let checked := fun verdict : Except Stored.Endpoints.RecordLower.Issue Unit => (match verdict with
+        | .error issue => pure (.error issue)
+        | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width value 1 (.memory valuePtr)) >>= report
+      let canonical := fun () => mapValueProgram destination inst mode value afterKey canonNext
+      StringValueOccurrencePaths profile ready base bindings older destination inst key (.memory address)
+        start incoming left right check canon checked canonical (fun _ _ _ _ cursor peer =>
+          (∃ prior reason lhs rhs, ComparedOccurrenceTransport profile ready base bindings start incoming (prior ++ [.trap reason]) lhs rhs ∧
+            lhs.ctl = [] ∧ rhs.ctl = []) ∨
+          (∃ observed lhs rhs, ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs ∧
+            visit valuePtr observed lhs rhs cursor peer)) before start incoming
 
 /-- Select the reached map key program before the recursive value. The
 canonical entry mode is fixed by the allocation's output, not the value. -/

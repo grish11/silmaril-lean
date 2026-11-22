@@ -1039,6 +1039,67 @@ theorem memory_sequence_occurrence_paths {mode : LinkedCallback.MemorySequence.T
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.replayBetweenOccurrencePathsFrom
     lift leading same run admitted next
 
+/-- Fold the enclosing-mark invariant through the actual canonical sibling
+focus reads and the reached child continuations. -/
+theorem memory_sequence_occurrence_transport {mode : LinkedCallback.MemorySequence.Track}
+    {destination : RecordDestination} {inst : InstId}
+    {child : LinkedCallback.MemorySequence.FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    {entries : List Field} {index address : Nat} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {sink : RefusalSink grow sig} {seen : Trace grow sig}
+    (lift : LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LinkedCallback.MemorySequence.ReplayBetween profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      mode destination inst child checkNext canonNext finish entries index address left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    replayBetweenPaths profile ready base bindings mode destination inst paths checkNext canonNext visit
+      entries index address seen left right check canon :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.replayBetweenTransportFrom
+    lift leading run admitted next
+
+/-- Transport the incoming invariant through the actual descriptor program.
+An actual trap preserves the reached store and does not enter the visitor. -/
+theorem descriptor_occurrence_transport {output : Stored.Lower.Output}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {finish : LinkedCallback.MemorySequence.ValueFinish grow sig output} {visit : TrailFinish grow sig} {seen : Trace grow sig}
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveValueCommit profile ready base bindings output checkNext canonNext finish left right check canon)
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    (∃ reason lhs rhs,
+      ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ [.trap reason]) lhs rhs ∧
+      lhs.ctl = [] ∧ rhs.ctl = []) ∨
+    (∃ observed lhs rhs,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs ∧ visit observed lhs rhs check canon) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.descriptorTransport leading run next
+
+/-- Carry all enclosing marks through a reached string-key map entry,
+including any indirect placement read before the value's program. -/
+theorem string_map_entry_occurrence_transport {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {output : Stored.Lower.Output} {field value : Field} {index slot : Nat}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {compare : LinkedCallback.MemorySequence.FieldComparison grow sig}
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {finish : LinkedCallback.MemorySequence.Finish grow sig} {visit : Nat → TrailFinish grow sig} {seen : Trace grow sig}
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveStringMapEntryThen profile ready base bindings older destination inst element output
+      field value index slot compare checkNext canonNext finish left right check canon)
+    (next : ∀ ptr observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      compare value 1 ptr lhs rhs cursor peer (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish →
+      visit ptr observed lhs rhs cursor peer) :
+    StringMapEntryTransport profile ready base bindings older destination inst element output start incoming visit
+      field value index slot checkNext canonNext seen left right check canon :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryTransport leading run next
+
 /-- Heterogeneous records and tuples select the scalar, string or nominal
 child rule from the compiled slot's declared schema. The actual bounds read,
 each reached sibling and its eventual stop carry the cumulative history. -/

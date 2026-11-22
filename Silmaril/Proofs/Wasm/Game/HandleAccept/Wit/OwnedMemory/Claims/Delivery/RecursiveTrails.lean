@@ -197,12 +197,37 @@ theorem descriptorOccurrences {output : Stored.Lower.Output} {checkNext : ValueC
   | error reason =>
     have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape
     exact .inl ⟨reason, [], _, _, CallbackPrefix.appendComparedOccurrences leading
-      ⟨labels, labels, paths, trapped, trapped, rfl⟩, rfl, rfl⟩
+      ⟨labels, labels, CallbackPrefix.transportPaths paths, trapped, trapped, rfl⟩, rfl, rfl⟩
   | ok value =>
     obtain ⟨_, _, finished⟩ := continued value rfl
     have reached := CallbackPrefix.appendComparedOccurrences leading
-      ⟨labels, labels, paths, rfl, rfl, rfl⟩
+      ⟨labels, labels, CallbackPrefix.transportPaths paths, rfl, rfl, rfl⟩
     exact .inr ⟨PayloadPrefix.visible labels, _, _, check, canon, reached, next value _ _ _ _ _ reached rfl finished⟩
+
+theorem descriptorTransport {output : Stored.Lower.Output} {checkNext : ValueCheckNext grow sig output}
+    {canonNext : ValueCanonNext grow sig output} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {finish : ValueFinish grow sig output} {visit : TrailFinish grow sig}
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveValueCommit profile ready base bindings output checkNext canonNext finish left right check canon)
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    (∃ reason lhs rhs,
+      ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ [.trap reason]) lhs rhs ∧
+      lhs.ctl = [] ∧ rhs.ctl = []) ∨
+    (∃ observed lhs rhs,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs ∧ visit observed lhs rhs check canon) := by
+  obtain ⟨store, result, labels, shape, _, _, paths, continued⟩ := run
+  cases result with
+  | error reason =>
+    have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape
+    exact .inl ⟨reason, _, _, CallbackPrefix.appendComparedTransport leading
+      ⟨labels, labels, paths, trapped, trapped, rfl⟩, rfl, rfl⟩
+  | ok value =>
+    obtain ⟨_, _, finished⟩ := continued value rfl
+    have reached := CallbackPrefix.appendComparedTransport leading ⟨labels, labels, paths, rfl, rfl, rfl⟩
+    exact .inr ⟨_, _, _, reached, next value _ _ _ _ _ reached finished⟩
 
 private theorem canonicalRead {left right reached : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
     (leading : ComparedSlots profile ready base bindings start incoming seen left right offset)

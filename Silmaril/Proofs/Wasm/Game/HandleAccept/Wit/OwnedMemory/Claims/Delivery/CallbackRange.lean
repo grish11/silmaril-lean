@@ -1061,7 +1061,7 @@ private theorem livePublish (destination : RecordDestination) (inst : InstId) (p
     collection_descriptor_occurrences_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) (destination.context inst) destination.width
       output pointer count left right check canon (fun value => checkNext (.ok value)) canonNext paired.store leftAt rightAt
-  refine ⟨store, result, labels, observed, lhsRun, rhsRun, fun mark => ⟨_, (occurrences mark).1, (occurrences mark).2⟩, ?_⟩
+  refine ⟨store, result, labels, observed, lhsRun, rhsRun, CallbackPrefix.localLeafTransport occurrences, ?_⟩
   intro value returned
   have chain := kept.trans lhsRun.grows
   subst result
@@ -2055,7 +2055,7 @@ private theorem stringMapSlotRule (destination : RecordDestination) (inst : Inst
     refine ⟨key, rfl, mapStringKeyFinish _ _ _ _ _ _ ?_ keyRun⟩
     intro address lhs rhs cursor peer reached
     obtain ⟨related, kept, store, result, labels, observed, checkRun, canonRun, tracks, occurrences⟩ := reached
-    refine ⟨store, result, labels, observed, checkRun, canonRun, fun mark => ⟨_, occurrences mark⟩, ?_⟩
+    refine ⟨store, result, labels, observed, checkRun, canonRun, CallbackPrefix.localLeafTransport occurrences, ?_⟩
     cases result with
     | error reason => exact True.intro
     | ok valueDone =>
@@ -2178,7 +2178,7 @@ private theorem stringValueCommit (cx : LiftLowerContext (core3 grow)) (width : 
     (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     (reference := specDispatch ready (LiveDispatch.host bindings base)) cx width output plan pointer left right check canon
     (fun value => checkNext (.ok value)) canonNext frame.store checkAt canonAt
-  refine ⟨store, outcome, labels, seen, checked, reference, fun mark => ⟨_, (occurrences mark).1, (occurrences mark).2⟩, ?_⟩
+  refine ⟨store, outcome, labels, seen, checked, reference, CallbackPrefix.localLeafTransport occurrences, ?_⟩
   intro value equal
   subst outcome
   exact ⟨fun depth => (tracks value rfl depth).1, fun depth => (tracks value rfl depth).2,
