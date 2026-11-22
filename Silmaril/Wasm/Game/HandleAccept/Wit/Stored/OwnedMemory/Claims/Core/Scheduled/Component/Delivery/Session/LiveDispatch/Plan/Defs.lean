@@ -69,6 +69,23 @@ def PairedWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig)
     WriterPath profile ready (specDispatch ready base) start checked left leftEffects ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right rightEffects
 
+/-- The completion site's first read only probes. The following assignment
+registers once; the remaining completion instructions only journal. -/
+def ComponentPublicationWriterPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (tree : Stored.OwnedMemory.Tree sig) (start : Config (core3 grow) (HostState sig))
+    (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  if labels.length < 2 then WriterPath profile ready dispatch start labels finish []
+  else WriterPath profile ready dispatch start labels finish [(start.host.writer, finish.host.writer)] ∧
+    start.host.writer.register tree = .ok finish.host.writer
+
+def PairedPublicationWriterPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (tree : Stored.OwnedMemory.Tree sig) (start incoming : Config (core3 grow) (HostState sig))
+    (labels : Trace grow sig) (left right : Config (core3 grow) (HostState sig)) : Prop :=
+  ComponentPublicationWriterPrefix profile ready (specDispatch ready base) tree start labels left ∧
+    ComponentPublicationWriterPrefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) tree incoming labels right
+
 /-- A compiled leaf has no writer-changing raw step. On the checked side,
 only the linked guard can change the writer, at its actual spend assignment. -/
 def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -477,6 +494,17 @@ def ComponentEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState s
     OccurrenceTransport profile ready base bindings start incoming labels labels finish peer ∧
     PairedComponentSite older finish peer check canon ∧
     (∃ program, finish.ctl = check.control program) ∧ (∃ program, peer.ctl = canon.control program)
+
+def ComponentPublicationEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (tree : Stored.OwnedMemory.Tree sig) (start incoming : Config (core3 grow) (HostState sig))
+    (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  labels.length < 4 ∧ ∃ peer,
+    OccurrenceTransport profile ready base bindings start incoming labels labels finish peer ∧
+    PairedComponentSite older finish peer check canon ∧
+    PairedPublicationWriterPrefix profile ready base bindings tree start incoming labels finish peer
 
 /-- The reached host-frame refusal at a direct give. The canonical body has
 no entry/completion journal steps; a checked prefix can end before the reply. -/
@@ -887,6 +915,8 @@ def ReachedRegistrationMismatch (profile : ProfileKind) (ready : HostReady (Host
     beforeLeft.ctl = check.control (ComponentCall.resolveTree leftTicket caller tree) ∧
     beforeRight.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree) ∧
     OccurrenceTransport profile ready base bindings beforeLeft beforeRight [.tau] [.tau] left right ∧
+    WriterPath profile ready (specDispatch ready base) beforeLeft [.tau] left [] ∧
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) beforeRight [.tau] right [] ∧
     left.ctl = check.control (componentRegistrationProgram leftTicket caller tree (componentRegistration left.host.writer tree)) ∧
     right.ctl = canon.control (componentRegistrationProgram rightTicket caller tree (componentRegistration right.host.writer tree)) ∧
     componentRegistration left.host.writer tree ≠ componentRegistration right.host.writer tree

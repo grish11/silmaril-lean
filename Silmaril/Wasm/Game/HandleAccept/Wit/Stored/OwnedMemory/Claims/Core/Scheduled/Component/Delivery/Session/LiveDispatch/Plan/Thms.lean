@@ -1150,8 +1150,10 @@ theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle l
       HostFrame.Related.Paired older (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
       Stored.Endpoints.Core.childFromHistory leftWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
       Stored.Endpoints.Core.childFromHistory rightWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
+      PairedPublicationWriterPrefix profile ready base bindings tree start incoming [.tau, .tau, .tau, .tau]
+        (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
       Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings older leftCursor rightCursor start incoming labels finish 4 :=
+    ComponentPublicationEarlyPrefix profile ready base bindings older leftCursor rightCursor tree start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentPublication
     leftFocus rightFocus site leftLive rightLive leftHandle rightHandle room run
 

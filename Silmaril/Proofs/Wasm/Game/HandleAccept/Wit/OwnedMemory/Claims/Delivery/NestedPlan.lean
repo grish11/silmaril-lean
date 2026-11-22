@@ -493,6 +493,23 @@ private theorem FramedQuietPath.step {dispatch : Call (core3 grow) → Session g
     FramedQuietPath profile ready dispatch cursor start (update :: updates) finish :=
   ⟨.step actual stationary tail.1, .same actual writer tail.2⟩
 
+private theorem takeQuietWriterPath
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))} {count : Nat} {target}
+    (planned : WriterPath profile ready dispatch start (List.replicate count .tau) target [])
+    (actual : Steps profile ready dispatch start labels finish) (bounded : labels.length ≤ count) :
+    WriterPath profile ready dispatch start labels finish [] := by
+  induction actual generalizing count target with
+  | refl => exact .done _
+  | cons actual remaining ih =>
+    cases count with
+    | zero => simp at bounded
+    | succ count =>
+      rw [List.replicate_succ] at planned
+      cases planned with
+      | same first writer tail =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique first actual
+        exact .same first writer (ih tail (by simpa using bounded))
+
 private theorem pairQuietHost {left right : Config (core3 grow) (HostState sig)}
     (paired : ReturnFrame.Related.Paired older left right) (host : HostState sig) :
     ReturnFrame.Related.Paired older { left with host } { right with host } := by
@@ -2199,18 +2216,56 @@ private theorem publicationPath (dispatch : Call (core3 grow) → Session grow s
     (focused : start.ctl = cursor.control (ComponentCall.completeResolvedTree ticket tree handle))
     (registered : start.host.writer.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :
-    ComponentQuietPath profile ready dispatch cursor start [id, id, id, id]
+    let replied :=
       { start with
         host := (({ start.host with writer } : HostState sig).record (.published ticket handle)).record
           (.returned ticket handle)
-        ctl := cursor.control (.pure (.cancel .none)) } := by
+        ctl := cursor.control (.pure (.cancel .none)) }
+    ComponentQuietPath profile ready dispatch cursor start [id, id, id, id] replied ∧
+      ∀ {used reached}, Steps profile ready dispatch start used reached → used.length ≤ 4 →
+        ComponentPublicationWriterPrefix profile ready dispatch tree start used reached := by
   subst handle
   cases cursor with
   | mk thread frames rest =>
-    have read := Step.hostGet (prof := profile) (hr := ready) (dispatch := dispatch) focused
-    simp only [Prog.bind, registered, Option.any, bne_self_eq_false, Bool.false_eq_true, ite_false, Nat.not_le.mpr room] at read
-    refine .step read (by rw [transitionEdit, focused]; rfl) ?_
-    exact .step (.hostSet rfl) rfl (.step (.hostGet rfl) rfl (.step (.hostSet rfl) rfl (.done _)))
+    let cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frames, rest⟩
+    let handle := writer.accepted.length
+    let published := ({ start.host with writer } : HostState sig).record (.published ticket handle)
+    let complete : Session grow sig (Ret (core3 grow)) := do
+      let _ ← writeCompletion (.returned ticket handle, [])
+      return .cancel .none
+    let probe := { start with ctl := cursor.control (.op (.hostSet published) (fun _ => complete)) }
+    let committed := { start with host := published, ctl := cursor.control complete }
+    let finished := { start with host := published.record (.returned ticket handle), ctl := cursor.control (.pure (.cancel .none)) }
+    have read : Step profile ready dispatch start .tau probe := by
+      have instruction := Step.hostGet (prof := profile) (hr := ready) (dispatch := dispatch) focused
+      simpa only [probe, published, handle, complete, cursor, PayloadPrefix.Cursor.control, Prog.bind, registered, Option.any, bne_self_eq_false,
+        Bool.false_eq_true, ite_false, Nat.not_le.mpr room, hostSet, perform, bind, Prog.lift, Prog.pure_eq,
+        Prog.pure_bind'] using instruction
+    have assign : Step profile ready dispatch probe .tau committed :=
+      .hostSet (m := probe) (th := thread) (s := published) (k := fun _ => complete) (segs := frames) (rest := rest) rfl
+    have completion : FramedQuietPath profile ready dispatch cursor committed [id, id] finished := by
+      exact FramedQuietPath.step (.hostGet rfl) rfl rfl (FramedQuietPath.step (.hostSet rfl) rfl rfl .done)
+    have different : committed.host.writer ≠ probe.host.writer := by
+      change writer ≠ start.host.writer
+      intro equal
+      have grows := congrArg List.length (Stored.OwnedMemory.Claims.register_claims registered).1
+      simp [equal] at grows
+    refine ⟨.step read (by rw [transitionEdit, focused]; rfl) (.step assign rfl completion.1), ?_⟩
+    intro used reached actual bounded
+    cases actual with
+    | refl => exact .done _
+    | cons first tail =>
+      obtain ⟨rfl, rfl⟩ := silentStepUnique read first
+      cases tail with
+      | refl => exact .same read rfl (.done _)
+      | cons second remaining =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique assign second
+        have suffix := takeQuietWriterPath completion.2 remaining (by simpa using bounded)
+        have same := WriterPaths.spend suffix (updates := []) .nil
+        have finalWriter : reached.host.writer = writer := same
+        simp only [ComponentPublicationWriterPrefix, List.length_cons, Nat.not_lt.mpr (Nat.le_add_left 2 _), ite_false]
+        rw [finalWriter]
+        exact ⟨.same read rfl (.changed assign different suffix), registered⟩
 
 theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
     {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
@@ -2233,23 +2288,30 @@ theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle lef
       HostFrame.Related.Paired older (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
       Stored.Endpoints.Core.childFromHistory leftWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
       Stored.Endpoints.Core.childFromHistory rightWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
+      PairedPublicationWriterPrefix profile ready base bindings tree start incoming [.tau, .tau, .tau, .tau]
+        (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
       Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings older leftCursor rightCursor start incoming labels finish 4 := by
+    ComponentPublicationEarlyPrefix profile ready base bindings older leftCursor rightCursor tree start incoming labels finish := by
   dsimp only
   have left := publicationPath (profile := profile) (ready := ready) (specDispatch ready base)
     leftTicket handle tree leftWriter leftCursor leftFocus leftLive leftHandle room
   have right := publicationPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
     rightTicket handle tree rightWriter rightCursor rightFocus rightLive rightHandle room
-  rcases splitSilent (count := 4) (left.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
-  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left.track right.track, ?_,
-      publishedHandleLookup leftLive leftHandle room, publishedHandleLookup rightLive rightHandle room, residual⟩
+  have checked := (left.1.track (.active 0 0)).toTrail.steps
+  have canonical := (right.1.track (.active 0 0)).toTrail.steps
+  rcases splitSilent (count := 4) checked run with ⟨suffix, split, residual⟩ | short
+  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left.1.track right.1.track, ?_,
+      publishedHandleLookup leftLive leftHandle room, publishedHandleLookup rightLive rightHandle room,
+      ⟨left.2 checked (Nat.le_refl _), right.2 canonical (Nat.le_refl _)⟩, residual⟩
     have replaceHost {first second : Config (core3 grow) (HostState sig)}
         (paired : ReturnFrame.Related.Paired older first second) (host : HostState sig) :
         ReturnFrame.Related.Paired older (HostFrame.replace first host) (HostFrame.replace second host) := by
       cases paired with
       | mk control blocked => exact .mk control blocked
     exact replaceHost site _
-  · exact .inr (compareQuietShort left right site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := compareQuietShort left.1 right.1 site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short
+    have residual := (CallbackPrefix.transportPaths moved none).choose_spec.2.steps
+    exact .inr ⟨short, peer, moved, endpoint, left.2 run (Nat.le_of_lt short), right.2 residual (Nat.le_of_lt short)⟩
 
 theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : CallerId)
     (first payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
@@ -2288,15 +2350,19 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
     | returned _ checked canonical site =>
       rcases cutComponentPublication (bindings := bindings) checked canonical site
           (leftHost ▸ leftLive) (rightHost ▸ rightLive) leftHandle rightHandle room residual with
-        ⟨trailing, used, publication, pair, leftLookup, rightLookup, remaining⟩ | early
+        ⟨trailing, used, publication, pair, leftLookup, rightLookup, writerPrefix, remaining⟩ | early
       · refine ⟨leading ++ [.tau, .tau, .tau, .tau], trailing, _, _, ?_, ?_, remaining,
           .published rfl rfl pair leftLookup rightLookup, .inr (.inr ?_)⟩
         · rw [split, used, List.append_assoc]
         · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport publication).choose_spec.1
         · intro pending related
           change leftWriter.ClaimDiscrepancies rightWriter pending
-          exact related.register leftLive rightLive
-      · obtain ⟨_, finalPeer, moved, endpoint, _, _⟩ := early
+          have registeredLeft : reached.host.writer.register (.node callee.tag valid children) = .ok leftWriter :=
+            (show _ ∧ _ from writerPrefix.1).2
+          have registeredRight : peer.host.writer.register (.node callee.tag valid children) = .ok rightWriter :=
+            (show _ ∧ _ from writerPrefix.2).2
+          exact related.register (leftHost ▸ registeredLeft) (rightHost ▸ registeredRight)
+      · obtain ⟨_, finalPeer, moved, endpoint, _⟩ := early
         refine ⟨leading ++ suffix, [], finish, finalPeer, ?_, ?_, .refl _, .pending endpoint rfl, .inl rfl⟩
         · simpa only [List.append_nil] using split
         · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport moved).choose_spec.1
@@ -5346,7 +5412,7 @@ theorem registrationMismatch_demandsPending {check canon : PayloadPrefix.Cursor 
     (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
       id ∉ (start.host.writer.accepted.flatMap rootReceipts).map receiptId) ∨
     (∃ id ∈ rootEndpoints tree, pending (.endpoint id)) := by
-  obtain ⟨_, _, _, _, _, _, _, different⟩ := mismatch
+  obtain ⟨_, _, _, _, _, _, _, _, _, different⟩ := mismatch
   by_contra absent
   apply different
   refine registrationProbe_observations (related.registrationChecks tree ?_ ?_) (congrArg List.length related.accepted)
@@ -5402,6 +5468,8 @@ private theorem cutRegistrationProbe (caller : CallerId) (tree : Stored.OwnedMem
     (labels = [] ∧ finish = start) ∨ ∃ suffix, labels = .tau :: suffix ∧
       OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau]
         (atProbe start check leftTicket) (atProbe incoming canon rightTicket) ∧
+      WriterPath profile ready (specDispatch ready base) start [.tau] (atProbe start check leftTicket) [] ∧
+      WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] (atProbe incoming canon rightTicket) [] ∧
       PairedComponentSite older (atProbe start check leftTicket) (atProbe incoming canon rightTicket) check canon ∧
       Steps profile ready (specDispatch ready base) (atProbe start check leftTicket) suffix finish := by
   dsimp only
@@ -5413,7 +5481,7 @@ private theorem cutRegistrationProbe (caller : CallerId) (tree : Stored.OwnedMem
     have right := Step.hostGet (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightFocus
     obtain ⟨rfl, rfl⟩ := silentStepUnique left actual
     refine .inr ⟨_, rfl, CallbackPrefix.stationaryTransport (fun place => .step left ?_ (.done _ _))
-      (fun place => .step right ?_ (.done _ _)), site, tail⟩
+      (fun place => .step right ?_ (.done _ _)), .same left rfl (.done _), .same right rfl (.done _), site, tail⟩
     · rw [transitionEdit, leftFocus]
       cases place <;> rfl
     · rw [transitionEdit, rightFocus]
@@ -5538,7 +5606,7 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
           have rightProbe : peer.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree) := by
             simpa only [ComponentCall.acceptPayload, validated, tree] using right
           rcases cutRegistrationProbe (bindings := bindings) caller tree leftProbe rightProbe site residual with
-            ⟨empty, _⟩ | ⟨remaining, used, probed, atProbe, afterProbe⟩
+            ⟨empty, _⟩ | ⟨remaining, used, probed, checkedWriter, canonicalWriter, atProbe, afterProbe⟩
           · exact ⟨leading, suffix, reached, peer, split, moved, residual, .pending empty site⟩
           · let lhs := { reached with ctl := check.control (componentRegistrationProgram leftTicket caller tree
                 (componentRegistration reached.host.writer tree)) }
@@ -5566,7 +5634,8 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
                   (by simpa only [branch, componentRegistrationProgram] using rightProgram)
               | fresh handle => exact (bothFresh ⟨handle, branch, agrees.symm.trans branch⟩).elim
             · exact ⟨leading ++ [.tau], remaining, lhs, rhs, actual, whole, afterProbe,
-                .registrationMismatch ⟨reached, peer, leftProbe, rightProbe, probed, leftProgram, rightProgram, agrees⟩
+                .registrationMismatch ⟨reached, peer, leftProbe, rightProbe, probed, checkedWriter, canonicalWriter,
+                  leftProgram, rightProgram, agrees⟩
                   atProbe ⟨congrArg HostState.writer leftHost, congrArg HostState.writer rightHost⟩
                   (fun indexed => agrees (indexedClaims_registrationProbe (by rwa [leftHost, rightHost]) tree))⟩
     · rw [rejectPayloadShape callee caller leftTicket shaped] at left
@@ -8560,23 +8629,6 @@ private theorem quietCheckedShort {check : PayloadPrefix.Cursor (E := core3 grow
       obtain ⟨seen, tracks⟩ := ih tail (by simpa using short)
       exact ⟨(visibleTauCons _).trans seen, fun place => .step planned
         (by rw [stationary]; rfl) (tracks place)⟩
-
-private theorem takeQuietWriterPath
-    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))} {count : Nat} {target}
-    (planned : WriterPath profile ready dispatch start (List.replicate count .tau) target [])
-    (actual : Steps profile ready dispatch start labels finish) (bounded : labels.length ≤ count) :
-    WriterPath profile ready dispatch start labels finish [] := by
-  induction actual generalizing count target with
-  | refl => exact .done _
-  | cons actual remaining ih =>
-    cases count with
-    | zero => simp at bounded
-    | succ count =>
-      rw [List.replicate_succ] at planned
-      cases planned with
-      | same first writer tail =>
-        obtain ⟨rfl, rfl⟩ := silentStepUnique first actual
-        exact .same first writer (ih tail (by simpa using bounded))
 
 open ReturnFrame.Occurrence in
 private theorem directHostCheckedPath (name : String) (kind : V1.FuncType) (args : List FlatValue)
