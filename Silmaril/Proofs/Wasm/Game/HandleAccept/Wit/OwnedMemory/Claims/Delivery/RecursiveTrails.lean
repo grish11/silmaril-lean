@@ -157,10 +157,10 @@ theorem collectionEntryOccurrencesWith {destination : RecordDestination} {inst :
           have rebased := CallbackPrefix.appendComparedOccurrences leading stopped
           exact ⟨peer, rebased, retained, covers _ admitted _ _ _ _ cursor rfl rebased⟩
         · intro fresh
-          obtain ⟨lhs, rhs, peer, _, paths, retained, frame, _, _, _, _, growth, checkAt, canonAt, range, body⟩ :=
+          obtain ⟨lhs, rhs, peer, _, paths, retained, frame, width, sizedAt, _, _, growth, checkAt, canonAt, range, body⟩ :=
             children bytes sized (Classical.not_not.mp misaligned) fits fresh
           have rebased := CallbackPrefix.appendComparedOccurrences leading paths
-          exact ⟨lhs, rhs, peer, rebased, retained, frame, growth, checkAt, canonAt, range,
+          exact ⟨lhs, rhs, peer, rebased, retained, frame, width, sizedAt, growth, checkAt, canonAt, range,
             next pointer bytes suffix lhs rhs cursor peer rebased retained body⟩
       · rw [ite_eq_right fits] at failed ⊢
         exact ⟨by simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2.1, failed.2.2⟩

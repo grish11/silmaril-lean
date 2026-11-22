@@ -1599,7 +1599,10 @@ def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (Ho
       (OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .ok () →
         ∃ left right canon, ComparedOccurrencePaths profile ready base bindings start incoming seen left right ∧
           ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry localSeen left right ∧
-          LinkedCallback.ChildFrameOver older left right check canon ∧ Core3.Grows origin.core left.store.core ∧
+          LinkedCallback.ChildFrameOver older left right check canon ∧
+          (core3 grow).memAddrType? left.store.core destination.memory = some destination.width ∧
+          (core3 grow).memSize? left.store.core destination.memory = some bytes ∧
+          Core3.Grows origin.core left.store.core ∧
           left.ctl = check.control checkedChildren ∧ right.ctl = canon.control canonicalChildren ∧
           CollectionRangeTransport profile ready base bindings checked canonical left right [] ∧
           visit bytes seen left right check canon)
@@ -4223,6 +4226,8 @@ def CollectionRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig
             pointer = ABI.alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
             OwnedMemory.Claims.Record.prepare reached.store reached.host.writer (Field.listObjects entries) = .ok () →
             ∃ lhs rhs peerCursor, LinkedCallback.ChildFrameOver older lhs rhs cursor peerCursor ∧
+              (core3 grow).memAddrType? lhs.store.core destination.memory = some destination.width ∧
+              (core3 grow).memSize? lhs.store.core destination.memory = some bytes ∧
               Core3.Grows start.store.core lhs.store.core ∧
               lhs.ctl = cursor.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) ∧
               rhs.ctl = peerCursor.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) ∧

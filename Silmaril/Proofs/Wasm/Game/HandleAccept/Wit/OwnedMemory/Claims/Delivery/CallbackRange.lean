@@ -2181,6 +2181,30 @@ private theorem stringValueThen (destination : RecordDestination) (inst : InstId
     ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
     growth rfl rfl embedder ends
 
+private theorem stringValueCommitWith (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Stored.Lower.Output)
+    (plan : StorePlan) (pointer : Nat)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (checkAt : left.ctl = check.control (stringPlanTail cx width output plan pointer >>= fun value => checkNext (.ok value)))
+    (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan pointer >>= canonNext))
+    {published : ValueFinish grow sig output}
+    (done : ∀ value lhs rhs check canon, LinkedCallback.ChildFrameOver older lhs rhs check canon →
+      Core3.Grows left.store.core lhs.store.core →
+      lhs.ctl = check.control (checkNext (.ok value)) → rhs.ctl = canon.control (canonNext value) → published value lhs rhs check canon) :
+    LiveValueCommit profile ready base bindings output checkNext canonNext published left right check canon := by
+  obtain ⟨store, outcome, labels, seen, checked, reference, tracks, occurrences⟩ := string_descriptor_occurrences
+    (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    (reference := specDispatch ready (LiveDispatch.host bindings base)) cx width output plan pointer left right check canon
+    (fun value => checkNext (.ok value)) canonNext frame.store checkAt canonAt
+  refine ⟨store, outcome, labels, seen, checked, reference, CallbackPrefix.localLeafTransport occurrences, ?_⟩
+  intro value equal
+  subst outcome
+  exact ⟨fun depth => (tracks value rfl depth).1, fun depth => (tracks value rfl depth).2,
+    done value _ _ check canon ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+      checked.grows rfl rfl⟩
+
 private theorem stringValueCommit (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Stored.Lower.Output)
     (plan : StorePlan) (pointer : Nat)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -2190,16 +2214,35 @@ private theorem stringValueCommit (cx : LiftLowerContext (core3 grow)) (width : 
     (checkAt : left.ctl = check.control (stringPlanTail cx width output plan pointer >>= fun value => checkNext (.ok value)))
     (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan pointer >>= canonNext)) :
     LiveValueCommit profile ready base bindings output checkNext canonNext (fun _ => LinkedCallback.ChildFrameOver older)
-      left right check canon := by
-  obtain ⟨store, outcome, labels, seen, checked, reference, tracks, occurrences⟩ := string_descriptor_occurrences
-    (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-    (reference := specDispatch ready (LiveDispatch.host bindings base)) cx width output plan pointer left right check canon
-    (fun value => checkNext (.ok value)) canonNext frame.store checkAt canonAt
-  refine ⟨store, outcome, labels, seen, checked, reference, CallbackPrefix.localLeafTransport occurrences, ?_⟩
-  intro value equal
-  subst outcome
-  exact ⟨fun depth => (tracks value rfl depth).1, fun depth => (tracks value rfl depth).2,
-    ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩⟩
+      left right check canon :=
+  stringValueCommitWith cx width output plan pointer frame checkAt canonAt (fun _ _ _ _ _ paired _ _ _ => paired)
+
+theorem compiledStringCommit (destination : RecordDestination) (inst : InstId) (output : Stored.Lower.Output)
+    {root item : Field} {schema : Stored.TypeOf}
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root) (path : Field.Descendant root item)
+    (matched : item.LayoutMatches (.prim .string)) (emitted : item.Emitted)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {index : Nat} {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (placed : rootPlacement destination left.store (.prim .string) output = .ok ())
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
+      destination.width item index output >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+      destination.width item output >>= canonNext)) :
+    ∃ str, StringValueThen profile ready base bindings older destination inst str output left right check canon checkNext canonNext
+      (fun _ => LiveValueCommit profile ready base bindings output checkNext canonNext (fun value lhs rhs cursor peer =>
+        LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧ Core3.Grows left.store.core lhs.store.core ∧
+          lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))) := by
+  obtain ⟨str, rfl⟩ := stringCompiled matched emitted
+  exact ⟨str, stringValueThen destination inst str output ⟨rootLayout, fits, allocates⟩ path embedder frame
+    (Core3.Grows.refl _) width placed checkAt canonAt (fun pointer lhs rhs cursor peer related grew checked canonical =>
+      stringValueCommitWith (destination.context inst) destination.width output _ pointer related checked canonical
+        (fun _ _ _ _ _ reached extended checkAt canonAt => ⟨reached, grew.trans extended, checkAt, canonAt⟩))⟩
 
 private theorem stringFieldThen (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
     (address : Nat) {root : Field} {rootSchema : Stored.TypeOf}

@@ -685,6 +685,76 @@ theorem LiveCollectionOccurrenceEntry.drive_actual {destination : RecordDestinat
     body same width actual bounded compare
 
 open PayloadPrefix LinkedCallback.MemorySequence in
+/-- Traverse a reached `list<string>` allocation using the actual residual.
+Each successful string publication supplies the growth and reached continuations
+for the next element. A finite callback cut keeps its exact installed mark. -/
+theorem drive_string_list_body (destination : RecordDestination) (inst : InstId) (entries : List Field)
+    (index pointer bytes : Nat) (output : Stored.Lower.Output) {root : Field} {schema : Stored.TypeOf} {budget : Nat}
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root)
+    (path : root.Descendant (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (matched : Field.LayoutMatches (.dynamic (.list (.prim .string)) (.prim .string) entries) (.list (.prim .string)))
+    (emitted : Field.Emitted (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? start.store.core destination.memory = some bytes)
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) :
+    let element : Stored.TypeOf := .prim .string
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+    start.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    incoming.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    Steps profile ready (specDispatch ready base) start labels finish → labels.length ≤ budget →
+    ShorterCallbackSlices profile ready base bindings budget →
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
+      start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveStringListBody
+    destination inst entries index pointer bytes output rootLayout fits allocates path matched emitted embedder width sized checkNext canonNext frame
+
+open PayloadPrefix LinkedCallback.MemorySequence in
+/-- Compose the executed post-pop range, every reached string element and the
+list descriptor while preserving the original checked residual and trails. -/
+theorem drive_string_list_after_range (destination : RecordDestination) (inst : InstId) (entries : List Field)
+    (index pointer bytes : Nat) (output : Stored.Lower.Output) {root : Field} {schema : Stored.TypeOf} {budget : Nat}
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root)
+    (path : root.Descendant (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (matched : Field.LayoutMatches (.dynamic (.list (.prim .string)) (.prim .string) entries) (.list (.prim .string)))
+    (emitted : Field.Emitted (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (split : labels = checked ++ trailing) (seen : visible checked = visible canonical)
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? left.store.core destination.memory = some bytes)
+    (grown : Core3.Grows start.store.core left.store.core)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    let element : Stored.TypeOf := .prim .string
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+    left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
+      start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveStringListAfterRange
+    destination inst entries index pointer bytes output rootLayout fits allocates path matched emitted embedder checkNext canonNext
+    frame split seen width sized grown bounded compare
+
+open PayloadPrefix LinkedCallback.MemorySequence in
 /-- Once the admitted list's range is actually reached, consume the nominal
 element suffix in order. Publication is entered only after every element
 returns; a guard refusal leaves canonical at the exact unexecuted suffix. -/

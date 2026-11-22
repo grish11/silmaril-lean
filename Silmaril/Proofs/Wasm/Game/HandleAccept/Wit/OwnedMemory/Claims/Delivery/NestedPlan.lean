@@ -16,6 +16,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Thms
@@ -2275,11 +2276,38 @@ theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {
           obtain ⟨capacity, sized, range⟩ := returns pointer cursor rfl focus
           cases Option.some.inj (sized.symm.trans size)
           rw [ite_eq_right (not_not_intro aligned), ite_eq_left fits] at range
-          obtain ⟨lhs, rhs, peerCursor, _, _, frame, growth, checkedAt, canonicalAt, movementLocal, child⟩ := range.2 fresh
-          exact ⟨lhs, rhs, peerCursor, frame, growth, checkedAt, canonicalAt,
+          obtain ⟨lhs, rhs, peerCursor, _, _, frame, width, sized, growth, checkedAt, canonicalAt, movementLocal, child⟩ := range.2 fresh
+          exact ⟨lhs, rhs, peerCursor, frame, width, sized, growth, checkedAt, canonicalAt,
             alignRangeTransport movement movementLocal (by simp) (.cons pop suffix), child⟩
       · exact .inl (.inr (.inr returning))
     · exact .inl (.inr (.inl active))
+
+open PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem elementHeadFoci (destination : RecordDestination) (inst : InstId) (item : Field) (rest : List Field)
+    (stride pointer index : Nat) {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (checkAt : start.ctl = check.control (Record.Effects.elements recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (item :: rest) stride pointer index >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.elements Limits.spec Quirks.none
+      (destination.context inst) destination.width (item :: rest) .value stride pointer >>= canonNext)) :
+    start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index (.memory pointer) >>=
+      checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext) ∧
+    incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+      destination.width item (.memory pointer) >>=
+      canonTail (.elements stride) destination inst rest (pointer + stride) canonNext) := by
+  constructor
+  · rw [checkAt, Record.Effects.elements]
+    congr 1
+    simp only [Prog.bind_eq, Prog.bind_assoc]
+    congr 1
+    funext verdict
+    cases verdict with
+    | error _ => rfl
+    | ok value => cases value; rfl
+  · rw [canonAt, CanonicalTree.elements]
+    congr 1
+    exact Prog.bind_assoc _ _ _
 
 open PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
 theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (entries : List Field) (stride pointer index : Nat)
@@ -2304,21 +2332,7 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
   | cons item rest ih =>
     let checkTail := LinkedCallback.MemorySequence.checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext
     let canonTail := LinkedCallback.MemorySequence.canonTail (.elements stride) destination inst rest (pointer + stride) canonNext
-    have atHead : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
-        (destination.context inst) destination.width item index (.memory pointer) >>= checkTail) := by
-      rw [checkAt, Record.Effects.elements]
-      congr 1
-      simp only [Prog.bind_eq, Prog.bind_assoc, checkTail]
-      congr 1
-      funext verdict
-      cases verdict with
-      | error _ => rfl
-      | ok value => cases value; rfl
-    have atCanonHead : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
-        (destination.context inst) destination.width item (.memory pointer) >>= canonTail) := by
-      rw [canonAt, CanonicalTree.elements]
-      congr 1
-      exact Prog.bind_assoc _ _ _
+    obtain ⟨atHead, atCanonHead⟩ := elementHeadFoci destination inst item rest stride pointer index checkAt canonAt
     have leaf := LinkedCallback.ChildFrameOver.handle_field_then_between
       (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst item (nominal item (by simp))
@@ -2376,6 +2390,154 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
             obtain ⟨checkedAt, stop, ⟨preceding, pending, remaining, nonempty, canonStop⟩, canonicalAt⟩ := stopped
             refine .refused issue ⟨checkedAt, stop, ⟨item :: preceding, pending, congrArg (item :: ·) remaining, nonempty, ?_⟩, canonicalAt⟩
             simpa only [List.length_cons, Nat.succ_mul, Nat.add_assoc, Nat.add_comm stride] using canonStop
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem driveStringElements (destination : RecordDestination) (inst : InstId) (entries : List Field)
+    {root : Field} {schema : Stored.TypeOf} {origin : CStore (core3 grow)} {pointer count bytes ordinal index budget : Nat}
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root)
+    (compiled : ∀ item ∈ entries, item.LayoutMatches (.prim .string) ∧ item.Emitted ∧ root.Descendant item)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width (.prim .string : Stored.TypeOf)).alignment)
+    (bounds : pointer + count * (layout destination.width (.prim .string : Stored.TypeOf)).size ≤ bytes)
+    (remaining : ordinal + entries.length ≤ count)
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (growth : Core3.Grows origin.core start.store.core) :
+    let stride := (layout destination.width (.prim .string : Stored.TypeOf)).size
+    let address := pointer + ordinal * stride
+    start.ctl = check.control (Record.Effects.elements recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width entries stride address index >>= checkNext) →
+    incoming.ctl = canon.control (CanonicalTree.elements Limits.spec Quirks.none
+      (destination.context inst) destination.width entries .value stride address >>= canonNext) →
+    Steps profile ready (specDispatch ready base) start labels finish → labels.length ≤ budget →
+    ShorterCallbackSlices profile ready base bindings budget →
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows origin.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok ())) ∧ rhs.ctl = peer.control (canonNext ()))
+      start incoming labels finish := by
+  induction entries generalizing ordinal index start incoming labels check canon with
+  | nil =>
+    intro stride address checkAt canonAt actual _ _
+    simp only [Record.Effects.elements, CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] at checkAt canonAt
+    exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
+      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), frame.store, actual,
+      .descriptor (pointer := address) ⟨frame, growth, checkAt, canonAt⟩⟩
+  | cons item rest ih =>
+    intro stride address checkAt canonAt actual bounded compare
+    obtain ⟨shape, emitted, path⟩ := compiled item (by simp)
+    have inRange : ordinal < count := by simp only [List.length_cons] at remaining; omega
+    have placement := (list_entry_placement_of_growth destination inst (.prim .string) growth width sized aligned bounds inRange).2
+    obtain ⟨headAt, peerAt⟩ := elementHeadFoci destination inst item rest stride address index checkAt canonAt
+    obtain ⟨str, field⟩ := CallbackRange.compiledStringCommit destination inst (.memory address) rootLayout fits allocates path
+      shape emitted embedder frame (growth.memAddrType width) placement headAt peerAt
+    obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, movement, same, tail, ending⟩ :=
+      driveStringCommit field actual bounded compare
+    have keep (last : StringSliceEnd profile ready base bindings older
+         (fun _ lhs rhs cursor peer => LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+           Core3.Grows origin.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok ())) ∧ rhs.ctl = peer.control (canonNext ()))
+         left right trailing finish marks) :
+        StringRunSlice profile ready base bindings older
+          (fun _ lhs rhs cursor peer => LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+            Core3.Grows origin.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok ())) ∧ rhs.ctl = peer.control (canonNext ()))
+          start incoming labels finish := ⟨checked, canonical, trailing, left, right, marks, split, seen, movement, same, tail, last⟩
+    cases ending with
+    | trap lhs rhs => exact keep (.trap lhs rhs)
+    | localPrefix nonempty residual => exact keep (.localPrefix nonempty residual)
+    | localChoice split branch shared step residual => exact keep (.localChoice split branch shared step residual)
+    | installPrefix short => exact keep (.installPrefix short)
+    | callback tracked paired boundary noPop => exact keep (.callback tracked paired boundary noPop)
+    | descriptor returned =>
+      obtain ⟨⟨⟩, paired, grew, leftAt, rightAt⟩ := returned
+      have nextBound : ordinal + 1 + rest.length ≤ count := by simp only [List.length_cons] at remaining; omega
+      have nextAddress : pointer + (ordinal + 1) * stride = address + stride := by
+        simp only [address, Nat.add_mul, Nat.one_mul, Nat.add_assoc]
+      have nextBudget : trailing.length ≤ budget := by rw [split, List.length_append] at bounded; omega
+      obtain ⟨checkedRest, canonRest, residual, reached, peer, laterMarks, used, observed, moved, stores, after, last⟩ :=
+        ih (ordinal := ordinal + 1) (index := index + 1) (fun child member => compiled child (List.mem_cons_of_mem _ member))
+          nextBound paired (growth.trans grew) (by rw [nextAddress]; exact leftAt) (by rw [nextAddress]; exact rightAt) tail nextBudget compare
+      refine ⟨checked ++ checkedRest, canonical ++ canonRest, residual, reached, peer, laterMarks,
+        by simp only [split, used, List.append_assoc],
+        by rw [visibleAppend canonical canonRest, visibleAppend checked checkedRest, seen, observed],
+        ?_, stores, after, last⟩
+      simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend movement moved).choose_spec.1
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+theorem driveStringListBody (destination : RecordDestination) (inst : InstId) (entries : List Field)
+    (index pointer bytes : Nat) (output : Stored.Lower.Output) {root : Field} {schema : Stored.TypeOf} {budget : Nat}
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root)
+    (path : root.Descendant (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (matched : Field.LayoutMatches (.dynamic (.list (.prim .string)) (.prim .string) entries) (.list (.prim .string)))
+    (emitted : Field.Emitted (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? start.store.core destination.memory = some bytes)
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) :
+    let element : Stored.TypeOf := .prim .string
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+    start.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    incoming.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    Steps profile ready (specDispatch ready base) start labels finish → labels.length ≤ budget →
+    ShorterCallbackSlices profile ready base bindings budget →
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
+      start incoming labels finish := by
+  intro element area mode aligned bounds checkAt canonAt actual bounded compare
+  have compiled : ∀ item ∈ entries, item.LayoutMatches element ∧ item.Emitted ∧ root.Descendant item := by
+    have layouts := CallbackRange.listEntries matched
+    intro item member
+    refine ⟨entries_match_of_mem layouts member, ?_, path.trans (.dynamic member (.self item))⟩
+    cases emitted with
+    | list children => exact children item member
+  obtain ⟨checkAt, canonAt⟩ := CallbackRange.collectionElementFoci destination inst entries area mode output pointer index
+    checkNext canonNext checkAt canonAt
+  have valueMode : mode = .value := by cases output <;> rfl
+  rw [valueMode] at canonAt
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, move, same, tail, ending⟩ :=
+    driveStringElements destination inst entries (ordinal := 0) (index := 0) rootLayout fits allocates compiled embedder width sized aligned bounds
+      (by simp) frame (Core3.Grows.refl _) (by simpa only [Nat.zero_mul, Nat.add_zero] using checkAt)
+      (by simpa only [Nat.zero_mul, Nat.add_zero] using canonAt) actual bounded compare
+  have keep (last : StringSliceEnd profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
+      left right trailing finish marks) :
+    StringRunSlice profile ready base bindings older _ start incoming labels finish :=
+    ⟨checked, canonical, trailing, left, right, marks, split, seen, move, same, tail, last⟩
+  cases ending with
+  | trap lhs rhs => exact keep (.trap lhs rhs)
+  | localPrefix nonempty residual => exact keep (.localPrefix nonempty residual)
+  | localChoice split branch shared step residual => exact keep (.localChoice split branch shared step residual)
+  | installPrefix short => exact keep (.installPrefix short)
+  | callback tracked paired boundary noPop => exact keep (.callback tracked paired boundary noPop)
+  | descriptor returned =>
+    obtain ⟨paired, grew, leftAt, rightAt⟩ := returned
+    have publish := CallbackRange.livePublish (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst pointer entries.length output checkNext canonNext
+      (fun value lhs rhs cursor peer => LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
+      (fun _ _ _ _ _ frame growth lhs rhs => ⟨frame, growth, lhs, rhs⟩) paired grew leftAt rightAt
+    obtain ⟨store, verdict, effects, written, compared, continued⟩ := driveValueCommit publish tail
+    cases compared with
+    | inside _ nonempty residual => exact keep (.localPrefix nonempty residual)
+    | reached used residual =>
+      refine ⟨checked ++ effects, canonical ++ effects, _, _, _, [], by simp only [split, used, List.append_assoc],
+        by rw [visibleAppend canonical effects, visibleAppend checked effects, seen],
+        (CallbackPrefix.transportAppend move written).choose_spec.1, ?_, residual, ?_⟩
+      · cases verdict <;> rfl
+      · cases verdict with
+        | error reason => exact .trap rfl rfl
+        | ok value => exact .descriptor (pointer := pointer) ⟨value, continued value rfl⟩
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
 theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
@@ -2484,6 +2646,62 @@ theorem driveNominalListAfterRange (destination : RecordDestination) (inst : Ins
     exact .inr (prependElementSlice (combined.trans (List.append_assoc ..).symm) observed movement
       (driveNominalListBody destination inst element entries index pointer output nominal matched emitted
         checkNext canonNext frame checkAt canonAt suffix))
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+theorem driveStringListAfterRange (destination : RecordDestination) (inst : InstId) (entries : List Field)
+    (index pointer bytes : Nat) (output : Stored.Lower.Output) {root : Field} {schema : Stored.TypeOf} {budget : Nat}
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root)
+    (path : root.Descendant (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (matched : Field.LayoutMatches (.dynamic (.list (.prim .string)) (.prim .string) entries) (.list (.prim .string)))
+    (emitted : Field.Emitted (.dynamic (.list (.prim .string)) (.prim .string) entries))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (split : labels = checked ++ trailing) (seen : visible checked = visible canonical)
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? left.store.core destination.memory = some bytes)
+    (grown : Core3.Grows start.store.core left.store.core)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    let element : Stored.TypeOf := .prim .string
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+    left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
+    StringRunSlice profile ready base bindings older
+      (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
+        Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
+      start incoming labels finish := by
+  intro element area mode aligned bounds checkAt canonAt range
+  obtain ⟨rangeLeft, rangeRight, rangeMovement, silentLeft, silentRight, _, rangeRun⟩ := range
+  cases rangeRun with
+  | inside _ nonempty tail => exact .inl ⟨_, nonempty, tail⟩
+  | @reached suffixLabels used suffix =>
+    have shorter : suffixLabels.length ≤ budget := by
+      rw [split, used, List.length_append, List.length_append] at bounded
+      omega
+    obtain ⟨checkBody, canonBody, residual, reached, peer, marks, bodySplit, observed, bodyMovement, same, tail, ending⟩ :=
+      driveStringListBody destination inst entries index pointer bytes output rootLayout fits allocates path matched emitted embedder
+        width sized checkNext canonNext frame aligned bounds checkAt canonAt suffix shorter compare
+    refine .inr ⟨(checked ++ rangeLeft) ++ checkBody, (canonical ++ rangeRight) ++ canonBody, residual, reached, peer, marks,
+      by simp only [split, used, bodySplit, List.append_assoc], ?_, ?_, same, tail, ?_⟩
+    · simp only [visibleAppend, silentLeft, silentRight, List.append_nil, seen, observed]
+    · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend rangeMovement bodyMovement).choose_spec.1
+    · cases ending with
+      | trap lhs rhs => exact .trap lhs rhs
+      | localPrefix nonempty residual => exact .localPrefix nonempty residual
+      | localChoice split branch shared step residual => exact .localChoice split branch shared step residual
+      | installPrefix short => exact .installPrefix short
+      | callback tracked paired boundary noPop => exact .callback tracked paired boundary noPop
+      | descriptor returned =>
+        obtain ⟨value, paired, grew, checkAt, canonAt⟩ := returned
+        exact .descriptor (pointer := pointer) ⟨value, paired, grown.trans grew, checkAt, canonAt⟩
 
 private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
     {seen : Trace grow sig} {cursor destination area count pointer plan checkNext canonNext}
