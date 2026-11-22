@@ -961,6 +961,108 @@ theorem cutWaitableCalloutEntry (poll : Bool) (mem : (core3 grow).MemAddr) (inst
   simp only [waitableCalloutDispatch] at leftFocus rightFocus
   exact cutComponentStoreBody _ _ _ (fun _ => waitableCalloutEntryEffects poll mem inst args) leftFocus rightFocus paired run
 
+private theorem waitableWaitSplit (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) :
+    (waitableCalloutBody false mem entry : Session grow sig (Ret (core3 grow))) =
+      (waitableWaitDecision entry >>= waitableWaitAfterDecision mem entry) := by
+  unfold waitableCalloutBody waitableWaitDecision wsetWait Thread.waitUntilGuest Thread.waitUntil
+  simp only [Bool.false_eq_true, ite_false, Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext _
+  congr 1
+  funext thread
+  congr 1
+  funext now
+  congr 1
+  funext early
+  cases early <;> simp [waitableWaitAfterDecision, waitableWaitContinue, Prog.bind_assoc]
+
+private theorem waitableWaitDecisionEffects (entry : WaitableCalloutEntry) :
+    StoreEffects (waitableWaitDecision entry : Session grow sig (Option ThreadId)) := by
+  have active : StoreEffects (currentThreadId : Session grow sig ThreadId) := by
+    unfold currentThreadId
+    refine Prog.Every.bind (.op rfl fun _ => .pure _) fun current => ?_
+    cases current
+    · exact storeEffectTrap _
+    · exact .pure _
+  unfold waitableWaitDecision
+  refine (storeEffectModify _).bind fun _ => active.bind fun _ => ?_
+  refine ((storeEffectGet.bind fun _ => .pure _)).bind fun now => ?_
+  have decision : StoreEffects ((if now then choose (.earlyReturn .waitableSetWait) else pure false) : Session grow sig Bool) := by
+    cases now
+    · exact .pure _
+    · exact .op rfl fun _ => .pure _
+  refine decision.bind fun early => ?_
+  cases early
+  · exact (storeEffectModify _).bind fun _ => .pure _
+  · exact .pure _
+
+theorem cutWaitableWaitDecision (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (waitableCalloutBody false mem entry))
+    (rightFocus : incoming.ctl = canon.control (waitableCalloutBody false mem entry))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (waitableWaitAfterDecision mem entry) (waitableWaitAfterDecision mem entry)
+        reached peer suffix True ∧ reached.host = start.host ∧ peer.host = incoming.host := by
+  simp only [waitableWaitSplit] at leftFocus rightFocus
+  exact cutComponentStoreBody _ _ _ (fun _ => waitableWaitDecisionEffects entry) leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+theorem cutWaitableWaitPark (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨some thread, .prog (waitableWaitAfterDecision mem entry (some thread)), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨some thread, .prog (waitableWaitAfterDecision mem entry (some thread)),
+      .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨some thread, .core core resume :: frames, rest⟩
+      ⟨some thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (labels = [] ∧ finish = start) ∨
+      ∃ suffix,
+        let reached := { (start.setCont thread (some ⟨some thread, .prog (waitableWaitContinue mem entry), .core core resume :: frames⟩)) with
+          store := StepDefs.threadStatusSt thread .blocked start.store, ctl := rest }
+        let peer := { (incoming.setCont thread (some ⟨some thread, .prog (waitableWaitContinue mem entry), .core core resume :: peerFrames⟩)) with
+          store := StepDefs.threadStatusSt thread .blocked incoming.store, ctl := peerRest }
+        labels = .tau :: suffix ∧ Steps profile ready (specDispatch ready base) reached suffix finish ∧
+        HostFrame.Related.Paired older reached peer ∧
+        OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer ∧
+        Trail profile ready (specDispatch ready base) start (some (.active 0 0)) [.tau] reached (some (.saved thread.idx 0)) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.active 0 0))
+          [.tau] peer (some (.saved thread.idx 0)) := by
+  cases run with
+  | refl => exact .inl ⟨rfl, rfl⟩
+  | cons first tail =>
+    let saved : Focus (core3 grow) (HostState sig) := .prog (waitableWaitContinue mem entry)
+    let reached := { (start.setCont thread (some ⟨some thread, saved, .core core resume :: frames⟩)) with
+      store := StepDefs.threadStatusSt thread .blocked start.store, ctl := rest }
+    let peer := { (incoming.setCont thread (some ⟨some thread, saved, .core core resume :: peerFrames⟩)) with
+      store := StepDefs.threadStatusSt thread .blocked incoming.store, ctl := peerRest }
+    have checked : Step profile ready (specDispatch ready base) start .tau reached := .block leftFocus
+    have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer := .block rightFocus
+    obtain ⟨rfl, rfl⟩ := silentStepUnique checked first
+    have aligned : HostFrame.Related.Paired older reached peer := by
+      obtain ⟨otherFrames, otherRest, shape, parked⟩ := ReturnFrame.Related.Paired.park_under_core paired rfl saved
+      simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at shape
+      obtain ⟨rfl, rfl⟩ := shape
+      have updated := congrArg (StepDefs.threadStatusSt thread .blocked) (HostFrame.Related.Paired.data paired).1
+      simpa only [reached, peer, updated, HostFrame.Related.Paired, HostFrame.replace, Config.setCont] using
+        ReturnFrame.Related.Paired.set_store parked (StepDefs.threadStatusSt thread .blocked start.store)
+    let edit : Edit (core3 grow) (HostState sig) := .block thread.idx
+    have leftEdit : transitionEdit start .tau = edit := by rw [transitionEdit, leftFocus]; rfl
+    have rightEdit : transitionEdit incoming .tau = edit := by rw [transitionEdit, rightFocus]; rfl
+    have trail (place : Option Location) :
+        Trail profile ready (specDispatch ready base) start place [.tau] reached (place.bind edit.follow) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place [.tau] peer (place.bind edit.follow) :=
+      ⟨.step checked (by rw [leftEdit]; exact .done _ _), .step canonical (by rw [rightEdit]; exact .done _ _)⟩
+    refine .inr ⟨_, rfl, tail, aligned, ⟨(·.bind edit.follow), trail, ?_⟩, trail (some (.active 0 0))⟩
+    intro previous marks outside
+    change OutsideMarks previous (segmentStorage reached) (segmentStorage peer) (marks.map (·.bind edit.follow))
+    rw [step_edit checked, step_edit canonical, leftEdit, rightEdit]
+    exact outside.edit edit
+
 open ReturnFrame.Occurrence in
 theorem cutWaitableCalloutInstall (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
     {thread core resume frames rest label next}

@@ -167,6 +167,30 @@ def pollCalloutObservation (mem : (core3 grow).MemAddr) (inst : InstId) (args : 
 def pollCalloutResult (observation : AsyncRef.EventTuple × Nat) : Session grow sig (Ret (core3 grow)) :=
   .pure (.flat [i32Flat observation.2])
 
+/-- Run the actual waiter count update, readiness read and optional early
+choice. A non-early answer commits the waiting record but has not blocked. -/
+def waitableWaitDecision (entry : WaitableCalloutEntry) : Session grow sig (Option ThreadId) := do
+  modifyStore (CStore.wsetIncWaitingSt entry.set)
+  let thread ← currentThreadId
+  let now ← Thread.readyNow (fun _ _ => false) (.wsetHasEvent entry.set)
+  let early ← (if now then choose (.earlyReturn .waitableSetWait) else pure false : Session grow sig Bool)
+  if early then pure none else do
+    Thread.startWaiting thread (.wsetHasEvent entry.set)
+    pure (some thread)
+
+/-- Shared by the early and actually resumed wait. Selection reads the
+current store at this point, not the event checked by the readiness read. -/
+def waitableWaitContinue (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) : Session grow sig (Ret (core3 grow)) := do
+  modifyStore (CStore.wsetDecWaitingSt entry.set)
+  let event ← wsetGetPendingEvent entry.set
+  let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
+  pure (.flat [i32Flat code])
+
+def waitableWaitAfterDecision (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) :
+    Option ThreadId → Session grow sig (Ret (core3 grow))
+  | none => waitableWaitContinue mem entry
+  | some _ => block none >>= fun _ => waitableWaitContinue mem entry
+
 /-- The frontier of an executed store-only component prefix. A pending
 operation is not a refusal, and a trap does not run either continuation. -/
 inductive ComponentStoreFrontier {Result : Type}

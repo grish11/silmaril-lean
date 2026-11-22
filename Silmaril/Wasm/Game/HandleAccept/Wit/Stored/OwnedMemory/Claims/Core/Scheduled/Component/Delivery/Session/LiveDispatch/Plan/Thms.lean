@@ -340,6 +340,52 @@ theorem cut_waitable_callout_entry (poll : Bool) (mem : (core3 grow).MemAddr) (i
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableCalloutEntry
     poll mem inst args leftFocus rightFocus paired run
 
+/-- Compare the wait's reached readiness read and scheduler choice. The
+non-early case includes the waiting-record write, but not the block. Neither
+case has yet selected or consumed an event. -/
+theorem cut_waitable_wait_decision (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (waitableCalloutBody false mem entry))
+    (rightFocus : incoming.ctl = canon.control (waitableCalloutBody false mem entry))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (waitableWaitAfterDecision mem entry) (waitableWaitAfterDecision mem entry)
+        reached peer suffix True ∧ reached.host = start.host ∧ peer.host = incoming.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableWaitDecision
+    mem entry leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+/-- Consume the actual non-early wait block, if the checked derivation reaches
+it. The original Core caller moves to the saved location along with the
+post-wait program. The same edit accounts for every other occurrence,
+including replacement of an older saved slot. No event has been selected. -/
+theorem cut_waitable_wait_park (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨some thread, .prog (waitableWaitAfterDecision mem entry (some thread)), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨some thread, .prog (waitableWaitAfterDecision mem entry (some thread)),
+      .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨some thread, .core core resume :: frames, rest⟩
+      ⟨some thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (labels = [] ∧ finish = start) ∨
+      ∃ suffix,
+        let reached := { (start.setCont thread (some ⟨some thread, .prog (waitableWaitContinue mem entry), .core core resume :: frames⟩)) with
+          store := StepDefs.threadStatusSt thread .blocked start.store, ctl := rest }
+        let peer := { (incoming.setCont thread (some ⟨some thread, .prog (waitableWaitContinue mem entry), .core core resume :: peerFrames⟩)) with
+          store := StepDefs.threadStatusSt thread .blocked incoming.store, ctl := peerRest }
+        labels = .tau :: suffix ∧ Steps profile ready (specDispatch ready base) reached suffix finish ∧
+        HostFrame.Related.Paired older reached peer ∧
+        OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer ∧
+        Trail profile ready (specDispatch ready base) start (some (.active 0 0)) [.tau] reached (some (.saved thread.idx 0)) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.active 0 0))
+          [.tau] peer (some (.saved thread.idx 0)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableWaitPark
+    mem entry leftFocus rightFocus paired run
+
 open ReturnFrame.Occurrence in
 /-- Recover the public waitable callout and both original caller occurrences
 from an executed Core install. Older active and saved marks are transported
