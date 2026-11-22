@@ -414,6 +414,7 @@ theorem cut_component_preflight (callee : ComponentCall.Callee sig) (caller : Ca
       let peer := componentPreflightAt callee caller cx args incoming canon
       incoming.ctl = canon.control (ComponentCall.invoke callee caller) ∧ labels = List.replicate 7 .tau ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
       PairedComponentSite older reached peer check canon ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
       ∃ canon, ComponentEarlyPrefix profile ready base bindings older ⟨some active, frames, rest⟩ canon start incoming labels finish 7 :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentPreflight
@@ -849,6 +850,8 @@ theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (ca
       ComponentStoreFrontier older check canon (ComponentCall.acceptPayload callee caller leftTicket planned)
         (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix True ∧
       reached.host = start.host ∧ peer.host = incoming.host ∧
+      WriterPath profile ready (specDispatch ready base) start leading reached [] ∧
+      WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming leading peer [] ∧
       (reached.ctl ≠ [] → (∀ id, LowerSt.callerShape reached.store id = LowerSt.callerShape start.store id) ∧
         ∀ place, Prefix profile ready (specDispatch ready base) start place leading reached place ∧
           Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
@@ -1018,8 +1021,12 @@ theorem cut_component_successful_payload (callee : ComponentCall.Callee sig) (ca
       ComponentStoreFrontier (Result := Unit) older check canon
         (fun _ => ComponentCall.completeResolvedTree leftTicket tree handle)
         (fun _ => ComponentCall.completeResolvedTree rightTicket tree handle) reached peer suffix True ∧
-      reached.host = start.host ∧ peer.host = incoming.host) ∨
-    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 2 :=
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer) ∨
+    (ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 2 ∧
+      ∀ peer, OccurrenceTransport profile ready base bindings start incoming labels labels finish peer →
+        WriterPath profile ready (specDispatch ready base) start labels finish [] ∧
+        WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming labels peer []) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPayload
     callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive rightLive leftHandle rightHandle room run
@@ -1050,8 +1057,9 @@ theorem cut_component_successful_publication (callee : ComponentCall.Callee sig)
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
-      (suffix = [] ∨ reached.ctl = [] ∨ (∀ pending, start.host.writer.ClaimDiscrepancies incoming.host.writer pending →
-        reached.host.writer.ClaimDiscrepancies peer.host.writer pending)) :=
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
+      (∀ pending, start.host.writer.ClaimDiscrepancies incoming.host.writer pending →
+        reached.host.writer.ClaimDiscrepancies peer.host.writer pending) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPublication
     callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive rightLive leftHandle rightHandle room run

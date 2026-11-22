@@ -122,6 +122,9 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
   | guarded {start incoming checked canonical left right plan}
       (paths : CompiledLeafWriterPaths profile ready base bindings start incoming checked canonical left right plan) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
+  | publication {start incoming labels left right tree}
+      (paths : PairedPublicationWriterPrefix profile ready base bindings tree start incoming labels left right) :
+      VisitorWriterPath profile ready base bindings start incoming labels labels left right
   | allocation {start incoming checked canonical left right}
       (boundary : VisitorAllocationBoundary)
       (paths : PairedWriterPaths profile ready base bindings start incoming checked canonical left right) :
@@ -952,7 +955,18 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (mismatch : ReachedRegistrationMismatch profile ready base bindings left right check canon leftTicket rightTicket caller tree)
       (site : PairedComponentSite wider left right check canon)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right [mark])
+      (writerPath : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (writers : left.host.writer = reached.host.writer ∧ right.host.writer = peer.host.writer)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | componentAcceptedTerminal {changes wider reached peer left right leading trailing finish mark tree handle}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (frontier : ComponentAcceptedFrontier wider check canon tree handle left right trailing)
+      (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right [mark])
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (writerFlow : ∀ pending, reached.host.writer.ClaimDiscrepancies peer.host.writer pending →
+        left.host.writer.ClaimDiscrepancies right.host.writer pending)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish}
@@ -5255,6 +5269,7 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
   | registrationMismatch {tree : Stored.OwnedMemory.Tree sig}
       (mismatch : ReachedRegistrationMismatch profile ready base bindings reached peer check canon leftTicket rightTicket caller tree)
       (paired : PairedComponentSite wider reached peer check canon)
+      (writerPath : VisitorWriterPath profile ready base bindings start incoming leading leading reached peer)
       (writers : reached.host.writer = start.host.writer ∧ peer.host.writer = incoming.host.writer)
       (entryDisagrees : ¬ start.host.writer.IndexedClaimsAgree incoming.host.writer)
   | refused
@@ -5266,9 +5281,10 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
-      (writerFlow : suffix = [] ∨ reached.ctl = [] ∨ (∀ pending,
+      (writers : VisitorWriterPath profile ready base bindings start incoming leading leading reached peer)
+      (writerFlow : ∀ pending,
         start.host.writer.ClaimDiscrepancies incoming.host.writer pending →
-        reached.host.writer.ClaimDiscrepancies peer.host.writer pending))
+        reached.host.writer.ClaimDiscrepancies peer.host.writer pending)
 
 /-- The classification after the admitted entry reaches child preflight.
 Disagreement is on the demanded decision, not on the complete journals.
@@ -5318,6 +5334,7 @@ def ComponentAdmissionCut (profile : ProfileKind) (ready : HostReady (HostState 
     let peer := componentPreflightAt callee caller cx args incoming canon
     labels = List.replicate 7 .tau ++ suffix ∧
     OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
+    VisitorWriterPath profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
     Steps profile ready (specDispatch ready base) reached suffix finish ∧
     PairedComponentSite wider reached peer check canon ∧
     ComponentPreflightTail profile ready base bindings older wider callee caller start.host.nextTicket incoming.host.nextTicket

@@ -177,6 +177,23 @@ theorem appendPaired (first : PairedWriterPaths profile ready base bindings star
   obtain ⟨_, _, leftTail, rightTail⟩ := tail
   exact ⟨_, _, append lhs leftTail, append rhs rightTail⟩
 
+theorem framedDiscrepancies {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (checkedPath : WriterPath profile ready (specDispatch ready base) start checked left [])
+    (canonicalPath : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [])
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    left.host.writer.ClaimDiscrepancies right.host.writer pending := by
+  simpa only [spend checkedPath (updates := []) .nil, spend canonicalPath (updates := []) .nil, List.foldl_nil] using related
+
+theorem publicationDiscrepancies {tree : Stored.OwnedMemory.Tree sig} {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (paths : PairedPublicationWriterPrefix profile ready base bindings tree start incoming checked left right)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    left.host.writer.ClaimDiscrepancies right.host.writer pending := by
+  by_cases early : checked.length < 2
+  · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
+    exact framedDiscrepancies paths.1 paths.2 related
+  · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
+    exact related.register paths.1.2 paths.2.2
+
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
@@ -184,6 +201,12 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | guarded paths =>
     obtain ⟨changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
+  | @publication start incoming labels left right tree paths =>
+    by_cases early : labels.length < 2
+    · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
+      exact ⟨[], [], paths.1, paths.2⟩
+    · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
+      exact ⟨_, _, paths.1.1, paths.2.1⟩
   | allocation _ paths => exact paths
   | callbackBoundary _ paths => exact paths
   | append _ _ leading trailing => exact appendPaired leading trailing
