@@ -743,6 +743,7 @@ def CheckedOnlyGiveReply (profile : ProfileKind) (ready : HostReady (HostState s
     Steps profile ready (specDispatch ready base) checked suffix finish ∧
     checked.store = left.store ∧
     checked.host = left.host.record (route.reply destination ticket (.error issue)).1 ∧
+    Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) left [.tau, .tau, .tau] checked ∧
     ∀ cursor : Option Location, ∃ checkedMark canonMark,
       Trail profile ready (specDispatch ready base) start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark
@@ -1039,9 +1040,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         left.host.writer.ClaimDiscrepancies right.host.writer pending)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish}
+  | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish marks}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
+      (paths : OccurrenceTransport profile ready base bindings reached peer checkLeading canonLeading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer checkLeading canonLeading left right)
       (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue reached peer left right
         checkLeading canonLeading trailing finish) :

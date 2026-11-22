@@ -205,14 +205,22 @@ theorem RecordDestination.compiled_payload_start {sig : Stored.Signature} {ready
     field.value = payload.val.value ∧ field.LayoutMatches type ∧
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
     match Record.prepare reached.store reached.host.writer field.objects with
-    | .error issue => ∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
-        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place
-    | .ok () => ∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
+    | .error issue => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest }
+    | .ok () => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
         { reached with ctl := ⟨thread, .prog (
           if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
             finish (.error (.preflight (.abi .allocationPrecondition)))
           else Internal.emitValue Limits.spec Quirks.none cx authority destination.width type field output >>= finish),
-          segments⟩ :: rest } place :=
+          segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau, .tau]
+        { reached with ctl := ⟨thread, .prog (
+          if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
+            finish (.error (.preflight (.abi .allocationPrecondition)))
+          else Internal.emitValue Limits.spec Quirks.none cx authority destination.width type field output >>= finish),
+          segments⟩ :: rest } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor.compiled_payload_start
     reached destination inst type payload output field plan finish compiled destinationChecked focused
 

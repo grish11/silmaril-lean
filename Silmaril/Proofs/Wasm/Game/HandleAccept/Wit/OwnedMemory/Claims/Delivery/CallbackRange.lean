@@ -4155,10 +4155,10 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
   have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
     family collection schema paired selected embedder
   cases cut with
-  | refused issue quiet run => exact .refused issue quiet run
-  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
-  | placed silent verdict prepared path body =>
-    refine .placed silent verdict prepared path ?_
+  | refused issue quiet run framed => exact .refused issue quiet run framed
+  | placementTrap reason count verdict run framed => exact .placementTrap reason count verdict run framed
+  | placed silent verdict prepared path body framed =>
+    refine .placed silent verdict prepared path ?_ framed
     cases family with
     | leaf nominal => cases nominal <;> cases collection
     | data data => cases data <;> cases collection
@@ -4489,14 +4489,15 @@ theorem linkedMemoryOccurrenceBody {pointer : FlatValue} (site : PayloadRoot.Sit
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ tracks _ ⟨paired, checkAt, canonicalAt⟩ =>
         publicOccurrenceRejoin site () tracks paired checkAt canonicalAt)
 
-theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (linked : site.Linked bindings) {incoming entered : Config (core3 grow) (HostState sig)}
+theorem publicEntryTransportAt {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {reached incoming entered : Config (core3 grow) (HostState sig)}
     {checkEntry canonEntry : Trace grow sig}
-    (checked : site.EntryPrefix profile ready base checkEntry site.checked)
+    (checked : site.EntryPrefix profile ready base checkEntry reached)
     (reference : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place canonEntry entered (site.entryPlace place))
+    (pushed : segmentStorage reached = (Edit.push (.core site.core site.resume)).apply (segmentStorage site.start))
     (storage : segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage incoming)) :
-    OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
+    OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry reached entered
       [some (.active 0 0)] := by
   refine ⟨Option.map Location.pushed, ?_, ?_⟩
   · intro mark
@@ -4510,11 +4511,21 @@ theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site 
       exact ⟨by simpa only [Option.map_some, pushed] using (checked place).toTrail,
         by simpa only [Option.map_some, pushed] using (reference place).toTrail⟩
   · intro retained marks previous
-    have pushed : segmentStorage site.checked = (Edit.push (.core site.core site.resume)).apply (segmentStorage site.start) := by
-      simp only [segmentStorage, PayloadRoot.Site.checked, PayloadRoot.Site.withBody, PayloadRoot.Site.cursor,
-        Cursor.control, linked.parked, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
     rw [pushed, storage]
     exact previous.push _ _
+
+theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {incoming entered : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry : Trace grow sig}
+    (checked : site.EntryPrefix profile ready base checkEntry site.checked)
+    (reference : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonEntry entered (site.entryPlace place))
+    (storage : segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage incoming)) :
+    OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
+      [some (.active 0 0)] := by
+  refine publicEntryTransportAt site checked reference ?_ storage
+  simp only [segmentStorage, PayloadRoot.Site.checked, PayloadRoot.Site.withBody, PayloadRoot.Site.cursor,
+    Cursor.control, linked.parked, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
 
 theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -4776,10 +4787,10 @@ theorem linkedCollectionReturnFailures {route : GiveEffectRoute} (site : Payload
   have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
     family collection schema paired selected embedder
   cases cut with
-  | refused issue quiet run => exact .refused issue quiet run
-  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
-  | placed quiet verdict prepared path body =>
-    refine .placed quiet verdict prepared path ?_
+  | refused issue quiet run framed => exact .refused issue quiet run framed
+  | placementTrap reason count verdict run framed => exact .placementTrap reason count verdict run framed
+  | placed quiet verdict prepared path body framed =>
+    refine .placed quiet verdict prepared path ?_ framed
     cases type <;> first | exact liftLinkedCollectionFailures site linked prepared body | contradiction
 
 theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

@@ -140,6 +140,12 @@ theorem frameSingle {label}
   cases run with
   | cons step rest => cases rest; exact .same step (congrArg HostState.writer host) (.done _)
 
+theorem ofHostFrames (path : Plain.HostFramedSteps HostState.writer profile ready dispatch start labels finish) :
+    WriterPath profile ready dispatch start labels finish [] := by
+  induction path with
+  | done => exact .done _
+  | next step frame _ ih => exact .same step frame ih
+
 theorem frameRead (read : PayloadPrefix.SilentLocalStep profile ready dispatch start finish) :
     WriterPath profile ready dispatch start [.tau] finish [] := by
   exact frameSingle (ReturnFrame.Occurrence.prefix_survives (read.tracks (.active 0 0))).1 read.host

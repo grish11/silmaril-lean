@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Plan.Defs
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.StringPlan.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Correspondence.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Defs
@@ -1212,6 +1213,19 @@ theorem CheckedOnlyGiveReply.prepend {route : GiveEffectRoute} {destination tick
     CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming checkStop canonStop
       (checkPrefix ++ checkBody) (canonPrefix ++ canonBody) trailing finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.prependCheckedOnlyReply leading reply
+
+/-- A checked-only completion preserves the bound at the actual pop; the raw
+configuration stays pending and the remaining checked run is not compared. -/
+theorem CheckedOnlyGiveReply.discrepancies {route : GiveEffectRoute} {destination ticket issue pending}
+    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming left right
+      checked canonical trailing finish) (related : left.host.writer.ClaimDiscrepancies right.host.writer pending) :
+    ∃ suffix popped, trailing = [.tau, .tau, .tau] ++ suffix ∧
+      Steps profile ready (specDispatch ready base) left [.tau, .tau, .tau] popped ∧
+      popped.host.writer.ClaimDiscrepancies right.host.writer pending ∧
+      Steps profile ready (specDispatch ready base) popped suffix finish := by
+  obtain ⟨suffix, popped, split, _, complete, residual, _, _, frames, _⟩ := reply
+  exact ⟨suffix, popped, split, complete, by rwa [frames.project_eq], residual⟩
 
 /-- Strip the reached silent install and compare only its actual callback
 tail. Both visitors can consume the resulting exact callback index. -/

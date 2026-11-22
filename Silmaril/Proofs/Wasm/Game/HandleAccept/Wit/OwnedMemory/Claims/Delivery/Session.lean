@@ -1844,11 +1844,11 @@ theorem giveRoot {route : GiveEffectRoute} {bindings : List (Binding sig)} (site
     ∃ phase labels finish, Transition profile ready impl site.start (.give route phase) labels finish ∧
       (phase = .entered → finish = site.checked ∧ body) := by
   cases cut with
-  | refused issue silent run =>
+  | refused issue silent run _ =>
     exact ⟨.refused issue, _, _, .giveRefused site linked issue silent run.steps, fun equal => by cases equal⟩
-  | placementTrap reason count verdict run =>
+  | placementTrap reason count verdict run _ =>
     exact ⟨.placementTrap reason, _, _, .givePlacementTrap site linked reason count verdict run.steps, fun equal => by cases equal⟩
-  | placed silent verdict prepared run body =>
+  | placed silent verdict prepared run body _ =>
     exact ⟨.entered, _, _, .giveEntry site linked silent verdict prepared run.steps, fun _ => ⟨rfl, body⟩⟩
 
 theorem giveReturned {route : GiveEffectRoute} {bindings : List (Binding sig)} {callees : List (ComponentCall.Callee sig)}

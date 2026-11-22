@@ -80,9 +80,9 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | componentRefusedTerminal _ _ paths writers tail => exact terminal paths writers tail
   | componentRegistrationMismatch _ _ paths writers _ tail => exact terminal paths writers tail
   | componentAcceptedTerminal _ _ paths writers _ tail => exact terminal paths writers tail
-  | refused _ _ _ reply =>
-    obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
-    exact stop (appendSteps front (appendSteps completed tail))
+  | refused _ _ paths writers reply =>
+    obtain ⟨_, _, rfl, _, completed, tail, _, _, _, _⟩ := reply
+    exact terminal paths writers (appendSteps completed tail)
   | entryPrefix _ run _ _ => exact stop run
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)
   | admissionTrap _ _ _ checked _ tail => exact stop (appendSteps checked tail)

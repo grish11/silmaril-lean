@@ -98,6 +98,68 @@ theorem runBody_thread_tracks_all {E : CoreEngine} {Host Result : Type} (body : 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.body_tracks_at
     body start updated host result finish thread segs rest profile ready dispatch focused (some thread) (.inr rfl) success
 
+/-- Extract a per-step host-field frame from the same reached local
+evaluation as the occurrence trail. -/
+theorem runBody_thread_tracks_framed {E : CoreEngine} {Host Result Observed : Type} (body : P E Host Result)
+    (start : Machine.Config E Host) (updated : CStore E) (host : Host) (result : Result)
+    (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
+    (segs : List (Machine.Seg E Host)) (rest : List (Machine.Activation E Host))
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
+    (success : runBody body start.store start.host (some thread) = (updated, host, .ok result))
+    (project : Host → Observed) (framed : FramesHost project body start.store start.host (some thread)) :
+    ∃ labels, labels.all (· matches .tau) = true ∧
+      let reached := { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest }
+      (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place labels reached place) ∧
+      HostFramedSteps project profile ready dispatch start labels reached := by
+  obtain ⟨labels, silent, tracks, frames⟩ :=
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.body_tracks_framed_at
+      body start updated host result finish thread segs rest profile ready dispatch focused (some thread) (.inr rfl) success
+  exact ⟨labels, silent, tracks, frames _ project framed⟩
+
+theorem HostFramedSteps.append {E : CoreEngine} {Host Observed : Type} {project : Host → Observed}
+    {profile : ProfileKind} {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
+    {start middle finish first second} (left : HostFramedSteps project profile ready dispatch start first middle)
+    (right : HostFramedSteps project profile ready dispatch middle second finish) :
+    HostFramedSteps project profile ready dispatch start (first ++ second) finish := by
+  induction left with
+  | done => exact right
+  | next step frame _ ih => exact .next step frame (ih right)
+
+theorem HostFramedSteps.project_eq {E : CoreEngine} {Host Observed : Type} {project : Host → Observed}
+    {profile : ProfileKind} {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
+    {start finish labels} (path : HostFramedSteps project profile ready dispatch start labels finish) :
+    project finish.host = project start.host := by
+  induction path with
+  | done => rfl
+  | next _ frame _ ih => exact ih.trans frame
+
+theorem framesHost_currentInst {E : CoreEngine} {Host Result Observed : Type} (project : Host → Observed)
+    (rest : Option InstId → P E Host Result) (reference : CStore E) (host : Host) (thread : Option ThreadId) :
+    FramesHost project (currentInst?.bind rest) reference host (some thread) =
+      match callerInstance reference thread with
+      | .ok caller => FramesHost project (rest caller) reference host (some thread)
+      | .error _ => True :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.framesCaller project rest reference host thread
+
+theorem framesHost_memorySelection {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    (destination : RecordDestination) (pointer : FlatValue) (handle : BitVec 32)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId)
+    (word : Stored.flatType pointer = ABI.pointerType destination.width)
+    (checked : destination.check store = .ok ()) :
+    FramesHost HostState.writer (selectMemoryDestination destination [.int .i32 handle, pointer])
+      store state (some thread) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.framesMemorySelection
+    destination pointer handle store state thread word checked
+
+theorem framesHost_flatSelection {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    (destination : RecordDestination) (schema : Stored.TypeOf) (handle : BitVec 32)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId)
+    (checked : destination.check store = .ok ()) :
+    FramesHost HostState.writer (selectFlatDestination destination schema [.int .i32 handle]) store state (some thread) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.framesFlatSelection
+    destination schema handle store state thread checked
+
 theorem runBody_thread_tracks {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     (start : Machine.Config E Host) (updated : CStore E) (host : Host) (result : Result)
     (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
@@ -556,15 +618,17 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
-        { start with host := start.host.enter name type [.int .i32 handle, pointer]
-                     ctl := ⟨thread, .prog (do
+      let reached := { start with
+        host := start.host.enter name type [.int .i32 handle, pointer]
+        ctl := ⟨thread, .prog (do
                        let result ← Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree (.memory (flatNat pointer))
                        return .flat (← finish start.host.nextTicket
                          (result.mapError .lowerPayload |>.map (fun _ => 0)))),
                        .core core continuation :: segments⟩ :: rest }
-        (((Edit.push (.core core continuation)).follow place).getD place) :=
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place labels reached
+        (((Edit.push (.core core continuation)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start labels reached :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.parked_give_payload
     bindings name type handle pointer inst destination tree start thread profile ready
     parked calling linked caller mayLeave word destinationChecked selected impl embedder
@@ -587,15 +651,17 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
-        { start with host := start.host.enter name type [.int .i32 handle]
-                     ctl := ⟨thread, .prog (do
+      let reached := { start with
+        host := start.host.enter name type [.int .i32 handle]
+        ctl := ⟨thread, .prog (do
                        let result ← Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree .flat
                        return .flat (← writeCompletion (flatCompletion start.host.nextTicket
                          (ABI.flatten destination.width payload) (result.mapError .lowerPayload)))),
                        .core core continuation :: segments⟩ :: rest }
-        (((Edit.push (.core core continuation)).follow place).getD place) :=
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place labels reached
+        (((Edit.push (.core core continuation)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start labels reached :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.parked_give_flat
     bindings name type handle inst destination payload tree start thread profile ready
     parked calling linked caller mayLeave destinationChecked selected schema impl embedder
@@ -613,6 +679,18 @@ theorem give_completion_steps {sig : Signature} {grow : SingleThreaded.GrowOracl
                    ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
                      continuation, segments⟩ :: rest } :=
   .cons (.hostGet reached) (.cons (.hostSet rfl) (.cons (.popCore rfl) (.refl _)))
+
+theorem give_completion_framed {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Machine.Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest}
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    HostFramedSteps HostState.writer profile ready dispatch start [.tau, .tau, .tau]
+      { start with host := start.host.record reply.1
+                   ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+                     continuation, segments⟩ :: rest } :=
+  .next (.hostGet reached) rfl (.next (.hostSet rfl) rfl (.next (.popCore rfl) rfl (.done _)))
 
 open Machine.ReturnFrame.Occurrence in
 /-- Follow any enclosing occurrence through the real checked completion.

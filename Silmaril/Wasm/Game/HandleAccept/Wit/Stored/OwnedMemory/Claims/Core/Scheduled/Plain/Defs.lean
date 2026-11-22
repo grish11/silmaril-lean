@@ -52,6 +52,35 @@ def runBody {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     | .emit _ => (reference, host, .error .hostEffect)
 termination_by structural body
 
+/-- Check a host-field frame along the reached local interpreter branch,
+including each assignment. The check does not run the consumer of the result. -/
+def FramesHost {E : CoreEngine} {Host Result Observed : Type} (project : Host → Observed)
+    (body : P E Host Result) (reference : CStore E) (host : Host) (activation : Option (Option ThreadId)) : Prop :=
+  match body with
+  | .pure _ => True
+  | .op op next =>
+    match op with
+    | .get => FramesHost project (next reference) reference host activation
+    | .modify update => FramesHost project (next ()) (update reference) host activation
+    | .hostGet => FramesHost project (next host) reference host activation
+    | .hostSet updated => project updated = project host ∧ FramesHost project (next ()) reference updated activation
+    | .currentThread => match activation with
+      | some thread => FramesHost project (next thread) reference host activation
+      | none => True
+    | _ => True
+termination_by structural body
+
+/-- An executed path with a separate frame proof for each step. -/
+inductive HostFramedSteps {E : CoreEngine} {Host Observed : Type} (project : Host → Observed)
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E)) :
+    Machine.Config E Host → List (Machine.Label E Host) → Machine.Config E Host → Prop where
+  | done (state : Machine.Config E Host) : HostFramedSteps project profile ready dispatch state [] state
+  | next {start middle finish label labels}
+      (step : Machine.Step profile ready dispatch start label middle)
+      (frame : project middle.host = project start.host)
+      (tail : HostFramedSteps project profile ready dispatch middle labels finish) :
+      HostFramedSteps project profile ready dispatch start (label :: labels) finish
+
 /-- Resolve the active thread's instance through the live arenas. A host frame
 has no instance; a dangling thread or task is a reference-machine error, not
 a recoverable wrong-caller refusal. -/

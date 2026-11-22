@@ -2699,8 +2699,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | componentRefusedTerminal _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | refused _ _ _ reply =>
-    obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
+  | refused _ _ _ _ reply =>
+    obtain ⟨_, _, rfl, front, completed, tail, _, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2738,7 +2738,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | componentRefusedTerminal _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | refused install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | refused install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -2776,8 +2776,8 @@ theorem prependCheckedOnlyReply {route : GiveEffectRoute} {destination ticket is
     CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming checkStop canonStop
       (checkPrefix ++ checkBody) (canonPrefix ++ canonBody) trailing finish := by
   obtain ⟨move, before, _⟩ := leading
-  obtain ⟨suffix, checked, split, front, complete, tail, stored, recorded, paths⟩ := reply
-  refine ⟨suffix, checked, split, append (before none).1.steps front, complete, tail, stored, recorded, fun place => ?_⟩
+  obtain ⟨suffix, checked, split, front, complete, tail, stored, recorded, framed, paths⟩ := reply
+  refine ⟨suffix, checked, split, append (before none).1.steps front, complete, tail, stored, recorded, framed, fun place => ?_⟩
   obtain ⟨checkedMark, canonicalMark, checkPath, canonPath⟩ := paths (move place)
   exact ⟨checkedMark, canonicalMark,
     (List.append_assoc _ _ _).symm ▸ (before place).1.append checkPath, (before place).2.append canonPath⟩
@@ -3884,14 +3884,14 @@ theorem rejoinedBodyPlan {route : GiveEffectRoute} {site : PayloadRoot.Site grow
 theorem rootAdmission {route} {site : PayloadRoot.Site grow sig route} {body : Prop} (linked : site.Linked bindings)
     (cut : PayloadRoot.Cut site profile ready bindings body base) : RootAdmission bindings profile ready base site body := by
   cases cut with
-  | @refused issue labels silent run =>
+  | @refused issue labels silent run _ =>
     have seen : PayloadPrefix.visible (labels ++ [.tau, .tau, .tau]) = [] := by rw [visibleAppend, silent]; rfl
     let stop := RootStop.refused issue seen (.giveRefused site linked issue silent run.steps)
     exact .stopped stop (.rootStop site linked stop)
-  | placementTrap reason count verdict run =>
+  | placementTrap reason count verdict run _ =>
     let stop := RootStop.placementTrap reason count (.givePlacementTrap site linked reason count verdict run.steps)
     exact .stopped stop (.rootStop site linked stop)
-  | placed silent verdict prepared run compared =>
+  | placed silent verdict prepared run compared _ =>
     exact .entered (.giveEntry site linked silent verdict prepared run.steps) compared
 
 theorem memoryAdmission {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
@@ -4497,9 +4497,9 @@ private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadR
   have pending : PendingRecursiveRoot profile ready bindings callees older site incoming :=
     pendingRecursiveRoot site linked paired selected
   cases cut with
-  | refused _ silent run => exact .refused silent (rootRefusalTrails site run) pending
-  | placementTrap _ _ verdict run => exact .placementTrap verdict run pending
-  | placed silent verdict prepared run body => exact .placed silent verdict prepared run pending body
+  | refused _ silent run _ => exact .refused silent (rootRefusalTrails site run) pending
+  | placementTrap _ _ verdict run _ => exact .placementTrap verdict run pending
+  | placed silent verdict prepared run body _ => exact .placed silent verdict prepared run pending body
 
 theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)}
@@ -8313,7 +8313,9 @@ private def LinkedMemoryResidualBody (profile : ProfileKind) (ready : HostReady 
   ∃ canonEntry entered, PayloadPrefix.visible canonEntry = [] ∧
     (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place canonEntry entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
-    ∀ checkEntry, site.EntryPrefix profile ready base checkEntry site.checked → PayloadPrefix.visible checkEntry = [] →
+    ∀ checkEntry, site.EntryPrefix profile ready base checkEntry site.checked →
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start checkEntry site.checked →
+      PayloadPrefix.visible checkEntry = [] →
       ∀ actual finish, Steps profile ready (specDispatch ready base) site.checked actual finish → actual.length ≤ budget →
         MemoryVisitWithReply profile ready base bindings older site incoming entered checkEntry canonEntry actual finish
 
@@ -8333,17 +8335,17 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
   have position : placement site.destination site.checked.store (layout site.destination.width site.field.type) (flatNat pointer) = .ok () :=
     matched.type_eq.symm ▸ placed
   obtain ⟨aligned, bytes, sized, bounds⟩ := CallbackRange.placementInterval site.destination site.checked.store _ _ position
-  obtain ⟨entry, entered, quiet, installed, related, hostSame, storage⟩ :=
-    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨entry, entered, quiet, installed, related, hostSame, storage, canonFramed⟩ :=
+    LiveDispatch.entry_paired_framed_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
   obtain ⟨peer, frame, canonAt⟩ := CallbackRange.referenceFrame site (site.reference_at linked site.referenceReply) related
-  refine ⟨entry, entered, silentVisible quiet, installed, hostSame, fun checkEntry checkTrack checkQuiet actual finish run bounded => ?_⟩
+  refine ⟨entry, entered, silentVisible quiet, installed, hostSame, fun checkEntry checkTrack checkFramed checkQuiet actual finish run bounded => ?_⟩
   have visit := driveCompiledMemory (origin := site.checked.store) site.destination site.inst (flatNat pointer) shape
       matched fit (CallbackRange.preflightAllocator site linked) (.self _) embedder width sized ⟨aligned, bounds⟩ compare
       0 site.reply site.referenceReply site.checked entered site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
   obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, store, ⟨move, paths, outside⟩, residual, writers, endpoint⟩ := visit
   obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked checkTrack installed storage
   have entryWriters : VisitorWriterPath profile ready base bindings site.start incoming checkEntry entry site.checked entered :=
-    .callbackBoundary .giveEntry (WriterPaths.ofTransport ⟨atEntry, track, frameEntry⟩)
+    .framed (WriterPaths.ofHostFrames checkFramed) (WriterPaths.ofHostFrames canonFramed)
   have leading (place : Option Location) :
       Trail profile ready (specDispatch ready base) site.start place (checkEntry ++ checked) left (move (atEntry place)) ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place
@@ -8388,7 +8390,7 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
     · have refused : CheckedOnlyGiveReply profile ready base bindings (.memory pointer) site.destination site.start.host.nextTicket
           issue site.start incoming left right (checkEntry ++ checked) (entry ++ canonical) trailing finish := by
-        refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, fun place => ?_⟩
+        refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, Plain.give_completion_framed reply atReply, fun place => ?_⟩
         obtain ⟨checkedLead, canonicalLead⟩ := leading place
         cases reached : move (atEntry place) with
         | none =>
@@ -8399,7 +8401,7 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
           exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
       refine .inr ⟨refused, fun install => ?_⟩
       rw [split, ← List.append_assoc]
-      exact callbackTerminalSlice paired (.refused install observed.symm (.append entryWriters writers) refused)
+      exact callbackTerminalSlice paired (.refused install observed.symm rebased (.append entryWriters writers) refused)
     · exact .inl short
   refine ⟨checked, canonical, trailing, left, right, marks, move, split, seen, store, paths, outside, residual, endpoint,
     fun active => ⟨fun empty ⟨check, canon, returned, checkAt, canonAt⟩ => common active empty check canon returned checkAt canonAt,
@@ -8450,17 +8452,17 @@ theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow 
     (compare : ShorterCallbackSlices profile ready base bindings labels.length) :
     PayloadRoot.Cut site profile ready bindings (ActualMemoryRequestRun profile ready base bindings older site incoming labels finish) base := by
   cases linkedMemoryResidualBody site linked shape paired selected embedder compare with
-  | refused issue quiet entered => exact .refused issue quiet entered
-  | placementTrap reason count verdict entered => exact .placementTrap reason count verdict entered
-  | @placed entry quiet verdict prepared entered body =>
-    refine .placed quiet verdict prepared entered ⟨entry, entered, quiet, ?_⟩
+  | refused issue quiet entered framed => exact .refused issue quiet entered framed
+  | placementTrap reason count verdict entered framed => exact .placementTrap reason count verdict entered framed
+  | @placed entry quiet verdict prepared entered body framed =>
+    refine .placed quiet verdict prepared entered ⟨entry, entered, quiet, ?_⟩ framed
     cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
     | inside split nonempty tail =>
       exact ⟨.inl ⟨_, split, nonempty, tail⟩, fun install => callbackTerminalSlice paired (.entryPrefix install run nonempty tail)⟩
     | @reached residual split tail =>
       obtain ⟨canonEntry, canon, silent, tracks, host, visit⟩ := body
       have bounded : residual.length ≤ labels.length := by rw [split, List.length_append]; omega
-      have visited := visit entry entered quiet residual finish tail bounded
+      have visited := visit entry entered framed quiet residual finish tail bounded
       refine ⟨.inr ⟨canonEntry, canon, residual, split, silent, tracks, host, visited⟩, fun install => ?_⟩
       obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, cut⟩ := visited
       exact split ▸ cut install
@@ -8506,11 +8508,14 @@ private theorem compilerRefusedCallback {route : GiveEffectRoute} {request : Cor
     rw [split]
     exact callbackTerminalSlice paired (.compilerRefused selection install refused checked canonical (silentVisible quiet) pending host tail)
 
+open PayloadPrefix ReturnFrame.Occurrence in
 private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {issue checkLeading label next}
     (install : GiveInstall bindings (specDispatch ready base) site.start label next)
     (quiet : PayloadPrefix.visible checkLeading = [])
     (checked : site.EntryPrefix profile ready base checkLeading (site.withBody (site.reply (.error issue))))
+    (framed : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start
+      checkLeading (site.withBody (site.reply (.error issue))))
     (run : Steps profile ready (specDispatch ready base) site.start labels finish)
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree) :
@@ -8519,23 +8524,26 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
   let stopped := site.withBody (site.reply (.error issue))
   have completed := Plain.give_completion_steps (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     (start := stopped) reply rfl
-  have front := (checked (.active 0 0)).toTrail.steps
+  have frontRun := (checked (.active 0 0)).toTrail.steps
   have silent : PayloadPrefix.visible (checkLeading ++ ([.tau, .tau, .tau] : Trace grow sig)) = [] := by
     rw [visibleAppend, quiet]
     rfl
-  cases alignLocalBody (append front completed) run (noBranchOfVisible silent (by simp)) with
+  cases alignLocalBody (append frontRun completed) run (noBranchOfVisible silent (by simp)) with
   | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
   | @reached suffix split tail =>
-    obtain ⟨_, entered, canonQuiet, canonical, _, _⟩ := LiveDispatch.entry_paired_tracks
+    obtain ⟨_, entered, canonQuiet, canonical, _, _, storage, canonFramed⟩ := LiveDispatch.entry_paired_framed_storage
       (profile := profile) (ready := ready) (base := base) site linked paired selected
+    have paths := CallbackRange.publicEntryTransportAt site checked canonical (by
+      simp only [segmentStorage, PayloadRoot.Site.withBody, PayloadRoot.Site.cursor, Cursor.control,
+        linked.parked, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]) storage
     rw [split, List.append_assoc]
     refine callbackTerminalSlice paired (.refused (route := route) (destination := site.destination)
       (ticket := site.start.host.nextTicket) (issue := issue) (left := stopped) (right := entered)
-      install ((silentVisible canonQuiet).trans quiet.symm)
-      (.callbackBoundary .giveEntry (WriterPaths.ofRuns front (canonical (.active 0 0)).toTrail.steps)) ?_)
-    refine ⟨suffix, _, rfl, front, completed, tail, rfl, rfl, fun place => ?_⟩
+      install ((silentVisible canonQuiet).trans quiet.symm) paths
+      (.framed (WriterPaths.ofHostFrames framed) (WriterPaths.ofHostFrames canonFramed)) ?_)
+    refine ⟨suffix, _, rfl, frontRun, completed, tail, rfl, rfl, Plain.give_completion_framed reply rfl, fun place => ?_⟩
     cases place with
-    | none => exact ⟨none, none, .absent (append front completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
+    | none => exact ⟨none, none, .absent (append frontRun completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
     | some place =>
       exact ⟨_, _, (checked place).toTrail.append (Plain.give_completion_trail (start := stopped) reply (site.entryPlace place) rfl),
         (canonical place).toTrail⟩
@@ -8560,8 +8568,8 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
     have chosen : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree :=
       selected.trans (congrArg some root)
     cases cut with
-    | refused issue quiet entered => exact rootRefusedCallback site linked install quiet entered run paired chosen
-    | placementTrap reason count verdict entered =>
+    | refused issue quiet entered framed => exact rootRefusedCallback site linked install quiet entered framed run paired chosen
+    | placementTrap reason count verdict entered _ =>
       have quiet : PayloadPrefix.visible (List.replicate count .tau ++ ([.trap reason] : Trace grow sig)) = [.trap reason] := by
         rw [visibleAppend, visibleTaus]
         rfl
@@ -8572,7 +8580,7 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
           (profile := profile) (ready := ready) (base := base) site linked paired chosen
         rw [split]
         exact callbackTerminalSlice paired (.placementTrap site install verdict entered canonical (silentVisible canonQuiet) pending host tail)
-    | placed _ _ _ _ body =>
+    | placed _ _ _ _ body _ =>
       obtain ⟨_, _, _, _, compare⟩ := body
       exact compare install
 
@@ -8585,7 +8593,9 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
     (fits : Stored.Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag) site.payload.val.value = true)
     {label next} (install : GiveInstall bindings (specDispatch ready base) site.start label next)
     {checkEntry actual : Trace grow sig} {budget : Nat}
-    (entered : site.EntryPrefix profile ready base checkEntry site.checked) (silent : visible checkEntry = [])
+    (entered : site.EntryPrefix profile ready base checkEntry site.checked)
+    (checkFramed : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start checkEntry site.checked)
+    (silent : visible checkEntry = [])
     (run : Steps profile ready (specDispatch ready base) site.checked actual finish) (bounded : actual.length ≤ budget)
     (compare : ShorterCallbackSlices profile ready base bindings budget) :
     CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish := by
@@ -8593,8 +8603,8 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
   have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
   have fit := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits
   have width := site.destination.check_width site.start.store linked.destination
-  obtain ⟨entry, peerEntry, quiet, installed, related, _, storage⟩ :=
-    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨entry, peerEntry, quiet, installed, related, _, storage, canonFramed⟩ :=
+    LiveDispatch.entry_paired_framed_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
   obtain ⟨peer, frame, canonAt⟩ := CallbackRange.referenceFrame site (site.reference_at linked site.referenceReply) related
   obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, storePaths, store, residual, writers, endpoint⟩ :=
     driveCompiledFlat (origin := site.checked.store) site.destination site.inst shape matched fit
@@ -8603,7 +8613,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
   obtain ⟨move, paths, outside⟩ := storePaths
   obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked entered installed storage
   have entryWriters : VisitorWriterPath profile ready base bindings site.start incoming checkEntry entry site.checked peerEntry :=
-    .callbackBoundary .giveEntry (WriterPaths.ofTransport ⟨atEntry, track, frameEntry⟩)
+    .framed (WriterPaths.ofHostFrames checkFramed) (WriterPaths.ofHostFrames canonFramed)
   let caller := move (some (.active 0 0))
   have leading (place : Option Location) :
       Trail profile ready (specDispatch ready base) site.start place (checkEntry ++ checked) left (move (atEntry place)) ∧
@@ -8661,7 +8671,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
         rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
         · have stopped : CheckedOnlyGiveReply profile ready base bindings (.flat schema) site.destination site.start.host.nextTicket
               issue site.start incoming left right (checkEntry ++ checked) (entry ++ canonical) trailing finish := by
-            refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, fun place => ?_⟩
+            refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, Plain.give_completion_framed reply atReply, fun place => ?_⟩
             obtain ⟨checkedLead, canonicalLead⟩ := leading place
             cases reached : move (atEntry place) with
             | none =>
@@ -8671,7 +8681,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
               rw [reached] at checkedLead canonicalLead
               exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
           rw [total]
-          exact callbackTerminalSlice paired (.refused install observed.symm (.append entryWriters writers) stopped)
+          exact callbackTerminalSlice paired (.refused install observed.symm rebased (.append entryWriters writers) stopped)
         · exact stop (.replyPrefix (some issue) short)
     · cases arrived with
       | returned => exact stop (.callerNotTop none active)
@@ -8699,14 +8709,14 @@ private theorem actualSelectedFlatCallback {schema : Stored.TypeOf} {request : C
       (Stored.Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag) site.payload.val.value = true)
       (fun fits _ _ => fits) base embedder
     cases cut with
-    | refused issue quiet entered => exact rootRefusedCallback site linked install quiet entered run paired chosen
-    | placementTrap reason count verdict entered => cases verdict
-    | @placed entry quiet verdict prepared entered fits =>
+    | refused issue quiet entered framed => exact rootRefusedCallback site linked install quiet entered framed run paired chosen
+    | placementTrap _ _ verdict _ _ => cases verdict
+    | @placed entry quiet verdict prepared entered fits framed =>
       cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
       | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
       | @reached remaining split tail =>
         have bounded : remaining.length ≤ (label :: labels).length := by rw [split, List.length_append]; omega
-        exact split ▸ driveFlatGiveBody site linked (siteVisitShapes linked).1 paired chosen embedder fits install entered quiet tail bounded compare
+        exact split ▸ driveFlatGiveBody site linked (siteVisitShapes linked).1 paired chosen embedder fits install entered framed quiet tail bounded compare
 
 open ReturnFrame.Occurrence in
 private theorem directGivePreludePath (impl : HostImpl (core3 grow) (HostState sig))

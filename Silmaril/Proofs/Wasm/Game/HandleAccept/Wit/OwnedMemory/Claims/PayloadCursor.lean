@@ -269,14 +269,22 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
     field.value = payload.val.value ∧ field.LayoutMatches type ∧
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
     match Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects with
-    | .error issue => ∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
-        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place
-    | .ok () => ∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
+    | .error issue => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest }
+    | .ok () => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
         { reached with ctl := ⟨thread, .prog (
           if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
             finish (.error (.preflight (.abi .allocationPrecondition)))
           else Internal.emitValue Limits.spec Quirks.none cx authority destination.width type field output >>= finish),
-          segments⟩ :: rest } place := by
+          segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau, .tau]
+        { reached with ctl := ⟨thread, .prog (
+          if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
+            finish (.error (.preflight (.abi .allocationPrecondition)))
+          else Internal.emitValue Limits.spec Quirks.none cx authority destination.width type field output >>= finish),
+          segments⟩ :: rest } := by
   let cx := destination.context (grow := grow) inst
   let authority := Stored.OwnedMemory.Claims.Record.authority (recordClaims (sig := sig)) Limits.spec cx
   have planIsField : plan = field.objects := by
@@ -303,10 +311,12 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
   have reads (place : Location) : Prefix profile ready dispatch reached place [.tau, .tau] middle place :=
     .step (middle := place) (.get read) (by rw [transitionEdit, read]; cases place <;> rfl)
       (.step (middle := place) (.hostGet rfl) (by cases place <;> rfl) (.done _ _))
+  have frames : Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau] middle :=
+    .next (.get read) rfl (.next (.hostGet rfl) rfl (.done _))
   cases verdict : Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects with
   | error issue =>
-    simp only [middle, verdict] at reads
-    exact reads
+    simp only [middle, verdict] at reads frames
+    exact ⟨reads, frames⟩
   | ok answer =>
     cases answer
     have width : ptrTypeIn reached.store cx = destination.width := by
@@ -315,16 +325,19 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
       proceed (ptrTypeIn store cx) >>= finish)), segments⟩ :: rest := by
       simp only [middle, verdict, next, bind_assoc]
       rfl
-    intro place
-    have step := Prefix.read_at (profile := profile) (ready := ready) (dispatch := dispatch) place readWidth
-    change Prefix profile ready dispatch middle place [.tau]
+    have step (place : Location) := Prefix.read_at (profile := profile) (ready := ready) (dispatch := dispatch) place readWidth
+    change ∀ place, Prefix profile ready dispatch middle place [.tau]
       { reached with ctl := ⟨thread, .prog (proceed (ptrTypeIn reached.store cx) >>= finish), segments⟩ :: rest } place at step
-    rw [width] at step
-    have tail := (reads place).append step
+    have framed : Plain.HostFramedSteps HostState.writer profile ready dispatch middle [.tau]
+      { reached with ctl := ⟨thread, .prog (proceed (ptrTypeIn reached.store cx) >>= finish), segments⟩ :: rest } :=
+      .next (.get readWidth) rfl (.done _)
+    rw [width] at step framed
+    have tail := fun place => (reads place).append (step place)
+    have finished := frames.append framed
     by_cases fits : Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value = true
-    · simp [proceed, cx, authority, RecordDestination.context, fits] at tail ⊢
-      exact tail
+    · simp [proceed, cx, authority, RecordDestination.context, fits] at tail finished ⊢
+      exact ⟨tail, finished⟩
     · have fails := Bool.eq_false_iff.mpr fits
-      simpa [proceed, cx, RecordDestination.context, fails] using tail
+      simpa [proceed, cx, RecordDestination.context, fails] using And.intro tail finished
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor

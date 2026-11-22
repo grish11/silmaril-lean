@@ -55,25 +55,35 @@ private theorem entryWith {Result : Type} (site : Site grow sig route) (linked :
       admit site.inst selection >>= next)
     (evaluation : Plain.runBody selection site.start.store other (some site.thread) =
       (site.start.store, other, .ok (.ok selected)))
+    (selectionFrame : Plain.FramesHost HostState.writer selection site.start.store other (some site.thread))
     (body : (next (.ok selected) >>= fun reply => pure (.flat reply)) = site.referenceProgram >>= site.referenceReply) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) (HostFrame.replace site.start other)
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) (HostFrame.replace site.start other)
         place labels (HostFrame.replace (site.reference site.referenceReply) other)
-        (((Edit.push (.core site.core site.resume)).follow place).getD place) := by
+        (((Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        (HostFrame.replace site.start other) labels (HostFrame.replace (site.reference site.referenceReply) other) := by
   let impl := LiveDispatch.host bindings base
   let finish : Except Issue Result → Session grow sig (Ret (core3 grow)) :=
     fun result => next result >>= fun reply => pure (.flat reply)
   let start := HostFrame.replace site.start other
   let active := { start with ctl := site.cursor.control (admit site.inst selection >>= finish) }
-  obtain ⟨labels, silent, run⟩ := Plain.runBody_thread_tracks_all (admit site.inst selection) active site.start.store other
+  have admitFrame : Plain.FramesHost HostState.writer (admit site.inst selection) site.start.store other (some site.thread) := by
+    simp only [admit, Prog.bind_eq, Plain.framesHost_currentInst, linked.caller]
+    have storeFrame (rest : CStore (core3 grow) → Session grow sig (Except Issue Result)) :
+        Plain.FramesHost HostState.writer (getStore.bind rest) site.start.store other (some site.thread) =
+          Plain.FramesHost HostState.writer (rest site.start.store) site.start.store other (some site.thread) := rfl
+    simp only [storeFrame, bne_self_eq_false, linked.mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
+    exact selectionFrame
+  obtain ⟨labels, silent, run, framed⟩ := Plain.runBody_thread_tracks_framed (admit site.inst selection) active site.start.store other
     (.ok selected) finish site.thread _ site.rest profile ready (specDispatch ready impl) rfl
-    ((admitAt site linked other selection).trans evaluation)
+    ((admitAt site linked other selection).trans evaluation) HostState.writer admitFrame
   have installed : calloutBody Limits.spec Quirks.none ready impl site.start.store site.thread
       (.embedder site.name site.functionType) (route.args site.handle) = admit site.inst selection >>= finish := by
     simp only [calloutBody, Plain.thread_may_leave linked.caller linked.mayLeave, ite_true,
       show impl.embedder site.name site.functionType (route.args site.handle) = _ from words, Prog.bind_eq, Prog.bind_assoc]
     rfl
-  refine ⟨.tau :: .tau :: .tau :: labels, ?_, ?_⟩
+  refine ⟨.tau :: .tau :: .tau :: labels, ?_, ?_, ?_⟩
   · apply List.all_eq_true.mpr
     intro label member
     simp only [List.mem_cons] at member
@@ -100,13 +110,22 @@ private theorem entryWith {Result : Type} (site : Site grow sig route) (linked :
     refine .step (.coreCallout linked.parked linked.calling) push ?_
     refine Prefix.step (middle := bumped) (.currentThread rfl) (by cases bumped <;> rfl) ?_
     exact .step (.get rfl) (by cases bumped <;> rfl) entered
+  · have entered : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl)
+        { start with ctl := site.cursor.control (calloutBody Limits.spec Quirks.none ready impl
+          site.start.store site.thread (.embedder site.name site.functionType) (route.args site.handle)) }
+        labels (HostFrame.replace (site.reference site.referenceReply) other) := by
+      rw [installed]
+      simpa only [active, start, finish, Site.cursor, PayloadPrefix.Cursor.control, HostFrame.replace, Site.reference, body] using framed
+    exact .next (.coreCallout linked.parked linked.calling) rfl (.next (.currentThread rfl) rfl (.next (.get rfl) rfl entered))
 
 theorem entryTracks (site : Site grow sig route) (linked : site.Linked bindings) (other : HostState sig)
     (selected : Stored.Endpoints.Core.childFromHistory other.writer.accepted site.handle = some site.tree) :
     ∃ labels, labels.all (· matches .tau) = true ∧
-      ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) (HostFrame.replace site.start other)
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) (HostFrame.replace site.start other)
         place labels (HostFrame.replace (site.reference site.referenceReply) other)
-        (((Edit.push (.core site.core site.resume)).follow place).getD place) := by
+        (((Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        (HostFrame.replace site.start other) labels (HostFrame.replace (site.reference site.referenceReply) other) := by
   cases route with
   | memory pointer =>
     let selection := selectMemoryDestination (grow := grow) (sig := sig) site.destination [.int .i32 site.handle, pointer]
@@ -116,7 +135,8 @@ theorem entryTracks (site : Site grow sig route) (linked : site.Linked bindings)
     have resolved := linked.linked
     have word := linked.admitted
     change Stored.flatType pointer = ABI.pointerType site.destination.width at word
-    refine entryWith site linked other selection (site.tree, flatNat pointer) next ?_ ?_ ?_
+    refine entryWith site linked other selection (site.tree, flatNat pointer) next ?_ ?_
+      (Plain.framesHost_memorySelection site.destination pointer site.handle site.start.store other site.thread word linked.destination) ?_
     · simp only [LiveDispatch.host, selectBinding, resolved, GiveEffectRoute.action, GiveEffectRoute.args, memoryWords]
       rfl
     · simp only [selection, selectMemoryDestination, Execution.Runtime.Value.int, Prog.bind_eq, word,
@@ -133,7 +153,8 @@ theorem entryTracks (site : Site grow sig route) (linked : site.Linked bindings)
     have resolved := linked.linked
     have schemaMatches := linked.admitted
     change rootHasSchema site.tree schema = true at schemaMatches
-    refine entryWith site linked other selection site.tree next ?_ ?_ ?_
+    refine entryWith site linked other selection site.tree next ?_ ?_
+      (Plain.framesHost_flatSelection site.destination schema site.handle site.start.store other site.thread linked.destination) ?_
     · simp only [LiveDispatch.host, selectBinding, resolved, GiveEffectRoute.action, GiveEffectRoute.args, flatWords]
       rfl
     · simp only [selection, selectFlatDestination, Execution.Runtime.Value.int, Prog.bind_eq,
@@ -154,7 +175,7 @@ theorem entry (site : Site grow sig route) (linked : site.Linked bindings) (othe
     ∃ labels, labels.all (· matches .tau) = true ∧
       Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) (HostFrame.replace site.start other)
         labels (HostFrame.replace (site.reference site.referenceReply) other) := by
-  obtain ⟨labels, silent, run⟩ := entryTracks (profile := profile) (ready := ready) (base := base) site linked other selected
+  obtain ⟨labels, silent, run, _⟩ := entryTracks (profile := profile) (ready := ready) (base := base) site linked other selected
   exact ⟨labels, silent, (prefix_survives (run (.active 0 0))).1⟩
 
 theorem pairedEntryStorage (site : Site grow sig route) (linked : site.Linked bindings)
@@ -166,7 +187,8 @@ theorem pairedEntryStorage (site : Site grow sig route) (linked : site.Linked bi
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
         (((Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
       HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host ∧
-      segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage other) := by
+      segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage other) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base)) other labels entered := by
   have related : ReturnFrame.Related.Paired older (HostFrame.replace site.start other.host) other := paired
   obtain ⟨frames, rest, focused, residual⟩ := related.push_shared linked.parked
     (.prog (site.referenceProgram >>= site.referenceReply)) (.core site.core site.resume)
@@ -182,8 +204,8 @@ theorem pairedEntryStorage (site : Site grow sig route) (linked : site.Linked bi
       selected := linked.selected
       admitted := linked.admitted
       compiled := linked.compiled }
-  obtain ⟨labels, silent, path⟩ := entryTracks (profile := profile) (ready := ready) (base := base) shadow shadowLinked other.host selected
-  refine ⟨labels, _, silent, path, residual, rfl, ?_⟩
+  obtain ⟨labels, silent, path, framed⟩ := entryTracks (profile := profile) (ready := ready) (base := base) shadow shadowLinked other.host selected
+  refine ⟨labels, _, silent, path, residual, rfl, ?_, framed⟩
   simp only [shadow, HostFrame.replace, Site.reference, Site.cursor, PayloadPrefix.Cursor.control, segmentStorage,
     focused, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
 
@@ -196,7 +218,7 @@ theorem pairedEntryTracks (site : Site grow sig route) (linked : site.Linked bin
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
         (((Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
       HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host := by
-  obtain ⟨labels, entered, silent, path, residual, hostSame, _⟩ := pairedEntryStorage site linked paired selected
+  obtain ⟨labels, entered, silent, path, residual, hostSame, _, _⟩ := pairedEntryStorage site linked paired selected
   exact ⟨labels, entered, silent, path, residual, hostSame⟩
 
 theorem pairedEntry (site : Site grow sig route) (linked : site.Linked bindings)

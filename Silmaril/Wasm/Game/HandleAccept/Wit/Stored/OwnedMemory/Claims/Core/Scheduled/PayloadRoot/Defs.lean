@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Defs
 
 @[expose] public section
 
@@ -110,14 +111,19 @@ inductive Cut (site : Site grow sig route) (profile : ProfileKind) (ready : Host
     (bindings : List (Binding sig)) (body : Prop := True) (impl : HostImpl (core3 grow) (HostState sig) := host bindings) : Prop where
   | refused (issue : RecordLower.Issue) {labels} (silent : visible labels = []) :
       site.EntryPrefix profile ready impl labels (site.withBody (site.reply (.error issue))) →
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start labels
+        (site.withBody (site.reply (.error issue))) →
       Cut site profile ready bindings body impl
   | placementTrap (reason : TrapReason) (count : Nat)
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason) :
-      site.EntryTrap profile ready impl (List.replicate count .tau ++ [.trap reason]) → Cut site profile ready bindings body impl
+      site.EntryTrap profile ready impl (List.replicate count .tau ++ [.trap reason]) →
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) → Cut site profile ready bindings body impl
   | placed {labels} (silent : visible labels = [])
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())
       (prepared : Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ()) :
       site.EntryPrefix profile ready impl labels site.checked → body →
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start labels site.checked →
       Cut site profile ready bindings body impl
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot

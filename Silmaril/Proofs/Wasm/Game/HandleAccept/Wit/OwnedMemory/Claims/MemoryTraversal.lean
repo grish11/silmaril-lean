@@ -244,11 +244,11 @@ theorem parkedMemoryThen {pointer : FlatValue} (call : PayloadRoot.Site grow sig
   obtain ⟨depth, cut⟩ := parked_compiled_memory (profile := profile) (ready := ready) call linked call.referenceReply impl embedder
   refine ⟨depth, ?_⟩
   cases cut with
-  | refused issue silent run => exact .refused issue silent run
-  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
-  | placed silent verdict prepared run body =>
+  | refused issue silent run framed => exact .refused issue silent run framed
+  | placementTrap reason count verdict run framed => exact .placementTrap reason count verdict run framed
+  | placed silent verdict prepared run body framed =>
     refine .placed silent verdict prepared run (listTreeTracks depth call.field 0 (flatNat pointer) _ _ _ _ _ _
-      (.refl _ _) body ?_)
+      (.refl _ _) body ?_) framed
     intro lhs rhs check canon path atReturn
     exact onReturn silent verdict prepared (PayloadRoot.Site.EntryPrefix.steps run) () lhs rhs
       (rejoin call () path atReturn.1 atReturn.2.1 atReturn.2.2)
@@ -263,11 +263,11 @@ theorem parkedFlatThen {schema : TypeOf} (call : PayloadRoot.Site grow sig (.fla
   obtain ⟨flatDepth, entryDepth, cut⟩ := parked_compiled_flat (profile := profile) (ready := ready) call linked call.referenceReply impl embedder
   refine ⟨flatDepth, entryDepth, ?_⟩
   cases cut with
-  | refused issue silent run => exact .refused issue silent run
-  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
-  | placed silent verdict prepared run body =>
+  | refused issue silent run framed => exact .refused issue silent run framed
+  | placementTrap reason count verdict run framed => exact .placementTrap reason count verdict run framed
+  | placed silent verdict prepared run body framed =>
     refine .placed silent verdict prepared run (flatTreeTracks flatDepth entryDepth call.field 0 _ _ _ _ _ _
-      (.refl _ _) body ?_)
+      (.refl _ _) body ?_) framed
     intro words lhs rhs check canon path atReturn
     exact onReturn silent verdict prepared (PayloadRoot.Site.EntryPrefix.steps run) words lhs rhs
       (rejoin call words path atReturn.1 atReturn.2.1 atReturn.2.2)

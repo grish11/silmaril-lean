@@ -3249,7 +3249,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
-    exact ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
+    exact ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
   | ok passed =>
     cases passed
     rw [verdict] at entry
@@ -3257,7 +3257,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at entry
       exact ⟨.refused (.preflight (.abi .allocationPrecondition)), [.tau, .tau, .tau], [], _, right,
-        (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
+        (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at entry
       let entered := { left with ctl := checkCursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -3265,7 +3265,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
       have continued := flatField (profile := profile) (scheduledReady := scheduledReady)
         (scheduledDispatch := scheduledDispatch) destination inst field certified 0 entered right sameStore
         checkCursor canonCursor sameThread checkNext canonNext rfl canonField
-      exact prependCheck (prefix_survives (entry (.active 0 0))).1 (by simp) continued
+      exact prependCheck (prefix_survives (entry.1 (.active 0 0))).1 (by simp) continued
 
 theorem parkedFlat (bindings : List (Binding sig)) (name : String) (type : V1.FuncType)
     (handleWord : BitVec IntType.i32.width) (destination : RecordDestination) (inst : InstId) (schema : TypeOf)
@@ -3369,7 +3369,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
-    exact .inl ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
+    exact .inl ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
   | ok passed =>
     cases passed
     rw [verdict] at entry
@@ -3377,7 +3377,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at entry
       exact .inl ⟨.refused (.preflight (.abi .allocationPrecondition)), [.tau, .tau, .tau], [], _, right,
-        (prefix_survives (entry (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
+        (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at entry
       let area := layout destination.width (sig.payload tag)
@@ -3387,7 +3387,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
       let guarded := { left with ctl := checkCursor.control (Record.Effects.root recordClaims Limits.spec Quirks.none
         (destination.context inst) destination.width (sig.payload tag) field (.memory ptr) >>= checkNext) }
       have entered : Machine.Steps profile scheduledReady scheduledDispatch left [.tau, .tau, .tau] guarded :=
-        (prefix_survives (entry (.active 0 0))).1
+        (prefix_survives (entry.1 (.active 0 0))).1
       have guardAt : guarded.ctl = checkCursor.control (do
         checkAligned ptr area.alignment.bytes
         checkInBounds (destination.context inst) ptr area.size

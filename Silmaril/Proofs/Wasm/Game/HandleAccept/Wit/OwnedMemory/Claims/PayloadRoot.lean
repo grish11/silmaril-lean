@@ -66,6 +66,39 @@ theorem reachedCaller (site : Site grow sig route) {reached : Config (core3 grow
         ReturnFrame.Occurrence.segmentStorage] using preserved
     exact ⟨tail, congrArg (· :: tail) equal⟩
 
+private theorem placementWriter {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {start finish : Config (core3 grow) (HostState sig)} {labels : List (Label (core3 grow) (HostState sig))}
+    (shape : labels = [] ∨ labels = [.tau]) (run : Steps profile ready dispatch start labels finish)
+    (writer : finish.host.writer = start.host.writer) :
+    Plain.HostFramedSteps HostState.writer profile ready dispatch start labels finish := by
+  rcases shape with rfl | rfl
+  · cases run; exact .done _
+  · cases run with
+    | cons step tail => cases tail; exact .next step writer (.done _)
+
+private theorem placementTrapWriter {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {start : Config (core3 grow) (HostState sig)} {reason : TrapReason} {count : Nat} (bound : count ≤ 1)
+    (run : Steps profile ready dispatch start (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)) :
+    Plain.HostFramedSteps HostState.writer profile ready dispatch start
+      (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) := by
+  have trapHost {before after : Config (core3 grow) (HostState sig)}
+      (step : Step profile ready dispatch before (.trap reason) after) : after.host = before.host := by
+    cases step <;> rfl
+  cases count with
+  | zero =>
+    cases run with
+    | cons halt tail => cases tail; exact .next halt rfl (.done _)
+  | succ count =>
+    have zero : count = 0 := by omega
+    subst count
+    cases run with
+    | cons read tail =>
+      cases tail with
+      | cons halt nil =>
+        cases nil
+        have host := trapHost halt
+        exact .next read (congrArg HostState.writer host.symm) (.next halt (congrArg HostState.writer host) (.done _))
+
 theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked bindings) (body : Prop)
     (afterFit : Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag)
       site.payload.val.value = true →
@@ -75,7 +108,7 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
     Cut site profile ready bindings body impl := by
   let dispatch := specDispatch ready impl
   obtain ⟨plan, compiled⟩ := linked.compiled
-  obtain ⟨front, allTau, entry⟩ := route.parked_tracks bindings site.name site.functionType site.handle site.inst site.destination
+  obtain ⟨front, allTau, entry, entryWriter⟩ := route.parked_framed_tracks bindings site.name site.functionType site.handle site.inst site.destination
     site.tree site.start site.thread profile ready linked.parked linked.calling linked.linked linked.caller linked.mayLeave
     linked.destination linked.selected linked.admitted impl embedder
   have onlyTau : ∀ label ∈ front, label = .tau := by
@@ -97,7 +130,7 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
   cases prepared : Record.prepare entered.store entered.host.writer site.field.objects with
   | error issue =>
     rw [prepared] at started
-    exact .refused issue (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started (site.entryPlace place)))
+    exact .refused issue (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started.1 (site.entryPlace place))) (entryWriter.append started.2)
   | ok accepted =>
     cases accepted
     rw [prepared] at started
@@ -106,13 +139,13 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at started
       exact .refused (.preflight (.abi .allocationPrecondition))
-        (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started (site.entryPlace place)))
+        (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started.1 (site.entryPlace place))) (entryWriter.append started.2)
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at started
       let root := site.withBody (Record.Effects.root recordClaims Limits.spec Quirks.none
         (site.destination.context site.inst) site.destination.width (sig.payload site.tag) site.field route.output >>= site.reply)
       have rootRun : site.EntryPrefix profile ready impl (front ++ [.tau, .tau, .tau]) root :=
-        fun place => (entryRun place).append (started (site.entryPlace place))
+        fun place => (entryRun place).append (started.1 (site.entryPlace place))
       have placement := root_placement_tracks (profile := profile) (ready := ready) (dispatch := dispatch)
         site.destination site.inst (sig.payload site.tag) site.field route.output root site.cursor site.reply rfl
       change (match rootPlacement site.destination site.start.store (sig.payload site.tag) route.output with
@@ -124,15 +157,21 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
       cases placed : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output with
       | error reason =>
         rw [placed] at placement
-        obtain ⟨count, _, halted⟩ := placement
-        refine .placementTrap reason (front.length + 3 + count) placed ?_
-        rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
-        exact fun place => (rootRun place).toTrail.append (halted (site.entryPlace place))
+        obtain ⟨count, bound, halted⟩ := placement
+        have frames := placementTrapWriter bound (halted (.active 0 0)).steps
+        change Plain.HostFramedSteps HostState.writer profile ready dispatch root
+          (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) at frames
+        refine .placementTrap reason (front.length + 3 + count) placed ?_ ?_
+        · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
+          exact fun place => (rootRun place).toTrail.append (halted (site.entryPlace place))
+        · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
+          exact (entryWriter.append started.2).append frames
       | ok _ =>
         rw [placed] at placement
-        obtain ⟨labels, _, placementSilent, placedRun⟩ := placement
+        obtain ⟨labels, shape, placementSilent, placedRun⟩ := placement
+        have frame := placementWriter shape (placedRun (.active 0 0)).toTrail.steps rfl
         refine .placed ?_ placed prepared (fun place => (rootRun place).append (placedRun (site.entryPlace place)))
-          (afterFit fits placed prepared)
+          (afterFit fits placed prepared) ((entryWriter.append started.2).append frame)
         rw [visibleAppend, visibleAppend, silent, placementSilent]
         rfl
 
