@@ -195,17 +195,20 @@ structure Callee.ChildObservationsAgree (callee : Callee sig) (left right : List
     ∀ handle ∈ callee.plannedChildLookups cx args store left,
       Endpoints.Core.childFromHistory left handle = Endpoints.Core.childFromHistory right handle
 
+def acceptPayload (callee : Callee sig) (caller : CallerId) (ticket : Nat)
+    (planned : Option (List (Tree sig))) (values : List OwnedMemory.Observed) : Session grow sig (Ret (core3 grow)) :=
+  match values, planned with
+  | [_, payload], some children =>
+    match OwnedMemory.checkValue (sig.payload callee.tag) payload with
+    | .error issue => resolveRefused ticket caller (.accept (.claims (.lift issue)))
+    | .ok payload => resolveTree ticket caller (AST.node callee.tag payload children)
+  | _, _ => reject ticket .wrongType
+
 def acceptPlanned (callee : Callee sig) (caller : CallerId) (ticket : Nat)
     (planned : Except Issue (Option (List (Tree sig)))) : Session grow sig (Ret (core3 grow)) :=
   match planned with
   | .error issue => refuseBeforeLift ticket caller issue
-  | .ok planned => do
-    let [_, payload] ← observeLowerOnStart Limits.spec Quirks.none caller
-      | reject ticket .wrongType
-    let some children := planned | reject ticket .wrongType
-    match OwnedMemory.checkValue (sig.payload callee.tag) payload with
-    | .error issue => resolveRefused ticket caller (.accept (.claims (.lift issue)))
-    | .ok payload => resolveTree ticket caller (AST.node callee.tag payload children)
+  | .ok planned => observeLowerOnStart Limits.spec Quirks.none caller >>= acceptPayload callee caller ticket planned
 
 /-- Continuation after linking and checking the caller record. The dispatcher owns
 those checks; this continuation validates the storage schema and the selected children. -/

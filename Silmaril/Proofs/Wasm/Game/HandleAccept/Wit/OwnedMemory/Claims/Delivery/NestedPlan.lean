@@ -187,6 +187,51 @@ theorem cutComponentAdmitted (callee : ComponentCall.Callee sig) (caller : Calle
   · exact .inl ⟨peerFrames, peerRest, suffix, split, CallbackPrefix.stationaryTransport left right, aligned, residual⟩
   · exact .inr short
 
+theorem cutComponentLiftStart (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.ok planned)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.ok planned)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : PairedComponentSite older start incoming check canon) :
+    let count := if record.index.isSome then 4 else 3
+    let reached := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) ticket =>
+      let queued := if record.index.isSome then state.store.setPendingSt (.subtask subtask) (.subtask subtask) else state.store
+      { state with
+        store := LowerSt.startSt subtask queued
+        ctl := cursor.control (do
+          let (values, next) ← Stored.OwnedMemory.liftFlatValuesWith Limits.spec cx
+            (Stored.OwnedMemory.flatCarrier Limits.spec Quirks.none cx) limits ⟨args, pos⟩ (ft.params.map (·.2))
+          modifyStore (LowerSt.setCallerPosSt caller next.pos)
+          ComponentCall.acceptPayload callee caller ticket planned values) }
+    (∃ suffix, labels = List.replicate count .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau)
+        (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      PairedComponentSite older (reached start check leftTicket) (reached incoming canon rightTicket) check canon ∧
+      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨ labels.length < count := by
+  dsimp only
+  have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
+  have left := ComponentCall.observe_lower_start_tracks (prof := profile) (ready := ready) (dispatch := specDispatch ready base)
+    caller record (ComponentCall.acceptPayload callee caller leftTicket planned) callerRecord live leftFocus
+  have right := ComponentCall.observe_lower_start_tracks (prof := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) caller record
+    (ComponentCall.acceptPayload callee caller rightTicket planned) (same ▸ callerRecord) (same ▸ live) rightFocus
+  dsimp only at left right
+  have steps : ([.tau, .tau] ++ (if record.index.isSome then [.tau] else []) ++ [.tau] : Trace grow sig) =
+      List.replicate (if record.index.isSome then 4 else 3) .tau := by cases record.index <;> rfl
+  rw [steps] at left right
+  rcases splitSilent (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left right, ?_, residual⟩
+    unfold PairedComponentSite HostFrame.Related.Paired at paired ⊢
+    dsimp only
+    rw [← same]
+    exact paired.set_store _
+  · exact .inr short
+
 private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
     {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :

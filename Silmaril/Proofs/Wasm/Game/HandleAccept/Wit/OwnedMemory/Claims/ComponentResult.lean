@@ -234,6 +234,42 @@ theorem resolve_caller (ticket handle : Nat) (caller : CallerId) (tree : Tree si
   have step := Step.get (prof := prof) (hr := ready) (dispatch := dispatch) pending
   simpa [Prog.bind, callerRecord, Quirks.none, Prog.bind_assoc] using step
 
+theorem observe_lower_start_tracks (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    (next : List Stored.OwnedMemory.Observed → Session grow sig (Ret (core3 grow)))
+    (callerRecord : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : config.store.subtask? subtask = some record)
+    (focused : config.ctl = ⟨thread, .prog (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller >>= next),
+      segments⟩ :: rest) :
+    let queued := if record.index.isSome then config.store.setPendingSt (.subtask subtask) (.subtask subtask)
+      else config.store
+    ∀ place, Prefix prof ready dispatch config place
+      ([.tau, .tau] ++ (if record.index.isSome then [.tau] else []) ++ [.tau])
+      { config with store := LowerSt.startSt subtask queued, ctl := ⟨thread, .prog (do
+          let (values, cursor) ← Stored.OwnedMemory.liftFlatValuesWith Limits.spec cx
+            (Stored.OwnedMemory.flatCarrier Limits.spec Quirks.none cx) limits ⟨args, pos⟩ (ft.params.map (·.2))
+          modifyStore (LowerSt.setCallerPosSt caller cursor.pos)
+          next values), segments⟩ :: rest } place := by
+  dsimp only
+  intro place
+  have read := Step.get (prof := prof) (hr := ready) (dispatch := dispatch) focused
+  simp only [Prog.bind, callerRecord, Prog.pure_eq] at read
+  refine .step (middle := place) read ?_ ?_
+  · rw [transitionEdit, focused]
+    cases place <;> rfl
+  rw [CStore.subtask?] at live
+  cases indexed : record.index with
+  | none =>
+    refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+    simp [Prog.bind, live, indexed, pure, Prog.bind_assoc]
+    exact .step (.modify rfl) (by cases place <;> rfl) (.done _ _)
+  | some _ =>
+    refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+    simp [Prog.bind, live, indexed, pure, Prog.bind_assoc, Waitable.setPendingEvent]
+    refine .step (middle := place) (.modify rfl) (by cases place <;> rfl) ?_
+    exact .step (middle := place) (.modify rfl) (by cases place <;> rfl) (.done _ _)
+
 private theorem progress_steps (subtask : SubtaskId) (record : Subtask)
     (live : config.store.subtask? subtask = some record) (next : Session grow sig (Ret (core3 grow)))
     (focused : config.ctl = ⟨thread, .prog (maybeOnProgress subtask >>= fun () => next), segments⟩ :: rest) :

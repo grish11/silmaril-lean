@@ -101,6 +101,30 @@ theorem invoke_lower_admitted {prof : ProfileKind} {ready : HostReady (HostState
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.invoke_lower_admitted
     callee caller snapshot liveThread liveTask context admitted pending
 
+/-- Reach the argument lift through the actual caller read, progress event (if indexed),
+and subtask start. The live store update is retained and no occurrence slot moves. -/
+theorem observe_lower_start_tracks {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {thread : Option ThreadId} {segments rest}
+    (caller : CallerId) {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    (next : List Stored.OwnedMemory.Observed → Session grow sig (Ret (core3 grow)))
+    (callerRecord : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : config.store.subtask? subtask = some record)
+    (focused : config.ctl = ⟨thread, .prog (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller >>= next),
+      segments⟩ :: rest) :
+    let queued := if record.index.isSome then config.store.setPendingSt (.subtask subtask) (.subtask subtask)
+      else config.store
+    ∀ place, Prefix prof ready dispatch config place
+      ([.tau, .tau] ++ (if record.index.isSome then [.tau] else []) ++ [.tau])
+      { config with store := LowerSt.startSt subtask queued, ctl := ⟨thread, .prog (do
+          let (values, cursor) ← Stored.OwnedMemory.liftFlatValuesWith Limits.spec cx
+            (Stored.OwnedMemory.flatCarrier Limits.spec Quirks.none cx) limits ⟨args, pos⟩ (ft.params.map (·.2))
+          modifyStore (LowerSt.setCallerPosSt caller cursor.pos)
+          next values), segments⟩ :: rest } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.observe_lower_start_tracks
+    caller record next callerRecord live focused
+
 /-- The actual component import reads the reached caller and snapshots its own host,
 then records entry before entering `invokeLower`. No active or saved slot moves. -/
 theorem invoke_lower_entry {prof : ProfileKind} {ready : HostReady (HostState sig)}

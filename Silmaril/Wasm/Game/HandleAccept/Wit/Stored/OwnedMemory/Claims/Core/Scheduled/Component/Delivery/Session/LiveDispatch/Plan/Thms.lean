@@ -132,6 +132,38 @@ theorem cut_component_admitted (callee : ComponentCall.Callee sig) (caller : Cal
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentAdmitted
     callee caller focused record liveThread liveTask context admitted observed run paired
 
+/-- Continue a reached lift branch through the actual lower-on-start protocol. Both
+stores retain any progress-event update and the checked residual starts at argument
+lifting, not at a presumed payload return. -/
+theorem cut_component_lift_start (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.ok planned)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.ok planned)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : PairedComponentSite older start incoming check canon) :
+    let count := if record.index.isSome then 4 else 3
+    let reached := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) ticket =>
+      let queued := if record.index.isSome then state.store.setPendingSt (.subtask subtask) (.subtask subtask) else state.store
+      { state with
+        store := LowerSt.startSt subtask queued
+        ctl := cursor.control (do
+          let (values, next) ← Stored.OwnedMemory.liftFlatValuesWith Limits.spec cx
+            (Stored.OwnedMemory.flatCarrier Limits.spec Quirks.none cx) limits ⟨args, pos⟩ (ft.params.map (·.2))
+          modifyStore (LowerSt.setCallerPosSt caller next.pos)
+          ComponentCall.acceptPayload callee caller ticket planned values) }
+    (∃ suffix, labels = List.replicate count .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau)
+        (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      PairedComponentSite older (reached start check leftTicket) (reached incoming canon rightTicket) check canon ∧
+      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨ labels.length < count :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentLiftStart
+    callee caller record leftFocus rightFocus callerRecord live run paired
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
