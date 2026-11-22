@@ -3241,6 +3241,70 @@ theorem cut_public_wait_decision (mem : (core3 grow).MemAddr) (inst : InstId) (a
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicWaitDecision
     mem inst args focused calling step run paired
 
+open ReturnFrame.Occurrence in
+/-- Cut public cancellation at its executed Core install and reached entry.
+Argument, live handle, duplicate and membership traps retain their actual
+paired paths. Successful entry selects a body, not a cancellation reply. -/
+theorem cut_public_cancel_entry (async : Bool) (inst : InstId) (args : List FlatValue)
+    {thread core resume frames rest label installed}
+    (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (.builtin (.subtaskCancel async) inst) args)
+    (step : Step profile ready (specDispatch ready base) start label installed)
+    (run : Steps profile ready (specDispatch ready base) installed labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest leading suffix reached peer,
+      let caller : Seg (core3 grow) (HostState sig) := .core core resume
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: peerFrames, peerRest⟩
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      (∃ mark, OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer [mark]) ∧
+      (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+        reached peer [some (.active 0 0)]) ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (cancelCalloutBody async) (cancelCalloutBody async) reached peer suffix True :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicCancelEntry
+    async inst args focused calling step run paired
+
+/-- Spend the actual current-thread read and cancellation-request update on
+the unresolved branch up to the late-bound hook focus. This does not execute
+or assume a return from the hook and does not consume an event. -/
+theorem cut_cancel_request_write (async : Bool) (subtask : SubtaskId) (hook : CancelRef)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (cancelCalloutBody async (subtask, some hook)))
+    (rightFocus : incoming.ctl = canon.control (cancelCalloutBody async (subtask, some hook)))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (fun _ : Unit => cancelAfterRequestWrite async subtask hook)
+        (fun _ => cancelAfterRequestWrite async subtask hook) reached peer suffix True :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelRequestWrite
+    async subtask hook leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+/-- Spend the actual late-bound cancellation-hook install, if reached. Both
+dispatchers install the same hook body and original continuation; this does
+not certify the behavior of an open hook or force it to return. -/
+theorem cut_cancel_hook_install (async : Bool) (subtask : SubtaskId) (hook : CancelRef)
+    {thread frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (cancelAfterRequestWrite async subtask hook), frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (cancelAfterRequestWrite async subtask hook), peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (labels = [] ∧ finish = start) ∨
+    ∃ suffix,
+      let resume := cancelHookReturn (grow := grow) (sig := sig) async subtask
+      let body := specDispatch ready base (.onCancel hook)
+      let reached := { start with ctl := ⟨thread, .prog body, .prog resume :: frames⟩ :: rest }
+      let peer := { incoming with ctl := ⟨thread, .prog body, .prog resume :: peerFrames⟩ :: peerRest }
+      labels = .tau :: suffix ∧ Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      HostFrame.Related.Paired older reached peer ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer [some (.active 0 0)] :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelHookInstall
+    async subtask hook leftFocus rightFocus paired run
+
 /-- Compare an executed wait park and its actual mixed suffix, transporting
 the original Core caller across intervening work and any reached resumption.
 Loss, including overwrite by an equal continuation, is not a return. -/

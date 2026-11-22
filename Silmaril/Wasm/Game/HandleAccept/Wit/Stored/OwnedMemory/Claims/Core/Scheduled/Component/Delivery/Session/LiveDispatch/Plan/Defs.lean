@@ -169,6 +169,51 @@ def waitableCalloutBody (poll : Bool) (mem : (core3 grow).MemAddr) (entry : Wait
   let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
   pure (.flat [i32Flat code])
 
+/-- Checked entry of public cancellation before the request write or event
+take. A resolved subtask requires no hook; an unresolved one retains the
+reached cancellation reference, including a no-op hook. -/
+def cancelCalloutEntry (async : Bool) (inst : InstId) (args : List FlatValue) :
+    Session grow sig (SubtaskId × Option CancelRef) := do
+  let thread ← currentThread
+  let store ← getStore
+  match calloutEntry store thread (.builtin (.subtaskCancel async) inst) with
+  | some reason => trap reason
+  | none => withArgs1 args fun index => do
+    let current ← Builtins.enterWaitableBuiltin
+    let subtask ← Builtins.expectSubtask (← handlesGet current index)
+    trapIf (← Subtask.resolveDelivered subtask) .subtaskCancelTwice
+    let record ← getObj ArenaField.subtasks subtask
+    trapIf record.cancellationRequested .subtaskCancelTwice
+    trapIf (← Runtime.Waitable.inWaitableSet (.subtask subtask)) .subtaskInSet
+    pure (subtask, if record.state.resolved then none else some record.onCancel)
+
+def cancelCalloutBody (async : Bool) (entry : SubtaskId × Option CancelRef) : Session grow sig (Ret (core3 grow)) := do
+  let (subtask, hook) := entry
+  match hook with
+  | none => return .flat (← Builtins.subtaskCancelDeliver subtask)
+  | some hook =>
+    if ← Builtins.subtaskCancelRequest async subtask hook then
+      return .flat (← Builtins.subtaskCancelDeliver subtask)
+    else return .flat [i32Flat (AsyncRef.subtaskCancelResult none)]
+
+def cancelRequestWrite (subtask : SubtaskId) : Session grow sig Unit := do
+  let thread ← currentThreadId
+  modifyStore (Builtins.WaitableSt.requestCancel subtask thread)
+
+def cancelHookReturn (async : Bool) (subtask : SubtaskId) (result : Ret (core3 grow)) : Session grow sig (Ret (core3 grow)) := do
+  let unitResult : Session grow sig Unit := match result with
+    | .unit => pure ()
+    | _ => internal "late-bound call: expected Ret.unit"
+  unitResult
+  Builtins.subtaskCancelSyncWait async subtask
+  modifyStore (CStore.setSyncWaiterSt (.subtask subtask) none)
+  if ← Builtins.subtaskResolvedNow subtask then
+    return .flat (← Builtins.subtaskCancelDeliver subtask)
+  else return .flat [i32Flat (AsyncRef.subtaskCancelResult none)]
+
+def cancelAfterRequestWrite (async : Bool) (subtask : SubtaskId) (hook : CancelRef) : Session grow sig (Ret (core3 grow)) :=
+  .op (.call (.onCancel hook)) (cancelHookReturn async subtask)
+
 /-- Record the event consumed by the public poll's actual buffer program.
 Only the code becomes a flat result for Core. -/
 def pollCalloutObservation (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue) :
