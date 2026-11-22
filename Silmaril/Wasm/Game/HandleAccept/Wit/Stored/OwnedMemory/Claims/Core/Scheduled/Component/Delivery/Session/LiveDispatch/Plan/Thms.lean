@@ -2355,4 +2355,20 @@ theorem GiveInstall.actual_selected_memory_request {pointer : FlatValue} {reques
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedMemoryRequest
     selection compiled shape install tail paired selected embedder compare
 
+/-- Cross an actually installed memory give whose live selection agrees.
+Compiler and root refusals keep the canonical emitter pending; the placed
+case uses the recursive visitor and its genuinely shorter callback runs. -/
+theorem GiveInstall.actual_selected_memory_callback {pointer : FlatValue} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected (.memory pointer)) {label next}
+    (domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (tail : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+    CallbackSlice profile ready base bindings older start incoming (label :: labels) finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedMemoryCallback
+    selection domain install tail paired selected embedder compare
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

@@ -204,6 +204,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
+  | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
+  | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | allocator _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | uncertified _ _ _ paths residual => exact append (paths.choose_spec.1 none).1.steps residual
@@ -218,6 +220,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | boundary _ step tail => exact .cons step tail
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | allocator install _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | uncertified install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -3788,5 +3792,98 @@ theorem actualSelectedMemoryRequest {pointer : FlatValue} {request : CoreGiveReq
   obtain ⟨tag, payload, arity, children, root, linked⟩ := selection.compiler_success compiled
   exact ⟨tag, payload, arity, children, root, linked, actualMemoryRequest _ linked shape paired
     (selected.trans (congrArg some root)) embedder (.cons install.step tail) compare⟩
+
+private theorem compilerRefusedCallback {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected route) {issue label next} (refused : selection.preflight = .error issue)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    CallbackSlice profile ready base bindings older start incoming labels finish := by
+  have reads handle (demand : request.lookupDemand = some handle) :
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle := by
+    rw [selection.lookup_demand] at demand
+    cases demand
+    exact selection.selected.trans selected.symm
+  obtain ⟨count, checked⟩ := selection.compiler_refusal_tracks (profile := profile) (ready := ready) refused base embedder
+  cases alignLocalBody (checked (.active 0 0)).steps run (noBranchOfVisible (visibleTaus count) (by simp)) with
+  | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+  | reached split tail =>
+    obtain ⟨_, _, quiet, canonical, host, pending⟩ := selection.paired_canonical_pending_tracks
+      (profile := profile) (ready := ready) (base := base) paired reads
+    rw [split]
+    exact callbackTerminalSlice paired (.compilerRefused selection install refused checked canonical (silentVisible quiet) pending host tail)
+
+private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {issue checkLeading label next}
+    (install : GiveInstall bindings (specDispatch ready base) site.start label next)
+    (quiet : PayloadPrefix.visible checkLeading = [])
+    (checked : site.EntryPrefix profile ready base checkLeading (site.withBody (site.reply (.error issue))))
+    (run : Steps profile ready (specDispatch ready base) site.start labels finish)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree) :
+    CallbackSlice profile ready base bindings older site.start incoming labels finish := by
+  let reply := route.reply site.destination site.start.host.nextTicket (.error issue)
+  let stopped := site.withBody (site.reply (.error issue))
+  have completed := Plain.give_completion_steps (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    (start := stopped) reply rfl
+  have front := (checked (.active 0 0)).toTrail.steps
+  have silent : PayloadPrefix.visible (checkLeading ++ ([.tau, .tau, .tau] : Trace grow sig)) = [] := by
+    rw [visibleAppend, quiet]
+    rfl
+  cases alignLocalBody (append front completed) run (noBranchOfVisible silent (by simp)) with
+  | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+  | @reached suffix split tail =>
+    obtain ⟨_, entered, canonQuiet, canonical, _, _⟩ := LiveDispatch.entry_paired_tracks
+      (profile := profile) (ready := ready) (base := base) site linked paired selected
+    rw [split, List.append_assoc]
+    refine callbackTerminalSlice paired (.refused (route := route) (destination := site.destination)
+      (ticket := site.start.host.nextTicket) (issue := issue) (left := stopped) (right := entered)
+      install ((silentVisible canonQuiet).trans quiet.symm) ?_)
+    refine ⟨suffix, _, rfl, front, completed, tail, rfl, rfl, fun place => ?_⟩
+    cases place with
+    | none => exact ⟨none, none, .absent (append front completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
+    | some place =>
+      exact ⟨_, _, (checked place).toTrail.append (Plain.give_completion_trail (start := stopped) reply (site.entryPlace place) rfl),
+        (canonical place).toTrail⟩
+
+theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected (.memory pointer)) {label next}
+    (domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (tail : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+    CallbackSlice profile ready base bindings older start incoming (label :: labels) finish := by
+  have run := Steps.cons install.step tail
+  cases compiled : selection.preflight with
+  | error issue => exact compilerRefusedCallback selection compiled install run paired selected embedder
+  | ok result =>
+    obtain ⟨field, plan⟩ := result
+    obtain ⟨tag, payload, arity, children, root, linked, cut⟩ :=
+      actualSelectedMemoryRequest selection compiled (domain field plan compiled) install tail paired selected embedder compare
+    let site := selection.site tag payload arity children field
+    have chosen : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree :=
+      selected.trans (congrArg some root)
+    cases cut with
+    | refused issue quiet entered => exact rootRefusedCallback site linked install quiet entered run paired chosen
+    | placementTrap reason count verdict entered =>
+      have quiet : PayloadPrefix.visible (List.replicate count .tau ++ ([.trap reason] : Trace grow sig)) = [.trap reason] := by
+        rw [visibleAppend, visibleTaus]
+        rfl
+      cases alignLocalBody (entered (.active 0 0)).steps run (noBranchOfVisible quiet (by simp [workerBranchLabel])) with
+      | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+      | reached split tail =>
+        obtain ⟨_, _, canonQuiet, canonical, pending, host⟩ := LiveDispatch.entry_paired_tracks
+          (profile := profile) (ready := ready) (base := base) site linked paired chosen
+        rw [split]
+        exact callbackTerminalSlice paired (.placementTrap site install verdict entered canonical (silentVisible canonQuiet) pending host tail)
+    | placed _ _ _ _ body =>
+      obtain ⟨_, _, _, _, compare⟩ := body
+      exact compare install
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

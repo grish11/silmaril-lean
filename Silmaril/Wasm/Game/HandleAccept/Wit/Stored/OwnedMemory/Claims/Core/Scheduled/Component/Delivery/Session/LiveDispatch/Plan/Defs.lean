@@ -318,6 +318,34 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (run : Steps profile ready (specDispatch ready base) reached actual finish) (nonempty : remaining ≠ [])
       (rest : Steps profile ready (specDispatch ready base) finish remaining entry) :
       CallbackSliceEnd profile ready base bindings changes reached peer actual finish
+  | compilerRefused {changes reached peer label next count canonLabels entered issue trailing finish route}
+      {request : CoreGiveRequest bindings reached} (selection : request.Selected route)
+      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+      (refused : selection.preflight = .error issue)
+      (checked : ∀ place : ReturnFrame.Occurrence.Location,
+        ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) reached (some place)
+          (List.replicate count .tau) (selection.compilerRefused issue) (some place))
+      (canonical : ∀ place : ReturnFrame.Occurrence.Location,
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer place canonLabels entered
+          (((ReturnFrame.Occurrence.Edit.push (.core request.core request.next)).follow place).getD place))
+      (quiet : PayloadPrefix.visible canonLabels = [])
+      (pending : HostFrame.Related.Paired changes selection.canonicalPending entered)
+      (host : entered.host = peer.host)
+      (residual : Steps profile ready (specDispatch ready base) (selection.compilerRefused issue) trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (List.replicate count .tau ++ trailing) finish
+  | placementTrap {changes peer label next count canonLabels entered reason trailing finish route}
+      (site : PayloadRoot.Site grow sig route)
+      (install : GiveInstall bindings (specDispatch ready base) site.start label next)
+      (failed : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason)
+      (checked : site.EntryTrap profile ready base (List.replicate count .tau ++ [.trap reason]))
+      (canonical : ∀ place : ReturnFrame.Occurrence.Location,
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer place canonLabels entered
+          (site.entryPlace place))
+      (quiet : PayloadPrefix.visible canonLabels = [])
+      (pending : HostFrame.Related.Paired changes (site.reference site.referenceReply) entered)
+      (host : entered.host = peer.host)
+      (residual : Steps profile ready (specDispatch ready base) (StepDefs.trapCfg site.checked) trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes site.start peer ((List.replicate count .tau ++ [.trap reason]) ++ trailing) finish
   | body {changes reached peer label next left right checked canonical trailing finish marks caller}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish (marks ++ [caller]))
