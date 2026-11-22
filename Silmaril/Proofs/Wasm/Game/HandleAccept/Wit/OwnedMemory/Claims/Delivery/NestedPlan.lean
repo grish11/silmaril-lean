@@ -1159,6 +1159,25 @@ theorem recursiveInstallCut {callees : List (ComponentCall.Callee sig)} {label}
   · exact .inr ⟨request, recursiveRequestCut request paired⟩
   · exact .inl direct
 
+open ReturnFrame.Occurrence in
+theorem actualCallbackGive {callees : List (ComponentCall.Callee sig)} {protectedReturn label trailing}
+    {reached next : Config (core3 grow) (HostState sig)} {mark : Option Location}
+    {retained : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (replay : ActualCallbackReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees)
+      protectedReturn start labels reached)
+    (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached label next)
+    (actual : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached label next)
+    (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next trailing finish)
+    (covers : ∀ first second, older first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (outside : Outside retained (segmentStorage start) (segmentStorage incoming) mark) :
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start (labels ++ label :: trailing) finish ∧
+    ClassifiedWorkerTail profile ready bindings callees older start incoming (labels ++ label :: trailing) finish
+      (WorkerOccurrencePrefix profile ready bindings callees retained start incoming mark) := by
+  obtain ⟨peer, finalMark, live, aligned, kept, checkedTrail, liveTrail, movement⟩ := replay covers paired outside
+  exact ⟨append checkedTrail.steps (.cons actual tail), .request rfl checkedTrail.steps live aligned
+    ⟨finalMark, checkedTrail, liveTrail, kept, movement⟩ install (recursiveInstallCut install aligned) tail⟩
+
 theorem classifyReplay {callees : List (ComponentCall.Callee sig)}
     (replay : PairedReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees)
       older start incoming labels finish) : ClassifiedWorkerTail profile ready bindings callees older start incoming labels finish := by

@@ -26,12 +26,42 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {start finish incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
 
+/-- A synchronous readiness read under a host-independent policy needs
+no hypothesis on the writer or the existence of runnable candidates. -/
+theorem ClosedSyncReadyRead.fixed (policy : Nat → Bool) {task inst thread frames rest}
+    (focused : start.ctl = ⟨thread, .prog (.op .hostGet (fun _ =>
+      syncLiftCandidates task (start.store.instCandidates policy inst))), frames⟩ :: rest) :
+    ClosedSyncReadyRead (fun _ => policy) start :=
+  ⟨task, inst, thread, frames, rest, focused, LinkedCallback.ReadyAgreement.fixed policy start inst⟩
+
 /-- Classify the actual checked callback derivation without choosing an
-allocator return or supplying an independent callback execution. -/
+allocator return or supplying an independent callback execution. Only
+reached synchronous reads with compatible candidate queries are crossed. -/
 theorem ClosedCallbackPrefix.classify_actual {protectedReturn}
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.classifyActual run
+
+open ReturnFrame.Occurrence in
+/-- Feed the actual callback prefix and next give installation to the live
+selector. The extracted checked tail is not authorized on the canonical
+side merely by reaching the request. -/
+theorem ActualCallbackReplay.reached_give {callees : List (ComponentCall.Callee sig)} {protectedReturn label trailing}
+    {reached next : Config (core3 grow) (HostState sig)} {mark : Option Location}
+    {retained : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (replay : ActualCallbackReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees)
+      protectedReturn start labels reached)
+    (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached label next)
+    (actual : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached label next)
+    (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next trailing finish)
+    (covers : ∀ first second, older first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (outside : Outside retained (segmentStorage start) (segmentStorage incoming) mark) :
+    Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start (labels ++ label :: trailing) finish ∧
+    ClassifiedWorkerTail profile ready bindings callees older start incoming (labels ++ label :: trailing) finish
+      (WorkerOccurrencePrefix profile ready bindings callees retained start incoming mark) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualCallbackGive
+    replay install actual tail covers paired outside
 
 /-- An actual Core engine step in the callback needs no host-write,
 dispatch or readiness premise. The reached store need not equal the old one. -/

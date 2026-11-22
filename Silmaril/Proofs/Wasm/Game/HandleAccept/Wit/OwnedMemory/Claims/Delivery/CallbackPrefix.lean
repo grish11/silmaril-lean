@@ -71,16 +71,103 @@ private theorem unchangedOrGive {label}
     injection programs with operation _
     cases operation
 
+private theorem actualHostGet {thread resume frames rest label}
+    (focused : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish) :
+    label = .tau ∧ finish = { start with ctl := ⟨thread, .prog (resume start.host), frames⟩ :: rest } := by
+  cases step
+  case' fault failed => cases failed
+  all_goals simp_all [StepDefs.HostReadyCfg]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    have programs := heads.1.2.1
+    injection programs with operation continuation
+    first
+    | exact congrArg (fun next => next start.host) continuation
+    | cases operation
+
+private theorem ordinaryPeer {before next peer : Config (core3 grow) (HostState sig)} {label protectedReturn}
+    {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (covers : ∀ first second, changes first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired changes before peer) (interior : HostFrame.InteriorFor protectedReturn before)
+    (unchanged : UnchangedAt bindings before) (grows : CoreUpdateGrows before)
+    (run : Step profile ready (specDispatch ready base) before label next) :
+    ∃ after, Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer label after ∧
+      HostFrame.Related.Paired changes next after := by
+  have live : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) before label next := by
+    rcases LiveDispatch.classify_step (bindings := bindings) run with live | install
+    · exact live
+    · cases install with
+      | direct focused overlaid => exact (overlaid (unchanged.direct focused)).elim
+      | core focused calling overlaid => exact (overlaid (unchanged.core focused calling)).elim
+  obtain ⟨after, replay, aligned⟩ := HostFrame.Related.interior_step covers paired interior grows live
+  cases replay with
+  | cons _ step tail => cases tail; exact ⟨after, step, aligned⟩
+
+private theorem readyPeer {before peer : Config (core3 grow) (HostState sig)} {task inst thread frames rest}
+    {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired changes before peer)
+    (focus : before.ctl = ⟨thread, .prog (.op .hostGet (fun current =>
+      syncLiftCandidates task (before.store.instCandidates (ready current) inst))), frames⟩ :: rest)
+    (agrees : LinkedCallback.ReadyAgreement ready before inst) :
+    ∃ after, Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer .tau after ∧
+      HostFrame.Related.Paired changes { before with ctl := ⟨thread,
+        .prog (syncLiftCandidates task (before.store.instCandidates (ready before.host) inst)), frames⟩ :: rest } after := by
+  let residual := syncLiftCandidates (E := core3 grow) (σ := HostState sig) task (before.store.instCandidates (ready before.host) inst)
+  obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog residual) before.host peer.host
+  have candidates := HostFrame.instCandidates_eq before.store inst (ready before.host) (ready peer.host)
+    (fun entry live thread member suspended found blocked query condition =>
+      agrees entry live thread member suspended found blocked query condition peer.host)
+  refine ⟨{ peer with ctl := ⟨thread, .prog residual, peerFrames⟩ :: peerRest }, ?_, aligned⟩
+  unfold residual
+  rw [candidates]
+  exact .hostGet atPeer
+
+private theorem actualReplayDone {protectedReturn} (state : Config (core3 grow) (HostState sig)) :
+    ActualCallbackReplay bindings profile ready base protectedReturn state [] state :=
+  fun {_changes _retained peer mark} _ paired outside =>
+    ⟨peer, mark, .refl _, paired, outside, .done _ _, .done _ _, fun cursor => ⟨cursor, .done _ _, .done _ _⟩⟩
+
+private theorem actualReplayCons {before next after : Config (core3 grow) (HostState sig)} {label leading protectedReturn}
+    (step : Step profile ready (specDispatch ready base) before label next)
+    (matchStep : ∀ {changes peer}, (∀ first second, changes first second → protectedReturn first) →
+      HostFrame.Related.Paired changes before peer →
+      ∃ reached, Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer label reached ∧
+        HostFrame.Related.Paired changes next reached)
+    (tail : ActualCallbackReplay bindings profile ready base protectedReturn next leading after) :
+    ActualCallbackReplay bindings profile ready base protectedReturn before (label :: leading) after := by
+  intro changes retained peer mark covers paired outside
+  obtain ⟨reached, live, aligned⟩ := matchStep covers paired
+  have edit := pair_edit paired label
+  have kept : Outside retained (segmentStorage next) (segmentStorage reached) (mark.bind (transitionEdit before label).follow) := by
+    rw [step_edit step, step_edit live, ← edit]
+    exact outside_edit outside _
+  obtain ⟨last, finalMark, replay, final, finalOutside, left, right, allPaths⟩ := tail covers aligned kept
+  refine ⟨last, finalMark, .cons live replay, final, finalOutside, .step step left, .step live (edit ▸ right), ?_⟩
+  intro cursor
+  obtain ⟨target, leftTrail, rightTrail⟩ := allPaths (cursor.bind (transitionEdit before label).follow)
+  exact ⟨target, .step step leftTrail, .step live (edit ▸ rightTrail)⟩
+
 theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
   classical
   induction run with
-  | refl state => exact .complete (.done state)
+  | refl state => exact .complete (.done state) (actualReplayDone state)
   | @cons before next after label trailing step tail ih =>
-    have stop (cut : CallbackWorkerBoundary bindings (specDispatch ready base) protectedReturn before label next) :
+    have stop (cut : CallbackWorkerBoundary bindings ready (specDispatch ready base) protectedReturn before label next) :
         ClassifiedCallbackRun bindings profile ready base protectedReturn before (label :: trailing) after :=
-      .boundary (leading := []) rfl (.done before) (.refl before) cut step tail
+      .boundary (leading := []) rfl (.done before) (.refl before) (actualReplayDone before) cut step tail
+    by_cases closedRead : ClosedSyncReadyRead ready before
+    · obtain ⟨task, inst, thread, frames, rest, focus, agrees⟩ := closedRead
+      obtain ⟨rfl, rfl⟩ := actualHostGet focus step
+      cases ih with
+      | complete closed replay =>
+        exact .complete (.syncReady focus agrees closed) (actualReplayCons step (fun _ paired => readyPeer paired focus agrees) replay)
+      | @boundary leading _ _ _ _ split closed prefixSteps replay cut actual rest =>
+        exact .boundary (leading := .tau :: leading) (congrArg (Label.tau :: ·) split) (.syncReady focus agrees closed)
+          (.cons step prefixSteps) (actualReplayCons step (fun _ paired => readyPeer paired focus agrees) replay) cut actual rest
     rcases unchangedOrGive (bindings := bindings) step with unchanged | install
     · by_cases interior : HostFrame.InteriorFor protectedReturn before
       · by_cases noWrite : NoHostAssignment before
@@ -92,9 +179,11 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
               rw [show PayloadPrefix.visible ([label] ++ leading) = PayloadPrefix.visible [label] ++ PayloadPrefix.visible leading from List.filter_append ..]
               exact .step interior unchanged noWrite grows step closed
             cases ih with
-            | complete closed => exact .complete (extend closed)
-            | boundary split closed prefixSteps cut actual rest =>
-              exact .boundary (congrArg (label :: ·) split) (extend closed) (.cons step prefixSteps) cut actual rest
+            | complete closed replay =>
+              exact .complete (extend closed) (actualReplayCons step (fun covers paired => ordinaryPeer covers paired interior unchanged grows step) replay)
+            | boundary split closed prefixSteps replay cut actual rest =>
+              exact .boundary (congrArg (label :: ·) split) (extend closed) (.cons step prefixSteps)
+                (actualReplayCons step (fun covers paired => ordinaryPeer covers paired interior unchanged grows step) replay) cut actual rest
           · exact stop (.nonGrowingUpdate grows)
         · unfold NoHostAssignment at noWrite
           push Not at noWrite
@@ -104,7 +193,7 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
         rw [not_and_or] at interior
         push Not at interior
         rcases interior with ⟨_, _, _, _, focus⟩ | ⟨_, retained, _, _, _, _, focus⟩
-        · exact stop (.read focus)
+        · exact stop (.read focus closedRead)
         · exact stop (.protectedPop retained focus)
     · exact stop (.give install)
 
@@ -205,16 +294,7 @@ theorem replayMarked {protectedReturn} {wider : ReturnFrame.Substitutions (core3
   | done => exact ⟨[], [], incoming, mark, .refl _, .refl _, paired, rfl, rfl, .refl _, rfl, rfl, outside, .done _ _, .done _ _,
       fun cursor => ⟨cursor, .done _ _, .done _ _⟩⟩
   | @step current next last label rest interior unchanged noAssignment grows run _ ih =>
-    have live : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) current label next := by
-      rcases LiveDispatch.classify_step (bindings := bindings) run with live | install
-      · exact live
-      · cases install with
-        | direct focused overlaid => exact (overlaid (unchanged.direct focused)).elim
-        | core focused calling overlaid => exact (overlaid (unchanged.core focused calling)).elim
-    obtain ⟨peer, replay, aligned⟩ := HostFrame.Related.interior_step covers paired interior grows live
-    have peerStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming label peer := by
-      cases replay with
-      | cons _ step tail => cases tail; exact step
+    obtain ⟨peer, peerStep, aligned⟩ := ordinaryPeer covers paired interior unchanged grows run
     have edit := pair_edit paired label
     have nextOutside : Outside older (segmentStorage next) (segmentStorage peer) (mark.bind (transitionEdit current label).follow) := by
       rw [step_edit run, step_edit peerStep, ← edit]
