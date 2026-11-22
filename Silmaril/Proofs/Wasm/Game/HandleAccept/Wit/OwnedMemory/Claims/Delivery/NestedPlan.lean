@@ -3567,6 +3567,93 @@ private theorem cutObservedRefusal (caller : CallerId) (issue : Scheduled.Issue)
   · obtain ⟨_, peer, moved, endpoint, _, _⟩ := early
     exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .inr ⟨rfl, endpoint⟩⟩
 
+private def rejectBody : Session grow sig Empty := trap (.hostTrap "invalid mixed acceptor import binding")
+
+private def rejectAt (state : Config (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat) (issue : Scheduled.Issue) :
+    Config (core3 grow) (HostState sig) :=
+  { state with
+    host := state.host.record (.bindingTrap ticket issue)
+    ctl := cursor.control (rejectBody >>= fun _ => .pure (.cancel .none)) }
+
+open ReturnFrame.Occurrence in
+private theorem rejectPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (ticket : Nat) (issue : Scheduled.Issue) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = cursor.control (ComponentCall.reject ticket issue)) :
+    ComponentQuietPath profile ready dispatch cursor start [id, id] (rejectAt start cursor ticket issue) := by
+  cases cursor with
+  | mk thread frames rest =>
+    let tail : Session grow sig (Ret (core3 grow)) := do
+      let _ ← (trap (.hostTrap "invalid mixed acceptor import binding") : Session grow sig (List FlatValue))
+      return .cancel .none
+    have sameTrap : tail = rejectBody >>= fun _ => .pure (.cancel .none) := by
+      simp only [tail, rejectBody, trap, Prog.bind_eq]
+      apply congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap (.hostTrap "invalid mixed acceptor import binding")))
+      funext denied
+      exact nomatch denied
+    refine .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) ?_
+    let writing : Session grow sig (Ret (core3 grow)) := hostSet (start.host.record (.bindingTrap ticket issue)) >>= fun _ => tail
+    have journal := Step.hostSet (prof := profile) (hr := ready) (dispatch := dispatch)
+      (m := { start with ctl := ⟨thread, .prog writing, frames⟩ :: rest }) rfl
+    change Step profile ready dispatch { start with ctl := ⟨thread, .prog writing, frames⟩ :: rest } .tau
+      { start with host := start.host.record (.bindingTrap ticket issue), ctl := ⟨thread, .prog tail, frames⟩ :: rest } at journal
+    have recorded : Step profile ready dispatch { start with ctl := ⟨thread, .prog writing, frames⟩ :: rest } .tau
+        (rejectAt start ⟨thread, frames, rest⟩ ticket issue) := by
+      rw [sameTrap] at journal
+      exact journal
+    exact .step recorded rfl (.done _)
+
+open ReturnFrame.Occurrence in
+private theorem cutObservedReject (issue : Scheduled.Issue) {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.reject leftTicket issue))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.reject rightTicket issue))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer, labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ((suffix = [] ∧ PairedComponentSite older reached peer check canon) ∨
+        (reached.ctl = [] ∧ peer.ctl = [] ∧ HostFrame.Related.Paired older reached peer)) := by
+  have left := rejectPath (profile := profile) (ready := ready) (specDispatch ready base) leftTicket issue check leftFocus
+  have right := rejectPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    rightTicket issue canon rightFocus
+  rcases splitSilent (count := 2) (left.track (.active 0 0)).toTrail.steps run with ⟨tailLabels, split, residual⟩ | short
+  · have site : PairedComponentSite older (rejectAt start check leftTicket issue) (rejectAt incoming canon rightTicket issue) check canon := by
+      unfold PairedComponentSite at paired ⊢
+      obtain ⟨_, _, focus, normalized⟩ := paired.retarget rfl (.prog (.pure (.cancel .none)))
+        (start.host.record (.bindingTrap leftTicket issue)) (incoming.host.record (.bindingTrap rightTicket issue))
+      simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
+      obtain ⟨⟨threadEq, framesEq⟩, restEq⟩ := focus
+      simpa only [rejectAt, PayloadPrefix.Cursor.control, ← threadEq, ← framesEq, ← restEq] using normalized
+    have moved : OccurrenceTransport profile ready base bindings start incoming (List.replicate 2 .tau) (List.replicate 2 .tau)
+        (rejectAt start check leftTicket issue) (rejectAt incoming canon rightTicket issue) :=
+      CallbackPrefix.stationaryTransport (bindings := bindings) left.track right.track
+    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier, _, _⟩ :=
+      cutComponentStoreBody (bindings := bindings) (closed := True) rejectBody (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none))
+        (fun _ => storeEffectTrap _) rfl rfl site residual
+    refine ⟨List.replicate 2 .tau ++ leading, suffix, reached, peer, ?_, ?_, remaining, ?_⟩
+    · rw [split, tailSplit, List.append_assoc]
+    · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved finishMove).choose_spec.1
+    · cases frontier with
+      | returned impossible _ _ _ => exact nomatch impossible
+      | pending _ _ _ _ atSite boundary => exact .inl ⟨boundary.resolve_right (fun openFrontier => openFrontier.1 trivial), atSite⟩
+      | trapped checked canonical aligned => exact .inr ⟨checked, canonical, aligned⟩
+  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := compareQuietShort left right paired ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short
+    exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .inl ⟨rfl, endpoint⟩⟩
+
+private theorem rejectPayloadShape (callee : ComponentCall.Callee sig) (caller : CallerId) (ticket : Nat)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {values : List Stored.OwnedMemory.Observed}
+    (wrong : ¬ ∃ argument payload children, values = [argument, payload] ∧ planned = some children) :
+    ComponentCall.acceptPayload (grow := grow) callee caller ticket planned values = ComponentCall.reject ticket .wrongType := by
+  rcases values with _ | ⟨argument, _ | ⟨payload, _ | ⟨extra, rest⟩⟩⟩
+  · rfl
+  · rfl
+  · cases planned with
+    | none => rfl
+    | some children => exact (wrong ⟨argument, payload, children, rfl, rfl⟩).elim
+  · rfl
+
 open ReturnFrame.Occurrence in
 theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : CallerId)
     {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
@@ -3652,7 +3739,19 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
               rw [checked] at atReturn
               simp [PayloadPrefix.Cursor.control] at atReturn
             | published _ _ pair _ _ => exact .inr pair
-      · exact ⟨leading, suffix, reached, peer, split, moved, residual, .validation left right site permitted⟩
+      · by_cases shaped : ∃ argument payload children, values = [argument, payload] ∧ planned = some children
+        · exact ⟨leading, suffix, reached, peer, split, moved, residual, .validation left right site permitted⟩
+        · rw [rejectPayloadShape callee caller leftTicket shaped] at left
+          rw [rejectPayloadShape callee caller rightTicket shaped] at right
+          obtain ⟨more, finalSuffix, lhs, rhs, rejectSplit, rejectPath, finalRun, rejected⟩ :=
+            cutObservedReject (bindings := bindings) .wrongType left right site residual
+          have whole : OccurrenceTransport profile ready base bindings start incoming (leading ++ more) (leading ++ more) lhs rhs := by
+            simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved rejectPath).choose_spec.1
+          refine ⟨leading ++ more, finalSuffix, lhs, rhs, ?_, whole, finalRun, ?_⟩
+          · rw [split, rejectSplit, List.append_assoc]
+          · rcases rejected with ⟨exhausted, aligned⟩ | ⟨checked, canonical, aligned⟩
+            · exact .pending exhausted aligned
+            · exact .trapped checked canonical aligned
 
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}
