@@ -62,6 +62,37 @@ theorem resolve_begin {prof : ProfileKind} {ready : HostReady (HostState sig)}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.resolve_begin
     ticket caller tree writer registered room pending
 
+/-- Child selection depends only on the handles visited by the reached local read
+and selector. No unvisited handle, writer or journal equality is needed. -/
+theorem plan_children_agrees (callee : Callee sig) (cx : LiftLowerContext (core3 grow)) (args : List FlatValue)
+    (store : CStore (core3 grow)) {left right : List (Tree sig)}
+    (agrees : ∀ handle ∈ callee.plannedChildLookups cx args store left,
+      Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core.childFromHistory left handle =
+        Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core.childFromHistory right handle) :
+    planChildren callee cx args store left = planChildren callee cx args store right :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.plan_children_agrees callee cx args store agrees
+
+/-- The actual `invokeLower` guard reads the live store, active thread and task. An
+admitted call advances without changing its host, store or occurrence slots. -/
+theorem invoke_lower_admitted {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {segments rest}
+    (callee : Callee sig) (caller : CallerId) (snapshot : HostState sig)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (liveThread : ArenaField.threads.get? config.store active = some entry)
+    (liveTask : ArenaField.tasks.get? config.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check config.store subtask cx args pos ft (limits, results) = .ok ())
+    (pending : config.ctl = ⟨some active, .prog (invokeLower callee caller snapshot subtask cx args pos ft limits results),
+      segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with ctl := ⟨some active, .prog (acceptCaller callee caller snapshot.nextTicket snapshot.writer.accepted
+        config.store cx args), segments⟩ :: rest } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.invoke_lower_admitted
+    callee caller snapshot liveThread liveTask context admitted pending
+
 /-- The actual component import reads the reached caller and snapshots its own host,
 then records entry before entering `invokeLower`. No active or saved slot moves. -/
 theorem invoke_lower_entry {prof : ProfileKind} {ready : HostReady (HostState sig)}

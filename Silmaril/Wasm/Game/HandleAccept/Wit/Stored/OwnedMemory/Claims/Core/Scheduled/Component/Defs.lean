@@ -81,17 +81,19 @@ def readChildren (callee : Callee sig) (cx : LiftLowerContext (core3 grow))
   else
     Prod.fst <$> liftFlatAt Limits.spec Quirks.none cx width childrenType cursor
 
+def selectChild (history : List (Tree sig)) (value : Val) : Except Issue (Tree sig) := do
+  let .int .u32 index := value | throw .wrongType
+  let handle := BitVec.ofNat 32 index.toNat
+  let some tree := Endpoints.Core.childFromHistory history handle
+    | throw (.accept (.boundary (.invalidChild handle)))
+  return tree
+
 def selectChildren (callee : Callee sig) (history : List (Tree sig)) (value : Val) :
     Except Issue (List (Tree sig)) := do
   let .list ids := value | throw .wrongType
   if !(sig.arity callee.tag).Admits ids.length then
     throw (.accept (.boundary (.boundary .badArity)))
-  ids.mapM fun value => do
-    let .int .u32 index := value | throw .wrongType
-    let handle := BitVec.ofNat 32 index.toNat
-    let some tree := Endpoints.Core.childFromHistory history handle
-      | throw (.accept (.boundary (.invalidChild handle)))
-    return tree
+  ids.mapM (selectChild history)
 
 def reject (ticket : Nat) (issue : Issue) : Session grow sig (Ret (core3 grow)) := do
   let _ ← rejectBinding ticket issue
@@ -104,6 +106,22 @@ def planChildren (callee : Callee sig) (cx : LiftLowerContext (core3 grow))
   | .ok value => some <$> selectChildren callee history value
   | .error (.trapped _) => .ok none
   | .error issue => .error (.accept (.localEffect issue))
+
+/-- The selector reads handles in order, including the first missing handle but never
+examining children beyond it or a malformed element. -/
+def childLookupDemands (history : List (Tree sig)) : List Val → List (BitVec 32)
+  | .int .u32 index :: tail =>
+    let handle := BitVec.ofNat 32 index.toNat
+    handle :: if (Endpoints.Core.childFromHistory history handle).isSome then childLookupDemands history tail else []
+  | _ => []
+
+/-- Take demands from the same reached direct/spilled read and arity guard as `planChildren`.
+A local trap or a rejected arity cannot demand a history lookup. -/
+def Callee.plannedChildLookups (callee : Callee sig) (cx : LiftLowerContext (core3 grow))
+    (args : List FlatValue) (store : CStore (core3 grow)) (history : List (Tree sig)) : List (BitVec 32) :=
+  match (Endpoints.Core.runLocal (readChildren callee cx args) store).2 with
+  | .ok (.list values) => if (sig.arity callee.tag).Admits values.length then childLookupDemands history values else []
+  | _ => []
 
 /-- Specialize the reference resolve continuation to the checked, non-allocating
 error result; a different caller record cannot become a general lowering route. -/
