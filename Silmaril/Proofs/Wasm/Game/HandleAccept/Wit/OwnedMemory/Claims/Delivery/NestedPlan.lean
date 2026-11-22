@@ -2828,6 +2828,12 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
           change (checkCall, canonCall, reference) = (checkProof, canonProof, referenceProof) at index
           rcases Prod.mk.inj index with ⟨rfl, paths⟩
           rcases Prod.mk.inj paths with ⟨rfl, rfl⟩
+          have installWriter := VisitorWriterPath.framed (base := base) (bindings := bindings)
+            (WriterPaths.frameSingle visit.1.checkedRun rfl) (WriterPaths.frameSingle visit.1.canonicalRun rfl)
+          have callbackWriter := by
+            cases input with
+            | executed segment => exact VisitorWriterPath.allocation .string (WriterPaths.ofTransport segment.occurrences)
+          have bodyWriter := installWriter.append callbackWriter
           have reachedRun := callbackEndSteps boundary
           have ending (stopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
               reached.ctl = { cursor with frames := .prog (stringPlanResume cx rest checkNext) :: cursor.frames }.control (.pure (.nat value))) :
@@ -2836,7 +2842,7 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
               [mark], by rw [split, installSplit]; simp [List.append_assoc],
               by rw [visibleAppend, visibleAppend]; exact congrArg (PayloadPrefix.visible localLabels ++ ·) (canonSeen.trans checkSeen.symm),
               (CallbackPrefix.transportAppend localTrail movement).choose_spec.1, paired.data.1,
-              reachedRun, .append (.framed lhsEffects rhsEffects) (.allocation .string (WriterPaths.ofTransport movement)),
+              reachedRun, .append (.framed lhsEffects rhsEffects) bodyWriter,
               .callback tracked paired boundary stopped⟩
           by_cases atTop : mark = some (.active 0 0)
           · by_cases returning : ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
@@ -2849,6 +2855,11 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
                     { reached with ctl := cursor.control (stringPlanResume cx rest checkNext (.nat value)) } := .popProg focus
                 obtain ⟨rfl, rfl⟩ := silentStepUnique pop first
                 obtain ⟨peer, _, _, transported, continued⟩ := returns value cursor atTop focus
+                have rawPrefix := (movement.choose_spec.1 none).2.steps
+                have rawThroughPop := (transported.choose_spec.1 none).2.steps
+                have popRun := stripExactPrefix rawPrefix (by simpa only [List.cons_append] using rawThroughPop)
+                have popWriter := VisitorWriterPath.framed (base := base) (bindings := bindings)
+                  (.same pop rfl (.done _)) (WriterPaths.frameSingle popRun rfl)
                 have smallerRun : residual.length < labels.length := by
                   rw [split, installSplit]
                   simp only [List.length_append, List.length_cons, List.length_replicate]
@@ -2860,7 +2871,8 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
                 refine ⟨localLabels ++ (.tau :: checkCall ++ [.tau]) ++ checkLabels,
                   localLabels ++ (.tau :: canonCall ++ [.tau]) ++ canonLabels, trailing, reached, reference, marks,
                   ?_, ?_, by simpa only [List.map_nil, List.append_nil] using movement, store, after,
-                  .append (.append (.framed lhsEffects rhsEffects) (.allocation .string (WriterPaths.ofTransport transported))) writer, ending⟩
+                  .append (.append (.framed lhsEffects rhsEffects) (by
+                    simpa only [List.cons_append, List.nil_append] using bodyWriter.append popWriter)) writer, ending⟩
                 · rw [split, installSplit, used]
                   simp only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.cons_append, List.nil_append]
                 · have quiet (trace : Trace grow sig) : PayloadPrefix.visible (.tau :: trace ++ [.tau]) = PayloadPrefix.visible trace := by
@@ -2876,6 +2888,29 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
           · exact ending (.inr (.inl atTop))
 
 open PayloadPrefix ReturnFrame.Occurrence in
+private theorem prefixReadWriters {target : Config (core3 grow) (HostState sig)} {planned remaining : Trace grow sig}
+    (path : SilentLocalPath profile ready (specDispatch ready base) start planned target)
+    (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    finish.store = start.store ∧ visible labels = [] ∧
+    (∀ place, Prefix profile ready (specDispatch ready base) start place labels finish place) ∧
+    WriterPath profile ready (specDispatch ready base) start labels finish [] := by
+  induction run generalizing planned with
+  | refl => exact ⟨rfl, rfl, fun place => .done _ place, .done _⟩
+  | cons step tail ih =>
+    cases path with
+    | done => simp at split
+    | read read more =>
+      simp only [List.cons_append, List.cons.injEq] at split
+      obtain ⟨rfl, shorter⟩ := split
+      cases (prefix_survives (read.tracks (.active 0 0))).1 with
+      | cons actual empty =>
+        cases empty
+        cases labelledStepUnique step actual
+        obtain ⟨store, quiet, tracks, writes⟩ := ih more shorter
+        exact ⟨store.trans read.store.symm, quiet, fun place => (read.tracks place).append (tracks place),
+          WriterPaths.append (WriterPaths.frameRead read) writes⟩
+
+open PayloadPrefix ReturnFrame.Occurrence in
 private theorem driveStringValueWithWriters {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}
     {output : Stored.Lower.Output} {check canon : Cursor (E := core3 grow) (HostState sig)}
     {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
@@ -2886,17 +2921,19 @@ private theorem driveStringValueWithWriters {destination : RecordDestination} {i
     (actual : Steps profile ready (specDispatch ready base) start labels finish)
     (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
     StringRunSliceWithWriters profile ready base bindings older describe start incoming labels finish := by
-  obtain ⟨checkEntry, canonEntry, checkQuiet, canonQuiet, entry, enterPeer, frame, body⟩ := field
+  obtain ⟨checkEntry, canonEntry, checkQuiet, canonQuiet, entry, enterPeer, checkReads, canonReads, frame, body⟩ := field
   have same : start.store = incoming.store := frame.store
   cases alignWorkerBody (entry (.active 0 0)).toTrail.steps actual with
-  | inside _ nonempty localTail =>
-    exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
-      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
-      same, actual, WriterPaths.empty, .localPrefix nonempty localTail⟩
-  | departure _ split shared _ branch _ _ step tail =>
-    exact ⟨[], [], labels, start, incoming, [], rfl, rfl,
-      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
-      same, actual, WriterPaths.empty, .localChoice split branch.2 shared step tail⟩
+  | inside split nonempty localTail =>
+    obtain ⟨stores, quiet, tracks, writer⟩ := prefixReadWriters checkReads split actual
+    exact ⟨labels, [], [], finish, incoming, [], (List.append_nil _).symm, quiet.symm,
+      CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place),
+      stores.trans same, .refl _, .framed writer (.done _), .localPrefix nonempty localTail⟩
+  | departure planned split shared _ branch _ _ step tail =>
+    obtain ⟨stores, quiet, tracks, writer⟩ := prefixReadWriters checkReads planned shared
+    exact ⟨_, [], _, _, incoming, [], split, quiet.symm,
+      CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place),
+      stores.trans same, .cons step tail, .framed writer (.done _), .localChoice rfl branch.2 (.refl _) step tail⟩
   | @reached remaining split remainder =>
     have shorter : remaining.length ≤ budget := by rw [split, List.length_append] at bounded; omega
     obtain ⟨checked, canonical, trailing, reached, peer, marks, used, observed, traces, same, tail, writer, ending⟩ :=
@@ -2907,7 +2944,7 @@ private theorem driveStringValueWithWriters {destination : RecordDestination} {i
       by rw [visibleAppend, visibleAppend, checkQuiet, canonQuiet, observed],
       by simpa only [List.map_nil, List.append_nil] using
         (CallbackPrefix.transportAppend entryPath traces).choose_spec.1,
-      same, tail, .append (.allocation .string (WriterPaths.ofTransport entryPath)) writer, ending⟩
+      same, tail, .append (.framed (WriterPaths.frameReads checkReads) (WriterPaths.frameReads canonReads)) writer, ending⟩
 
 open PayloadPrefix in
 theorem driveStringValue {destination : RecordDestination} {inst : InstId} {key : LinkedCallback.StringField}

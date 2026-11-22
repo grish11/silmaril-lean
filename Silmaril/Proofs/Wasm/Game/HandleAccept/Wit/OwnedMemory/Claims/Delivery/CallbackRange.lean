@@ -1177,22 +1177,26 @@ private theorem mapPlacementOccurrences (destination : RecordDestination) (inst 
     (width : (core3 grow).memAddrType? before.store.core destination.memory = some destination.width)
     (atPlacement : before.ctl = canon.control (mapFieldPlacement (destination.context inst)
       (CanonicalTree.EntryMode.forOutput destination.width (.map key element) output) next)) :
-    ∃ labels, visible labels = [] ∧ ∀ place, Prefix profile ready
+    ∃ labels, visible labels = [] ∧ (∀ place, Prefix profile ready
       (specDispatch ready (LiveDispatch.host bindings base)) before place labels
-      { before with ctl := canon.control (next destination.width) } place := by
+      { before with ctl := canon.control (next destination.width) } place) ∧
+      SilentLocalPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) before labels
+        { before with ctl := canon.control (next destination.width) } := by
   cases output with
   | memory address =>
     have same : before = { before with ctl := canon.control (next destination.width) } := by
       cases before
       simp_all [mapFieldPlacement, CanonicalTree.EntryMode.forOutput]
-    exact ⟨[], rfl, fun place => same ▸ .done before place⟩
+    exact ⟨[], rfl, fun place => same ▸ .done before place, same ▸ .done before⟩
   | flat =>
     have reached : ptrTypeIn before.store (destination.context inst) = destination.width := by
       simp [ptrTypeIn, RecordDestination.context, CanonOpts.ptrType, width]
-    refine ⟨[.tau], rfl, fun place => ?_⟩
-    change before.ctl = canon.control (.op .get (fun store => next (ptrTypeIn store (destination.context inst)))) at atPlacement
-    simpa only [reached, Cursor.control] using (Prefix.read_at (profile := profile)
-      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) place atPlacement)
+    have tracks (place : Location) : Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) before place [.tau]
+        { before with ctl := canon.control (next destination.width) } place := by
+      change before.ctl = canon.control (.op .get (fun store => next (ptrTypeIn store (destination.context inst)))) at atPlacement
+      simpa only [reached, Cursor.control] using (Prefix.read_at (profile := profile)
+        (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) place atPlacement)
+    exact ⟨[.tau], rfl, tracks, .read ⟨tracks, rfl, rfl⟩ (.done _)⟩
 
 private theorem mapPlacement (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType)
     (element : Stored.TypeOf) (output : Stored.Lower.Output)
@@ -1204,7 +1208,7 @@ private theorem mapPlacement (destination : RecordDestination) (inst : InstId) (
     ∃ labels, visible labels = [] ∧ RetainsActiveSlots profile ready
       (specDispatch ready (LiveDispatch.host bindings base)) before labels
       { before with ctl := canon.control (next destination.width) } := by
-  obtain ⟨labels, quiet, paths⟩ := mapPlacementOccurrences destination inst key element output before canon next width atPlacement
+  obtain ⟨labels, quiet, paths, _⟩ := mapPlacementOccurrences destination inst key element output before canon next width atPlacement
   exact ⟨labels, quiet, fun depth => paths (.active 0 depth)⟩
 
 theorem stringMapKey (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
@@ -1254,18 +1258,21 @@ theorem stringMapKey (destination : RecordDestination) (inst : InstId) (element 
   obtain ⟨placed, checkTracks⟩ := map_key_placement (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     destination inst .string element keyPayload value origin basePtr bytes count entryIndex width sized aligned bounds entry issueIndex
     left (frame.store ▸ growth) check checkNext checkAt
-  obtain ⟨canonLabels, canonQuiet, canonTracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base)
+  obtain ⟨canonLabels, canonQuiet, canonTracks, canonPlacement⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base)
     (bindings := bindings) destination inst .string element output right canon _ currentWidth canonAt
   let checkKey := { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
     key.field 0 keyOutput >>= following) }
   let canonKey := { right with ctl := canon.control (CanonicalTree.field Limits.spec Quirks.none cx destination.width
     key.field keyOutput >>= afterKey destination.width) }
-  obtain ⟨reads, keyLeft, keyRight⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
+  obtain ⟨reads, keyLeft, keyRight, keyReads, canonReads⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst
     key.value key.valid 0 keyOutput checkKey canonKey check canon following (afterKey destination.width) frame.store currentWidth
     realloc fit placed rfl rfl
   unfold StringKeyReplay StringKeyThen
-  refine ⟨[.tau] ++ List.replicate reads .tau, canonLabels ++ [.tau], ?_, ?_, ?_, ?_, ?_, ?_⟩
+  have placementReads : SilentLocalPath profile ready (specDispatch ready base) left [.tau] checkKey :=
+    .read ⟨checkTracks, rfl, rfl⟩ (.done _)
+  refine ⟨[.tau] ++ List.replicate reads .tau, canonLabels ++ [.tau], ?_, ?_, ?_, ?_,
+    placementReads.append keyReads, canonPlacement.append canonReads, ?_, ?_⟩
   · rw [appendVisible, silent (fun _ member => List.eq_of_mem_replicate member)]
     rfl
   · rw [appendVisible, canonQuiet]
@@ -1354,8 +1361,9 @@ theorem stringKeyNominalValue (origin : CStore (core3 grow)) (destination : Reco
   intro afterKey mode pending place report following reached
   unfold StringKeyReplay StringKeyThen at reached
   unfold StringKeyThen
-  obtain ⟨leftLabels, rightLabels, seenLeft, seenRight, tracksLeft, tracksRight, paired, replay⟩ := reached
-  refine ⟨leftLabels, rightLabels, seenLeft, seenRight, tracksLeft, tracksRight, paired, CallbackPrefix.stringReplayMap ?_ replay⟩
+  obtain ⟨leftLabels, rightLabels, seenLeft, seenRight, tracksLeft, tracksRight, leftReads, rightReads, paired, replay⟩ := reached
+  refine ⟨leftLabels, rightLabels, seenLeft, seenRight, tracksLeft, tracksRight, leftReads, rightReads, paired,
+    CallbackPrefix.stringReplayMap ?_ replay⟩
   intro pointer lhs rhs cursor peer done
   obtain ⟨frame, growth, store, result, labels, observed, leftRun, rightRun, tracks, _⟩ := done
   cases result with
@@ -1777,7 +1785,7 @@ private theorem liveMapEntry (destination : RecordDestination) (inst : InstId) (
   let report := aggregateNext idx checkNext
   let pending := fun () => mapValueProgram destination inst mode value afterKey canonNext
   let atKey := { right with ctl := canon.control (mapKeyBody destination inst ptr mode keyField value canonNext destination.width) }
-  obtain ⟨keyRead, quiet, tracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+  obtain ⟨keyRead, quiet, tracks, _⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
     destination inst key element output right canon _ (growth.memAddrType width) canonAt
   obtain ⟨store, result, lhs, rhs, checkRun, canonRun, observed, keyResult, _, occurrences⟩ :=
     local_map_key_then_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
@@ -1794,7 +1802,7 @@ private theorem liveMapEntry (destination : RecordDestination) (inst : InstId) (
     let beforeValue := { right with store, ctl := canon.control (pending ()) }
     let valueBody := fun reached => CanonicalTree.field Limits.spec Quirks.none cx destination.width value
       (.memory (alignTo afterKey (layout reached value.type).alignment)) >>= canonNext
-    obtain ⟨valueRead, silent, valueTracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+    obtain ⟨valueRead, silent, valueTracks, _⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
       destination inst key element output beforeValue canon valueBody (grown.memAddrType width) rfl
     refine ⟨checked, canonical, valueRead, silent, valueTracks, ?_⟩
     apply rule address 1 report canonNext
@@ -2039,8 +2047,8 @@ private theorem mapStringKeyFinish (destination : RecordDestination) (inst : Ins
     (next : ∀ pointer lhs rhs cursor peer, first pointer lhs rhs cursor peer → second pointer lhs rhs cursor peer)
     (replay : StringKeyThen profile ready base bindings older destination inst key address left right check canon checkNext canonNext first) :
     StringKeyThen profile ready base bindings older destination inst key address left right check canon checkNext canonNext second := by
-  obtain ⟨lhs, rhs, checkSeen, canonSeen, checkTracks, canonTracks, frame, rest⟩ := replay
-  exact ⟨lhs, rhs, checkSeen, canonSeen, checkTracks, canonTracks, frame, CallbackPrefix.stringReplayMap next rest⟩
+  obtain ⟨lhs, rhs, checkSeen, canonSeen, checkTracks, canonTracks, lhsReads, rhsReads, frame, rest⟩ := replay
+  exact ⟨lhs, rhs, checkSeen, canonSeen, checkTracks, canonTracks, lhsReads, rhsReads, frame, CallbackPrefix.stringReplayMap next rest⟩
 
 private theorem stringMapSlotRule (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
     (output : Stored.Lower.Output) (root : Field) {schema : Stored.TypeOf}
@@ -2090,7 +2098,7 @@ private theorem stringMapSlotRule (destination : RecordDestination) (inst : Inst
       let valueBody := fun reached => CanonicalTree.field Limits.spec Quirks.none cx destination.width value
         (.memory (alignTo keyEnd (layout reached value.type).alignment)) >>= canonNext
       have grew := kept.trans checkRun.grows
-      obtain ⟨widthRead, silent, placed⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base)
+      obtain ⟨widthRead, silent, placed, _⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base)
         (bindings := bindings) destination inst .string element output beforeValue peer valueBody (grew.memAddrType width) rfl
       refine ⟨fun depth => (tracks () rfl depth).1, fun depth => (tracks () rfl depth).2, widthRead, silent, placed, ?_⟩
       apply rule valuePtr 1 (aggregateNext idx checkNext) canonNext
@@ -2175,7 +2183,7 @@ private theorem stringValueThen (destination : RecordDestination) (inst : InstId
   let payload : Stored.Payload (.prim .string) := ⟨.string str.value, .string str.valid⟩
   have fit := Field.Descendant.string_pre payload rfl path source.layout Quirks.none destination.encoding destination.width source.fits
   obtain ⟨alloc, realloc⟩ := source.allocator str.field path rfl
-  obtain ⟨reads, lhs, rhs⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
+  obtain ⟨reads, lhs, rhs, checkReads, canonReads⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
     (dispatch := specDispatch ready base) (reference := specDispatch ready (LiveDispatch.host bindings base))
     destination inst str.value str.valid index output left right check canon checkNext canonNext frame.store
     (frame.store ▸ width) realloc fit placed checkAt canonAt
@@ -2184,7 +2192,7 @@ private theorem stringValueThen (destination : RecordDestination) (inst : InstId
   let checkBody := { left with ctl := check.control (runStoreSteps cx 0 plan.steps >>= checked) }
   let canonBody := { right with ctl := canon.control (runStoreSteps cx 0 plan.steps >>= canonical) }
   refine ⟨List.replicate reads .tau, [.tau], silent (fun _ member => List.eq_of_mem_replicate member),
-    rfl, lhs, rhs, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked,
+    rfl, lhs, rhs, checkReads, canonReads, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked,
       frame.thread, frame.frames, frame.rest⟩, ?_⟩
   refine CallbackPrefix.stringReplay (origin := origin) (left := checkBody) (right := canonBody) cx 0 plan.steps checked canonical
     ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
@@ -3671,7 +3679,7 @@ theorem linkedStringMapPaths {route : GiveEffectRoute} (site : PayloadRoot.Site 
     unfold LinkedStringMapEntry at stage
     dsimp only at stage
     obtain ⟨key, value, selected, keyRun⟩ := stage checkAt canonAt
-    obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkTracks, canonTracks, _, replay⟩ := keyRun
+    obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkTracks, canonTracks, _, _, _, replay⟩ := keyRun
     have tracksLeft := fun depth => checkTracks (.active 0 depth)
     have tracksRight := fun depth => canonTracks (.active 0 depth)
     have placed := CallbackPrefix.appendComparedSlots leading ⟨checkLabels, canonLabels, tracksLeft, tracksRight, checkSeen, canonSeen⟩

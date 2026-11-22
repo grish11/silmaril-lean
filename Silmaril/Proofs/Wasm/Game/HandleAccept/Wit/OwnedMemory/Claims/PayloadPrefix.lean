@@ -1662,6 +1662,15 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
     exact ⟨2, fun place => (read place).append (bounds place),
       .read ⟨read, rfl, rfl⟩ (.read ⟨bounds, rfl, rfl⟩ (.done _))⟩
 
+theorem appendSilentReads {Host : Type} {dispatch : Call E → P E Host (Ret E)} {ready : HostReady Host}
+    {start middle finish : Config E Host} {leading trailing : List (Label E Host)}
+    (front : SilentLocalPath profile ready dispatch start leading middle)
+    (suffix : SilentLocalPath profile ready dispatch middle trailing finish) :
+    SilentLocalPath profile ready dispatch start (leading ++ trailing) finish := by
+  induction front with
+  | done => exact suffix
+  | read step _ ih => exact .read step (ih suffix)
+
 theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
     (index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
@@ -1683,8 +1692,13 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
     ∃ reads, (∀ place, Prefix profile scheduledReady scheduledDispatch left place (List.replicate reads .tau)
       { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
           fun value => checkNext (.ok value)) } place) ∧
-      ∀ place, Prefix profile scheduledReady refDispatch right place [.tau]
-        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place := by
+      (∀ place, Prefix profile scheduledReady refDispatch right place [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
+        { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } ∧
+      SilentLocalPath profile scheduledReady refDispatch right [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } := by
   let cx := destination.context (grow := grow) inst
   let payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload (.prim .string) := ⟨.string str, .string valid⟩
   have width : ptrTypeIn right.store cx = destination.width := by
@@ -1692,7 +1706,7 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
   have options : Lower.checkOptions cx (.prim .string) output = .ok () := by
     cases output <;> simp [cx, RecordDestination.context, Lower.checkOptions, Lower.Output.needsMemory,
       Validation.containsPtr, realloc] <;> rfl
-  obtain ⟨reads, entered, _⟩ := dataEntry (profile := profile) (scheduledReady := scheduledReady)
+  obtain ⟨reads, entered, readPath⟩ := dataEntry (profile := profile) (scheduledReady := scheduledReady)
     (scheduledDispatch := scheduledDispatch) destination inst (.prim .string) payload index output left checkCursor checkNext
     (same ▸ width) (primitiveSchema .string) options (by simpa [Lower.fits, payload] using fit) placed checkAt
   let enteredBody := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none cx destination.width
@@ -1718,7 +1732,9 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
       (ready := scheduledReady) (dispatch := refDispatch) place canonAt)
   change ∀ place, Prefix profile scheduledReady scheduledDispatch left place (List.replicate reads .tau)
     { left with ctl := checkCursor.control (enteredBody >>= fun value => checkNext (.ok value)) } place at entered
-  rw [program] at entered
+  change SilentLocalPath profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
+    { left with ctl := checkCursor.control (enteredBody >>= fun value => checkNext (.ok value)) } at readPath
+  rw [program] at entered readPath
   have checkRead (place : Location) : Prefix profile scheduledReady scheduledDispatch
       { left with ctl := checkCursor.control ((Prog.op .get fun store => rest (ptrTypeIn store cx)) >>=
           fun value => checkNext (.ok value)) } place [.tau]
@@ -1728,11 +1744,17 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
       (Prefix.read_at (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch)
         (before := { left with ctl := checkCursor.control ((Prog.op .get fun store => rest (ptrTypeIn store cx)) >>=
           fun value => checkNext (.ok value)) }) place rfl)
-  refine ⟨reads + 1, ?_, ?_⟩
+  refine ⟨reads + 1, ?_, ?_, ?_, ?_⟩
   · intro place
     simpa only [List.replicate_add, List.replicate_one, rest, Prog.bind_eq, Prog.bind_assoc] using
       (entered place).append (checkRead place)
   · simpa only [rest, Prog.bind_eq, Prog.bind_assoc] using reference
+  · have widthRead : SilentLocalPath profile scheduledReady scheduledDispatch _ [.tau] _ :=
+      .read ⟨checkRead, rfl, rfl⟩ (.done _)
+    simpa only [List.replicate_add, List.replicate_one, rest, Prog.bind_eq, Prog.bind_assoc] using appendSilentReads readPath widthRead
+  · have widthRead : SilentLocalPath profile scheduledReady refDispatch _ [.tau] _ :=
+      .read ⟨reference, rfl, rfl⟩ (.done _)
+    simpa only [rest, Prog.bind_eq, Prog.bind_assoc] using widthRead
 
 theorem stringReallocFocus (cx : LiftLowerContext E) (ptr : Nat) (oldSize : Option Nat)
     (alignment : Alignment) (size : Nat) (steps : List StoreStep) (finish : Nat → P E Host (Ret E)) :

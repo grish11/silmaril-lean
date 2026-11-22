@@ -30,6 +30,13 @@ theorem LocalSteps.append {E : CoreEngine} {Host : Type} {profile : ProfileKind}
     LocalSteps profile ready dispatch before (leading ++ trailing) finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localAppend front back
 
+theorem SilentLocalPath.append {E : CoreEngine} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch : Call E → P E Host (Ret E)} {before middle finish leading trailing}
+    (front : SilentLocalPath profile ready dispatch before leading middle)
+    (back : SilentLocalPath profile ready dispatch middle trailing finish) :
+    SilentLocalPath profile ready dispatch before (leading ++ trailing) finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.appendSilentReads front back
+
 theorem ReachesKeeping.prepend {E : CoreEngine} {Host Result : Type} {profile : ProfileKind}
     {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)} {keep : CStore E → Prop}
     {left left' right right' : Config E Host} {checkLabels canonLabels : List (Label E Host)}
@@ -418,7 +425,7 @@ theorem string_plan_entry {grow : SingleThreaded.GrowOracle} {sig : Signature} {
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
   by
-    obtain ⟨reads, checked, canonical⟩ :=
+    obtain ⟨reads, checked, canonical, _, _⟩ :=
       Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry (refDispatch := dispatch)
         destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
     exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩
@@ -447,8 +454,13 @@ theorem string_plan_entry_occurrences {grow : SingleThreaded.GrowOracle} {sig : 
     ∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch left place (List.replicate reads .tau)
       { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
           fun value => checkNext (.ok value)) } place) ∧
-      ∀ place, ReturnFrame.Occurrence.Prefix profile ready reference right place [.tau]
-        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place :=
+      (∀ place, ReturnFrame.Occurrence.Prefix profile ready reference right place [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place) ∧
+      SilentLocalPath profile ready dispatch left (List.replicate reads .tau)
+        { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } ∧
+      SilentLocalPath profile ready reference right [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry
     destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
 
@@ -480,7 +492,7 @@ theorem string_plan_entry_between {grow : SingleThreaded.GrowOracle} {sig : Sign
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
   by
-    obtain ⟨reads, checked, canonical⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
+    obtain ⟨reads, checked, canonical, _, _⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
       (dispatch := dispatch) (reference := reference)
       destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
     exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩

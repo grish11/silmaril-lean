@@ -139,6 +139,12 @@ theorem frameRead (read : PayloadPrefix.SilentLocalStep profile ready dispatch s
     WriterPath profile ready dispatch start [.tau] finish [] := by
   exact frameSingle (ReturnFrame.Occurrence.prefix_survives (read.tracks (.active 0 0))).1 read.host
 
+theorem frameReads (run : PayloadPrefix.SilentLocalPath profile ready dispatch start labels finish) :
+    WriterPath profile ready dispatch start labels finish [] := by
+  induction run with
+  | done => exact .done _
+  | read step _ ih => exact append (frameRead step) ih
+
 theorem frameLocal (path : PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base)
     (specDispatch ready (LiveDispatch.host bindings base)) start incoming checked canonical left right) :
     WriterPath profile ready (specDispatch ready base) start checked left [] ∧

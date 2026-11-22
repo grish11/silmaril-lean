@@ -2243,6 +2243,8 @@ def StringValueThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base) left place checkLabels checkBody place) ∧
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       right place canonLabels canonBody place) ∧
+    PayloadPrefix.SilentLocalPath profile ready (specDispatch ready base) left checkLabels checkBody ∧
+    PayloadPrefix.SilentLocalPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) right canonLabels canonBody ∧
     LinkedCallback.ChildFrameOver older checkBody canonBody check canon ∧
     LiveStringReplay profile ready base bindings older cx checked canonical finish plan.steps.length checkBody canonBody check canon
 

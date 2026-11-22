@@ -2087,7 +2087,7 @@ theorem stringValuePaths {destination : RecordDestination} {inst : InstId} {key 
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → second ptr observed lhs rhs check canon) :
     StringValuePaths profile ready base bindings older destination inst key output start incoming left right check canon
       checkNext canonNext second seen offset := by
-  obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, _, body⟩ := run
+  obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, _, _, _, body⟩ := run
   have reached := appendComparedSlots leading ⟨checkLabels, canonLabels, fun depth => checkEntry (.active 0 depth),
     fun depth => canonEntry (.active 0 depth), checkSeen, canonSeen⟩
   rw [List.append_nil] at reached
@@ -2110,7 +2110,7 @@ theorem stringValueOccurrencePathsFrom {destination : RecordDestination} {inst :
       finish pointer observed lhs rhs cursor peer) :
     StringValueOccurrencePaths profile ready base bindings older destination inst key output start incoming left right check canon
       checkNext canonNext finish seen leftBody rightBody := by
-  obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, frame, body⟩ := run
+  obtain ⟨checkLabels, canonLabels, checkSeen, canonSeen, checkEntry, canonEntry, _, _, frame, body⟩ := run
   have entry : ComparedOccurrenceTransport profile ready base bindings left right [] _ _ :=
     ⟨checkLabels, canonLabels, stationaryTransport checkEntry canonEntry, checkSeen, canonSeen, frame.store⟩
   obtain ⟨bodySeen, history⟩ := movement
