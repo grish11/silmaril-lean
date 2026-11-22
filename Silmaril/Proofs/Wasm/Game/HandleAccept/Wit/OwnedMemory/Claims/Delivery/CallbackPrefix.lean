@@ -265,15 +265,41 @@ private theorem closedReadPeer {before peer : Config (core3 grow) (HostState sig
   rw [agrees peer.host]
   exact .hostGet atPeer
 
+private theorem noAssignmentPeer (paired : HostFrame.Related.Paired older start incoming)
+    (closed : NoHostAssignment start) : NoHostAssignment incoming := by
+  intro thread value next frames rest focused
+  change ReturnFrame.Related.Paired older (HostFrame.replace start incoming.host) incoming at paired
+  generalize incoming.host = observer at paired
+  cases paired with
+  | @mk active _ control _ =>
+    change List.Forall₂ (ReturnFrame.Related.Active older) start.ctl _ at control
+    change active = _ at focused
+    rw [focused] at control
+    generalize leftFocus : start.ctl = leftControl at control
+    cases control with
+    | cons head _ =>
+      cases head
+      exact closed _ _ _ _ _ leftFocus
+
+private theorem stepHost {other : Config (core3 grow) (HostState sig)} {label}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (closed : NoHostAssignment start) (step : Step profile ready dispatch start label other) : other.host = start.host := by
+  cases step <;> try rfl
+  case hostDone => unfold StepDefs.hostFinish; split <;> rfl
+  case hostSet focused => exact (closed _ _ _ _ _ focused).elim
+  case emit => rename_i observation _ _ _ _; cases observation <;> rfl
+
 private theorem actualReplayDone {protectedReturn} (state : Config (core3 grow) (HostState sig)) :
     ActualCallbackReplay bindings profile ready base protectedReturn state [] state :=
   fun {_changes _retained peer mark} _ paired outside =>
     ⟨peer, mark, .refl _, paired, outside, .done _ _, .done _ _,
       (fun cursor => ⟨cursor, .done _ _, .done _ _⟩),
-      id, (fun _ => ⟨.done _ _, .done _ _⟩), fun _ _ outside => by simpa only [List.map_id, List.nil_append] using outside⟩
+      ⟨id, (fun _ => ⟨.done _ _, .done _ _⟩), fun _ _ outside => by simpa only [List.map_id, List.nil_append] using outside⟩,
+      ⟨rfl, rfl⟩⟩
 
 private theorem actualReplayCons {before next after : Config (core3 grow) (HostState sig)} {label leading protectedReturn}
     (step : Step profile ready (specDispatch ready base) before label next)
+    (noWrite : NoHostAssignment before)
     (matchStep : ∀ {changes peer}, (∀ first second, changes first second → protectedReturn first) →
       HostFrame.Related.Paired changes before peer →
       ∃ reached, Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer label reached ∧
@@ -286,7 +312,7 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
   have kept : Outside retained (segmentStorage next) (segmentStorage reached) (mark.bind (transitionEdit before label).follow) := by
     rw [step_edit step, step_edit live, ← edit]
     exact outside_edit outside _
-  obtain ⟨last, finalMark, replay, final, finalOutside, left, right, _, move, tails, outsideTails⟩ := tail covers aligned kept
+  obtain ⟨last, finalMark, replay, final, finalOutside, left, right, _, ⟨move, tails, outsideTails⟩, flow⟩ := tail covers aligned kept
   let follow := fun cursor : Option Location => cursor.bind (transitionEdit before label).follow
   have trails : ∀ cursor, Trail profile ready (specDispatch ready base) before cursor (label :: leading) after (move (follow cursor)) ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer cursor (label :: leading) last (move (follow cursor)) := by
@@ -294,7 +320,9 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
     obtain ⟨leftTrail, rightTrail⟩ := tails (follow cursor)
     exact ⟨.step step leftTrail, .step live (edit ▸ rightTrail)⟩
   refine ⟨last, finalMark, .cons live replay, final, finalOutside, .step step left, .step live (edit ▸ right),
-    (fun cursor => ⟨_, trails cursor⟩), move ∘ follow, trails, ?_⟩
+    (fun cursor => ⟨_, trails cursor⟩), ⟨move ∘ follow, trails, ?_⟩,
+    ⟨flow.1.trans (congrArg HostState.writer (stepHost noWrite step)),
+      flow.2.trans (congrArg HostState.writer (stepHost (noAssignmentPeer paired noWrite) live))⟩⟩
   intro older marks invariant
   have moved : OutsideMarks older (segmentStorage next) (segmentStorage reached) (marks.map follow) := by
     rw [step_edit step, step_edit live, ← edit]
@@ -348,13 +376,18 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     · obtain ⟨thread, resume, frames, rest, focus, agrees⟩ := closedRead
       obtain ⟨rfl, rfl⟩ := actualHostGet focus step
       have grows : CoreUpdateGrows before := by simp [CoreUpdateGrows, focus]
+      have noWrite : NoHostAssignment before := by
+        intro _ _ _ _ _ impossible
+        rw [focus] at impossible
+        cases impossible
       cases ih with
       | complete closed replay growing =>
-        exact .complete (.closedRead focus agrees closed) (actualReplayCons step (fun _ paired => closedReadPeer paired focus agrees) replay)
+        exact .complete (.closedRead focus agrees closed)
+          (actualReplayCons step noWrite (fun _ paired => closedReadPeer paired focus agrees) replay)
           (.cons grows step growing)
       | @boundary leading _ _ _ _ split closed growing replay cut actual rest =>
         exact .boundary (leading := .tau :: leading) (congrArg (Label.tau :: ·) split) (.closedRead focus agrees closed)
-          (.cons grows step growing) (actualReplayCons step (fun _ paired => closedReadPeer paired focus agrees) replay) cut actual rest
+          (.cons grows step growing) (actualReplayCons step noWrite (fun _ paired => closedReadPeer paired focus agrees) replay) cut actual rest
     rcases unchangedOrGive (bindings := bindings) step with unchanged | install
     · by_cases interior : HostFrame.InteriorFor protectedReturn before
       · by_cases noWrite : NoHostAssignment before
@@ -367,11 +400,12 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
               exact .step interior unchanged noWrite grows step closed
             cases ih with
             | complete closed replay growing =>
-              exact .complete (extend closed) (actualReplayCons step (fun covers paired => ordinaryPeer covers paired interior unchanged grows step) replay)
+              exact .complete (extend closed)
+                (actualReplayCons step noWrite (fun covers paired => ordinaryPeer covers paired interior unchanged grows step) replay)
                 (.cons grows step growing)
             | boundary split closed growing replay cut actual rest =>
               exact .boundary (congrArg (label :: ·) split) (extend closed) (.cons grows step growing)
-                (actualReplayCons step (fun covers paired => ordinaryPeer covers paired interior unchanged grows step) replay) cut actual rest
+                (actualReplayCons step noWrite (fun covers paired => ordinaryPeer covers paired interior unchanged grows step) replay) cut actual rest
           · exact stop (.nonGrowingUpdate grows)
         · unfold NoHostAssignment at noWrite
           push Not at noWrite
@@ -393,9 +427,10 @@ theorem actualAllocatorPrefix {protectedReturn} {labels : Trace grow sig}
     (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0))) :
     ∃ reached mark, AllocatorMark profile ready base bindings older start incoming labels labels finish reached mark ∧
       HostFrame.Related.Paired changes finish reached ∧
-      ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached := by
-  obtain ⟨reached, mark, _, aligned, kept, left, right, tracks, _⟩ := replay covers paired outside
-  exact ⟨reached, mark, ⟨kept, left, right, tracks⟩, aligned, labels, labels, tracks, rfl, rfl, aligned.data.1⟩
+      ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer reached.host.writer [] := by
+  obtain ⟨reached, mark, _, aligned, kept, left, right, tracks, _, flow⟩ := replay covers paired outside
+  exact ⟨reached, mark, ⟨kept, left, right, tracks⟩, aligned, ⟨labels, labels, tracks, rfl, rfl, aligned.data.1⟩, flow⟩
 
 private theorem installTransport
     {checkEntry canonEntry peer : Config (core3 grow) (HostState sig)}
@@ -443,7 +478,7 @@ private theorem replayInstalledOccurrences {protectedReturn}
     (replay : ActualCallbackReplay bindings profile ready base protectedReturn checkEntry seen finish) :
     ActualAllocatorOccurrencePrefix profile ready base bindings older changes start incoming checkEntry canonEntry
       checkInstall canonInstall seen finish := by
-  obtain ⟨peer, _, _, aligned, _, _, _, _, move, trails, offMarks⟩ := replay covers paired
+  obtain ⟨peer, _, _, aligned, _, _, _, _, ⟨move, trails, offMarks⟩, flow⟩ := replay covers paired
     (paired_outside (left := HostFrame.replace checkEntry canonEntry.host) paired)
   let mark := some (Location.active 0 0)
   obtain ⟨checkMark, canonMark⟩ := trails mark
@@ -453,7 +488,7 @@ private theorem replayInstalledOccurrences {protectedReturn}
   have marked : AllocatorMark profile ready base bindings older checkEntry canonEntry seen seen finish peer (move mark) :=
     ⟨kept, checkMark, canonMark, fun cursor => ⟨_, trails cursor⟩⟩
   exact ⟨peer, move mark, aligned, marked, installTransport left right leftStorage rightStorage trails
-    (fun retained marks outside => by simpa only [List.nil_append] using offMarks retained marks outside)⟩
+    (fun retained marks outside => by simpa only [List.nil_append] using offMarks retained marks outside), flow⟩
 
 private theorem invisible {labels : Trace grow sig} (silent : labels.all (· matches .tau) = true) :
     PayloadPrefix.visible labels = [] := by
@@ -478,30 +513,6 @@ theorem visibleLeaf {Result : Type} {outcome : Except TrapReason Result} {labels
       PayloadPrefix.visible (List.replicate count .tau : Trace grow sig) ++ PayloadPrefix.visible ([.trap reason] : Trace grow sig)
       from List.filter_append .., invisible (by simp)]
     rfl
-
-private theorem noAssignmentPeer (paired : HostFrame.Related.Paired older start incoming)
-    (closed : NoHostAssignment start) : NoHostAssignment incoming := by
-  intro thread value next frames rest focused
-  change ReturnFrame.Related.Paired older (HostFrame.replace start incoming.host) incoming at paired
-  generalize incoming.host = observer at paired
-  cases paired with
-  | @mk active _ control _ =>
-    change List.Forall₂ (ReturnFrame.Related.Active older) start.ctl _ at control
-    change active = _ at focused
-    rw [focused] at control
-    generalize leftFocus : start.ctl = leftControl at control
-    cases control with
-    | cons head _ =>
-      cases head
-      exact closed _ _ _ _ _ leftFocus
-
-private theorem stepHost {other : Config (core3 grow) (HostState sig)} {label}
-    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    (closed : NoHostAssignment start) (step : Step profile ready dispatch start label other) : other.host = start.host := by
-  cases step <;> try rfl
-  case hostDone => unfold StepDefs.hostFinish; split <;> rfl
-  case hostSet focused => exact (closed _ _ _ _ _ focused).elim
-  case emit => rename_i observation _ _ _ _; cases observation <;> rfl
 
 theorem coreInternal {protectedReturn thread core next frames rest store coreNext}
     (focused : start.ctl = ⟨thread, .core core next, frames⟩ :: rest)
@@ -680,10 +691,11 @@ theorem executeClassifiedPrefix {protectedReturn checkLabels}
     (replay : ActualCallbackReplay bindings profile ready base protectedReturn start checkLabels finish)
     (covers : ∀ first second, changes first second → protectedReturn first)
     (paired : HostFrame.Related.Paired changes start incoming) :
-    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming checkLabels checkLabels finish peer := by
-  obtain ⟨peer, _, _, aligned, _, _, _, _, movement⟩ := replay covers paired
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming checkLabels checkLabels finish peer ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer [] := by
+  obtain ⟨peer, _, _, aligned, _, _, _, _, movement, flow⟩ := replay covers paired
     (paired_outside (left := HostFrame.replace start incoming.host) paired)
-  exact ⟨peer, run, rfl, aligned, movement⟩
+  exact ⟨peer, ⟨run, rfl, aligned, movement⟩, flow⟩
 
 private theorem compareReachedHostReadFramed {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label}

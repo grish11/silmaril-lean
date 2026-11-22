@@ -107,6 +107,14 @@ theorem leafSpend_claimDiscrepancies {update : Spend} {left right checked canoni
   rw [flow.checkedHost, flow.canonicalHost]
   exact related.spendLeft update
 
+open Stored.OwnedMemory.Claims in
+/-- Extend the current discrepancy bound by the spends actually consumed by
+the visitor, without altering the raw canonical writer. -/
+theorem CheckedSpendFlow.discrepancies {left right checked canonical : State sig} {spends : List Spend} {pending : Spend → Prop}
+    (flow : CheckedSpendFlow left right checked canonical spends) (related : left.ClaimDiscrepancies right pending) :
+    checked.ClaimDiscrepancies canonical (fun probe => pending probe ∨ probe ∈ spends) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.spendFlowDiscrepancies flow related
+
 /-- Compare an executed shared host read of a recursive claim plan after its store read.
 Neither side commits the prospective dry-run spends. -/
 theorem compareReachedRecordPrepare (plan : List Object)
@@ -620,6 +628,7 @@ theorem cut_public_poll (mem : (core3 grow).MemAddr) (inst : InstId) (args : Lis
         reached peer [some (.active 0 0)]) ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer reached.host.writer peer.host.writer [] ∧
       WaitableCalloutExit profile ready base bindings older reached peer suffix finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicPoll
     mem inst args focused calling step run paired
@@ -1107,7 +1116,8 @@ theorem ActualCallbackReplay.allocator_prefix {protectedReturn}
     (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0))) :
     ∃ reached mark, AllocatorMark profile ready base bindings older start incoming labels labels finish reached mark ∧
       HostFrame.Related.Paired changes finish reached ∧
-      ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached :=
+      ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer reached.host.writer [] :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.actualAllocatorPrefix
     replay covers paired outside
 
@@ -1741,7 +1751,8 @@ theorem drive_string_list_after_range (destination : RecordDestination) (inst : 
 open PayloadPrefix LinkedCallback.MemorySequence in
 /-- Once the admitted list's range is actually reached, consume the nominal
 element suffix in order. Publication is entered only after every element
-returns; a guard refusal leaves canonical at the exact unexecuted suffix. -/
+returns; a guard refusal leaves canonical at the exact unexecuted suffix.
+The compared prefix carries its executed checked spends through publication. -/
 theorem drive_nominal_list_body (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
     (entries : List Field) (index pointer : Nat) (output : Stored.Lower.Output)
     (nominal : NominalElement element)
@@ -1757,13 +1768,15 @@ theorem drive_nominal_list_body (destination : RecordDestination) (inst : InstId
     Steps profile ready (specDispatch ready base) start labels finish →
     AllocatedElementRun profile ready base bindings older checkNext canonNext
       (ElementStop destination inst entries area.size pointer
-        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish :=
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish
+      (fun left right => ∃ spends, CheckedSpendFlow start.host.writer incoming.host.writer left.host.writer right.host.writer spends) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveNominalListBody
     destination inst element entries index pointer output nominal matched emitted checkNext canonNext frame
 
 open PayloadPrefix LinkedCallback.MemorySequence in
 /-- Use the executed range split from `LiveCollectionOccurrenceEntry.drive_actual`.
-The body never runs when the checked prefix ends inside the range. -/
+The body never runs when the checked prefix ends inside the range. The spend
+trail starts at the reached post-range writer pair, not before the callback. -/
 theorem drive_nominal_list_after_range (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
     (entries : List Field) (index pointer : Nat) (output : Stored.Lower.Output)
     (nominal : NominalElement element)
@@ -1782,7 +1795,8 @@ theorem drive_nominal_list_after_range (destination : RecordDestination) (inst :
     (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
     AllocatedElementRun profile ready base bindings older checkNext canonNext
       (ElementStop destination inst entries area.size pointer
-        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish :=
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish
+      (fun lhs rhs => ∃ spends, CheckedSpendFlow left.host.writer right.host.writer lhs.host.writer rhs.host.writer spends) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveNominalListAfterRange
     destination inst element entries index pointer output nominal matched emitted checkNext canonNext frame split seen
 

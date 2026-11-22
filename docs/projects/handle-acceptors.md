@@ -1074,6 +1074,16 @@ must be a separately named dispatcher and perform its own authorized nominal spe
 at the reached leaf, rather than amend history at registration or change the raw
 reference. No such dispatcher is used by this comparison.
 
+The reached nominal-list visitor carries the ordered checked spends through
+successive elements and the actual descriptor program. It starts at the live
+post-range writer pair. An entered guard that refuses adds no spend, but a
+leaf that commits and then traps retains its spend. The evidence applies at
+the compared endpoint; a prefix ending inside an unfinished leaf retains the
+actual checked suffix rather than completing the leaf. The extracted closed
+callback prefix, executed marked pops, and public poll path have separate
+writer-preservation evidence. None of these preserves authority across arbitrary
+callbacks or claims that a selected event is still available at a later read.
+
 `import_binding_trap_steps` covers mislinked imports from the public dispatcher,
 not only its trap continuation. It records the entry and the typed missing, ambiguous
 or mismatched-binding diagnostic before taking the reference trap transition. No

@@ -23,6 +23,13 @@ def NoHostAssignment (state : Config (core3 grow) (HostState sig)) : Prop :=
   ∀ thread value next frames rest,
     state.ctl ≠ ⟨thread, .prog (.op (.hostSet value) next), frames⟩ :: rest
 
+/-- The checked writer commits these nominal spends in order. The raw canonical
+writer has no corresponding authority updates. This describes writers, not
+the rest of either host state or the canonical arena. -/
+def CheckedSpendFlow (left right checked canonical : Stored.OwnedMemory.Claims.State sig)
+    (spends : List Stored.OwnedMemory.Claims.Spend) : Prop :=
+  checked = spends.foldl (fun state spend => spend.apply state) left ∧ canonical = right
+
 /-- Reached allocator steps before a protected return. Ordinary steps must
 not install an overlaid give or assign the host; confined gives and
 reached host reads with a closed observation have their own rules. The endpoint may
@@ -337,6 +344,11 @@ inductive FlatCalloutExit {Observation : Type} (code : Observation → Nat)
           frames⟩ :: rest }
         { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat (code observation)])) resume,
           peerFrames⟩ :: peerRest })
+      (writers : CheckedSpendFlow left.host.writer right.host.writer
+        ({ left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat (code observation)])) resume,
+          frames⟩ :: rest } : Config (core3 grow) (HostState sig)).host.writer
+        ({ right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values [i32Flat (code observation)])) resume,
+          peerFrames⟩ :: peerRest } : Config (core3 grow) (HostState sig)).host.writer [])
       (pop : OccurrenceTransport profile ready base bindings left right [.tau] [.tau]
         { left with ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values [i32Flat (code observation)])) resume,
           frames⟩ :: rest }
@@ -441,7 +453,8 @@ def ActualCallbackReplay (bindings : List (Binding sig)) (profile : ProfileKind)
       Trail profile ready (specDispatch ready base) start mark labels finish finalMark ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer mark labels reached finalMark ∧
       CoupledOccurrencePaths profile ready base bindings start peer labels labels finish reached ∧
-      OccurrenceTransport profile ready base bindings start peer labels labels finish reached
+      OccurrenceTransport profile ready base bindings start peer labels labels finish reached ∧
+      CheckedSpendFlow start.host.writer peer.host.writer finish.host.writer reached.host.writer []
 
 /-- Extract a closed prefix from the actual finite derivation, leaving any
 boundary action and the rest of the checked run at their original states. -/
@@ -489,7 +502,8 @@ def ActualAllocatorOccurrencePrefix (profile : ProfileKind) (ready : HostReady (
   ∃ canonical mark, HostFrame.Related.Paired changes checked canonical ∧
     AllocatorMark profile ready base bindings older checkEntry canonEntry callback callback checked canonical mark ∧
     OccurrenceTransport profile ready base bindings left right (checkInstall ++ callback) (canonInstall ++ callback)
-      checked canonical [mark]
+      checked canonical [mark] ∧
+    CheckedSpendFlow checkEntry.host.writer canonEntry.host.writer checked.host.writer canonical.host.writer []
 
 def stringAllocatorEntry (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (oldSize : Option Nat) (alignment : ABI.Alignment) (size : Nat)
@@ -546,9 +560,11 @@ inductive ExecutedCallbackCut (profile : ProfileKind) (ready : HostReady (HostSt
     (checked canonical : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop where
   | complete {peer} (segment : ExecutedCallbackSegment profile ready base bindings changes checked canonical actual actual finish peer)
+      (writers : CheckedSpendFlow checked.host.writer canonical.host.writer finish.host.writer peer.host.writer [])
   | boundary {leading label trailing reached peer next}
       (split : actual = leading ++ label :: trailing)
       (segment : ExecutedCallbackSegment profile ready base bindings changes checked canonical leading leading reached peer)
+      (writers : CheckedSpendFlow checked.host.writer canonical.host.writer reached.host.writer peer.host.writer [])
       (kind : CallbackWorkerBoundary bindings ready (specDispatch ready base) (fun resume => ∃ rhs, changes resume rhs) reached label next)
       (step : Step profile ready (specDispatch ready base) reached label next)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish)
@@ -934,6 +950,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | pollTerminal {changes reached peer left right checked trailing finish mark check canon}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right [mark])
+      (writers : CheckedSpendFlow reached.host.writer peer.host.writer left.host.writer right.host.writer [])
       (frontier : ComponentStoreFrontier changes check canon waitableFlatReply waitableFlatReply left right trailing True)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
@@ -4829,11 +4846,13 @@ def ElementRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (success : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
     (refusal : Stored.Endpoints.RecordLower.Issue → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
-    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
+    (writerFlow : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True) : Prop :=
   ∃ checked canonical trailing left right, actual = checked ++ trailing ∧
     PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
     OccurrenceTransport profile ready base bindings start incoming checked canonical left right ∧
     Steps profile ready (specDispatch ready base) left trailing finish ∧
+    writerFlow left right ∧
     ElementRunEnd profile ready base success refusal left right trailing finish
 
 /-- An allocated element sequence ending in the stated output continuations.
@@ -4845,12 +4864,13 @@ def AllocatedElementRun (profile : ProfileKind) (ready : HostReady (HostState si
     {Result : Type} (checkNext : Except Stored.Endpoints.RecordLower.Issue Result → Session grow sig (Ret (core3 grow)))
     (canonNext : Result → Session grow sig (Ret (core3 grow))) (stopsAt : Session grow sig (Ret (core3 grow)) → Prop)
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
+    (writerFlow : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop := fun _ _ => True) : Prop :=
   ElementRunSlice profile ready base bindings
     (fun left right => ∃ value, LinkedCallback.ChildFrameOver older left right check canon ∧
       left.ctl = check.control (checkNext (.ok value)) ∧ right.ctl = canon.control (canonNext value))
     (fun issue left right => left.ctl = check.control (checkNext (.error issue)) ∧
-      ∃ stop, stopsAt stop ∧ right.ctl = canon.control stop) start incoming actual finish
+      ∃ stop, stopsAt stop ∧ right.ctl = canon.control stop) start incoming actual finish writerFlow
 
 /-- Match the actual local descriptor program before exposing a successful
 publication or a trap. A checked prefix inside the program cannot advance
@@ -4992,6 +5012,7 @@ def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
       Steps profile ready (specDispatch ready base) resumed trailing finish ∧
       Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer ∧
       LinkedCallback.ChildFrameOver older left right check canon ∧
+      CheckedSpendFlow left.host.writer right.host.writer resumed.host.writer peer.host.writer [] ∧
       CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau]) resumed peer ∧
       ∀ {leftStart rightStart : Config (core3 grow) (HostState sig)} {leftLabels rightLabels : Trace grow sig},
         ∀ {enclosing : List (Option ReturnFrame.Occurrence.Location)},

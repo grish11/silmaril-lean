@@ -1508,7 +1508,7 @@ private theorem cutFlatCalloutBodyExit {Observation : Type} (code : Observation 
     rcases cutWaitableCorePop (bindings := bindings) checked canonical paired run with done | popped
     · exact .exhausted done.1 done.2
     · obtain ⟨_, split, tail, paired, transport, _⟩ := popped
-      exact .rejoined observation checked canonical split tail paired transport
+      exact .rejoined observation checked canonical split tail paired ⟨rfl, rfl⟩ transport
   | pending _ _ _ _ _ boundary =>
     rcases boundary with rfl | ⟨notClosed, _⟩
     · cases run
@@ -1867,14 +1867,16 @@ theorem cutPublicPoll (mem : (core3 grow).MemAddr) (inst : InstId) (args : List 
         reached peer [some (.active 0 0)]) ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      CheckedSpendFlow start.host.writer incoming.host.writer reached.host.writer peer.host.writer [] ∧
       WaitableCalloutExit profile ready base bindings older reached peer suffix finish := by
   obtain ⟨peerFrames, peerRest, rfl, rfl, site, install, _, _⟩ :=
     cutWaitableCalloutInstall (bindings := bindings) true mem inst args focused calling step paired
-  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, retained⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, retained⟩ :=
     cutPollCalloutBody (bindings := bindings) mem inst args rfl rfl site run
   obtain ⟨move, whole, _⟩ := CallbackPrefix.transportAppend install moved
   refine ⟨peerFrames, peerRest, leading, suffix, reached, peer, by rw [split]; rfl,
-    ⟨move (some (.active 0 0)), whole⟩, ?_, residual, frontier, ?_⟩
+    ⟨move (some (.active 0 0)), whole⟩, ?_, residual, frontier,
+    ⟨congrArg HostState.writer leftHost, congrArg HostState.writer rightHost⟩, ?_⟩
   · exact fun live => retainInstalledWaitable install (retained live)
   · exact cutWaitableBodyExit frontier residual
 
@@ -2329,12 +2331,12 @@ theorem cutExecutedCallback
   cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run
       includeComponentCalls includePoll includeWait includeCancelResume includeCancel with
   | complete _ replay growing =>
-    obtain ⟨_, prefixRun⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
-    exact .complete prefixRun
+    obtain ⟨_, prefixRun, writers⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
+    exact .complete prefixRun writers
   | @boundary leading label trailing reached next split _ growing replay kind step tail =>
-    obtain ⟨_, compared⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
+    obtain ⟨_, compared, writers⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     have smaller : trailing.length < labels.length := by simp [split, List.length_append]; omega
-    exact .boundary split compared kind step tail smaller
+    exact .boundary split compared writers kind step tail smaller
 
 private def CallbackCrossingAt (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -2416,8 +2418,8 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
   | ind budget ih =>
     cases cutExecutedCallback run paired component.isSome poll.isSome (wait.isSome || waitResume.isSome) cancelResume.isSome
         cancel.isSome with
-    | complete segment => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
-    | @boundary leading label trailing reached peer next split front kind step tail smaller =>
+    | complete segment _ => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
+    | @boundary leading label trailing reached peer next split front _ kind step tail smaller =>
       have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
           CallbackSlice profile ready base bindings older start incoming labels finish :=
         ⟨leading, leading, label :: trailing, reached, peer, split, front, ending⟩
@@ -2534,7 +2536,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | directGiveFinite cut => exact (cut.paths.choose_spec.1 none).1.steps
   | allocator _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | uncertified _ _ _ paths residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | pollTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | pollTerminal paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | waitTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelTerminal paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelHookBody paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2565,7 +2567,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | directGiveFinite cut => exact (cut.paths.choose_spec.1 none).1.steps
   | allocator install _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | uncertified install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
-  | pollTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | pollTerminal paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | waitTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelTerminal paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelHookBody paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
@@ -4155,7 +4157,7 @@ theorem actualCallbackGive {callees : List (ComponentCall.Callee sig)} {protecte
     Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start (labels ++ label :: trailing) finish ∧
     ClassifiedWorkerTail profile ready bindings callees older start incoming (labels ++ label :: trailing) finish
       (WorkerOccurrencePrefix profile ready bindings callees retained start incoming mark) := by
-  obtain ⟨peer, finalMark, live, aligned, kept, checkedTrail, liveTrail, movement, _⟩ := replay covers paired outside
+  obtain ⟨peer, finalMark, live, aligned, kept, checkedTrail, liveTrail, movement, _, _⟩ := replay covers paired outside
   exact ⟨append checkedTrail.steps (.cons actual tail), .request rfl checkedTrail.steps live aligned
     ⟨finalMark, checkedTrail, liveTrail, kept, movement⟩ install (recursiveInstallCut install aligned) tail⟩
 
@@ -4388,7 +4390,7 @@ private theorem replayRejoinedCallback {callees : List (ComponentCall.Callee sig
           start incoming leading leading reached peer ∧
         CoupledOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings request reference
           (checkPrefix ++ leading) (canonPrefix ++ leading) reached peer := by
-    obtain ⟨peer, _, live, aligned, _, _, _, tracks, movement⟩ :=
+    obtain ⟨peer, _, live, aligned, _, _, _, tracks, movement, _⟩ :=
       replay (fun first second holds => ⟨second, holds⟩) paired
         (paired_outside (left := HostFrame.replace start incoming.host) paired)
     refine ⟨peer, live, aligned, movement, ?_⟩
@@ -4658,7 +4660,7 @@ theorem alignAllocatorPop
     | @cons _ _ _ _ trailing head tail =>
       obtain ⟨canon, frame, checked, live, _, _, paths, canonAt⟩ := CallbackPrefix.pop marked paired returning installed
       obtain ⟨rfl, rfl⟩ := silentStepUnique checked head
-      exact .inr (.inr ⟨trailing, canon, rfl, rfl, by simp, tail, live, frame, paths,
+      exact .inr (.inr ⟨trailing, canon, rfl, rfl, by simp, tail, live, frame, ⟨rfl, rfl⟩, paths,
         fun transport => CallbackPrefix.transportAllocatorPop returning canonAt transport⟩)
   · exact .inl top
 
@@ -5738,8 +5740,8 @@ theorem classifyComponentWorkerPrefix {callees : List (ComponentCall.Callee sig)
     (paired : HostFrame.Related.Paired older start incoming) :
     ComponentWorkerCut profile ready bindings callees older start incoming labels finish := by
   cases cutExecutedCallback run paired (includeComponentCalls := true) with
-  | complete segment => exact .complete segment
-  | boundary split prefixSegment kind step tail smaller =>
+  | complete segment _ => exact .complete segment
+  | boundary split prefixSegment _ kind step tail smaller =>
     exact .boundary split prefixSegment kind step tail smaller (classifyComponentInstallOutcome step tail prefixSegment.paired)
 
 open ReturnFrame.Occurrence in
@@ -6034,6 +6036,25 @@ private theorem elementHeadFoci (destination : RecordDestination) (inst : InstId
     congr 1
     exact Prog.bind_assoc _ _ _
 
+open Stored.OwnedMemory.Claims in
+theorem spendFlowDiscrepancies {left right checked canonical : State sig} {spends : List Spend} {pending : Spend → Prop}
+    (flow : CheckedSpendFlow left right checked canonical spends) (related : left.ClaimDiscrepancies right pending) :
+    checked.ClaimDiscrepancies canonical (fun probe => pending probe ∨ probe ∈ spends) := by
+  obtain ⟨rfl, rfl⟩ := flow
+  induction spends generalizing left pending with
+  | nil => simpa using related
+  | cons spend rest ih =>
+    have carried := ih (related.spendLeft spend)
+    refine ⟨carried.accepted, fun probe outside => carried.observe probe ?_⟩
+    simpa only [List.mem_cons, or_assoc] using outside
+
+private theorem appendSpendFlow {left right middle peer checked canonical : Stored.OwnedMemory.Claims.State sig}
+    {first rest : List Stored.OwnedMemory.Claims.Spend}
+    (head : CheckedSpendFlow left right middle peer first) (tail : CheckedSpendFlow middle peer checked canonical rest) :
+    CheckedSpendFlow left right checked canonical (first ++ rest) := by
+  obtain ⟨rfl, rfl⟩ := head
+  simpa only [CheckedSpendFlow, List.foldl_append] using tail
+
 open PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
 theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (entries : List Field) (stride pointer index : Nat)
     (nominal : ∀ item ∈ entries, CanonicalHandle item)
@@ -6046,14 +6067,16 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
       (destination.context inst) destination.width entries .value stride pointer >>= canonNext))
     (actual : Steps profile ready (specDispatch ready base) start labels finish) :
     AllocatedElementRun profile ready base bindings older checkNext canonNext
-      (ElementStop destination inst entries stride pointer canonNext) check canon start incoming labels finish := by
+      (ElementStop destination inst entries stride pointer canonNext) check canon start incoming labels finish
+      (fun left right => ∃ spends, CheckedSpendFlow start.host.writer incoming.host.writer left.host.writer right.host.writer spends) := by
   have static (left right : Config (core3 grow) (HostState sig)) :
       OccurrenceTransport profile ready base bindings left right [] [] left right :=
     CallbackPrefix.stationaryTransport (fun place => .done left place) (fun place => .done right place)
   induction entries generalizing pointer index start incoming labels with
   | nil =>
     simp only [Record.Effects.elements, CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] at checkAt canonAt
-    exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, .returned ⟨(), frame, checkAt, canonAt⟩⟩
+    exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual,
+      ⟨[], rfl, rfl⟩, .returned ⟨(), frame, checkAt, canonAt⟩⟩
   | cons item rest ih =>
     let checkTail := LinkedCallback.MemorySequence.checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext
     let canonTail := LinkedCallback.MemorySequence.canonTail (.elements stride) destination inst rest (pointer + stride) canonNext
@@ -6072,15 +6095,21 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
       have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
       cases alignLocalBody (prefix_survives (tracks (.active 0 0))).1 actual (noBranchOfVisible quiet (by simp)) with
       | inside _ nonempty tail =>
-        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, .inside nonempty tail⟩
+        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, ⟨[], rfl, rfl⟩, .inside nonempty tail⟩
       | reached split tail =>
         refine ⟨guard, [], _, _, incoming, split, quiet, ?_,
-          CallbackPrefix.stationaryTransport tracks (fun place => .done _ place), tail,
+          CallbackPrefix.stationaryTransport tracks (fun place => .done _ place), tail, ⟨[], rfl, rfl⟩,
           .refused issue ⟨rfl, _, ⟨[], item :: rest, rfl, by simp, by simp⟩, canonAt⟩⟩
         exact frame.store
     | ok plan =>
       rw [decision] at leaf
       obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
+      have flow : CheckedSpendFlow start.host.writer incoming.host.writer
+          (localLeafEnd start (plan.elim start.host (fun spend => { start.host with writer := spend.apply start.host.writer }))
+            store check.thread check.frames check.rest (fun value => checkTail (.ok value)) verdict).host.writer
+          (localLeafEnd incoming incoming.host store canon.thread canon.frames canon.rest canonTail verdict).host.writer
+          plan.toList := by
+        cases plan <;> cases verdict <;> exact ⟨rfl, rfl⟩
       have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
       have observed : visible (guard ++ checkLabels) = visible canonLabels := by
         rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
@@ -6090,23 +6119,24 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
         cases verdict <;> simp [workerBranchLabel]
       cases alignLocalBody checkRun actual (noBranchOfVisible observed localOnly) with
       | inside _ nonempty tail =>
-        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, .inside nonempty tail⟩
+        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, ⟨[], rfl, rfl⟩, .inside nonempty tail⟩
       | reached split tail =>
         have movement := CallbackPrefix.localLeafTransport tracks
         cases verdict with
         | error reason =>
-          refine ⟨_, _, _, _, _, split, observed, ?_, movement, tail, .trapped rfl rfl⟩
+          refine ⟨_, _, _, _, _, split, observed, ?_, movement, tail, ⟨_, flow⟩, .trapped rfl rfl⟩
           rfl
         | ok value =>
           cases value
           obtain ⟨_, _, paired⟩ := continued () rfl
-          obtain ⟨checked, canonical, residual, lhs, rhs, restSplit, seen, same, restMovement, after, ending⟩ :=
+          obtain ⟨checked, canonical, residual, lhs, rhs, restSplit, seen, same, restMovement, after, ⟨spends, carried⟩, ending⟩ :=
             ih (pointer := pointer + stride) (index := index + 1) (fun child included => nominal child (List.mem_cons_of_mem _ included))
               paired rfl rfl tail
           refine ⟨(guard ++ checkLabels) ++ checked, canonLabels ++ canonical, residual, lhs, rhs,
             by simp only [split, restSplit, List.append_assoc],
             by rw [visibleAppend (guard ++ checkLabels) checked, visibleAppend canonLabels canonical, observed, seen],
-            same, (CallbackPrefix.transportAppend movement restMovement).choose_spec.1, after, ?_⟩
+            same, (CallbackPrefix.transportAppend movement restMovement).choose_spec.1, after,
+            ⟨plan.toList ++ spends, appendSpendFlow flow carried⟩, ?_⟩
           cases ending with
           | returned success => exact .returned success
           | trapped checked canonical => exact .trapped checked canonical
@@ -6284,7 +6314,8 @@ theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (
     Steps profile ready (specDispatch ready base) start labels finish →
     AllocatedElementRun profile ready base bindings older checkNext canonNext
       (ElementStop destination inst entries area.size pointer
-        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish := by
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish
+      (fun left right => ∃ spends, CheckedSpendFlow start.host.writer incoming.host.writer left.host.writer right.host.writer spends) := by
   intro area mode checkAt canonAt actual
   have valueMode : mode = .value := by cases output <;> rfl
   obtain ⟨checkElements, canonElements⟩ := CallbackRange.collectionElementFoci destination inst entries area mode output pointer index
@@ -6295,7 +6326,7 @@ theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (
     intro item member
     cases emitted with
     | list children => exact CallbackRange.nominalEntry nominal (entries_match_of_mem shapes member) (children item member)
-  obtain ⟨checked, canonical, trailing, left, right, split, observed, same, movement, rest, ending⟩ :=
+  obtain ⟨checked, canonical, trailing, left, right, split, observed, same, movement, rest, ⟨spends, flow⟩, ending⟩ :=
     driveNominalElements destination inst entries area.size pointer 0 handles frame checkElements canonElements actual
   have keep (ending : ElementRunEnd profile ready base
       (fun lhs rhs => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs check canon ∧
@@ -6305,8 +6336,9 @@ theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (
           rhs.ctl = canon.control stop) left right trailing finish) :
       AllocatedElementRun profile ready base bindings older checkNext canonNext
         (ElementStop destination inst entries area.size pointer (publishCanonical destination inst pointer entries.length output canonNext))
-        check canon start incoming labels finish :=
-    ⟨checked, canonical, trailing, left, right, split, observed, same, movement, rest, ending⟩
+        check canon start incoming labels finish
+        (fun lhs rhs => ∃ spends, CheckedSpendFlow start.host.writer incoming.host.writer lhs.host.writer rhs.host.writer spends) :=
+    ⟨checked, canonical, trailing, left, right, split, observed, same, movement, rest, ⟨spends, flow⟩, ending⟩
   cases ending with
   | inside nonempty tail => exact keep (.inside nonempty tail)
   | trapped checked canonical => exact keep (.trapped checked canonical)
@@ -6323,8 +6355,10 @@ theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (
     | inside _ nonempty tail => exact keep (.inside nonempty tail)
     | reached used tail =>
       refine ⟨checked ++ effects, canonical ++ effects, _, _, _, by rw [split, used, List.append_assoc],
-        by rw [visibleAppend, visibleAppend, observed], ?_, (CallbackPrefix.transportAppend movement written).choose_spec.1, tail, ?_⟩
+        by rw [visibleAppend, visibleAppend, observed], ?_, (CallbackPrefix.transportAppend movement written).choose_spec.1, tail,
+        ⟨spends, ?_⟩, ?_⟩
       · cases verdict <;> rfl
+      · cases verdict <;> exact flow
       · cases verdict with
         | error reason => exact .trapped rfl rfl
         | ok value => exact .returned ⟨value, continues value rfl⟩
@@ -6333,14 +6367,15 @@ open PayloadPrefix in
 private theorem prependElementSlice
     {success : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
     {refusal : Stored.Endpoints.RecordLower.Issue → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    {writerFlow : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
     {left right : Config (core3 grow) (HostState sig)} {leading canonical trailing : Trace grow sig}
     (split : labels = leading ++ trailing) (seen : visible leading = visible canonical)
     (prefixTransport : OccurrenceTransport profile ready base bindings start incoming leading canonical left right)
-    (body : ElementRunSlice profile ready base bindings success refusal left right trailing finish) :
-    ElementRunSlice profile ready base bindings success refusal start incoming labels finish := by
-  obtain ⟨checked, peer, residual, lhs, rhs, bodySplit, observed, same, movement, tail, ending⟩ := body
+    (body : ElementRunSlice profile ready base bindings success refusal left right trailing finish writerFlow) :
+    ElementRunSlice profile ready base bindings success refusal start incoming labels finish writerFlow := by
+  obtain ⟨checked, peer, residual, lhs, rhs, bodySplit, observed, same, movement, tail, flow, ending⟩ := body
   refine ⟨leading ++ checked, canonical ++ peer, residual, lhs, rhs, ?_, ?_, same,
-    (CallbackPrefix.transportAppend prefixTransport movement).choose_spec.1, tail, ending⟩
+    (CallbackPrefix.transportAppend prefixTransport movement).choose_spec.1, tail, flow, ending⟩
   · simp only [split, bodySplit, List.append_assoc]
   · rw [visibleAppend leading checked, visibleAppend canonical peer, seen, observed]
 
@@ -6363,7 +6398,8 @@ theorem driveNominalListAfterRange (destination : RecordDestination) (inst : Ins
     (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
     AllocatedElementRun profile ready base bindings older checkNext canonNext
       (ElementStop destination inst entries area.size pointer
-        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish := by
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish
+      (fun lhs rhs => ∃ spends, CheckedSpendFlow left.host.writer right.host.writer lhs.host.writer rhs.host.writer spends) := by
   intro area mode checkAt canonAt range
   obtain ⟨leftTail, rightTail, movement, silentLeft, silentRight, _, aligned⟩ := range
   cases aligned with
@@ -9960,7 +9996,7 @@ private theorem crossComponentReply {origin reference reached peer : Config (cor
   · obtain ⟨_, _, actual⟩ := reply
     rcases actual focus with _ | ⟨after, _, pop⟩
     · exact .inr boundary
-    rcases pop with _ | _ | ⟨remaining, canon, _, popped, _, residual, _, frame, _, transport⟩
+    rcases pop with _ | _ | ⟨remaining, canon, _, popped, _, residual, _, frame, _, _, transport⟩
     · exact .inr boundary
     · exact .inr boundary
     have whole := transport (markTransport moved)
@@ -10054,7 +10090,7 @@ private theorem crossAsymmetricFlatCalloutExit {Observation : Type} {code : Obse
   cases exit with
   | exhausted empty _ => exact .inr (terminal (.inl empty))
   | trapped left right _ => exact .inr (terminal (.inr ⟨left, right⟩))
-  | @rejoined observation active state resume frames rest peerFrames peerRest remaining checked canonical split residual returned pop =>
+  | @rejoined observation active state resume frames rest peerFrames peerRest remaining checked canonical split residual returned _ pop =>
     have whole := (CallbackPrefix.transportAppend (live checked canonical) pop).choose_spec.1
     rcases classifyReachedGrowth (CallbackPrefix.transportPaths whole none).choose_spec.1.steps with growing | _
     · let replied := { reached with ctl := ⟨active,
@@ -10087,7 +10123,7 @@ open ReturnFrame.Occurrence in
 private theorem classifiedPollCrossing : CallbackWaitableCrossing profile ready base bindings true := by
   intro changes start incoming installed finish label labels thread core resume frames rest mem inst args focused calling step tail paired
   have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.pollInstall focused calling) step tail)
-  obtain ⟨_, _, leading, suffix, reached, peer, split, ⟨mark, paths⟩, live, actual, frontier, exit⟩ :=
+  obtain ⟨_, _, leading, suffix, reached, peer, split, ⟨mark, paths⟩, live, actual, frontier, writers, exit⟩ :=
     cutPublicPoll (bindings := bindings) mem inst args focused calling step tail paired
   obtain ⟨rfl, used⟩ := List.cons.inj split
   refine crossFlatCalloutExit used exit ?_ (fun stop => callbackTerminalSlice paired ?_) boundary
@@ -10096,7 +10132,7 @@ private theorem classifiedPollCrossing : CallbackWaitableCrossing profile ready 
       (frame := .core core resume)
       (by rw [segmentStorage, checked]; rfl) (by rw [segmentStorage, canonical]; rfl)
   · rw [used]
-    exact .pollTerminal paths frontier stop actual
+    exact .pollTerminal paths writers frontier stop actual
 
 private theorem classifiedWaitResumeCrossing : CallbackWaitResumeCrossing profile ready base bindings := by
   intro changes start incoming next finish label labels waiter resumer afterResume frames rest core resume savedFrames mem entry
@@ -10446,7 +10482,7 @@ private theorem classifiedCancelCrossing : CallbackCancelCrossing profile ready 
         by_cases returns : ∃ (value : Ret (core3 grow)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
             atHook.ctl = { cursor with frames := .prog (cancelHookReturn async subtask) :: cursor.frames }.control (.pure value)
         · obtain ⟨value, cursor, returning⟩ := returns
-          rcases pop value cursor returning with _ | _ | ⟨remaining, canon, top, popped, _, rest, _, frame, _, transport⟩
+          rcases pop value cursor returning with _ | _ | ⟨remaining, canon, top, popped, _, rest, _, frame, _, _, transport⟩
           · exact .inr stopped
           · exact .inr stopped
           subst hookMark
@@ -10559,7 +10595,7 @@ theorem compareComponentMarkedWorker {callees : List (ComponentCall.Callee sig)}
   · obtain ⟨mark, tracked, result⟩ := reply
     rcases result focus with lost | ⟨after, _, pop⟩
     · exact .inr (.inl ⟨mark, tracked, lost⟩)
-    rcases pop with lost | empty | ⟨remaining, rightAfter, _, actual, smaller, residual, _, frame, _, transport⟩
+    rcases pop with lost | empty | ⟨remaining, rightAfter, _, actual, smaller, residual, _, frame, _, _, transport⟩
     · exact .inr (.inl ⟨mark, tracked, lost⟩)
     · exact .inr (.inr (.inl empty))
     have continued := transport (markTransport moved)
