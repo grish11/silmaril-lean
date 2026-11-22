@@ -5947,6 +5947,13 @@ private theorem sharedTopTransport {left right : Config (core3 grow) (HostState 
       · exact top (Option.some.inj equal)
       · exact off member) first second leftAt rightAt
 
+private theorem componentInstallWriters {left right : Config (core3 grow) (HostState sig)}
+    (paths : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right)
+    (checked : left.host = start.host) (canonical : right.host = incoming.host) :
+    VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right := by
+  have actual := (CallbackPrefix.transportPaths paths none).choose_spec
+  exact .framed (WriterPaths.frameSingle actual.1.steps checked) (WriterPaths.frameSingle actual.2.steps canonical)
+
 private def badComponentLinkProgram (issue : Scheduled.Issue) : Session grow sig (Ret (core3 grow)) := do
   let state ← hostGet
   hostSet (state.enter "component accept" ⟨[], []⟩ [])
@@ -5963,10 +5970,10 @@ open ReturnFrame.Occurrence in
 private theorem badLinkEntryPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (issue : Scheduled.Issue) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (focused : start.ctl = cursor.control (badComponentLinkProgram issue)) :
-    ComponentQuietPath profile ready dispatch cursor start [id, id] (badLinkEntry start cursor issue) := by
+    FramedQuietPath profile ready dispatch cursor start [id, id] (badLinkEntry start cursor issue) := by
   cases cursor
-  refine .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) ?_
-  exact .step (.hostSet rfl) rfl (.done _)
+  refine .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) rfl ?_
+  exact .step (.hostSet rfl) rfl rfl (.done)
 
 open ReturnFrame.Occurrence in
 private theorem cutComponentBadLink {callees : List (ComponentCall.Callee sig)}
@@ -5993,6 +6000,7 @@ private theorem cutComponentBadLink {callees : List (ComponentCall.Callee sig)}
   let left := { start with ctl := check.control (badComponentLinkProgram issue) }
   let right := { incoming with ctl := canon.control (badComponentLinkProgram issue) }
   have installed := sharedTopTransport marked leftMark rightMark
+  have installWriters := componentInstallWriters (base := base) (left := left) (right := right) installed rfl rfl
   have entry := badLinkEntryPath (start := left) (profile := profile) (ready := ready) (specDispatch ready base) issue check rfl
   have canonEntry := badLinkEntryPath (start := right) (profile := profile) (ready := ready)
     (specDispatch ready (LiveDispatch.host bindings base)) issue canon rfl
@@ -6003,22 +6011,26 @@ private theorem cutComponentBadLink {callees : List (ComponentCall.Callee sig)}
     simp only [right, check, canon, PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
     obtain ⟨rfl, rfl⟩ := focus
     exact retargeted
-  rcases splitSilent (count := 2) (entry.track (.active 0 0)).toTrail.steps tail with ⟨remaining, split, residual⟩ | short
-  · obtain ⟨leading, suffix, reached, peer, bodySplit, moved, _, after, outcome⟩ := cutObservedReject (bindings := bindings)
+  rcases splitSilent (count := 2) (entry.1.track (.active 0 0)).toTrail.steps tail with ⟨remaining, split, residual⟩ | short
+  · obtain ⟨leading, suffix, reached, peer, bodySplit, moved, bodyWriters, after, outcome⟩ := cutObservedReject (bindings := bindings)
       (leftTicket := left.host.nextTicket) (rightTicket := right.host.nextTicket)
       issue (start := badLinkEntry left check issue) (incoming := badLinkEntry right canon issue)
       rfl rfl (site _ _) residual
-    have intoReject := CallbackPrefix.stationaryTransport (bindings := bindings) entry.track canonEntry.track
+    have intoReject := CallbackPrefix.stationaryTransport (bindings := bindings) entry.1.track canonEntry.1.track
     have crossed := (CallbackPrefix.transportAppend intoReject moved).choose_spec.1
-    refine ⟨([.tau, .tau] : Trace grow sig) ++ leading, suffix, reached, peer, check, canon, rfl, ?_, ?_, after, outcome⟩
+    have whole := CallbackPrefix.transportAppend marked crossed
+    refine ⟨([.tau, .tau] : Trace grow sig) ++ leading, suffix, reached, peer, check, canon, rfl, ?_,
+      whole.choose (some (.active 0 0)), ?_,
+      installWriters.append ((VisitorWriterPath.framed entry.2 canonEntry.2).append bodyWriters), after, outcome⟩
     · rw [split, bodySplit, List.append_assoc]
       rfl
-    · simpa only [List.map_nil, List.append_nil, List.singleton_append, List.length_cons, List.length_nil,
-        List.replicate_succ, List.replicate_zero] using (CallbackPrefix.transportAppend installed crossed).choose_spec.1
-  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := compareQuietShort (bindings := bindings) entry canonEntry (site left.host right.host)
+    · simpa only [List.map_cons, List.map_nil, List.append_nil, List.nil_append, List.singleton_append, List.length_cons, List.length_nil,
+        List.replicate_succ, List.replicate_zero] using whole.choose_spec.1
+  · obtain ⟨_, peer, moved, endpoint, writers, _, _⟩ := compareFramedQuietShort (bindings := bindings) entry canonEntry (site left.host right.host)
       ⟨_, rfl⟩ ⟨_, rfl⟩ tail short
-    exact ⟨labels, [], finish, peer, check, canon, rfl, (List.append_nil _).symm,
-      (CallbackPrefix.transportAppend installed moved).choose_spec.1, .refl _, .inl ⟨rfl, endpoint⟩⟩
+    have whole := CallbackPrefix.transportAppend marked moved
+    exact ⟨labels, [], finish, peer, check, canon, rfl, (List.append_nil _).symm, whole.choose (some (.active 0 0)),
+      whole.choose_spec.1, installWriters.append writers, .refl _, .inl ⟨rfl, endpoint⟩⟩
 
 private theorem internalBind {Input Output : Type} (message : String) (next : Input → Session grow sig Output) :
     (internal message : Session grow sig Input).bind next = internal message := by
@@ -6052,7 +6064,7 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
         (state : Config (core3 grow) (HostState sig)) frames rest,
         state.store = store →
         state.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest →
-        ComponentQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state edits
+        FramedQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state edits
           (deniedComponentEntry callee args issue ⟨some active, frames, rest⟩ state) := by
   cases record : ArenaField.callers.get? store caller with
   | none =>
@@ -6061,7 +6073,7 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
     have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) focus
     have atRecord : ArenaField.callers.get? state.store caller = none := same ▸ record
     simp only [Prog.bind, atRecord, internalBind] at read
-    exact .step read (by rw [transitionEdit, focus]; rfl) (.done _)
+    exact .step read (by rw [transitionEdit, focus]; rfl) rfl (.done)
   | some callerRecord =>
     have wrongCaller (wrong : ∀ subtask cx args pos ft limits results,
         callerRecord ≠ .lower subtask cx args pos ft limits results) :
@@ -6069,7 +6081,7 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
           (state : Config (core3 grow) (HostState sig)) frames rest,
           state.store = store →
           state.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest →
-          ComponentQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state [id, id, id]
+          FramedQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state [id, id, id]
             (deniedComponentEntry callee (some []) (some .wrongContext) ⟨some active, frames, rest⟩ state) := by
       intro dispatch state frames rest same focus
       have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) focus
@@ -6078,7 +6090,7 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
       cases callerRecord with
       | lower => exact (wrong _ _ _ _ _ _ _ rfl).elim
       | host | sub =>
-        exact .step read (by rw [transitionEdit, focus]; rfl) (.step (.hostGet rfl) rfl (.step (.hostSet rfl) rfl (.done _)))
+        exact .step read (by rw [transitionEdit, focus]; rfl) rfl (.step (.hostGet rfl) rfl rfl (.step (.hostSet rfl) rfl rfl (.done)))
     cases callerRecord with
     | host | sub => exact ⟨[id, id, id], some [], some .wrongContext, wrongCaller (by intros; nofun)⟩
     | lower subtask cx args pos ft limits results =>
@@ -6087,11 +6099,11 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
             (state : Config (core3 grow) (HostState sig)) frames rest,
             state.store = store →
             state.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest →
-            ComponentQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state
+            FramedQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state
               ([id, id, id, id, id, id] ++ updates)
               (deniedComponentEntry callee (some args) issue ⟨some active, frames, rest⟩ state) := by
         have walk {updates issue} (remaining : ∀ dispatch (state : Config (core3 grow) (HostState sig)) frames rest,
-            state.store = store → ComponentQuietPath profile ready dispatch ⟨some active, frames, rest⟩
+            state.store = store → FramedQuietPath profile ready dispatch ⟨some active, frames, rest⟩
               { state with
                 host := state.host.enter callee.name callee.coreType args
                 ctl := ⟨some active, .prog (do
@@ -6104,38 +6116,38 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
             ∀ dispatch (state : Config (core3 grow) (HostState sig)) frames rest,
               state.store = store →
               state.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest →
-              ComponentQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state
+              FramedQuietPath profile ready dispatch ⟨some active, frames, rest⟩ state
                 ([id, id, id, id, id, id] ++ updates)
                 (deniedComponentEntry callee (some args) issue ⟨some active, frames, rest⟩ state) := by
           intro dispatch state frames rest same focus
           have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) focus
           have atRecord : ArenaField.callers.get? state.store caller = some (.lower subtask cx args pos ft limits results) := same ▸ record
           simp only [Prog.bind, atRecord] at read
-          exact .step read (by rw [transitionEdit, focus]; rfl)
-            (.step (.hostGet rfl) rfl (.step (.hostSet rfl) rfl
-              (.step (.get rfl) rfl (remaining dispatch state frames rest same))))
+          exact .step read (by rw [transitionEdit, focus]; rfl) rfl
+            (.step (.hostGet rfl) rfl rfl (.step (.hostSet rfl) rfl rfl
+              (.step (.get rfl) rfl rfl (remaining dispatch state frames rest same))))
         cases liveThread : ArenaField.threads.get? store active with
         | none =>
           refine ⟨[], none, walk ?_⟩
           intro dispatch state frames rest same
-          refine .step (.currentThread rfl) rfl ?_
-          refine .step (.get rfl) rfl ?_
+          refine .step (.currentThread rfl) rfl rfl ?_
+          refine .step (.get rfl) rfl rfl ?_
           have atThread : ArenaField.threads.get? state.store active = none := same ▸ liveThread
           simp only [id, Prog.bind, atThread, internalBind]
-          exact .done _
+          exact .done
         | some thread =>
           cases liveTask : ArenaField.tasks.get? store thread.task with
           | none =>
             refine ⟨[id], none, walk ?_⟩
             intro dispatch state frames rest same
-            refine .step (.currentThread rfl) rfl ?_
-            refine .step (.get rfl) rfl ?_
+            refine .step (.currentThread rfl) rfl rfl ?_
+            refine .step (.get rfl) rfl rfl ?_
             have atThread : ArenaField.threads.get? state.store active = some thread := same ▸ liveThread
             simp only [id, Prog.bind, atThread, Prog.pure_eq]
-            refine .step (.get rfl) rfl ?_
+            refine .step (.get rfl) rfl rfl ?_
             have atTask : ArenaField.tasks.get? state.store thread.task = none := same ▸ liveTask
             simp only [id, Prog.bind, atTask, internalBind]
-            exact .done _
+            exact .done
           | some task =>
             by_cases context : task.inst = callee.inst
             · cases checked : callee.check store subtask cx args pos ft (limits, results) with
@@ -6144,25 +6156,25 @@ private theorem deniedComponentPath {active : ThreadId} {caller : CallerId} {sto
               | error error =>
                 refine ⟨[id], some error, walk ?_⟩
                 intro dispatch state frames rest same
-                refine .step (.currentThread rfl) rfl ?_
-                refine .step (.get rfl) rfl ?_
+                refine .step (.currentThread rfl) rfl rfl ?_
+                refine .step (.get rfl) rfl rfl ?_
                 have atThread : ArenaField.threads.get? state.store active = some thread := same ▸ liveThread
                 simp only [id, Prog.bind, atThread, Prog.pure_eq]
-                refine .step (.get rfl) rfl ?_
+                refine .step (.get rfl) rfl rfl ?_
                 have atTask : ArenaField.tasks.get? state.store thread.task = some task := same ▸ liveTask
                 have atCheck : callee.check state.store subtask cx args pos ft (limits, results) = .error error := same ▸ checked
                 simp only [id, Prog.bind, atTask, Prog.pure_eq, context, bne_self_eq_false, Bool.false_eq_true, ite_false, atCheck]
-                exact .done _
+                exact .done
             · refine ⟨[id], some .wrongContext, walk ?_⟩
               intro dispatch state frames rest same
-              refine .step (.currentThread rfl) rfl ?_
-              refine .step (.get rfl) rfl ?_
+              refine .step (.currentThread rfl) rfl rfl ?_
+              refine .step (.get rfl) rfl rfl ?_
               have atThread : ArenaField.threads.get? state.store active = some thread := same ▸ liveThread
               simp only [id, Prog.bind, atThread, Prog.pure_eq]
-              refine .step (.get rfl) rfl ?_
+              refine .step (.get rfl) rfl rfl ?_
               have atTask : ArenaField.tasks.get? state.store thread.task = some task := same ▸ liveTask
               simp only [id, Prog.bind, atTask, Prog.pure_eq, bne_iff_ne, ne_eq, Option.some.injEq, context, not_false_eq_true, ite_true]
-              exact .done _
+              exact .done
       obtain ⟨updates, issue, path⟩ := lowerGuard
       exact ⟨[id, id, id, id, id, id] ++ updates, some args, issue, path⟩
 
@@ -6175,23 +6187,25 @@ private theorem cutDeniedComponentProgram (issue : Option Scheduled.Issue) {left
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     ∃ leading suffix reached peer, labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ((suffix = [] ∧ PairedComponentSite older reached peer check canon) ∨
         (reached.ctl = [] ∧ peer.ctl = [] ∧ HostFrame.Related.Paired older reached peer)) := by
   cases issue with
   | some issue =>
-    obtain ⟨leading, suffix, reached, peer, split, moved, _, residual, outcome⟩ :=
+    obtain ⟨leading, suffix, reached, peer, split, moved, writers, residual, outcome⟩ :=
       cutObservedReject issue leftFocus rightFocus paired run
-    exact ⟨leading, suffix, reached, peer, split, moved, residual, outcome⟩
+    exact ⟨leading, suffix, reached, peer, split, moved, writers, residual, outcome⟩
   | none =>
     let body : Session grow sig Empty := internal "dangling arena id"
     let next : Empty → Session grow sig (Ret (core3 grow)) := fun denied => nomatch denied
     have focusEq (ticket : Nat) : deniedComponentProgram (grow := grow) (sig := sig) none ticket = body >>= next := by
       exact (internalBind _ next).symm
     rw [focusEq] at leftFocus rightFocus
-    obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _⟩ :=
-      cutComponentStoreBody (closed := True) body next next (fun _ => storeEffectTrap _) leftFocus rightFocus paired run
-    refine ⟨leading, suffix, reached, peer, split, moved, residual, ?_⟩
+    obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, leftWriter, rightWriter, _⟩ :=
+      cutComponentStoreBodyFramed (closed := True) body next next (fun _ => storeEffectTrap _)
+        (trivialPreserves body) trivial leftFocus rightFocus paired run
+    refine ⟨leading, suffix, reached, peer, split, moved, .framed leftWriter rightWriter, residual, ?_⟩
     cases frontier with
     | returned impossible _ _ _ => exact nomatch impossible
     | pending _ _ _ _ site boundary => exact .inl ⟨boundary.resolve_right (fun openFrontier => openFrontier.1 trivial), site⟩
@@ -6219,6 +6233,7 @@ private theorem cutComponentDenied {callees : List (ComponentCall.Callee sig)}
   let left := { start with ctl := check.control (ComponentCall.invoke callee caller) }
   let right := { incoming with ctl := canon.control (ComponentCall.invoke callee caller) }
   have install := sharedTopTransport marked leftMark rightMark
+  have installWriters := componentInstallWriters (base := base) (left := left) (right := right) install rfl rfl
   have entry := path (specDispatch ready base) left check.frames check.rest rfl rfl
   have canonEntry := path (specDispatch ready (LiveDispatch.host bindings base)) right canon.frames canon.rest paired.data.1.symm rfl
   have site (leftHost rightHost : HostState sig) : PairedComponentSite older { left with host := leftHost }
@@ -6228,21 +6243,25 @@ private theorem cutComponentDenied {callees : List (ComponentCall.Callee sig)}
     simp only [right, check, canon, PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
     obtain ⟨rfl, rfl⟩ := focus
     exact retargeted
-  rcases splitSilent (entry.track (.active 0 0)).toTrail.steps tail with ⟨remaining, split, residual⟩ | short
-  · obtain ⟨leading, suffix, reached, peer, bodySplit, moved, after, outcome⟩ := cutDeniedComponentProgram (bindings := bindings)
+  rcases splitSilent (entry.1.track (.active 0 0)).toTrail.steps tail with ⟨remaining, split, residual⟩ | short
+  · obtain ⟨leading, suffix, reached, peer, bodySplit, moved, bodyWriters, after, outcome⟩ := cutDeniedComponentProgram (bindings := bindings)
       (leftTicket := left.host.nextTicket) (rightTicket := right.host.nextTicket) issue
       (start := deniedComponentEntry callee args issue check left) (incoming := deniedComponentEntry callee args issue canon right)
       rfl rfl (site _ _) residual
-    have intoDenied := CallbackPrefix.stationaryTransport (bindings := bindings) entry.track canonEntry.track
+    have intoDenied := CallbackPrefix.stationaryTransport (bindings := bindings) entry.1.track canonEntry.1.track
     have crossed := (CallbackPrefix.transportAppend intoDenied moved).choose_spec.1
-    refine ⟨List.replicate edits.length .tau ++ leading, suffix, reached, peer, check, canon, rfl, ?_, ?_, after, outcome⟩
+    have whole := CallbackPrefix.transportAppend marked crossed
+    refine ⟨List.replicate edits.length .tau ++ leading, suffix, reached, peer, check, canon, rfl, ?_,
+      whole.choose (some (.active 0 0)), ?_,
+      installWriters.append ((VisitorWriterPath.framed entry.2 canonEntry.2).append bodyWriters), after, outcome⟩
     · rw [split, bodySplit, List.append_assoc]
-    · simpa only [List.map_nil, List.append_nil, List.singleton_append] using
-        (CallbackPrefix.transportAppend install crossed).choose_spec.1
-  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := compareQuietShort (bindings := bindings) entry canonEntry (site left.host right.host)
+    · simpa only [List.map_cons, List.map_nil, List.append_nil, List.nil_append, List.singleton_append] using
+        whole.choose_spec.1
+  · obtain ⟨_, peer, moved, endpoint, writers, _, _⟩ := compareFramedQuietShort (bindings := bindings) entry canonEntry (site left.host right.host)
       ⟨_, rfl⟩ ⟨_, rfl⟩ tail short
-    exact ⟨labels, [], finish, peer, check, canon, rfl, (List.append_nil _).symm,
-      (CallbackPrefix.transportAppend install moved).choose_spec.1, .refl _, .inl ⟨rfl, endpoint⟩⟩
+    have whole := CallbackPrefix.transportAppend marked moved
+    exact ⟨labels, [], finish, peer, check, canon, rfl, (List.append_nil _).symm, whole.choose (some (.active 0 0)),
+      whole.choose_spec.1, installWriters.append writers, .refl _, .inl ⟨rfl, endpoint⟩⟩
 
 private theorem classifyComponentInstallOutcome {callees : List (ComponentCall.Callee sig)} {label next}
     (step : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
@@ -11044,7 +11063,16 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
             (CallbackSliceEnd.componentAcceptedTerminal frontier terminal finalPaths (entryWriters.append bodyWriters)
               (fun pending related => flow pending related) checkedResidual)
         · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply boundary
-  · exact .inr boundary
+  · have failure : ComponentEntryFailure profile ready bindings callees older start incoming finish label labels := by
+      by_cases linked : ∃ callee, callees.filter (·.hostId == hostId) = [callee]
+      · obtain ⟨callee, singleton⟩ := linked
+        exact cutComponentDenied singleton admits focus step tail paired
+      · exact cutComponentBadLink linked focus step tail paired
+    obtain ⟨leading, suffix, reached, peer, check, canon, rfl, split, mark, paths, writers, residual, outcome⟩ := failure
+    apply Or.inr
+    apply callbackTerminalSlice paired
+    simpa only [split, List.cons_append] using
+      (CallbackSliceEnd.componentObserverTerminal (mark := mark) outcome paths writers residual)
 
 open ReturnFrame.Occurrence in
 private theorem crossAsymmetricFlatCalloutExit {Observation : Type} {code : Observation → Nat} {leading canonLeading suffix reached peer}

@@ -5425,7 +5425,9 @@ def ComponentEntryFailure (profile : ProfileKind) (ready : HostReady (HostState 
   let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
   ∃ leading suffix reached peer check canon,
     label = .tau ∧ trailing = leading ++ suffix ∧
-    OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer ∧
+    ∃ mark,
+    OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer [mark] ∧
+    VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer ∧
     Steps profile ready (specDispatch ready base) reached suffix finish ∧
     ((suffix = [] ∧ PairedComponentSite older reached peer check canon) ∨
       (reached.ctl = [] ∧ peer.ctl = [] ∧ HostFrame.Related.Paired older reached peer))
