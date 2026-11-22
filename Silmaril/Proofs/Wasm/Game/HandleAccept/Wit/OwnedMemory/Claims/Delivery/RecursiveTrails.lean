@@ -70,8 +70,8 @@ theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type 
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
       left right check canon path start incoming seen offset sink := by
   intro suffix finish steps
-  obtain ⟨lhs, rhs, reached, mark, marked, paired, compared, occurrences, returns⟩ := run steps
-  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading compared, occurrences, ?_⟩
+  obtain ⟨lhs, rhs, reached, mark, marked, paired, compared, occurrences, transport, returns⟩ := run steps
+  refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading compared, occurrences, transport, ?_⟩
   intro pointer cursor top returning
   obtain ⟨range, failed, children⟩ := returns pointer cursor top returning
   refine ⟨range, rangePathsFrom covers admitted leading failed, ?_⟩
@@ -136,8 +136,8 @@ theorem collectionEntryOccurrences {destination : RecordDestination} {inst : Ins
     cases value
     simp only [prepared] at run ⊢
     intro width suffix finish steps
-    obtain ⟨lhs, rhs, reached, mark, marked, paired, _, occurrences, returns⟩ := run width steps
-    refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendComparedOccurrences leading occurrences, ?_⟩
+    obtain ⟨lhs, rhs, reached, mark, marked, paired, _, occurrences, transport, returns⟩ := run width steps
+    refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendComparedOccurrences leading occurrences, transport, ?_⟩
     intro pointer cursor active returning
     obtain ⟨_, ⟨bytes, sized, failed⟩, children⟩ := returns pointer cursor active returning
     refine ⟨bytes, sized, ?_⟩

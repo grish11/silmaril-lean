@@ -235,7 +235,7 @@ theorem collectionOccurrences (destination : RecordDestination) (inst : InstId) 
           (fun addr verdict => checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext)
           (fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext)) := by
   intro area mode first second callback
-  obtain ⟨checkLabels, canonLabels, reached, mark, _, _, paired, _, _, growth, _, _, marked, paths⟩ :=
+  obtain ⟨checkLabels, canonLabels, reached, mark, _, _, paired, _, _, growth, _, _, marked, paths, _⟩ :=
     CallbackPrefix.collectionPrefix destination inst type element entries output index checkNext canonNext
       frame width prepared checkAt canonAt embedder callback
   refine ⟨checkLabels, canonLabels, reached, mark, marked, paths, ?_⟩
@@ -298,7 +298,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart before offset := by
   unfold LiveCollectionPaths
   intro area mode first second leftEntry rightEntry seen finish path
-  obtain ⟨lhs, rhs, reached, mark, _, _, paired, checkSeen, canonSeen, growth, _, _, marked, occurrences⟩ :=
+  obtain ⟨lhs, rhs, reached, mark, _, _, paired, checkSeen, canonSeen, growth, _, _, marked, occurrences, transport⟩ :=
     CallbackPrefix.collectionPrefix (profile := profile) (ready := ready) destination inst type element entries output index
       checkNext canonNext frame width prepared checkAt canonAt embedder path
   have checkObserved : visible ([.tau, .tau, .tau] ++ lhs) = seen := by
@@ -317,7 +317,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
     (dispatch := specDispatch ready (LiveDispatch.host bindings base)) destination inst type element entries output index
     start incoming check canon checkNext canonNext width prepared checkAt canonAt depth).2
   refine ⟨lhs, rhs, reached, mark, marked, paired, CallbackPrefix.appendAllocatorPaths leading
-    (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), occurrences, ?_⟩
+    (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), occurrences, transport, ?_⟩
   intro pointer cursor atTop returning
   subst mark
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
@@ -4016,7 +4016,7 @@ private theorem liftLinkedCollectionFailures {route : GiveEffectRoute} (site : P
   obtain ⟨entries, leading, entered, peer, field, quiet, entry, _, paths⟩ := body
   refine ⟨entries, leading, entered, peer, field, quiet, entry, ?_⟩
   intro area mode first second checkedEntry canonEntry seen checked callback
-  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, _, returns⟩ := paths callback
+  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, _, _, returns⟩ := paths callback
   refine ⟨lhs, rhs, canonical, mark, marked, ?_, ?_⟩
   · simpa only [List.nil_append] using CallbackPrefix.allocatorSteps compared
   intro pointer cursor active returned
@@ -4081,7 +4081,7 @@ theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Si
   unfold LinkedStringMapDispatch
   refine ⟨leading, entered, peer, leadingSilent, installed, enteredHost, ?_⟩
   intro rightEntry seen checked path
-  obtain ⟨lhs, rhs, reached, mark, left, right, live, seenLeft, seenRight, growth, _, _, tracked, _⟩ :=
+  obtain ⟨lhs, rhs, reached, mark, left, right, live, seenLeft, seenRight, growth, _, _, tracked, _, _⟩ :=
     CallbackPrefix.collectionPrefix (profile := profile) (ready := ready) site.destination site.inst (.map .string element)
       (.record (mapEntryFields .string element)) entries route.output 0 site.reply site.referenceReply frame
       (frame.store ▸ width) preparedAt checkAt canonAt embedder path

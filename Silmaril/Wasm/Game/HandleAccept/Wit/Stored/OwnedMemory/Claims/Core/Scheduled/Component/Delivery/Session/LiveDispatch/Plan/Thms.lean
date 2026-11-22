@@ -192,7 +192,8 @@ theorem ClosedCallbackPrefix.string_realloc (cx : LiftLowerContext (core3 grow))
       AllocatorMark profile ready base bindings older
         (LinkedCallback.stringReallocEntry ready bindings cx ptr oldSize alignment size steps checkNext start check)
         (stringAllocatorEntry (specDispatch ready (LiveDispatch.host bindings base)) cx ptr oldSize alignment size incoming canon
-          (PayloadPrefix.stringPlanResume cx steps canonNext)) checkedLabels canonLabels finish reached mark :=
+          (PayloadPrefix.stringPlanResume cx steps canonNext)) checkedLabels canonLabels finish reached mark ∧
+      OccurrenceTransport profile ready base bindings start incoming (.tau :: checkedLabels) (.tau :: canonLabels) finish reached [mark] :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringReallocPrefix
     cx ptr oldSize alignment size steps checkNext canonNext frame checkAt canonAt embedder path
 
@@ -230,7 +231,9 @@ theorem ClosedCallbackPrefix.collection_alloc (destination : RecordDestination) 
         (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready base) start check first)
         (PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
           incoming canon second) checkedLabels canonLabels finish reached mark ∧
-      ComparedOccurrencePaths profile ready base bindings start incoming labels finish reached :=
+      ComparedOccurrencePaths profile ready base bindings start incoming labels finish reached ∧
+      OccurrenceTransport profile ready base bindings start incoming ([.tau, .tau, .tau] ++ checkedLabels)
+        ([.tau, .tau] ++ canonLabels) finish reached [mark] :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.collectionPrefix
     destination inst type element entries output index checkNext canonNext frame width prepared checkAt canonAt embedder
 

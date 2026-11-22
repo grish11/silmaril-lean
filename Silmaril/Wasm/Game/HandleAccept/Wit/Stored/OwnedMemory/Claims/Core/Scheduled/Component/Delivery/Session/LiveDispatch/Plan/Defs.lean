@@ -196,7 +196,7 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
       (fun front : StringFront length => front.remaining cx >>= canonNext) result
     LocalLeafLabels result labels ∧ CoreGrowthSteps profile ready checkDispatch left labels lhs ∧
     CoreGrowthSteps profile ready canonDispatch right labels rhs ∧
-    CoupledOccurrencePaths profile ready base bindings left right labels labels lhs rhs ∧
+    OccurrenceTransport profile ready base bindings left right labels labels lhs rhs ∧
     ∀ front, result = .ok front →
       RetainsActiveSlots profile ready checkDispatch left labels lhs ∧
       RetainsActiveSlots profile ready canonDispatch right labels rhs ∧
@@ -218,7 +218,7 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
             reached.host.writer.accepted = lhs.host.writer.accepted ∧
             reference.host.writer.accepted = rhs.host.writer.accepted ∧
             AllocatorMark profile ready base bindings older firstEntry secondEntry checkLabels canonLabels reached reference mark ∧
-            CoupledOccurrencePaths profile ready base bindings lhs rhs (.tau :: checkLabels) (.tau :: canonLabels) reached reference ∧
+            OccurrenceTransport profile ready base bindings lhs rhs (.tau :: checkLabels) (.tau :: canonLabels) reached reference [mark] ∧
             ∀ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)), mark = some (.active 0 0) →
               reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat value)) →
               ∃ peer : Cursor (E := core3 grow) (HostState sig),
@@ -226,7 +226,7 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
                 let referenceAfter := { reference with ctl := peer.control (second (.nat value)) }
                 RetainsActiveSlots profile ready checkDispatch lhs (.tau :: checkLabels ++ [.tau]) after ∧
                 RetainsActiveSlots profile ready canonDispatch rhs (.tau :: canonLabels ++ [.tau]) referenceAfter ∧
-                CoupledOccurrencePaths profile ready base bindings lhs rhs (.tau :: checkLabels ++ [.tau])
+                OccurrenceTransport profile ready base bindings lhs rhs (.tau :: checkLabels ++ [.tau])
                   (.tau :: canonLabels ++ [.tau]) after referenceAfter ∧
                 LiveStringReplay profile ready base bindings older cx checkNext canonNext finish rest.length after referenceAfter cursor peer
 termination_by length
@@ -262,7 +262,8 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
     (finish : Nat → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
       PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop)
     (length : Nat) (left right : Config (core3 grow) (HostState sig))
-    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (seen : Trace grow sig) : Prop :=
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (leftBody : Config (core3 grow) (HostState sig) := left) (rightBody : Config (core3 grow) (HostState sig) := right) : Prop :=
   open PayloadPrefix ReturnFrame.Occurrence in
   ∃ (store : CStore (core3 grow)) (result : Except TrapReason (StringFront length)) (labels : Trace grow sig),
     let lhs := localLeafEnd left left.host store check.thread check.frames check.rest
@@ -271,6 +272,7 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
       (fun front : StringFront length => front.remaining cx >>= canonNext) result
     LocalLeafLabels result labels ∧
     ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ visible labels) lhs rhs ∧
+    (∃ checked canonical, OccurrenceTransport profile ready base bindings leftBody rightBody checked canonical lhs rhs) ∧
     match result with
     | .error _ => lhs.ctl = [] ∧ rhs.ctl = []
     | .ok (.done pointer) => finish pointer (seen ++ visible labels) lhs rhs check canon
@@ -286,6 +288,7 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
           AllocatorMark profile ready base bindings older firstEntry secondEntry checkLabels canonLabels reached reference mark ∧
           HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached reference ∧
           ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ observed) reached reference ∧
+          (∃ checked canonical, OccurrenceTransport profile ready base bindings leftBody rightBody checked canonical reached reference [mark]) ∧
           ∀ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)), mark = some (.active 0 0) →
             reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat value)) →
             ∃ peer : Cursor (E := core3 grow) (HostState sig),
@@ -293,7 +296,7 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
               let referenceAfter := { reference with ctl := peer.control (second (.nat value)) }
               ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ observed) after referenceAfter ∧
               LiveStringOccurrences profile ready base bindings older cx checkNext canonNext leftStart rightStart finish
-                rest.length after referenceAfter cursor peer (seen ++ observed)
+                rest.length after referenceAfter cursor peer (seen ++ observed) leftBody rightBody
 termination_by length
 
 /-- A compared prefix with occurrence trails for active slots. The starting
@@ -660,6 +663,8 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
       ComparedAllocatorPaths profile ready base bindings leftStart rightStart (leading ++ seen) finish reached offset ∧
       ComparedOccurrencePaths profile ready base bindings start incoming seen finish reached ∧
+      OccurrenceTransport profile ready base bindings start incoming ([.tau, .tau, .tau] ++ checkLabels)
+        ([.tau, .tau] ++ canonLabels) finish reached [mark] ∧
       ∀ pointer cursor, mark = some (.active 0 0) →
         finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
         CollectionRangeCut profile ready base bindings older finish reached cursor destination area entries.length pointer
@@ -1364,6 +1369,8 @@ def LiveCollectionOccurrenceEntry (profile : ProfileKind) (ready : HostReady (Ho
         AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
         HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
         ComparedOccurrencePaths profile ready base bindings start incoming (before ++ seen) finish reached ∧
+        OccurrenceTransport profile ready base bindings left right ([.tau, .tau, .tau] ++ checkLabels)
+          ([.tau, .tau] ++ canonLabels) finish reached [mark] ∧
         ∀ pointer cursor, mark = some (.active 0 0) →
           finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
           CollectionOccurrenceRangeThen profile ready base bindings older left.store start incoming finish reached (before ++ seen)
