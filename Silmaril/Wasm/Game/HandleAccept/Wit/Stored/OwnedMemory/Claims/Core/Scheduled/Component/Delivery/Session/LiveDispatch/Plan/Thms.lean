@@ -102,6 +102,113 @@ theorem cut_component_lower_entry (callee : ComponentCall.Callee sig) (caller : 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentLowerEntry
     callee caller focused record run paired
 
+/-- Compare the actual entry up to each side’s own child preflight. An input
+ending before the final read retains both reached endpoints and all occurrences,
+even if the unreached child decisions would disagree. -/
+theorem cut_component_preflight (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (focused : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ())
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    (∃ peerFrames peerRest suffix,
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, peerFrames, peerRest⟩
+      let reached := componentPreflightAt callee caller cx args start check
+      let peer := componentPreflightAt callee caller cx args incoming canon
+      incoming.ctl = canon.control (ComponentCall.invoke callee caller) ∧ labels = List.replicate 7 .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
+      PairedComponentSite older reached peer check canon ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
+      ∃ canon, ComponentEarlyPrefix profile ready base bindings older ⟨some active, frames, rest⟩ canon start incoming labels finish 7 :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentPreflight
+    callee caller focused record liveThread liveTask context admitted run paired
+
+open ReturnFrame.Occurrence in
+/-- An executed component host-function call under the fixed dispatcher
+installs the matched invoked program and caller occurrence on both sides.
+Every older active or saved occurrence follows the actual push. -/
+theorem cut_linked_component_install {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {callee : ComponentCall.Callee sig}
+    {thread frames rest resume label next}
+    (linked : callees.filter (·.hostId == hostId) = [callee])
+    (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest,
+      let call := ComponentCall.invoke callee caller
+      let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
+      let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older reached peer ∧
+      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
+      segmentAt (segmentStorage reached) (.active 0 0) = some (.prog resume) ∧
+      segmentAt (segmentStorage peer) (.active 0 0) = some (.prog resume) ∧
+      Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutLinkedComponentInstall
+    linked focused taken paired
+
+open ReturnFrame.Occurrence in
+/-- Classify the admitted component body from the actual entry. Before the
+preflight, pair only the reached steps. At preflight, compare the demanded
+decisions and follow the corresponding refusal or observer/registration body.
+Only an executed marked reply may expose a worker residual. -/
+theorem cut_admitted_component (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (focused : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ())
+    (paired : HostFrame.Related.Paired wider start incoming)
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ComponentAdmissionCut profile ready base bindings older wider callee caller cx args
+      ⟨some active, frames, rest⟩ first second start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedComponent
+    callee caller focused record liveThread liveTask context admitted paired leftInstalled rightInstalled outside run
+
+/-- Classify the body after an actual linked component install, including
+finite prefixes that end inside entry, refusal, or publication. The same
+installed continuation is tracked across the reached body, not replayed. -/
+theorem classify_linked_component_admission {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {callee : ComponentCall.Callee sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest resume label next} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (linked : callees.filter (·.hostId == hostId) = [callee])
+    (focused : start.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ()) :
+    ∃ peerFrames peerRest,
+      let body := ComponentCall.invoke callee caller
+      let peer := { incoming with ctl := ⟨some active, .prog body, .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧
+      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming [.tau] [.tau] next peer [some (.active 0 0)] ∧
+      ComponentAdmissionCut profile ready (ComponentCall.hostWithComponent bindings callees) bindings older older callee caller cx args
+        ⟨some active, .prog resume :: frames, rest⟩ resume resume next peer labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyLinkedComponentAdmission
+    linked focused taken run paired record liveThread liveTask context admitted
+
 /-- Consume the actual entry and admitted guard steps, then expose the shared pre-lift
 decision with separate tickets and every enclosing occurrence intact. A finite checked
 run ending earlier does not authorize a completed admission. -/

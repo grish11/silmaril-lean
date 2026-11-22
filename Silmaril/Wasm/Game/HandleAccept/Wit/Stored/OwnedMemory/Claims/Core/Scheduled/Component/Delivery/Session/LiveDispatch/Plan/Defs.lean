@@ -4488,6 +4488,16 @@ def ComponentMarkedReplyTail (profile : ProfileKind) (ready : HostReady (HostSta
         ActualMarkedPop profile ready base bindings older start incoming reached peer leading leading mark
           after first second (.cancel .none) suffix finish)
 
+/-- Immediately after the admitted entry's final arena read, with this side's
+own ticket and live child-selection result. -/
+def componentPreflightAt (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (cx : LiftLowerContext (core3 grow)) (args : List FlatValue)
+    (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :
+    Config (core3 grow) (HostState sig) :=
+  { state with
+    host := state.host.enter callee.name callee.coreType args
+    ctl := cursor.control (ComponentCall.acceptCaller callee caller state.host.nextTicket state.host.writer.accepted state.store cx args) }
+
 /-- The observation used by the reached registration probe. A refused registration
 does not read a handle, and exhaustion does not use the out-of-range index. -/
 inductive ComponentRegistration where
@@ -4539,6 +4549,60 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
+
+/-- The classification after the admitted entry reaches child preflight.
+Disagreement is on the demanded decision, not on the complete journals.
+Each common decision consumes the checked residual from this exact site. -/
+def ComponentPreflightTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (callee : ComponentCall.Callee sig) (caller : CallerId) (leftTicket rightTicket : Nat)
+    (leftPlan rightPlan : Except Scheduled.Issue (Option (List (Stored.OwnedMemory.Tree sig))))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  leftPlan ≠ rightPlan ∨ ∃ plan, leftPlan = plan ∧ rightPlan = plan ∧
+    match plan with
+    | .error _ =>
+      ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7 ∨
+      ∃ leading suffix reached peer, labels = leading ++ suffix ∧
+        OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+        Steps profile ready (specDispatch ready base) reached suffix finish ∧
+        ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
+          (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
+        ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
+          check first second suffix finish
+    | .ok planned =>
+      ∃ leading suffix reached peer, labels = leading ++ suffix ∧
+        OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+        Steps profile ready (specDispatch ready base) reached suffix finish ∧
+        ComponentObservedAcceptance profile ready base bindings older wider callee caller leftTicket rightTicket
+          planned check canon first second start incoming reached peer leading suffix finish
+
+/-- The finite body cut starts at the installed component invocation. The
+seven-step entry is consumed only if present in the actual checked run. -/
+def ComponentAdmissionCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (callee : ComponentCall.Callee sig) (caller : CallerId) (cx : LiftLowerContext (core3 grow)) (args : List FlatValue)
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  (∃ canon, ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7) ∨
+  ∃ peerFrames peerRest suffix,
+    let canon := { check with frames := peerFrames, rest := peerRest }
+    let reached := componentPreflightAt callee caller cx args start check
+    let peer := componentPreflightAt callee caller cx args incoming canon
+    labels = List.replicate 7 .tau ++ suffix ∧
+    OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
+    Steps profile ready (specDispatch ready base) reached suffix finish ∧
+    PairedComponentSite wider reached peer check canon ∧
+    ComponentPreflightTail profile ready base bindings older wider callee caller start.host.nextTicket incoming.host.nextTicket
+      (callee.childPreflight start.host.writer.accepted start.store cx args)
+      (callee.childPreflight incoming.host.writer.accepted incoming.store cx args)
+      check canon first second reached peer suffix finish
 
 /-- Consume the actual post-pop worker run, when reached. A different resumed
 program is an explicit boundary, not a replay or a runtime refusal. -/

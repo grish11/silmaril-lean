@@ -506,6 +506,69 @@ private theorem refusalResolvePath (dispatch : Call (core3 grow) → Session gro
       ite_false, Nat.not_lt.mpr indirect] at read
     exact .step read rfl (.done _)
 
+open ReturnFrame.Occurrence in
+private theorem componentPreflightPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (focus : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ()) :
+    ComponentQuietPath profile ready dispatch ⟨some active, frames, rest⟩ start [id, id, id, id, id, id, id]
+      (componentPreflightAt callee caller cx args start ⟨some active, frames, rest⟩) := by
+  have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) focus
+  simp only [Prog.bind, record] at read
+  refine .step read (by rw [transitionEdit, focus]; rfl) ?_
+  refine .step (.hostGet rfl) rfl (.step (.hostSet rfl) rfl ?_)
+  refine .step (.get rfl) rfl (.step (.currentThread rfl) rfl (.step (.get rfl) rfl ?_))
+  simp only [id, Prog.bind, liveThread]
+  refine .step (.get rfl) rfl ?_
+  simp only [Prog.bind, liveTask, pure, context, bne_self_eq_false, Bool.false_eq_true, ite_false, admitted]
+  exact .done _
+
+open ReturnFrame.Occurrence in
+theorem cutComponentPreflight (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (focused : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ())
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    (∃ peerFrames peerRest suffix,
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, peerFrames, peerRest⟩
+      let reached := componentPreflightAt callee caller cx args start check
+      let peer := componentPreflightAt callee caller cx args incoming canon
+      incoming.ctl = canon.control (ComponentCall.invoke callee caller) ∧ labels = List.replicate 7 .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
+      PairedComponentSite older reached peer check canon ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
+      ∃ canon, ComponentEarlyPrefix profile ready base bindings older ⟨some active, frames, rest⟩ canon start incoming labels finish 7 := by
+  obtain ⟨peerFrames, peerRest, peerFocus, aligned⟩ := paired.retarget focused (.prog (.pure (.cancel .none)))
+    (start.host.enter callee.name callee.coreType args) (incoming.host.enter callee.name callee.coreType args)
+  have same := paired.data.1
+  have left := componentPreflightPath (profile := profile) (ready := ready) (specDispatch ready base)
+    callee caller focused record liveThread liveTask context admitted
+  have right := componentPreflightPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    callee caller peerFocus (same ▸ record) (same ▸ liveThread) (same ▸ liveTask) context (same ▸ admitted)
+  rcases splitSilent (count := 7) (left.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · exact .inl ⟨peerFrames, peerRest, suffix, peerFocus, split, CallbackPrefix.stationaryTransport left.track right.track, aligned, residual⟩
+  · have site : PairedComponentSite older start incoming ⟨some active, frames, rest⟩ ⟨some active, peerFrames, peerRest⟩ := by
+      obtain ⟨_, _, atPeer, normal⟩ := paired.retarget focused (.prog (.pure (.cancel .none))) start.host incoming.host
+      rw [peerFocus] at atPeer
+      simp only [List.cons.injEq, Activation.mk.injEq, true_and] at atPeer
+      obtain ⟨rfl, rfl⟩ := atPeer
+      exact normal
+    exact .inr ⟨_, compareQuietShort left right site ⟨_, focused⟩ ⟨_, peerFocus⟩ run short⟩
+
 open AsyncRef in
 theorem cutComponentResolveRefused (caller : CallerId) (issue : Scheduled.Issue)
     {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
@@ -3857,6 +3920,157 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
     · rw [rejectPayloadShape callee caller leftTicket shaped] at left
       rw [rejectPayloadShape callee caller rightTicket shaped] at right
       exact reject split moved residual site left right
+
+open ReturnFrame.Occurrence in
+theorem cutLinkedComponentInstall {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {callee : ComponentCall.Callee sig}
+    {thread frames rest resume label next}
+    (linked : callees.filter (·.hostId == hostId) = [callee])
+    (focused : start.ctl = ⟨thread, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest,
+      let call := ComponentCall.invoke callee caller
+      let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
+      let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧ next = reached ∧ HostFrame.Related.Paired older reached peer ∧
+      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming [.tau] [.tau] reached peer [some (.active 0 0)] ∧
+      segmentAt (segmentStorage reached) (.active 0 0) = some (.prog resume) ∧
+      segmentAt (segmentStorage peer) (.active 0 0) = some (.prog resume) ∧
+      Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) := by
+  let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+  let call : Session grow sig (Ret (core3 grow)) := ComponentCall.invoke callee caller
+  have resolved : specDispatch ready base (.hostFunc hostId caller) = call := by
+    simp only [dispatch, base, ComponentCall.hostWithComponent, linked, call]
+  have peerResolved : specDispatch ready (LiveDispatch.host bindings base) (.hostFunc hostId caller) = call := resolved
+  obtain ⟨peerFrames, peerRest, peerFocus, entered⟩ := ReturnFrame.Related.Paired.push_shared paired focused (.prog call) (.prog resume)
+  let reached := { start with ctl := ⟨thread, .prog call, .prog resume :: frames⟩ :: rest }
+  let peer := { incoming with ctl := ⟨thread, .prog call, .prog resume :: peerFrames⟩ :: peerRest }
+  have checked : Step profile ready (specDispatch ready base) start .tau reached := by
+    simpa only [resolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) focused)
+  have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer := by
+    simpa only [peerResolved] using (Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) peerFocus)
+  have leftEdit : transitionEdit start .tau = .push (.prog resume) := by rw [transitionEdit, focused]
+  have rightEdit : transitionEdit incoming .tau = .push (.prog resume) := by rw [transitionEdit, peerFocus]
+  have shifted (place : Option Location) : place.bind (Edit.push (.prog resume)).follow = place.map Location.pushed := by
+    cases place with
+    | none => rfl
+    | some place =>
+      cases place with
+      | active activation _ => cases activation <;> rfl
+      | saved => rfl
+  obtain ⟨labelEq, nextEq⟩ := silentStepUnique checked taken
+  refine ⟨peerFrames, peerRest, labelEq, nextEq.symm, entered, ⟨(·.map Location.pushed), ?_, ?_⟩, rfl, rfl, ?_⟩
+  · intro place
+    exact ⟨.step checked (by rw [leftEdit, shifted]; exact .done _ _), .step canonical (by rw [rightEdit, shifted]; exact .done _ _)⟩
+  · intro previous marks outside
+    rw [step_edit checked, step_edit canonical, leftEdit, rightEdit]
+    exact outside.push _ _
+  · rw [step_edit checked, step_edit canonical, leftEdit, rightEdit]
+    exact outside_push _ _ (paired_outside (left := HostFrame.replace start incoming.host) paired)
+
+open ReturnFrame.Occurrence in
+theorem cutAdmittedComponent (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (focused : start.ctl = ⟨some active, .prog (ComponentCall.invoke callee caller), frames⟩ :: rest)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ())
+    (paired : HostFrame.Related.Paired wider start incoming)
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ComponentAdmissionCut profile ready base bindings older wider callee caller cx args
+      ⟨some active, frames, rest⟩ first second start incoming labels finish := by
+  classical
+  unfold ComponentAdmissionCut
+  rcases cutComponentPreflight (bindings := bindings) callee caller focused record liveThread liveTask context admitted run paired with
+    ⟨peerFrames, peerRest, suffix, peerFocus, split, moved, site, residual⟩ | early
+  · let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, peerFrames, peerRest⟩
+    let reached := componentPreflightAt callee caller cx args start check
+    let peer := componentPreflightAt callee caller cx args incoming canon
+    let leftPlan := callee.childPreflight start.host.writer.accepted start.store cx args
+    let rightPlan := callee.childPreflight incoming.host.writer.accepted incoming.store cx args
+    refine .inr ⟨peerFrames, peerRest, suffix, split, moved, residual, site, ?_⟩
+    change leftPlan ≠ rightPlan ∨ _
+    by_cases agrees : leftPlan = rightPlan
+    · have leftStorage : segmentStorage reached = segmentStorage start := by
+        simp only [reached, componentPreflightAt, segmentStorage, focused, check, PayloadPrefix.Cursor.control]
+        rfl
+      have rightStorage : segmentStorage peer = segmentStorage incoming := by
+        simp only [peer, componentPreflightAt, segmentStorage, peerFocus, PayloadPrefix.Cursor.control]
+        rfl
+      have atLeft : reached.ctl = check.control (ComponentCall.acceptPlanned callee caller start.host.nextTicket leftPlan) := rfl
+      have atRight : peer.ctl = canon.control (ComponentCall.acceptPlanned callee caller incoming.host.nextTicket leftPlan) := by
+        rw [agrees]
+        rfl
+      have leftMark : segmentAt (segmentStorage reached) (.active 0 0) = some (.prog first) := by
+        rw [leftStorage, leftInstalled]
+      have rightMark : segmentAt (segmentStorage peer) (.active 0 0) = some (.prog second) := by
+        rw [rightStorage, rightInstalled]
+      have exterior : Outside older (segmentStorage reached) (segmentStorage peer) (some (.active 0 0)) := by
+        rwa [leftStorage, rightStorage]
+      refine .inr ⟨leftPlan, rfl, agrees.symm, ?_⟩
+      cases branch : leftPlan with
+      | ok planned =>
+        simp only [branch] at atLeft atRight
+        exact cutObservedAcceptance callee caller atLeft atRight site record admitted leftMark rightMark exterior residual
+      | error issue =>
+        simp only [branch] at atLeft atRight
+        cases live : start.store.subtask? subtask with
+        | none =>
+          simp [ComponentCall.Callee.check, live, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at admitted
+          split_ifs at admitted
+        | some subtaskEntry =>
+          rcases cutAdmittedRefusalMarkedReply (bindings := bindings) callee caller issue subtaskEntry atLeft atRight
+              record live admitted site leftMark rightMark exterior residual with
+            ⟨leading, trailing, lhs, rhs, refusalSplit, _, refusalPath, refusalRun, frontier, reply⟩ | shortRefusal
+          · exact .inr ⟨leading, trailing, lhs, rhs, refusalSplit, refusalPath, refusalRun, frontier, reply⟩
+          · have unindexed : subtaskEntry.index = none := by
+              by_contra different
+              have indexed : subtaskEntry.index.isSome = true := Option.isSome_iff_ne_none.mpr different
+              simp [ComponentCall.Callee.check, live, indexed, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at admitted
+              split_ifs at admitted
+            exact .inl (by simpa only [unindexed, Option.isSome, Bool.false_eq_true, ite_false] using shortRefusal)
+    · exact .inl agrees
+  · exact .inl early
+
+theorem classifyLinkedComponentAdmission {callees : List (ComponentCall.Callee sig)}
+    {hostId : HostFuncId} {caller : CallerId} {callee : ComponentCall.Callee sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {frames rest resume label next} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (linked : callees.filter (·.hostId == hostId) = [callee])
+    (focused : start.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+    (taken : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (liveThread : ArenaField.threads.get? start.store active = some entry)
+    (liveTask : ArenaField.tasks.get? start.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) = .ok ()) :
+    ∃ peerFrames peerRest,
+      let body := ComponentCall.invoke callee caller
+      let peer := { incoming with ctl := ⟨some active, .prog body, .prog resume :: peerFrames⟩ :: peerRest }
+      label = .tau ∧
+      OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming [.tau] [.tau] next peer [some (.active 0 0)] ∧
+      ComponentAdmissionCut profile ready (ComponentCall.hostWithComponent bindings callees) bindings older older callee caller cx args
+        ⟨some active, .prog resume :: frames, rest⟩ resume resume next peer labels finish := by
+  obtain ⟨peerFrames, peerRest, silent, rfl, aligned, install, leftMark, rightMark, outside⟩ :=
+    cutLinkedComponentInstall linked focused taken paired
+  exact ⟨peerFrames, peerRest, silent, install,
+    cutAdmittedComponent callee caller rfl record liveThread liveTask context admitted aligned leftMark rightMark outside run⟩
 
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}
