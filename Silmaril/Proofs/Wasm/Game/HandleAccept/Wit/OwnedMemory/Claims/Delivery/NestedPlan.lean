@@ -8225,6 +8225,39 @@ private theorem cutCheckedProgramReply (reply : Event × List FlatValue)
         obtain ⟨rfl, rfl⟩ := silentStepUnique pop third
         exact .popped (fun mark => followGet (followSet (Trail.pop_prog mark rfl))) tail
 
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem cutDirectGivePreparation (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (focus : start.ctl = { check with frames := .prog resume :: check.frames }.control
+      (request.compiledContinuation ticket selected field plan))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    DirectGivePreparationCut profile ready base bindings start incoming check resume request ticket selected field labels finish := by
+  let cursor := { check with frames := .prog resume :: check.frames }
+  let prepared := fun (store : CStore (core3 grow)) (current : HostState sig) =>
+    request.preparedContinuation (grow := grow) ticket selected field (Record.prepare store current.writer field.objects)
+  let middle := { start with ctl := cursor.control (.op .hostGet (prepared start.store)) }
+  let after := { start with ctl := cursor.control (prepared start.store start.host) }
+  have focused : start.ctl = cursor.control (.op .get (fun store => .op .hostGet (prepared store))) := by
+    rw [request.compiled_reads] at focus
+    exact focus
+  have path : ComponentQuietPath profile ready (specDispatch ready base) cursor start [id, id] after := by
+    have get : Step profile ready (specDispatch ready base) start .tau middle := .get focused
+    have read : Step profile ready (specDispatch ready base) middle .tau after :=
+      .hostGet (m := middle) (k := prepared start.store) rfl
+    exact .step get (by rw [transitionEdit, focused]; rfl) (.step read rfl (.done _))
+  rcases splitSilent (count := 2) (path.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
+  · have moved := CallbackPrefix.stationaryTransport (bindings := bindings)
+      (fun place => path.track place) (fun place => Prefix.done incoming place)
+    rw [split]
+    refine .reached after rfl moved residual (fun issue refused => cutCheckedProgramReply _ ?_ residual)
+    change cursor.control (prepared start.store start.host) = _
+    simp only [cursor, prepared, refused, request.prepare_refused]
+  · obtain ⟨_, paths⟩ := quietCheckedShort path run short
+    exact .prefix short (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
+
 open ReturnFrame.Occurrence in
 private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker : ThreadId)
     {left right : Config (core3 grow) (HostState sig)} {resume frames rest peerFrames peerRest} {bodyLabels}
@@ -8318,8 +8351,9 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
         · cases checked : request.preflight (grow := grow) root with
           | ok compiled =>
             obtain ⟨field, plan⟩ := compiled
-            exact .inl ⟨field, plan, rfl, congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
-              (request.compiler_accepted left.store (some worker) left.host.nextTicket root admitted.unconfined checked)⟩
+            have body := congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
+              (request.compiler_accepted left.store (some worker) left.host.nextTicket root admitted.unconfined checked)
+            exact .inl ⟨field, plan, rfl, body, cutDirectGivePreparation request left.host.nextTicket root field plan body residual⟩
           | error issue =>
             refine .inr ⟨issue, rfl, cutCheckedProgramReply _ ?_ residual⟩
             have reply := request.compiler_refused left.store (some worker) left.host.nextTicket root checked

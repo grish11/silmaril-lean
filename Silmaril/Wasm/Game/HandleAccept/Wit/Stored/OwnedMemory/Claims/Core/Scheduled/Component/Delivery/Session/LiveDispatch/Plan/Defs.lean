@@ -637,6 +637,31 @@ inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (Hos
         { start with host := start.host.record reply.1, ctl := caller.control (resume (.flat reply.2)) } trailing finish) :
       CheckedProgramReplyCut profile ready dispatch start caller resume reply ([.tau, .tau, .tau] ++ trailing) finish
 
+/-- A finite checked cut at the compiled root's preparation reads. No
+canonical step is spent by these checked-only reads. -/
+inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start peer : Config (core3 grow) (HostState sig))
+    (caller : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (resume : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : Stored.Endpoints.RecordLower.Field) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | prefix {actual finish} (short : actual.length < 2)
+      (paths : OccurrenceTransport profile ready base bindings start peer actual [] finish peer) :
+      DirectGivePreparationCut profile ready base bindings start peer caller resume request ticket selected field actual finish
+  | reached {trailing finish}
+      (after : Config (core3 grow) (HostState sig))
+      (focus : after = { start with
+        ctl := { caller with frames := .prog resume :: caller.frames }.control
+          (request.preparedContinuation ticket selected field (Record.prepare start.store start.host.writer field.objects)) })
+      (paths : OccurrenceTransport profile ready base bindings start peer [.tau, .tau] [] after peer)
+      (residual : Steps profile ready (specDispatch ready base) after trailing finish)
+      (refused : ∀ issue, Record.prepare start.store start.host.writer field.objects = .error issue →
+        CheckedProgramReplyCut profile ready (specDispatch ready base) after caller resume
+          (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)) trailing finish) :
+      DirectGivePreparationCut profile ready base bindings start peer caller resume request ticket selected field
+        ([.tau, .tau] ++ trailing) finish
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -717,7 +742,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (referenceTail request.inst request.destination request.schema (.ok selected) >>= fun reply => pure (.flat reply)))
       (compiler : (∃ field plan, request.preflight (grow := grow) selected = .ok (field, plan) ∧
           left.ctl = { check with frames := .prog resume :: check.frames }.control
-            (request.compiledContinuation ticket selected field plan)) ∨
+            (request.compiledContinuation ticket selected field plan) ∧
+          DirectGivePreparationCut profile ready base bindings left right check resume request ticket selected field trailing finish) ∨
         ∃ issue, request.preflight (grow := grow) selected = .error issue ∧
           CheckedProgramReplyCut profile ready (specDispatch ready base) left check resume
             (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)) trailing finish) :

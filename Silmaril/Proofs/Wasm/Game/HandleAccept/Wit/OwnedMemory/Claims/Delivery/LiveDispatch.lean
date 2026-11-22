@@ -1069,6 +1069,41 @@ theorem directCompilerAccepted (request : GiveSelector bindings) (store : CStore
       simp only [Prog.pure_eq, Prog.pure_bind']
       rfl
 
+theorem directCompiledReads (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field) (plan : List Stored.Endpoints.RecordLower.Object) :
+    request.compiledContinuation (grow := grow) ticket selected field plan = (do
+      let store ← getStore
+      let current ← hostGet
+      request.preparedContinuation ticket selected field (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects)) := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, address⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children => rfl
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children => rfl
+
+theorem directPrepareRefused (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    (issue : Stored.Endpoints.RecordLower.Issue) :
+    request.preparedContinuation (grow := grow) ticket selected field (.error issue) =
+      (do return .flat (← writeCompletion (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)))) := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, address⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children => rfl
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children => rfl
+
 theorem directCompilerRefused (request : GiveSelector bindings) (store : CStore (core3 grow))
     (thread : Option ThreadId) (ticket : Nat) (selected : SelectionValue sig request.schema)
     {issue : Stored.Endpoints.RecordLower.Issue} (refused : request.preflight (grow := grow) selected = .error issue) :

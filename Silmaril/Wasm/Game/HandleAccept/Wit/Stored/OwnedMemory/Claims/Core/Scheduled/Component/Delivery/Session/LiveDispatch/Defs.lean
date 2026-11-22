@@ -237,25 +237,43 @@ def compiledRoot (inst : InstId) (destination : RecordDestination) {type : Store
     type payload.val.value (.ok (field, plan)) RecordLower.Field.objects
     (fun width item => Record.Effects.root recordClaims Limits.spec Quirks.none context width type item output)
 
-def compiledTail (inst : InstId) (destination : RecordDestination) (ticket : Nat)
-    (field : RecordLower.Field) (plan : List RecordLower.Object) :
+def compiledTail (destination : RecordDestination) (ticket : Nat)
+    (lower : {type : Stored.TypeOf} → Stored.OwnedMemory.Payload type →
+      (output : Lower.Output) → Session grow sig (Except RecordLower.Issue output.Result)) :
     (schema : Option Stored.TypeOf) → SelectionValue sig schema → Session grow sig (Ret (core3 grow))
   | none, (tree, ptr) => match tree with
     | .atom impossible => impossible.elim
     | .tag root _ _ => do
-      let verdict ← compiledRoot inst destination root.2 field plan (.memory ptr)
+      let verdict ← lower root.2 (.memory ptr)
       return .flat (← writeCompletion (completion ticket (verdict.mapError Issue.lowerPayload |>.map (fun _ => 0))))
   | some schema, tree => match tree with
     | .atom impossible => impossible.elim
     | .tag root _ _ => do
-      let verdict ← compiledRoot inst destination root.2 field plan .flat
+      let verdict ← lower root.2 .flat
       return .flat (← writeCompletion (flatCompletion ticket (ABI.flatten destination.width schema)
         (verdict.mapError Issue.lowerPayload)))
 
 def GiveSelector.compiledContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
     (ticket : Nat) (selected : SelectionValue sig request.schema)
     (field : RecordLower.Field) (plan : List RecordLower.Object) : Session grow sig (Ret (core3 grow)) :=
-  compiledTail request.inst request.destination ticket field plan request.schema selected
+  compiledTail request.destination ticket (fun payload output => compiledRoot request.inst request.destination payload field plan output)
+    request.schema selected
+
+/-- Continuation after the checked preparation reads. A refused preparation
+returns through the checked completion only; success still reads the width. -/
+def GiveSelector.preparedContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (ticket : Nat) (selected : SelectionValue sig request.schema) (field : RecordLower.Field)
+    (prepared : Except RecordLower.Issue Unit) : Session grow sig (Ret (core3 grow)) :=
+  let context := request.destination.context (grow := grow) request.inst
+  compiledTail request.destination ticket
+    (fun {type} payload output => match prepared with
+      | .error issue => pure (.error issue)
+      | .ok () => do
+        let width ← ptrType context
+        if !Lower.fits Quirks.none context.opts.encoding width type payload.val.value then
+          return .error (.preflight (.abi .allocationPrecondition))
+        Record.Effects.root recordClaims Limits.spec Quirks.none context width type field output)
+    request.schema selected
 
 def CoreGiveRequest.selectionProgram {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
     (request : CoreGiveRequest bindings state) : Session grow sig (Except Issue (SelectionValue sig request.schema)) :=

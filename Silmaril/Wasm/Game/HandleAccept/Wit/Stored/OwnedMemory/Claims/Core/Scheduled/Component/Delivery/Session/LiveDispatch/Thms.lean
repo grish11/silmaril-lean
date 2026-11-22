@@ -75,6 +75,24 @@ theorem LiveDispatch.GiveSelector.compiler_accepted (request : LiveDispatch.Give
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.directCompilerAccepted
     request store thread ticket selected unconfined compiled
 
+/-- The compiled body performs the live store and writer reads before
+selecting the preparation continuation. -/
+theorem LiveDispatch.GiveSelector.compiled_reads (request : LiveDispatch.GiveSelector bindings) (ticket : Nat)
+    (selected : LiveDispatch.SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    (plan : List Stored.Endpoints.RecordLower.Object) :
+    request.compiledContinuation (grow := grow) ticket selected field plan = (do
+      let store ← getStore
+      let current ← hostGet
+      request.preparedContinuation ticket selected field (Record.prepare store current.writer field.objects)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.directCompiledReads request ticket selected field plan
+
+theorem LiveDispatch.GiveSelector.prepare_refused (request : LiveDispatch.GiveSelector bindings) (ticket : Nat)
+    (selected : LiveDispatch.SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    (issue : Stored.Endpoints.RecordLower.Issue) :
+    request.preparedContinuation (grow := grow) ticket selected field (.error issue) =
+      (do return .flat (← writeCompletion (LiveDispatch.giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)))) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.directPrepareRefused request ticket selected field issue
+
 /-- A refused root compilation is a checked ticketed reply. It does not run
 placement or lowering, even when the caller program is confined. -/
 theorem LiveDispatch.GiveSelector.compiler_refused (request : LiveDispatch.GiveSelector bindings)
