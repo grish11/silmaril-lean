@@ -191,6 +191,18 @@ theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal {request : LiveDi
     ∃ count, Steps profile ready (specDispatch ready impl) start (List.replicate count .tau) (selection.compilerRefused issue) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.compilerRefusal selection refused impl embedder
 
+open ReturnFrame.Occurrence in
+/-- Older checked occurrences pass through the real compiler refusal reply
+and its Core pop, which undo the entry's coordinate shift. -/
+theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal_tracks {request : LiveDispatch.CoreGiveRequest bindings start}
+    (selection : request.Selected route) {issue : Stored.Endpoints.RecordLower.Issue}
+    (refused : selection.preflight = .error issue)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Core.Scheduled.host (grow := grow) bindings).embedder) :
+    ∃ count, ∀ place, Trail profile ready (specDispatch ready impl) start (some place) (List.replicate count .tau)
+      (selection.compilerRefused issue) (some place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.compilerRefusalTracks selection refused impl embedder
+
 /-- At the actual paired Core request, the guarded selectors agree when the
 single reached lookup agrees. This includes boundary refusals and the case
 where no lookup takes place. Both evaluators leave their own host and store
@@ -321,6 +333,23 @@ theorem LiveDispatch.CoreGiveRequest.Selected.paired_canonical_pending {request 
   (LiveDispatch.CoreGiveRequest.Selected.paired_canonical_pending_host
     (profile := profile) (ready := ready) (base := base) selection paired reads).imp fun _ result =>
       result.imp fun _ ⟨silent, path, _, aligned⟩ => ⟨silent, path, aligned⟩
+
+open ReturnFrame.Occurrence in
+/-- The canonical entry pushes the installed caller and stops before the
+selected emitter, including when checked compilation refuses. -/
+theorem LiveDispatch.CoreGiveRequest.Selected.paired_canonical_pending_tracks {request : LiveDispatch.CoreGiveRequest bindings start}
+    (selection : request.Selected route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older start other)
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    ∃ labels entered, labels.all (· matches .tau) = true ∧
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
+        (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
+      entered.host = other.host ∧ HostFrame.Related.Paired older selection.canonicalPending entered :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pendingPairedTracks
+    (profile := profile) (ready := ready) (base := base) selection paired reads
 
 /-- Successful compilation's recursive comparison starts at the same
 canonical program identified by live selection. No synthetic reply or

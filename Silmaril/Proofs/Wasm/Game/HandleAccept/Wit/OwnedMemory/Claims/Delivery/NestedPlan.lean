@@ -974,7 +974,7 @@ theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveReques
     ReachedRecursiveGive profile ready callees selection older incoming := by
   cases preflight : selection.preflight with
   | error issue =>
-    obtain ⟨count, checked⟩ := selection.compiler_refusal (profile := profile) (ready := ready) preflight
+    obtain ⟨count, checked⟩ := selection.compiler_refusal_tracks (profile := profile) (ready := ready) preflight
       (ComponentCall.hostWithComponent bindings callees) rfl
     have reads : ∀ handle, request.lookupDemand = some handle →
         Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
@@ -983,9 +983,11 @@ theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveReques
       rw [selection.lookup_demand] at demand
       cases demand
       exact selection.selected.trans selected.symm
-    obtain ⟨_, _, silent, canonical, kept, pending⟩ := selection.paired_canonical_pending_host
+    obtain ⟨labels, _, silent, canonical, kept, pending⟩ := selection.paired_canonical_pending_tracks
       (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) paired reads
-    exact .refused preflight checked (silentVisible silent) canonical pending kept
+    refine .refused preflight (checked (.active 0 0)).steps (silentVisible silent) (canonical (.active 0 0)).toTrail.steps pending kept ?_
+    exact ⟨List.replicate count .tau, labels, visibleTaus count, silentVisible silent,
+      fun place => ⟨some place, _, checked place, (canonical place).toTrail⟩⟩
   | ok result =>
     obtain ⟨field, plan⟩ := result
     obtain ⟨tag, payload, arity, children, picked, linked⟩ := selection.compiler_success preflight
@@ -1244,6 +1246,58 @@ theorem requestWorkerRefusals {callees : List (ComponentCall.Callee sig)}
           · simpa only [visibleAppend, visibleTaus, List.nil_append, List.append_assoc] using paths
         · exact stop (.request install (.inr ⟨next, .refused verdict positive left right aligned leftHost rightHost rest,
             .inr (.inr (.inr ⟨issue, checkCount, replied, short, verdict, reflected⟩))⟩))
+
+open ReturnFrame.Occurrence in
+private theorem appendExitOccurrences {origin reference left right : Config (core3 grow) (HostState sig)}
+    {seen next : Trace grow sig}
+    (front : RequestExitOccurrences profile ready base bindings origin reference seen start incoming)
+    (back : RequestExitOccurrences profile ready base bindings start incoming next left right) :
+    RequestExitOccurrences profile ready base bindings origin reference (seen ++ next) left right := by
+  obtain ⟨beforeLeft, beforeRight, leftSeen, rightSeen, older⟩ := front
+  obtain ⟨afterLeft, afterRight, leftNext, rightNext, newer⟩ := back
+  refine ⟨beforeLeft ++ afterLeft, beforeRight ++ afterRight, ?_, ?_, ?_⟩
+  · rw [visibleAppend, leftSeen, leftNext]
+  · rw [visibleAppend, rightSeen, rightNext]
+  · intro mark
+    obtain ⟨leftPlace, rightPlace, leftPath, rightPath⟩ := older mark
+    have leftTail : ∃ reached, Trail profile ready (specDispatch ready base) start leftPlace afterLeft left reached := by
+      cases leftPlace with
+      | none => obtain ⟨_, _, run, _⟩ := newer mark; exact ⟨none, .absent run.steps⟩
+      | some place => obtain ⟨reached, _, run, _⟩ := newer place; exact ⟨reached, run⟩
+    have rightTail : ∃ reached, Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming rightPlace afterRight right reached := by
+      cases rightPlace with
+      | none => obtain ⟨_, _, _, run⟩ := newer mark; exact ⟨none, .absent run.steps⟩
+      | some place => obtain ⟨_, reached, _, run⟩ := newer place; exact ⟨reached, run⟩
+    obtain ⟨leftReached, lrun⟩ := leftTail
+    obtain ⟨rightReached, rrun⟩ := rightTail
+    exact ⟨leftReached, rightReached, leftPath.append lrun, rightPath.append rrun⟩
+
+theorem compilerStopAfterWorkerPrefix {callees : List (ComponentCall.Callee sig)} {route : GiveEffectRoute}
+    {request : CoreGiveRequest bindings start} (selection : request.Selected route) {issue : Stored.Endpoints.RecordLower.Issue}
+    {origin reference : Config (core3 grow) (HostState sig)} {seen : Trace grow sig}
+    (refused : selection.preflight = .error issue)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      origin reference seen start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    CompilerStopSuffix profile ready callees selection issue older origin reference incoming seen labels finish := by
+  have domain : RecursiveGiveDomain selection := by
+    intro _ _ _ _ _ _ _ compiled
+    rw [refused] at compiled
+    contradiction
+  cases reachedRecursiveGive (callees := callees) (profile := profile) (ready := ready) selection domain paired selected with
+  | @refused reported count leading entered verdict checked _ canonical pending host paths =>
+    have same := Except.error.inj (refused.symm.trans verdict)
+    subst reported
+    refine ⟨count, checked, ?_⟩
+    rcases splitSilent checked run with ⟨suffix, exactTrace, actualTail⟩ | short
+    · exact .inr ⟨suffix, leading, entered, exactTrace, actualTail, canonical, pending, host,
+        (List.append_nil seen) ▸ appendExitOccurrences arrived paths⟩
+    · exact .inl short
+  | compiled verdict _ _ _ _ =>
+    rw [refused] at verdict
+    contradiction
 
 open ReturnFrame.Occurrence in
 theorem rejoinedTrackedWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

@@ -1690,4 +1690,20 @@ theorem RequestWorkerRefusals.after_delivery {callees : List (ComponentCall.Call
     WorkerRefusalRun profile ready bindings callees older request reference seen start incoming (deliveryLabels ++ workerLabels) done :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.requestWorkerRefusalsAfterDelivery tail delivery worker
 
+/-- At the next actual selected request, a compiler refusal only returns
+on the checked side. Rebase the canonical pending cursor and checked reply
+from the prior worker cut, without replaying the checked-only suffix. -/
+theorem CoreGiveRequest.Selected.compiler_stop_after_worker_prefix {callees : List (ComponentCall.Callee sig)} {route : GiveEffectRoute}
+    {request : CoreGiveRequest bindings start} (selection : request.Selected route) {issue : Stored.Endpoints.RecordLower.Issue}
+    {origin reference : Config (core3 grow) (HostState sig)} {seen : Trace grow sig}
+    (refused : selection.preflight = .error issue)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      origin reference seen start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    CompilerStopSuffix profile ready callees selection issue older origin reference incoming seen labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.compilerStopAfterWorkerPrefix
+    selection refused paired selected arrived run
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

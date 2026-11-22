@@ -3128,6 +3128,8 @@ inductive ReachedRecursiveGive (profile : ProfileKind) (ready : HostReady (HostS
         incoming leading entered)
       (pending : HostFrame.Related.Paired older selection.canonicalPending entered)
       (unchangedHost : entered.host = incoming.host)
+      (occurrences : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees)
+        bindings start incoming [] (selection.compilerRefused issue) entered)
   | compiled {tag payload arity children field plan} (preflight : selection.preflight = .ok (field, plan))
       (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
       (linked : (selection.site tag payload arity children field).Linked bindings)
@@ -3299,5 +3301,25 @@ def RequestWorkerRefusals (profile : ProfileKind) (ready : HostReady (HostState 
     (checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
   ∀ {labels finish}, Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) checked labels finish →
     WorkerRefusalRun profile ready bindings callees older request reference seen checked canonical labels finish
+
+/-- A reached compiler rejection is not a common reply. The checked run
+can end before that reply, or it can contain the exact checked handoff.
+In the latter case canonical stops at its installed, unexecuted emitter. -/
+def CompilerStopSuffix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (callees : List (ComponentCall.Callee sig)) {bindings : List (Binding sig)}
+    {start : Config (core3 grow) (HostState sig)} {request : CoreGiveRequest bindings start}
+    {route : GiveEffectRoute} (selection : request.Selected route) (issue : Stored.Endpoints.RecordLower.Issue)
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (origin reference incoming : Config (core3 grow) (HostState sig))
+    (seen labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  let base := ComponentCall.hostWithComponent bindings callees
+  ∃ count,
+    Steps profile ready (specDispatch ready base) start (List.replicate count .tau) (selection.compilerRefused issue) ∧
+    (labels.length < count ∨ ∃ suffix leading entered,
+      labels = List.replicate count .tau ++ suffix ∧
+      Steps profile ready (specDispatch ready base) (selection.compilerRefused issue) suffix finish ∧
+      Steps profile ready (specDispatch ready (host bindings base)) incoming leading entered ∧
+      HostFrame.Related.Paired older selection.canonicalPending entered ∧ entered.host = incoming.host ∧
+      RequestExitOccurrences profile ready base bindings origin reference seen (selection.compilerRefused issue) entered)
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch
