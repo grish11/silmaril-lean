@@ -4471,10 +4471,10 @@ def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
         OccurrenceTransport profile ready base bindings leftStart rightStart leftLabels rightLabels left right [some (.active 0 0)] →
         OccurrenceTransport profile ready base bindings leftStart rightStart (leftLabels ++ [.tau]) (rightLabels ++ [.tau]) resumed peer
 
-/-- Track the caller installed at the start of an admitted component refusal.
+/-- Track the caller installed at the start of a component result path.
 Resolution alone leaves the reply in focus. Only the checked residual's actual
 pop of that occurrence can consume it; a missing or displaced mark cannot. -/
-def ComponentRefusalReplyTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+def ComponentMarkedReplyTail (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (start incoming reached peer : Config (core3 grow) (HostState sig)) (leading : Trace grow sig)

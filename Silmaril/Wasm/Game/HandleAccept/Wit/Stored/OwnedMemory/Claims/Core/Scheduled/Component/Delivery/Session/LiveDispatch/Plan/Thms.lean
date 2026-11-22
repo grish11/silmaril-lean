@@ -334,7 +334,7 @@ theorem cut_component_admitted_refusal_marked_reply (callee : ComponentCall.Call
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
         (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
-      ComponentRefusalReplyTail profile ready base bindings older start incoming reached peer leading
+      ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish) ∨
     ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalMarkedReply
@@ -403,6 +403,44 @@ theorem cut_component_successful_publication (callee : ComponentCall.Callee sig)
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPublication
     callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive rightLive leftHandle rightHandle room run
+
+open ReturnFrame.Occurrence in
+/-- Transport the installed caller from successful validation through live
+publication, then use only the actual checked residual to compare a marked pop.
+A pending prefix, trap or lost occurrence does not enter the caller. -/
+theorem cut_component_successful_marked_reply (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (argument payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+    {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
+    (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
+    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket (some children) [argument, payload]))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket (some children) [argument, payload]))
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (paired : PairedComponentSite wider start incoming check canon)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
+    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32)
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentAcceptedFrontier wider check canon (.node callee.tag valid children) handle reached peer suffix ∧
+      ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
+        check first second suffix finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulMarkedReply
+    callee caller argument payload children validated leftFocus rightFocus paired record resultType indirect
+    leftLive rightLive leftHandle rightHandle room leftInstalled rightInstalled outside run
 
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/

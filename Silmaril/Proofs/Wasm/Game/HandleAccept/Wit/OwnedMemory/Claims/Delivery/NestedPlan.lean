@@ -3280,6 +3280,42 @@ private theorem cursorAtInstalledReply {cursor : PayloadPrefix.Cursor (E := core
       exact ⟨⟨thread, frames, rest⟩, rfl⟩
 
 open ReturnFrame.Occurrence in
+private theorem compareComponentMarkedReply
+    {reached peer : Config (core3 grow) (HostState sig)} {leading suffix : Trace grow sig}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (moved : OccurrenceTransport profile ready base bindings start incoming leading leading reached peer)
+    (residual : Steps profile ready (specDispatch ready base) reached suffix finish)
+    (atReply : reached.ctl = check.control (.pure (.cancel .none)) →
+      suffix = [] ∨ HostFrame.Related.Paired wider reached peer) :
+    ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
+      check first second suffix finish := by
+  have paths := CallbackPrefix.transportPaths moved
+  obtain ⟨move, trails, transported⟩ := moved
+  let mark := move (some (.active 0 0))
+  have tracked : AllocatorMark profile ready base bindings older start incoming leading leading reached peer mark :=
+    ⟨outsideMarks_singleton.mp (transported older _ (outsideMarks_singleton.mpr outside)),
+      (trails _).1, (trails _).2, paths⟩
+  refine ⟨mark, tracked, ?_⟩
+  intro atReturn
+  by_cases top : mark = some (.active 0 0)
+  · apply Or.inr
+    have sameTop := top ▸ tracked.checkedTrail
+    obtain ⟨place, placeEq, survived⟩ := sameTop.survives
+    cases placeEq
+    obtain ⟨after, replaced⟩ := cursorAtInstalledReply atReturn ((prefix_survives survived).2.trans leftInstalled)
+    refine ⟨after, replaced, ?_⟩
+    rcases atReply atReturn with rfl | atPeer
+    · cases residual
+      exact .inr (.inl ⟨rfl, rfl⟩)
+    · exact alignAllocatorPop tracked atPeer (replaced ▸ atReturn) rightInstalled residual
+  · exact .inl top
+
+open ReturnFrame.Occurrence in
 theorem cutAdmittedRefusalMarkedReply (callee : ComponentCall.Callee sig) (caller : CallerId) (issue : Scheduled.Issue)
     {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
     {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat} (record : Subtask)
@@ -3301,42 +3337,71 @@ theorem cutAdmittedRefusalMarkedReply (callee : ComponentCall.Callee sig) (calle
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
         (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
-      ComponentRefusalReplyTail profile ready base bindings older start incoming reached peer leading
+      ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish) ∨
     ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) := by
   rcases cutAdmittedRefusalResult (bindings := bindings) callee caller issue record leftFocus rightFocus callerRecord live admitted paired run with
     ⟨leading, suffix, reached, peer, split, shorter, moved, residual, frontier⟩ | early
-  · have paths := CallbackPrefix.transportPaths moved
-    obtain ⟨move, trails, transported⟩ := moved
-    let mark := move (some (.active 0 0))
-    have tracked : AllocatorMark profile ready base bindings older start incoming leading leading reached peer mark :=
-      ⟨outsideMarks_singleton.mp (transported older _ (outsideMarks_singleton.mpr outside)),
-        (trails _).1, (trails _).2, paths⟩
-    refine .inl ⟨leading, suffix, reached, peer, split, shorter, ⟨move, trails, transported⟩,
-      residual, frontier, mark, tracked, ?_⟩
+  · refine .inl ⟨leading, suffix, reached, peer, split, shorter, moved, residual, frontier,
+      compareComponentMarkedReply leftInstalled rightInstalled outside moved residual (wider := wider) ?_⟩
     intro atReturn
-    by_cases top : mark = some (.active 0 0)
-    · apply Or.inr
-      have sameTop := top ▸ tracked.checkedTrail
-      obtain ⟨place, placeEq, survived⟩ := sameTop.survives
-      cases placeEq
-      obtain ⟨after, replaced⟩ := cursorAtInstalledReply atReturn ((prefix_survives survived).2.trans leftInstalled)
-      refine ⟨after, replaced, ?_⟩
-      cases frontier with
-      | returned _ left right aligned =>
-        have atPeer : HostFrame.Related.Paired wider reached peer := by
-          unfold PairedComponentSite at aligned
-          rw [← left, ← right] at aligned
-          exact aligned
-        exact alignAllocatorPop tracked atPeer (replaced ▸ atReturn) rightInstalled residual
-      | pending _ _ left _ _ _ =>
-        rw [left] at atReturn
-        simp [PayloadPrefix.Cursor.control] at atReturn
-      | trapped left _ _ =>
-        rw [left] at atReturn
-        simp [PayloadPrefix.Cursor.control] at atReturn
-    · exact .inl top
+    cases frontier with
+    | returned _ left right aligned =>
+      apply Or.inr
+      unfold PairedComponentSite at aligned
+      rw [← left, ← right] at aligned
+      exact aligned
+    | pending _ _ left _ _ _ =>
+      rw [left] at atReturn
+      simp [PayloadPrefix.Cursor.control] at atReturn
+    | trapped left _ _ =>
+      rw [left] at atReturn
+      simp [PayloadPrefix.Cursor.control] at atReturn
   · exact .inr early
+
+open ReturnFrame.Occurrence in
+theorem cutSuccessfulMarkedReply (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (argument payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+    {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
+    (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
+    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket (some children) [argument, payload]))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket (some children) [argument, payload]))
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (paired : PairedComponentSite wider start incoming check canon)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
+    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32)
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentAcceptedFrontier wider check canon (.node callee.tag valid children) handle reached peer suffix ∧
+      ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
+        check first second suffix finish := by
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier⟩ :=
+    cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
+      leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run
+  refine ⟨leading, suffix, reached, peer, split, moved, residual, frontier,
+    compareComponentMarkedReply leftInstalled rightInstalled outside moved residual (wider := wider) ?_⟩
+  intro atReturn
+  cases frontier with
+  | pending _ exhausted => exact .inl exhausted
+  | trapped checked _ _ =>
+    rw [checked] at atReturn
+    simp [PayloadPrefix.Cursor.control] at atReturn
+  | published _ _ pair _ _ => exact .inr pair
 
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}
