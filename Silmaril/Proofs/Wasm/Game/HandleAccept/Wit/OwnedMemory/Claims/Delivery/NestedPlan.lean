@@ -2517,6 +2517,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | observation _ _ paths tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | componentRegistrationMismatch _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
@@ -2549,6 +2550,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
+  | componentRegistrationMismatch _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -4983,6 +4985,24 @@ theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.
   registrationProbe_observations (indexed.registration tree) (congrArg List.length indexed.accepted)
 
 open Stored.OwnedMemory.Claims in
+theorem registrationMismatch_demandsPending {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {leftTicket rightTicket caller tree} {pending : Spend → Prop}
+    (mismatch : ReachedRegistrationMismatch profile ready base bindings start incoming check canon leftTicket rightTicket caller tree)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
+      id ∉ (start.host.writer.accepted.flatMap rootReceipts).map receiptId) ∨
+    (∃ id ∈ rootEndpoints tree, pending (.endpoint id)) := by
+  obtain ⟨_, _, _, _, _, _, _, different⟩ := mismatch
+  by_contra absent
+  apply different
+  refine registrationProbe_observations (related.registrationChecks tree ?_ ?_) (congrArg List.length related.accepted)
+  · intro id demand disputed
+    by_contra newOwner
+    exact absent (.inl ⟨id, demand, disputed, newOwner⟩)
+  · intro id demand disputed
+    exact absent (.inr ⟨id, demand, disputed⟩)
+
+open Stored.OwnedMemory.Claims in
 theorem leafSpend_registrationProbe {update : Spend} {left right checked canonical : HostState sig}
     (flow : ExclusiveLeafWriterFlow update left right checked canonical)
     (together : left.writer.IndexedClaimsAgree right.writer) (tree : Stored.OwnedMemory.Tree sig)
@@ -5192,8 +5212,9 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
                   (by simpa only [branch, componentRegistrationProgram] using rightProgram)
               | fresh handle => exact (bothFresh ⟨handle, branch, agrees.symm.trans branch⟩).elim
             · exact ⟨leading ++ [.tau], remaining, lhs, rhs, actual, whole, afterProbe,
-                .registrationMismatch leftProgram rightProgram atProbe agrees (fun indexed => agrees
-                  (indexedClaims_registrationProbe (by rwa [leftHost, rightHost]) tree))⟩
+                .registrationMismatch ⟨reached, peer, leftProbe, rightProbe, probed, leftProgram, rightProgram, agrees⟩
+                  atProbe ⟨congrArg HostState.writer leftHost, congrArg HostState.writer rightHost⟩
+                  (fun indexed => agrees (indexedClaims_registrationProbe (by rwa [leftHost, rightHost]) tree))⟩
     · rw [rejectPayloadShape callee caller leftTicket shaped] at left
       rw [rejectPayloadShape callee caller rightTicket shaped] at right
       exact reject split moved residual site left right
@@ -9998,9 +10019,22 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
       · exact .inr boundary
       · exact crossComponentBodyReply installed entrySplit moved split path reply boundary
     | ok planned =>
-      obtain ⟨leading, remainder, reached, peer, split, path, _, observed⟩ := body
+      obtain ⟨leading, remainder, reached, peer, split, path, checkedResidual, observed⟩ := body
       cases observed with
-      | pending | trapped | registrationMismatch => exact .inr boundary
+      | pending | trapped => exact .inr boundary
+      | registrationMismatch mismatch site writers _ =>
+        have bodyPath := CallbackPrefix.transportAppend moved path
+        have throughRead := CallbackPrefix.transportAppend install bodyPath.choose_spec.1
+        let mark := throughRead.choose (some (.active 0 0))
+        have finalPaths : OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+            start incoming (.tau :: (List.replicate 7 .tau ++ leading)) (.tau :: (List.replicate 7 .tau ++ leading))
+            reached peer [mark] := by
+          simpa only [mark, List.singleton_append, List.nil_append, List.map_cons, List.map_nil] using
+            throughRead.choose_spec.1
+        apply Or.inr
+        apply callbackTerminalSlice paired
+        simpa only [entrySplit, split, List.cons_append, List.append_assoc] using
+          (CallbackSliceEnd.componentRegistrationMismatch mismatch site finalPaths writers checkedResidual)
       | refused _ reply | accepted _ reply _ => exact crossComponentBodyReply installed entrySplit moved split path reply boundary
   · exact .inr boundary
 

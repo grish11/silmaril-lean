@@ -72,6 +72,19 @@ theorem claimDiscrepancies_registrationProbe {left right : State sig} {pending :
     (related.registrationChecks tree owners endpoints) (congrArg List.length related.accepted)
 
 open Stored.OwnedMemory.Claims in
+/-- With aligned accepted indices, an executed raw registration mismatch demands a claim
+from the current discrepancy bound that is not masked by owner history. -/
+theorem ReachedRegistrationMismatch.demandsPending {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {leftTicket rightTicket caller tree} {pending : Spend → Prop}
+    (mismatch : ReachedRegistrationMismatch profile ready base bindings start incoming check canon leftTicket rightTicket caller tree)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
+      id ∉ (start.host.writer.accepted.flatMap rootReceipts).map receiptId) ∨
+    (∃ id ∈ rootEndpoints tree, pending (.endpoint id)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.registrationMismatch_demandsPending
+    mismatch related
+
+open Stored.OwnedMemory.Claims in
 /-- The raw registration probes after an asymmetric leaf spend can still
 agree: a historical owner remains a conflict, and unrelated endpoints are not
 observed. This neither projects a spend onto the canonical writer nor claims

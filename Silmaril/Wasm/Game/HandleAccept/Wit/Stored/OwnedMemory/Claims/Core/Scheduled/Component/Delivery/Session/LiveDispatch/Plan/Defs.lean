@@ -735,6 +735,42 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
       DirectGivePreparationCut profile ready base bindings start peer caller resume request ticket selected field
         ([.tau, .tau] ++ trailing) finish
 
+/-- The observation used by the reached registration probe. A refused registration
+does not read a handle, and exhaustion does not use the out-of-range index. -/
+inductive ComponentRegistration where
+  | aliased
+  | exhausted
+  | fresh (handle : Nat)
+
+def componentRegistration (writer : Stored.OwnedMemory.Claims.State sig) (tree : Stored.OwnedMemory.Tree sig) :
+    ComponentRegistration :=
+  match writer.register tree with
+  | .error _ => .aliased
+  | .ok registered => if registered.accepted.length ≥ 2 ^ 32 then .exhausted else .fresh registered.accepted.length
+
+def componentRegistrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
+    ComponentRegistration → Session grow sig (Ret (core3 grow))
+  | .aliased => ComponentCall.resolveRefused ticket caller (.accept (.claims .alias))
+  | .exhausted => ComponentCall.reject ticket (.accept (.boundary .exhaustedHandles))
+  | .fresh handle => do
+    lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))])
+    ComponentCall.completeResolvedTree ticket tree handle
+
+/-- An actual pair of registration reads selected different branches from the two raw
+writers. These are continuation focuses, not executed replies or fabricated traps. -/
+def ReachedRegistrationMismatch (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (leftTicket rightTicket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) : Prop :=
+  ∃ beforeLeft beforeRight,
+    beforeLeft.ctl = check.control (ComponentCall.resolveTree leftTicket caller tree) ∧
+    beforeRight.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree) ∧
+    OccurrenceTransport profile ready base bindings beforeLeft beforeRight [.tau] [.tau] left right ∧
+    left.ctl = check.control (componentRegistrationProgram leftTicket caller tree (componentRegistration left.host.writer tree)) ∧
+    right.ctl = canon.control (componentRegistrationProgram rightTicket caller tree (componentRegistration right.host.writer tree)) ∧
+    componentRegistration left.host.writer tree ≠ componentRegistration right.host.writer tree
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -754,6 +790,14 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] next otherNext)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  | componentRegistrationMismatch {changes wider reached peer left right leading trailing finish mark}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket caller tree}
+      (mismatch : ReachedRegistrationMismatch profile ready base bindings left right check canon leftTicket rightTicket caller tree)
+      (site : PairedComponentSite wider left right check canon)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right [mark])
+      (writers : left.host.writer = reached.host.writer ∧ right.host.writer = peer.host.writer)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
@@ -5006,27 +5050,6 @@ def componentPreflightAt (callee : ComponentCall.Callee sig) (caller : CallerId)
     host := state.host.enter callee.name callee.coreType args
     ctl := cursor.control (ComponentCall.acceptCaller callee caller state.host.nextTicket state.host.writer.accepted state.store cx args) }
 
-/-- The observation used by the reached registration probe. A refused registration
-does not read a handle, and exhaustion does not use the out-of-range index. -/
-inductive ComponentRegistration where
-  | aliased
-  | exhausted
-  | fresh (handle : Nat)
-
-def componentRegistration (writer : Stored.OwnedMemory.Claims.State sig) (tree : Stored.OwnedMemory.Tree sig) :
-    ComponentRegistration :=
-  match writer.register tree with
-  | .error _ => .aliased
-  | .ok registered => if registered.accepted.length ≥ 2 ^ 32 then .exhausted else .fresh registered.accepted.length
-
-def componentRegistrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
-    ComponentRegistration → Session grow sig (Ret (core3 grow))
-  | .aliased => ComponentCall.resolveRefused ticket caller (.accept (.claims .alias))
-  | .exhausted => ComponentCall.reject ticket (.accept (.boundary .exhaustedHandles))
-  | .fresh handle => do
-    lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))])
-    ComponentCall.completeResolvedTree ticket tree handle
-
 /-- A mismatch is at the actual registration-read continuations, not at an
 unvalidated payload or an assumed disagreement of whole writer states. -/
 inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -5042,12 +5065,9 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
   | trapped (checked : reached.ctl = []) (canonical : peer.ctl = [])
       (paired : HostFrame.Related.Paired wider reached peer)
   | registrationMismatch {tree : Stored.OwnedMemory.Tree sig}
-      (checked : reached.ctl = check.control (componentRegistrationProgram leftTicket caller tree
-        (componentRegistration reached.host.writer tree)))
-      (canonical : peer.ctl = canon.control (componentRegistrationProgram rightTicket caller tree
-        (componentRegistration peer.host.writer tree)))
+      (mismatch : ReachedRegistrationMismatch profile ready base bindings reached peer check canon leftTicket rightTicket caller tree)
       (paired : PairedComponentSite wider reached peer check canon)
-      (mismatch : componentRegistration reached.host.writer tree ≠ componentRegistration peer.host.writer tree)
+      (writers : reached.host.writer = start.host.writer ∧ peer.host.writer = incoming.host.writer)
       (entryDisagrees : ¬ start.host.writer.IndexedClaimsAgree incoming.host.writer)
   | refused
       (frontier : ComponentStoreFrontier (Result := Unit) wider check canon

@@ -1033,6 +1033,47 @@ handles without reviving spent resource or endpoint claims. Both loaders check c
 before lifting, and the publication continuation independently refuses to wrap.
 This conservation statement does not characterize which roots a given module can accept.
 
+#### Claim accounting in the raw comparison
+
+Checked publication records a durable tree and separate live claims. A scheduled
+checked `givePayload` or `giveFlat` spends an exclusive claim at the authorized
+leaf, before the canonical ownership effect. For a readable stream or future, a
+later legitimate lift can register one new live claim for the same arena `EndId`.
+Old and new trees can name that endpoint, but they do not confer separate claims:
+any subsequent give must spend the one live claim. For an owning resource, the
+consumed `HandleObjId` stays retired:
+registration also conflicts with historical owner identities. Canonical `lower_own`
+creates a new owning arena object, so a later lift of that object does not revive
+the original receipt, even if the resource representation or Core slot is reused.
+
+The fixed `LiveDispatch.host` overlay instead runs raw canonical `store` or
+`lowerFlatAt` for linked gives, without the checked host-claim spend. It leaves the
+underlying accept handlers in place. A canonical endpoint move changes the arena
+owner and table slot, not the acceptor's live-claim list. The later shared registration
+can therefore see a stale claim on the raw side. `RecordExamples.linked_endpoint_relift_registration`
+checks actual linked `accept-flat`, `give-flat`, and `accept-flat` executions from
+the same setup: both re-lifts consume the guest slot and detach the same endpoint;
+checked returns status 0 and handle 2, and raw returns status 1 and records alias.
+This is an observable difference on a closed path, not an unsupported request,
+a trap, or just a difference in internal journals.
+
+The finite raw comparison keeps both actual observations. When a component
+registration read executes and the probes disagree, `ReachedRegistrationMismatch`
+records the compared steps and both reached branch programs; the worker cut retains
+the original occurrence path and the actual checked residual. The executed prefix
+to that read leaves each side's writer unchanged, so a discrepancy bound from
+before the install also applies at the read. With aligned accepted indices, a
+mismatch demands an endpoint in that bound or an owner in the bound that is not
+already a conflict in the accepted history. The cut does not claim
+either branch has returned or that a reply or async result was delivered. Agreement
+on demanded claims and accepted indices can establish corresponding registration
+outcomes, but neither disjointness nor acknowledgement of a projected canonical
+spend is a premise of the mismatch classification. This is not whole-session reply
+equivalence, including on re-lifts. A claim-aware comparison target, if introduced,
+must be a separately named dispatcher and perform its own authorized nominal spend
+at the reached leaf, rather than amend history at registration or change the raw
+reference. No such dispatcher is used by this comparison.
+
 `import_binding_trap_steps` covers mislinked imports from the public dispatcher,
 not only its trap continuation. It records the entry and the typed missing, ambiguous
 or mismatched-binding diagnostic before taking the reference trap transition. No
