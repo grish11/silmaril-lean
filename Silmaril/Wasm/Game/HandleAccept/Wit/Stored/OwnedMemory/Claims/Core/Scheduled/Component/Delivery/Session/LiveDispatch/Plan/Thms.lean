@@ -1706,4 +1706,24 @@ theorem CoreGiveRequest.Selected.compiler_stop_after_worker_prefix {callees : Li
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.compilerStopAfterWorkerPrefix
     selection refused paired selected arrived run
 
+open ReturnFrame.Occurrence in
+/-- Match a derived recursive body endpoint against the actual checked run.
+Only a reached marked pop continues the worker comparison; a typed reply
+retains the stopped canonical body and never replays the checked suffix. -/
+theorem PublicOccurrenceExit.align_worker {route : GiveEffectRoute} {site : PayloadRoot.Site grow sig route}
+    {callees : List (ComponentCall.Callee sig)} {origin reference entered left right : Config (core3 grow) (HostState sig)}
+    {checkLabels canonLabels prior seen : Trace grow sig} {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
+    (body : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered verdict seen left right)
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      origin reference prior site.start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PublicGiveWorkerAlignment profile ready bindings callees older site entered left right verdict
+      origin reference checkLabels prior seen labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignPublicGiveWorker
+    site checked canonical checkQuiet canonQuiet body arrived run
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

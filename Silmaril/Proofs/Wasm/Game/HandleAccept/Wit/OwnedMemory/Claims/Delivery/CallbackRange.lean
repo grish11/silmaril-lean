@@ -3780,7 +3780,7 @@ theorem linkedFlatAggregateRejoinPaths {type : Stored.TypeOf} (site : PayloadRoo
       (initialSlots site.checked entered) (fun issue => ⟨issue, rfl⟩) rfl canonAt
       (fun words _ _ _ _ _ paired _ tracks lhs rhs => rejoinReady site tracks words paired lhs rhs next)
 
-theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+theorem rebasePublicOccurrenceExitWithPop {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {entered incoming left right : Config (core3 grow) (HostState sig)} {checkLabels canonLabels seen : Trace grow sig}
     {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
@@ -3794,6 +3794,7 @@ theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
       RequestExitOccurrences profile ready base bindings site.start incoming seen left right ∧
       (mark = some (.active 0 0) → ∃ checked canonical,
+        Steps profile ready (specDispatch ready base) left [.tau, .tau, .tau] checked ∧
         RequestExitOccurrences profile ready base bindings site.start incoming seen checked canonical ∧
         RequestExitKind older verdict right checked canonical) := by
   obtain ⟨checkBody, canonBody, mark, tracks, checkSeen, canonSeen, _, leftMark, rightMark, reply⟩ := body
@@ -3820,7 +3821,7 @@ theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot
   | error issue =>
     change peer = right at returned
     subst peer
-    refine ⟨resumed, right, ⟨_, _, checkSilent, rightSeen, fun place => ?_⟩, rfl⟩
+    refine ⟨resumed, right, (checkPop (.active 0 0)).steps, ⟨_, _, checkSilent, rightSeen, fun place => ?_⟩, rfl⟩
     obtain ⟨endpoint, lhs, rhs⟩ := request place
     obtain ⟨next, suffix⟩ := checkedSuffix endpoint
     exact ⟨next, endpoint, ((checked place).toTrail.append lhs).append suffix, (canonical place).toTrail.append rhs⟩
@@ -3828,13 +3829,35 @@ theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot
     obtain ⟨_, related, canonPop⟩ := returned
     have canonSilent : PayloadPrefix.visible ((canonLabels ++ canonBody) ++ [.tau]) = seen := by
       rw [visibleAppend, rightSeen]; exact List.append_nil _
-    refine ⟨resumed, peer, ⟨_, _, checkSilent, canonSilent, fun place => ?_⟩, related⟩
+    refine ⟨resumed, peer, (checkPop (.active 0 0)).steps, ⟨_, _, checkSilent, canonSilent, fun place => ?_⟩, related⟩
     obtain ⟨endpoint, lhs, rhs⟩ := request place
     obtain ⟨next, suffix⟩ := checkedSuffix endpoint
     have checkPath := ((checked place).toTrail.append lhs).append suffix
     cases endpoint with
     | none => exact ⟨next, none, checkPath, ((canonical place).toTrail.append rhs).append (.absent (canonPop (.active 0 0)).steps)⟩
     | some atReply => exact ⟨next, _, checkPath, ((canonical place).toTrail.append rhs).append (canonPop atReply)⟩
+
+theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {entered incoming left right : Config (core3 grow) (HostState sig)} {checkLabels canonLabels seen : Trace grow sig}
+    {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
+    (checked : site.EntryPrefix profile ready base checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready base bindings older site entered verdict seen left right) :
+    ∃ (checkBody canonBody : Trace grow sig) (mark : Option Location),
+      Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+      RequestExitOccurrences profile ready base bindings site.start incoming seen left right ∧
+      (mark = some (.active 0 0) → ∃ checked canonical,
+        RequestExitOccurrences profile ready base bindings site.start incoming seen checked canonical ∧
+        RequestExitKind older verdict right checked canonical) := by
+  obtain ⟨checkBody, canonBody, mark, lhs, rhs, paths, rejoins⟩ :=
+    rebasePublicOccurrenceExitWithPop site checked canonical checkQuiet canonQuiet body
+  exact ⟨checkBody, canonBody, mark, lhs, rhs, paths, fun active => by
+    obtain ⟨left, right, _, paths, kind⟩ := rejoins active
+    exact ⟨left, right, paths, kind⟩⟩
 
 private theorem publicOccurrenceCovers {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}

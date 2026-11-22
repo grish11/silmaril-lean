@@ -3322,4 +3322,54 @@ def CompilerStopSuffix (profile : ProfileKind) (ready : HostReady (HostState sig
       HostFrame.Related.Paired older selection.canonicalPending entered ∧ entered.host = incoming.host ∧
       RequestExitOccurrences profile ready base bindings origin reference seen (selection.compilerRefused issue) entered)
 
+def workerBranchLabel : Label (core3 grow) (HostState sig) → Prop
+  | .choice _ _ | .host _ => True
+  | _ => False
+
+/-- Align a selected body execution with the given checked run. Departure
+requires a different reached oracle answer or embedder action and leaves
+two separate, actually derived residual paths. -/
+inductive WorkerBodyAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start body : Config (core3 grow) (HostState sig)) (bodyLabels actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | reached {suffix} (split : actual = bodyLabels ++ suffix) (tail : Steps profile ready dispatch body suffix finish)
+  | inside {remaining} (split : bodyLabels = actual ++ remaining) (nonempty : remaining ≠ [])
+      (remainingBody : Steps profile ready dispatch finish remaining body)
+  | departure {leading expected taken rest suffix middle next actualNext}
+      (bodySplit : bodyLabels = leading ++ expected :: rest) (actualSplit : actual = leading ++ taken :: suffix)
+      (shared : Steps profile ready dispatch start leading middle) (different : expected ≠ taken)
+      (branch : workerBranchLabel expected ∧ workerBranchLabel taken)
+      (planned : Step profile ready dispatch middle expected next) (bodyTail : Steps profile ready dispatch next rest body)
+      (actualStep : Step profile ready dispatch middle taken actualNext) (actualTail : Steps profile ready dispatch actualNext suffix finish)
+
+/-- Match an actual checked run against a marked public body endpoint.
+Only an executed reply pop supplies a worker suffix. A typed reply does
+not authorize that suffix on the canonical side. -/
+def PublicGiveWorkerAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (entered left right : Config (core3 grow) (HostState sig))
+    (verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result)
+    (origin reference : Config (core3 grow) (HostState sig))
+    (entryLabels prior seen actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  let base := ComponentCall.hostWithComponent bindings callees
+  let dispatch := specDispatch ready base
+  ∃ bodyLabels canonLabels mark,
+    Trail profile ready dispatch site.checked (some (.active 0 0)) bodyLabels left mark ∧
+    Trail profile ready (specDispatch ready (host bindings base)) entered (some (.active 0 0)) canonLabels right mark ∧
+    RequestExitOccurrences profile ready base bindings origin reference (prior ++ seen) left right ∧
+    WorkerBodyAlignment profile ready dispatch site.start left (entryLabels ++ bodyLabels) actual finish ∧
+    ∀ tail, actual = (entryLabels ++ bodyLabels) ++ tail → Steps profile ready dispatch left tail finish →
+      mark = some (.active 0 0) →
+      tail.length < 3 ∨ ∃ suffix checked canonical,
+        tail = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
+        Steps profile ready dispatch checked suffix finish ∧
+        RequestExitOccurrences profile ready base bindings origin reference (prior ++ seen) checked canonical ∧
+        match verdict with
+        | .error _ => canonical = right
+        | .ok _ => HostFrame.Related.Paired older checked canonical ∧
+          WorkerRefusalRun profile ready bindings callees older origin reference (prior ++ seen) checked canonical suffix finish
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

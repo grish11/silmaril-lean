@@ -89,6 +89,77 @@ private theorem splitSilent {dispatch : Call (core3 grow) → Session grow sig (
         · exact .inl ⟨rest, by rw [List.replicate_succ]; rfl, tail⟩
         · exact .inr (Nat.succ_lt_succ short)
 
+set_option maxHeartbeats 2000000 in
+private theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before left right : Config (core3 grow) (HostState sig)} {label}
+    (first : Step profile ready dispatch before label left) (second : Step profile ready dispatch before label right) :
+    left = right := by
+  cases first <;> cases second
+  all_goals try (cases (show Fault before _ from by assumption))
+  all_goals simp_all
+  case coreInternal.coreInternal => grind only [Core3.core3_internal_iff]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    obtain ⟨operation, continuation⟩ := progOpEq programs
+    simp_all
+  all_goals (injection operation; subst_vars; simp_all)
+
+private theorem faultUnique {before : Config (core3 grow) (HostState sig)} {left right : String}
+    (first : Fault before left) (second : Fault before right) : left = right := by
+  cases first <;> cases second <;> simp_all
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    exact (by cases (progOpEq programs).1 : False).elim
+
+set_option maxHeartbeats 2000000 in
+private theorem differentStepBranch {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before left right : Config (core3 grow) (HostState sig)} {expected taken}
+    (planned : Step profile ready dispatch before expected left) (actual : Step profile ready dispatch before taken right)
+    (different : expected ≠ taken) : workerBranchLabel expected ∧ workerBranchLabel taken := by
+  cases planned <;> cases actual
+  case fault.fault =>
+    rename_i first leftFault second rightFault
+    have same := faultUnique leftFault rightFault
+    subst second
+    exact (different rfl).elim
+  all_goals try (cases (show Fault before _ from by assumption))
+  all_goals simp_all [workerBranchLabel, StepDefs.HostReadyCfg]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    obtain ⟨operation, continuation⟩ := progOpEq programs
+    simp_all
+  all_goals (injection operation; subst_vars; simp_all)
+
+private theorem alignWorkerBody {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before body finish : Config (core3 grow) (HostState sig)} {bodyLabels actual : Trace grow sig}
+    (bodyRun : Steps profile ready dispatch before bodyLabels body)
+    (checkedRun : Steps profile ready dispatch before actual finish) :
+    WorkerBodyAlignment profile ready dispatch before body bodyLabels actual finish := by
+  classical
+  induction bodyRun generalizing actual with
+  | refl => exact .reached rfl checkedRun
+  | @cons before middle body expected rest planned bodyTail ih =>
+    cases checkedRun with
+    | refl => exact .inside rfl (List.cons_ne_nil _ _) (.cons planned bodyTail)
+    | @cons _ actualNext _ taken suffix actualStep actualTail =>
+      by_cases agree : expected = taken
+      · subst taken
+        cases labelledStepUnique planned actualStep
+        cases ih actualTail with
+        | reached split tail => exact .reached (congrArg (expected :: ·) split) tail
+        | inside split nonempty remaining => exact .inside (congrArg (expected :: ·) split) nonempty remaining
+        | departure bodySplit actualSplit shared different branch first afterFirst second afterSecond =>
+          exact .departure (congrArg (expected :: ·) bodySplit) (congrArg (expected :: ·) actualSplit)
+            (.cons planned shared) different branch first afterFirst second afterSecond
+      · exact .departure (leading := []) rfl rfl (.refl _) agree (differentStepBranch planned actualStep agree)
+          planned bodyTail actualStep actualTail
+
 private theorem silentVisible {trace : Trace grow sig} (silent : trace.all (· matches .tau) = true) :
     PayloadPrefix.visible trace = [] := by
   induction trace with
@@ -1298,6 +1369,38 @@ theorem compilerStopAfterWorkerPrefix {callees : List (ComponentCall.Callee sig)
   | compiled verdict _ _ _ _ =>
     rw [refused] at verdict
     contradiction
+
+open ReturnFrame.Occurrence in
+theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {origin reference entered left right : Config (core3 grow) (HostState sig)}
+    {checkLabels canonLabels prior seen : Trace grow sig} {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkLabels site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonLabels entered (site.entryPlace place))
+    (checkQuiet : PayloadPrefix.visible checkLabels = []) (canonQuiet : PayloadPrefix.visible canonLabels = [])
+    (body : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered verdict seen left right)
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      origin reference prior site.start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PublicGiveWorkerAlignment profile ready bindings callees older site entered left right verdict
+      origin reference checkLabels prior seen labels finish := by
+  obtain ⟨bodyLabels, liveLabels, mark, checkBody, canonBody, bodyTracks, reached⟩ :=
+    CallbackRange.rebasePublicOccurrenceExitWithPop site checked canonical checkQuiet canonQuiet body
+  have throughBody := append (checked (.active 0 0)).toTrail.steps checkBody.steps
+  refine ⟨bodyLabels, liveLabels, mark, checkBody, canonBody, appendExitOccurrences arrived bodyTracks,
+    alignWorkerBody throughBody run, ?_⟩
+  intro tail split actualTail active
+  obtain ⟨replied, peer, pop, tracks, kind⟩ := reached active
+  rcases splitSilent (count := 3) pop actualTail with ⟨suffix, replySplit, suffixRun⟩ | short
+  · have smaller : suffix.length < labels.length := by
+      simp only [split, replySplit, List.length_append, List.length_replicate]
+      omega
+    have paths := appendExitOccurrences arrived tracks
+    refine .inr ⟨suffix, replied, peer, replySplit, smaller, suffixRun, paths, ?_⟩
+    cases verdict with
+    | error => exact kind
+    | ok => exact ⟨kind, requestWorkerRefusals paths kind suffixRun⟩
+  · exact .inl short
 
 open ReturnFrame.Occurrence in
 theorem rejoinedTrackedWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
