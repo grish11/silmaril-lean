@@ -1134,6 +1134,21 @@ theorem linked_memory_worker_body {pointer : FlatValue} (site : PayloadRoot.Site
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedMemoryWorkerBody
     site linked family paired selected embedder run
 
+/-- Derive the flat worker cut with the actual emitted words and recursive
+body paths. Only a surviving and executed original caller pop releases a
+shorter checked residual; late typed refusals keep the stopped canonical site. -/
+theorem linked_flat_worker_body {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
+    {callees : List (ComponentCall.Callee sig)}
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : (ComponentCall.hostWithComponent bindings callees).embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PayloadRoot.Cut site profile ready bindings (LinkedFlatWorkerBody profile ready bindings callees older site incoming labels finish)
+      (ComponentCall.hostWithComponent bindings callees) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedFlatWorkerBody
+    site linked family paired selected embedder run
+
 /-- Derive every child lift by induction on the compiled recursive memory
 schema, including heterogeneous fields and the selected sum arm. No child
 histories are supplied as premises. -/

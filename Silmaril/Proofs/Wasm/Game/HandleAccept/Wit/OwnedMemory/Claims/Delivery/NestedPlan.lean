@@ -1525,6 +1525,23 @@ theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site
   · exact .inl short
 
 open ReturnFrame.Occurrence in
+private theorem alignLocalPublicRefusal {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry seen : Trace grow sig} {issue : Stored.Endpoints.RecordLower.Issue}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) checkEntry site.checked)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place canonEntry entered (site.entryPlace place))
+    (canonQuiet : PayloadPrefix.visible canonEntry = [])
+    (reached : PublicOccurrenceExit profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site entered (.error issue) seen left right)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish)
+    (checkQuiet : PayloadPrefix.visible checkEntry = []) :
+    PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
+      site.start incoming incoming checkEntry canonEntry [] seen labels finish := by
+  have arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      site.start incoming [] site.start incoming :=
+    ⟨[], [], rfl, rfl, fun place => ⟨some place, some place, .done _ _, .done _ _⟩⟩
+  exact alignPublicGiveWorker site checked canonical checkQuiet canonQuiet reached arrived run
+
 theorem linkedMemoryWorkerBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     {callees : List (ComponentCall.Callee sig)}
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
@@ -1536,11 +1553,20 @@ theorem linkedMemoryWorkerBody {pointer : FlatValue} (site : PayloadRoot.Site gr
       (ComponentCall.hostWithComponent bindings callees) := by
   apply CallbackRange.linkedMemoryTransportBodyWith site linked family paired selected embedder
   · exact fun _ _ _ _ _ _ reached => alignPublicTransportWorker site reached run
-  · intro checkEntry canonEntry entered issue seen left right checked canonical canonQuiet reached checkQuiet
-    have arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
-        site.start incoming [] site.start incoming :=
-      ⟨[], [], rfl, rfl, fun place => ⟨some place, some place, .done _ _, .done _ _⟩⟩
-    exact alignPublicGiveWorker site checked canonical checkQuiet canonQuiet reached arrived run
+  · exact fun _ _ _ _ _ _ _ checked canonical quiet reached => alignLocalPublicRefusal site checked canonical quiet reached run
+
+theorem linkedFlatWorkerBody {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
+    {callees : List (ComponentCall.Callee sig)}
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : (ComponentCall.hostWithComponent bindings callees).embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PayloadRoot.Cut site profile ready bindings (LinkedFlatWorkerBody profile ready bindings callees older site incoming labels finish)
+      (ComponentCall.hostWithComponent bindings callees) := by
+  apply CallbackRange.linkedFlatTransportBodyWith site linked family paired selected embedder
+  · exact fun _ _ _ _ _ _ _ reached => ⟨reached, alignPublicTransportWorker site reached run⟩
+  · exact fun _ _ _ _ _ _ _ checked canonical quiet reached => alignLocalPublicRefusal site checked canonical quiet reached run
 
 open ReturnFrame.Occurrence in
 theorem rejoinedTrackedWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

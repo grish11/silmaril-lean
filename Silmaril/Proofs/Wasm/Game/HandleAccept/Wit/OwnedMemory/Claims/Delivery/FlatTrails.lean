@@ -208,6 +208,27 @@ private theorem sumTailOccurrences (width : AddrType) (type : Stored.TypeOf) (co
   exact CallbackPrefix.localCutOccurrences frame trail cut fun words _ _ _ grew paired reached lhsAt rhsAt =>
     ⟨words, ends words _ _ _ _ _ paired grew reached lhsAt rhsAt⟩
 
+private theorem sumTailTransport (width : AddrType) (type : Stored.TypeOf) (count tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
+    (finish : FlatTrailFinish grow sig) {before : Trace grow sig} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+    (trail : ComparedOccurrenceTransport profile ready base bindings start incoming before left right)
+    (checkAt : left.ctl = check.control (flatSumTail width type count tag haves words >>= fun result => checkNext (.ok result)))
+    (canonAt : right.ctl = canon.control (flatSumTail width type count tag haves words >>= canonNext))
+    (ends : ∀ words seen lhs rhs cursor peer, ChildFrameOver older lhs rhs cursor peer →
+      Core3.Grows origin.core lhs.store.core → ComparedOccurrenceTransport profile ready base bindings start incoming seen lhs rhs →
+      lhs.ctl = cursor.control (checkNext (.ok words)) → rhs.ctl = peer.control (canonNext words) → finish words seen lhs rhs cursor peer) :
+    LocalTransportThen profile ready base bindings start incoming before (flatWordVisit finish) := by
+  have cut :=
+    PayloadPrefix.variant_tail_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (reference := specDispatch ready (LiveDispatch.host bindings base)) count ((flatten width type).drop 1) tag haves words
+      (keep := fun store => Core3.Grows origin.core store.core) left right (frame.store ▸ growth)
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext
+      (by simpa only [flatSumTail, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt) canonAt
+  exact CallbackPrefix.localCutTransport frame trail cut fun words _ _ _ grew paired reached lhsAt rhsAt =>
+    ⟨words, ends words _ _ _ _ _ paired grew reached lhsAt rhsAt⟩
+
 theorem sumWith {tail : TrailFinish grow sig → TrailFinish grow sig}
     (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
     (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)
@@ -280,6 +301,19 @@ theorem sumOccurrences
       sumTailOccurrences destination.width type arms.length tag haves words checkNext canonNext finish) derive
 
 
+theorem sumTransport
+    (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
+    (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)
+    (derive : ∀ field, selected = some field → DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin
+      destination inst sink (pick tag) field) :
+    DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink
+      (flatSumPathsWith (fun visit seen _ _ _ _ =>
+        LocalTransportThen profile ready base bindings start incoming seen visit) destination.width type arms pick) (.sum type arms tag selected) :=
+  sumWith destination inst type arms tag selected valid pick
+    (fun haves words checkNext canonNext finish _ _ _ _ _ =>
+      sumTailTransport destination.width type arms.length tag haves words checkNext canonNext finish) derive
+
+
 theorem sum (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf))
     (tag : Nat) (selected : Option Field) (valid : tag < arms.length) (pick : Nat → FlatFieldTrail grow sig)
     (derive : ∀ field, selected = some field → DerivesFlatFieldTrail profile ready base bindings older origin start incoming offset
@@ -332,5 +366,48 @@ theorem variantOccurrenceMember (destination : RecordDestination) (inst : InstId
     | succ index =>
       obtain ⟨⟨name, member⟩, equal⟩ := ih (tag := index) (by simpa using found)
       exact ⟨⟨name, List.mem_cons_of_mem _ member⟩, by rw [structuralFlatVariantOccurrencePaths, equal]⟩
+
+theorem recordTransportMember (destination : RecordDestination) (inst : InstId) (fields : List (String × Stored.TypeOf))
+    {name : String} {type : Stored.TypeOf} (member : (name, type) ∈ fields) :
+    (type, structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type) ∈
+      structuralFlatRecordTransportPaths profile ready base bindings older destination inst start incoming sink fields := by
+  induction fields with
+  | nil => simp at member
+  | cons first rest ih =>
+    rcases List.mem_cons.mp member with equal | later
+    · subst first
+      exact List.mem_cons_self ..
+    · obtain ⟨label, schema⟩ := first
+      exact List.mem_cons_of_mem _ (ih later)
+
+theorem tupleTransportMember (destination : RecordDestination) (inst : InstId) (types : List Stored.TypeOf)
+    {type : Stored.TypeOf} (member : type ∈ types) :
+    (type, structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type) ∈
+      structuralFlatTupleTransportPaths profile ready base bindings older destination inst start incoming sink types := by
+  induction types with
+  | nil => simp at member
+  | cons first rest ih =>
+    rcases List.mem_cons.mp member with rfl | later
+    · exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (ih later)
+
+theorem variantTransportMember (destination : RecordDestination) (inst : InstId)
+    {cases : List (String × Option Stored.TypeOf)} {tag : Nat} {type : Stored.TypeOf}
+    (found : (cases.map Prod.snd)[tag]? = some (some type)) :
+    (∃ name, (name, some type) ∈ cases) ∧
+    structuralFlatVariantTransportPaths profile ready base bindings older destination inst start incoming sink cases tag =
+      structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type := by
+  induction cases generalizing tag with
+  | nil => simp at found
+  | cons entry rest ih =>
+    obtain ⟨name, arm⟩ := entry
+    cases tag with
+    | zero =>
+      have selected : arm = some type := by simpa using found
+      subst arm
+      exact ⟨⟨name, by simp⟩, rfl⟩
+    | succ index =>
+      obtain ⟨⟨name, member⟩, equal⟩ := ih (tag := index) (by simpa using found)
+      exact ⟨⟨name, List.mem_cons_of_mem _ member⟩, by rw [structuralFlatVariantTransportPaths, equal]⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FlatTrails

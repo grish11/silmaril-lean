@@ -2684,6 +2684,79 @@ private theorem flatAggregateFieldOccurrences (destination : RecordDestination) 
       frame grew trail ?_ canonAt ends⟩ <;>
     simpa only [Record.Effects.field, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt
 
+private theorem flatDataTransport (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
+    (data : LocalDataType type) (payload : Stored.Payload type) {older origin start incoming sink}
+    (memoryWidth : (core3 grow).memAddrType? origin.core destination.memory = some destination.width) :
+    DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink
+      (fun _ _ _ _ finish before _ _ _ _ =>
+        LocalTransportThen profile ready base bindings start incoming before (flatWordVisit finish))
+      (.data type payload) := by
+  intro index checkNext canonNext finish before left right check canon frame growth leading _ checkAt canonAt ends
+  have width := growth.memAddrType memoryWidth
+  have cut :=
+    local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type data payload index
+      .flat origin left right (frame.store ▸ growth)
+      (by
+        change ((core3 grow).memAddrType? left.store.core destination.memory).getD .i32 = destination.width
+        rw [show (core3 grow).memAddrType? left.store.core destination.memory = some destination.width from width]
+        rfl) rfl
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
+  exact CallbackPrefix.localCutTransport frame leading cut fun words _ _ _ grew paired trails lhsAt rhsAt =>
+    ⟨words, ends words _ _ _ _ _ paired grew trails lhsAt rhsAt⟩
+
+private theorem flatStringTransport (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
+    {root rootSchema} (source : CollectionSource destination root rootSchema) (path : Field.Descendant root str.field)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {older origin start incoming sink}
+    (memoryWidth : (core3 grow).memAddrType? origin.core destination.memory = some destination.width) :
+    DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink
+      (structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink (.prim .string)) str.field := by
+  intro index checkNext canonNext finish before left right check canon frame growth leading _ checkAt canonAt ends
+  let keep : List FlatValue → Finish grow sig := fun words lhs rhs cursor peer =>
+    LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧ Core3.Grows origin.core lhs.store.core ∧
+    lhs.ctl = cursor.control (checkNext (.ok words)) ∧ rhs.ctl = peer.control (canonNext words)
+  let commit : Nat → Finish grow sig := fun _ => LiveValueCommit profile ready base bindings .flat checkNext canonNext keep
+  have body := stringValueThen (profile := profile) (ready := ready) (base := base) (origin := origin)
+    destination inst str .flat source path embedder frame growth (growth.memAddrType memoryWidth) rfl checkAt canonAt
+    (finish := commit) (fun pointer lhs rhs cursor peer related grew lhsAt rhsAt => by
+      obtain ⟨store, outcome, labels, seen, checked, canonical, occurrences, continued⟩ :=
+        stringValueCommit (destination.context inst) destination.width .flat _ pointer related lhsAt rhsAt
+      refine ⟨store, outcome, labels, seen, checked, canonical, occurrences, ?_⟩
+      intro value equal
+      subst outcome
+      obtain ⟨checkTracks, canonTracks, after⟩ := continued value rfl
+      exact ⟨checkTracks, canonTracks, after, grew.trans checked.grows, rfl, rfl⟩)
+  refine ⟨str, rfl, CallbackPrefix.stringValueOccurrencePathsFrom (CallbackPrefix.comparedTransportPaths leading)
+    ⟨before, leading⟩ body ?_⟩
+  intro _ _ _ _ _ _ published _ transported
+  obtain ⟨observed, tracks⟩ := transported
+  exact ⟨observed, RecursiveTrails.descriptorTransport tracks published
+    (fun words seen lhs rhs cursor peer reached ⟨paired, grew, lhsAt, rhsAt⟩ =>
+      ⟨words, ends words seen lhs rhs cursor peer paired grew reached lhsAt rhsAt⟩)⟩
+
+private theorem selectFlatTransportChild {paths : List (Stored.TypeOf × FlatFieldTrail grow sig)} {type item child}
+    {older origin start incoming destination inst sink}
+    (matching : item.LayoutMatches type) (member : (type, child) ∈ paths)
+    (rule : DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink child item) :
+    DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink (selectFlatPaths paths) item := by
+  intro index checkNext canonNext finish before left right check canon frame grow trails admitted checkAt canonAt ends
+  exact ⟨child, matching.type_eq ▸ member, rule index checkNext canonNext finish before left right check canon frame grow trails
+    admitted checkAt canonAt ends⟩
+
+private theorem flatAggregateFieldTransport (destination : RecordDestination) (inst : InstId) (item : Field) (items : List Field)
+    {older origin start incoming sink child}
+    (shape : (∃ type, item = .aggregate type items) ∨ (∃ element length, item = .fixed element length items))
+    (rules : ∀ field ∈ items, DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin
+      destination inst sink child field) :
+    DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink
+      (flatAggregatePaths destination inst child) item := by
+  rcases shape with ⟨type, rfl⟩ | ⟨element, length, rfl⟩ <;>
+    intro index checkNext canonNext finish before left right check canon frame grew trail admitted checkAt canonAt ends <;>
+    refine ⟨items, rfl, FlatTrails.aggregateWith destination inst items index child checkNext canonNext finish rules admitted
+      frame grew trail ?_ canonAt ends⟩ <;>
+    simpa only [Record.Effects.field, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt
+
 private theorem liveAggregateRule (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
     (fields : List Field) (address : Nat) (matching : Field.LayoutMatches (.aggregate type fields) type)
     (compare : FieldComparison grow sig)
@@ -3152,6 +3225,148 @@ private theorem flatCompiledFieldOccurrences (destination : RecordDestination) (
     intro child member
     obtain ⟨type, declared, layout⟩ := compiledFieldMember matching member
     exact selectFlatOccurrenceChild layout (FlatTrails.tupleOccurrenceMember destination inst _ declared)
+      (ih type declared child layout (compiled child member) (path.trans (.aggregate member (.self _))))
+
+private theorem flatCompiledFieldTransport (destination : RecordDestination) (inst : InstId)
+    {schema : Stored.TypeOf} (family : RecursiveCollectionType schema) (item : Field)
+    (matched : item.LayoutMatches schema) (emitted : item.Emitted) {root rootSchema}
+    (source : CollectionSource destination root rootSchema) (path : Field.Descendant root item)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {older origin start incoming sink}
+    (memoryWidth : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming) :
+    DerivesFlatFieldTrailWith (ComparedOccurrenceTransport profile ready base bindings start incoming) older origin destination inst sink
+      (structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink schema) item := by
+  induction family generalizing item with
+  | @data type data =>
+    obtain ⟨payload, rfl⟩ := dataCompiled data matched
+    have compared := flatDataTransport (sink := sink) (older := older) (start := start) (incoming := incoming)
+      (profile := profile) (ready := ready) (base := base) (bindings := bindings) destination inst type data payload memoryWidth
+    cases data with
+    | @primitive prim nonString => cases prim <;> first | exact compared | exact (nonString rfl).elim
+    | enum | flags => exact compared
+  | leaf nominal =>
+    have handle := nominalEntry nominal matched emitted
+    cases nominal <;>
+      intro index checkNext canonNext finish before left right check canon frame growth trail admitted checkAt canonAt ends <;>
+      exact CallbackPrefix.handleValueTransport trail
+        (LinkedCallback.ChildFrameOver.handle_field_then_between destination inst item handle index .flat
+          checkNext canonNext frame growth checkAt canonAt (fun words lhs rhs cursor peer paired grew lhsAt rhsAt =>
+            ⟨paired, grew, lhsAt, rhsAt⟩ : ∀ words lhs rhs cursor peer, _ → _ → _ → _ →
+              LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧ Core3.Grows origin.core lhs.store.core ∧
+              lhs.ctl = cursor.control (checkNext (.ok words)) ∧ rhs.ctl = peer.control (canonNext words)))
+        covers admitted (fun words seen lhs rhs cursor peer reached _ ⟨paired, grew, lhsAt, rhsAt⟩ =>
+          ⟨words, ends words seen lhs rhs cursor peer paired grew reached lhsAt rhsAt⟩)
+  | string =>
+    obtain ⟨str, rfl⟩ := stringCompiled matched emitted
+    exact flatStringTransport destination inst str source path embedder memoryWidth
+  | @list element family _ =>
+    obtain ⟨entries, rfl, shapes, compiled⟩ := listCompiled matched emitted
+    intro index checkNext canonNext finish before left right check canon frame growth leading admitted checkAt canonAt ends
+    let compare := liveCollectionField profile ready base bindings older destination inst element
+    let done : ValueFinish grow sig .flat := fun words lhs rhs cursor peer =>
+      LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧ Core3.Grows origin.core lhs.store.core ∧
+      lhs.ctl = cursor.control (checkNext (.ok words)) ∧ rhs.ctl = peer.control (canonNext words)
+    have visitor := liveListVisitor (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst element entries index .flat compare older origin left.store growth shapes
+      (fun child member _ address => collectionFieldRule destination inst family child address
+        (entries_match_of_mem shapes member) (compiled child member) source (path.trans (.dynamic member (.self _))) embedder)
+      checkNext canonNext done (fun _ _ _ _ _ paired grew lhsAt rhsAt => ⟨paired, grew, lhsAt, rhsAt⟩)
+    have body := collectionEntryVisiting (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst (.list element) element entries index .flat
+      checkNext canonNext frame checkAt canonAt embedder _ visitor (initialSlots left right)
+    exact ⟨entries, rfl, RecursiveTrails.listTransportPaths covers
+      (RecursiveTrails.recursiveAllocatingTransport covers family) leading body admitted
+      (fun words seen lhs rhs cursor peer tracks ⟨paired, grew, lhsAt, rhsAt⟩ =>
+        ⟨words, ends words seen lhs rhs cursor peer paired grew tracks lhsAt rhsAt⟩)⟩
+  | @map key element family _ =>
+    obtain ⟨entries, rfl, shapes⟩ := mapCompiled matched emitted
+    intro index checkNext canonNext finish before left right check canon frame growth leading admitted checkAt canonAt ends
+    let compare := liveCollectionField profile ready base bindings older destination inst element
+    let done : ValueFinish grow sig .flat := fun words lhs rhs cursor peer =>
+      LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧ Core3.Grows origin.core lhs.store.core ∧
+      lhs.ctl = cursor.control (checkNext (.ok words)) ∧ rhs.ctl = peer.control (canonNext words)
+    have visitor := liveCompiledMapVisitor (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst key element entries index .flat compare older left.store source path shapes
+      (fun value ancestry layout compiled _ address => collectionFieldRule destination inst family value address
+        layout compiled source ancestry embedder) embedder checkNext canonNext done
+      (fun _ _ _ _ _ paired grew lhsAt rhsAt => ⟨paired, growth.trans grew, lhsAt, rhsAt⟩)
+    have body := collectionEntryVisiting (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst (.map key element) (.record (mapEntryFields key element)) entries index .flat
+      checkNext canonNext frame checkAt canonAt embedder _ visitor (initialSlots left right)
+    exact ⟨entries, rfl, RecursiveTrails.mapTransportPaths covers
+      (RecursiveTrails.recursiveAllocatingTransport covers family) leading body admitted
+      (fun words seen lhs rhs cursor peer tracks ⟨paired, grew, lhsAt, rhsAt⟩ =>
+        ⟨words, ends words seen lhs rhs cursor peer paired grew tracks lhsAt rhsAt⟩)⟩
+  | fixed _ ih =>
+    obtain ⟨children, rfl, _, matching, compiled⟩ := fixedCompiled matched emitted
+    exact flatAggregateFieldTransport destination inst _ children (.inr ⟨_, _, rfl⟩) fun child member =>
+      ih child (entries_match_of_mem matching member) (compiled child member) (path.trans (.fixed member (.self _)))
+  | @option element _ ih =>
+    rcases optionCompiled matched emitted with rfl | ⟨child, rfl, matching, compiled⟩
+    · exact FlatTrails.sumTransport destination inst (.option element) [none, some element] 0 none (by change 0 < 2; decide) _
+        (fun _ impossible => nomatch impossible)
+    · exact FlatTrails.sumTransport destination inst (.option element) [none, some element] 1 (some child) (by change 1 < 2; decide) _
+        (fun _ equal => by cases equal; exact ih child matching compiled (path.trans (.sum (.self _))))
+  | @result success failure _ _ ihSuccess ihFailure =>
+    obtain ⟨tag, selected, rfl, chosen, compiled⟩ := resultCompiled matched emitted
+    have valid : tag < [success, failure].length := by
+      change tag < 2
+      rcases chosen with ⟨rfl, _⟩ | ⟨rfl, _⟩ <;> decide
+    let armPaths : Option Stored.TypeOf → FlatFieldTrail grow sig
+      | none => noFlatChild
+      | some type => structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type
+    have pathsEq : structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink (.result success failure) =
+        flatSumPathsWith (fun visit seen _ _ _ _ => LocalTransportThen profile ready base bindings start incoming seen visit)
+          destination.width (.result success failure) [success, failure]
+          (fun tag => if tag = 0 then armPaths success else armPaths failure) := by
+      cases success <;> cases failure <;> rfl
+    rw [pathsEq]
+    refine FlatTrails.sumTransport destination inst (.result success failure) [success, failure] tag selected valid
+      (fun tag => if tag = 0 then armPaths success else armPaths failure) ?_
+    intro child equal
+    rcases chosen with ⟨rfl, matching⟩ | ⟨rfl, matching⟩
+    · cases matching with
+      | none => contradiction
+      | some matching =>
+        cases equal
+        exact ihSuccess _ rfl child matching (compiled child rfl) (path.trans (.sum (.self _)))
+    · cases matching with
+      | none => contradiction
+      | some matching =>
+        cases equal
+        exact ihFailure _ rfl child matching (compiled child rfl) (path.trans (.sum (.self _)))
+  | @variant cases _ ih =>
+    obtain ⟨tag, selected, arm, rfl, found, matching, compiled⟩ := variantCompiled matched emitted
+    have valid : tag < (cases.map Prod.snd).length := by
+      by_contra outside
+      rw [List.getElem?_eq_none (Nat.le_of_not_lt outside)] at found
+      contradiction
+    refine FlatTrails.sumTransport destination inst (.variant cases) (cases.map Prod.snd) tag selected valid _ ?_
+    intro child equal
+    cases matching with
+    | none => contradiction
+    | @some field type layout =>
+      cases equal
+      obtain ⟨⟨name, member⟩, compared⟩ := FlatTrails.variantTransportMember (profile := profile) (ready := ready)
+        (base := base) (bindings := bindings) (older := older) (start := start) (incoming := incoming)
+        (sink := sink) destination inst found
+      rw [compared]
+      exact ih name type member _ layout (compiled _ rfl) (path.trans (.sum (.self _)))
+  | record _ ih =>
+    obtain ⟨children, rfl, matching, compiled⟩ := recordCompiled matched emitted
+    apply flatAggregateFieldTransport destination inst _ children (.inl ⟨_, rfl⟩)
+    intro child member
+    obtain ⟨type, declared, layout⟩ := compiledFieldMember matching member
+    obtain ⟨⟨name, schema⟩, present, rfl⟩ := List.mem_map.mp declared
+    exact selectFlatTransportChild layout (FlatTrails.recordTransportMember destination inst _ present)
+      (ih name schema present child layout (compiled child member) (path.trans (.aggregate member (.self _))))
+  | tuple _ ih =>
+    obtain ⟨children, rfl, matching, compiled⟩ := tupleCompiled matched emitted
+    apply flatAggregateFieldTransport destination inst _ children (.inl ⟨_, rfl⟩)
+    intro child member
+    obtain ⟨type, declared, layout⟩ := compiledFieldMember matching member
+    exact selectFlatTransportChild layout (FlatTrails.tupleTransportMember destination inst _ declared)
       (ih type declared child layout (compiled child member) (path.trans (.aggregate member (.self _))))
 
 theorem linkedStringMapEntry {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
@@ -4127,6 +4342,55 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
     (⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest)
   rw [frame.store]
   exact .cons (.mk tails) frame.rest
+
+theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {success : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → List FlatValue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    {refused : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) →
+      Stored.Endpoints.RecordLower.Issue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    (observe : ∀ checkEntry canonEntry entered words seen left right,
+      PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry words seen left right →
+      success checkEntry canonEntry entered words seen left right)
+    (observeRefused : ∀ checkEntry canonEntry entered issue seen left right,
+      site.EntryPrefix profile ready base checkEntry site.checked →
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming place canonEntry entered (site.entryPlace place)) → PayloadPrefix.visible canonEntry = [] →
+      PublicOccurrenceExit profile ready base bindings older site entered (.error issue) seen left right →
+      refused checkEntry canonEntry entered issue seen left right) :
+    PayloadRoot.Cut site profile ready bindings (LinkedFlatTransportBodyWith profile ready base bindings older site incoming success refused) base := by
+  refine site.parked_after_admission linked _ (fun fits _ _ => ?_) base embedder
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+  have source : CollectionSource site.destination site.field (sig.payload site.tag) :=
+    ⟨matched, Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits, preflightAllocator site linked⟩
+  obtain ⟨labels, entered, quiet, installed, aligned, hostSame, storage⟩ :=
+    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨peer, frame, canonAt⟩ := referenceFrame site (site.reference_at linked site.referenceReply) aligned
+  have width := site.destination.check_width site.start.store linked.destination
+  have canonQuiet : PayloadPrefix.visible labels = [] := silent (by
+    intro label member
+    have tau := List.all_eq_true.mp quiet label member
+    cases label <;> simp_all)
+  refine ⟨labels, entered, peer, canonQuiet, installed, hostSame, ?_⟩
+  intro checkLabels checked
+  have entry := publicEntryTransport site linked checked installed storage
+  have covers : (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels labels entered)).CoversOccurrences
+      profile ready base bindings site.checked entered := by
+    intro next admitted issue seen left right check focus paths
+    obtain ⟨reported, atReply, reached⟩ := publicOccurrenceCovers (older := older) site entered next admitted issue seen left right check focus paths
+    exact ⟨reported, atReply, reached, observeRefused _ _ _ _ _ _ _ checked installed canonQuiet reached⟩
+  exact flatCompiledFieldTransport site.destination site.inst family site.field matched linked.emitted source (.self _) embedder width covers
+    0 site.reply site.referenceReply _ [] site.checked entered site.cursor peer frame (Core3.Grows.refl _)
+    ⟨[], [], CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), rfl, rfl, frame.store⟩
+    (fun issue => ⟨issue, rfl⟩) rfl canonAt
+    (fun words _ _ _ _ _ paired _ tracks lhs rhs =>
+      observe _ _ _ words _ _ _ (publicSuccessTransport site words entry tracks paired lhs rhs))
 
 theorem linkedMemoryTransportBodyWith {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))

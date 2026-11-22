@@ -2440,6 +2440,94 @@ def structuralFlatVariantOccurrencePaths (profile : ProfileKind) (ready : HostRe
 termination_by structural cases => cases
 end
 
+mutual
+def structuralFlatTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    Stored.TypeOf → FlatFieldTrail grow sig
+  | .prim .string => fun item _ checkNext canonNext finish before left right check canon =>
+    ∃ str : LinkedCallback.StringField, item = str.field ∧
+      StringValueOccurrencePaths profile ready base bindings older destination inst str .flat start incoming left right check canon checkNext canonNext
+        (fun _ _ _ _ _ _ => ∃ seen, LocalTransportThen profile ready base bindings start incoming seen (flatWordVisit finish)) before start incoming
+  | .list element => fun item index checkNext canonNext finish before left right check canon =>
+    ∃ entries, item = .dynamic (.list element) element entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index .flat
+        checkNext canonNext start incoming left right before check canon
+        (liveListTailPaths destination inst element entries index .flat
+          (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element)
+          checkNext canonNext (fun seen _ _ _ _ => LocalTransportThen profile ready base bindings start incoming seen (flatWordVisit finish))) sink
+  | .map key element => fun item index checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields key element)
+    ∃ entries, item = .dynamic (.map key element) entryType entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map key element) entryType entries index .flat
+        checkNext canonNext start incoming left right before check canon
+        (liveMapTailPaths (mapEntryTransportPaths profile ready base bindings older destination inst key element .flat start incoming
+          (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element))
+          destination inst key element entries index .flat checkNext canonNext
+          (fun seen _ _ _ _ => LocalTransportThen profile ready base bindings start incoming seen (flatWordVisit finish))) sink
+  | .fixedList element _ => flatAggregatePaths destination inst
+      (structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink element)
+  | .option element => flatSumPathsWith (fun visit seen _ _ _ _ =>
+      LocalTransportThen profile ready base bindings start incoming seen visit) destination.width
+      (.option element) [none, some element]
+      (fun _ => structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink element)
+  | .result success failure =>
+    let first := match success with
+      | none => noFlatChild
+      | some type => structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type
+    let second := match failure with
+      | none => noFlatChild
+      | some type => structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type
+    flatSumPathsWith (fun visit seen _ _ _ _ =>
+      LocalTransportThen profile ready base bindings start incoming seen visit) destination.width (.result success failure) [success, failure]
+      (fun tag => if tag = 0 then first else second)
+  | .variant cases => flatSumPathsWith (fun visit seen _ _ _ _ =>
+      LocalTransportThen profile ready base bindings start incoming seen visit) destination.width
+      (.variant cases) (cases.map Prod.snd) (structuralFlatVariantTransportPaths profile ready base bindings older destination inst start incoming sink cases)
+  | .record fields => flatAggregatePaths destination inst
+      (selectFlatPaths (structuralFlatRecordTransportPaths profile ready base bindings older destination inst start incoming sink fields))
+  | .tuple types => flatAggregatePaths destination inst
+      (selectFlatPaths (structuralFlatTupleTransportPaths profile ready base bindings older destination inst start incoming sink types))
+  | .own _ | .future _ | .stream _ | .errorContext => fun item index checkNext _ finish before left right check _ =>
+    HandleTransportThen profile ready base bindings start incoming left right before item index check checkNext (flatWordVisit finish) sink
+  | _ => fun _ _ _ _ finish before _ _ _ _ =>
+    LocalTransportThen profile ready base bindings start incoming before (flatWordVisit finish)
+termination_by structural type => type
+
+def structuralFlatRecordTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Stored.TypeOf) → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | (_, type) :: rest =>
+    (type, structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type) ::
+      structuralFlatRecordTransportPaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural fields => fields
+
+def structuralFlatTupleTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List Stored.TypeOf → List (Stored.TypeOf × FlatFieldTrail grow sig)
+  | [] => []
+  | type :: rest =>
+    (type, structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type) ::
+      structuralFlatTupleTransportPaths profile ready base bindings older destination inst start incoming sink rest
+termination_by structural types => types
+
+def structuralFlatVariantTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) :
+    List (String × Option Stored.TypeOf) → Nat → FlatFieldTrail grow sig
+  | [], _ | (_, none) :: _, 0 => noFlatChild
+  | (_, some type) :: _, 0 => structuralFlatTransportPaths profile ready base bindings older destination inst start incoming sink type
+  | _ :: rest, tag + 1 => structuralFlatVariantTransportPaths profile ready base bindings older destination inst start incoming sink rest tag
+termination_by structural cases => cases
+end
+
 /-- Compare either public body for arbitrary list/map nesting with fixed
 arrays, heterogeneous aggregates, active sum arms, and nominal, scalar, or string leaves. -/
 def LinkedRecursiveCollectionBody (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2938,6 +3026,27 @@ def LinkedMemoryTransportBody (profile : ProfileKind) (ready : HostReady (HostSt
     (fun checkEntry canonEntry entered seen left right =>
       PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry () seen left right)
     (fun _ _ _ _ _ _ _ => True)
+
+/-- The reached flat visitor keeps emitted words and occurrence transport
+through the real fold, rather than a separately supplied body trail. -/
+def LinkedFlatTransportBodyWith (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {type : Stored.TypeOf}
+    (site : PayloadRoot.Site grow sig (.flat type)) (incoming : Config (core3 grow) (HostState sig))
+    (success : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → List FlatValue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
+    (refused : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) →
+      Stored.Endpoints.RecordLower.Issue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop) : Prop :=
+  ∃ canonLabels entered peer, PayloadPrefix.visible canonLabels = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
+    ∀ checkLabels, site.EntryPrefix profile ready base checkLabels site.checked →
+      structuralFlatTransportPaths profile ready base bindings older site.destination site.inst site.checked entered
+        (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels canonLabels entered)) (sig.payload site.tag)
+        site.field 0 site.reply site.referenceReply
+        (fun words seen left right _ _ => success checkLabels canonLabels entered words seen left right)
+        [] site.checked entered site.cursor peer
 
 /-- The actual range verdict after an allocator return. A late reservation
 refusal runs only the checked completion; canonical is at child entry with
@@ -3915,6 +4024,22 @@ def LinkedMemoryWorkerBody (profile : ProfileKind) (ready : HostReady (HostState
     (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   LinkedMemoryTransportBodyWith profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
     (fun checkEntry canonEntry _ seen left right =>
+      PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen actual finish)
+    (fun checkEntry canonEntry entered issue seen left right => PayloadPrefix.visible checkEntry = [] →
+      PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
+        site.start incoming incoming checkEntry canonEntry [] seen actual finish)
+
+/-- The real checked worker suffix at the flat public boundary. A late
+refusal does not share its checked reply with the stopped canonical run. -/
+def LinkedFlatWorkerBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {type : Stored.TypeOf}
+    (site : PayloadRoot.Site grow sig (.flat type)) (incoming : Config (core3 grow) (HostState sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  LinkedFlatTransportBodyWith profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+    (fun checkEntry canonEntry entered words seen left right =>
+      PublicSuccessTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+        site incoming entered checkEntry canonEntry words seen left right ∧
       PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen actual finish)
     (fun checkEntry canonEntry entered issue seen left right => PayloadPrefix.visible checkEntry = [] →
       PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)

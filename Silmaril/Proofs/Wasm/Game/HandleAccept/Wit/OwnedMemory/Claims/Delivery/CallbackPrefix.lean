@@ -1166,6 +1166,34 @@ theorem localCutOccurrences {Result : Type} {keep : CStore (core3 grow) → Prop
     exact .inr ⟨PayloadPrefix.visible canonical, _, _, check, canon, reached,
       next words _ _ _ kept ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ reached rfl rfl⟩
 
+theorem localCutTransport {Result : Type} {keep : CStore (core3 grow) → Prop}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext canonNext : Result → Session grow sig (Ret (core3 grow))}
+    {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (cut : PayloadPrefix.LocalCutKeepingBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) keep left right check canon checkNext canonNext true)
+    (next : ∀ words observed lhs rhs,
+      keep lhs.store → LinkedCallback.ChildFrameOver older lhs rhs check canon →
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      lhs.ctl = check.control (checkNext words) → rhs.ctl = canon.control (canonNext words) → visit observed lhs rhs check canon) :
+    LocalTransportThen profile ready base bindings start incoming seen visit := by
+  obtain ⟨store, result, checked, canonical, _, _, matched, outcome, trails⟩ := cut
+  have transported : ComparedOccurrenceTransport profile ready base bindings left right (PayloadPrefix.visible canonical)
+      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
+      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=
+    ⟨checked, canonical, localLeafTransport trails, matched, rfl, by cases result <;> rfl⟩
+  cases result with
+  | error reason =>
+    obtain ⟨prior, trap⟩ := outcome
+    exact .inl ⟨reason, prior, _, _, appendComparedTransport leading (trap ▸ transported), rfl, rfl⟩
+  | ok words =>
+    obtain ⟨kept, _, _⟩ := outcome
+    have reached := appendComparedTransport leading transported
+    exact .inr ⟨PayloadPrefix.visible canonical, _, _, check, canon, reached,
+      next words _ _ _ kept ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ reached rfl rfl⟩
+
 theorem rebaseLocatedLocalPaths {left right : Config (core3 grow) (HostState sig)} {offset : Nat}
     {visit : Trace grow sig → LinkedCallback.MemorySequence.Finish grow sig}
     (leading : ComparedOccurrencePaths profile ready base bindings start incoming seen left right)
