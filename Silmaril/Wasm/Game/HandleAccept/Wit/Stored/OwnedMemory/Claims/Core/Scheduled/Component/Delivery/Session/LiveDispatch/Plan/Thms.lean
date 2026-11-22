@@ -184,7 +184,8 @@ theorem cut_component_store_body {Result : Type} (body : Session grow sig Result
 
 /-- Follow the reached admitted argument observer, from the live caller read
 through direct or spilled lifting and the caller-position write. Only a reached
-result enters payload validation with the common values and distinct tickets. -/
+result enters payload validation with the common values and distinct tickets.
+Recursive lifting is closed under store effects, so there is no nonlocal frontier. -/
 theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (caller : CallerId)
     {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -197,9 +198,11 @@ theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (ca
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon (ComponentCall.acceptPayload callee caller leftTicket planned)
-        (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix :=
-  cut_component_store_body (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller)
-    _ _ leftFocus rightFocus paired run
+        (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix True :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
+    (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller) _ _
+    (fun _ => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.observedArgumentsEffects caller)
+    leftFocus rightFocus paired run
 
 /-- Follow the real preflight-refusal path without lifting the rejected payload.
 Only a reached skip result enters the ticket-specific refusal continuations. -/

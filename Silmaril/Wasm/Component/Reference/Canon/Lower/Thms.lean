@@ -18,6 +18,7 @@ public import Silmaril.Wasm.Component.Reference.Runtime.Task.Thms
 public import Silmaril.Wasm.Component.Reference.Runtime.Thread.Thms
 public import Silmaril.Wasm.Component.Reference.Runtime.Waitable.Thms
 public import Silmaril.Wasm.Component.Reference.Validation.Context.Thms
+import Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift
 
 /-!
 # `Canon.Lower`: laws of the component reference
@@ -35,6 +36,15 @@ namespace Silmaril.Wasm.Component.Canon
 open _root_.Silmaril.Wasm.Component.Engine _root_.Silmaril.Wasm.Component.Runtime
   _root_.Silmaril.Wasm.Component.Value _root_.Silmaril.Wasm.Component.ABI
 variable {E : CoreEngine} {σ : Type}
+
+/-- The direct and spilled argument lifts, including recursive loads and
+handle transfers, issue only store reads, store modifications and traps. -/
+theorem lowerOnStart_every (lim : Limits) (q : Quirks) (caller : CallerId)
+    {allow : Op E σ → Prop} (get : allow .get) (modify : ∀ update, allow (.modify update))
+    (fail : ∀ reason, allow (.trap reason)) :
+    Prog.Every (S := Eff E σ) allow (lowerOnStart lim q caller) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift.lowerOnStart_every
+    lim q caller get modify fail
 
 namespace P.Inv
 

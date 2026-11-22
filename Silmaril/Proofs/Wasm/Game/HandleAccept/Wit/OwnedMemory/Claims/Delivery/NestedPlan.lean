@@ -24,6 +24,8 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Th
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
 import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
+import Silmaril.Wasm.Component.Reference.Canon.Lower.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Thms
@@ -635,6 +637,24 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
 
 private abbrev StoreEffects {Result : Type} (body : Session grow sig Result) : Prop :=
   Prog.Every (fun op => componentStoreOp op = true) body
+
+private theorem storeEffects_of_map {Result Projected : Type} (project : Result → Projected)
+    (body : Session grow sig Result) (mapped : StoreEffects (project <$> body)) :
+    StoreEffects body := by
+  induction body with
+  | pure result => exact .pure result
+  | op op tail ih =>
+    change StoreEffects (.op op (fun response => project <$> tail response)) at mapped
+    cases mapped with
+    | op allowed rest => exact .op allowed fun response => ih response (rest response)
+
+theorem observedArgumentsEffects (caller : CallerId) :
+    Prog.Every (fun op => componentStoreOp op = true)
+      (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller :
+      Session grow sig (List Stored.OwnedMemory.Observed)) := by
+  apply storeEffects_of_map (List.map Stored.OwnedMemory.Observed.value)
+  rw [Stored.OwnedMemory.projectLowerOnStart]
+  exact lowerOnStart_every _ _ _ rfl (fun _ => rfl) (fun _ => rfl)
 
 private theorem storeEffectGet : StoreEffects (getStore : Session grow sig (CStore (core3 grow))) :=
   .op rfl fun snapshot => .pure snapshot
