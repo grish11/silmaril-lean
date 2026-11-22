@@ -6,6 +6,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Defs
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Effects.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Thms
@@ -448,6 +449,26 @@ private theorem admitSuccess {Result : Type} {inst : InstId} {thread : Option Th
       · exact ⟨rfl, mayLeave, by simpa [caller, readStore, mayLeave] using evaluation⟩
       · simp [caller, readStore, Bool.eq_false_iff.mpr mayLeave, Prog.pure_eq, Plain.runBody] at evaluation
     · simp [caller, readStore, bne_iff_ne.mpr same, Prog.pure_eq, Plain.runBody] at evaluation
+
+theorem giveSelectorAdmitted (request : GiveSelector bindings) (start : Config (core3 grow) (HostState sig))
+    (thread : Option ThreadId) {selected : SelectionValue sig request.schema}
+    (evaluation : Plain.runBody request.program start.store start.host (some thread) =
+      (start.store, start.host, .ok (.ok selected))) :
+    request.Admitted start thread selected := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, address⟩
+    obtain ⟨caller, mayLeave, picked⟩ := admitSuccess evaluation
+    obtain ⟨handle, pointer, arguments, admitted, checked, chosen, location⟩ := selectedMemory picked
+    refine ⟨caller, mayLeave, Plain.thread_may_leave caller mayLeave, checked,
+      .memory pointer, handle, arguments, ?_, admitted, linked, chosen⟩
+    exact congrArg Stored.Lower.Output.memory location.symm
+  | some schema =>
+    obtain ⟨caller, mayLeave, picked⟩ := admitSuccess evaluation
+    obtain ⟨handle, arguments, admitted, checked, chosen⟩ := selectedFlat picked
+    exact ⟨caller, mayLeave, Plain.thread_may_leave caller mayLeave, checked,
+      .flat schema, handle, arguments, rfl, admitted, linked, chosen⟩
 
 theorem memorySelection (request : CoreGiveRequest bindings start) (memory : request.schema = none)
     {tree : Stored.OwnedMemory.Tree sig} {address : Nat}
@@ -1018,6 +1039,35 @@ theorem giveSelectorEntryTracks (request : GiveSelector bindings)
     have tau := List.all_eq_true.mp silent label member
     cases label <;> first | rfl | contradiction)
   exact ⟨checked.length, canonical.length, checkTaus ▸ checkedPaths, canonTaus ▸ canonicalPaths⟩
+
+theorem directCompilerAccepted (request : GiveSelector bindings) (store : CStore (core3 grow))
+    (thread : Option ThreadId) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    {field : Stored.Endpoints.RecordLower.Field} {plan}
+    (unconfined : threadMayLeave store thread = true)
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan)) :
+    request.checkedContinuation store thread (ticket, .ok selected) = request.compiledContinuation ticket selected field plan := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, address⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      simp only [GiveSelector.preflight, SelectionValue.tree, SelectionValue.output] at compiled
+      simp only [GiveSelector.checkedContinuation, GiveSelector.compiledContinuation, compiledTail, unconfined, ite_true, checkedTail,
+        Stored.OwnedMemory.Claims.Record.lowerPayloadRoot, compiledRoot, Prog.bind_eq, Prog.bind_assoc]
+      erw [Stored.OwnedMemory.Claims.Record.Effects.lowerValue_eq, compiled]
+      simp only [Prog.pure_eq, Prog.pure_bind', Stored.OwnedMemory.Claims.Core.Scheduled.finish]
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      simp only [GiveSelector.preflight, SelectionValue.tree, SelectionValue.output] at compiled
+      simp only [GiveSelector.checkedContinuation, GiveSelector.compiledContinuation, compiledTail, unconfined, ite_true, checkedTail,
+        Stored.OwnedMemory.Claims.Record.lowerPayloadRoot, compiledRoot, Prog.bind_eq, Prog.bind_assoc]
+      erw [Stored.OwnedMemory.Claims.Record.Effects.lowerValue_eq, compiled]
+      simp only [Prog.pure_eq, Prog.pure_bind']
+      rfl
 
 theorem directCompilerRefused (request : GiveSelector bindings) (store : CStore (core3 grow))
     (thread : Option ThreadId) (ticket : Nat) (selected : SelectionValue sig request.schema)

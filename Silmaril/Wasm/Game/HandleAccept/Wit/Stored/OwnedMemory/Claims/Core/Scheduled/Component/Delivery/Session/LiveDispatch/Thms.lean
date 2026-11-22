@@ -24,6 +24,17 @@ theorem LiveDispatch.GiveSelector.result (request : LiveDispatch.GiveSelector bi
     ∃ result, Plain.runBody request.program start.store start.host (some thread) = (start.store, start.host, .ok result) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorResult request start thread
 
+/-- The evaluated selector fixes the admitted live caller, input route and
+nominal source lookup, without requiring either lowering program to return. -/
+theorem LiveDispatch.GiveSelector.admitted (request : LiveDispatch.GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
+    {selected : LiveDispatch.SelectionValue sig request.schema}
+    (evaluation : Plain.runBody request.program start.store start.host (some thread) =
+      (start.store, start.host, .ok (.ok selected))) :
+    request.Admitted start thread selected :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorAdmitted
+    request start thread evaluation
+
 open ReturnFrame.Occurrence in
 /-- Execute each live selector up to its own lowering continuation. The checked
 entry records its ticket; neither path executes any of the lowering body. -/
@@ -52,6 +63,17 @@ theorem LiveDispatch.GiveSelector.entry_tracks (request : LiveDispatch.GiveSelec
         (List.replicate canonical .tau) right mark :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorEntryTracks
     request start other thread focus peerFocus embedder sameStore evaluated reads
+
+/-- The admitted checked continuation enters the compiled effect program,
+without assuming its preparation, placement or recursive effects succeed. -/
+theorem LiveDispatch.GiveSelector.compiler_accepted (request : LiveDispatch.GiveSelector bindings)
+    (store : CStore (core3 grow)) (thread : Option ThreadId) (ticket : Nat)
+    (selected : LiveDispatch.SelectionValue sig request.schema) {field : Stored.Endpoints.RecordLower.Field} {plan}
+    (unconfined : threadMayLeave store thread = true)
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan)) :
+    request.checkedContinuation store thread (ticket, .ok selected) = request.compiledContinuation ticket selected field plan :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.directCompilerAccepted
+    request store thread ticket selected unconfined compiled
 
 /-- A refused root compilation is a checked ticketed reply. It does not run
 placement or lowering, even when the caller program is confined. -/

@@ -159,6 +159,20 @@ def GiveSelector.program {bindings : List (Binding sig)} (request : GiveSelector
   | none => admit request.inst (selectMemoryDestination request.destination request.args)
   | some schema => admit request.inst (selectFlatDestination request.destination schema request.args)
 
+/-- Evidence from the live selector, before any preparation or lowering. -/
+structure GiveSelector.Admitted {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
+    (selected : SelectionValue sig request.schema) : Prop where
+  caller : Plain.callerInstance start.store thread = .ok (some request.inst)
+  mayLeave : (start.store.inst? request.inst).any (·.mayLeave) = true
+  unconfined : threadMayLeave start.store thread = true
+  destination : request.destination.check start.store = .ok ()
+  selectedRoute : ∃ (route : GiveEffectRoute) (handle : BitVec IntType.i32.width),
+    request.args = route.args handle ∧ route.output = SelectionValue.output request.schema selected ∧
+    route.admits request.destination (SelectionValue.tree request.schema selected) ∧
+    resolveBinding bindings request.name request.kind = .ok ⟨request.name, request.inst, route.action request.destination⟩ ∧
+    Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some (SelectionValue.tree request.schema selected)
+
 open PayloadRoot in
 def checkedTail (inst : InstId) (destination : RecordDestination) (ticket : Nat) :
     (schema : Option Stored.TypeOf) → Except Issue (SelectionValue sig schema) → Session grow sig (List FlatValue)
@@ -212,6 +226,36 @@ def GiveSelector.preflight {bindings : List (Binding sig)} (request : GiveSelect
   | .atom impossible => impossible.elim
   | .tag payload _ _ => Record.preflightValue (request.destination.context (grow := grow) request.inst)
       (sig.payload payload.1) payload.2 (SelectionValue.output request.schema selected)
+
+/-- The checked program for a successfully compiled root. Preparation, width,
+fit and placement are still effects of the program, not admission facts. -/
+def compiledRoot (inst : InstId) (destination : RecordDestination) {type : Stored.TypeOf}
+    (payload : Stored.OwnedMemory.Payload type) (field : RecordLower.Field) (plan : List RecordLower.Object)
+    (output : Lower.Output) : Session grow sig (Except RecordLower.Issue output.Result) :=
+  let context := destination.context (grow := grow) inst
+  RecordLower.Internal.lowerWithPlan Quirks.none context (Record.authority recordClaims Limits.spec context)
+    type payload.val.value (.ok (field, plan)) RecordLower.Field.objects
+    (fun width item => Record.Effects.root recordClaims Limits.spec Quirks.none context width type item output)
+
+def compiledTail (inst : InstId) (destination : RecordDestination) (ticket : Nat)
+    (field : RecordLower.Field) (plan : List RecordLower.Object) :
+    (schema : Option Stored.TypeOf) → SelectionValue sig schema → Session grow sig (Ret (core3 grow))
+  | none, (tree, ptr) => match tree with
+    | .atom impossible => impossible.elim
+    | .tag root _ _ => do
+      let verdict ← compiledRoot inst destination root.2 field plan (.memory ptr)
+      return .flat (← writeCompletion (completion ticket (verdict.mapError Issue.lowerPayload |>.map (fun _ => 0))))
+  | some schema, tree => match tree with
+    | .atom impossible => impossible.elim
+    | .tag root _ _ => do
+      let verdict ← compiledRoot inst destination root.2 field plan .flat
+      return .flat (← writeCompletion (flatCompletion ticket (ABI.flatten destination.width schema)
+        (verdict.mapError Issue.lowerPayload)))
+
+def GiveSelector.compiledContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : RecordLower.Field) (plan : List RecordLower.Object) : Session grow sig (Ret (core3 grow)) :=
+  compiledTail request.inst request.destination ticket field plan request.schema selected
 
 def CoreGiveRequest.selectionProgram {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
     (request : CoreGiveRequest bindings state) : Session grow sig (Except Issue (SelectionValue sig request.schema)) :=

@@ -2515,7 +2515,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | directGiveSelected _ _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -2543,7 +2543,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | directGiveSelected _ _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -8288,6 +8288,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
         ⟨(seen _).trans (seen _).symm, congrArg StepDefs.lockdownSt sameStore, lost, residual⟩ (seen _) rfl rfl)
   cases verdict with
   | ok root =>
+    have admitted := request.admitted left (some worker) selected
     by_cases reads : ∀ handle, request.lookupDemand left.store (some worker) = some handle →
       Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle =
         Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle
@@ -8308,11 +8309,17 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
         refine callbackTerminalSlice paired (.directGiveSelected (resume := resume)
           (check := ⟨some worker, frames, rest⟩) (canon := ⟨some worker, peerFrames, peerRest⟩)
           (ticket := left.host.nextTicket) request root
-          ⟨(seen checkCount).trans (seen canonCount).symm, ?_, moved, residual⟩ ?_ rfl rfl ?_)
+          ⟨(seen checkCount).trans (seen canonCount).symm, ?_, moved, residual⟩ ?_ ?_ rfl ?_ ?_)
         · exact sameStore
+        · exact ⟨admitted.caller, admitted.mayLeave, admitted.unconfined, admitted.destination, admitted.selectedRoute⟩
         · simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace] using site
+        · have leaves := sameStore ▸ admitted.unconfined
+          simp only [GiveSelector.canonicalContinuation, leaves, ite_true, PayloadPrefix.Cursor.control]
         · cases checked : request.preflight (grow := grow) root with
-          | ok plan => exact .inl ⟨plan, rfl⟩
+          | ok compiled =>
+            obtain ⟨field, plan⟩ := compiled
+            exact .inl ⟨field, plan, rfl, congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
+              (request.compiler_accepted left.store (some worker) left.host.nextTicket root admitted.unconfined checked)⟩
           | error issue =>
             refine .inr ⟨issue, rfl, cutCheckedProgramReply _ ?_ residual⟩
             have reply := request.compiler_refused left.store (some worker) left.host.nextTicket root checked

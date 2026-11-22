@@ -708,13 +708,16 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
+      (admission : request.Admitted left check.thread selected)
       (site : PairedComponentSite changes left right
         { check with frames := .prog resume :: check.frames } { canon with frames := .prog resume :: canon.frames })
       (checkedFocus : left.ctl = { check with frames := .prog resume :: check.frames }.control
         (request.checkedContinuation left.store check.thread (ticket, .ok selected)))
       (canonicalFocus : right.ctl = { canon with frames := .prog resume :: canon.frames }.control
-        (request.canonicalContinuation right.store canon.thread (.ok selected)))
-      (compiler : (∃ plan, request.preflight (grow := grow) selected = .ok plan) ∨
+        (referenceTail request.inst request.destination request.schema (.ok selected) >>= fun reply => pure (.flat reply)))
+      (compiler : (∃ field plan, request.preflight (grow := grow) selected = .ok (field, plan) ∧
+          left.ctl = { check with frames := .prog resume :: check.frames }.control
+            (request.compiledContinuation ticket selected field plan)) ∨
         ∃ issue, request.preflight (grow := grow) selected = .error issue ∧
           CheckedProgramReplyCut profile ready (specDispatch ready base) left check resume
             (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)) trailing finish) :
