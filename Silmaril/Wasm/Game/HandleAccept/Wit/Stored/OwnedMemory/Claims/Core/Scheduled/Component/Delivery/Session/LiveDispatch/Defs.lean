@@ -259,6 +259,51 @@ def GiveSelector.compiledContinuation {bindings : List (Binding sig)} (request :
   compiledTail request.destination ticket (fun payload output => compiledRoot request.inst request.destination payload field plan output)
     request.schema selected
 
+/-- The fit check at the pointer width read by the checked program. -/
+def GiveSelector.selectedFits {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (selected : SelectionValue sig request.schema) (width : AddrType) : Bool :=
+  match SelectionValue.tree request.schema selected with
+  | .atom impossible => impossible.elim
+  | .tag payload _ _ => Lower.fits Quirks.none request.destination.encoding width (sig.payload payload.1) payload.2.val.value
+
+/-- The checked program at the reached width, before placement. -/
+def GiveSelector.measuredContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (ticket : Nat) (selected : SelectionValue sig request.schema) (field : RecordLower.Field)
+    (width : AddrType) : Session grow sig (Ret (core3 grow)) :=
+  let context := request.destination.context (grow := grow) request.inst
+  compiledTail request.destination ticket
+    (fun {type} payload output =>
+      if !Lower.fits Quirks.none context.opts.encoding width type payload.val.value then
+        pure (.error (.preflight (.abi .allocationPrecondition)))
+      else Record.Effects.root recordClaims Limits.spec Quirks.none context width type field output)
+    request.schema selected
+
+/-- The fit-success branch starts the actual route-specific placement program. -/
+def GiveSelector.placementContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (ticket : Nat) (selected : SelectionValue sig request.schema) (field : RecordLower.Field)
+    (width : AddrType) : Session grow sig (Ret (core3 grow)) :=
+  let context := request.destination.context (grow := grow) request.inst
+  compiledTail request.destination ticket
+    (fun {type} _ output => Record.Effects.root recordClaims Limits.spec Quirks.none context width type field output)
+    request.schema selected
+
+/-- The placement check for the selected route and nominal root. -/
+def GiveSelector.selectedPlacement {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (selected : SelectionValue sig request.schema) (store : CStore (core3 grow)) : Except TrapReason Unit :=
+  match SelectionValue.tree request.schema selected with
+  | .atom impossible => impossible.elim
+  | .tag payload _ _ => PayloadPrefix.rootPlacement request.destination store (sig.payload payload.1)
+      (SelectionValue.output request.schema selected)
+
+/-- The compiled field visitor, with the original public completion still
+attached, after the route's placement check has succeeded. -/
+def GiveSelector.fieldContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (ticket : Nat) (selected : SelectionValue sig request.schema) (field : RecordLower.Field) :
+    Session grow sig (Ret (core3 grow)) :=
+  compiledTail request.destination ticket
+    (fun _ output => Record.Effects.field recordClaims Limits.spec Quirks.none (request.destination.context request.inst)
+      request.destination.width field 0 output) request.schema selected
+
 /-- Continuation after the checked preparation reads. A refused preparation
 returns through the checked completion only; success still reads the width. -/
 def GiveSelector.preparedContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)

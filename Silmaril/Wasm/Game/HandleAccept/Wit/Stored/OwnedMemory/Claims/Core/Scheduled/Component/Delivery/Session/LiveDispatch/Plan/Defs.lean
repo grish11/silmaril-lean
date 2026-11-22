@@ -637,6 +637,66 @@ inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (Hos
         { start with host := start.host.record reply.1, ctl := caller.control (resume (.flat reply.2)) } trailing finish) :
       CheckedProgramReplyCut profile ready dispatch start caller resume reply ([.tau, .tau, .tau] ++ trailing) finish
 
+open ReturnFrame.Occurrence in
+/-- Placement is an actual checked path. The canonical program stays
+pending; a placement fault alone does not evidence a canonical fault. -/
+inductive DirectGivePlacementCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start peer : Config (core3 grow) (HostState sig))
+    (caller : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (resume : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : Stored.Endpoints.RecordLower.Field) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | prefix {actual finish}
+      (paths : ∀ mark, ∃ reached, Trail profile ready (specDispatch ready base) start mark actual finish reached)
+      (pending : ∃ suffix, suffix ≠ [] ∧ ∃ target, Steps profile ready (specDispatch ready base) finish suffix target) :
+      DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field actual finish
+  | trapped {reason count trailing finish}
+      (placement : request.selectedPlacement selected start.store = .error reason)
+      (paths : ∀ mark, Trail profile ready (specDispatch ready base) start mark (List.replicate count .tau ++ [.trap reason])
+        (StepDefs.trapCfg start) (mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow))
+      (residual : Steps profile ready (specDispatch ready base) (StepDefs.trapCfg start) trailing finish) :
+      DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field
+        ((List.replicate count .tau ++ [.trap reason]) ++ trailing) finish
+  | reached {used trailing finish}
+      (after : Config (core3 grow) (HostState sig))
+      (focus : after = { start with
+        ctl := { caller with frames := .prog resume :: caller.frames }.control (request.fieldContinuation ticket selected field) })
+      (placement : request.selectedPlacement selected start.store = .ok ())
+      (paths : OccurrenceTransport profile ready base bindings start peer used [] after peer)
+      (quiet : PayloadPrefix.visible used = [])
+      (residual : Steps profile ready (specDispatch ready base) after trailing finish) :
+      DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field (used ++ trailing) finish
+
+/-- A finite cut at the real width read. Fit is decided in the reached
+continuation; the peer still has its original canonical program pending. -/
+inductive DirectGiveWidthCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start peer : Config (core3 grow) (HostState sig))
+    (caller : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (resume : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : Stored.Endpoints.RecordLower.Field) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | prefix (paths : OccurrenceTransport profile ready base bindings start peer [] [] start peer) :
+      DirectGiveWidthCut profile ready base bindings start peer caller resume request ticket selected field [] start
+  | reached {trailing finish}
+      (after : Config (core3 grow) (HostState sig))
+      (focus : after = { start with
+        ctl := { caller with frames := .prog resume :: caller.frames }.control
+          (request.measuredContinuation ticket selected field (ptrTypeIn start.store (request.destination.context request.inst))) })
+      (paths : OccurrenceTransport profile ready base bindings start peer [.tau] [] after peer)
+      (residual : Steps profile ready (specDispatch ready base) after trailing finish)
+      (decision : let width := ptrTypeIn start.store (request.destination.context request.inst)
+        (request.selectedFits selected width = false ∧
+          CheckedProgramReplyCut profile ready (specDispatch ready base) after caller resume
+            (giveAdmissionReply ticket request.destination request.schema (.lowerPayload (.preflight (.abi .allocationPrecondition))))
+            trailing finish) ∨
+        (request.selectedFits selected width = true ∧
+          after.ctl = { caller with frames := .prog resume :: caller.frames }.control
+            (request.placementContinuation ticket selected field width) ∧
+          DirectGivePlacementCut profile ready base bindings after peer caller resume request ticket selected field trailing finish)) :
+      DirectGiveWidthCut profile ready base bindings start peer caller resume request ticket selected field (.tau :: trailing) finish
+
 /-- A finite checked cut at the compiled root's preparation reads. No
 canonical step is spent by these checked-only reads. -/
 inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -658,7 +718,9 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
       (residual : Steps profile ready (specDispatch ready base) after trailing finish)
       (refused : ∀ issue, Record.prepare start.store start.host.writer field.objects = .error issue →
         CheckedProgramReplyCut profile ready (specDispatch ready base) after caller resume
-          (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)) trailing finish) :
+          (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)) trailing finish)
+      (prepared : Record.prepare start.store start.host.writer field.objects = .ok () →
+        DirectGiveWidthCut profile ready base bindings after peer caller resume request ticket selected field trailing finish) :
       DirectGivePreparationCut profile ready base bindings start peer caller resume request ticket selected field
         ([.tau, .tau] ++ trailing) finish
 
@@ -728,6 +790,21 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [none])
       (trapped : PayloadPrefix.visible checked = [.trap reason])
       (checkedLocked : left.ctl = []) (canonicalLocked : right.ctl = []) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | directGiveLookupMismatch {changes reached peer left right checked canonical trailing finish resume handle}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (request : GiveSelector bindings)
+      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
+      (site : PairedComponentSite changes left right
+        { check with frames := .prog resume :: check.frames } { canon with frames := .prog resume :: canon.frames })
+      (checkedFocus : left.ctl = { check with frames := .prog resume :: check.frames }.control
+        (calloutBody Limits.spec Quirks.none ready base left.store check.thread (.embedder request.name request.kind) request.args))
+      (canonicalFocus : right.ctl = { canon with frames := .prog resume :: canon.frames }.control
+        (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) right.store canon.thread
+          (.embedder request.name request.kind) request.args))
+      (demand : request.lookupDemand left.store check.thread = some handle)
+      (different : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
+        Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}

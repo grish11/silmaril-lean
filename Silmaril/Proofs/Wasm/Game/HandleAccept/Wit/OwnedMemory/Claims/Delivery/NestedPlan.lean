@@ -2515,6 +2515,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | directGiveLookupMismatch _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
@@ -2543,6 +2544,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | directGiveLookupMismatch _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -8225,12 +8227,181 @@ private theorem cutCheckedProgramReply (reply : Event × List FlatValue)
         obtain ⟨rfl, rfl⟩ := silentStepUnique pop third
         exact .popped (fun mark => followGet (followSet (Trail.pop_prog mark rfl))) tail
 
+private theorem directWidthRead (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field) :
+    request.preparedContinuation (grow := grow) ticket selected field (.ok ()) =
+      .op .get (fun store => request.measuredContinuation ticket selected field
+        (ptrTypeIn store (request.destination.context request.inst))) := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, pointer⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children => rfl
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children => rfl
+
+private theorem directFitDecision (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field) (width : AddrType) :
+    request.measuredContinuation (grow := grow) ticket selected field width =
+      if request.selectedFits selected width then request.placementContinuation ticket selected field width
+      else do return .flat (← writeCompletion
+        (giveAdmissionReply ticket request.destination request.schema (.lowerPayload (.preflight (.abi .allocationPrecondition))))) := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, pointer⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      simp only [GiveSelector.measuredContinuation, GiveSelector.placementContinuation, GiveSelector.selectedFits,
+        SelectionValue.tree, compiledTail, RecordDestination.context]
+      by_cases fit : Stored.Lower.fits Quirks.none destination.encoding width (sig.payload root.1) root.2.val.value = true
+      · simp [fit]
+      · simp [Bool.eq_false_iff.mpr fit, giveAdmissionReply, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']; rfl
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      simp only [GiveSelector.measuredContinuation, GiveSelector.placementContinuation, GiveSelector.selectedFits,
+        SelectionValue.tree, compiledTail, RecordDestination.context]
+      by_cases fit : Stored.Lower.fits Quirks.none destination.encoding width (sig.payload root.1) root.2.val.value = true
+      · simp [fit]
+      · simp [Bool.eq_false_iff.mpr fit, giveAdmissionReply, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']; rfl
+
+open ReturnFrame.Occurrence in
+private theorem takeLocalTrail {mark reached : Option Location} {rest : Trace grow sig} {target}
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (path : Trail profile ready (specDispatch ready base) start mark (labels ++ rest) target reached) :
+    ∃ place, Trail profile ready (specDispatch ready base) start mark labels finish place := by
+  induction run generalizing mark with
+  | refl => exact ⟨mark, .done _ _⟩
+  | cons first tail ih =>
+    cases path with
+    | step planned later =>
+      cases labelledStepUnique first planned
+      obtain ⟨place, prior⟩ := ih later
+      exact ⟨place, .step first prior⟩
+
+open ReturnFrame.Occurrence in
+private theorem directPlacementPaths (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focus : start.ctl = cursor.control (request.placementContinuation ticket selected field request.destination.width)) :
+    let child := { start with ctl := cursor.control (request.fieldContinuation ticket selected field) }
+    match request.selectedPlacement selected start.store with
+    | .ok () => ∃ used, PayloadPrefix.visible used = [] ∧
+        ∀ place, Prefix profile ready (specDispatch ready base) start place used child place
+    | .error reason => ∃ count, ∀ place, Trail profile ready (specDispatch ready base) start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
+        ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, pointer⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      exact PayloadPrefix.root_placement_tracks (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+        destination inst (sig.payload root.1) field (.memory pointer) start cursor
+        (fun verdict => do return .flat (← writeCompletion (completion ticket (verdict.mapError Issue.lowerPayload |>.map (fun _ => 0))))) focus
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      exact PayloadPrefix.root_placement_tracks (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+        destination inst (sig.payload root.1) field .flat start cursor
+        (fun verdict => do return .flat (← writeCompletion (flatCompletion ticket (ABI.flatten destination.width schema)
+          (verdict.mapError Issue.lowerPayload)))) focus
+
+open ReturnFrame.Occurrence in
+private theorem cutDirectGivePlacement (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (focus : start.ctl = { check with frames := .prog resume :: check.frames }.control
+      (request.placementContinuation ticket selected field request.destination.width))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    DirectGivePlacementCut profile ready base bindings start incoming check resume request ticket selected field labels finish := by
+  let cursor := { check with frames := .prog resume :: check.frames }
+  have paths := directPlacementPaths (profile := profile) (ready := ready) (base := base) request ticket selected field cursor focus
+  dsimp only at paths
+  cases placed : request.selectedPlacement selected start.store with
+  | ok accepted =>
+    cases accepted
+    rw [placed] at paths
+    obtain ⟨used, quiet, track⟩ := paths
+    cases alignLocalBody (track (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
+    | reached split residual =>
+      rw [split]
+      exact .reached _ rfl placed (CallbackPrefix.stationaryTransport track (fun place => .done incoming place)) quiet residual
+    | inside split nonempty pending =>
+      refine .prefix (fun mark => ?_) ⟨_, nonempty, _, pending⟩
+      have path (place : Location) := (track place).toTrail
+      cases mark with
+      | none => exact ⟨none, .absent run⟩
+      | some place => exact takeLocalTrail run (split ▸ path place)
+  | error reason =>
+    rw [placed] at paths
+    obtain ⟨count, track⟩ := paths
+    have seen : PayloadPrefix.visible (List.replicate count .tau ++ [.trap reason] : Trace grow sig) = [.trap reason] := by
+      rw [visibleAppend, visibleTaus]; rfl
+    have path (mark : Option Location) : Trail profile ready (specDispatch ready base) start mark
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
+        (mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow) := by
+      cases mark with
+      | none => exact .absent (track (.active 0 0)).steps
+      | some place => exact track place
+    cases alignLocalBody (path none).steps run (noBranchOfVisible seen (by simp [workerBranchLabel])) with
+    | reached split residual => rw [split]; exact .trapped placed path residual
+    | inside split nonempty pending => exact .prefix (fun mark => takeLocalTrail run (split ▸ path mark)) ⟨_, nonempty, _, pending⟩
+
+open ReturnFrame.Occurrence in
+private theorem cutDirectGiveWidth (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (linked : request.destination.check start.store = .ok ())
+    (focus : start.ctl = { check with frames := .prog resume :: check.frames }.control
+      (request.preparedContinuation ticket selected field (.ok ())))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    DirectGiveWidthCut profile ready base bindings start incoming check resume request ticket selected field labels finish := by
+  let cursor := { check with frames := .prog resume :: check.frames }
+  let width := ptrTypeIn start.store (request.destination.context request.inst)
+  let after := { start with ctl := cursor.control (request.measuredContinuation ticket selected field width) }
+  rw [directWidthRead] at focus
+  have read : Step profile ready (specDispatch ready base) start .tau after := .get focus
+  rcases inspectReplyStep run with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, first, tail⟩
+  · exact .prefix (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done incoming place))
+  · obtain ⟨rfl, rfl⟩ := silentStepUnique read first
+    have paths : ∀ place, Prefix profile ready (specDispatch ready base) start place [.tau] after place :=
+      fun place => .step read (by rw [transitionEdit, focus]; rfl) (.done _ _)
+    refine .reached after rfl (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place)) tail ?_
+    have branch := directFitDecision (grow := grow) request ticket selected field width
+    cases fits : request.selectedFits selected width with
+    | false =>
+      refine .inl ⟨fits, cutCheckedProgramReply _ ?_ tail⟩
+      change cursor.control (request.measuredContinuation ticket selected field width) = _
+      simp only [branch, fits, Bool.false_eq_true, ↓reduceIte, cursor]
+    | true =>
+      have placedAt : after.ctl = cursor.control (request.placementContinuation ticket selected field width) := by
+        change cursor.control (request.measuredContinuation ticket selected field width) = _
+        rw [branch, ite_eq_left fits]
+      have linkedWidth : width = request.destination.width := by
+        dsimp only [width]
+        simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, request.destination.check_width _ linked]
+      exact .inr ⟨fits, placedAt, cutDirectGivePlacement request ticket selected field (linkedWidth ▸ placedAt) tail⟩
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem cutDirectGivePreparation (request : GiveSelector bindings) (ticket : Nat)
     (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
     (plan : List Stored.Endpoints.RecordLower.Object)
     {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (linked : request.destination.check start.store = .ok ())
     (focus : start.ctl = { check with frames := .prog resume :: check.frames }.control
       (request.compiledContinuation ticket selected field plan))
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
@@ -8253,8 +8424,11 @@ private theorem cutDirectGivePreparation (request : GiveSelector bindings) (tick
       (fun place => path.track place) (fun place => Prefix.done incoming place)
     rw [split]
     refine .reached after rfl moved residual (fun issue refused => cutCheckedProgramReply _ ?_ residual)
-    change cursor.control (prepared start.store start.host) = _
-    simp only [cursor, prepared, refused, request.prepare_refused]
+      (fun accepted => cutDirectGiveWidth request ticket selected field linked ?_ residual)
+    · change cursor.control (prepared start.store start.host) = _
+      simp only [cursor, prepared, refused, request.prepare_refused]
+    · change cursor.control (prepared start.store start.host) = _
+      simp only [cursor, prepared, accepted]
   · obtain ⟨_, paths⟩ := quietCheckedShort path run short
     exact .prefix short (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
 
@@ -8279,6 +8453,17 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
     (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
+  have lookupMismatch (handle : BitVec IntType.i32.width)
+      (demand : request.lookupDemand left.store (some worker) = some handle)
+      (different : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
+        Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) :
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+    have whole : .tau :: labels = [.tau, .tau, .tau] ++ bodyLabels := by rw [entered]; rfl
+    apply Or.inr
+    rw [whole]
+    exact callbackTerminalSlice paired (.directGiveLookupMismatch (left := left) (right := right)
+      (check := ⟨some worker, frames, rest⟩) (canon := ⟨some worker, peerFrames, peerRest⟩) (resume := resume)
+      request ⟨rfl, site.data.1, paths, run⟩ site leftAt rightAt demand different)
   rcases request.result left (some worker) with ⟨reason, trapped⟩ | ⟨verdict, selected⟩
   · obtain ⟨checked, canonical⟩ := request.trap_bodies (ready := ready) (base := base) left (some worker) right.host base embedder trapped
     have sameStore := site.data.1
@@ -8353,13 +8538,15 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
             obtain ⟨field, plan⟩ := compiled
             have body := congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
               (request.compiler_accepted left.store (some worker) left.host.nextTicket root admitted.unconfined checked)
-            exact .inl ⟨field, plan, rfl, body, cutDirectGivePreparation request left.host.nextTicket root field plan body residual⟩
+            exact .inl ⟨field, plan, rfl, body, cutDirectGivePreparation request left.host.nextTicket root field plan admitted.destination body residual⟩
           | error issue =>
             refine .inr ⟨issue, rfl, cutCheckedProgramReply _ ?_ residual⟩
             have reply := request.compiler_refused left.store (some worker) left.host.nextTicket root checked
             exact congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control reply
       · exact .inr boundary
-    · exact .inr boundary
+    · push Not at reads
+      obtain ⟨handle, demand, different⟩ := reads
+      exact lookupMismatch handle demand different
   | error issue =>
     by_cases reads : ∀ handle, request.lookupDemand left.store (some worker) = some handle →
       Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle =
@@ -8379,7 +8566,9 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
           whole moved seen paired (by simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace] using site)
           rfl rfl residual boundary
       · exact .inr boundary
-    · exact .inr boundary
+    · push Not at reads
+      obtain ⟨handle, demand, different⟩ := reads
+      exact lookupMismatch handle demand different
 
 private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
