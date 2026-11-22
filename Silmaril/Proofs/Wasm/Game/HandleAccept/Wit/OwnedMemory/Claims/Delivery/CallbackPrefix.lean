@@ -197,6 +197,18 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
         · exact stop (.protectedPop retained focus)
     · exact stop (.give install)
 
+theorem actualAllocatorPrefix {protectedReturn} {labels : Trace grow sig}
+    {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (replay : ActualCallbackReplay bindings profile ready base protectedReturn start labels finish)
+    (covers : ∀ first second, changes first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0))) :
+    ∃ reached mark, AllocatorMark profile ready base bindings older start incoming labels labels finish reached mark ∧
+      HostFrame.Related.Paired changes finish reached ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached := by
+  obtain ⟨reached, mark, _, aligned, kept, left, right, tracks⟩ := replay covers paired outside
+  exact ⟨reached, mark, ⟨kept, left, right, tracks⟩, aligned, labels, labels, tracks, rfl, rfl, aligned.data.1⟩
+
 private theorem invisible {labels : Trace grow sig} (silent : labels.all (· matches .tau) = true) :
     PayloadPrefix.visible labels = [] := by
   apply List.filter_eq_nil_iff.mpr

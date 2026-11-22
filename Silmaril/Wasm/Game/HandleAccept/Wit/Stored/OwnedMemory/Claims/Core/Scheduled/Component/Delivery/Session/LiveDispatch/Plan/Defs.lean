@@ -3405,6 +3405,55 @@ inductive WorkerBodyAlignment (profile : ProfileKind) (ready : HostReady (HostSt
       (planned : Step profile ready dispatch middle expected next) (bodyTail : Steps profile ready dispatch next rest body)
       (actualStep : Step profile ready dispatch middle taken actualNext) (actualTail : Steps profile ready dispatch actualNext suffix finish)
 
+/-- Compare the checked run with the entry obtained from the real public
+guards. A short run need not have taken the displayed refusal or trap. -/
+inductive RecursiveRootEntryAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (incoming : Config (core3 grow) (HostState sig)) {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | refused {issue leading} (silent : PayloadPrefix.visible leading = [])
+      (checked : ∀ place, ReturnFrame.Occurrence.Trail profile ready
+        (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start (some place) (leading ++ [.tau, .tau, .tau]) (site.refusedReply issue) (some place))
+      (aligned : WorkerBodyAlignment profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start (site.refusedReply issue) (leading ++ [.tau, .tau, .tau]) actual finish)
+  | placementTrap {reason count}
+      (verdict : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason)
+      (checked : site.EntryTrap profile ready (ComponentCall.hostWithComponent bindings callees)
+        (List.replicate count .tau ++ [.trap reason]))
+      (aligned : WorkerBodyAlignment profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start (StepDefs.trapCfg site.checked) (List.replicate count .tau ++ [.trap reason]) actual finish)
+  | placed {leading} (silent : PayloadPrefix.visible leading = [])
+      (verdict : PayloadPrefix.rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())
+      (prepared : OwnedMemory.Claims.Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ())
+      (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) leading site.checked)
+      (body : RecursiveGiveOccurrencePaths profile ready bindings callees older incoming route site)
+      (aligned : WorkerBodyAlignment profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        site.start site.checked leading actual finish)
+
+/-- The actual checked residual of a selected give enters the compiler or
+root cut only if the finite execution covers that entry. The canonical
+pending state is not an error reply or a finished body. -/
+inductive RecursiveGiveEntryAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (callees : List (ComponentCall.Callee sig)) {bindings : List (Binding sig)}
+    {start : Config (core3 grow) (HostState sig)} {request : CoreGiveRequest bindings start}
+    {route : GiveEffectRoute} (selection : request.Selected route)
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (incoming : Config (core3 grow) (HostState sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | compilerRefused {issue count entered} (preflight : selection.preflight = .error issue)
+      (pending : HostFrame.Related.Paired older selection.canonicalPending entered)
+      (occurrences : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees)
+        bindings start incoming [] (selection.compilerRefused issue) entered)
+      (aligned : WorkerBodyAlignment profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        start (selection.compilerRefused issue) (List.replicate count .tau) actual finish)
+  | compiled {tag payload arity children field plan} (preflight : selection.preflight = .ok (field, plan))
+      (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
+      (linked : (selection.site tag payload arity children field).Linked bindings)
+      (pending : PendingRecursiveRoot profile ready bindings callees older (selection.site tag payload arity children field) incoming)
+      (aligned : RecursiveRootEntryAlignment profile ready bindings callees older incoming
+        (selection.site tag payload arity children field) actual finish)
+
 /-- Match an actual checked run against a marked public body endpoint.
 Only an executed reply pop supplies a worker suffix. A typed reply does
 not authorize that suffix on the canonical side. -/

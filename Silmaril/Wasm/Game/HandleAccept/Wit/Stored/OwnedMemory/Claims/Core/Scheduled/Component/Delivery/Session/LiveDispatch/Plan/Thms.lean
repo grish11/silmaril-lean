@@ -63,6 +63,32 @@ theorem ActualCallbackReplay.reached_give {callees : List (ComponentCall.Callee 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualCallbackGive
     replay install actual tail covers paired outside
 
+/-- Cross the checked front of a selected nested give using its actual
+residual derivation. The paired canonical entry is still pending. A shorter
+checked run does not witness a guard trap, checked reply, or body entry. -/
+theorem ReachedRecursiveGive.align_entry {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
+    {selection : request.Selected route} {callees : List (ComponentCall.Callee sig)}
+    (entry : ReachedRecursiveGive profile ready callees selection older incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    RecursiveGiveEntryAlignment profile ready callees selection older incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignRecursiveEntry entry run
+
+open ReturnFrame.Occurrence in
+/-- An extracted finite allocator prefix gives the actual reached store and
+marked occurrence. There is no allocator return premise; a lost mark is
+not replaced by an equal saved or active continuation. -/
+theorem ActualCallbackReplay.allocator_prefix {protectedReturn}
+    {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (replay : ActualCallbackReplay bindings profile ready base protectedReturn start labels finish)
+    (covers : ∀ first second, changes first second → protectedReturn first)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0))) :
+    ∃ reached mark, AllocatorMark profile ready base bindings older start incoming labels labels finish reached mark ∧
+      HostFrame.Related.Paired changes finish reached ∧
+      ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.actualAllocatorPrefix
+    replay covers paired outside
+
 /-- An actual Core engine step in the callback needs no host-write,
 dispatch or readiness premise. The reached store need not equal the old one. -/
 theorem ClosedCallbackPrefix.core_internal {protectedReturn thread core next frames rest store coreNext}

@@ -1012,6 +1012,25 @@ private theorem pendingRecursiveRoot {route : GiveEffectRoute} (site : PayloadRo
     (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees) site linked paired selected
   exact ⟨labels, entered, silentVisible quiet, installed, aligned, hostEq⟩
 
+open ReturnFrame.Occurrence in
+private theorem rootRefusalTrails {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {issue leading}
+    (checked : site.EntryPrefix profile ready (ComponentCall.hostWithComponent bindings callees) leading
+      (site.withBody (site.reply (.error issue)))) :
+    ∀ place, Trail profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      site.start (some place) (leading ++ [.tau, .tau, .tau]) (site.refusedReply issue) (some place) := by
+  intro place
+  refine (checked place).toTrail.append ?_
+  let reply := route.reply site.destination site.start.host.nextTicket (.error issue)
+  have completion := Plain.give_completion_trail (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+    (start := site.withBody (site.reply (.error issue))) reply (site.entryPlace place) rfl
+  have restored : (Edit.pop : Edit (core3 grow) (HostState sig)).follow (site.entryPlace place) = some place := by
+    cases place with
+    | active activation _ => cases activation <;> rfl
+    | saved _ _ => rfl
+  exact restored ▸ completion
+
 private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} (linked : site.Linked bindings)
     (paired : HostFrame.Related.Paired older site.start incoming)
@@ -1022,18 +1041,7 @@ private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadR
   have pending : PendingRecursiveRoot profile ready bindings callees older site incoming :=
     pendingRecursiveRoot site linked paired selected
   cases cut with
-  | refused issue silent run =>
-    refine .refused (issue := issue) silent (fun place => (run place).toTrail.append ?_) pending
-    let reply := route.reply site.destination site.start.host.nextTicket (.error issue)
-    have completion := Plain.give_completion_trail (profile := profile) (ready := ready)
-      (dispatch := specDispatch ready (ComponentCall.hostWithComponent bindings callees))
-      (start := site.withBody (site.reply (.error issue))) reply (site.entryPlace place) rfl
-    have restored : (ReturnFrame.Occurrence.Edit.pop : ReturnFrame.Occurrence.Edit (core3 grow) (HostState sig)).follow
-        (site.entryPlace place) = some place := by
-      cases place with
-      | active activation _ => cases activation <;> rfl
-      | saved _ _ => rfl
-    exact restored ▸ completion
+  | refused _ silent run => exact .refused silent (rootRefusalTrails site run) pending
   | placementTrap _ _ verdict run => exact .placementTrap verdict run pending
   | placed silent verdict prepared run body => exact .placed silent verdict prepared run pending body
 
@@ -1082,6 +1090,29 @@ theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveReques
     | flat schema =>
       exact CallbackRange.linkedFlatAggregateRejoinPaths (profile := profile) (ready := ready)
         (base := ComponentCall.hostWithComponent bindings callees) _ linked supported paired liveRoot rfl _ tail
+
+open ReturnFrame.Occurrence in
+theorem alignRecursiveEntry {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
+    {selection : request.Selected route} {callees : List (ComponentCall.Callee sig)}
+    (entry : ReachedRecursiveGive profile ready callees selection older incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    RecursiveGiveEntryAlignment profile ready callees selection older incoming labels finish := by
+  cases entry with
+  | refused preflight checked _ _ pending _ tracks =>
+    exact .compilerRefused preflight pending tracks (alignWorkerBody checked run)
+  | @compiled tag payload arity children field plan preflight root linked cut occurrenceCut =>
+    have pending : PendingRecursiveRoot profile ready bindings callees older
+        (selection.site tag payload arity children field) incoming := by
+      cases cut <;> assumption
+    refine .compiled preflight root linked pending ?_
+    cases occurrenceCut with
+    | refused issue silent checked =>
+      have tracks := rootRefusalTrails (selection.site tag payload arity children field) checked
+      exact .refused (issue := issue) silent tracks (alignWorkerBody (tracks (.active 0 0)).steps run)
+    | placementTrap reason count verdict checked =>
+      exact .placementTrap (reason := reason) (count := count) verdict checked (alignWorkerBody checked.steps run)
+    | placed silent verdict prepared checked body =>
+      exact .placed silent verdict prepared checked body (alignWorkerBody checked.steps run)
 
 theorem recursiveGiveAfterCallback {route : GiveEffectRoute} {request : CoreGiveRequest bindings finish}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {protectedReturn}
