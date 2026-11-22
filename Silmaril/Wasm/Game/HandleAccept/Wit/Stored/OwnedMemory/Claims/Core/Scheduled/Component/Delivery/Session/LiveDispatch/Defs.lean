@@ -151,6 +151,51 @@ def GiveSelector.program {bindings : List (Binding sig)} (request : GiveSelector
   | none => admit request.inst (selectMemoryDestination request.destination request.args)
   | some schema => admit request.inst (selectFlatDestination request.destination schema request.args)
 
+open PayloadRoot in
+def checkedTail (inst : InstId) (destination : RecordDestination) (ticket : Nat) :
+    (schema : Option Stored.TypeOf) → Except Issue (SelectionValue sig schema) → Session grow sig (List FlatValue)
+  | none, result =>
+    (match result with
+     | .error issue => pure (.error issue)
+     | .ok (tree, ptr) => do
+       let lowered ← Stored.OwnedMemory.Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
+         (destination.context inst) tree (.memory ptr)
+       return lowered.mapError Issue.lowerPayload |>.map (fun _ => 0)) >>= Stored.OwnedMemory.Claims.Core.Scheduled.finish ticket
+  | some schema, result =>
+    (match result with
+     | .error issue => pure (.error issue)
+     | .ok tree => do
+       let lowered ← Stored.OwnedMemory.Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
+         (destination.context inst) tree .flat
+       return lowered.mapError Issue.lowerPayload) >>= fun lowered =>
+      writeCompletion (flatCompletion ticket (ABI.flatten destination.width schema) lowered)
+
+noncomputable def referenceTail (inst : InstId) (destination : RecordDestination) :
+    (schema : Option Stored.TypeOf) → Except Issue (SelectionValue sig schema) → Session grow sig (List FlatValue)
+  | none, .error issue => pure (completion 0 (.error issue)).2
+  | none, .ok (tree, ptr) => memoryBody inst destination tree ptr
+  | some schema, .error issue => pure (flatCompletion 0 (ABI.flatten destination.width schema) (.error issue)).2
+  | some schema, .ok tree => flatBody inst destination schema tree
+
+def GiveSelector.checkedEntry {bindings : List (Binding sig)} (request : GiveSelector bindings) :
+    Session grow sig (Nat × Except Issue (SelectionValue sig request.schema)) := do
+  let state ← hostGet
+  hostSet (state.enter request.name request.kind request.args)
+  let verdict ← request.program
+  return (state.nextTicket, verdict)
+
+def GiveSelector.checkedContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (selected : Nat × Except Issue (SelectionValue sig request.schema)) : Session grow sig (Ret (core3 grow)) :=
+  let words := checkedTail request.inst request.destination selected.1 request.schema selected.2
+  (if threadMayLeave store thread then words else confine words) >>= fun reply => pure (.flat reply)
+
+noncomputable def GiveSelector.canonicalContinuation {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (selected : Except Issue (SelectionValue sig request.schema)) : Session grow sig (Ret (core3 grow)) :=
+  let words := referenceTail request.inst request.destination request.schema selected
+  (if threadMayLeave store thread then words else confine words) >>= fun reply => pure (.flat reply)
+
 def CoreGiveRequest.selectionProgram {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
     (request : CoreGiveRequest bindings state) : Session grow sig (Except Issue (SelectionValue sig request.schema)) :=
   request.selector.program

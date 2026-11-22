@@ -880,31 +880,6 @@ private theorem confineSelector (request : GiveSelector bindings) :
   cases request.schema <;> unfold admit <;> apply fixedBind _ _ caller <;> intro inst <;>
     apply fixedBind _ _ rfl <;> intro reference <;> split <;> first | rfl | exact memory | apply flat
 
-private def checkedTail (inst : InstId) (destination : RecordDestination) (ticket : Nat) :
-    (schema : Option Stored.TypeOf) → Except Issue (SelectionValue sig schema) → Session grow sig (List FlatValue)
-  | none, result =>
-    (match result with
-     | .error issue => pure (.error issue)
-     | .ok (tree, ptr) => do
-       let lowered ← Stored.OwnedMemory.Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
-         (destination.context inst) tree (.memory ptr)
-       return lowered.mapError Issue.lowerPayload |>.map (fun _ => 0)) >>= Stored.OwnedMemory.Claims.Core.Scheduled.finish ticket
-  | some schema, result =>
-    (match result with
-     | .error issue => pure (.error issue)
-     | .ok tree => do
-       let lowered ← Stored.OwnedMemory.Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
-         (destination.context inst) tree .flat
-       return lowered.mapError Issue.lowerPayload) >>= fun lowered =>
-      writeCompletion (flatCompletion ticket (ABI.flatten destination.width schema) lowered)
-
-private noncomputable def referenceTail (inst : InstId) (destination : RecordDestination) :
-    (schema : Option Stored.TypeOf) → Except Issue (SelectionValue sig schema) → Session grow sig (List FlatValue)
-  | none, .error issue => pure (completion 0 (.error issue)).2
-  | none, .ok (tree, ptr) => memoryBody inst destination tree ptr
-  | some schema, .error issue => pure (flatCompletion 0 (ABI.flatten destination.width schema) (.error issue)).2
-  | some schema, .ok tree => flatBody inst destination schema tree
-
 private theorem checkedSplit (request : GiveSelector bindings) :
     (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder request.name request.kind request.args =
       (do
@@ -951,6 +926,29 @@ private theorem giveCalloutBody (request : GiveSelector bindings) (store : CStor
   simp only [calloutBody, effective]
   split <;> rfl
 
+theorem giveSelectorBodySplit (request : GiveSelector bindings) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
+    calloutBody Limits.spec Quirks.none ready impl store thread (.embedder request.name request.kind) request.args =
+      (request.checkedEntry >>= request.checkedContinuation store thread) ∧
+    calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) store thread
+      (.embedder request.name request.kind) request.args = (request.program >>= request.canonicalContinuation store thread) := by
+  have confinedBind {Value Result : Type} (program : Session grow sig Value) (next : Value → Session grow sig Result) :
+      confine (program.bind next) = (confine program).bind (fun value => confine (next value)) := confineBind program next
+  constructor
+  · rw [giveCalloutBody, embedder, checkedSplit request]
+    have getFixed : confine (hostGet : Session grow sig (HostState sig)) = hostGet := rfl
+    have setFixed (state : HostState sig) : confine (hostSet state : Session grow sig Unit) = hostSet state := rfl
+    cases leaves : threadMayLeave store thread with
+    | false => simp [effective, GiveSelector.checkedEntry, GiveSelector.checkedContinuation, leaves, confinedBind,
+        getFixed, setFixed, confineSelector, Prog.bind_assoc]
+    | true => simp [effective, GiveSelector.checkedEntry, GiveSelector.checkedContinuation, leaves, Prog.bind_eq, Prog.bind_assoc]
+  · rw [giveCalloutBody, referenceSplit request]
+    change _ = (request.program >>= fun selected => request.canonicalContinuation store thread selected)
+    cases leaves : threadMayLeave store thread with
+    | false => simp [effective, GiveSelector.canonicalContinuation, leaves, confinedBind, confineSelector, Prog.bind_assoc]
+    | true => simp [effective, GiveSelector.canonicalContinuation, leaves, Prog.bind_eq, Prog.bind_assoc]
+
 private theorem evalEffectiveBind {Value Result : Type} (program : Session grow sig Value)
     (next : Value → Session grow sig Result) (store : CStore (core3 grow)) (state : HostState sig)
     (thread : Option ThreadId) (fixed : confine program = program) :
@@ -962,6 +960,64 @@ private theorem evalEffectiveBind {Value Result : Type} (program : Session grow 
   split <;> rename_i leaves
   · simp only [runBind]
   · simp only [confineBind, fixed, runBind]
+
+theorem giveSelectorEntryTracks (request : GiveSelector bindings)
+    (start other : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
+    {frames rest peerFrames peerRest}
+    (focus : start.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready base start.store thread
+      (.embedder request.name request.kind) request.args), frames⟩ :: rest)
+    (peerFocus : other.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      other.store thread (.embedder request.name request.kind) request.args), peerFrames⟩ :: peerRest)
+    (embedder : base.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
+    (sameStore : start.store = other.store)
+    {selected : Except Issue (SelectionValue sig request.schema)}
+    (evaluated : Plain.runBody request.program start.store start.host (some thread) = (start.store, start.host, .ok selected))
+    (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    let entered := start.host.enter request.name request.kind request.args
+    let left := { start with host := entered, ctl := ⟨thread,
+      .prog (request.checkedContinuation start.store thread (start.host.nextTicket, selected)), frames⟩ :: rest }
+    let right := { other with ctl := ⟨thread,
+      .prog (request.canonicalContinuation other.store thread selected), peerFrames⟩ :: peerRest }
+    ∃ checked canonical,
+      (∀ mark, Prefix profile ready (specDispatch ready base) start mark (List.replicate checked .tau) left mark) ∧
+      ∀ mark, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other mark
+        (List.replicate canonical .tau) right mark := by
+  let entered := start.host.enter request.name request.kind request.args
+  obtain ⟨verdict, original, changed⟩ := giveSelectorObservations request start thread entered (fun _ _ => rfl)
+  have reached : verdict = .ok selected := by
+    rw [evaluated] at original
+    exact (congrArg (fun outcome => outcome.2.2) original).symm
+  have checkedEval : Plain.runBody request.checkedEntry start.store start.host (some thread) =
+      (start.store, entered, .ok (start.host.nextTicket, selected)) := by
+    unfold GiveSelector.checkedEntry
+    rw [runBind]
+    change Plain.runBody (hostSet entered >>= _) start.store start.host (some thread) = _
+    rw [runBind]
+    change Plain.runBody (request.program >>= _) start.store entered (some thread) = _
+    rw [runBind, changed, reached]
+    rfl
+  obtain ⟨peerVerdict, original, canonicalEval⟩ := giveSelectorObservations request start thread other.host reads
+  have reachedPeer : peerVerdict = .ok selected := by
+    rw [evaluated] at original
+    exact (congrArg (fun outcome => outcome.2.2) original).symm
+  rw [reachedPeer, sameStore] at canonicalEval
+  rw [(giveSelectorBodySplit (ready := ready) (base := base) request start.store thread base embedder).1] at focus
+  rw [(giveSelectorBodySplit (ready := ready) (base := base) request other.store thread base embedder).2] at peerFocus
+  obtain ⟨checked, quiet, checkedPaths⟩ := Plain.runBody_thread_tracks_all request.checkedEntry start start.store entered
+    (start.host.nextTicket, selected) (request.checkedContinuation start.store thread) thread frames rest profile ready
+    (specDispatch ready base) focus checkedEval
+  obtain ⟨canonical, silent, canonicalPaths⟩ := Plain.runBody_thread_tracks_all request.program other other.store other.host
+    selected (request.canonicalContinuation other.store thread) thread peerFrames peerRest profile ready
+    (specDispatch ready (LiveDispatch.host bindings base)) peerFocus canonicalEval
+  have checkTaus : checked = List.replicate checked.length .tau := List.eq_replicate_length.mpr (fun label member => by
+    have tau := List.all_eq_true.mp quiet label member
+    cases label <;> first | rfl | contradiction)
+  have canonTaus : canonical = List.replicate canonical.length .tau := List.eq_replicate_length.mpr (fun label member => by
+    have tau := List.all_eq_true.mp silent label member
+    cases label <;> first | rfl | contradiction)
+  exact ⟨checked.length, canonical.length, checkTaus ▸ checkedPaths, canonTaus ▸ canonicalPaths⟩
 
 private theorem evalChecked (request : GiveSelector bindings)
     (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)

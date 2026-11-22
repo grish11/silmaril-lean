@@ -684,6 +684,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (trapped : PayloadPrefix.visible checked = [.trap reason])
       (checkedLocked : left.ctl = []) (canonicalLocked : right.ctl = []) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | directGiveSelected {changes reached peer left right checked canonical trailing finish check canon ticket}
+      (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
+      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
+      (site : PairedComponentSite changes left right check canon)
+      (checkedFocus : left.ctl = check.control (request.checkedContinuation left.store check.thread (ticket, .ok selected)))
+      (canonicalFocus : right.ctl = canon.control (request.canonicalContinuation right.store canon.thread (.ok selected))) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | compilerRefused {changes reached peer label next count canonLabels entered issue trailing finish route}
       {request : CoreGiveRequest bindings reached} (selection : request.Selected route)
       (install : GiveInstall bindings (specDispatch ready base) reached label next)

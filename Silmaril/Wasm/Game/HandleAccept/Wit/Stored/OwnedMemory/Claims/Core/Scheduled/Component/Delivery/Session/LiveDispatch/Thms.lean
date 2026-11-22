@@ -24,6 +24,35 @@ theorem LiveDispatch.GiveSelector.result (request : LiveDispatch.GiveSelector bi
     ∃ result, Plain.runBody request.program start.store start.host (some thread) = (start.store, start.host, .ok result) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorResult request start thread
 
+open ReturnFrame.Occurrence in
+/-- Execute each live selector up to its own lowering continuation. The checked
+entry records its ticket; neither path executes any of the lowering body. -/
+theorem LiveDispatch.GiveSelector.entry_tracks (request : LiveDispatch.GiveSelector bindings)
+    (start other : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
+    {frames rest peerFrames peerRest}
+    (focus : start.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready base start.store thread
+      (.embedder request.name request.kind) request.args), frames⟩ :: rest)
+    (peerFocus : other.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      other.store thread (.embedder request.name request.kind) request.args), peerFrames⟩ :: peerRest)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (sameStore : start.store = other.store)
+    {selected : Except Issue (LiveDispatch.SelectionValue sig request.schema)}
+    (evaluated : Plain.runBody request.program start.store start.host (some thread) = (start.store, start.host, .ok selected))
+    (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    let entered := start.host.enter request.name request.kind request.args
+    let left := { start with host := entered, ctl := ⟨thread,
+      .prog (request.checkedContinuation start.store thread (start.host.nextTicket, selected)), frames⟩ :: rest }
+    let right := { other with ctl := ⟨thread,
+      .prog (request.canonicalContinuation other.store thread selected), peerFrames⟩ :: peerRest }
+    ∃ checked canonical,
+      (∀ mark, Prefix profile ready (specDispatch ready base) start mark (List.replicate checked .tau) left mark) ∧
+      ∀ mark, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other mark
+        (List.replicate canonical .tau) right mark :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorEntryTracks
+    request start other thread focus peerFocus embedder sameStore evaluated reads
+
 /-- Compare the reached confined or unconfined bodies for a common ABI
 refusal. Only agreement of the lookup actually demanded is required. -/
 theorem LiveDispatch.GiveSelector.refusal_bodies (request : LiveDispatch.GiveSelector bindings)
