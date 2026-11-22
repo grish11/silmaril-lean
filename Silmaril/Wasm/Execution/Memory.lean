@@ -21,10 +21,51 @@ abbrev Bytes := ByteArray
 def readBytes (memory : Bytes) (start count : Nat) : Option Bytes :=
   if start + count ≤ memory.size then some (memory.extract start (start + count)) else none
 
+/-- `take start l ++ bs ++ drop (start + bs.length) l`, by recursion on the first `start`
+elements only: the suffix of `l` after the written range is shared, not rebuilt
+(`spliceL_eq`). -/
+def spliceL {α : Type} : List α → Nat → List α → List α
+  | l, 0, bs => bs ++ l.drop bs.length
+  | [], _ + 1, bs => bs
+  | a :: l, n + 1, bs => a :: spliceL l n bs
+
+/-- Write `bytes` into `memory` at `start`: `bytes.copySlice 0 memory start bytes.size`
+(`writeSlice_eq`), computed by `spliceL` so that the kernel does not rebuild the memory after
+the written range. Compiled code runs `copySlice` (`writeSlice_eq_native`, `@[csimp]`). -/
+def writeSlice (memory : Bytes) (start : Nat) (bytes : Bytes) : Bytes :=
+  ⟨⟨spliceL memory.data.toList start bytes.data.toList⟩⟩
+
+/-- `writeSlice` as compiled code runs it. -/
+def writeSliceNative (memory : Bytes) (start : Nat) (bytes : Bytes) : Bytes :=
+  bytes.copySlice 0 memory start bytes.size
+
 def writeBytes (memory : Bytes) (start : Nat) (bytes : Bytes) : Option Bytes :=
   if start + bytes.size ≤ memory.size then
-    some (bytes.copySlice 0 memory start bytes.size)
+    some (writeSlice memory start bytes)
   else none
+
+theorem spliceL_eq {α : Type} : ∀ (l : List α) (start : Nat) (bs : List α),
+    spliceL l start bs = l.take start ++ bs ++ l.drop (start + bs.length)
+  | l, 0, bs => by simp [spliceL]
+  | [], _ + 1, bs => by simp [spliceL]
+  | a :: l, n + 1, bs => by
+    simp only [spliceL, spliceL_eq l n bs, List.take_succ_cons, List.cons_append,
+      List.drop_succ_cons, Nat.add_right_comm n 1]
+
+@[simp] theorem writeSlice_eq (memory : Bytes) (start : Nat) (bytes : Bytes) :
+    writeSlice memory start bytes = bytes.copySlice 0 memory start bytes.size := by
+  apply ByteArray.ext
+  apply Array.toList_inj.mp
+  simp only [writeSlice, spliceL_eq, ByteArray.copySlice_eq_append, ByteArray.data_append,
+    ByteArray.data_extract, Array.toList_append, Array.toList_extract, List.extract_eq_take_drop,
+    List.drop_zero, Nat.sub_zero, ByteArray.size_data, Nat.zero_add]
+  have hb : bytes.data.toList.length = bytes.size := by simp [ByteArray.size_data]
+  rw [hb, Nat.min_eq_left (Nat.le_refl _)]
+  simp [List.take_of_length_le, ByteArray.size_data, List.length_drop]
+
+@[csimp] theorem writeSlice_eq_native : @writeSlice = @writeSliceNative := by
+  funext memory start bytes
+  exact writeSlice_eq memory start bytes
 
 def decodeLE (bytes : Bytes) : Nat :=
   bytes.data.foldr (fun byte rest => byte.toNat + 256 * rest) 0

@@ -1,8 +1,10 @@
 module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront
+import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 
 public section
 
@@ -121,6 +123,17 @@ theorem flat_fields_prepend (destination : RecordDestination) (inst : InstId) (i
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.flatFieldsPrepend
     destination inst items fragment index words
 
+/-- Coercion of already returned sum words is local and preserves a
+reached-store predicate on common success. Its trap or choices remain visible. -/
+theorem variant_tail_frame {E : CoreEngine} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
+    (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store) :
+    CompareLocalKeepingAt profile ready dispatch keep left right
+      (do return .ok (← lowerFlatVariantWith count wanted tag haves (pure words)))
+      (lowerFlatVariantWith count wanted tag haves (pure words)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.variantTailFrame count wanted tag haves words left right kept
+
 /-- Compose a selected arm comparison with the actual flat coercion and
 padding program. Coercion runs only on common success, and its canonical
 choices and traps stay visible on both sides. -/
@@ -156,6 +169,28 @@ theorem memory_sum (destination : RecordDestination) (inst : InstId) (type : Typ
         (.sum type arms tag selected) (.memory ptr)) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySum
     destination inst type arms tag index ptr selected left right width child
+
+/-- Compare the actual memory sum tag writes before entering the selected
+child, retaining the reached store and original scheduler tails. -/
+theorem memory_sum_tag (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (growth : Core3.Grows origin.core right.store.core)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+    let address := sumPayloadAddress destination.width arms base
+    LocalCutKeeping profile ready dispatch (fun store => Core3.Grows origin.core store.core) left right check canon
+      (sumCheckedNext destination inst selected index address checkNext)
+      (sumCanonicalNext destination inst selected address canonNext) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTag
+    destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
 
 /-- The handle leaf in a placed memory entry has no allocator or width-read
 prefix of its own. It rechecks live authority at the reached store. -/
@@ -263,6 +298,39 @@ theorem primitive_leaf (destination : RecordDestination) (inst : InstId) (primit
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.primitiveLeaf
     destination inst primitive payload nonString index output left right width placed
 
+/-- Keep the exact reached scheduler tails across the local primitive
+program, including the same observable scalar choices on both sides. -/
+theorem primitive_leaf_frame (destination : RecordDestination) (inst : InstId) (primitive : WIT.Primitive)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload (.prim primitive))
+    (nonString : primitive ≠ .string) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store (.prim primitive) output = .ok ()) :
+    CompareLocalKeepingAt profile ready dispatch (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data (.prim primitive) payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data (.prim primitive) payload) output) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.primitiveLeafFrame
+    destination inst primitive payload nonString index output origin left right growth width placed
+
+/-- A compiled local data leaf executes its actual canonical program after
+the reached width and placement checks. Enum discriminants and packed flags
+are ordinary local effects; no callback or host mutation is required. -/
+theorem local_data_leaf_frame (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (data : LocalDataType type) (payload : Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store type output = .ok ()) :
+    CompareLocalKeepingAt profile ready dispatch (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) output) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataLeafFrame
+    destination inst type data payload index output origin left right growth width placed
+
 /-- Both actual string leaf programs reach the same canonical plan. The
 checked path first discharges schema/options, the fit test at the reached
 width, and (for memory) root placement. This cut precedes plan execution. -/
@@ -285,13 +353,24 @@ theorem string_plan_entry {grow : SingleThreaded.GrowOracle} {sig : Signature} {
     let cx := destination.context inst
     let plan := storePlanFor Quirks.none destination.encoding destination.width str
     let body := runStoreSteps cx 0 plan.steps
-    ∃ reads, Machine.Steps profile ready dispatch left (List.replicate reads .tau)
+    ∃ reads, ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left (List.replicate reads .tau)
       { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
           fun value => checkNext (.ok value)) } ∧
-      Step profile ready dispatch right .tau
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry
     destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+
+/-- At a reached allocating string action, the actual call saves the remaining plan. -/
+theorem string_realloc_focus {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E)
+    (ptr : Nat) (oldSize : Option Nat) (alignment : Alignment) (size : Nat) (steps : List StoreStep)
+    (finish : Nat → P E Host (Ret E)) :
+    let request := Call.reallocate cx (oldSize.elim 0 (fun _ => ptr)) (oldSize.getD 0) alignment.bytes size
+    (runStoreSteps cx ptr
+      ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: steps) >>= finish) =
+        .op (.call request) (stringPlanResume cx steps finish) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringReallocFocus
+    cx ptr oldSize alignment size steps finish
 
 /-- Take the actual scheduler call step for the next string allocation or
 resize, saving the remaining plan. This does not assert the callback returns. -/
@@ -549,6 +628,31 @@ theorem collection_install (destination : RecordDestination) (inst : InstId) (ty
 /-- Both install prefixes stop at the actual allocator with their own
 reached cursors. A successful checked pre-read does not discharge the
 different live-plan check in the saved continuation. -/
+theorem collection_install_tracks (destination : RecordDestination) (inst : InstId) (type element : TypeOf)
+    (entries : List Field) (output : Lower.Output) (index : Nat)
+    (left right : Config (core3 grow) (HostState sig)) (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (reachedWidth : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    (prepared : Record.prepare left.store left.host.writer (Field.listObjects entries) = .ok ())
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext)) :
+    let area := layout destination.width element
+    let checkResume := checkedCollectionResume destination inst entries area index output checkNext
+    let canonResume := canonicalCollectionResume destination inst entries area output canonNext
+      (CanonicalTree.EntryMode.forOutput destination.width type output)
+    let checkCall := collectionEntry destination inst area entries.length dispatch left check checkResume
+    let canonCall := collectionEntry destination inst area entries.length dispatch right canon canonResume
+    ∀ depth, ReturnFrame.Occurrence.Prefix profile ready dispatch left (.active 0 depth)
+      [.tau, .tau, .tau] checkCall (.active 0 (depth + 1)) ∧
+    ReturnFrame.Occurrence.Prefix profile ready dispatch right (.active 0 depth)
+      [.tau, .tau] canonCall (.active 0 (depth + 1)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.collectionInstallTracks
+    destination inst type element entries output index left right check canon checkNext canonNext
+    reachedWidth prepared checkAt canonAt
+
 theorem collection_install_steps (destination : RecordDestination) (inst : InstId) (type element : TypeOf)
     (entries : List Field) (output : Lower.Output) (index : Nat)
     (left right : Config (core3 grow) (HostState sig)) (check canon : Cursor (E := core3 grow) (HostState sig))
@@ -567,10 +671,11 @@ theorem collection_install_steps (destination : RecordDestination) (inst : InstI
     let checkCall := collectionEntry destination inst area entries.length dispatch left check checkResume
     let canonCall := collectionEntry destination inst area entries.length dispatch right canon canonResume
     Machine.Steps profile ready dispatch left [.tau, .tau, .tau] checkCall ∧
-    Machine.Steps profile ready dispatch right [.tau, .tau] canonCall :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.collectionInstallSteps
+    Machine.Steps profile ready dispatch right [.tau, .tau] canonCall := by
+  obtain ⟨checked, canonical⟩ := collection_install_tracks (profile := profile) (ready := ready) (dispatch := dispatch)
     destination inst type element entries output index left right check canon checkNext canonNext
-    reachedWidth prepared checkAt canonAt
+    reachedWidth prepared checkAt canonAt 0
+  exact ⟨(ReturnFrame.Occurrence.prefix_survives checked).1, (ReturnFrame.Occurrence.prefix_survives canonical).1⟩
 
 /-- Install both actual allocator frames, including the allocation-time map
 entry layout for indirect output. This does not compare the entry traversals. -/
@@ -762,6 +867,25 @@ theorem check_placement_steps {World : Type} {placementReady : HostReady World}
     | .error reason => ∃ count, Steps profile placementReady placementDispatch start
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.checkPlacement
+    destination inst start area ptr cursor finish focused
+
+/-- Successful placement preserves the active return slots across the actual
+bounds read. Failed placement instead runs to canonical lockdown. -/
+theorem check_placement_tracks {World : Type} {placementReady : HostReady World}
+    {placementDispatch : Call (core3 grow) → P (core3 grow) World (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (start : Config (core3 grow) World)
+    (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) World)
+    (finish : P (core3 grow) World (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile placementReady placementDispatch start [.tau]
+        { start with ctl := cursor.control finish }
+    | .error reason => ∃ count, Steps profile placementReady placementDispatch start
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.checkPlacementRun
     destination inst start area ptr cursor finish focused
 
 /-- Enter the actual compiled root body, or trap before any child runs. A

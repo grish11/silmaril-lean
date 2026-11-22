@@ -144,7 +144,7 @@ theorem store_ite (B : ByteArray) (a : Nat) (v : BitVec (8 * 8)) :
 theorem size_storeLE {B : ByteArray} {a : Nat} (v : Nat) (h : a + 8 ≤ B.size) :
     (storeLE B a 8 v).size = B.size := by
   have hw : Memory.writeBytes B a (Memory.encodeLE 8 v) = some (storeLE B a 8 v) := by
-    simp only [Memory.writeBytes, storeLE, Memory.encodeLE_size, h, ↓reduceIte]
+    simp only [Memory.writeBytes, Memory.writeSlice_eq, storeLE, Memory.encodeLE_size, h, ↓reduceIte]
   exact Memory.writeBytes_size B _ _ a hw
 
 theorem storeLE_ofNat {B : ByteArray} {a : Nat} (v : BitVec 64) :
@@ -169,7 +169,7 @@ theorem ld64_storeLE_ne {B : ByteArray} {a b : Nat} (v : BitVec 64) (h : a + 8 �
 
 theorem writeBytes_storeLE {B : ByteArray} {a : Nat} (v : Nat) (h : a + 8 ≤ B.size) :
     Memory.writeBytes B a (Memory.encodeLE 8 v) = some (storeLE B a 8 v) := by
-  simp only [Memory.writeBytes, storeLE, Memory.encodeLE_size, h, ↓reduceIte]
+  simp only [Memory.writeBytes, Memory.writeSlice_eq, storeLE, Memory.encodeLE_size, h, ↓reduceIte]
 
 /-- Nat-valued forms (what `wpc` produces for `i64.store`). -/
 theorem ld64_storeLE_same_nat {B : ByteArray} {a : Nat} (v : Nat) (h : a + 8 ≤ B.size) :

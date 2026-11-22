@@ -315,7 +315,8 @@ theorem store_ite (B : ByteArray) (a n : Nat) (w : BitVec (8 * n)) :
 theorem size_storeLE {a n : Nat} (v : Nat) (h : a + n ≤ B.size) :
     (storeLE B a n v).size = B.size := by
   have hw : Memory.writeBytes B a (Memory.encodeLE n v) = some (storeLE B a n v) := by
-    simp only [Memory.writeBytes, storeLE, Memory.encodeLE_size, h, ↓reduceIte]
+    simp only [Memory.writeBytes, Memory.writeSlice_eq, storeLE, Memory.encodeLE_size, h,
+      ↓reduceIte]
   exact Memory.writeBytes_size B _ _ a hw
 
 theorem load_storeLE_same {a n : Nat} (w : BitVec (8 * n)) (h : a + n ≤ B.size) :

@@ -28,7 +28,7 @@ theorem store_some (bytes : ByteArray) {a : Nat} (v : W) (h : a + 4 ≤ bytes.si
   refine ⟨(encodeLE 4 v.toNat).copySlice 0 bytes a (encodeLE 4 v.toNat).size, ?_⟩
   show writeBytes bytes a (encodeLE 4 (v.setWidth 32).toNat) = _
   rw [BitVec.setWidth_eq]
-  simp only [writeBytes, hbound, ↓reduceIte]
+  simp only [writeBytes, hbound, ↓reduceIte, writeSlice_eq]
 
 /-- One aligned word written into the bytes. -/
 theorem memAre_write1 {s : Store H} {mem : Nat → W} {a : Nat} (ha : a % 4 = 0)

@@ -94,15 +94,15 @@ theorem readBlock_sound {codec : Encode.PartialCodec (Block Name Key Payload) (S
   | found value =>
     simpa [query, stored.read_block bound hit (sound query)] using readOk.symm
 
-theorem lookup_sound [LinearOrder Key] {codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)}
+theorem closed_map_sound [LinearOrder Key] {codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)}
     (policy : Policy Key) {map : OrderedMap Key Payload} {address : Block Name Key Payload → Name} {store : Store Name}
     (stored : Stored codec address (build policy map) store) (bound : store.Binding) {read : Read Name}
-    (sound : Read.Sound read store) {fuel : Nat} {key : Key} {result : Option Payload}
-    (checked : lookup codec read policy.width fuel ((build policy map).rootName address) key = .ok result) :
-    map.lookup? key = result := by
-  unfold lookup at checked
+    (sound : Read.Sound read store) {fuel : Nat} {found : OrderedMap Key Payload}
+    (checked : closedMap codec read policy.width fuel ((build policy map).rootName address) = .ok found) :
+    map = found := by
+  unfold closedMap at checked
   let tree := build policy map
-  change (scan (readBlock codec read) policy.width fuel none (tree.rootName address) >>= _) = .ok result at checked
+  change (scan (readBlock codec read) policy.width fuel none (tree.rootName address) >>= _) = .ok found at checked
   cases observed : scan (readBlock codec read) policy.width fuel none (tree.rootName address) with
   | error fault => simp [observed, Bind.bind, Except.bind] at checked
   | ok entries =>
@@ -111,5 +111,16 @@ theorem lookup_sound [LinearOrder Key] {codec : Encode.PartialCodec (Block Name 
     change entries = (build policy map).entries at same
     rw [build_entries] at same
     simpa [observed, Bind.bind, Except.bind, same] using checked
+
+theorem lookup_sound [LinearOrder Key] {codec : Encode.PartialCodec (Block Name Key Payload) (Shallow Name)}
+    (policy : Policy Key) {map : OrderedMap Key Payload} {address : Block Name Key Payload → Name} {store : Store Name}
+    (stored : Stored codec address (build policy map) store) (bound : store.Binding) {read : Read Name}
+    (sound : Read.Sound read store) {fuel : Nat} {key : Key} {result : Option Payload}
+    (checked : lookup codec read policy.width fuel ((build policy map).rootName address) key = .ok result) :
+    map.lookup? key = result := by
+  unfold lookup at checked
+  cases readMap : closedMap codec read policy.width fuel ((build policy map).rootName address) with
+  | error fault => simp [readMap, Except.map] at checked
+  | ok found => simpa [readMap, Except.map, ← closed_map_sound policy stored bound sound readMap] using checked
 
 end Silmaril.Proofs.Formats.Dasl.ProllyScan

@@ -17,6 +17,12 @@ inductive Location where
   | saved (slot segment : Nat)
   deriving DecidableEq
 
+/-- The slot at a fixed depth below this segment in the same activation. -/
+def Location.below (place : Location) (depth : Nat) : Location :=
+  match place with
+  | .active activation segment => .active activation (segment + depth)
+  | .saved slot segment => .saved slot (segment + depth)
+
 /-- Only control storage is relevant to the lifetime of a saved frame. -/
 structure Stacks (E : CoreEngine) (Host : Type) where
   active : List (List (Seg E Host))
@@ -178,6 +184,30 @@ inductive Prefix (profile : ProfileKind) (ready : HostReady Host) (dispatch : Ca
       Step profile ready dispatch before label next → (transitionEdit before label).follow place = some middle →
       Prefix profile ready dispatch next middle labels after reached →
       Prefix profile ready dispatch before place (label :: labels) after reached
+
+/-- An execution that carries every slot of the active top frame to its
+original location. Intermediate steps need not leave each slot in place. -/
+abbrev RetainsActiveSlots (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (before : Config E Host) (labels : List (Label E Host)) (after : Config E Host) : Prop :=
+  ∀ depth, Prefix profile ready dispatch before (.active 0 depth) labels after (.active 0 depth)
+
+/-- The older slots survive a prefix ending one slot shallower. This is the
+coordinate change at a return, followed by any slot-preserving local work. -/
+abbrev RetainsBelowTop (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (before : Config E Host) (labels : List (Label E Host)) (after : Config E Host) : Prop :=
+  ∀ depth, Prefix profile ready dispatch before (.active 0 (depth + 1)) labels after (.active 0 depth)
+
+/-- A finite prefix that leaves one blocked activation in its saved slot at
+every cut. A resume, overwrite, or switch through that slot breaks the prefix
+even if the same Core segment is eventually saved there again. -/
+inductive ParkedPrefix (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (thread : ThreadId) : Config E Host → List (Label E Host) → Config E Host → Prop where
+  | done (cfg : Config E Host) : ParkedPrefix profile ready dispatch thread cfg [] cfg
+  | step {before next after : Config E Host} {label labels} :
+      Step profile ready dispatch before label next →
+      (transitionEdit before label).follow (.saved thread.idx 0) = some (.saved thread.idx 0) →
+      ParkedPrefix profile ready dispatch thread next labels after →
+      ParkedPrefix profile ready dispatch thread before (label :: labels) after
 
 /-- Follow an optional marked occurrence through every actual step. Absence
 can only result from an edit removing the mark, and remains absent afterward. -/

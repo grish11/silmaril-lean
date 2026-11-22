@@ -7,6 +7,10 @@ public meta import Silmaril.Wasi.Component.Accept.Ref.Examples
 
 /-! # The typed environment: examples
 
+* **Kernel-checked runs** (`decide +kernel`, 64 KiB memories): `exportCallArgs_ill` (the
+  spurious untyped acceptance), `exportCallTyped_ill` (refused), `exportCallTyped_hi`,
+  `exportCallTyped_hi2`, `recordsTyped_hi`, `recordsTyped_ill`. The `#guard`s stay as native
+  regressions.
 * **Kernel-checked** (`decide +kernel`): the argument check accepts `[list<u8> "hi!"]` at
   `func(bs: list<u8>) -> bool`. It rejects the ill-typed `[list [u32 300, u8 1, u8 2]]`, a
   `string`, and wrong arities.
@@ -112,6 +116,23 @@ def recordsTyped (bytes : ByteArray) (calls : List (String × List Value.Val)) (
 
 #guard recordsTyped acceptHiBytes [("run", [])] hi == some true
 #guard recordsTyped acceptHiBytes [("run", [.int .u32 5])] hi == none
+
+/-! Kernel-checked versions (`decide +kernel`, 64 KiB memories, `Memory.writeSlice`). -/
+
+/-- The untyped environment's spurious acceptance of an ill-typed list, proved. -/
+theorem exportCallArgs_ill : exportCallArgs [illList] = some true := by decide +kernel
+/-- The typed environment refuses it ... -/
+theorem exportCallTyped_ill : exportCallTyped [illList] = none := by decide +kernel
+/-- ... and returns `true` on `"hi!"` and `false` on `"hi"`. -/
+theorem exportCallTyped_hi : exportCallTyped [bytesVal hi] = some true := by decide +kernel
+theorem exportCallTyped_hi2 : exportCallTyped [bytesVal [0x68, 0x69]] = some false := by
+  decide +kernel
+/-- The imported acceptor in the typed environment records `"hi!"`, and refuses an ill-typed
+call of `run`. -/
+theorem recordsTyped_hi : recordsTyped acceptHiBytes [("run", [])] hi = some true := by
+  decide +kernel
+theorem recordsTyped_ill : recordsTyped acceptHiBytes [("run", [.int .u32 5])] hi = none := by
+  decide +kernel
 
 /-- Did the untyped driver record `[list<u8> w]` on `bytes` after `calls`? -/
 def recordsUntyped (bytes : ByteArray) (calls : List (String × List Value.Val))

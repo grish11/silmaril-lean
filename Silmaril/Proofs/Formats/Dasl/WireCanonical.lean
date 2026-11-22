@@ -3,6 +3,7 @@ module
 public import Silmaril.Formats.Dasl.Wire.Canonical.Defs
 public import Silmaril.Formats.Dasl.Wire.Thms
 public import Silmaril.Formats.Cbor.Drisl.Model.Thms
+public import Silmaril.Formats.Cbor.Drisl.Cid.Thms
 public import Silmaril.Formats.Cbor.Value.Thms
 import Silmaril.Proofs.Formats.Dasl.WireCanonicalReprint
 
@@ -184,6 +185,33 @@ theorem parse_render {value : Shallow Cid} {bytes : ByteArray} (encodable : (can
     simp [render_of_valid value valid, rejected] at rendered
   obtain ⟨encoded, parsed⟩ := roundtrip value valid encodable ordered
   exact (Option.some.inj (encoded.symm.trans rendered)) ▸ parsed
+
+theorem bdasl_roundtrip (value : Shallow BdaslCid) (valid : BdaslEncodable value) :
+    let bytes := (canonicalBdaslModel value).encode.toByteArray
+    Profile.bdasl.render? value = some bytes ∧ Profile.bdasl.parse? bytes = some value := by
+  let normalized := canonicalOrder (toOrdered value)
+  have emitted : Drisl.emitModel Drisl.i64Cbor bdaslCidCodec false normalized = canonicalBdaslModel value :=
+    emit_canonical _ _
+  have recovers : ∀ link ∈ Drisl.links normalized, bdaslCidCodec.parse? (bdaslCidCodec.bytes link) = some link := by
+    intro link member
+    have supported := valid.1 link ((links_order (toOrdered value)).mem_iff.mp member)
+    have decoded (cid : BdaslCid) : (Drisl.Cid.codec .bdasl).parse? cid.val = some cid :=
+      Drisl.Cid.parse_bytes .bdasl cid
+    cases link with
+    | obj cid => simp [bdaslCidCodec, decoded, supported]
+    | blob cid =>
+      have tag : cid.val[1]? = some 0x55 := by simpa [linkSupported] using supported
+      simp [bdaslCidCodec, decoded, linkSupported, tag]
+  have parsed : Drisl.parseCbor? Drisl.i64Cbor bdaslCidCodec (canonicalBdaslModel value).encode = some normalized := by
+    have laws := Drisl.atproto_ordered_roundtrip_with_codec bdaslCidCodec normalized recovers
+      (emitted ▸ valid.2.1) (emitted ▸ valid.2.2)
+    simpa only [emitted] using laws.2
+  have guard := List.all_eq_true.mpr valid.1
+  refine ⟨?_, by simp [Profile.bdasl, parsed, normalized, projection]⟩
+  change (if (Drisl.links (toOrdered value)).all linkSupported then
+    (if (Drisl.parseCbor? Drisl.i64Cbor bdaslCidCodec (canonicalBdaslModel value).encode).isSome then
+      some (canonicalBdaslModel value).encode else none).map List.toByteArray else none) = _
+  simp [guard, parsed]
 
 theorem reprint {bytes : ByteArray} {value : Shallow Cid} (parsed : parse? bytes = some value) :
     render? value = some bytes ∧ (canonicalModel value).Encodable := by

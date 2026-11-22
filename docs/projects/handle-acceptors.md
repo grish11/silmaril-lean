@@ -914,6 +914,59 @@ continuation receives a typed refusal. The saved map mode still distinguishes
 memory placement at allocation width from reached flat-entry cursor reads.
 The cut does not assume or prove equivalence of the subsequent children.
 
+`MemorySequence.parked_list_tree` supplies the recursive placed-child comparison
+for an indirect payload, including mixed scalar, string and handle leaves, fixed
+arrays, aggregates, active sums, lists and indirect maps. The flat counterpart,
+`MemorySequence.parked_recursive_flat`, traverses records, tuples, fixed arrays
+and sums, and enters the placed-child comparison at each reached list or map
+allocator return. The compiler and public admission supply tag bounds, entry
+layouts and string fit within the structural fragment. For a present sum arm,
+the actual coercion and padding run on the arm's words only after common success;
+an empty arm runs that tail directly. A typed refusal never runs the coercion or
+the following sibling. Canonical traps retain earlier effects. Both comparisons
+retain finite suspension and the reached callback classification and readiness
+conditions; neither asserts whole-export delivery or allocator liveness.
+
+`MemorySequence.parked_compiled_memory` and `parked_compiled_flat` obtain the
+active recursive shape from the same successful preflight used by the linked
+binding. In a map, the compiler proves that each entry contains its checked
+primitive key and recursively compiled value; this does not follow from layout
+alone. Neither public theorem takes per-child shape assumptions or a depth
+bound. Primitive data, enums, flags and checked handles use the reached local
+rules, while strings use their actual allocation plans. The compiler's schema
+checks provide the enum and flags evidence, not a separate leaf assumption.
+The linked preflight also supplies the allocator option at each allocating
+descendant. Pointer-free schemas need no realloc option for either comparison;
+pointer-bearing schemas still require it before execution, including inactive
+arms and empty containers. This does not establish callback readiness or return.
+
+At a successful reached reply with the original Core frame on top,
+`resume_returned_give` runs both machines' Core resume steps with the same
+ABI words and reached store. Only the checked machine records completion.
+`Site.reached_caller` identifies that frame from a finite occurrence trail,
+not from equality of continuation values. `Prefix.under` follows older slots
+through the same active or suspended activation as a surviving mark.
+`string_return_tracks` constructs the older-slot prefix through an actual
+string allocation or resize, using the marked callback and its designated pop.
+`CollectionReplayFor` also tracks older slots through the actual checked
+preflight reads and the reference width read into each collection allocator.
+`Trail.through_return` composes such an install with the marked run and its
+actual pop; a surviving suspended mark instead carries older slots by
+`Prefix.under`. Loss of the mark does not identify a surviving occurrence.
+`parked_memory_rejoined` and `parked_flat_rejoined` thread the older-slot paths
+through the entire compiler-derived body: record/tuple and array siblings,
+selected sum arms, nested list entries, and allocation-time indirect map
+placement. A successful return uses the composed path from the parked give to
+resume the original Core caller with the same ABI words and reached store.
+The traversal retains finite suspended callback paths and executes range and
+live-claim checks at the reached return. Typed stops do not run later siblings;
+canonical traps keep the reached effects. Callback classification and readiness
+still apply, and Core resumption does not prove async event delivery.
+`Site.refusal_resumes` extends a
+reached preflight refusal on the checked side only. These local completion
+rules do not imply that a suspended callback returns or an async event is
+delivered.
+
 The checked recursive emitter supplies the store-invariant certificate for both
 public payload bindings. Its proof follows the actual canonical data writes, owner
 and endpoint commitment operations, selected sum arm, and collection allocation,
@@ -1012,13 +1065,29 @@ publishing, and publication checks the candidate handle against the live writer.
 At the commit continuation, `complete_commit` preserves the reached store and publishes
 before recording a reply. `complete_stale` instead records `.wrongResultType` and locks
 down without publishing or recording a reply. `resolve_caller` exposes the live reference
-result cursor. `lower_result_program` gives the exact canonical program at this cursor in
+result cursor. `resolve_progress` executes the reached subtask's index check before canonical
+result lowering: an indexed subtask queues or replaces its pending event; an unindexed one
+leaves the slot unchanged. This neither resolves the subtask nor delivers the event.
+`lower_result_program` gives the exact canonical program at this cursor in
 both memory widths: pointer type, alignment and whole-result range checks precede the writes;
 an error only writes its tag, and a successful reply also writes the little-endian handle at
-offset four. `resolve_commit` connects the post-write subtask resolution to publication
-without clearing the pending event or releasing lends. `deliver_pending` takes the actual
-returned event and applies reference lend release in a later waitable step. Neither publication
-nor the presence of an event guarantees that a guest polls or that its event write succeeds.
+offset four. `resolve_indirect_write` executes both writes in the reached Core store,
+derives their success from the full range check, and retains the queued subtask record.
+Bad alignment or an insufficient range takes the actual canonical trap before either
+write. `resolve_direct_words` reaches subtask resolution with the two ABI words and no
+store update. `resolve_commit` connects the post-write subtask resolution to publication
+without clearing the pending event or releasing lends. `resolve_linked_commit` composes
+these steps from the linked resolve entry: both linked modes spill this result, and
+queueing preserves the memory observed at entry. An indexed subtask retains the newly
+queued event after resolution; an unindexed one keeps its original slot.
+`deliver_pending` takes the actual returned event and applies reference lend release in a
+later waitable step. `poll_delivers_returned` derives readiness from a reached member's
+pending slot and executes the selected shuffle before consuming that event. The partial trace
+includes the actual shuffle label and its persisted order. `unpack_event_write` executes
+both event words on a valid buffer. On a late out-of-bounds buffer, `poll_returned_bad_range`
+locks down after consumption and lend release without writing either word or changing the
+reached host. These rules start at the reached poll body; they do not prove public builtin
+admission, wait/cancel sequencing, or that publication guarantees a guest polls.
 The linked replays cover a misaligned result pointer, and a late out-of-bounds poll write
 that traps after consuming the event while preserving the earlier publication.
 `ComponentCall.checked_of_session` gives publication, writer and transcript conservation
@@ -1071,6 +1140,139 @@ selects its root, with no missing or extra occurrence. Direct and spilled Core r
 check ordering across refusal and success, and the deferred replay checks cancellation
 and stale start. This reconstructs committed acceptance, not the set of inputs a guest
 will accept or a guarantee that an interrupted caller received its result.
+
+`Delivery.LinkedResolution.then_poll` composes the reached indexed result commit
+with an actual scheduled prefix and a selected parked Core poll of the same
+subtask arena object. The intervening steps must keep the returned event pending;
+a final lookup cannot substitute for that prefix. Moving the waitable between
+sets preserves the pending event. The poll clears it and releases lends even if
+the later output-buffer check traps.
+
+`Delivery.PollAdmission.retains_until_unpack` derives the intervening frame for an
+admitted Core poll with no event, or with a reached selection and successful take
+from a different subtask, stream, or future. The poll's shuffle and take preserve
+the tracked subtask's pending return and the same saved activation at each cut.
+`retains_through_reply` extends that path through the checked buffer writes and
+reply to the original Core caller or the alignment/range trap. The range check
+uses the reached store; a trap retains the other delivery. These are classified
+poll paths, not every possible scheduler step.
+
+`Delivery.ParkedWait.then_resolution` starts at an actual Core wait callout with
+no event available. It registers the waiter and saves the Core continuation;
+after the indexed commit and a retaining prefix, the selected host tick restores
+that continuation, decrements the wait count and runs the same canonical event
+selection as poll. A valid buffer returns the event code to Core. An invalid
+buffer traps after event consumption and lend release. The theorem derives the
+exact saved activation at the tick from scheduler edits along the intervening
+execution, including the actual result commit. A later equal frame does not
+substitute for the original after a resume or overwrite. Tick choice and event
+selection remain explicit; the theorem gives neither scheduler liveness nor a
+correspondence for arbitrary export sequences.
+
+When the set is already ready, `Delivery.ParkedWait.ready_choice` follows the
+profile's reached early-return choice. The non-early branch still installs the
+saved wait. `delivers_early` uses the same selection and result-buffer proof as
+the resumed wait, but requires no block or tick; a late buffer trap still follows
+event consumption and lend release.
+
+`Delivery.WaitResume` separates the reached canonical resume from the policy
+that selected it; the selected tick uses the same resume proof. The reached
+resume restores the tracked saved activation and updates the wait count without
+consulting readiness. `traps_empty` shows that a forced resume of a live set
+with no pending event still shuffles before trapping, unlike an empty poll.
+`delivers_returned` handles a selected pending return after a retaining prefix.
+These theorems do not infer that any particular call will force the resume.
+
+Before resolution, `Delivery.ParkedCancel.requests` derives the live request
+and temporary sync waiter before the actual cancellation callback starts. The
+closed asynchronous case in `StartedCancel.resumes_blocked` executes a started
+guest task's callback with a noncancellable implicit thread: it marks the task
+pending cancel, clears the temporary waiter and returns `BLOCKED` to the same
+Core caller. This path neither resolves nor delivers the subtask. It does not
+classify an initial or immediately resumed callee, a synchronous wait, or an
+open host cancellation hook.
+
+For a ready, cancellable started guest, `Delivery.CallbackWait` derives both
+saved callback-loop continuations from the canonical YIELD (K2) and WAIT (K3)
+branches. The K3 waiter count is decremented on resumption, before the reached
+pending-cancellation check. Cancellation takes priority over the selected set's
+events: these steps do not consume an event or release lends.
+`TaskCancelAdmission.started_calls_core` splices the tracked saved occurrence
+into the actual cancellation callout, retakes the callback lock and invokes the
+Core callback with `TASK_CANCELLED`, keeping the original Core caller parked.
+This prefix requires readiness in the reached post-mark store and does not
+assert that the callback returns, resolves the subtask or delivers its reply.
+
+At a reached Core outcome, `CallbackWait.core_trapped` and `core_returned`
+distinguish a Core trap, a malformed callback result and a valid next loop
+code. `core_reparks` reads the reached task and handle table and installs the
+next K2/K3 continuation on a non-early park. `exit_unresolved` traps if EXIT
+would discard the last thread of an unresolved task. `exit_resolved` follows
+the live registration and lock release, and `unwind_callback` pops the loop's
+identity continuations back to the resumer. Returning to that resumer is not
+the same as consuming the subtask event or replying to the original caller.
+
+When the callback reaches a canonical `task.cancel` import, the reached
+instance, asynchronous option and delivered cancellation are checked before
+resolution. `CallbackCancelImport.enters_resolution` separates the live-borrow
+trap from entry into `onResolve(none)`. For an indexed started subtask,
+`resolves_started` follows the actual lower caller and resumes the Core
+callback with the empty import result. The `CANCELLED_BEFORE_RETURNED` event
+is pending and its lenders are still attached, not delivered by the import.
+
+`CallbackWait.core_only_cut` derives the component frame of every finite
+host-free Core suffix from the machine steps; it leaves the reached Core store
+unconstrained. If that suffix returns EXIT, `CallbackCancelImport.delivers_started`
+uses the pre-import registration and reached return to unregister the callback,
+pop its identity frames and retain the indexed cancellation event until the
+original caller consumes it, releases the lends and gets its Core result. An
+unfinished prefix is not delivery; intervening callouts and wait iterations
+are outside this suffix theorem.
+
+For ready K2/K3, `CallbackWait.takes_early` follows the permitted early
+choice to the same suffix used by resumption, without blocking. The no-cancel
+suffixes then pass NONE at K2 or take a reached selected event at K3. K3
+decrements the waiter count before the shuffle and takes the event before
+retaking the lock and calling Core. The selected event and Core callback return
+are separate observations.
+
+`CallbackWait.early_yield_retains` and `early_wait_retains_other` compose the
+early choice with the reached Core invocation and preserve the exact tracked
+subtask record, not just its resolution code. In K3 this requires selection
+of a different arena waitable; the waiter decrement, shuffle and selected
+event take still occur. In particular a pending cancellation and its lends
+are not consumed by either path. When K3 selects the tracked resolution itself,
+`wait_takes_resolution` instead derives the event passed to Core and the cleared
+pending event and lender list from the actual take. That is not a reply to the
+outer cancellation caller.
+
+`ClosedCallbackPrefix.reaches` composes any finite chain of host-free Core
+steps, reached callback returns entering a new K2/K3 loop, and K2 NONE or
+other-waitable K3 calls. The early and parked paths share the same suffix.
+Non-early park, a reached forced resume, and an actual ready-thread tick
+can be included in the prefix; none changes the tracked record. The tick
+must select the reached thread, and `CallbackWait.resumes_on_tick` tracks
+its original saved occurrence through an intervening parked prefix. The
+finite-prefix proof does not assume preservation of Core bytes, eventual
+scheduler selection, callback return or outer delivery.
+
+On a reached EXIT, `CallbackCancelImport.delivers_after_closed_prefix`
+rechecks the live registration at that cut and unwinds the intervening loop
+frames. The exact cancelled record survives until the original Core caller's
+separate delivery steps take it, release its lends, and return its status.
+
+`CallbackResume.resumes_tracked` follows the original K2/K3 saved occurrence
+through a retaining prefix and a reached forced `Thread.resume`. It restores
+the exact suffix above the resumer without a readiness assumption. On a live
+empty K3 set with no pending cancellation, `traps_empty` retains the waiter
+decrement and shuffle but never reaches the Core callback.
+
+If the caller instead reaches `subtask.cancel` after the return, with a live,
+undelivered subtask that has not received a cancel request or joined a set,
+`Delivery.LinkedResolution.then_cancel` uses the canonical direct-delivery
+branch. It consumes the existing event, releases lends and returns the already
+resolved state, without an event buffer or cancellation callback. It does not
+cover cancellation requests that precede resolution.
 
 ## Checking
 

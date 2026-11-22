@@ -146,7 +146,8 @@ theorem fstore_eq : @fstore = @Memory.store := by
           ite_eq_left hl
       _ = some ((Memory.encodeLE count w.toNat).copySlice 0 m st
             (Memory.encodeLE count w.toNat).size) := by rw [writeL_copySlice m _ st hs]
-      _ = Memory.store m st w := (ite_eq_left hs).symm
+      _ = Memory.store m st w := by
+          simp only [Memory.store, Memory.writeBytes, hs, ↓reduceIte, Memory.writeSlice_eq]
   · have hl : ¬ lenGe m.data.toList (st + count) = true := by
       rw [lenGe_eq, length_toList]
       exact fun h' => h (of_decide_eq_true h')

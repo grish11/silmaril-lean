@@ -140,7 +140,7 @@ theorem setSlice_bytesL (m w : ByteArray) (a : Nat) :
     (Value.list (bytesL m)).setSlice a w.size (.list (bytesL w)) =
       (Silmaril.Wasm.Execution.Memory.writeBytes m a w).map (fun r => .list (bytesL r)) := by
   unfold Silmaril.Wasm.Execution.Memory.writeBytes
-  simp only [Value.setSlice, bytesL_length]
+  simp only [Value.setSlice, bytesL_length, Silmaril.Wasm.Execution.Memory.writeSlice_eq]
   split
   · simp only [Option.map_some, bytesL, copySlice_toList, List.map_append, List.map_take,
       List.map_drop]

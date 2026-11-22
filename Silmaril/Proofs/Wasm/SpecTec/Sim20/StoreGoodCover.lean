@@ -155,6 +155,7 @@ theorem writeBytes?_size {mi mi' : MemInst} {i j : Nat} {bs : Silmaril.Wasm.Exec
     · rename_i hle
       simp only [Option.map_some, Option.some.injEq] at h
       subst h
+      rw [Silmaril.Wasm.Execution.Memory.writeSlice_eq]
       exact copySlice_size hle
     · simp at h
   · simp at h

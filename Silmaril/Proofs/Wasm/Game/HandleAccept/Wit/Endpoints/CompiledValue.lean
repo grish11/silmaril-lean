@@ -15,16 +15,24 @@ private abbrev Receipt := OwnedMemory.Receipt
 private abbrev Issue := Endpoints.RecordLower.Issue
 
 private abbrev ValueSpec (type : TypeOf) (value : Val) (field : Field) : Prop :=
-  field.value = value ∧ field.LayoutMatches type
+  field.value = value ∧ field.LayoutMatches type ∧ field.Emitted
 
 private abbrev FieldsSpec (types : List TypeOf) (values : List Val) (fields : List Field) : Prop :=
-  Field.values fields = values ∧ Field.FieldsMatch fields types
+  Field.values fields = values ∧ Field.FieldsMatch fields types ∧ ∀ field ∈ fields, Field.Emitted field
 
-private abbrev EntriesSpec (type : TypeOf) (values : List Val) (fields : List Field) : Prop :=
-  Field.values fields = values ∧ Field.EntriesMatch fields type
+private abbrev EntriesSpec (type : TypeOf) (values : List Val) (emitted : Field → Prop) (fields : List Field) : Prop :=
+  Field.values fields = values ∧ Field.EntriesMatch fields type ∧ ∀ field ∈ fields, emitted field
 
 private abbrev ArmSpec (type : Option TypeOf) (value : Option Val) (field : Option Field) : Prop :=
-  Field.armValue field = value ∧ Field.ArmMatches field type
+  Field.armValue field = value ∧ Field.ArmMatches field type ∧ ∀ child, field = some child → child.Emitted
+
+private theorem member_cons {head : Field} {tail : List Field} {emitted : Field → Prop}
+    (headShape : emitted head) (tailShapes : ∀ field ∈ tail, emitted field) :
+    ∀ field ∈ head :: tail, emitted field := by
+  intro field member
+  rcases List.mem_cons.mp member with rfl | member
+  · exact headShape
+  · exact tailShapes field member
 
 private def Produces {Shape : Type} (compile : Compile Shape) (spec : Shape → Prop) : Prop :=
   ∀ before after shape, compile.run before = .ok (shape, after) → spec shape
@@ -69,7 +77,7 @@ private theorem cons_spec {head : Compile Field} {tail : Compile (List Field)} {
     Produces (do let field ← head; let fields ← tail; pure (field :: fields))
       (FieldsSpec (type :: types) (value :: values)) :=
   bind_spec headSpec fun field head => wrap_spec (List.cons field)
-    (fun _ tail => ⟨congrArg₂ List.cons head.1 tail.1, .cons head.2 tail.2⟩) tailSpec
+    (fun _ tail => ⟨congrArg₂ List.cons head.1 tail.1, .cons head.2.1 tail.2.1, member_cons head.2.2 tail.2.2⟩) tailSpec
 
 private theorem values_length (fields : List Field) : (Field.values fields).length = fields.length := by
   induction fields with
@@ -93,36 +101,42 @@ private theorem check_spec {Shape : Type} (type : TypeOf) (value : Val) (map : S
   · exact produces _ rfl
   · intro before after shape run; contradiction
 
-private theorem entries_spec (compile : Nat → Val → Compile Field) (type : TypeOf)
-    (element : ∀ index value, Produces (compile index value) (ValueSpec type value)) :
+private theorem entries_spec (compile : Nat → Val → Compile Field) (type : TypeOf) (emitted : Field → Prop)
+    (element : ∀ index value, Produces (compile index value)
+      (fun field => field.value = value ∧ field.LayoutMatches type ∧ emitted field)) :
     ∀ (values : List Val) (start : Nat),
       Produces ((values.zipIdx start).mapM (fun (value, index) => compile index value))
-        (EntriesSpec type values) := by
+        (EntriesSpec type values emitted) := by
   intro values
   induction values with
-  | nil => intro start; exact pure_spec [] ⟨rfl, .nil⟩
+  | nil => intro start; exact pure_spec [] ⟨rfl, .nil, fun _ member => nomatch member⟩
   | cons value values ih =>
     intro start
     simp only [List.zipIdx_cons, List.mapM_cons]
     exact bind_spec (element start value) fun field head => wrap_spec (List.cons field)
-      (fun _ tail => ⟨congrArg₂ List.cons head.1 tail.1, .cons head.2 tail.2⟩) (ih (start + 1))
+      (fun _ tail => ⟨congrArg₂ List.cons head.1 tail.1, .cons head.2.1 tail.2.1,
+        member_cons head.2.2 tail.2.2⟩) (ih (start + 1))
 
 private theorem compileEntries_spec (compile : Nat → Val → Compile Field) (type : TypeOf) (values : List Val)
-    (element : ∀ index value, Produces (compile index value) (ValueSpec type value)) :
-    Produces (Internal.compileEntries compile values) (EntriesSpec type values) :=
-  entries_spec compile type element values 0
+    (emitted : Field → Prop) (element : ∀ index value, Produces (compile index value)
+      (fun field => field.value = value ∧ field.LayoutMatches type ∧ emitted field)) :
+    Produces (Internal.compileEntries compile values) (EntriesSpec type values emitted) :=
+  entries_spec compile type emitted element values 0
 
-private theorem leaf_spec (index : Nat) (type : TypeOf) (value : Val) :
+private theorem leaf_spec (index : Nat) (type : TypeOf) (value : Val)
+    (data : ∀ (payload : Stored.Payload type), Stored.Lower.checkSchema type = .ok () →
+      Field.Emitted (.data type payload)) :
     Produces (Internal.compileLeaf index type value) (ValueSpec type value) := by
   unfold Internal.compileLeaf
   apply check_spec
   intro payload equal
   split
-  · exact pure_spec _ ⟨equal, .endpoint⟩
-  · exact pure_spec _ ⟨equal, .endpoint⟩
-  · exact pure_spec _ ⟨equal, .context⟩
+  · exact pure_spec _ ⟨equal, .endpoint, .endpoint⟩
+  · exact pure_spec _ ⟨equal, .endpoint, .endpoint⟩
+  · exact pure_spec _ ⟨equal, .context, .context⟩
   · split
-    · exact pure_spec _ ⟨equal, .data _⟩
+    · rename_i checked
+      exact pure_spec _ ⟨equal, .data _, data _ checked⟩
     · exact error_spec _ _
 
 private theorem owner_spec {E : CoreEngine} {cx : LiftLowerContext E} {output : Lower.Output}
@@ -148,7 +162,7 @@ private theorem owner_spec {E : CoreEngine} {cx : LiftLowerContext E} {output : 
           by_contra different
           simp [different] at accepted
         rw [← same]
-        exact .owner
+        exact ⟨.owner, .owner⟩
 
 section
 variable {E : CoreEngine} (cx : LiftLowerContext E) (output : Lower.Output)
@@ -156,19 +170,30 @@ variable {E : CoreEngine} (cx : LiftLowerContext E) (output : Lower.Output)
 mutual
 private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
     Produces (Internal.compileField cx output index type value) (ValueSpec type value) := by
-  cases type <;> try exact leaf_spec index _ value
+  cases type <;> try (apply leaf_spec; intro payload checked)
+  case prim => exact .primitive payload
+  case enum => exact .enum payload checked
+  case flags => exact .flags payload checked
+  case ref name => exact nomatch name
+  case future | stream | errorContext | borrow =>
+    simp [Stored.Lower.checkSchema, Stored.checkSchema, containsBorrow, containsAsyncValue, contains,
+      isAsyncValue, isBorrow, Stored.payloadContainsOwn, bind, Except.bind, Except.mapError,
+      throw] at checked
+    repeat' first | contradiction | split at checked
   case record types =>
     simp only [Internal.compileField]
     split
     · rename_i values
-      exact wrap_spec (Field.aggregate _) (fun _ fields => ⟨congrArg Val.record fields.1, .record fields.2⟩)
+      exact wrap_spec (Field.aggregate _) (fun _ fields => ⟨congrArg Val.record fields.1, .record fields.2.1,
+        .aggregate fields.2.2⟩)
         (mapIssue_spec (fields_spec 0 types values) _)
     · exact error_spec _ _
   case tuple types =>
     simp only [Internal.compileField]
     split
     · rename_i values
-      exact wrap_spec (Field.aggregate _) (fun _ fields => ⟨congrArg Val.record fields.1, .tuple fields.2⟩)
+      exact wrap_spec (Field.aggregate _) (fun _ fields => ⟨congrArg Val.record fields.1, .tuple fields.2.1,
+        .aggregate fields.2.2⟩)
         (mapIssue_spec (types_spec 0 types values) _)
     · exact error_spec _ _
   case fixedList type length =>
@@ -185,8 +210,8 @@ private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
             simp [different] at accepted
           exact wrap_spec (Field.fixed type length) (fun fields entries =>
             ⟨congrArg Val.list entries.1, .fixed ((values_length fields).symm.trans
-              ((congrArg List.length entries.1).trans count)) entries.2⟩)
-            (mapIssue_spec (compileEntries_spec _ type values (fun pos child => field_spec pos type child)) _)
+              ((congrArg List.length entries.1).trans count)) entries.2.1, .fixed entries.2.2⟩)
+            (mapIssue_spec (compileEntries_spec _ type values Field.Emitted (fun pos child => field_spec pos type child)) _)
       · exact error_spec _ _
   case list type =>
     simp only [Internal.compileField]
@@ -194,8 +219,9 @@ private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
     · exact error_spec _ _
     · split
       · rename_i values
-        exact wrap_spec (Field.dynamic (.list type) type) (fun _ entries => ⟨congrArg Val.list entries.1, .list entries.2⟩)
-          (mapIssue_spec (compileEntries_spec _ type values (fun pos child => field_spec pos type child)) _)
+        exact wrap_spec (Field.dynamic (.list type) type)
+          (fun _ entries => ⟨congrArg Val.list entries.1, .list entries.2.1, .list entries.2.2⟩)
+          (mapIssue_spec (compileEntries_spec _ type values Field.Emitted (fun pos child => field_spec pos type child)) _)
       · exact error_spec _ _
   case map key type =>
     simp only [Internal.compileField]
@@ -203,17 +229,27 @@ private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
     · exact error_spec _ _
     · split
       · rename_i values
-        refine wrap_spec (Field.dynamic (.map key type) _)
-          (fun _ entries => ⟨congrArg Val.list entries.1, .map entries.2⟩)
-          (mapIssue_spec (compileEntries_spec _ (.record (mapEntryFields key type)) values ?_) _)
+        let entryAt := fun (checked : Stored.Payload (.prim key.toPrimitive)) field =>
+          Field.aggregate (.record (mapEntryFields key type)) [.data (.prim key.toPrimitive) checked, field]
+        refine wrap_spec (Field.dynamic (.map key type) _) ?_
+          (mapIssue_spec (compileEntries_spec _ (.record (mapEntryFields key type)) values
+            (fun entry => ∃ checked field, entry = entryAt checked field ∧ field.Emitted) ?_) _)
+        · intro entries certificate
+          refine ⟨congrArg Val.list certificate.1, .map certificate.2.1, .map ?_ ?_⟩
+          · intro entry member
+            obtain ⟨checked, field, equal, _⟩ := certificate.2.2 entry member
+            exact ⟨checked, field, equal⟩
+          · intro checked field member
+            obtain ⟨_, _, equal, emitted⟩ := certificate.2.2 _ member
+            exact (List.cons.inj (List.cons.inj (Field.aggregate.inj equal).2).2).1 ▸ emitted
         intro pos item
         split
         · rename_i keyValue payload
           apply check_spec
           intro checked sameKey
           exact wrap_spec (fun field => Field.aggregate _ [.data _ checked, field])
-            (fun _ certificate => ⟨by simp only [Field.value, Field.values, sameKey, certificate.1],
-              .record (.cons (.data _) (.cons certificate.2 .nil))⟩)
+            (fun field certificate => ⟨by simp only [Field.value, Field.values, sameKey, certificate.1],
+              .record (.cons (.data _) (.cons certificate.2.1 .nil)), ⟨checked, field, rfl, certificate.2.2⟩⟩)
             (mapIssue_spec (field_spec 1 type payload) _)
         · exact error_spec _ _
       · exact error_spec _ _
@@ -222,10 +258,11 @@ private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
     split
     · exact error_spec _ _
     · split
-      · exact pure_spec _ ⟨rfl, .optionNone⟩
+      · exact pure_spec _ ⟨rfl, .optionNone, .sum (fun _ equal => nomatch equal)⟩
       · rename_i child
         exact wrap_spec (fun field => Field.sum (.option type) [none, some type] 1 (some field))
-          (fun _ field => ⟨congrArg (fun child => Val.variant 1 (some child)) field.1, .optionSome field.2⟩)
+          (fun _ field => ⟨congrArg (fun child => Val.variant 1 (some child)) field.1, .optionSome field.2.1,
+            .sum (fun _ equal => Option.some.inj equal ▸ field.2.2)⟩)
           (mapIssue_spec (field_spec 0 type child) _)
       · exact error_spec _ _
   case variant arms =>
@@ -236,7 +273,7 @@ private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
       · rename_i tag payload
         exact wrap_spec (Field.sum (.variant arms) (arms.map Prod.snd) tag)
           (fun _ ⟨_, atTag, certificate⟩ =>
-            ⟨congrArg (Val.variant tag) certificate.1, .variant atTag certificate.2⟩)
+            ⟨congrArg (Val.variant tag) certificate.1, .variant atTag certificate.2.1, .sum certificate.2.2⟩)
           (mapIssue_spec (cases_spec arms tag payload) _)
       · exact error_spec _ _
   case result success failure =>
@@ -246,21 +283,25 @@ private theorem field_spec (index : Nat) (type : TypeOf) (value : Val) :
     · split
       · rename_i payload
         exact wrap_spec (Field.sum (.result success failure) [success, failure] 0)
-          (fun _ field => ⟨congrArg (Val.variant 0) field.1, .resultOk field.2⟩)
+          (fun _ field => ⟨congrArg (Val.variant 0) field.1, .resultOk field.2.1, .sum field.2.2⟩)
           (mapIssue_spec (case_spec success payload) _)
       · rename_i payload
         exact wrap_spec (Field.sum (.result success failure) [success, failure] 1)
-          (fun _ field => ⟨congrArg (Val.variant 1) field.1, .resultError field.2⟩)
+          (fun _ field => ⟨congrArg (Val.variant 1) field.1, .resultError field.2.1, .sum field.2.2⟩)
           (mapIssue_spec (case_spec failure payload) _)
       · exact error_spec _ _
   case own resource =>
-    cases value <;> first | exact owner_spec index resource _ | exact leaf_spec index _ _
+    cases value <;> first | exact owner_spec index resource _ | apply leaf_spec
+    all_goals
+      intro _ checked
+      simp [Stored.Lower.checkSchema, Stored.checkSchema, containsBorrow, contains, isBorrow,
+        Stored.payloadContainsOwn, bind, Except.bind, Except.mapError] at checked
 termination_by structural type
 
 private theorem fields_spec (index : Nat) (types : List (String × TypeOf)) (values : List Val) :
     Produces (Internal.compileFields cx output index types values) (FieldsSpec (types.map Prod.snd) values) := by
   cases types with
-  | nil => cases values <;> first | exact pure_spec _ ⟨rfl, .nil⟩ | exact error_spec _ _
+  | nil => cases values <;> first | exact pure_spec _ ⟨rfl, .nil, fun _ member => nomatch member⟩ | exact error_spec _ _
   | cons type types =>
     cases values with
     | nil => exact error_spec _ _
@@ -271,7 +312,7 @@ termination_by structural types
 private theorem types_spec (index : Nat) (types : List TypeOf) (values : List Val) :
     Produces (Internal.compileTypes cx output index types values) (FieldsSpec types values) := by
   cases types with
-  | nil => cases values <;> first | exact pure_spec _ ⟨rfl, .nil⟩ | exact error_spec _ _
+  | nil => cases values <;> first | exact pure_spec _ ⟨rfl, .nil, fun _ member => nomatch member⟩ | exact error_spec _ _
   | cons type types =>
     cases values with
     | nil => exact error_spec _ _
@@ -298,11 +339,12 @@ termination_by structural arms
 private theorem case_spec (type : Option TypeOf) (payload : Option Val) :
     Produces (Internal.compileCase cx output type payload) (ArmSpec type payload) := by
   cases type with
-  | none => cases payload <;> first | exact pure_spec _ ⟨rfl, .none⟩ | exact error_spec _ _
+  | none => cases payload <;> first | exact pure_spec _ ⟨rfl, .none, fun _ equal => nomatch equal⟩ | exact error_spec _ _
   | some type =>
     cases payload with
     | none => exact error_spec _ _
-    | some value => exact wrap_spec some (fun _ field => ⟨congrArg some field.1, .some field.2⟩) (field_spec 0 type value)
+    | some value => exact wrap_spec some (fun _ field => ⟨congrArg some field.1, .some field.2.1,
+        fun _ equal => Option.some.inj equal ▸ field.2.2⟩) (field_spec 0 type value)
 termination_by structural type
 end
 
@@ -312,7 +354,7 @@ private theorem field {E : CoreEngine} (cx : LiftLowerContext E) (output : Lower
     (index : Nat) (type : TypeOf) (value : Val) (field : Field) (objects : List Object)
     (before after : List OwnedMemory.Receipt)
     (compiled : (compileField cx output index type value).run before = .ok ((field, objects), after)) :
-    field.value = value ∧ field.LayoutMatches type := by
+    ValueSpec type value field := by
   change ((Internal.compileField cx output index type value).run before).map _ = _ at compiled
   cases step : (Internal.compileField cx output index type value).run before with
   | error issue => rw [step] at compiled; contradiction
@@ -322,10 +364,10 @@ private theorem field {E : CoreEngine} (cx : LiftLowerContext E) (output : Lower
     cases compiled
     exact field_spec cx output index type value _ _ _ step
 
-theorem value {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf) (value : Val)
+private theorem value_spec {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf) (value : Val)
     (receipts : List OwnedMemory.Receipt) (output : Lower.Output) (shape : Field) (objects : List Object)
     (compiled : compileValue cx type value receipts output = .ok (shape, objects)) :
-    shape.value = value ∧ shape.LayoutMatches type := by
+    ValueSpec type value shape := by
   cases run : (compileField cx output 0 type value).run receipts with
   | error issue =>
     simp only [compileValue, bind, Except.bind, run] at compiled
@@ -338,6 +380,18 @@ theorem value {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf) (value 
       | contradiction
       | (cases compiled; exact field cx output 0 type value _ _ _ _ run)
       | split at compiled
+
+theorem value {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf) (value : Val)
+    (receipts : List OwnedMemory.Receipt) (output : Lower.Output) (shape : Field) (objects : List Object)
+    (compiled : compileValue cx type value receipts output = .ok (shape, objects)) :
+    shape.value = value ∧ shape.LayoutMatches type :=
+  let spec := value_spec cx type value receipts output shape objects compiled
+  ⟨spec.1, spec.2.1⟩
+
+theorem emitted {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf) (value : Val)
+    (receipts : List OwnedMemory.Receipt) (output : Lower.Output) (shape : Field) (objects : List Object)
+    (compiled : compileValue cx type value receipts output = .ok (shape, objects)) : shape.Emitted :=
+  (value_spec cx type value receipts output shape objects compiled).2.2
 
 theorem record {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String × TypeOf))
     (value : Val) (receipts : List OwnedMemory.Receipt) (output : Lower.Output)
@@ -365,7 +419,7 @@ theorem record {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String 
             rw [step] at run
             cases run
             have certificate := fields_spec cx output 0 types values _ _ _ step
-            exact ⟨congrArg Val.record certificate.1, certificate.2⟩
+            exact ⟨congrArg Val.record certificate.1, certificate.2.1⟩
         · contradiction
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.CompiledValue

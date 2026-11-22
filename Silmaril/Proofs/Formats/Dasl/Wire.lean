@@ -180,12 +180,12 @@ theorem typed_cid_roundtrip {link : Link Cid} (valid : ValidLink link) :
   cases link with
   | obj cid =>
     have tag : IsObjectCid cid := valid
-    simp [cidCodec, Drisl.Cid.codec, cid.property, bind, IsObjectCid] at tag ⊢
+    simp [cidCodec, cidCodecFor, Drisl.Cid.codec, cid.property, bind, IsObjectCid] at tag ⊢
     exact tag
   | blob cid =>
     have tag : IsRawCid cid := valid
     have different : (0x55 : UInt8) ≠ 0x71 := by decide
-    simp [cidCodec, Drisl.Cid.codec, cid.property, bind, IsRawCid] at tag ⊢
+    simp [cidCodec, cidCodecFor, Drisl.Cid.codec, cid.property, bind, IsRawCid] at tag ⊢
     simp [tag, different]
 
 theorem typed_cid_parse {bytes : List UInt8} {link : Link Cid} (parsed : cidCodec.parse? bytes = some link) :

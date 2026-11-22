@@ -15,6 +15,10 @@ open Silmaril.Semantics.Naming
 def daslDecoder : Decoder Wire.Cid :=
   ⟨Wire.IsObjectCid, Wire.IsRawCid, fun _ => Wire.object_raw_disjoint, Wire.parse?⟩
 
+theorem daslDecoder_parse : daslDecoder.parse? = Wire.parse? := by
+  unfold daslDecoder
+  rfl
+
 theorem readObject_found_iff {read : Wire.Cid → Option ByteArray} {name : Wire.Cid} {value : Shallow Wire.Cid} :
     Wire.readObject read name = .found value ↔ (daslDecoder.view (graph read)).objects name value :=
   Proofs.Formats.Dasl.RawStore.readObject_found_iff

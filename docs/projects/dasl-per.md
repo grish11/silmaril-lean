@@ -7,6 +7,9 @@ and `toSetoid` bridge the case of total support. The pinned CSLib uses ordinary
 Setoids (for example, for its left/right language congruences), which impose
 reflexivity on their carrier. This development uses the repository's existing
 PER and shared partial-equivalence laws instead of a second Setoid or PER.
+For the checked, one-way adapter to CSLib's separate `LawfulCongruence`
+context API on the support subtype, see
+[CSLib and guarded congruence](dasl-sexpression-per-bridge.md#cslib-and-guarded-congruence).
 
 - `WeaklyCompatible` agrees on pairs of valid values, but can relate valid
   and invalid values. `weak_counterexample` exhibits this on `Bool`.

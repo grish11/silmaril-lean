@@ -24,6 +24,19 @@ theorem step_follow {before after : Config E Host} {label : Label E Host} {place
     segmentAt (segmentStorage after) reached = segmentAt (segmentStorage before) place :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.step_follow run moved
 
+/-- A same-slot edit preserves the entire blocked activation, not just its
+Core return segment. This also preserves the exact suspended program. -/
+theorem step_saved {before after : Config E Host} {label : Label E Host} {thread : ThreadId}
+    (run : Step profile ready dispatch before label after)
+    (kept : (transitionEdit before label).follow (.saved thread.idx 0) = some (.saved thread.idx 0)) :
+    after.cont? thread = before.cont? thread :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.step_saved run kept
+
+theorem ParkedPrefix.reaches {before after : Config E Host} {labels : List (Label E Host)} {thread : ThreadId}
+    (prefixRun : ParkedPrefix profile ready dispatch thread before labels after) :
+    Steps profile ready dispatch before labels after ∧ after.cont? thread = before.cont? thread :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.parkedPrefix_reaches prefixRun
+
 theorem step_pop {before after : Config E Host} {label : Label E Host} {place : Location} {resume : Continuation E Host}
     (run : Step profile ready dispatch before label after)
     (occurs : segmentAt (segmentStorage before) place = some (.prog resume))
@@ -87,6 +100,42 @@ theorem Prefix.append {before middle after : Config E Host} {leading trailing : 
     Prefix profile ready dispatch before place (leading ++ trailing) after final :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefix_append left right
 
+/-- A store read changes the focused program but does not edit any segment slot. -/
+theorem Prefix.read {before : Config E Host} {thread frames rest}
+    {next : CStore E → P E Host (Ret E)} (depth : Nat)
+    (focused : before.ctl = ⟨thread, .prog (.op (S := Eff E Host) .get next), frames⟩ :: rest) :
+    Prefix profile ready dispatch before (.active 0 depth) [.tau]
+      { before with ctl := ⟨thread, .prog (next before.store), frames⟩ :: rest } (.active 0 depth) :=
+  .step (.get focused) (by rw [transitionEdit, focused]; rfl) (.done _ _)
+
+/-- Pop the actual return frame, keeping every slot below it. -/
+theorem Prefix.pop_return {before : Config E Host} {thread frames rest value} {resume : Continuation E Host}
+    (returning : before.ctl = ⟨thread, .prog (.pure value), .prog resume :: frames⟩ :: rest) :
+    RetainsBelowTop profile ready dispatch before [.tau]
+      { before with ctl := ⟨thread, .prog (resume value), frames⟩ :: rest } :=
+  fun _ => .step (.popProg returning) (by rw [transitionEdit, returning]; rfl) (.done _ _)
+
+/-- While the marked frame survives, older slots in its activation move with it,
+including through suspension, resume, and switches. This does not show that
+the marked callback returns. -/
+theorem Prefix.under {before after : Config E Host} {labels : List (Label E Host)} {place reached : Location}
+    (run : Prefix profile ready dispatch before place labels after reached) (depth : Nat) :
+    Prefix profile ready dispatch before (place.below depth) labels after (reached.below depth) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefix_below run depth
+
+/-- Installing a call and popping its actual marked return preserves every older
+slot. At depth zero this carries the original parked Core caller across a
+returning allocator without confusing it with the allocator's own frame. -/
+theorem Prefix.under_call {before entered middle after : Config E Host} {labels : List (Label E Host)}
+    {thread frames rest call} {resume : Continuation E Host}
+    (focused : before.ctl = ⟨thread, .prog (.op (S := Eff E Host) (.call call) resume), frames⟩ :: rest)
+    (install : Step profile ready dispatch before .tau entered)
+    (run : Prefix profile ready dispatch entered (.active 0 0) labels middle (.active 0 0))
+    (step : Step profile ready dispatch middle .tau after)
+    (pops : (transitionEdit middle .tau).pops (.active 0 0)) (depth : Nat) :
+    Prefix profile ready dispatch before (.active 0 depth) (.tau :: labels ++ [.tau]) after (.active 0 depth) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefix_under_call focused install run step pops depth
+
 theorem Prefix.toTrail {before after : Config E Host} {labels : List (Label E Host)} {place reached : Location}
     (run : Prefix profile ready dispatch before place labels after reached) :
     Trail profile ready dispatch before (some place) labels after (some reached) :=
@@ -103,6 +152,32 @@ theorem Trail.survives {before after : Config E Host} {labels : List (Label E Ho
     (run : Trail profile ready dispatch before mark labels after (some reached)) :
     ∃ place, mark = some place ∧ Prefix profile ready dispatch before place labels after reached :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.trailSurvives run
+
+/-- Join an installation prefix (which can include pre-call reads) to the
+observed return of the marked frame. The older slot regains its prior depth. -/
+theorem Trail.through_return {start entered reached : Config E Host} {leading labels : List (Label E Host)}
+    {thread frames rest value} {resume : Continuation E Host} {depth : Nat}
+    (install : Prefix profile ready dispatch start (.active 0 depth) leading entered (.active 0 (depth + 1)))
+    (marked : Trail profile ready dispatch entered (some (.active 0 0)) labels reached (some (.active 0 0)))
+    (returning : reached.ctl = ⟨thread, .prog (.pure value), .prog resume :: frames⟩ :: rest) :
+    Prefix profile ready dispatch start (.active 0 depth) (leading ++ (labels ++ [.tau]))
+      { reached with ctl := ⟨thread, .prog (resume value), frames⟩ :: rest } (.active 0 depth) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.trail_through_return install marked returning
+
+/-- Continue through a local return suffix built from the same reached marked
+frame. This also covers checks after the pop, before entering a sibling. -/
+theorem Trail.through_return_suffix {start entered reached after : Config E Host}
+    {leading labels trailing : List (Label E Host)}
+    (install : ∀ depth, Prefix profile ready dispatch start (.active 0 depth) leading entered (.active 0 (depth + 1)))
+    (marked : Trail profile ready dispatch entered (some (.active 0 0)) labels reached (some (.active 0 0)))
+    (suffix : RetainsBelowTop profile ready dispatch reached trailing after) :
+    RetainsActiveSlots profile ready dispatch start (leading ++ (labels ++ trailing)) after := by
+  obtain ⟨place, same, tracked⟩ := marked.survives
+  cases same
+  intro depth
+  have older : Prefix profile ready dispatch entered (.active 0 (depth + 1)) labels reached (.active 0 (depth + 1)) := by
+    simpa only [Location.below, Nat.zero_add] using tracked.under (depth + 1)
+  exact (install depth).append (older.append (suffix depth))
 
 theorem Trail.absent {before after : Config E Host} {labels : List (Label E Host)} (run : Steps profile ready dispatch before labels after) :
     Trail profile ready dispatch before none labels after none :=
