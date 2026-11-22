@@ -185,8 +185,16 @@ theorem ValueVisitRun.writerPaths {origin : CStore (core3 grow)} {valueType : Ty
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.visitor body
 
-/-- Flat visitors and allocating strings carry the same writer evidence,
-indexed by the actual partial prefix when the descriptor is not yet reached. -/
+/-- Erase the visitor's site distinctions while retaining the ordered
+checked and raw writer paths, with no journal or host equality. -/
+theorem VisitorWriterPath.paths {left right : Config (core3 grow) (HostState sig)}
+    {checked canonical : Trace grow sig}
+    (writer : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
+    PairedWriterPaths profile ready base bindings start incoming checked canonical left right :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.ofVisitor writer
+
+/-- Allocating string slices can expose exact separate paths even when their
+allocator callback internals do not yet have writer-site classification. -/
 theorem StringRunSlice.writerPaths {description}
     (body : StringRunSlice profile ready base bindings older description start incoming labels finish) :
     ∃ checked canonical trailing left right marks, labels = checked ++ trailing ∧
@@ -225,7 +233,9 @@ theorem cutPairedLocalPrefix {planned reference remaining : Trace grow sig}
     (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
     ∃ used peer, finish.store = peer.store ∧ visible labels = visible used ∧
       finish.host = start.host ∧ peer.host = incoming.host ∧
-      OccurrenceTransport profile ready base bindings start incoming labels used finish peer :=
+      OccurrenceTransport profile ready base bindings start incoming labels used finish peer ∧
+      WriterPath profile ready (specDispatch ready base) start labels finish [] ∧
+      WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming used peer [] :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.pairedLocalPrefix path split run
 
 /-- Compare an executed shared host read of a recursive claim plan after its store read.

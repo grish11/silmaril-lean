@@ -79,6 +79,34 @@ def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostStat
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] ∧
     (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update)
 
+/-- Allocation boundaries whose internal writer classification is not yet
+carried by the visitor. They are distinct from proved writer frames. -/
+inductive VisitorAllocationBoundary where
+  | string
+  | collection
+
+/-- Ordered evidence on the actual pair of visited program segments. Only
+the guarded case attributes a change to a compiled nominal assignment. -/
+inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
+    Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+    Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop where
+  | framed {start incoming checked canonical left right}
+      (lhs : WriterPath profile ready (specDispatch ready base) start checked left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
+      VisitorWriterPath profile ready base bindings start incoming checked canonical left right
+  | guarded {start incoming checked canonical left right plan}
+      (paths : CompiledLeafWriterPaths profile ready base bindings start incoming checked canonical left right plan) :
+      VisitorWriterPath profile ready base bindings start incoming checked canonical left right
+  | allocation {start incoming checked canonical left right}
+      (boundary : VisitorAllocationBoundary)
+      (paths : PairedWriterPaths profile ready base bindings start incoming checked canonical left right) :
+      VisitorWriterPath profile ready base bindings start incoming checked canonical left right
+  | append {start incoming checked canonical left right leftTail rightTail finish peer}
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
+      (tail : VisitorWriterPath profile ready base bindings left right leftTail rightTail finish peer) :
+      VisitorWriterPath profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail) finish peer
+
 /-- Reached allocator steps before a protected return. Ordinary steps must
 not install an overlaid give or assign the host; confined gives and
 reached host reads with a closed observation have their own rules. The endpoint may
@@ -1242,6 +1270,21 @@ def StringRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     OccurrenceTransport profile ready base bindings checked canonical checkLabels canonLabels reached peer marks ∧
     reached.store = peer.store ∧ Steps profile ready (specDispatch ready base) reached trailing finish ∧
     StringSliceEnd profile ready base bindings older describe reached peer trailing finish marks
+
+/-- The same reached string-shaped cut, with writer evidence indexed by
+the very paths used for occurrence transport. -/
+def StringRunSliceWithWriters (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (describe : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop)
+    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ checked canonical trailing left right marks, actual = checked ++ trailing ∧
+    PayloadPrefix.visible canonical = PayloadPrefix.visible checked ∧
+    OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧ left.store = right.store ∧
+    Steps profile ready (specDispatch ready base) left trailing finish ∧
+    VisitorWriterPath profile ready base bindings start incoming checked canonical left right ∧
+    StringSliceEnd profile ready base bindings older describe left right trailing finish marks
 
 /-- Two finite paths, compared at their reached stores and visible labels. -/
 def ComparedPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -5624,7 +5667,7 @@ abbrev FlatVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
     (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig) :=
-  StringRunSlice profile ready base bindings older (fun _ => FlatVisitFocus older origin checkNext canonNext)
+  StringRunSliceWithWriters profile ready base bindings older (fun _ => FlatVisitFocus older origin checkNext canonNext)
 
 def FlatVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -5694,6 +5737,7 @@ def ValueVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
     PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
     OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
     Steps profile ready (specDispatch ready base) left trailing finish ∧
+    VisitorWriterPath profile ready base bindings start incoming checked canonical left right ∧
     ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks
 
 abbrev MemoryVisitEnd (profile : ProfileKind) (ready : HostReady (HostState sig))

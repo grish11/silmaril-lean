@@ -122,12 +122,59 @@ theorem ofTransport (paths : OccurrenceTransport profile ready base bindings sta
   obtain ⟨rightEffects, rightPath⟩ := ofSteps (tracks none).2.steps
   exact ⟨leftEffects, rightEffects, leftPath, rightPath⟩
 
+theorem empty : VisitorWriterPath profile ready base bindings start incoming [] [] start incoming :=
+  .framed (.done _) (.done _)
+
+theorem frameNil (run : Steps profile ready dispatch start [] finish) : WriterPath profile ready dispatch start [] finish [] := by
+  cases run
+  exact .done _
+
+theorem frameSingle {label}
+    (run : Steps profile ready dispatch start [label] finish) (host : finish.host = start.host) :
+    WriterPath profile ready dispatch start [label] finish [] := by
+  cases run with
+  | cons step rest => cases rest; exact .same step (congrArg HostState.writer host) (.done _)
+
+theorem frameRead (read : PayloadPrefix.SilentLocalStep profile ready dispatch start finish) :
+    WriterPath profile ready dispatch start [.tau] finish [] := by
+  exact frameSingle (ReturnFrame.Occurrence.prefix_survives (read.tracks (.active 0 0))).1 read.host
+
+theorem frameLocal (path : PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base)
+    (specDispatch ready (LiveDispatch.host bindings base)) start incoming checked canonical left right) :
+    WriterPath profile ready (specDispatch ready base) start checked left [] ∧
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] := by
+  induction path with
+  | done => exact ⟨.done _, .done _⟩
+  | checkedRead read _ ih => exact ⟨append (frameRead read) ih.1, ih.2⟩
+  | canonicalRead read _ ih => exact ⟨ih.1, append (frameRead read) ih.2⟩
+  | step _ left right leftHost rightHost _ _ ih =>
+    exact ⟨.same left (congrArg HostState.writer leftHost) ih.1, .same right (congrArg HostState.writer rightHost) ih.2⟩
+
+theorem frameLeaf (path : PairedLeafSteps profile ready (specDispatch ready base)
+    (specDispatch ready (LiveDispatch.host bindings base)) start incoming checked left right) :
+    WriterPath profile ready (specDispatch ready base) start checked left [] ∧
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming checked right [] := by
+  induction path with
+  | done => exact ⟨.done _, .done _⟩
+  | step _ left right leftHost rightHost _ _ _ ih =>
+    exact ⟨.same left (congrArg HostState.writer leftHost) ih.1, .same right (congrArg HostState.writer rightHost) ih.2⟩
+
 theorem appendPaired (first : PairedWriterPaths profile ready base bindings start incoming leading canonLeading middle peer)
     (tail : PairedWriterPaths profile ready base bindings middle peer trailing canonTrailing finish target) :
     PairedWriterPaths profile ready base bindings start incoming (leading ++ trailing) (canonLeading ++ canonTrailing) finish target := by
   obtain ⟨_, _, lhs, rhs⟩ := first
   obtain ⟨_, _, leftTail, rightTail⟩ := tail
   exact ⟨_, _, append lhs leftTail, append rhs rightTail⟩
+
+theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
+    PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
+  induction path with
+  | framed lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | guarded paths =>
+    obtain ⟨changes, lhs, rhs, _⟩ := paths
+    exact ⟨changes, [], lhs, rhs⟩
+  | allocation _ paths => exact paths
+  | append _ _ leading trailing => exact appendPaired leading trailing
 
 theorem checkedSpends (leftPath : WriterPath profile ready (specDispatch ready base) start checked left changes)
     (rightPath : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [])
@@ -156,8 +203,8 @@ theorem visitor {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
       PairedWriterPaths profile ready base bindings start incoming checked canonical left right ∧
       Steps profile ready (specDispatch ready base) left trailing finish ∧
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks := by
-  obtain ⟨checked, canonical, trailing, left, right, marks, split, visible, stores, tracks, tail, ending⟩ := body
-  exact ⟨checked, canonical, trailing, left, right, marks, split, visible, stores, tracks, ofTransport tracks, tail, ending⟩
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, visible, stores, tracks, tail, writer, ending⟩ := body
+  exact ⟨checked, canonical, trailing, left, right, marks, split, visible, stores, tracks, ofVisitor writer, tail, ending⟩
 
 theorem stringSlice {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {description}
     (body : StringRunSlice profile ready base bindings older description start incoming actual finish) :
