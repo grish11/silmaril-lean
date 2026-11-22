@@ -4488,22 +4488,29 @@ def ComponentMarkedReplyTail (profile : ProfileKind) (ready : HostReady (HostSta
         ActualMarkedPop profile ready base bindings older start incoming reached peer leading leading mark
           after first second (.cancel .none) suffix finish)
 
-/-- Conditions for a common publication at the reached payload check, not a
-premise that an observer runs to completion or that either writer is retained. -/
-def ComponentPayloadReady (callee : ComponentCall.Callee sig)
-    (left right : Stored.OwnedMemory.Claims.State sig) (planned : Option (List (Stored.OwnedMemory.Tree sig)))
-    (values : List Stored.OwnedMemory.Observed) : Prop :=
-  ∃ (argument payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
-      (valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)) (registered : Stored.OwnedMemory.Claims.State sig),
-    values = [argument, payload] ∧ planned = some children ∧
-    Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid ∧
-    left.register (.node callee.tag valid children) = .ok registered ∧ registered.accepted.length < 2 ^ 32 ∧
-    left.RegistrationChecksAgree right (.node callee.tag valid children) ∧ left.accepted.length = right.accepted.length
+/-- The observation used by the reached registration probe. A refused registration
+does not read a handle, and exhaustion does not use the out-of-range index. -/
+inductive ComponentRegistration where
+  | aliased
+  | exhausted
+  | fresh (handle : Nat)
 
-/-- The finite observer may still be running, may have trapped, or may have
-entered validation. A payload refusal uses the live result cursor and may
-reach the original reply without popping it. Other validation boundaries
-include unmatched reached registration observations. -/
+def componentRegistration (writer : Stored.OwnedMemory.Claims.State sig) (tree : Stored.OwnedMemory.Tree sig) :
+    ComponentRegistration :=
+  match writer.register tree with
+  | .error _ => .aliased
+  | .ok registered => if registered.accepted.length ≥ 2 ^ 32 then .exhausted else .fresh registered.accepted.length
+
+def componentRegistrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
+    ComponentRegistration → Session grow sig (Ret (core3 grow))
+  | .aliased => ComponentCall.resolveRefused ticket caller (.accept (.claims .alias))
+  | .exhausted => ComponentCall.reject ticket (.accept (.boundary .exhaustedHandles))
+  | .fresh handle => do
+    lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))])
+    ComponentCall.completeResolvedTree ticket tree handle
+
+/-- A mismatch is at the actual registration-read continuations, not at an
+unvalidated payload or an assumed disagreement of whole writer states. -/
 inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -4516,11 +4523,13 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
   | pending (exhausted : suffix = []) (paired : PairedComponentSite wider reached peer check canon)
   | trapped (checked : reached.ctl = []) (canonical : peer.ctl = [])
       (paired : HostFrame.Related.Paired wider reached peer)
-  | validation {values}
-      (checked : reached.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket planned values))
-      (canonical : peer.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket planned values))
+  | registrationMismatch {tree : Stored.OwnedMemory.Tree sig}
+      (checked : reached.ctl = check.control (componentRegistrationProgram leftTicket caller tree
+        (componentRegistration reached.host.writer tree)))
+      (canonical : peer.ctl = canon.control (componentRegistrationProgram rightTicket caller tree
+        (componentRegistration peer.host.writer tree)))
       (paired : PairedComponentSite wider reached peer check canon)
-      (boundary : ¬ ComponentPayloadReady callee reached.host.writer peer.host.writer planned values)
+      (mismatch : componentRegistration reached.host.writer tree ≠ componentRegistration peer.host.writer tree)
   | refused
       (frontier : ComponentStoreFrontier (Result := Unit) wider check canon
         (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none)) reached peer suffix True)
