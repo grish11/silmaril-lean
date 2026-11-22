@@ -4488,6 +4488,43 @@ def ComponentMarkedReplyTail (profile : ProfileKind) (ready : HostReady (HostSta
         ActualMarkedPop profile ready base bindings older start incoming reached peer leading leading mark
           after first second (.cancel .none) suffix finish)
 
+/-- Conditions for a common publication at the reached payload check, not a
+premise that an observer runs to completion or that either writer is retained. -/
+def ComponentPayloadReady (callee : ComponentCall.Callee sig)
+    (left right : Stored.OwnedMemory.Claims.State sig) (planned : Option (List (Stored.OwnedMemory.Tree sig)))
+    (values : List Stored.OwnedMemory.Observed) : Prop :=
+  ∃ (argument payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+      (valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)) (registered : Stored.OwnedMemory.Claims.State sig),
+    values = [argument, payload] ∧ planned = some children ∧
+    Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid ∧
+    left.register (.node callee.tag valid children) = .ok registered ∧ registered.accepted.length < 2 ^ 32 ∧
+    left.RegistrationChecksAgree right (.node callee.tag valid children) ∧ left.accepted.length = right.accepted.length
+
+/-- The finite observer may still be running, may have trapped, or may have
+entered validation. A validation boundary does not claim an executed refusal;
+it includes a genuinely unmatched reached registration observation. -/
+inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (callee : ComponentCall.Callee sig) (caller : CallerId) (leftTicket rightTicket : Nat)
+    (planned : Option (List (Stored.OwnedMemory.Tree sig)))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (start incoming reached peer : Config (core3 grow) (HostState sig)) (leading suffix : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | pending (exhausted : suffix = []) (paired : PairedComponentSite wider reached peer check canon)
+  | trapped (checked : reached.ctl = []) (canonical : peer.ctl = [])
+      (paired : HostFrame.Related.Paired wider reached peer)
+  | validation {values}
+      (checked : reached.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket planned values))
+      (canonical : peer.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket planned values))
+      (paired : PairedComponentSite wider reached peer check canon)
+      (boundary : ¬ ComponentPayloadReady callee reached.host.writer peer.host.writer planned values)
+  | accepted {tree handle}
+      (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
+      (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
+        check first second suffix finish)
+
 /-- Compare the checked run with the entry obtained from the real public
 guards. A short run need not have taken the displayed refusal or trap. -/
 inductive RecursiveRootEntryAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))

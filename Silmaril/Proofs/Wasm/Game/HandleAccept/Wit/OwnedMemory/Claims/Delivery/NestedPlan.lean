@@ -3495,6 +3495,84 @@ theorem cutSuccessfulMarkedReply (callee : ComponentCall.Callee sig) (caller : C
       simp [PayloadPrefix.Cursor.control] at atReturn
     | published _ _ pair _ _ => exact .inr pair
 
+private theorem lowerRecordOfShape {initial reached : CStore (core3 grow)} {caller : CallerId}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (original : ArenaField.callers.get? initial caller = some (.lower subtask cx args pos ft limits results))
+    (retained : LowerSt.callerShape reached caller = LowerSt.callerShape initial caller) :
+    ∃ advanced, ArenaField.callers.get? reached caller = some (.lower subtask cx args advanced ft limits results) := by
+  unfold LowerSt.callerShape CStore.caller? at retained
+  rw [original] at retained
+  cases live : ArenaField.callers.get? reached caller with
+  | none => simp [live] at retained
+  | some record =>
+    rw [live] at retained
+    cases record with
+    | lower reachedSubtask reachedCx reachedArgs advanced reachedType reachedLimits reachedResults =>
+      cases retained
+      exact ⟨advanced, rfl⟩
+    | host => cases retained
+    | sub => cases retained
+
+open ReturnFrame.Occurrence in
+theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.ok planned)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.ok planned)))
+    (paired : PairedComponentSite wider start incoming check canon)
+    (original : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer, labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentObservedAcceptance profile ready base bindings older wider callee caller leftTicket rightTicket
+        planned check canon first second start incoming reached peer leading suffix finish := by
+  classical
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, retained⟩ :=
+    cutObservedArguments (bindings := bindings) callee caller leftFocus rightFocus paired run
+  cases frontier with
+  | pending _ _ _ _ site boundary => exact ⟨leading, suffix, reached, peer, split, moved, residual,
+      .pending (boundary.resolve_right (fun openFrontier => openFrontier.1 trivial)) site⟩
+  | trapped left right site => exact ⟨leading, suffix, reached, peer, split, moved, residual, .trapped left right site⟩
+  | returned values left right site =>
+    by_cases permitted : ComponentPayloadReady callee reached.host.writer peer.host.writer planned values
+    · obtain ⟨argument, payload, children, valid, registered, rfl, rfl, validated, register, room, claims, length⟩ := permitted
+      have shape := (retained (by rw [left]; simp [PayloadPrefix.Cursor.control])).1 caller
+      obtain ⟨_, liveRecord⟩ := lowerRecordOfShape original shape
+      have guards := admittedRefusalGuards callee admitted
+      have observation := Stored.OwnedMemory.Claims.register_observations claims length
+      rw [register] at observation
+      cases rightLive : peer.host.writer.register (.node callee.tag valid children) with
+      | error issue => simp [rightLive, Except.map] at observation
+      | ok rightWriter =>
+        have handle : registered.accepted.length = rightWriter.accepted.length := by
+          simpa [rightLive, Except.map] using observation
+        obtain ⟨more, finalSuffix, lhs, rhs, acceptanceSplit, acceptancePath, finalRun, accepted⟩ :=
+          cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
+            left right site liveRecord guards.1 guards.2 register rightLive rfl handle room residual
+        have whole : OccurrenceTransport profile ready base bindings start incoming (leading ++ more) (leading ++ more) lhs rhs := by
+          simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved acceptancePath).choose_spec.1
+        refine ⟨leading ++ more, finalSuffix, lhs, rhs, ?_, whole, finalRun, .accepted accepted
+          (compareComponentMarkedReply leftInstalled rightInstalled outside whole finalRun (wider := wider) ?_)⟩
+        · rw [split, acceptanceSplit, List.append_assoc]
+        · intro atReturn
+          cases accepted with
+          | pending _ exhausted => exact .inl exhausted
+          | trapped checked _ _ =>
+            rw [checked] at atReturn
+            simp [PayloadPrefix.Cursor.control] at atReturn
+          | published _ _ pair _ _ => exact .inr pair
+    · exact ⟨leading, suffix, reached, peer, split, moved, residual, .validation left right site permitted⟩
+
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}
     {request reference checkEntry canonEntry : Config (core3 grow) (HostState sig)}

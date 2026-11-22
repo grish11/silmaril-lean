@@ -447,6 +447,35 @@ theorem cut_component_successful_marked_reply (callee : ComponentCall.Callee sig
     callee caller argument payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive claims length leftHandle room leftInstalled rightInstalled outside run
 
+open ReturnFrame.Occurrence in
+/-- Starting at the admitted observer, consume only its executed prefix.
+Re-read the caller with the reached cursor, validate the actual observations,
+and follow the live write, publication and caller pop if the checked run reaches them.
+The original installed caller is tracked across the entire composed cut. -/
+theorem cut_component_observed_acceptance (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.ok planned)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.ok planned)))
+    (paired : PairedComponentSite wider start incoming check canon)
+    (original : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer, labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentObservedAcceptance profile ready base bindings older wider callee caller leftTicket rightTicket
+        planned check canon first second start incoming reached peer leading suffix finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutObservedAcceptance
+    callee caller leftFocus rightFocus paired original admitted leftInstalled rightInstalled outside run
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
