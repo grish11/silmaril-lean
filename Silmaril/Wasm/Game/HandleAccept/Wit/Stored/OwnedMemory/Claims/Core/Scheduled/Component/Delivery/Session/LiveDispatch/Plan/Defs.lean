@@ -4616,9 +4616,10 @@ def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostSt
       ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
         (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
-/-- Flat scalar and string fields, aggregates, and selected sums. This is a
+/-- Flat scalar, nominal handle and string fields, aggregates, and selected sums. This is a
 proof domain, not a runtime check for support. -/
 inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
+  | handle (item : Stored.Endpoints.RecordLower.Field) (nominal : CanonicalHandle item) : FlatVisitShape item
   | scalar (type : Stored.TypeOf) (data : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type) :
       FlatVisitShape (.data type payload)
   | string (item : Stored.Endpoints.RecordLower.Field) (matched : item.LayoutMatches (.prim .string))
@@ -4630,13 +4631,15 @@ inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
       (matched : Stored.Endpoints.RecordLower.Field.LayoutMatches (.sum type arms tag selected) type)
       (child : ∀ field, selected = some field → FlatVisitShape field) : FlatVisitShape (.sum type arms tag selected)
 
-def FlatVisitFocus (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+inductive FlatVisitFocus (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
     (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig)
     (left right : Config (core3 grow) (HostState sig))
-    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
-  ∃ words : List FlatValue, LinkedCallback.ChildFrameOver older left right check canon ∧
-    Core3.Grows origin.core left.store.core ∧ left.ctl = check.control (checkNext (.ok words)) ∧
-    right.ctl = canon.control (canonNext words)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop where
+  | returned (words : List FlatValue) (frame : LinkedCallback.ChildFrameOver older left right check canon)
+      (growth : Core3.Grows origin.core left.store.core) (checked : left.ctl = check.control (checkNext (.ok words)))
+      (canonical : right.ctl = canon.control (canonNext words)) : FlatVisitFocus older origin checkNext canonNext left right check canon
+  | refused (issue : Stored.Endpoints.RecordLower.Issue) (checked : left.ctl = check.control (checkNext (.error issue))) :
+      FlatVisitFocus older origin checkNext canonNext left right check canon
 
 abbrev FlatVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
