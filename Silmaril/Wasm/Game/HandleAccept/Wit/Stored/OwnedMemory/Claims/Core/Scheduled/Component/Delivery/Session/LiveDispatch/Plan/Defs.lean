@@ -532,6 +532,11 @@ inductive StringSliceEnd (profile : ProfileKind) (ready : HostReady (HostState s
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
   | installPrefix (short : trailing.length < 1) :
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | collectionInstall (short : trailing.length < 3) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
+  | collectionRange {reached remaining} (nonempty : remaining ≠ [])
+      (localTail : Steps profile ready (specDispatch ready base) finish remaining reached) :
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish [some (.active 0 0)]
   | callback {checkEntry canonEntry checkLabels canonLabels mark first second}
       (tracked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels checked canonical mark)
       (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) checked canonical)
@@ -4616,8 +4621,31 @@ def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostSt
       ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
         (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
-/-- Flat scalar, nominal handle and string fields, aggregates, fixed arrays and selected sums. This is a
+/-- Compiled memory fragment consumed by the finite visitor. Compound nodes
+carry layout evidence and the shapes of their active children. This is a
 proof domain, not a runtime check for support. -/
+inductive MemoryVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
+  | handle {item} : CanonicalHandle item → MemoryVisitShape item
+  | scalar {type} {payload : Stored.Payload type} : PayloadPrefix.LocalDataType type → MemoryVisitShape (.data type payload)
+  | string {item} : item.LayoutMatches (.prim .string) → item.Emitted → MemoryVisitShape item
+  | aggregate {type items} : Stored.Endpoints.RecordLower.Field.LayoutMatches (.aggregate type items) type →
+      (∀ item ∈ items, MemoryVisitShape item) → MemoryVisitShape (.aggregate type items)
+  | sum {type arms tag selected} :
+      (∀ width, ABI.layout width type = ABI.variantLayout (arms.map (ABI.layoutOption width))) →
+      (∀ item, selected = some item → some item.type ∈ arms) →
+      (∀ item, selected = some item → MemoryVisitShape item) →
+      MemoryVisitShape (.sum type arms tag selected)
+  | list {element entries} : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element →
+      (∀ item ∈ entries, MemoryVisitShape item) → MemoryVisitShape (.dynamic (.list element) element entries)
+  | map {key element entries} :
+      Stored.Endpoints.RecordLower.Field.EntriesMatch entries (.record (ABI.mapEntryFields key element)) →
+      Stored.Endpoints.RecordLower.Field.Emitted (.dynamic (.map key element) (.record (ABI.mapEntryFields key element)) entries) →
+      (∀ keyField value, Stored.Endpoints.RecordLower.Field.aggregate (.record (ABI.mapEntryFields key element)) [keyField, value] ∈ entries →
+        ∀ child ∈ [keyField, value], MemoryVisitShape child) →
+      MemoryVisitShape (.dynamic (.map key element) (.record (ABI.mapEntryFields key element)) entries)
+
+/-- Flat leaves, aggregates, fixed arrays, dynamic collections with placed entries and selected sums.
+This is a proof domain, not a runtime check for support. -/
 inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
   | handle (item : Stored.Endpoints.RecordLower.Field) (nominal : CanonicalHandle item) : FlatVisitShape item
   | scalar (type : Stored.TypeOf) (data : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type) :
@@ -4628,6 +4656,9 @@ inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
       (children : ∀ field ∈ fields, FlatVisitShape field) : FlatVisitShape (.aggregate type fields)
   | fixed (element : Stored.TypeOf) (length : Nat) (items : List Stored.Endpoints.RecordLower.Field)
       (children : ∀ field ∈ items, FlatVisitShape field) : FlatVisitShape (.fixed element length items)
+  | collection (type element : Stored.TypeOf) (entries : List Stored.Endpoints.RecordLower.Field)
+      (matching : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element)
+      (children : ∀ field ∈ entries, MemoryVisitShape field) : FlatVisitShape (.dynamic type element entries)
   | sum (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf)) (tag : Nat)
       (selected : Option Stored.Endpoints.RecordLower.Field)
       (matched : Stored.Endpoints.RecordLower.Field.LayoutMatches (.sum type arms tag selected) type)
@@ -4664,29 +4695,6 @@ def FlatVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
     ∀ actual finish, Steps profile ready (specDispatch ready base) left actual finish → actual.length ≤ budget →
       FlatVisitRun profile ready base bindings older origin checkNext canonNext left right actual finish
 
-/-- Compiled memory fragment consumed by the finite visitor. Compound nodes
-carry layout evidence and the shapes of their active children. This is a
-proof domain, not a runtime check for support. -/
-inductive MemoryVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
-  | handle {item} : CanonicalHandle item → MemoryVisitShape item
-  | scalar {type} {payload : Stored.Payload type} : PayloadPrefix.LocalDataType type → MemoryVisitShape (.data type payload)
-  | string {item} : item.LayoutMatches (.prim .string) → item.Emitted → MemoryVisitShape item
-  | aggregate {type items} : Stored.Endpoints.RecordLower.Field.LayoutMatches (.aggregate type items) type →
-      (∀ item ∈ items, MemoryVisitShape item) → MemoryVisitShape (.aggregate type items)
-  | sum {type arms tag selected} :
-      (∀ width, ABI.layout width type = ABI.variantLayout (arms.map (ABI.layoutOption width))) →
-      (∀ item, selected = some item → some item.type ∈ arms) →
-      (∀ item, selected = some item → MemoryVisitShape item) →
-      MemoryVisitShape (.sum type arms tag selected)
-  | list {element entries} : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element →
-      (∀ item ∈ entries, MemoryVisitShape item) → MemoryVisitShape (.dynamic (.list element) element entries)
-  | map {key element entries} :
-      Stored.Endpoints.RecordLower.Field.EntriesMatch entries (.record (ABI.mapEntryFields key element)) →
-      Stored.Endpoints.RecordLower.Field.Emitted (.dynamic (.map key element) (.record (ABI.mapEntryFields key element)) entries) →
-      (∀ keyField value, Stored.Endpoints.RecordLower.Field.aggregate (.record (ABI.mapEntryFields key element)) [keyField, value] ∈ entries →
-        ∀ child ∈ [keyField, value], MemoryVisitShape child) →
-      MemoryVisitShape (.dynamic (.map key element) (.record (ABI.mapEntryFields key element)) entries)
-
 /-- Keep the reached canonical program on a checked-only refusal, either
 before the linked field or after the pop at an allocated collection tail. -/
 inductive PendingMemoryField (destination : RecordDestination) (inst : InstId)
@@ -4702,43 +4710,59 @@ inductive PendingMemoryField (destination : RecordDestination) (inst : InstId)
 
 /-- A visitor can advance a sibling only after a common return. In a paused
 allocator keep its current occurrence, even when that occurrence is lost. -/
-inductive MemoryVisitEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+inductive ValueVisitEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
-    (destination : RecordDestination) (inst : InstId)
-    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (valueType : Type) (pending : Config (core3 grow) (HostState sig) → Prop)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue valueType → Session grow sig (Ret (core3 grow)))
+    (canonNext : valueType → Session grow sig (Ret (core3 grow)))
     (left right : Config (core3 grow) (HostState sig)) (trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) :
     List (Option ReturnFrame.Occurrence.Location) → Prop where
-  | returned (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+  | returned (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) {value : valueType}
       (frame : LinkedCallback.ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
-      (checked : left.ctl = check.control (checkNext (.ok ()))) (canonical : right.ctl = canon.control (canonNext ())) :
-      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish []
+      (checked : left.ctl = check.control (checkNext (.ok value))) (canonical : right.ctl = canon.control (canonNext value)) :
+      ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish []
   | refused (issue : Stored.Endpoints.RecordLower.Issue) (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-      (checked : left.ctl = check.control (checkNext (.error issue))) (pending : PendingMemoryField destination inst right) :
-      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish []
+      (checked : left.ctl = check.control (checkNext (.error issue))) (atPending : pending right) :
+      ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish []
   | boundary {marks} (reached : StringSliceEnd profile ready base bindings older (fun _ _ _ _ _ => False)
       left right trailing finish marks) :
-      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish marks
+      ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks
   | collectionInstall (short : trailing.length < 3) :
-      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish []
+      ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish []
   | collectionRange {target remaining} (nonempty : remaining ≠ [])
       (tail : Steps profile ready (specDispatch ready base) finish remaining target) :
-      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish
+      ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish
         [some (.active 0 0)]
 
 /-- An actual checked derivation cut at a compiled visitor endpoint, with a
 canonical path to its reached peer and all-location occurrence transport. -/
-def MemoryVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+def ValueVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
-    (destination : RecordDestination) (inst : InstId)
-    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (valueType : Type) (pending : Config (core3 grow) (HostState sig) → Prop)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue valueType → Session grow sig (Ret (core3 grow)))
+    (canonNext : valueType → Session grow sig (Ret (core3 grow)))
     (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   ∃ checked canonical trailing left right marks, actual = checked ++ trailing ∧
     PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
     OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
     Steps profile ready (specDispatch ready base) left trailing finish ∧
-    MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish marks
+    ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks
+
+abbrev MemoryVisitEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (destination : RecordDestination) (inst : InstId)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig) :=
+  ValueVisitEnd profile ready base bindings older origin Unit (PendingMemoryField destination inst) checkNext canonNext
+
+abbrev MemoryVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (destination : RecordDestination) (inst : InstId)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig) :=
+  ValueVisitRun profile ready base bindings older origin Unit (PendingMemoryField destination inst) checkNext canonNext
 
 /-- A local comparison invoked on a real residual from a placed compiled
 field. The budget refers to checked steps, not allocator or scheduler fuel. -/
