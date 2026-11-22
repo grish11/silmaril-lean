@@ -257,6 +257,40 @@ private theorem alignWorkerBody {dispatch : Call (core3 grow) → Session grow s
       · exact .departure (leading := []) rfl rfl (.refl _) agree (differentStepBranch planned actualStep agree)
           planned bodyTail actualStep actualTail
 
+private theorem alignLocalBody {before target last : Config (core3 grow) (HostState sig)}
+    {planned actual : Trace grow sig}
+    (localRun : Steps profile ready (specDispatch ready base) before planned target)
+    (actualRun : Steps profile ready (specDispatch ready base) before actual last)
+    (notBranch : ∀ action ∈ planned, ¬ workerBranchLabel action) :
+    LocalRunAlignment profile ready (specDispatch ready base) target planned actual last := by
+  cases alignWorkerBody localRun actualRun with
+  | reached split tail => exact .reached split tail
+  | inside split nonempty tail => exact .inside split nonempty tail
+  | departure split _ _ _ branch _ _ _ _ =>
+    exact False.elim (notBranch _ (split ▸ List.mem_append_right _ (List.mem_cons_self ..)) branch.1)
+
+private theorem noBranchOfVisible {raw observed : Trace grow sig} (seen : PayloadPrefix.visible raw = observed)
+    (notBranch : ∀ action ∈ observed, ¬ workerBranchLabel action) :
+    ∀ action ∈ raw, ¬ workerBranchLabel action := by
+  intro action member branch
+  apply notBranch action _ branch
+  rw [← seen]
+  apply List.mem_filter.mpr
+  refine ⟨member, ?_⟩
+  cases action <;> simp_all [workerBranchLabel]
+
+theorem driveValueCommit {output : Stored.Lower.Output} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {published : LinkedCallback.MemorySequence.ValueFinish grow sig output}
+    (commit : LiveValueCommit profile ready base bindings output checkNext canonNext published start incoming check canon)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish) :
+    ValueCommitRun profile ready base bindings output checkNext canonNext published start incoming check canon labels finish := by
+  obtain ⟨store, verdict, effects, shape, checked, _, movement, continues⟩ := commit
+  refine ⟨store, verdict, effects, movement, alignLocalBody checked.steps actual (noBranchOfVisible (CallbackPrefix.visibleLeaf shape) ?_),
+    fun value success => (continues value success).2.2⟩
+  cases verdict <;> simp [workerBranchLabel]
+
 private theorem silentVisible {trace : Trace grow sig} (silent : trace.all (· matches .tau) = true) :
     PayloadPrefix.visible trace = [] := by
   induction trace with
@@ -440,10 +474,9 @@ theorem driveStringCommit {destination : RecordDestination} {inst : InstId} {key
   | callback mark paired ending noPop => exact stop (.callback mark paired ending noPop)
   | trap checked canonical => exact stop (.trap checked canonical)
   | @descriptor pointer cursor peer commit =>
-    obtain ⟨store, verdict, effects, _view, checkedWrite, _canonicalWrite, writes, continues⟩ := commit
-    cases alignWorkerBody checkedWrite.steps remainder with
+    obtain ⟨store, verdict, effects, writes, aligned, continues⟩ := driveValueCommit commit remainder
+    cases aligned with
     | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
-    | departure _ split shared _ choice _ _ step tail => exact stop (.localChoice split choice.2 shared step tail)
     | @reached suffix used tail =>
       have reachedWrites := (CallbackPrefix.transportAppend movement writes).choose_spec.1
       refine ⟨checked ++ effects, canonical ++ effects, suffix, _, _, [],
@@ -453,7 +486,7 @@ theorem driveStringCommit {destination : RecordDestination} {inst : InstId} {key
       · cases verdict <;> rfl
       · cases verdict with
         | error reason => exact .trap rfl rfl
-        | ok value => exact .descriptor (pointer := pointer) ⟨value, (continues value rfl).2.2⟩
+        | ok value => exact .descriptor (pointer := pointer) ⟨value, continues value rfl⟩
 
 private theorem visiblePrefix {left right : Trace grow sig} (initial : left <+: right) :
     PayloadPrefix.visible left <+: PayloadPrefix.visible right := by
@@ -2118,6 +2151,134 @@ theorem pendingComparedEntry {route : GiveEffectRoute} (site : PayloadRoot.Site 
   cases mark with
   | none => exact ⟨none, Trail.absent checked.steps, Trail.absent (prefix_survives (canonical (.active 0 0))).1⟩
   | some place => exact ⟨some (site.entryPlace place), (checked place).toTrail, (canonical place).toTrail⟩
+
+open ReturnFrame.Occurrence in
+private theorem alignRangeTransport {leftEntry rightEntry checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
+    {checkTrace canonTrace observed : Trace grow sig}
+    (movement : OccurrenceTransport profile ready base bindings leftEntry rightEntry checkTrace canonTrace checked canonical
+      [some (.active 0 0)])
+    (suffix : CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed)
+    (notBranch : ∀ action ∈ observed, ¬ workerBranchLabel action)
+    (actual : Steps profile ready (specDispatch ready base) checked labels finish) :
+    AlignedCollectionRange profile ready base bindings leftEntry rightEntry lhs rhs checkTrace canonTrace observed labels finish := by
+  obtain ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same⟩ := suffix movement
+  obtain ⟨_, before, _⟩ := CallbackPrefix.transportPaths movement none
+  obtain ⟨_, after, _⟩ := CallbackPrefix.transportPaths whole none
+  exact ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same,
+    alignLocalBody (stripExactPrefix before.steps after.steps) actual (noBranchOfVisible checkSeen notBranch)⟩
+
+open ReturnFrame.Occurrence in
+private theorem alignCollectionRange {leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
+    {checkTrace canonTrace seen : Trace grow sig} {cursor destination area count pointer plan checkNext canonNext}
+    (movement : OccurrenceTransport profile ready base bindings leftEntry rightEntry checkTrace canonTrace checked canonical
+      [some (.active 0 0)])
+    (range : CollectionRangeOccurrences profile ready base bindings older leftEntry rightEntry checked canonical seen
+      cursor destination area count pointer plan checkNext canonNext)
+    (actual : Steps profile ready (specDispatch ready base) checked labels finish) :
+    CollectionRangeRun profile ready base bindings older leftEntry rightEntry checked canonical checkTrace canonTrace labels finish
+      cursor destination area count pointer plan checkNext canonNext := by
+  have align {lhs rhs : Config (core3 grow) (HostState sig)} {observed : Trace grow sig}
+      (notBranch : ∀ action ∈ observed, ¬ workerBranchLabel action)
+      (suffix : CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed) :
+      AlignedCollectionRange profile ready base bindings leftEntry rightEntry lhs rhs checkTrace canonTrace observed labels finish :=
+    alignRangeTransport movement suffix notBranch actual
+  have trap (reason : TrapReason) : ∀ action ∈ ([.trap reason] : Trace grow sig), ¬ workerBranchLabel action := by
+    intro action member
+    have same := List.mem_singleton.mp member
+    subst action
+    exact id
+  obtain ⟨bytes, width, sized, verdict⟩ := range
+  refine ⟨bytes, width, sized, ?_⟩
+  by_cases misaligned : pointer ≠ ABI.alignTo pointer area.alignment
+  · simp only [ite_eq_left misaligned] at verdict ⊢
+    exact align (trap .unalignedPointer) verdict.2
+  · simp only [ite_eq_right misaligned] at verdict ⊢
+    by_cases fits : pointer + count * area.size ≤ bytes
+    · simp only [ite_eq_left fits] at verdict ⊢
+      obtain ⟨canon, frame, _, _, _, suffix⟩ := verdict
+      exact ⟨canon, frame, align (by simp) suffix⟩
+    · simp only [ite_eq_right fits] at verdict ⊢
+      exact align (trap .outOfBounds) verdict.2
+
+open PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower in
+theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+    {entries : List Field} {index budget : Nat} {output : Stored.Lower.Output}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {seen : Trace grow sig} {initial reference : Config (core3 grow) (HostState sig)}
+    {visit : Nat → Nat → TrailFinish grow sig} {sink : RefusalSink grow sig}
+    (body : LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output
+      checkNext canonNext initial reference start incoming seen check canon visit sink)
+    (same : start.store = incoming.store)
+    (width : (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    CollectionRunSlice profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming check canon labels finish seen visit := by
+  classical
+  unfold LiveCollectionOccurrenceEntry at body
+  unfold CollectionRunSlice
+  cases prepared : Stored.OwnedMemory.Claims.Record.prepare start.store start.host.writer (Field.listObjects entries) with
+  | error issue =>
+    simp only [prepared] at body ⊢
+    obtain ⟨_, transport, _⟩ := body
+    obtain ⟨_, checked, _⟩ := CallbackPrefix.transportPaths transport none
+    exact ⟨transport, alignLocalBody checked.steps actual (by simp [workerBranchLabel])⟩
+  | ok value =>
+    cases value
+    simp only [prepared] at body ⊢
+    obtain ⟨installed, entered⟩ := body width
+    rcases sliceInstalledCallback installed (by decide) actual
+      (fun smaller run pair => compare (Nat.lt_of_lt_of_le smaller bounded) run pair) with
+      short | ⟨checked, canonical, trailing, reached, peer, split, input, boundary⟩
+    · exact .inl short
+    obtain ⟨actualChecked, actualCanon, actualPeer, mark, tracked, paired, _, movement, exactPath, returns⟩ := entered input
+    change (checked, canonical, peer) = (actualChecked, actualCanon, actualPeer) at exactPath
+    rcases Prod.mk.inj exactPath with ⟨rfl, paths⟩
+    rcases Prod.mk.inj paths with ⟨rfl, rfl⟩
+    have compared := show PayloadPrefix.visible canonical = PayloadPrefix.visible checked from by
+      cases input with
+      | executed segment => exact segment.observed
+    have grows : Core3.Grows start.store.core reached.store.core := by
+      cases input with
+      | executed segment => exact segment.checkedRun.grows
+    refine .inr ⟨checked, canonical, trailing, reached, peer, mark, by simpa using split, compared, tracked, paired, movement,
+      boundary, ?_⟩
+    by_cases active : mark = some (.active 0 0)
+    · subst mark
+      let area := ABI.layout destination.width element
+      let first := checkedCollectionResume destination inst entries area index output checkNext
+      by_cases returning : ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
+          reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))
+      · obtain ⟨pointer, cursor, focus⟩ := returning
+        have actualTail : Steps profile ready (specDispatch ready base) reached trailing finish := by
+          cases boundary with
+          | exhausted => exact .refl _
+          | boundary _ step tail => exact .cons step tail
+        have history : ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible checked) reached peer := by
+          refine ⟨_, _, CallbackPrefix.transportPaths movement, ?_, ?_, paired.data.1⟩
+          · exact visibleAppend ([.tau, .tau, .tau] : Trace grow sig) checked
+          · exact (visibleAppend ([.tau, .tau] : Trace grow sig) canonical).trans compared
+        have range := CallbackRange.collectionRangeOccurrences (profile := profile) (ready := ready)
+          destination inst type element entries output index pointer checkNext canonNext tracked paired focus (same ▸ width) grows history
+        have aligned := alignCollectionRange movement range actualTail
+        cases actualTail with
+        | refl => exact .inl (.inl rfl)
+        | @cons _ next _ action residual taken suffix =>
+          have pop : Step profile ready (specDispatch ready base) reached .tau
+              { reached with ctl := cursor.control (first (.nat pointer)) } := .popProg focus
+          obtain ⟨rfl, rfl⟩ := silentStepUnique pop taken
+          refine .inr ⟨pointer, cursor, residual, rfl, rfl, focus, suffix, aligned, ?_⟩
+          intro bytes size aligned fits fresh
+          obtain ⟨capacity, sized, range⟩ := returns pointer cursor rfl focus
+          cases Option.some.inj (sized.symm.trans size)
+          rw [ite_eq_right (not_not_intro aligned), ite_eq_left fits] at range
+          obtain ⟨lhs, rhs, peerCursor, _, _, frame, growth, checkedAt, canonicalAt, movementLocal, child⟩ := range.2 fresh
+          exact ⟨lhs, rhs, peerCursor, frame, growth, checkedAt, canonicalAt,
+            alignRangeTransport movement movementLocal (by simp) (.cons pop suffix), child⟩
+      · exact .inl (.inr (.inr returning))
+    · exact .inl (.inr (.inl active))
 
 private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
     {seen : Trace grow sig} {cursor destination area count pointer plan checkNext canonNext}

@@ -811,7 +811,7 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
     (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
-    (start incoming : Config (core3 grow) (HostState sig)) (pointer bytes : Nat)
+    (start incoming checked canonical : Config (core3 grow) (HostState sig)) (pointer bytes : Nat)
     (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (observed localSeen : Trace grow sig)
     (visit : LinkedCallback.MemorySequence.Finish grow sig := fun _ _ _ _ => True)
     (leftStart : Config (core3 grow) (HostState sig) := start)
@@ -830,6 +830,7 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
     Core3.Grows start.store.core left.store.core ∧
     left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) ∧
     right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) ∧
+    CollectionRangeTransport profile ready base bindings checked canonical left right [] ∧
     visit left right check canon
 
 /-- The unsuccessful branches of a marked range return, measured from the
@@ -915,7 +916,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
           pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
           OwnedMemory.Claims.Record.prepare finish.store finish.host.writer (Field.listObjects entries) = .ok () →
           LiveCollectionChildren profile ready base bindings older destination inst type element entries index output checkNext
-            canonNext start incoming pointer bytes cursor (leading ++ seen) seen
+            canonNext start incoming finish reached pointer bytes cursor (leading ++ seen) seen
             (visit pointer bytes (leading ++ seen)) leftStart rightStart offset
 
 /-- The live dry run before a nested allocation either reaches the typed
@@ -1600,6 +1601,7 @@ def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (Ho
           ComparedOccurrenceTransport profile ready base bindings leftEntry rightEntry localSeen left right ∧
           LinkedCallback.ChildFrameOver older left right check canon ∧ Core3.Grows origin.core left.store.core ∧
           left.ctl = check.control checkedChildren ∧ right.ctl = canon.control canonicalChildren ∧
+          CollectionRangeTransport profile ready base bindings checked canonical left right [] ∧
           visit bytes seen left right check canon)
     else trap .outOfBounds
 
@@ -4055,6 +4057,137 @@ inductive WorkerBodyAlignment (profile : ProfileKind) (ready : HostReady (HostSt
       (branch : workerBranchLabel expected ∧ workerBranchLabel taken)
       (planned : Step profile ready dispatch middle expected next) (bodyTail : Steps profile ready dispatch next rest body)
       (actualStep : Step profile ready dispatch middle taken actualNext) (actualTail : Steps profile ready dispatch actualNext suffix finish)
+
+/-- An aligned machine-local segment. The endpoint is reached only when the
+original checked derivation executes the entire segment. -/
+inductive LocalRunAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (target : Config (core3 grow) (HostState sig)) (planned actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | reached {residual} (split : actual = planned ++ residual)
+      (tail : Steps profile ready dispatch target residual finish)
+  | inside {remaining} (split : planned = actual ++ remaining) (nonempty : remaining ≠ [])
+      (tail : Steps profile ready dispatch finish remaining target)
+
+/-- Match the actual local descriptor program before exposing a successful
+publication or a trap. A checked prefix inside the program cannot advance
+the enclosing continuation. -/
+def ValueCommitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) (output : Stored.Lower.Output)
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
+    (published : LinkedCallback.MemorySequence.ValueFinish grow sig output)
+    (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open PayloadPrefix in
+  ∃ (store : CStore (core3 grow)) (result : Except TrapReason output.Result) (labels : Trace grow sig),
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
+    OccurrenceTransport profile ready base bindings left right labels labels lhs rhs ∧
+    LocalRunAlignment profile ready (specDispatch ready base) lhs labels actual finish ∧
+    ∀ value, result = .ok value → published value lhs rhs check canon
+
+/-- The suffix is the range program (including its marked pop), not a replay
+of the checked child or error continuation. -/
+def AlignedCollectionRange (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (leftEntry rightEntry lhs rhs : Config (core3 grow) (HostState sig))
+    (checkTrace canonTrace observed actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leftTail rightTail,
+    OccurrenceTransport profile ready base bindings leftEntry rightEntry
+      (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs ∧
+    PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store ∧
+    LocalRunAlignment profile ready (specDispatch ready base) lhs leftTail actual finish
+
+/-- The concrete checked verdict chooses the reached continuation. A range
+trap does not enter that continuation; a refusal leaves the peer at its
+canonical child entry. -/
+def CollectionRangeRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig))
+    (checkTrace canonTrace actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (destination : RecordDestination) (area : ABI.Layout) (count pointer : Nat)
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    (checkNext : Nat → Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Nat → Session grow sig (Ret (core3 grow))) : Prop :=
+  let trap := fun reason => AlignedCollectionRange profile ready base bindings leftEntry rightEntry
+    (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) checkTrace canonTrace [.trap reason] actual finish
+  ∃ bytes, (core3 grow).memAddrType? checked.store.core destination.memory = some destination.width ∧
+    (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
+    if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
+    else if pointer + count * area.size ≤ bytes then
+      ∃ canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+        let verdict := OwnedMemory.Claims.Record.prepare checked.store checked.host.writer plan
+        let lhs := { checked with ctl := cursor.control (checkNext pointer verdict) }
+        let rhs := { canonical with ctl := canon.control (canonNext pointer) }
+        LinkedCallback.ChildFrameOver older lhs rhs cursor canon ∧
+        AlignedCollectionRange profile ready base bindings leftEntry rightEntry lhs rhs checkTrace canonTrace [] actual finish
+    else trap .outOfBounds
+
+/-- Cut the collection field's original derivation at the install, callback,
+or range frontier. The actual callback traces and peer are retained even
+when no returning range path can be entered. -/
+def CollectionRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+    (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output)
+    (canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output)
+    (start incoming : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
+    (before : Trace grow sig) (visit : Nat → Nat → TrailFinish grow sig) : Prop :=
+  open PayloadPrefix Stored.Endpoints.RecordLower ReturnFrame.Occurrence in
+  match OwnedMemory.Claims.Record.prepare start.store start.host.writer (Field.listObjects entries) with
+  | .error issue =>
+    let refusal := match issue with
+      | .preflight reason => Issue.field index (.beforeAllocation reason)
+      | reason => Issue.nested index reason
+    let stopped := { start with ctl := check.control (checkNext (.error refusal)) }
+    OccurrenceTransport profile ready base bindings start incoming [.tau, .tau] [] stopped incoming ∧
+    LocalRunAlignment profile ready (specDispatch ready base) stopped [.tau, .tau] actual finish
+  | .ok () =>
+    let area := ABI.layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width type output
+    let first := checkedCollectionResume destination inst entries area index output checkNext
+    let second := canonicalCollectionResume destination inst entries area output canonNext mode
+    let leftEntry := collectionEntry destination inst area entries.length (specDispatch ready base) start check first
+    let rightEntry := collectionEntry destination inst area entries.length
+      (specDispatch ready (LiveDispatch.host bindings base)) incoming canon second
+    actual.length < 3 ∨ ∃ checked canonical trailing reached peer mark,
+      let checkTrace := [.tau, .tau, .tau] ++ checked
+      let canonTrace := [.tau, .tau] ++ canonical
+      actual = checkTrace ++ trailing ∧
+      PayloadPrefix.visible canonical = PayloadPrefix.visible checked ∧
+      AllocatorMark profile ready base bindings older leftEntry rightEntry checked canonical reached peer mark ∧
+      HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached peer ∧
+      OccurrenceTransport profile ready base bindings start incoming checkTrace canonTrace reached peer [mark] ∧
+      CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached trailing finish ∧
+      ((trailing = [] ∨ mark ≠ some (.active 0 0) ∨
+        ¬ ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
+          reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))) ∨
+        ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)) (residual : Trace grow sig),
+          mark = some (.active 0 0) ∧ trailing = .tau :: residual ∧
+          reached.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) ∧
+          Steps profile ready (specDispatch ready base) { reached with ctl := cursor.control (first (.nat pointer)) } residual finish ∧
+          CollectionRangeRun profile ready base bindings older start incoming reached peer checkTrace canonTrace trailing finish
+            cursor destination area entries.length pointer (Field.listObjects entries)
+            (fun addr verdict => checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext)
+            (fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext) ∧
+          (∀ bytes, (core3 grow).memSize? reached.store.core destination.memory = some bytes →
+            pointer = ABI.alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
+            OwnedMemory.Claims.Record.prepare reached.store reached.host.writer (Field.listObjects entries) = .ok () →
+            ∃ lhs rhs peerCursor, LinkedCallback.ChildFrameOver older lhs rhs cursor peerCursor ∧
+              Core3.Grows start.store.core lhs.store.core ∧
+              lhs.ctl = cursor.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) ∧
+              rhs.ctl = peerCursor.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) ∧
+              AlignedCollectionRange profile ready base bindings start incoming lhs rhs checkTrace canonTrace [] trailing finish ∧
+              visit pointer bytes (before ++ PayloadPrefix.visible checked) lhs rhs cursor peerCursor))
 
 /-- The observed return focus is not itself an executed pop. Only the
 matched case advances both continuations and exposes an actual shorter

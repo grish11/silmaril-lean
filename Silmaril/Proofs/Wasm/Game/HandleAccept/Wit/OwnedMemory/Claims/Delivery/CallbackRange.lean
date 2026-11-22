@@ -441,7 +441,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
   rw [fresh] at frameAfter checkTracks paths range
   exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths,
     by simpa only [List.append_nil] using continued range, frameAfter, liveWidth, sized,
-    aligned, bounds, growth, rfl, rfl, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
+    aligned, bounds, growth, rfl, rfl, range, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
 
 private theorem collectionEntryVisiting (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)

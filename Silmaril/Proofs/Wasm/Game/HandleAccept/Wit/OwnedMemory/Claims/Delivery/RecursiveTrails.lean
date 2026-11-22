@@ -77,11 +77,11 @@ theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type 
   obtain ⟨range, failed, children⟩ := returns pointer cursor top returning
   refine ⟨range, rangePathsFrom covers admitted leading failed, ?_⟩
   intro bytes sized aligned bounds fresh
-  obtain ⟨lhs, rhs, peer, tracks, occurrences, retained, frame, width, size, align, bound, growth, checkAt, canonAt, body⟩ :=
+  obtain ⟨lhs, rhs, peer, tracks, occurrences, retained, frame, width, size, align, bound, growth, checkAt, canonAt, exactRange, body⟩ :=
     children bytes sized aligned bounds fresh
   have reached := CallbackPrefix.appendComparedSlots leading tracks
   exact ⟨lhs, rhs, peer, reached, occurrences, retained, frame, width, size, align, bound, growth, checkAt, canonAt,
-    next pointer bytes (seen ++ suffix) lhs rhs cursor peer reached frame.store body⟩
+    exactRange, next pointer bytes (seen ++ suffix) lhs rhs cursor peer reached frame.store body⟩
 
 theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
     {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
@@ -157,10 +157,10 @@ theorem collectionEntryOccurrencesWith {destination : RecordDestination} {inst :
           have rebased := CallbackPrefix.appendComparedOccurrences leading stopped
           exact ⟨peer, rebased, retained, covers _ admitted _ _ _ _ cursor rfl rebased⟩
         · intro fresh
-          obtain ⟨lhs, rhs, peer, _, paths, retained, frame, _, _, _, _, growth, checkAt, canonAt, body⟩ :=
+          obtain ⟨lhs, rhs, peer, _, paths, retained, frame, _, _, _, _, growth, checkAt, canonAt, range, body⟩ :=
             children bytes sized (Classical.not_not.mp misaligned) fits fresh
           have rebased := CallbackPrefix.appendComparedOccurrences leading paths
-          exact ⟨lhs, rhs, peer, rebased, retained, frame, growth, checkAt, canonAt,
+          exact ⟨lhs, rhs, peer, rebased, retained, frame, growth, checkAt, canonAt, range,
             next pointer bytes suffix lhs rhs cursor peer rebased retained body⟩
       · rw [ite_eq_right fits] at failed ⊢
         exact ⟨by simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2.1, failed.2.2⟩

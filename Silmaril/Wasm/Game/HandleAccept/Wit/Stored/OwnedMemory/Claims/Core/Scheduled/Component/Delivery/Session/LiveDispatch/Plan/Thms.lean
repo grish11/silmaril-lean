@@ -652,6 +652,38 @@ theorem AllocatorMark.align_actual_pop
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignAllocatorPop
     marked paired returning installed run
 
+/-- Match the real descriptor publication against the checked residual before
+entering the next compiled continuation. -/
+theorem LiveValueCommit.drive_actual {output : Stored.Lower.Output}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {published : LinkedCallback.MemorySequence.ValueFinish grow sig output}
+    (commit : LiveValueCommit profile ready base bindings output checkNext canonNext published start incoming check canon)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish) :
+    ValueCommitRun profile ready base bindings output checkNext canonNext published start incoming check canon labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveValueCommit commit actual
+
+/-- Drive a linked collection field from the original checked residual.
+Only the actually executed marked pop can reach the fresh range verdict. -/
+theorem LiveCollectionOccurrenceEntry.drive_actual {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
+    {entries : List Field} {index budget : Nat} {output : Stored.Lower.Output}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
+    {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {seen : Trace grow sig} {initial reference : Config (core3 grow) (HostState sig)}
+    {visit : Nat → Nat → TrailFinish grow sig} {sink : RefusalSink grow sig}
+    (body : LiveCollectionOccurrenceEntry profile ready base bindings older destination inst type element entries index output
+      checkNext canonNext initial reference start incoming seen check canon visit sink)
+    (same : start.store = incoming.store)
+    (width : (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width)
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    CollectionRunSlice profile ready base bindings older destination inst type element entries index output checkNext canonNext
+      start incoming check canon labels finish seen visit :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCollectionSlice
+    body same width actual bounded compare
+
 /-- A reached marked collection return uses the live memory and claim table.
 Both paths take the actual range checks under their respective dispatchers.
 Invalid range traps both; valid range hands the checked suffix its fresh
