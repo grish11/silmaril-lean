@@ -4525,6 +4525,33 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
 
+/-- Consume the actual post-pop worker run, when reached. A different resumed
+program is an explicit boundary, not a replay or a runtime refusal. -/
+def ComponentMarkedWorkerTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming reached peer : Config (core3 grow) (HostState sig)) (leading : Trace grow sig)
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (suffix : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  reached.ctl ≠ check.control (.pure (.cancel .none)) ∨
+  (∃ mark, AllocatorMark profile ready base bindings older start incoming leading leading reached peer mark ∧
+    mark ≠ some (.active 0 0)) ∨ (suffix = [] ∧ finish = reached) ∨
+  ∃ (remaining : Trace grow sig) (after canonAfter : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+    let resumed := { reached with ctl := after.control (first (.cancel .none)) }
+    let canon := { peer with ctl := canonAfter.control (second (.cancel .none)) }
+    suffix = .tau :: remaining ∧ remaining.length < suffix.length ∧
+    Steps profile ready (specDispatch ready base) resumed remaining finish ∧
+    OccurrenceTransport profile ready base bindings start incoming (leading ++ [.tau]) (leading ++ [.tau]) resumed canon ∧
+    (first (.cancel .none) ≠ second (.cancel .none) ∨
+      ∃ checked canonical trailing worker workerPeer,
+        remaining = checked ++ trailing ∧
+        OccurrenceTransport profile ready base bindings start incoming
+          ((leading ++ [.tau]) ++ checked) ((leading ++ [.tau]) ++ canonical) worker workerPeer ∧
+        PayloadPrefix.visible canonical = PayloadPrefix.visible checked ∧
+        CallbackSliceEnd profile ready base bindings older worker workerPeer trailing finish)
+
 /-- Compare the checked run with the entry obtained from the real public
 guards. A short run need not have taken the displayed refusal or trap. -/
 inductive RecursiveRootEntryAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))

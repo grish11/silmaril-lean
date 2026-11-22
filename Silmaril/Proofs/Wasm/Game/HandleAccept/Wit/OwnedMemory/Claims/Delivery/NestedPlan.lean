@@ -5872,4 +5872,60 @@ theorem classifyGiveCallbacks
     CallbackSlice profile ready base bindings older start incoming labels finish :=
   foldCallbackSlices (classifiedGiveCrossing embedder) run paired
 
+open ReturnFrame.Occurrence in
+theorem compareComponentMarkedWorker {callees : List (ComponentCall.Callee sig)}
+    {reached peer : Config (core3 grow) (HostState sig)} {leading suffix : Trace grow sig}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (moved : OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      start incoming leading leading reached peer)
+    (reply : ComponentMarkedReplyTail profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      start incoming reached peer leading check first second suffix finish) :
+    ComponentMarkedWorkerTail profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      start incoming reached peer leading check first second suffix finish := by
+  classical
+  by_cases focus : reached.ctl = check.control (.pure (.cancel .none))
+  · obtain ⟨mark, tracked, result⟩ := reply
+    rcases result focus with lost | ⟨after, _, pop⟩
+    · exact .inr (.inl ⟨mark, tracked, lost⟩)
+    rcases pop with lost | empty | ⟨remaining, rightAfter, _, actual, smaller, residual, _, frame, _, transport⟩
+    · exact .inr (.inl ⟨mark, tracked, lost⟩)
+    · exact .inr (.inr (.inl empty))
+    have markedFront : OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming leading leading reached peer [some (.active 0 0)] := by
+      obtain ⟨move, paths, retained⟩ := moved
+      refine ⟨move, paths, ?_⟩
+      intro older marks outside place off first second left right
+      exact retained older marks outside place (fun member => off (List.mem_cons_of_mem _ member)) first second left right
+    have continued := transport markedFront
+    refine .inr (.inr (.inr ⟨remaining, after, rightAfter, actual, smaller, residual, continued, ?_⟩))
+    by_cases common : first (.cancel .none) = second (.cancel .none)
+    · have pair : HostFrame.Related.Paired older
+          { reached with ctl := after.control (first (.cancel .none)) }
+          { peer with ctl := rightAfter.control (second (.cancel .none)) } := by
+        have control : List.Forall₂ (ReturnFrame.Related.Active older) (after.control (first (.cancel .none)))
+            (rightAfter.control (second (.cancel .none))) := by
+          unfold PayloadPrefix.Cursor.control
+          rw [← frame.thread, ← common]
+          exact .cons (.mk frame.frames) frame.rest
+        have result := ReturnFrame.Related.Paired.mk
+          (left := { reached with host := peer.host, ctl := after.control (first (.cancel .none)) }) control frame.blocked
+        have sameStore := frame.store
+        have samePending := frame.pending
+        have sameResults := frame.results
+        have sameCancels := frame.cancels
+        unfold HostFrame.Related.Paired HostFrame.replace
+        cases reached
+        cases peer
+        dsimp only at sameStore samePending sameResults sameCancels
+        rw [← sameStore, ← samePending, ← sameResults, ← sameCancels]
+        exact result
+      obtain ⟨checked, canonical, trailing, worker, workerPeer, split, segment, ending⟩ :=
+        classifyGiveCallbacks (base := ComponentCall.hostWithComponent bindings callees) rfl residual pair
+      exact .inr ⟨checked, canonical, trailing, worker, workerPeer, split,
+        by simpa only [List.map_nil, List.append_nil] using
+          (CallbackPrefix.transportAppend continued segment.occurrences).choose_spec.1, segment.observed, ending⟩
+    · exact .inl common
+  · exact .inl focus
+
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

@@ -2848,6 +2848,21 @@ theorem classify_give_callbacks
     CallbackSlice profile ready base bindings older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
 
+/-- Enter the live worker fold only on the actually executed marked pop.
+The fold consumes the extracted shorter suffix under the same dispatcher;
+a different resumed program remains a boundary after the paired pop. -/
+theorem compare_component_marked_worker {callees : List (ComponentCall.Callee sig)}
+    {reached peer : Config (core3 grow) (HostState sig)} {leading suffix : Trace grow sig}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (moved : OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      start incoming leading leading reached peer)
+    (reply : ComponentMarkedReplyTail profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      start incoming reached peer leading check first second suffix finish) :
+    ComponentMarkedWorkerTail profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      start incoming reached peer leading check first second suffix finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.compareComponentMarkedWorker moved reply
+
 theorem classify_memory_callbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
