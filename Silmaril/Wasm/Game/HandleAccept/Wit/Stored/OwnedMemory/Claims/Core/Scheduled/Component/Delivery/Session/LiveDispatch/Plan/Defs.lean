@@ -868,6 +868,14 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish (marks ++ [caller]))
       (stop : GiveBodyStop profile ready base left right trailing finish caller) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | directGiveLateReply {changes reached peer left right checked canonical trailing finish resume}
+      {caller : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (issue : Stored.Endpoints.RecordLower.Issue) (reply : Event × List FlatValue)
+      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
+      (focus : left.ctl = { caller with frames := .prog resume :: caller.frames }.control
+        (do return .flat (← writeCompletion reply)))
+      (replyCut : CheckedProgramReplyCut profile ready (specDispatch ready base) left caller resume reply trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | allocator {changes reached peer label next left right checked canonical trailing finish caller
       checkEntry canonEntry checkLabels canonLabels mark first second}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
