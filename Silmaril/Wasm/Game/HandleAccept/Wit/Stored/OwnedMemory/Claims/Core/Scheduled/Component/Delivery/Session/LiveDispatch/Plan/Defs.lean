@@ -101,6 +101,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | waitInstall {thread core resume frames rest mem inst args}
       (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
       (calling : (core3 grow).status before.store.core core = .callout (.builtin (.waitableSetWait mem) inst) args)
+  | cancelInstall {thread core resume frames rest async inst args}
+      (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+      (calling : (core3 grow).status before.store.core core = .callout (.builtin (.subtaskCancel async) inst) args)
   | waitResume {waiter resumer afterResume frames rest core resume savedFrames mem entry}
       (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
       (found : before.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
@@ -686,6 +689,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (exit : CancelFinishExit profile ready base bindings changes left right trailing finish)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | cancelHookBody {changes reached peer left right entry peerEntry checked canonical hookChecked hookCanonical trailing
+        finish mark marks resume}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (observed : PayloadPrefix.visible checked = PayloadPrefix.visible canonical)
+      (hook : AllocatorMark profile ready base bindings changes entry peerEntry hookChecked hookCanonical left right mark)
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes resume resume) left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -4727,6 +4737,7 @@ def CancelHookCallbackSlice (profile : ProfileKind) (ready : HostReady (HostStat
       actual = .tau :: (checkLabels ++ trailing) ∧
       OccurrenceTransport profile ready base bindings checked canonical [.tau] [.tau] checkEntry canonEntry [some (.active 0 0)] ∧
       OccurrenceTransport profile ready base bindings checked canonical (.tau :: checkLabels) (.tau :: canonLabels) reached peer [mark] ∧
+      PayloadPrefix.visible checkLabels = PayloadPrefix.visible canonLabels ∧
       AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels reached peer mark ∧
       CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older resume resume) reached peer trailing finish ∧
       ∀ value (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),

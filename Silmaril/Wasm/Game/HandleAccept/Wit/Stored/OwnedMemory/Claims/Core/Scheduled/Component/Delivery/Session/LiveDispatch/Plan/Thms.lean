@@ -3204,12 +3204,13 @@ theorem classify_give_callbacks
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
 
 /-- One finite checked-run fold under the fixed component dispatcher. Parked
-gives, admitted component calls, public polls and waits share the shorter-run
-induction, including inside allocator callbacks. A non-early wait enters the
-ordinary scheduler fold at the reached block, not at a caller reply. Exhausted
+gives, admitted component calls, and public polls, waits and cancels share the
+shorter-run induction, including inside allocator and cancellation callbacks.
+An unresolved cancel enters the hook after the actual request write and
+installation, and continues after the hook only from its executed marked pop.
+A non-early wait enters the scheduler fold before any caller reply. Exhausted
 and trapped deliveries retain their reached endpoints without rejoining. Other
-component sites remain at the exact install cut with their admission and
-body outcome. -/
+component sites remain at their exact install cut with the reached outcome. -/
 theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
