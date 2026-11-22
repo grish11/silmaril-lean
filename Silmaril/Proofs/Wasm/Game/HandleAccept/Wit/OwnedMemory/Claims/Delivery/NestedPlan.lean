@@ -34,6 +34,7 @@ import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
 
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
 
@@ -10800,8 +10801,10 @@ theorem classifyMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (paired : HostFrame.Related.Paired older start incoming) :
     MixedCallbackSlice profile ready bindings callees older start incoming labels finish := by
   obtain ⟨checked, canonical, trailing, reached, peer, split, front, ending⟩ := foldMixedCallbacks run paired
-  refine ⟨checked, canonical, trailing, reached, peer, split, front, ending, ?_⟩
-  cases callbackEndSteps ending with
+  have residual := callbackEndSteps ending
+  refine ⟨checked, canonical, trailing, reached, peer, split, front, WriterPaths.ofTransport front.occurrences,
+    ending, WriterPaths.ofSteps residual, ?_⟩
+  cases residual with
   | refl => exact .inl ⟨rfl, rfl⟩
   | cons step tail => exact .inr ⟨_, _, _, rfl, step, tail, classifyComponentInstallOutcome step tail front.paired⟩
 

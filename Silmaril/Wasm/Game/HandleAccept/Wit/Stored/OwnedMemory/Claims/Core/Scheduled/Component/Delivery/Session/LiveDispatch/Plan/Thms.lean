@@ -8,6 +8,7 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.Ne
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 
@@ -114,6 +115,87 @@ theorem CheckedSpendFlow.discrepancies {left right checked canonical : State sig
     (flow : CheckedSpendFlow left right checked canonical spends) (related : left.ClaimDiscrepancies right pending) :
     checked.ClaimDiscrepancies canonical (fun probe => pending probe ∨ probe ∈ spends) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.spendFlowDiscrepancies flow related
+
+/-- The next recorded change is an executed machine step with its original
+before and after writers. The preceding path may include other host effects. -/
+theorem WriterPath.firstChange {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {change : WriterChange sig} {changes : List (WriterChange sig)}
+    (path : WriterPath profile ready dispatch start labels finish (change :: changes)) :
+    ∃ leading label trailing before after, labels = leading ++ label :: trailing ∧
+      WriterPath profile ready dispatch start leading before [] ∧
+      Step profile ready dispatch before label after ∧
+      change = (before.host.writer, after.host.writer) ∧ after.host.writer ≠ before.host.writer ∧
+      WriterPath profile ready dispatch after trailing finish changes :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.firstChange path
+
+/-- Classify the delta of an actual host write without granting it a source
+authority or identifying it with a closed guest operation. -/
+theorem WriterChange.classify (change : WriterChange sig) :
+    (∃ update, change.IsSpend update) ∨ (∃ tree, change.IsRegistration tree) ∨
+      ((∀ update, ¬ change.IsSpend update) ∧ (∀ tree, ¬ change.IsRegistration tree)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.classify change
+
+/-- Extend the two independently ordered paths at an actual common endpoint. -/
+theorem PairedWriterPaths.append {middle peer target : Config (core3 grow) (HostState sig)}
+    {leading canonLeading trailing canonTrailing : Trace grow sig}
+    (first : PairedWriterPaths profile ready base bindings start incoming leading canonLeading middle peer)
+    (tail : PairedWriterPaths profile ready base bindings middle peer trailing canonTrailing finish target) :
+    PairedWriterPaths profile ready base bindings start incoming (leading ++ trailing) (canonLeading ++ canonTrailing) finish target :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.appendPaired first tail
+
+open Stored.OwnedMemory.Claims in
+/-- Only the reached changed writers are tested as spends. An empty raw
+effect trace proves raw writer equality; the raw machine is not projected. -/
+theorem WriterPath.checkedSpendDiscrepancies {left right : Config (core3 grow) (HostState sig)}
+    {checked canonical : Trace grow sig} {changes : List (WriterChange sig)} {spends : List Spend} {pending : Spend → Prop}
+    (leftPath : WriterPath profile ready (specDispatch ready base) start checked left changes)
+    (rightPath : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [])
+    (updates : List.Forall₂ WriterChange.IsSpend changes spends)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    left.host.writer.ClaimDiscrepancies right.host.writer (fun probe => pending probe ∨ probe ∈ spends) :=
+  (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.checkedSpends leftPath rightPath updates).discrepancies related
+
+open Stored.OwnedMemory.Claims in
+/-- Successful same-tree writes taken by both sides preserve the current
+discrepancy bound. A raw alias or an open write does not meet this case. -/
+theorem WriterPath.pairedRegistrationDiscrepancies {left right : Config (core3 grow) (HostState sig)}
+    {checked canonical : Trace grow sig} {leftChange rightChange : WriterChange sig}
+    {tree : Stored.OwnedMemory.Tree sig} {pending : Spend → Prop}
+    (leftPath : WriterPath profile ready (specDispatch ready base) start checked left [leftChange])
+    (rightPath : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [rightChange])
+    (leftRegister : leftChange.IsRegistration tree) (rightRegister : rightChange.IsRegistration tree)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    left.host.writer.ClaimDiscrepancies right.host.writer pending :=
+  related.register
+    (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.registration leftPath leftRegister)
+    (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.registration rightPath rightRegister)
+
+/-- Memory visitors retain the writer paths to the same endpoints as their
+occurrence paths, including when a child or a callback does not return. -/
+theorem ValueVisitRun.writerPaths {origin : CStore (core3 grow)} {valueType : Type}
+    {pending : Config (core3 grow) (HostState sig) → Prop}
+    {checkNext : Except Stored.Endpoints.RecordLower.Issue valueType → Session grow sig (Ret (core3 grow))}
+    {canonNext : valueType → Session grow sig (Ret (core3 grow))}
+    (body : ValueVisitRun profile ready base bindings older origin valueType pending checkNext canonNext start incoming labels finish) :
+    ∃ checked canonical trailing left right marks, labels = checked ++ trailing ∧
+      PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
+      OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
+      PairedWriterPaths profile ready base bindings start incoming checked canonical left right ∧
+      Steps profile ready (specDispatch ready base) left trailing finish ∧
+      ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.visitor body
+
+/-- Flat visitors and allocating strings carry the same writer evidence,
+indexed by the actual partial prefix when the descriptor is not yet reached. -/
+theorem StringRunSlice.writerPaths {description}
+    (body : StringRunSlice profile ready base bindings older description start incoming labels finish) :
+    ∃ checked canonical trailing left right marks, labels = checked ++ trailing ∧
+      PayloadPrefix.visible canonical = PayloadPrefix.visible checked ∧
+      OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
+      PairedWriterPaths profile ready base bindings start incoming checked canonical left right ∧
+      left.store = right.store ∧ Steps profile ready (specDispatch ready base) left trailing finish ∧
+      StringSliceEnd profile ready base bindings older description left right trailing finish marks :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.stringSlice body
 
 open PayloadPrefix Stored.OwnedMemory.Claims in
 /-- Consume an actual checked prefix of the compiled handle leaf. The raw

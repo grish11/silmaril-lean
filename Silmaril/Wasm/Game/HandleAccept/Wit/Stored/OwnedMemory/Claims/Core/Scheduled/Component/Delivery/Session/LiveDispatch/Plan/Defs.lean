@@ -30,6 +30,45 @@ def CheckedSpendFlow (left right checked canonical : Stored.OwnedMemory.Claims.S
     (spends : List Stored.OwnedMemory.Claims.Spend) : Prop :=
   checked = spends.foldl (fun state spend => spend.apply state) left ∧ canonical = right
 
+abbrev WriterChange (sig : Signature) :=
+  Stored.OwnedMemory.Claims.State sig × Stored.OwnedMemory.Claims.State sig
+
+/-- This tests the actual writer delta. It does not identify the source of a
+host assignment or authorize it as a guest spend. -/
+def WriterChange.IsSpend (change : WriterChange sig) (spend : Stored.OwnedMemory.Claims.Spend) : Prop :=
+  spend.Live change.1 ∧ change.2 = spend.apply change.1
+
+def WriterChange.IsRegistration (change : WriterChange sig) (tree : Stored.OwnedMemory.Tree sig) : Prop :=
+  change.1.register tree = .ok change.2
+
+/-- Writer-changing steps in order, indexed by the complete machine trace.
+An unchanged writer says nothing about the rest of the host. A write with
+neither nominal delta is recorded, not treated as a journal-only update. -/
+inductive WriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))) :
+    Config (core3 grow) (HostState sig) → Trace grow sig → Config (core3 grow) (HostState sig) →
+      List (WriterChange sig) → Prop where
+  | done (state) : WriterPath profile ready dispatch state [] state []
+  | same {start next finish label labels effects}
+      (step : Step profile ready dispatch start label next)
+      (unchanged : next.host.writer = start.host.writer)
+      (tail : WriterPath profile ready dispatch next labels finish effects) :
+      WriterPath profile ready dispatch start (label :: labels) finish effects
+  | changed {start next finish label labels effects}
+      (step : Step profile ready dispatch start label next)
+      (different : next.host.writer ≠ start.host.writer)
+      (tail : WriterPath profile ready dispatch next labels finish effects) :
+      WriterPath profile ready dispatch start (label :: labels) finish ((start.host.writer, next.host.writer) :: effects)
+
+/-- Separate ordered effects for the actual checked and fixed raw dispatches. -/
+def PairedWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (checked canonical : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leftEffects rightEffects,
+    WriterPath profile ready (specDispatch ready base) start checked left leftEffects ∧
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right rightEffects
+
 /-- Reached allocator steps before a protected return. Ordinary steps must
 not install an overlaid give or assign the host; confined gives and
 reached host reads with a closed observation have their own rules. The endpoint may
@@ -5242,7 +5281,9 @@ def MixedCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig
   ∃ checked canonical trailing reached peer,
     labels = checked ++ trailing ∧
     ExecutedCallbackSegment profile ready base bindings older start incoming checked canonical reached peer ∧
+    PairedWriterPaths profile ready base bindings start incoming checked canonical reached peer ∧
     CallbackSliceEnd profile ready base bindings older reached peer trailing finish ∧
+    (∃ effects, WriterPath profile ready (specDispatch ready base) reached trailing finish effects) ∧
     ((trailing = [] ∧ finish = reached) ∨
       ∃ label rest next, trailing = label :: rest ∧
         Step profile ready (specDispatch ready base) reached label next ∧
