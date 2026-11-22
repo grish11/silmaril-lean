@@ -180,7 +180,7 @@ theorem cut_component_store_body {Result : Type} (body : Session grow sig Result
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
-    body checkNext canonNext leftFocus rightFocus paired run
+    body checkNext canonNext False.elim leftFocus rightFocus paired run
 
 /-- Follow the reached admitted argument observer, from the live caller read
 through direct or spilled lifting and the caller-position write. Only a reached
@@ -275,6 +275,29 @@ theorem cut_component_admitted_refusal (callee : ComponentCall.Callee sig) (call
       HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
     labels.length < count :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusal
+    callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
+
+/-- Compare the actual common refusal tail through progress, result-buffer lowering
+and subtask resolution. A pending certified operation exhausts the finite checked
+input; a trap keeps the reached effects and never reaches the common reply focus. -/
+theorem cut_component_admitted_refusal_result (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat} (record : Subtask)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.error issue)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.error issue)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
+        (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨ labels.length < (if record.index.isSome then 8 else 7) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalResult
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
 
 /-- Rejoin at an actually executed completion. The two live registrations must confirm

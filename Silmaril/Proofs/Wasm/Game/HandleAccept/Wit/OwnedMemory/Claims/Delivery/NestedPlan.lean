@@ -23,6 +23,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
+import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Thms
@@ -252,8 +253,9 @@ private theorem componentTrapUnique {reason : TrapReason} {cursor : PayloadPrefi
 
 open PayloadPrefix ReturnFrame.Occurrence in
 set_option maxHeartbeats 3000000 in
-theorem cutComponentStoreBody {Result : Type} (body : Session grow sig Result)
+theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session grow sig Result)
     (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
+    (certified : closed → Prog.Every (fun op => componentStoreOp op = true) body)
     {check canon : Cursor (E := core3 grow) (HostState sig)}
     (leftFocus : start.ctl = check.control (body >>= checkNext))
     (rightFocus : incoming.ctl = canon.control (body >>= canonNext))
@@ -263,7 +265,7 @@ theorem cutComponentStoreBody {Result : Type} (body : Session grow sig Result)
       labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix := by
+      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix closed := by
   induction labels generalizing start incoming body with
   | nil =>
     cases run
@@ -280,31 +282,39 @@ theorem cutComponentStoreBody {Result : Type} (body : Session grow sig Result)
       have leftOp : start.ctl = check.control (.op op (fun response => next response >>= checkNext)) := leftFocus
       have rightOp : incoming.ctl = canon.control (.op op (fun response => next response >>= canonNext)) := rightFocus
       by_cases localOp : componentStoreOp op = false
-      · exact ⟨[], label :: suffix, start, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
-          run, .pending op next leftOp rightOp paired (.inr localOp)⟩
+      · have notClosed : ¬ closed := by
+          intro proven
+          cases certified proven with
+          | op allowed _ => rw [localOp] at allowed; contradiction
+        exact ⟨[], label :: suffix, start, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
+          run, .pending op next leftOp rightOp paired (.inr ⟨notClosed, localOp⟩)⟩
       cases run with
       | @cons _ middle _ _ _ first tail =>
         have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
         have sameThread : check.thread = canon.thread := by
           obtain ⟨frames, rest, focus, _⟩ := HostFrame.Related.Paired.retarget paired rfl (.prog (.pure (.cancel .none))) start.host incoming.host
           exact (congrArg (fun ctl : List (Activation (core3 grow) (HostState sig)) => ctl.head?.map (·.thread)) focus |> Option.some.inj).symm
-        have localStep (following : Session grow sig Result) (updated : CStore (core3 grow))
+        have localStep (response : (Eff (core3 grow) (HostState sig)).Resp op) (updated : CStore (core3 grow))
             (leftStep : Step profile ready (specDispatch ready base) start .tau
-              { start with store := updated, ctl := check.control (following >>= checkNext) })
+              { start with store := updated, ctl := check.control (next response >>= checkNext) })
             (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
-              { incoming with store := updated, ctl := canon.control (following >>= canonNext) })
+              { incoming with store := updated, ctl := canon.control (next response >>= canonNext) })
             (leftEdit : transitionEdit start .tau = .same) (rightEdit : transitionEdit incoming .tau = .same) :
             ∃ leading trailing reached peer, label :: suffix = leading ++ trailing ∧
               OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
               Steps profile ready (specDispatch ready base) reached trailing finish ∧
-              ComponentStoreFrontier older check canon checkNext canonNext reached peer trailing := by
+              ComponentStoreFrontier older check canon checkNext canonNext reached peer trailing closed := by
           obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep first
-          let nextPeer := { incoming with store := updated, ctl := canon.control (following >>= canonNext) }
+          let nextPeer := { incoming with store := updated, ctl := canon.control (next response >>= canonNext) }
           have aligned : PairedComponentSite older
-              { start with store := updated, ctl := check.control (following >>= checkNext) } nextPeer check canon :=
+              { start with store := updated, ctl := check.control (next response >>= checkNext) } nextPeer check canon :=
             HostFrame.Related.Paired.set_store paired updated
+          have followingCertified : closed → Prog.Every (fun op => componentStoreOp op = true) (next response) := by
+            intro proven
+            cases certified proven with
+            | op _ continuations => exact continuations response
           obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier⟩ :=
-            ih following rfl (show nextPeer.ctl = _ from rfl) aligned tail
+            ih (next response) followingCertified rfl (show nextPeer.ctl = _ from rfl) aligned tail
           have movement : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] _ nextPeer :=
             CallbackPrefix.stationaryTransport (fun place => .step leftStep (by rw [leftEdit]; rfl) (.done _ place))
               (fun place => .step rightStep (by rw [rightEdit]; rfl) (.done _ place))
@@ -313,14 +323,14 @@ theorem cutComponentStoreBody {Result : Type} (body : Session grow sig Result)
             (CallbackPrefix.transportAppend movement moved).choose_spec.1
         cases op with
         | get =>
-          exact localStep (next start.store) start.store (.get leftOp) (same ▸ .get rightOp)
+          exact localStep start.store start.store (.get leftOp) (same ▸ .get rightOp)
             (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
         | modify update =>
-          exact localStep (next ()) (update start.store) (.modify leftOp)
+          exact localStep () (update start.store) (.modify leftOp)
             (by rw [same]; exact .modify rightOp)
             (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
         | currentThread =>
-          exact localStep (next check.thread) start.store (.currentThread leftOp)
+          exact localStep check.thread start.store (.currentThread leftOp)
             (by rw [same, sameThread]; exact .currentThread rightOp)
             (by rw [transitionEdit, leftOp]; rfl) (by rw [transitionEdit, rightOp]; rfl)
         | trap reason =>
@@ -536,6 +546,139 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
       rw [← count, split, List.length_append, List.length_replicate]
       omega
   · exact .inr (by rw [← count]; omega)
+
+private abbrev StoreEffects {Result : Type} (body : Session grow sig Result) : Prop :=
+  Prog.Every (fun op => componentStoreOp op = true) body
+
+private theorem storeEffectGet : StoreEffects (getStore : Session grow sig (CStore (core3 grow))) :=
+  .op rfl fun snapshot => .pure snapshot
+
+private theorem storeEffectModify (update : CStore (core3 grow) → CStore (core3 grow)) :
+    StoreEffects (modifyStore update : Session grow sig Unit) :=
+  .op rfl fun _ => .pure ()
+
+private theorem storeEffectTrap {Result : Type} (reason : TrapReason) : StoreEffects (trap reason : Session grow sig Result) :=
+  .op rfl fun response => nomatch response
+
+private theorem storeEffectOrTrap {Result : Type} (reason : TrapReason) (value : Option Result) :
+    StoreEffects (orTrap reason value : Session grow sig Result) := by
+  cases value with
+  | none => exact storeEffectTrap reason
+  | some result => exact .pure result
+
+private theorem storeEffectTrapIf (condition : Bool) (reason : TrapReason) :
+    StoreEffects (trapIf condition reason : Session grow sig Unit) := by
+  cases condition
+  · exact .pure ()
+  · exact storeEffectTrap reason
+
+private theorem storeEffectPtrType (cx : LiftLowerContext (core3 grow)) :
+    StoreEffects (ptrType cx : Session grow sig AddrType) :=
+  storeEffectGet.bind fun _ => .pure _
+
+private theorem storeEffectBounds (cx : LiftLowerContext (core3 grow)) (ptr size : Nat) :
+    StoreEffects (checkInBounds cx ptr size : Session grow sig Unit) := by
+  unfold checkInBounds memLen memAddr
+  exact (Prog.Every.bind (storeEffectOrTrap _ _) fun _ =>
+    storeEffectGet.bind fun _ => storeEffectOrTrap _ _).bind fun _ => storeEffectTrapIf _ _
+
+private theorem storeEffectWrite (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (bytes : ByteArray) :
+    StoreEffects (writeMem cx ptr bytes : Session grow sig Unit) := by
+  unfold writeMem memAddr
+  refine (storeEffectOrTrap _ _).bind fun _ => storeEffectGet.bind fun _ => ?_
+  split
+  · exact storeEffectTrap _
+  · exact storeEffectModify _
+
+private theorem refusalLowerEffects (cx : LiftLowerContext (core3 grow)) (cursor : FlatCursor)
+    (results : Nat) (indirect : results ≤ 1) :
+    StoreEffects (lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+      [ComponentCall.resultType] (some cursor) : Session grow sig (List FlatValue)) := by
+  unfold lowerFlatValues
+  refine (storeEffectPtrType _).bind fun width => ?_
+  have widthCount : (ABI.flattenTypes width [ComponentCall.resultType]).length = 2 := by
+    simp [ComponentCall.resultType, ABI.flattenTypes, ABI.flatten, ABI.flattenOption, ABI.flattenPrimitive]
+  simp only [widthCount, show results < 2 by omega, ite_true]
+  have spill : StoreEffects (spillPointer cx width (ABI.layout width (.tuple [ComponentCall.resultType]))
+      (some cursor) : Session grow sig (Nat × List FlatValue)) := by
+    unfold spillPointer FlatCursor.next
+    refine Prog.Every.bind ?_ fun _ => .pure _
+    split
+    · exact .pure _
+    · exact storeEffectTrap _
+  refine spill.bind fun (ptr, _) => (storeEffectTrapIf _ _).bind fun _ =>
+    (storeEffectBounds _ _ _).bind fun _ => Prog.Every.bind ?_ fun _ => .pure _
+  simp only [store, storeTuple, ComponentCall.resultType, storeOpt]
+  refine (storeEffectPtrType _).bind fun _ => Prog.Every.bind ?_ fun _ => .pure _
+  refine (storeEffectPtrType _).bind fun _ => ?_
+  exact ((storeEffectWrite _ _ _).bind fun _ => .pure _).bind fun _ => .pure _
+
+open AsyncRef in
+private theorem refusalResultEffects (subtask : SubtaskId) (cx : LiftLowerContext (core3 grow))
+    (cursor : FlatCursor) (results : Nat) (indirect : results ≤ 1) :
+    StoreEffects ((do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some cursor)
+      Subtask.resolve subtask .returned flat) : Session grow sig Unit) := by
+  have progress : StoreEffects (maybeOnProgress subtask : Session grow sig Unit) := by
+    unfold maybeOnProgress getObj
+    simp only [Prog.bind_eq, Prog.bind_assoc]
+    refine storeEffectGet.bind fun _ => ?_
+    split
+    · simp only [Prog.pure_eq, Prog.pure_bind']
+      split
+      · exact storeEffectModify _
+      · exact .pure ()
+    · exact .op rfl fun response => nomatch response
+  exact progress.bind fun _ => (refusalLowerEffects cx cursor results indirect).bind fun _ => storeEffectModify _
+
+open AsyncRef in
+theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat} (record : Subtask)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.error issue)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.error issue)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
+        (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨ labels.length < (if record.index.isSome then 8 else 7) := by
+  rcases cutAdmittedRefusal (bindings := bindings) callee caller issue record leftFocus rightFocus callerRecord live admitted paired run with
+    ⟨tail, observed, observedPeer, split, moved, left, right, aligned, residual⟩ | short
+  · obtain ⟨_, indirect⟩ := admittedRefusalGuards callee admitted
+    let body : Session grow sig Unit := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, args.length - 1⟩)
+      Subtask.resolve subtask .returned flat
+    have leftBody : observed.ctl = check.control (body >>= fun _ => .pure (.cancel .none)) := by
+      simpa only [body, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq] using left
+    have rightBody : observedPeer.ctl = canon.control (body >>= fun _ => .pure (.cancel .none)) := by
+      simpa only [body, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq] using right
+    have site : PairedComponentSite older observed observedPeer check canon := by
+      unfold PairedComponentSite
+      obtain ⟨_, _, focus, normalized⟩ := aligned.retarget left (.prog (.pure (.cancel .none))) observed.host observedPeer.host
+      rw [right] at focus
+      simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
+      obtain ⟨⟨threadEq, framesEq⟩, restEq⟩ := focus
+      simpa only [PayloadPrefix.Cursor.control, ← threadEq, ← framesEq, ← restEq] using normalized
+    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier⟩ :=
+      cutComponentStoreBody (bindings := bindings) (closed := True) body _ _ (fun _ => refusalResultEffects subtask cx _ results indirect)
+        leftBody rightBody site residual
+    refine .inl ⟨List.replicate (if record.index.isSome then 8 else 7) .tau ++ leading,
+      suffix, reached, peer, ?_, ?_, ?_, remaining, frontier⟩
+    · rw [split, tailSplit, List.append_assoc]
+    · rw [split, tailSplit, List.length_append, List.length_append, List.length_replicate]
+      split <;> omega
+    · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved finishMove).choose_spec.1
+  · exact .inr short
 
 private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
     {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)

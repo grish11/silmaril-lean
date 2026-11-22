@@ -128,7 +128,8 @@ inductive ComponentStoreFrontier {Result : Type}
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (checkNext canonNext : Result → Session grow sig (Ret (core3 grow)))
-    (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig) : Prop where
+    (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig)
+    (closed : Prop := False) : Prop where
   | returned (result : Result)
       (checked : left.ctl = check.control (checkNext result))
       (canonical : right.ctl = canon.control (canonNext result))
@@ -138,7 +139,7 @@ inductive ComponentStoreFrontier {Result : Type}
       (checked : left.ctl = check.control (.op op (fun response => next response >>= checkNext)))
       (canonical : right.ctl = canon.control (.op op (fun response => next response >>= canonNext)))
       (paired : PairedComponentSite older left right check canon)
-      (boundary : suffix = [] ∨ componentStoreOp op = false)
+      (boundary : suffix = [] ∨ (¬ closed ∧ componentStoreOp op = false))
   | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
       (paired : HostFrame.Related.Paired older left right)
 
