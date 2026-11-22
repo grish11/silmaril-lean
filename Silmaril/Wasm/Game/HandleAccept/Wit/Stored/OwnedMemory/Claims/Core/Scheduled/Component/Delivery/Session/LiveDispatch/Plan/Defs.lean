@@ -4503,6 +4503,12 @@ inductive MemoryVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
       MemoryVisitShape (.sum type arms tag selected)
   | list {element entries} : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element →
       (∀ item ∈ entries, MemoryVisitShape item) → MemoryVisitShape (.dynamic (.list element) element entries)
+  | map {key element entries} :
+      Stored.Endpoints.RecordLower.Field.EntriesMatch entries (.record (ABI.mapEntryFields key element)) →
+      Stored.Endpoints.RecordLower.Field.Emitted (.dynamic (.map key element) (.record (ABI.mapEntryFields key element)) entries) →
+      (∀ keyField value, Stored.Endpoints.RecordLower.Field.aggregate (.record (ABI.mapEntryFields key element)) [keyField, value] ∈ entries →
+        ∀ child ∈ [keyField, value], MemoryVisitShape child) →
+      MemoryVisitShape (.dynamic (.map key element) (.record (ABI.mapEntryFields key element)) entries)
 
 /-- Keep the reached canonical program on a checked-only refusal, either
 before the linked field or after the pop at an allocated collection tail. -/

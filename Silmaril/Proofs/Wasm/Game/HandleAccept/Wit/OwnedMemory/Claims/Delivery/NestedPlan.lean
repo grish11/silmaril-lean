@@ -2952,32 +2952,15 @@ theorem compiledSumVisitShape {type : Stored.TypeOf} {arms : List (Option Stored
     | resultError matching => exact member (active ▸ matching) (by simp)
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
-private theorem driveMemoryElements {origin : CStore (core3 grow)} {budget bytes : Nat}
-    (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf) (entries : List Field) (index pointer address : Nat)
-    (matching : Field.EntriesMatch entries element)
-    (children : ∀ item ∈ entries, ∀ slot, SlotFits destination.width bytes item slot →
-      MemoryVisitField profile ready base bindings older start.store destination inst budget item slot)
-    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
-    (aligned : pointer = alignTo pointer (layout destination.width element).alignment)
-    (bounds : pointer + entries.length * (layout destination.width element).size ≤ bytes)
-    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
-    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
-    (checkAt : start.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width element)
-      index (.memory address) pointer (.ok ()) >>= checkNext))
-    (canonAt : incoming.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width element)
-      (.memory address) pointer .value >>= canonNext))
-    (actual : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ budget) :
+private theorem driveMemoryPublish {origin visited : CStore (core3 grow)}
+    (destination : RecordDestination) (inst : InstId) (index pointer address count : Nat)
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} (growth : Core3.Grows origin.core visited.core)
+    (body : MemoryVisitRun profile ready base bindings older visited destination inst
+      (publishChecked destination inst pointer count index (.memory address) checkNext)
+      (publishCanonical destination inst pointer count (.memory address) canonNext) start incoming labels finish) :
     MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish := by
-  let area := layout destination.width element
   let output := Stored.Lower.Output.memory address
-  have slots := Track.elements_slots destination.width matching aligned bounds
-    (MemoryVisitField profile ready base bindings older start.store destination inst budget) children
-  obtain ⟨leftAt, rightAt⟩ := CallbackRange.collectionElementFoci destination inst entries area .value output pointer index
-    checkNext canonNext checkAt canonAt
-  obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movementStore, movement, tail, ending⟩ :=
-    driveMemorySequence (.elements area.size) destination inst entries 0 pointer slots width frame (Core3.Grows.refl _)
-      leftAt rightAt actual bounded
+  obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movementStore, movement, tail, ending⟩ := body
   cases ending with
   | refused issue check checkedAt pending =>
     exact ⟨checked, canonical, trailing, lhs, rhs, [], split, seen, movementStore, movement, tail,
@@ -2989,7 +2972,7 @@ private theorem driveMemoryElements {origin : CStore (core3 grow)} {budget bytes
     exact ⟨checked, canonical, trailing, lhs, rhs, _, split, seen, movementStore, movement, tail, .collectionRange nonempty residual⟩
   | returned check canon paired grew checkedAt canonicalAt =>
     have publish := CallbackRange.livePublish (profile := profile) (ready := ready) (base := base) (bindings := bindings)
-      destination inst pointer entries.length output checkNext canonNext
+      destination inst pointer count output checkNext canonNext
       (fun value lhs rhs cursor peer => LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
         Core3.Grows origin.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
       (fun _ _ _ _ _ frame growth lhs rhs => ⟨frame, growth, lhs, rhs⟩) paired (growth.trans grew) checkedAt canonicalAt
@@ -3012,29 +2995,190 @@ private theorem driveMemoryElements {origin : CStore (core3 grow)} {budget bytes
       exact prependMemoryVisit split seen movement exactPublication
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
-private theorem driveMemoryList {origin : CStore (core3 grow)} {budget : Nat}
-    (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf) (entries : List Field) (index address : Nat)
+private theorem driveMemoryElements {origin : CStore (core3 grow)} {budget bytes : Nat}
+    (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf) (entries : List Field) (index pointer address : Nat)
     (matching : Field.EntriesMatch entries element)
-    (children : ∀ (store : CStore (core3 grow)) bytes,
-      (core3 grow).memAddrType? store.core destination.memory = some destination.width →
-      (core3 grow).memSize? store.core destination.memory = some bytes →
-      ∀ item ∈ entries, ∀ slot, SlotFits destination.width bytes item slot →
-        MemoryVisitField profile ready base bindings older store destination inst budget item slot)
+    (children : ∀ item ∈ entries, ∀ slot, SlotFits destination.width bytes item slot →
+      MemoryVisitField profile ready base bindings older start.store destination inst budget item slot)
+    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
+    (aligned : pointer = alignTo pointer (layout destination.width element).alignment)
+    (bounds : pointer + entries.length * (layout destination.width element).size ≤ bytes)
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
+    (checkAt : start.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width element)
+      index (.memory address) pointer (.ok ()) >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width element)
+      (.memory address) pointer .value >>= canonNext))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) :
+    MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish := by
+  let area := layout destination.width element
+  have slots := Track.elements_slots destination.width matching aligned bounds
+    (MemoryVisitField profile ready base bindings older start.store destination inst budget) children
+  obtain ⟨leftAt, rightAt⟩ := CallbackRange.collectionElementFoci destination inst entries area .value (.memory address) pointer index
+    checkNext canonNext checkAt canonAt
+  exact driveMemoryPublish destination inst index pointer address entries.length growth
+    (driveMemorySequence (.elements area.size) destination inst entries 0 pointer slots width frame (Core3.Grows.refl _)
+      leftAt rightAt actual bounded)
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem driveMemoryMapEntries {origin : CStore (core3 grow)} {budget bytes : Nat}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf)
+    (items : List Field) (index address : Nat)
+    (matching : Field.EntriesMatch items (.record (mapEntryFields key element)))
+    (pairs : ∀ item ∈ items, ∃ keyField value, item = .aggregate (.record (mapEntryFields key element)) [keyField, value])
+    (children : ∀ keyField value, Field.aggregate (.record (mapEntryFields key element)) [keyField, value] ∈ items →
+      ∀ child ∈ [keyField, value], ∀ slot, SlotFits destination.width bytes child slot →
+        MemoryVisitField profile ready base bindings older origin destination inst budget child slot)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (slots : (Track.elements (layout destination.width (.record (mapEntryFields key element))).size).Slots destination.width
+      (SlotFits destination.width bytes) items address)
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
+    (checkAt : start.ctl = check.control (Record.Effects.elements recordClaims Limits.spec Quirks.none (destination.context inst)
+      destination.width items (layout destination.width (.record (mapEntryFields key element))).size address index >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.elements Limits.spec Quirks.none (destination.context inst) destination.width
+      items (.memoryMap destination.width key element) (layout destination.width (.record (mapEntryFields key element))).size address >>= canonNext))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ budget) :
+    MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish := by
+  let type : Stored.TypeOf := .record (mapEntryFields key element)
+  let stride := (layout destination.width type).size
+  induction items generalizing index address start incoming check canon labels with
+  | nil =>
+    exact ⟨[], [], labels, start, incoming, [], rfl, rfl, frame.store,
+      CallbackPrefix.stationaryTransport (fun place => .done start place) (fun place => .done incoming place), actual,
+      .returned check canon frame growth
+        (by simpa only [Record.Effects.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using checkAt)
+        (by simpa only [CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using canonAt)⟩
+  | cons item rest ih =>
+    obtain ⟨keyField, value, rfl⟩ := pairs item (.head _)
+    cases matching with
+    | cons matched restMatch =>
+      let afterCheck := checkTail (.elements stride) destination inst rest (index + 1) (address + stride) checkNext
+      let afterCanon : CanonNext grow sig := fun () => CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
+        destination.width rest (.memoryMap destination.width key element) stride (address + stride) >>= canonNext
+      have headAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
+          destination.width (.aggregate type [keyField, value]) index (.memory address) >>= afterCheck) := by
+        rw [checkAt, Record.Effects.elements]
+        congr 1
+        simp only [Prog.bind_eq, Prog.bind_assoc]
+        congr 1
+        funext verdict
+        cases verdict with
+        | error _ => rfl
+        | ok result => cases result; rfl
+      have fits : SlotFits destination.width bytes (.aggregate type [keyField, value]) address ∧
+          (Track.elements stride).Slots destination.width (SlotFits destination.width bytes) rest (address + stride) := slots
+      let entered := enterAggregate destination inst [keyField, value] index address start check afterCheck
+      have guard := aggregate_entry_prefix (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+        destination inst type [keyField, value] index address start check afterCheck growth sized fits.1.1 fits.1.2 headAt
+      cases alignLocalBody (guard (.active 0 0)).toTrail.steps actual (by simp [workerBranchLabel]) with
+      | inside _ nonempty tail => exact stationaryMemoryVisit frame.store actual (.localPrefix nonempty tail)
+      | @reached remaining guardSplit guardTail =>
+        have remainingBudget : remaining.length ≤ budget := by rw [guardSplit, List.length_append] at bounded; omega
+        have childSlots := Track.fields_slots destination.width matched fits.1.1 fits.1.2
+          (MemoryVisitField profile ready base bindings older origin destination inst budget)
+          (children keyField value (.head _))
+        have placedSlots : Track.placedFields.Slots destination.width
+            (MemoryVisitField profile ready base bindings older origin destination inst budget) [keyField, value] address := childSlots
+        have paired : LinkedCallback.ChildFrameOver older entered incoming check canon :=
+          ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+        have headCanon : incoming.ctl = canon.control (Track.placedFields.canonical destination inst [keyField, value] address >>= afterCanon) := by
+          rw [canonAt]
+          congr 1
+          simp only [CanonicalTree.elements, Track.canonical, canonicalPlacedFields, Track.slot, Prog.bind_eq, Prog.bind_assoc,
+            Prog.pure_eq, Prog.pure_bind', afterCanon, stride, type]
+          let keyPtr := alignTo address (layout destination.width keyField.type).alignment
+          let valuePtr := alignTo (keyPtr + (layout destination.width keyField.type).size) (layout destination.width value.type).alignment
+          let keyProgram : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+            destination.width keyField (.memory keyPtr)
+          let valueProgram : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+            destination.width value (.memory valuePtr)
+          let restProgram : Session grow sig Unit := CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
+            destination.width rest (.memoryMap destination.width key element) stride (address + stride)
+          change (keyProgram.bind (fun _ => valueProgram.bind (fun _ => restProgram))).bind canonNext =
+            keyProgram.bind (fun _ => valueProgram.bind (fun _ => restProgram.bind canonNext))
+          simp only [Prog.bind_assoc]
+        have body := wrapMemoryVisit index (driveMemorySequence .placedFields destination inst [keyField, value] 0 address
+          placedSlots width paired growth rfl headCanon guardTail remainingBudget)
+        obtain ⟨checked, canonical, residual, lhs, rhs, marks, split, seen, same, movement, tail, ending⟩ := body
+        have next : MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext entered incoming remaining finish := by
+          cases ending with
+          | refused issue check checkedAt pending =>
+            exact ⟨checked, canonical, residual, lhs, rhs, [], split, seen, same, movement, tail, .refused issue check checkedAt pending⟩
+          | boundary stopped => exact ⟨checked, canonical, residual, lhs, rhs, marks, split, seen, same, movement, tail, .boundary stopped⟩
+          | collectionInstall short =>
+            exact ⟨checked, canonical, residual, lhs, rhs, [], split, seen, same, movement, tail, .collectionInstall short⟩
+          | collectionRange nonempty suffix =>
+            exact ⟨checked, canonical, residual, lhs, rhs, _, split, seen, same, movement, tail, .collectionRange nonempty suffix⟩
+          | returned check canon frame grew checkedAt canonicalAt =>
+            have budgetAt : residual.length ≤ budget := by rw [split, List.length_append] at remainingBudget; omega
+            exact prependMemoryVisit split seen movement
+              (ih (index + 1) (address + stride) restMatch (fun item member => pairs item (.tail _ member))
+                (fun keyField value member => children keyField value (.tail _ member)) fits.2 frame grew checkedAt canonicalAt tail budgetAt)
+        exact prependMemoryVisit (canonical := []) guardSplit rfl
+          (CallbackPrefix.stationaryTransport guard (fun place => .done incoming place)) next
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem driveMemoryMap {origin : CStore (core3 grow)} {budget bytes : Nat}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf) (entries : List Field)
+    (index pointer address : Nat) (matching : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (pairs : ∀ item ∈ entries, ∃ keyField value, item = .aggregate (.record (mapEntryFields key element)) [keyField, value])
+    (children : ∀ keyField value, Field.aggregate (.record (mapEntryFields key element)) [keyField, value] ∈ entries →
+      ∀ child ∈ [keyField, value], ∀ slot, SlotFits destination.width bytes child slot →
+        MemoryVisitField profile ready base bindings older start.store destination inst budget child slot)
+    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? start.store.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : pointer + entries.length * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
+    (checkAt : start.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width (.record (mapEntryFields key element)))
+      index (.memory address) pointer (.ok ()) >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width (.record (mapEntryFields key element)))
+      (.memory address) pointer (.memoryMap destination.width key element) >>= canonNext))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ budget) :
+    MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish := by
+  let area := layout destination.width (.record (mapEntryFields key element))
+  let mode := CanonicalTree.EntryMode.memoryMap destination.width key element
+  have slots := Track.elements_slots destination.width matching aligned bounds (SlotFits destination.width bytes) (fun _ _ _ fits => fits)
+  obtain ⟨leftAt, rightAt⟩ := CallbackRange.collectionElementFoci destination inst entries area mode (.memory address) pointer index
+    checkNext canonNext checkAt canonAt
+  exact driveMemoryPublish destination inst index pointer address entries.length growth
+    (driveMemoryMapEntries destination inst key element entries 0 pointer matching pairs children width sized slots
+      frame (Core3.Grows.refl _) leftAt rightAt actual bounded)
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem driveMemoryCollection {origin : CStore (core3 grow)} {budget : Nat}
+    (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf) (entries : List Field) (index address : Nat)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
     {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
     (frame : LinkedCallback.ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
     (checkAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
-      destination.width (.dynamic (.list element) element entries) index (.memory address) >>= checkNext))
+      destination.width (.dynamic type element entries) index (.memory address) >>= checkNext))
     (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
-      destination.width (.dynamic (.list element) element entries) (.memory address) >>= canonNext))
+      destination.width (.dynamic type element entries) (.memory address) >>= canonNext))
     (actual : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget)
+    (visit : ∀ left right bytes pointer check canon residual,
+      LinkedCallback.ChildFrameOver older left right check canon → Core3.Grows origin.core left.store.core →
+      (core3 grow).memAddrType? left.store.core destination.memory = some destination.width →
+      (core3 grow).memSize? left.store.core destination.memory = some bytes →
+      pointer = alignTo pointer (layout destination.width element).alignment →
+      pointer + entries.length * (layout destination.width element).size ≤ bytes →
+      left.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width element)
+        index (.memory address) pointer (.ok ()) >>= checkNext) →
+      right.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width element)
+        (.memory address) pointer (CanonicalTree.EntryMode.forOutput destination.width type (.memory address)) >>= canonNext) →
+      Steps profile ready (specDispatch ready base) left residual finish → residual.length ≤ budget →
+      MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext left right residual finish) :
     MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish := by
-  let type : Stored.TypeOf := .list element
   let item : Field := .dynamic type element entries
   let area := layout destination.width element
   let output := Stored.Lower.Output.memory address
+  let mode := CanonicalTree.EntryMode.forOutput destination.width type output
   have initial : ComparedSlots profile ready base bindings start incoming [] start incoming :=
     ⟨[], [], fun _ => .done _ _, fun _ => .done _ _, rfl, rfl⟩
   have occurrences : ComparedOccurrencePaths profile ready base bindings start incoming [] start incoming :=
@@ -3115,18 +3259,17 @@ private theorem driveMemoryList {origin : CStore (core3 grow)} {budget : Nat}
         refine advance cut (fun residual suffix _ => ?_)
         let refused := LinkedCallback.CollectionVisit.afterAllocation index issue
         let lhs := { reached with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer (.error issue) >>= checkNext) }
-        let rhs := { peer with ctl := peerCursor.control (canonicalCollectionTail destination inst entries area output pointer .value >>= canonNext) }
+        let rhs := { peer with ctl := peerCursor.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) }
         have checkedAt : lhs.ctl = cursor.control (checkNext (.error refused)) := by cases issue <;> rfl
         refine ⟨[], [], residual, lhs, rhs, [], rfl, rfl, paired.store,
           CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), suffix,
-          .refused refused cursor checkedAt (.collection peerCursor entries area pointer address .value canonNext rfl)⟩
+          .refused refused cursor checkedAt (.collection peerCursor entries area pointer address mode canonNext rfl)⟩
       | ok value =>
         cases value
         obtain ⟨lhs, rhs, peerCursor, related, liveWidth, liveSize, grew, checkedAt, canonicalAt, cut, _⟩ :=
           fresh bytes sized aligned bounds prepared
-        exact advance cut (fun _ suffix remaining => driveMemoryElements destination inst element entries index pointer address
-          matching (children lhs.store bytes liveWidth liveSize) liveWidth aligned bounds related (growth.trans grew)
-          checkedAt canonicalAt suffix remaining)
+        exact advance cut (fun residual suffix remaining => visit lhs rhs bytes pointer cursor peerCursor residual related
+          (growth.trans grew) liveWidth liveSize aligned bounds checkedAt canonicalAt suffix remaining)
     · exact trap .outOfBounds (by simpa only [ite_eq_right bounds] using range)
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
@@ -3236,10 +3379,28 @@ theorem driveCompiledMemory {origin : CStore (core3 grow)} {root item : Field} {
               (growth.trans cut.1) rfl rfl _ finish tail remaining))
   | @list element entries matching _ ih =>
     intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
-    exact driveMemoryList destination inst element entries index address matching
-      (fun store capacity liveWidth liveSize item member slot fits =>
-        ih item member slot (path.trans (.dynamic member (.self item))) liveWidth liveSize fits)
-      embedder (growth.memAddrType width) frame growth checkAt canonAt run bounded compare
+    refine driveMemoryCollection destination inst (.list element) element entries index address embedder
+      (growth.memAddrType width) frame growth checkAt canonAt run bounded compare ?_
+    intro reached peer capacity pointer cursor peerCursor residual related grew liveWidth liveSize aligned bounds checkedAt canonicalAt suffix remaining
+    exact driveMemoryElements destination inst element entries index pointer address matching
+      (fun item member slot fits => ih item member slot (path.trans (.dynamic member (.self item))) liveWidth liveSize fits)
+      liveWidth aligned bounds related grew checkedAt canonicalAt suffix remaining
+  | @map key element entries matching emitted _ ih =>
+    intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+    let entryType : Stored.TypeOf := .record (mapEntryFields key element)
+    have pairs : ∀ item ∈ entries, ∃ keyField value, item = .aggregate entryType [keyField, value] := by
+      cases emitted with
+      | map shapes _ =>
+        intro item member
+        obtain ⟨payload, value, shape⟩ := shapes item member
+        exact ⟨.data (.prim key.toPrimitive) payload, value, shape⟩
+    refine driveMemoryCollection destination inst (.map key element) entryType entries index address embedder
+      (growth.memAddrType width) frame growth checkAt canonAt run bounded compare ?_
+    intro reached peer capacity pointer cursor peerCursor residual related grew liveWidth liveSize aligned bounds checkedAt canonicalAt suffix remaining
+    exact driveMemoryMap destination inst key element entries index pointer address matching pairs
+      (fun keyField value member child fieldMember slot fits =>
+        ih keyField value member child fieldMember slot (path.trans (.dynamic member (.aggregate fieldMember (.self child))))
+          liveWidth liveSize fits) liveWidth liveSize aligned bounds related grew checkedAt canonicalAt suffix remaining
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
 theorem driveCompiledMemoryElements {origin : CStore (core3 grow)} {root : Field} {schema : Stored.TypeOf} {budget bytes : Nat}
