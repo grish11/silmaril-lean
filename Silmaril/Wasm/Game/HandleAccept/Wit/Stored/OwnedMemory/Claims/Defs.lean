@@ -50,6 +50,11 @@ def Spend.apply {sig : Signature} (spend : Spend) (state : State sig) : State si
   | .owner id => { state with held := state.held.filter (fun entry => receiptId entry != id) }
   | .endpoint id => { state with endpoints := state.endpoints.filter (· != id) }
 
+def Spend.Live {sig : Signature} (update : Spend) (state : State sig) : Prop :=
+  match update with
+  | .owner id => id ∈ state.held.map receiptId
+  | .endpoint id => id ∈ state.endpoints
+
 /-- Validate all the root's claims together before publishing either class of claim or the
 tree. Endpoints can come back through a new legitimate lift; a past observation is not a claim. -/
 def State.register {sig : Signature} (state : State sig) (tree : Tree sig) : Except Issue (State sig) :=

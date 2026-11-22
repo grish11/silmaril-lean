@@ -14,6 +14,11 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon Silmari
   Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine Silmaril.Wasm.Execution.Core
 open Stored.Endpoints.RecordLower (Field)
 
+theorem liveLeafPlan_spend_live {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    {store : CStore (core3 grow)} {state : State sig} {index : Nat} {item : Field} {update : Spend}
+    (planned : liveLeafPlan store state index item = .ok (some update)) : update.Live state :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadLeaf.plan_spend_live planned
+
 /-- At a reached checked handle leaf, a failed live check stops before its
 canonical operation. A successful exclusive check spends exactly its own
 claim, then enters the identical reference leaf program. The scheduler runs

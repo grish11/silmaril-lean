@@ -11,6 +11,7 @@ import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 
 public section
 
@@ -249,11 +250,14 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
           Trail profile ready reference canonical mark canonLabels
             (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome)
             (localOccurrenceEnd outcome mark)) ∧
-        ∀ value, outcome = .ok value →
+        (∀ value, outcome = .ok value →
           RetainsActiveSlots profile ready dispatch checked (leading ++ checkLabels)
             (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) (.ok value)) ∧
           RetainsActiveSlots profile ready reference canonical canonLabels
-            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value)) := by
+            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value))) ∧
+        ∀ update, plan = some update → ExclusiveLeafWriterFlow update checked.host canonical.host
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome).host
+          (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome).host := by
   let body := (CanonicalTree.leaf Component.Limits.spec Quirks.none (destination.context inst)
     destination.width item output : Session grow sig output.Result)
   obtain ⟨guardLabels, guardSilent, guardSteps⟩ := RecordDestination.checked_leaf_prefix
@@ -286,7 +290,8 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
     obtain ⟨canonLabels, canonTrace, canonRun, canonTrails, canonTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := reference)
       body canonical reached outcome canonNext canonAt canonEval
     have guardRun := (prefix_survives (prefixTracks (.active 0 0))).1
-    refine ⟨reached, outcome, guardLabels, checkLabels, canonLabels, grown, guardSilent, checkTrace, canonTrace, ?_, canonRun, ?_, ?_⟩
+    refine ⟨reached, outcome, guardLabels, checkLabels, canonLabels, grown, guardSilent, checkTrace, canonTrace,
+      ?_, canonRun, ?_, ?_, ?_⟩
     · cases outcome <;> exact chain guardRun checkRun
     · intro mark
       refine ⟨?_, canonTrails mark⟩
@@ -297,5 +302,24 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
       cases outcome <;> exact (stitched mark).append (checkTrails mark)
     · intro value success
       exact ⟨fun depth => (prefixTracks (.active 0 depth)).append (checkTracks value success depth), canonTracks value success⟩
+    · intro update chosen
+      subst plan
+      have live := liveLeafPlan_spend_live verdict
+      cases outcome <;> exact ⟨live, rfl, rfl, fun agrees => agrees.asymmetricSpend live⟩
+
+theorem endpoint_registration_split {sig : Stored.Signature} {id : EndId}
+    {left right checked canonical : HostState sig}
+    (flow : ExclusiveLeafWriterFlow (.endpoint id) left right checked canonical)
+    (agrees : left.writer.LiveClaimsAgree right.writer) (tree : Stored.OwnedMemory.Tree sig)
+    (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :
+    ∃ registered, checked.writer.register tree = .ok registered ∧ canonical.writer.register tree = .error .alias := by
+  have peerLive := (agrees.endpoints id).mp flow.live
+  rw [flow.checkedHost, flow.canonicalHost]
+  let spent := (Spend.endpoint id).apply left.writer
+  have absent : id ∉ spent.endpoints := (Spend.endpoint id).not_live left.writer
+  refine ⟨⟨tree :: spent.accepted, spent.held, [id] ++ spent.endpoints⟩, ?_, ?_⟩
+  · change spent.register tree = _
+    simp [State.register, unowned, one, absent]
+  · simp [State.register, unowned, one, peerLive]
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LocalLeaf

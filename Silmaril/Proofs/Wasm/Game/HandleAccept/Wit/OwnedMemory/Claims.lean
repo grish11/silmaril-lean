@@ -134,6 +134,25 @@ theorem liveClaims_spend {sig : Signature} {left right : State sig}
     intro id
     simp only [Spend.apply, List.mem_filter, bne_iff_ne, agrees.endpoints]
 
+theorem spend_not_live {sig : Signature} (update : Spend) (state : State sig) : ¬ update.Live (update.apply state) := by
+  cases update with
+  | owner id =>
+    intro live
+    obtain ⟨receipt, kept, same⟩ := List.mem_map.mp live
+    have different := (List.mem_filter.mp kept).2
+    simp [same] at different
+  | endpoint id => simp [Spend.Live, Spend.apply]
+
+theorem liveClaims_asymmetricSpend {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) {update : Spend} (live : update.Live left) :
+    (update.apply left).LiveClaimsAgree (update.apply right) ∧ ¬ (update.apply left).LiveClaimsAgree right := by
+  refine ⟨liveClaims_spend agrees update, fun wronglyRestored => spend_not_live update left ?_⟩
+  have before := liveClaims_indexed agrees
+  have after := liveClaims_indexed wronglyRestored
+  cases update with
+  | owner id => exact (after.held id).mpr ((before.held id).mp live)
+  | endpoint id => exact (after.endpoints id).mpr ((before.endpoints id).mp live)
+
 theorem liveClaims_prepare {sig : Signature} {left right : State sig}
     (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
     (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by

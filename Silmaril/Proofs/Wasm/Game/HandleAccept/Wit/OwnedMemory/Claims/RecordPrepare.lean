@@ -71,12 +71,8 @@ theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
         · exact ih agrees
         · rfl
 
-private def Held {sig : Signature} (state : State sig) : Spend → Prop
-  | .owner id => id ∈ state.held.map receiptId
-  | .endpoint id => id ∈ state.endpoints
-
 private theorem after_spend {sig : Signature} {state : State sig} {spent later : Spend}
-    (held : Held (spent.apply state) later) : later ≠ spent ∧ Held state later := by
+    (held : later.Live (spent.apply state)) : later ≠ spent ∧ later.Live state := by
   cases spent <;> cases later
   case owner.owner spent later =>
     obtain ⟨receipt, kept, identity⟩ := List.mem_map.mp held
@@ -94,18 +90,18 @@ private theorem after_spend {sig : Signature} {state : State sig} {spent later :
   all_goals exact ⟨(by intro equal; cases equal), held⟩
 
 private theorem prepend {sig : Signature} {state : State sig} {spend : Spend} {spends : List Spend}
-    (held : Held state spend) (distinct : spends.Nodup)
-    (tail : ∀ later ∈ spends, Held (spend.apply state) later) :
-    (spend :: spends).Nodup ∧ ∀ later ∈ spend :: spends, Held state later := by
+    (held : spend.Live state) (distinct : spends.Nodup)
+    (tail : ∀ later ∈ spends, later.Live (spend.apply state)) :
+    (spend :: spends).Nodup ∧ ∀ later ∈ spend :: spends, later.Live state := by
   refine ⟨List.nodup_cons.mpr ⟨fun member => (after_spend (tail spend member)).1 rfl, distinct⟩, ?_⟩
   intro later member
   rcases List.mem_cons.mp member with rfl | member
   · exact held
   · exact (after_spend (tail later member)).2
 
-private theorem owner_prepared {sig : Signature} {state next : State sig} {receipt : Receipt} {rep : Nat}
+theorem owner_prepared {sig : Signature} {state next : State sig} {receipt : Receipt} {rep : Nat}
     (checked : prepareOwner state receipt = .ok (rep, next)) :
-    next = (Spend.owner (receiptId receipt)).apply state ∧ Held state (.owner (receiptId receipt)) := by
+    next = (Spend.owner (receiptId receipt)).apply state ∧ (Spend.owner (receiptId receipt)).Live state := by
   cases found : state.held.find? (fun entry => receiptId entry == receiptId receipt) with
   | none =>
     simp [prepareOwner, State.prepare, Except.mapError, found] at checked
@@ -113,7 +109,7 @@ private theorem owner_prepared {sig : Signature} {state next : State sig} {recei
   | some selected =>
     have equal := List.find?_some found
     have identity : receiptId selected = receiptId receipt := beq_iff_eq.mp equal
-    have present : Held state (.owner (receiptId receipt)) :=
+    have present : (Spend.owner (receiptId receipt)).Live state :=
       List.mem_map.mpr ⟨selected, List.mem_of_find?_eq_some found, identity⟩
     by_cases typed : selected.1 = receipt.1
     · simp [prepareOwner, State.prepare, Except.mapError, found, typed] at checked
@@ -126,10 +122,10 @@ private theorem owner_prepared {sig : Signature} {state next : State sig} {recei
     · simp [prepareOwner, State.prepare, Except.mapError, found, typed] at checked
       cases checked
 
-private theorem endpoint_prepared {E : CoreEngine} {sig : Signature} {store : CStore E}
+theorem endpoint_prepared {E : CoreEngine} {sig : Signature} {store : CStore E}
     {state next : State sig} {channel element id}
     (checked : prepareEndpoint store state channel element id = .ok next) :
-    next = (Spend.endpoint id).apply state ∧ Held state (.endpoint id) := by
+    next = (Spend.endpoint id).apply state ∧ (Spend.endpoint id).Live state := by
   by_cases present : id ∈ state.endpoints
   · refine ⟨?_, present⟩
     cases ready : Async.Transfer.readyToGive store channel element ⟨id⟩ with
@@ -144,7 +140,7 @@ private theorem endpoint_prepared {E : CoreEngine} {sig : Signature} {store : CS
 
 private theorem prepared {E : CoreEngine} {sig : Signature} (store : CStore E)
     (state : State sig) (plan : List Object) (checked : prepare store state plan = .ok ()) :
-    (exclusiveSpends plan).Nodup ∧ ∀ spend ∈ exclusiveSpends plan, Held state spend := by
+    (exclusiveSpends plan).Nodup ∧ ∀ spend ∈ exclusiveSpends plan, spend.Live state := by
   induction plan generalizing state with
   | nil => simp [exclusiveSpends]
   | cons object rest ih =>

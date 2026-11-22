@@ -37,7 +37,8 @@ A typed refusal runs just the checked guard; the canonical side stays before
 the leaf. After successful admission, both sides execute the real canonical
 leaf with the same value or trap and reached store. Earlier store effects and
 the checked spend survive a late trap. The two success continuations and host
-states need not match. -/
+states need not match. In fact, an executed exclusive spend precludes raw
+writer agreement even if the inputs agree. -/
 theorem RecordDestination.compare_handle_leaf_between {grow : SingleThreaded.GrowOracle} {sig : Signature}
     {profile : ProfileKind} {ready : HostReady (HostState sig)}
     {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -68,11 +69,14 @@ theorem RecordDestination.compare_handle_leaf_between {grow : SingleThreaded.Gro
           Trail profile ready reference canonical mark canonLabels
             (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome)
             (localOccurrenceEnd outcome mark)) ∧
-        ∀ value, outcome = .ok value →
+        (∀ value, outcome = .ok value →
           RetainsActiveSlots profile ready dispatch checked (leading ++ checkLabels)
             (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) (.ok value)) ∧
           RetainsActiveSlots profile ready reference canonical canonLabels
-            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value)) :=
+            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value))) ∧
+        ∀ update, plan = some update → ExclusiveLeafWriterFlow update checked.host canonical.host
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome).host
+          (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome).host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LocalLeaf.compare
     sameStore destination inst item handle index output checkNext canonNext checkAt canonAt
 
@@ -80,5 +84,16 @@ abbrev RecordDestination.compare_handle_leaf {grow : SingleThreaded.GrowOracle} 
     {profile : ProfileKind} {ready : HostReady (HostState sig)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))} :=
   @RecordDestination.compare_handle_leaf_between grow sig profile ready dispatch dispatch
+
+/-- If the post-leaf writers are asked to register this root, the checked
+writer can register it but the raw canonical writer reports alias. This does
+not assert that the program reaches that subsequent registration. -/
+theorem ExclusiveLeafWriterFlow.endpoint_registration_split {sig : Signature} {id : EndId}
+    {left right checked canonical : HostState sig}
+    (flow : ExclusiveLeafWriterFlow (.endpoint id) left right checked canonical)
+    (agrees : left.writer.LiveClaimsAgree right.writer) (tree : Tree sig)
+    (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :
+    ∃ registered, checked.writer.register tree = .ok registered ∧ canonical.writer.register tree = .error .alias :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LocalLeaf.endpoint_registration_split flow agrees tree unowned one
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled

@@ -617,7 +617,7 @@ private theorem handleKeeping (destination : RecordDestination) (inst : InstId) 
       .refl right, same, silent allTau, trivial, rfl⟩
   | ok plan =>
     rw [verdict] at paired
-    obtain ⟨reached, outcome, leading, chk, ref, grown, allTau, checkTrace, canonTrace, checkRun, canonRun, _, _⟩ := paired
+    obtain ⟨reached, outcome, leading, chk, ref, grown, allTau, checkTrace, canonTrace, checkRun, canonRun, _, _, _⟩ := paired
     have labels : visible (leading ++ chk) = visible ref := by
       cases outcome <;> rw [visible_append, silent allTau, List.nil_append, trace checkTrace, trace canonTrace]
     cases outcome with

@@ -55,6 +55,16 @@ theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
     prepare store left plan = prepare store right plan :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_live store plan agrees
 
+theorem owner_prepared {sig : Signature} {state next : State sig} {receipt : Receipt} {rep : Nat}
+    (checked : prepareOwner state receipt = .ok (rep, next)) :
+    next = (Spend.owner (receiptId receipt)).apply state ∧ (Spend.owner (receiptId receipt)).Live state :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.owner_prepared checked
+
+theorem endpoint_prepared {E : CoreEngine} {sig : Signature} {store : CStore E}
+    {state next : State sig} {channel element id} (checked : prepareEndpoint store state channel element id = .ok next) :
+    next = (Spend.endpoint id).apply state ∧ (Spend.endpoint id).Live state :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.endpoint_prepared checked
+
 /-- A successful whole-plan dry run authorizes each nominal owner or readable
 endpoint at most once. Error contexts are shared and do not enter the claim list. -/
 theorem prepare_distinct {E : CoreEngine} {sig : Signature} (store : CStore E)

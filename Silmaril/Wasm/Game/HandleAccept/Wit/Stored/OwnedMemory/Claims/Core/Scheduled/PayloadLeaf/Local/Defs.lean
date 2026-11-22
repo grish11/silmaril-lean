@@ -43,4 +43,15 @@ def localOccurrenceEnd {Result : Type} (result : Except TrapReason Result)
   | .error _, some (.active ..) => none
   | _, _ => mark
 
+/-- An exclusive checked guard spends its claim before the canonical leaf effects.
+The projection on the peer's writer is only a proof view; the raw canonical
+execution does not commit it, even on a common trap. -/
+structure ExclusiveLeafWriterFlow {sig : Signature} (update : Spend)
+    (left right checked canonical : HostState sig) : Prop where
+  live : update.Live left.writer
+  checkedHost : checked = { left with writer := update.apply left.writer }
+  canonicalHost : canonical = right
+  compare : left.writer.LiveClaimsAgree right.writer →
+    checked.writer.LiveClaimsAgree (update.apply canonical.writer) ∧ ¬ checked.writer.LiveClaimsAgree canonical.writer
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled

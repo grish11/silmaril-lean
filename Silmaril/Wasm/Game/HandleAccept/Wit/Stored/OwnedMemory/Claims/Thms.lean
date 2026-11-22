@@ -55,6 +55,16 @@ theorem State.LiveClaimsAgree.prepare {sig : Signature} {left right : State sig}
     (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_prepare agrees resource id
 
+theorem Spend.not_live {sig : Signature} (update : Spend) (state : State sig) : ¬ update.Live (update.apply state) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.spend_not_live update state
+
+/-- A checked-only spend can be compared to a projection of the canonical
+writer, but not to the unchanged writer consulted by a subsequent real read. -/
+theorem State.LiveClaimsAgree.asymmetricSpend {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) {update : Spend} (live : update.Live left) :
+    (update.apply left).LiveClaimsAgree (update.apply right) ∧ ¬ (update.apply left).LiveClaimsAgree right :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_asymmetricSpend agrees live
+
 theorem State.LiveClaimsAgree.prepare_success {sig : Signature} {left right next : State sig}
     (agrees : left.LiveClaimsAgree right) {resource : RtId} {id : HandleObjId} {representation : Nat}
     (success : left.prepare resource id = .ok (representation, next)) :

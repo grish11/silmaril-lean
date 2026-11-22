@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Canoni
 public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 
 public section
 
@@ -23,6 +24,27 @@ open Silmaril.Wasm.Component.Machine.ReturnFrame.Occurrence
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature}
 variable {profile : ProfileKind} {ready : HostReady (HostState sig)}
 variable {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+
+theorem plan_spend_live {store : CStore (core3 grow)} {state : OwnedMemory.Claims.State sig}
+    {index : Nat} {item : Field} {update : Spend}
+    (planned : liveLeafPlan store state index item = .ok (some update)) : update.Live state := by
+  cases item with
+  | owner receipt =>
+    cases prepared : prepareOwner state receipt with
+    | error _ => simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+    | ok result =>
+      obtain ⟨rep, next⟩ := result
+      simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+      exact planned ▸ (owner_prepared prepared).2
+  | endpoint channel element id =>
+    cases prepared : prepareEndpoint store state channel element id with
+    | error _ => simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+    | ok next =>
+      simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+      exact planned ▸ (endpoint_prepared prepared).2
+  | context id =>
+    by_cases missing : (store.errCtx? id).isNone = true <;> simp [liveLeafPlan, missing] at planned
+  | data | aggregate | fixed | dynamic | sum => cases planned
 
 private def readPlan (initial : CStore (core3 grow)) (item : Field) (index : Nat) :
     Session grow sig (Except RecordLower.Issue (Option Spend)) :=
