@@ -214,6 +214,37 @@ def cancelHookReturn (async : Bool) (subtask : SubtaskId) (result : Ret (core3 g
 def cancelAfterRequestWrite (async : Bool) (subtask : SubtaskId) (hook : CancelRef) : Session grow sig (Ret (core3 grow)) :=
   .op (.call (.onCancel hook)) (cancelHookReturn async subtask)
 
+/-- The continuation after the optional synchronous cancellation wait.
+Release the current sync waiter and recheck the current resolution. -/
+def cancelFinish (subtask : SubtaskId) : Session grow sig (Ret (core3 grow)) := do
+  modifyStore (CStore.setSyncWaiterSt (.subtask subtask) none)
+  if ← Builtins.subtaskResolvedNow subtask then
+    return .flat (← Builtins.subtaskCancelDeliver subtask)
+  else return .flat [i32Flat (AsyncRef.subtaskCancelResult none)]
+
+def cancelSyncDecision (async : Bool) (subtask : SubtaskId) : Session grow sig (Option ThreadId) := do
+  let resolved ← Builtins.subtaskResolvedNow subtask
+  if !async && !resolved then
+    let thread ← currentThreadId
+    let now ← Thread.readyNow (fun _ _ => false) (.subtaskResolved subtask)
+    let early ← (if now then choose (.earlyReturn .syncSubtaskCancel) else pure false : Session grow sig Bool)
+    if early then pure none else do
+      Thread.startWaiting thread (.subtaskResolved subtask)
+      pure (some thread)
+  else pure none
+
+/-- A hook return is not a public reply. Preserve the ordinary result-type
+trap and, for a unit return, the executed async/sync readiness decision. -/
+def cancelHookDecision (async : Bool) (subtask : SubtaskId) (result : Ret (core3 grow)) :
+    Session grow sig (Option ThreadId) :=
+  match result with
+  | .unit => cancelSyncDecision async subtask
+  | _ => internal "late-bound call: expected Ret.unit"
+
+def cancelAfterHookDecision (subtask : SubtaskId) : Option ThreadId → Session grow sig (Ret (core3 grow))
+  | none => cancelFinish subtask
+  | some _ => block none >>= fun _ => cancelFinish subtask
+
 /-- Cancellation consumes the currently reached event before reading the result state.
 The event records what was delivered; only the result code is returned to Core. -/
 def cancelDeliveryObservation (subtask : SubtaskId) : Session grow sig (AsyncRef.EventTuple × Nat) := do

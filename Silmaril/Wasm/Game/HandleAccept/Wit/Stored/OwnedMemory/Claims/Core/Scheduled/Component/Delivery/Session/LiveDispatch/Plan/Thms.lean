@@ -3283,6 +3283,50 @@ theorem cut_cancel_request_write (async : Bool) (subtask : SubtaskId) (hook : Ca
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelRequestWrite
     async subtask hook leftFocus rightFocus paired run
 
+/-- Starting at the actual post-hook continuation, compare the return shape,
+live resolution read and synchronous readiness choice. A chosen wait is not
+yet an executed block, and neither branch is a public cancellation reply. -/
+theorem cut_cancel_hook_decision (async : Bool) (subtask : SubtaskId) (result : Ret (core3 grow))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (cancelHookReturn async subtask result))
+    (rightFocus : incoming.ctl = canon.control (cancelHookReturn async subtask result))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (cancelAfterHookDecision subtask) (cancelAfterHookDecision subtask)
+        reached peer suffix True :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelHookDecision
+    async subtask result leftFocus rightFocus paired run
+
+open ReturnFrame.Occurrence in
+/-- Compare the actual synchronous cancel block and save the original Core
+caller at its reached slot. An exhausted block focus has not parked. -/
+theorem cut_cancel_sync_park (subtask : SubtaskId)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨some thread, .prog (cancelAfterHookDecision subtask (some thread)), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨some thread, .prog (cancelAfterHookDecision subtask (some thread)),
+      .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨some thread, .core core resume :: frames, rest⟩
+      ⟨some thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (labels = [] ∧ finish = start) ∨
+      ∃ suffix,
+        let reached := { (start.setCont thread (some ⟨some thread, .prog (cancelFinish subtask), .core core resume :: frames⟩)) with
+          store := StepDefs.threadStatusSt thread .blocked start.store, ctl := rest }
+        let peer := { (incoming.setCont thread (some ⟨some thread, .prog (cancelFinish subtask), .core core resume :: peerFrames⟩)) with
+          store := StepDefs.threadStatusSt thread .blocked incoming.store, ctl := peerRest }
+        labels = .tau :: suffix ∧ Steps profile ready (specDispatch ready base) reached suffix finish ∧
+        HostFrame.Related.Paired older reached peer ∧
+        OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] reached peer ∧
+        Trail profile ready (specDispatch ready base) start (some (.active 0 0)) [.tau] reached (some (.saved thread.idx 0)) ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.active 0 0))
+          [.tau] peer (some (.saved thread.idx 0)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCoreCalloutPark
+    (cancelFinish subtask) leftFocus rightFocus paired run
+
 open ReturnFrame.Occurrence in
 /-- Spend the actual late-bound cancellation-hook install, if reached. Both
 dispatchers install the same hook body and original continuation; this does
