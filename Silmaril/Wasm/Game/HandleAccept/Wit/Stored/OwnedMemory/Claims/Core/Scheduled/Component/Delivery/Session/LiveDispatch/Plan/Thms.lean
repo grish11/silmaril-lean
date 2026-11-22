@@ -2371,4 +2371,15 @@ theorem GiveInstall.actual_selected_memory_callback {pointer : FlatValue} {reque
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedMemoryCallback
     selection domain install tail paired selected embedder compare
 
+/-- Classify finite callbacks under the fixed live dispatcher. The fold
+derives the installed Core request and its actual selector; supported
+memory gives and common ABI refusals use shorter checked derivations.
+A differing live lookup or an unclassified install remains a proof cut. -/
+theorem classify_memory_callbacks
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    CallbackSlice profile ready base bindings older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyMemoryCallbacks embedder run paired
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

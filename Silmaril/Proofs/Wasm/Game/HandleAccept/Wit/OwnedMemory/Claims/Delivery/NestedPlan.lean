@@ -204,6 +204,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
+  | lookup _ install _ _ tail => exact .cons install.step tail
+  | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -220,6 +222,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | boundary _ step tail => exact .cons step tail
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -3885,5 +3889,83 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
     | placed _ _ _ _ body =>
       obtain ⟨_, _, _, _, compare⟩ := body
       exact compare install
+
+private theorem admissionRefusalCallback (request : CoreGiveRequest bindings start) {issue label next}
+    (refused : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok (.error issue)))
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (actual : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+    CallbackSlice profile ready base bindings older start incoming (label :: labels) finish := by
+  obtain ⟨leftCount, _, _, _, positive, checked, canonical, after, _, _⟩ := request.paired_admission_refusal_tracks
+    (profile := profile) (ready := ready) (base := base) base embedder paired refused reads
+  have run := Steps.cons install.step actual
+  have transport := CallbackPrefix.stationaryTransport checked canonical
+  have front := (checked (.active 0 0)).toTrail.steps
+  cases alignLocalBody front run (noBranchOfVisible (visibleTaus leftCount) (by simp)) with
+  | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+  | @reached suffix split residual =>
+    have smaller : suffix.length < (label :: labels).length := by
+      rw [split, List.length_append, List.length_replicate]
+      omega
+    rcases classifyReachedGrowth front with certified | uncertified
+    · obtain ⟨checked, canonical, trailing, reached, peer, divided, segment, ending⟩ := compare smaller residual after
+      have leading : ExecutedCallbackSegment profile ready base bindings older start incoming _ _ _ _ :=
+        ⟨certified, (visibleTaus _).trans (visibleTaus _).symm, after, transport⟩
+      exact ⟨_, _, trailing, reached, peer, by rw [split, divided, List.append_assoc],
+        CallbackPrefix.appendExecutedCallbacks leading segment, ending⟩
+    · rw [split]
+      exact callbackTerminalSlice paired (.uncertified install uncertified after transport residual)
+
+private theorem classifiedMemoryCrossing
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    CallbackGiveCrossing profile ready base bindings := by
+  classical
+  intro changes checked canonical next finish label trailing install actual paired compare
+  apply Or.inr
+  have run := Steps.cons install.step actual
+  have unclassified := callbackTerminalSlice paired (.boundary (.give install) install.step actual)
+  rcases install.request with ⟨⟨request⟩⟩ | direct
+  · by_cases reads : ∀ handle, request.lookupDemand = some handle →
+        Stored.Endpoints.Core.childFromHistory checked.host.writer.accepted handle =
+          Stored.Endpoints.Core.childFromHistory canonical.host.writer.accepted handle
+    · rcases request.selector_result with ⟨reason, trap⟩ | ⟨verdict, evaluated⟩
+      · obtain ⟨leftCount, _, left, right⟩ := request.paired_admission_trap
+          (profile := profile) (ready := ready) (base := base) base embedder paired trap
+        have seen : PayloadPrefix.visible (List.replicate leftCount .tau ++ ([.trap reason] : Trace grow sig)) = [.trap reason] := by
+          rw [visibleAppend, visibleTaus]
+          rfl
+        cases alignLocalBody left run (noBranchOfVisible seen (by simp [workerBranchLabel])) with
+        | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+        | reached split residual =>
+          rw [split]
+          exact callbackTerminalSlice paired (.admissionTrap request install trap left right residual)
+      · cases verdict with
+        | error issue => exact admissionRefusalCallback request evaluated install actual paired reads embedder compare
+        | ok result =>
+          obtain ⟨route, ⟨selection⟩⟩ := request.selected_of_return evaluated
+          have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected
+          cases route with
+          | flat schema => exact unclassified
+          | memory pointer =>
+            by_cases domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field
+            · exact actualSelectedMemoryCallback selection domain install actual paired selected embedder compare
+            · exact unclassified
+    · push Not at reads
+      obtain ⟨handle, demand, different⟩ := reads
+      exact callbackTerminalSlice paired (.lookup request install demand different actual)
+  · exact unclassified
+
+theorem classifyMemoryCallbacks
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    CallbackSlice profile ready base bindings older start incoming labels finish :=
+  foldCallbackSlices (classifiedMemoryCrossing embedder) run paired
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan
