@@ -1794,12 +1794,16 @@ theorem LiveCollectionOccurrenceEntry.drive_actual {destination : RecordDestinat
       checkNext canonNext initial reference start incoming seen check canon visit sink)
     (same : start.store = incoming.store)
     (width : (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width)
+    (checkAt : start.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext))
     (actual : Steps profile ready (specDispatch ready base) start labels finish)
     (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
     CollectionRunSlice profile ready base bindings older destination inst type element entries index output checkNext canonNext
       start incoming check canon labels finish seen visit :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCollectionSlice
-    body same width actual bounded compare
+    body same width checkAt canonAt actual bounded compare
 
 open PayloadPrefix LinkedCallback.MemorySequence in
 /-- Traverse a reached `list<string>` allocation using the actual residual.
