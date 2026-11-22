@@ -4630,6 +4630,9 @@ inductive MemoryVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
   | string {item} : item.LayoutMatches (.prim .string) → item.Emitted → MemoryVisitShape item
   | aggregate {type items} : Stored.Endpoints.RecordLower.Field.LayoutMatches (.aggregate type items) type →
       (∀ item ∈ items, MemoryVisitShape item) → MemoryVisitShape (.aggregate type items)
+  | fixed {element length entries} : entries.length = length →
+      Stored.Endpoints.RecordLower.Field.EntriesMatch entries element →
+      (∀ item ∈ entries, MemoryVisitShape item) → MemoryVisitShape (.fixed element length entries)
   | sum {type arms tag selected} :
       (∀ width, ABI.layout width type = ABI.variantLayout (arms.map (ABI.layoutOption width))) →
       (∀ item, selected = some item → some item.type ∈ arms) →

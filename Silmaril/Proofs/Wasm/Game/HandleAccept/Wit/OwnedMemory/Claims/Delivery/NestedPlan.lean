@@ -3267,6 +3267,110 @@ theorem compiledSumVisitShape {type : Stored.TypeOf} {arms : List (Option Stored
     | resultOk matching => exact member (active ▸ matching) (by simp)
     | resultError matching => exact member (active ▸ matching) (by simp)
 
+open ABI PayloadPrefix Stored.Endpoints.RecordLower in
+private theorem compiledVisitShapes {item : Field} (emitted : item.Emitted) {schema : Stored.TypeOf}
+    (matched : item.LayoutMatches schema) : FlatVisitShape item ∧ MemoryVisitShape item := by
+  have primitiveShapes {primitive : WIT.Primitive} (payload : Stored.Payload (.prim primitive)) :
+      FlatVisitShape (.data (.prim primitive) payload) ∧ MemoryVisitShape (.data (.prim primitive) payload) := by
+    by_cases string : primitive = .string
+    · subst primitive
+      exact ⟨.string _ (.data payload) (.primitive payload), .string (.data payload) (.primitive payload)⟩
+    · exact ⟨.scalar _ (.primitive string) payload, .scalar (.primitive string)⟩
+  have fieldOfMember {fields : List Field} {types : List Stored.TypeOf} (matching : Field.FieldsMatch fields types)
+      {child : Field} (member : child ∈ fields) : ∃ type, child.LayoutMatches type := by
+    induction fields generalizing types with
+    | nil => simp at member
+    | cons field rest ih =>
+      cases matching with
+      | cons head tail =>
+        rcases List.mem_cons.mp member with rfl | later
+        · exact ⟨_, head⟩
+        · exact ih tail later
+  have atArm {selected : Option Field} {arm : Option Stored.TypeOf} (matching : Field.ArmMatches selected arm)
+      {child : Field} (active : selected = some child) : ∃ type, child.LayoutMatches type := by
+    cases active
+    cases matching with
+    | some layout => exact ⟨_, layout⟩
+  induction emitted generalizing schema with
+  | primitive payload => exact primitiveShapes payload
+  | enum payload schemaOk => exact ⟨.scalar _ (.enum schemaOk) payload, .scalar (.enum schemaOk)⟩
+  | flags payload schemaOk => exact ⟨.scalar _ (.flags schemaOk) payload, .scalar (.flags schemaOk)⟩
+  | endpoint => exact ⟨.handle _ trivial, .handle trivial⟩
+  | context => exact ⟨.handle _ trivial, .handle trivial⟩
+  | owner => exact ⟨.handle _ trivial, .handle trivial⟩
+  | @aggregate type fields _ ih =>
+    have typed : type = schema := matched.type_eq
+    subst schema
+    have children (child : Field) (member : child ∈ fields) : FlatVisitShape child ∧ MemoryVisitShape child := by
+      have occurs : ∃ type, child.LayoutMatches type := by
+        cases matched with
+        | record fields | tuple fields => exact fieldOfMember fields member
+      obtain ⟨_, found⟩ := occurs
+      exact ih child member found
+    exact ⟨.aggregate type fields (fun child member => (children child member).1),
+      .aggregate matched (fun child member => (children child member).2)⟩
+  | @fixed element length entries _ ih =>
+    cases matched with
+    | fixed count matching =>
+      exact ⟨.fixed element length entries (fun child member => (ih child member (entries_match_of_mem matching member)).1),
+        .fixed count matching (fun child member => (ih child member (entries_match_of_mem matching member)).2)⟩
+  | @list element entries _ ih =>
+    cases matched with
+    | list matching =>
+      have children := fun child member => (ih child member (entries_match_of_mem matching member)).2
+      exact ⟨.collection (.list element) element entries matching children, .list matching children⟩
+  | @map key element entries pairs emittedValues ih =>
+    cases matched with
+    | map matching =>
+      let entryType : Stored.TypeOf := .record (mapEntryFields key element)
+      have pairShapes (payload : Stored.Payload (.prim key.toPrimitive)) (value : Field)
+          (member : Field.aggregate entryType [.data (.prim key.toPrimitive) payload, value] ∈ entries) :
+          ∀ child ∈ [Field.data (.prim key.toPrimitive) payload, value], MemoryVisitShape child := by
+        intro child present
+        rcases List.mem_cons.mp present with rfl | later
+        · exact (primitiveShapes payload).2
+        · have same := List.mem_singleton.mp later
+          subst child
+          have entry : Field.LayoutMatches
+              (.aggregate (.record (mapEntryFields key element)) [.data (.prim key.toPrimitive) payload, value])
+              (.record (mapEntryFields key element)) := entries_match_of_mem matching member
+          cases entry with
+          | record fields =>
+            obtain ⟨_, valueLayout⟩ := fieldOfMember fields (List.mem_cons_of_mem _ (List.mem_cons_self ..))
+            exact (ih payload value member valueLayout).2
+      refine ⟨.collection (.map key element) entryType entries matching ?_, .map matching (.map pairs emittedValues) ?_⟩
+      · intro entry member
+        obtain ⟨payload, value, rfl⟩ := pairs entry member
+        exact .aggregate (entries_match_of_mem matching member) (pairShapes payload value member)
+      · intro keyField value member
+        obtain ⟨payload, compiledValue, equal⟩ := pairs _ member
+        have fields := (List.cons.inj (Field.aggregate.inj equal).2)
+        have keyEqual := fields.1
+        have valueEqual := (List.cons.inj fields.2).1
+        subst keyField
+        subst value
+        exact pairShapes payload compiledValue member
+  | @sum type arms tag selected _ ih =>
+    have typed : type = schema := matched.type_eq
+    subst schema
+    have children (child : Field) (active : selected = some child) : FlatVisitShape child ∧ MemoryVisitShape child := by
+      have occurs : ∃ type, child.LayoutMatches type := by
+        cases matched with
+        | variant _ matching => exact atArm matching active
+        | optionNone => cases active
+        | optionSome matching => cases active; exact ⟨_, matching⟩
+        | resultOk matching | resultError matching => exact atArm matching active
+      obtain ⟨_, found⟩ := occurs
+      exact ih child active found
+    exact ⟨.sum type arms tag selected matched (fun child active => (children child active).1),
+      compiledSumVisitShape matched (fun child active => (children child active).2)⟩
+
+open Stored.OwnedMemory.Claims in
+private theorem siteVisitShapes {giveRoute : GiveEffectRoute} {site : PayloadRoot.Site grow sig giveRoute}
+    (linked : site.Linked bindings) : FlatVisitShape site.field ∧ MemoryVisitShape site.field := by
+  obtain ⟨_, preflight⟩ := linked.compiled
+  exact compiledVisitShapes linked.emitted (Record.preflightValue_layout _ _ _ _ _ _ preflight)
+
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
 private theorem driveCollectionPublish {origin visited : CStore (core3 grow)}
     (destination : RecordDestination) (inst : InstId) (index pointer count : Nat) (output : Stored.Lower.Output)
@@ -3659,6 +3763,32 @@ theorem driveCompiledMemory {origin : CStore (core3 grow)} {root item : Field} {
       rw [CanonicalTree.field] at canonAt
       exact prependMemoryVisit (canonical := []) split rfl (CallbackPrefix.stationaryTransport guard (fun place => .done right place))
         (wrapMemoryVisit index (driveMemorySequence .fields destination inst items 0 address slots width paired growth rfl canonAt tail remaining))
+  | @fixed element length entries count matching children ih =>
+    intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+    let area := layout destination.width element
+    let reference := { right with ctl := canon.control (Track.canonical (.elements area.size) destination inst entries address >>= canonNext) }
+    have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width :=
+      frame.store ▸ growth.memAddrType width
+    obtain ⟨focused, checkedAt⟩ := CallbackRange.fixedEntryFoci (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst element length entries index address left right check canon checkNext canonNext widthAt checkAt canonAt
+    have modulo : address % (layout destination.width (.fixedList element length)).alignment.bytes = 0 := placed.1
+    have fits : address + (layout destination.width (.fixedList element length)).size ≤ bytes := placed.2
+    rw [layout] at modulo fits
+    have aligned : address = alignTo address area.alignment := by
+      change address % area.alignment.bytes = 0 at modulo
+      cases reached : area.alignment <;> simp only [alignTo, reached, Alignment.bytes] at modulo ⊢ <;> omega
+    have bounds : address + entries.length * area.size ≤ bytes := by
+      rw [count]
+      simpa only [area, Layout.size, Nat.mul_assoc] using fits
+    have slots := Track.elements_slots destination.width matching aligned bounds
+      (MemoryVisitField profile ready base bindings older origin destination inst budget)
+      (fun child member slot placed => ih child member slot (path.trans (.fixed member (.self child))) width sized placed)
+    have paired : LinkedCallback.ChildFrameOver older left reference check canon :=
+      ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
+    exact prependMemoryVisit (checked := []) (canonical := [.tau]) rfl rfl
+      (CallbackPrefix.stationaryTransport (fun place => .done left place) focused)
+      (wrapMemoryVisit index (driveMemorySequence (.elements area.size) destination inst entries 0 address slots width
+        paired growth checkedAt rfl run bounded))
   | @sum type arms tag selected layoutAt member _ ih =>
     intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
     have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width :=
@@ -4172,7 +4302,7 @@ theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow 
 theorem actualSelectedMemoryRequest {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {field : Stored.Endpoints.RecordLower.Field} {plan label}
     {next : Config (core3 grow) (HostState sig)}
-    (compiled : selection.preflight = .ok (field, plan)) (shape : MemoryVisitShape field)
+    (compiled : selection.preflight = .ok (field, plan))
     (install : GiveInstall bindings (specDispatch ready base) start label next)
     (tail : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming)
@@ -4184,7 +4314,7 @@ theorem actualSelectedMemoryRequest {pointer : FlatValue} {request : CoreGiveReq
       site.Linked bindings ∧ PayloadRoot.Cut site profile ready bindings
         (ActualMemoryRequestRun profile ready base bindings older site incoming (label :: labels) finish) base := by
   obtain ⟨tag, payload, arity, children, root, linked⟩ := selection.compiler_success compiled
-  exact ⟨tag, payload, arity, children, root, linked, actualMemoryRequest _ linked shape paired
+  exact ⟨tag, payload, arity, children, root, linked, actualMemoryRequest _ linked (siteVisitShapes linked).2 paired
     (selected.trans (congrArg some root)) embedder (.cons install.step tail) compare⟩
 
 private theorem compilerRefusedCallback {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
@@ -4245,7 +4375,6 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
 
 theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {label next}
-    (domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field)
     (install : GiveInstall bindings (specDispatch ready base) start label next)
     (tail : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming)
@@ -4259,7 +4388,7 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
   | ok result =>
     obtain ⟨field, plan⟩ := result
     obtain ⟨tag, payload, arity, children, root, linked, cut⟩ :=
-      actualSelectedMemoryRequest selection compiled (domain field plan compiled) install tail paired selected embedder compare
+      actualSelectedMemoryRequest selection compiled install tail paired selected embedder compare
     let site := selection.site tag payload arity children field
     have chosen : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree :=
       selected.trans (congrArg some root)
@@ -4381,7 +4510,6 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
 
 private theorem actualSelectedFlatCallback {schema : Stored.TypeOf} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.flat schema)) {label next}
-    (domain : ∀ field plan, selection.preflight = .ok (field, plan) → FlatVisitShape field)
     (install : GiveInstall bindings (specDispatch ready base) start label next)
     (tail : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming)
@@ -4409,7 +4537,7 @@ private theorem actualSelectedFlatCallback {schema : Stored.TypeOf} {request : C
       | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
       | @reached remaining split tail =>
         have bounded : remaining.length ≤ (label :: labels).length := by rw [split, List.length_append]; omega
-        exact split ▸ driveFlatGiveBody site linked (domain _ _ compiled) paired chosen embedder fits install entered quiet tail bounded compare
+        exact split ▸ driveFlatGiveBody site linked (siteVisitShapes linked).1 paired chosen embedder fits install entered quiet tail bounded compare
 
 private theorem admissionRefusalCallback (request : CoreGiveRequest bindings start) {issue label next}
     (refused : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
@@ -4473,13 +4601,9 @@ private theorem classifiedGiveCrossing
           have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected
           cases route with
           | flat schema =>
-            by_cases domain : ∀ field plan, selection.preflight = .ok (field, plan) → FlatVisitShape field
-            · exact actualSelectedFlatCallback selection domain install actual paired selected embedder compare
-            · exact unclassified
+            exact actualSelectedFlatCallback selection install actual paired selected embedder compare
           | memory pointer =>
-            by_cases domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field
-            · exact actualSelectedMemoryCallback selection domain install actual paired selected embedder compare
-            · exact unclassified
+            exact actualSelectedMemoryCallback selection install actual paired selected embedder compare
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
       exact callbackTerminalSlice paired (.lookup request install demand different actual)

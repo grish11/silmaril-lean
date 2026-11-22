@@ -2429,6 +2429,41 @@ private theorem fixedCompiled {item : Field} {element : Stored.TypeOf} {length :
   | @endpoint channel _ _ => cases channel <;> cases matched
   | _ => cases matched
 
+theorem fixedEntryFoci (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (length : Nat) (entries : List Field) (index address : Nat)
+    (left right : Config (core3 grow) (HostState sig)) (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : CheckNext grow sig) (canonNext : CanonNext grow sig)
+    (width : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
+      destination.width (.fixed element length entries) index (.memory address) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+      destination.width (.fixed element length entries) (.memory address) >>= canonNext)) :
+    let stride := (layout destination.width element).size
+    let reached := { right with ctl := canon.control (Track.canonical (.elements stride) destination inst entries address >>= canonNext) }
+    (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau] reached place) ∧
+    left.ctl = check.control (Track.checked (.elements stride) destination inst entries 0 address >>= aggregateNext index checkNext) := by
+  let cx : LiftLowerContext (core3 grow) := destination.context inst
+  let body (reached : AddrType) := Track.canonical (.elements (layout reached element).size) destination inst entries address >>= canonNext
+  have reachedWidth : ptrTypeIn right.store cx = destination.width := by
+    simp [cx, ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, width]
+  have focus : right.ctl = canon.control (.op .get (fun store => body (ptrTypeIn store cx))) := by
+    rw [canonAt, CanonicalTree.field]
+    let elements (reached : AddrType) : Session grow sig Unit :=
+      Track.canonical (.elements (layout reached element).size) destination inst entries address
+    change canon.control (((ptrType cx).bind elements).bind canonNext) = _
+    rw [Prog.bind_assoc]
+    rfl
+  constructor
+  · intro place
+    simpa only [reachedWidth, Cursor.control, body] using (Prefix.read_at (profile := profile)
+      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) place focus)
+  · rw [checkAt, Record.Effects.field]
+    let elements : Session grow sig (Except RecordLower.Issue Unit) :=
+      Track.checked (.elements (layout destination.width element).size) destination inst entries 0 address
+    change check.control ((elements.bind fun verdict => Prog.pure (verdict.mapError (.nested index))).bind checkNext) = _
+    rw [Prog.bind_assoc]
+    rfl
+
 private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
     (length : Nat) (entries : List Field) (address : Nat)
     (count : entries.length = length) (matching : Field.EntriesMatch entries element) (compare : FieldComparison grow sig)
@@ -2439,24 +2474,11 @@ private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) 
         left right check canon) older origin destination inst (.fixed element length entries) address := by
   intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
   let area := layout destination.width element
-  let cx : LiftLowerContext (core3 grow) := destination.context inst
-  let body := fun reached => CanonicalTree.elements Limits.spec Quirks.none cx destination.width entries .value
-    (layout reached element).size address >>= canonNext
-  let reference := { right with ctl := canon.control (body destination.width) }
+  let reference := { right with ctl := canon.control (Track.canonical (.elements area.size) destination inst entries address >>= canonNext) }
   have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width := frame.store ▸ width
-  have reachedWidth : ptrTypeIn right.store cx = destination.width := by
-    simp [cx, ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]
-  have focus : right.ctl = canon.control (.op .get (fun store => body (ptrTypeIn store cx))) := by
-    rw [canonAt, CanonicalTree.field]
-    let elements : AddrType → Session grow sig Unit := fun reached => CanonicalTree.elements Limits.spec Quirks.none cx destination.width entries .value
-      (layout reached element).size address
-    change canon.control (((ptrType cx).bind elements).bind canonNext) = _
-    rw [Prog.bind_assoc]
-    rfl
-  refine ⟨fun place => ?_, ?_⟩
-  · change Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau] reference place
-    simpa only [reachedWidth, Cursor.control, reference] using (Prefix.read_at (profile := profile)
-      (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base)) place focus)
+  obtain ⟨focused, checkBody⟩ := fixedEntryFoci (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+    destination inst element length entries index address left right check canon checkNext canonNext widthAt checkAt canonAt
+  refine ⟨focused, ?_⟩
   · obtain ⟨modulo, bytes, sized, fits⟩ := placementInterval destination left.store
       (layout destination.width (.fixedList element length)) address placed
     rw [layout] at modulo fits
@@ -2466,13 +2488,6 @@ private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) 
     have bounds : address + entries.length * area.size ≤ bytes := by
       rw [count]
       simpa only [area, Layout.size, Nat.mul_assoc] using fits
-    have checkBody : left.ctl = check.control (Track.checked (.elements area.size) destination inst entries 0 address >>=
-        aggregateNext index checkNext) := by
-      rw [checkAt, Record.Effects.field]
-      let elements : Session grow sig (Except RecordLower.Issue Unit) := Track.checked (.elements area.size) destination inst entries 0 address
-      change check.control ((elements.bind fun verdict => Prog.pure (verdict.mapError (.nested index))).bind checkNext) = _
-      rw [Prog.bind_assoc]
-      rfl
     have done := fun lhs rhs cursor peer paired grew checked canonical =>
       ends lhs rhs cursor peer paired (growth.trans grew) checked canonical
     change liveElements destination inst area.size compare (aggregateNext index checkNext) canonNext finish
@@ -2485,7 +2500,7 @@ private theorem liveFixedRule (destination : RecordDestination) (inst : InstId) 
         (left := left) (right := reference) (check := check) (canon := canon)
         ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
         (Core3.Grows.refl _) (by simpa only [Nat.zero_mul, Nat.add_zero, Track.checked, area] using checkBody)
-        (by simp only [reference, body, cx, Nat.zero_mul, Nat.add_zero])
+        (by simp only [reference, Track.canonical, area, Nat.zero_mul, Nat.add_zero])
 
 private theorem variantCompiled {item : Field} {cases : List (String × Option Stored.TypeOf)}
     (matched : item.LayoutMatches (.variant cases)) (emitted : item.Emitted) :

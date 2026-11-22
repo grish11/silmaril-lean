@@ -2356,7 +2356,7 @@ of the selected request at an actual give installation. -/
 theorem GiveInstall.actual_selected_memory_request {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {field : Field} {plan label}
     {next : Config (core3 grow) (HostState sig)}
-    (compiled : selection.preflight = .ok (field, plan)) (shape : MemoryVisitShape field)
+    (compiled : selection.preflight = .ok (field, plan))
     (install : GiveInstall bindings (specDispatch ready base) start label next)
     (tail : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming)
@@ -2368,14 +2368,13 @@ theorem GiveInstall.actual_selected_memory_request {pointer : FlatValue} {reques
       site.Linked bindings ∧ PayloadRoot.Cut site profile ready bindings
         (ActualMemoryRequestRun profile ready base bindings older site incoming (label :: labels) finish) base :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedMemoryRequest
-    selection compiled shape install tail paired selected embedder compare
+    selection compiled install tail paired selected embedder compare
 
 /-- Cross an actually installed memory give whose live selection agrees.
 Compiler and root refusals keep the canonical emitter pending; the placed
 case uses the recursive visitor and its genuinely shorter callback runs. -/
 theorem GiveInstall.actual_selected_memory_callback {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {label next}
-    (domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field)
     (install : GiveInstall bindings (specDispatch ready base) start label next)
     (tail : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming)
@@ -2384,12 +2383,12 @@ theorem GiveInstall.actual_selected_memory_callback {pointer : FlatValue} {reque
     (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
     CallbackSlice profile ready base bindings older start incoming (label :: labels) finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedMemoryCallback
-    selection domain install tail paired selected embedder compare
+    selection install tail paired selected embedder compare
 
-/-- Classify finite callbacks under the fixed live dispatcher. The fold
-derives the installed Core request and its actual selector; covered flat
-and memory gives and common ABI refusals use shorter checked derivations.
-A differing live lookup or an unclassified install remains a proof cut. -/
+/-- Classify finite callbacks under the fixed live dispatcher. The fold derives the installed
+Core request, its actual selector and the visitor shape of the compiled field. Parked flat and
+memory gives and common ABI refusals use shorter checked derivations. A differing live lookup
+or a direct install remains a separate proof cut. -/
 theorem classify_give_callbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
