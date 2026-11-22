@@ -35,6 +35,15 @@ theorem LiveDispatch.GiveSelector.admitted (request : LiveDispatch.GiveSelector 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorAdmitted
     request start thread evaluation
 
+theorem LiveDispatch.GiveSelector.body_split (request : LiveDispatch.GiveSelector bindings)
+    (store : CStore (core3 grow)) (thread : Option ThreadId) (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    calloutBody Limits.spec Quirks.none ready impl store thread (.embedder request.name request.kind) request.args =
+      (request.checkedEntry >>= request.checkedContinuation store thread) ∧
+    calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) store thread
+      (.embedder request.name request.kind) request.args = (request.program >>= request.canonicalContinuation store thread) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorBodySplit request store thread impl embedder
+
 open ReturnFrame.Occurrence in
 /-- Execute each live selector up to its own lowering continuation. The checked
 entry records its ticket; neither path executes any of the lowering body. -/

@@ -802,20 +802,17 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (trapped : PayloadPrefix.visible checked = [.trap reason])
       (checkedLocked : left.ctl = []) (canonicalLocked : right.ctl = []) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | directGiveLookupMismatch {changes reached peer left right checked canonical trailing finish resume handle}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+  | directGiveLookupMismatch {changes reached peer beforeLeft beforeRight left right checked canonical trailing finish handle}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {checkNext canonNext}
       (request : GiveSelector bindings)
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
-      (site : PairedComponentSite changes left right
-        { check with frames := .prog resume :: check.frames } { canon with frames := .prog resume :: canon.frames })
-      (checkedFocus : left.ctl = { check with frames := .prog resume :: check.frames }.control
-        (calloutBody Limits.spec Quirks.none ready base left.store check.thread (.embedder request.name request.kind) request.args))
-      (canonicalFocus : right.ctl = { canon with frames := .prog resume :: canon.frames }.control
-        (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) right.store canon.thread
-          (.embedder request.name request.kind) request.args))
-      (demand : request.lookupDemand left.store check.thread = some handle)
-      (different : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
-        Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) :
+      (checkedFocus : beforeLeft.ctl = check.control (select handle >>= checkNext))
+      (canonicalFocus : beforeRight.ctl = canon.control (select handle >>= canonNext))
+      (checkedRead : Step profile ready (specDispatch ready base) beforeLeft .tau left)
+      (canonicalRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) beforeRight .tau right)
+      (demand : request.lookupDemand beforeLeft.store check.thread = some handle)
+      (different : Stored.Endpoints.Core.childFromHistory beforeLeft.host.writer.accepted handle ≠
+        Stored.Endpoints.Core.childFromHistory beforeRight.host.writer.accepted handle) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
