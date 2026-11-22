@@ -115,12 +115,17 @@ theorem spendStep {label : Label (core3 grow) (HostState sig)} (update : Spend)
 variable {base : HostImpl (core3 grow) (HostState sig)} {bindings : List (Binding sig)}
 variable {marks : List (Option ReturnFrame.Occurrence.Location)}
 
+theorem ofRuns (leftRun : Steps profile ready (specDispatch ready base) start checked left)
+    (rightRun : Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right) :
+    PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
+  obtain ⟨leftEffects, leftPath⟩ := ofSteps leftRun
+  obtain ⟨rightEffects, rightPath⟩ := ofSteps rightRun
+  exact ⟨leftEffects, rightEffects, leftPath, rightPath⟩
+
 theorem ofTransport (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   obtain ⟨_, tracks, _⟩ := paths
-  obtain ⟨leftEffects, leftPath⟩ := ofSteps (tracks none).1.steps
-  obtain ⟨rightEffects, rightPath⟩ := ofSteps (tracks none).2.steps
-  exact ⟨leftEffects, rightEffects, leftPath, rightPath⟩
+  exact ofRuns (tracks none).1.steps (tracks none).2.steps
 
 theorem empty : VisitorWriterPath profile ready base bindings start incoming [] [] start incoming :=
   .framed (.done _) (.done _)
@@ -180,6 +185,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
     obtain ⟨changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
   | allocation _ paths => exact paths
+  | callbackBoundary _ paths => exact paths
   | append _ _ leading trailing => exact appendPaired leading trailing
 
 theorem checkedSpends (leftPath : WriterPath profile ready (specDispatch ready base) start checked left changes)

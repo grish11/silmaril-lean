@@ -4386,7 +4386,8 @@ theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Si
       completed.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
       rejoined.host = right.host ∧ HostFrame.Related.Paired older completed rejoined ∧
       OccurrenceTransport profile ready base bindings site.start incoming (checked ++ [.tau, .tau, .tau])
-        (canonical ++ [.tau]) completed rejoined := by
+        (canonical ++ [.tau]) completed rejoined ∧
+      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau] completed rejoined := by
   obtain ⟨checkFrames, checkCaller⟩ := site.reached_caller checkAt original
   have paired := frame.frames
   rw [checkCaller] at paired
@@ -4405,7 +4406,10 @@ theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Si
     ctl := ⟨check.thread, .core ((core3 grow).resume left.store.core site.core (.values reply.2)) site.resume, checkFrames⟩ :: check.rest }
   let canonical := { right with
     ctl := ⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest }
-  refine ⟨checked, canonical, rfl, rfl, ?_, returned⟩
+  refine ⟨checked, canonical, rfl, rfl, ?_, returned, .framed ?_ ?_⟩
+  rotate_left
+  · exact .same (.hostGet checkAt) rfl (.same (.hostSet rfl) rfl (.same (.popCore rfl) rfl (.done _)))
+  · exact .same (.popCore canonAt) rfl (.done _)
   have pair {lhs rhs : Config (core3 grow) (HostState sig)} (store : lhs.store = rhs.store)
       (pending : lhs.pending = rhs.pending) (results : lhs.results = rhs.results) (cancels : lhs.cancels = rhs.cancels)
       (active : List.Forall₂ (ReturnFrame.Related.Active older) lhs.ctl rhs.ctl)
@@ -4442,7 +4446,9 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
   obtain ⟨_, same, original⟩ := checkMark.survives
   cases same
   simp only [List.nil_append, List.map_cons, List.map_nil, atTop] at combined
-  exact completePublicTransport site value combined original frame checkAt canonAt
+  obtain ⟨completed, rejoined, recorded, unchanged, paired, paths, _⟩ :=
+    completePublicTransport site value combined original frame checkAt canonAt
+  exact ⟨completed, rejoined, recorded, unchanged, paired, paths⟩
 
 theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))

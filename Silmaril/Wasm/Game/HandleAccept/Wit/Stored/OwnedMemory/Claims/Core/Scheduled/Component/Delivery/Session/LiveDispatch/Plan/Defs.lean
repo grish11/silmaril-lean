@@ -85,6 +85,13 @@ inductive VisitorAllocationBoundary where
   | string
   | collection
 
+/-- Exact compared segments whose internal writer sites still need a proof.
+These are proof frontiers, not a classification as external host writes. -/
+inductive CallbackWriterBoundary where
+  | assignment
+  | giveEntry
+  | dispatch
+
 /-- Ordered evidence on the actual pair of visited program segments. Only
 the guarded case attributes a change to a compiled nominal assignment. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -100,6 +107,10 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
   | allocation {start incoming checked canonical left right}
       (boundary : VisitorAllocationBoundary)
+      (paths : PairedWriterPaths profile ready base bindings start incoming checked canonical left right) :
+      VisitorWriterPath profile ready base bindings start incoming checked canonical left right
+  | callbackBoundary {start incoming checked canonical left right}
+      (boundary : CallbackWriterBoundary)
       (paths : PairedWriterPaths profile ready base bindings start incoming checked canonical left right) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
   | append {start incoming checked canonical left right leftTail rightTail finish peer}
@@ -531,7 +542,9 @@ def ActualCallbackReplay (bindings : List (Binding sig)) (profile : ProfileKind)
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer mark labels reached finalMark ∧
       CoupledOccurrencePaths profile ready base bindings start peer labels labels finish reached ∧
       OccurrenceTransport profile ready base bindings start peer labels labels finish reached ∧
-      CheckedSpendFlow start.host.writer peer.host.writer finish.host.writer reached.host.writer []
+      CheckedSpendFlow start.host.writer peer.host.writer finish.host.writer reached.host.writer [] ∧
+      WriterPath profile ready (specDispatch ready base) start labels finish [] ∧
+      WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer labels reached []
 
 /-- Extract a closed prefix from the actual finite derivation, leaving any
 boundary action and the rest of the checked run at their original states. -/
@@ -600,6 +613,7 @@ structure ExecutedCallbackSegment (profile : ProfileKind) (ready : HostReady (Ho
   observed : PayloadPrefix.visible canonLabels = PayloadPrefix.visible checkLabels
   paired : HostFrame.Related.Paired changes finish peer
   occurrences : OccurrenceTransport profile ready base bindings checked canonical checkLabels canonLabels finish peer
+  writers : VisitorWriterPath profile ready base bindings checked canonical checkLabels canonLabels finish peer
 
 abbrev CallbackPathIndex (grow : SingleThreaded.GrowOracle) (sig : Signature) :=
   Option (Trace grow sig × Trace grow sig × Config (core3 grow) (HostState sig))
@@ -709,6 +723,7 @@ structure GiveBodyCut (profile : ProfileKind) (ready : HostReady (HostState sig)
   store : left.store = right.store
   paths : OccurrenceTransport profile ready base bindings start peer checked canonical left right marks
   residual : Steps profile ready (specDispatch ready base) left trailing finish
+  writers : VisitorWriterPath profile ready base bindings start peer checked canonical left right
 
 open ReturnFrame.Occurrence in
 /-- The checked-only completion of a direct give. A finite prefix before
@@ -721,6 +736,7 @@ inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (Hos
     Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
   | prefix {actual finish} (short : actual.length < 3)
       (quiet : PayloadPrefix.visible actual = []) (store : finish.store = start.store)
+      (writers : WriterPath profile ready dispatch start actual finish [])
       (paths : ∀ place, Prefix profile ready dispatch start place actual finish place) :
       CheckedProgramReplyCut profile ready dispatch start caller resume reply actual finish
   | popped {trailing finish}
@@ -728,6 +744,9 @@ inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (Hos
         { start with
           host := start.host.record reply.1
           ctl := { caller with frames := .prog resume :: caller.frames }.control (.pure (.flat reply.2)) } place)
+      (writers : WriterPath profile ready dispatch start [.tau, .tau]
+        { start with host := start.host.record reply.1
+                     ctl := { caller with frames := .prog resume :: caller.frames }.control (.pure (.flat reply.2)) } [])
       (remaining : Steps profile ready dispatch
         { start with
           host := start.host.record reply.1
@@ -901,6 +920,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
+      (writers : VisitorWriterPath profile ready base bindings reached peer checkLeading canonLeading left right)
       (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue reached peer left right
         checkLeading canonLeading trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checkLeading ++ trailing) finish
@@ -5074,6 +5094,7 @@ def CollectionRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig
       AllocatorMark profile ready base bindings older leftEntry rightEntry checked canonical reached peer mark ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached peer ∧
       OccurrenceTransport profile ready base bindings start incoming checkTrace canonTrace reached peer [mark] ∧
+      VisitorWriterPath profile ready base bindings start incoming checkTrace canonTrace reached peer ∧
       CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached peer trailing finish ∧
       ((trailing = [] ∨ mark ≠ some (.active 0 0) ∨
         ¬ ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),

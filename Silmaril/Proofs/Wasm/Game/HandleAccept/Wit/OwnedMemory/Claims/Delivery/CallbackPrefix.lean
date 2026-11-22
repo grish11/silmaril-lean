@@ -10,6 +10,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
 
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
 
@@ -297,7 +298,7 @@ private theorem actualReplayDone {protectedReturn} (state : Config (core3 grow) 
     ⟨peer, mark, .refl _, paired, outside, .done _ _, .done _ _,
       (fun cursor => ⟨cursor, .done _ _, .done _ _⟩),
       ⟨id, (fun _ => ⟨.done _ _, .done _ _⟩), fun _ _ outside => by simpa only [List.map_id, List.nil_append] using outside⟩,
-      ⟨rfl, rfl⟩⟩
+      ⟨rfl, rfl⟩, .done _, .done _⟩
 
 private theorem actualReplayCons {before next after : Config (core3 grow) (HostState sig)} {label leading protectedReturn}
     (step : Step profile ready (specDispatch ready base) before label next)
@@ -314,7 +315,8 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
   have kept : Outside retained (segmentStorage next) (segmentStorage reached) (mark.bind (transitionEdit before label).follow) := by
     rw [step_edit step, step_edit live, ← edit]
     exact outside_edit outside _
-  obtain ⟨last, finalMark, replay, final, finalOutside, left, right, _, ⟨move, tails, outsideTails⟩, flow⟩ := tail covers aligned kept
+  obtain ⟨last, finalMark, replay, final, finalOutside, left, right, _, ⟨move, tails, outsideTails⟩, flow, leftWrites, rightWrites⟩ :=
+    tail covers aligned kept
   let follow := fun cursor : Option Location => cursor.bind (transitionEdit before label).follow
   have trails : ∀ cursor, Trail profile ready (specDispatch ready base) before cursor (label :: leading) after (move (follow cursor)) ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer cursor (label :: leading) last (move (follow cursor)) := by
@@ -324,7 +326,9 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
   refine ⟨last, finalMark, .cons live replay, final, finalOutside, .step step left, .step live (edit ▸ right),
     (fun cursor => ⟨_, trails cursor⟩), ⟨move ∘ follow, trails, ?_⟩,
     ⟨flow.1.trans (congrArg HostState.writer (stepHost noWrite step)),
-      flow.2.trans (congrArg HostState.writer (stepHost (noAssignmentPeer paired noWrite) live))⟩⟩
+      flow.2.trans (congrArg HostState.writer (stepHost (noAssignmentPeer paired noWrite) live))⟩,
+    .same step (congrArg HostState.writer (stepHost noWrite step)) leftWrites,
+    .same live (congrArg HostState.writer (stepHost (noAssignmentPeer paired noWrite) live)) rightWrites⟩
   intro older marks invariant
   have moved : OutsideMarks older (segmentStorage next) (segmentStorage reached) (marks.map follow) := by
     rw [step_edit step, step_edit live, ← edit]
@@ -431,7 +435,7 @@ theorem actualAllocatorPrefix {protectedReturn} {labels : Trace grow sig}
       HostFrame.Related.Paired changes finish reached ∧
       ComparedOccurrencePaths profile ready base bindings start incoming (PayloadPrefix.visible labels) finish reached ∧
       CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer reached.host.writer [] := by
-  obtain ⟨reached, mark, _, aligned, kept, left, right, tracks, _, flow⟩ := replay covers paired outside
+  obtain ⟨reached, mark, _, aligned, kept, left, right, tracks, _, flow, _, _⟩ := replay covers paired outside
   exact ⟨reached, mark, ⟨kept, left, right, tracks⟩, aligned, ⟨labels, labels, tracks, rfl, rfl, aligned.data.1⟩, flow⟩
 
 private theorem installTransport
@@ -480,7 +484,7 @@ private theorem replayInstalledOccurrences {protectedReturn}
     (replay : ActualCallbackReplay bindings profile ready base protectedReturn checkEntry seen finish) :
     ActualAllocatorOccurrencePrefix profile ready base bindings older changes start incoming checkEntry canonEntry
       checkInstall canonInstall seen finish := by
-  obtain ⟨peer, _, _, aligned, _, _, _, _, ⟨move, trails, offMarks⟩, flow⟩ := replay covers paired
+  obtain ⟨peer, _, _, aligned, _, _, _, _, ⟨move, trails, offMarks⟩, flow, _, _⟩ := replay covers paired
     (paired_outside (left := HostFrame.replace checkEntry canonEntry.host) paired)
   let mark := some (Location.active 0 0)
   obtain ⟨checkMark, canonMark⟩ := trails mark
@@ -675,6 +679,16 @@ theorem replay {protectedReturn}
       (paired_outside (left := HostFrame.replace start incoming.host) paired)
   exact ⟨checkedLabels, canonLabels, reached, checked, canonical, final, checkSeen, canonSeen, growth, checkRoots, canonRoots⟩
 
+theorem executedAtWriterBoundary {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {checked canonical : Trace grow sig} {peer : Config (core3 grow) (HostState sig)}
+    (boundary : CallbackWriterBoundary)
+    (run : CoreGrowthSteps profile ready (specDispatch ready base) start checked finish)
+    (seen : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
+    (paired : HostFrame.Related.Paired changes finish peer)
+    (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical finish peer) :
+    ExecutedCallbackSegment profile ready base bindings changes start incoming checked canonical finish peer :=
+  ⟨run, seen, paired, paths, .callbackBoundary boundary (WriterPaths.ofTransport paths)⟩
+
 theorem appendExecutedCallbacks {middle peer last : Config (core3 grow) (HostState sig)}
     {checkLeading canonLeading checkTrailing canonTrailing : Trace grow sig}
     {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -683,7 +697,7 @@ theorem appendExecutedCallbacks {middle peer last : Config (core3 grow) (HostSta
     ExecutedCallbackSegment profile ready base bindings changes start incoming
       (checkLeading ++ checkTrailing) (canonLeading ++ canonTrailing) finish last := by
   refine ⟨first.checkedRun.append second.checkedRun, ?_, second.paired,
-    (transportAppend first.occurrences second.occurrences).choose_spec.1⟩
+    (transportAppend first.occurrences second.occurrences).choose_spec.1, .append first.writers second.writers⟩
   simp only [PayloadPrefix.visible, List.filter_append]
   exact congrArg₂ List.append first.observed second.observed
 
@@ -695,9 +709,9 @@ theorem executeClassifiedPrefix {protectedReturn checkLabels}
     (paired : HostFrame.Related.Paired changes start incoming) :
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming checkLabels checkLabels finish peer ∧
       CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer [] := by
-  obtain ⟨peer, _, _, aligned, _, _, _, _, movement, flow⟩ := replay covers paired
+  obtain ⟨peer, _, _, aligned, _, _, _, _, movement, flow, left, right⟩ := replay covers paired
     (paired_outside (left := HostFrame.replace start incoming.host) paired)
-  exact ⟨peer, ⟨run, rfl, aligned, movement⟩, flow⟩
+  exact ⟨peer, ⟨run, rfl, aligned, movement, .framed left right⟩, flow⟩
 
 private theorem compareReachedHostReadFramed {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label}
@@ -716,7 +730,7 @@ private theorem compareReachedHostReadFramed {changes : ReturnFrame.Substitution
     rw [agrees]
     exact .hostGet atPeer
   refine ⟨peer, ⟨.cons (by simp [CoreUpdateGrows, focus]) (.hostGet focus) (.refl _), rfl, aligned,
-    stationaryTransport ?_ ?_⟩, rfl, rfl⟩
+    stationaryTransport ?_ ?_, .framed (.same (.hostGet focus) rfl (.done _)) (.same live rfl (.done _))⟩, rfl, rfl⟩
   · intro place
     refine .step (.hostGet focus) ?_ (.done _ _)
     rw [transitionEdit, focus]
@@ -852,8 +866,8 @@ theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau] [.tau]
       { start with host := value, ctl := ⟨thread, .prog (resume ()), frames⟩ :: rest } peer := by
   obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume ())) value value
-  refine ⟨_, .cons (by simp [CoreUpdateGrows, focus]) (.hostSet focus) (.refl _), rfl, aligned,
-    stationaryTransport ?_ ?_⟩
+  refine ⟨_, executedAtWriterBoundary .assignment
+    (.cons (by simp [CoreUpdateGrows, focus]) (.hostSet focus) (.refl _)) rfl aligned (stationaryTransport ?_ ?_)⟩
   · intro place
     refine .step (.hostSet focus) ?_ (.done _ _)
     rw [transitionEdit, focus]
@@ -880,8 +894,8 @@ private theorem compareReachedHostUpdate {changes : ReturnFrame.Substitutions (c
       { incoming with ctl := ⟨thread, .prog (.op (.hostSet right) (fun _ => next)), peerFrames⟩ :: peerRest } := by
     rw [← canonical]
     exact .hostGet atPeer
-  refine ⟨_, ⟨.cons (by simp [CoreUpdateGrows, focus]) leftRead
-    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _)), rfl, aligned, stationaryTransport ?_ ?_⟩, rfl⟩
+  refine ⟨_, executedAtWriterBoundary .assignment (.cons (by simp [CoreUpdateGrows, focus]) leftRead
+    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _))) rfl aligned (stationaryTransport ?_ ?_), rfl⟩
   · intro place
     refine .step (middle := place) leftRead ?_ (.step (.hostSet rfl) ?_ (.done _ _))
     · rw [transitionEdit, focus]

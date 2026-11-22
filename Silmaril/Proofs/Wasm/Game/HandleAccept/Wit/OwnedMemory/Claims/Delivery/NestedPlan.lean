@@ -2529,7 +2529,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | observation _ _ paths tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentRegistrationMismatch _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | refused _ _ reply =>
+  | refused _ _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
@@ -2563,7 +2563,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentRegistrationMismatch _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | refused install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -2589,7 +2589,7 @@ private theorem callbackTerminalSlice {changes : ReturnFrame.Substitutions (core
     (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish) :
     CallbackSlice profile ready base bindings changes start incoming labels finish :=
   ⟨[], [], _, start, incoming, rfl,
-    ⟨.refl _, rfl, paired, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place)⟩,
+    ⟨.refl _, rfl, paired, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), WriterPaths.empty⟩,
     ending⟩
 
 theorem prependCheckedOnlyReply {route : GiveEffectRoute} {destination ticket issue}
@@ -2832,7 +2832,7 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
             (WriterPaths.frameSingle visit.1.checkedRun rfl) (WriterPaths.frameSingle visit.1.canonicalRun rfl)
           have callbackWriter := by
             cases input with
-            | executed segment => exact VisitorWriterPath.allocation .string (WriterPaths.ofTransport segment.occurrences)
+            | executed segment => exact segment.writers
           have bodyWriter := installWriter.append callbackWriter
           have reachedRun := callbackEndSteps boundary
           have ending (stopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),
@@ -4781,7 +4781,7 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
       replayRejoinedCallback (fun cursor => ⟨move cursor, tracks cursor⟩) paired suffixRun, ?_, ?_⟩
     · intro entrySeen
       rcases classifyReachedGrowth (tracks none).1.steps with certified | openUpdate
-      · refine .inl ⟨certified, ?_, paired, ⟨move, tracks, outside⟩⟩
+      · refine .inl (CallbackPrefix.executedAtWriterBoundary .giveEntry certified ?_ paired ⟨move, tracks, outside⟩)
         rw [visibleAppend, visibleAppend, visibleAppend, visibleAppend, checkSeen, canonSeen, entrySeen]
         have silentCanon : PayloadPrefix.visible ([.tau] : Trace grow sig) = [] := visibleTaus 1
         have silentCheck : PayloadPrefix.visible ([.tau, .tau, .tau] : Trace grow sig) = [] := visibleTaus 3
@@ -6304,8 +6304,13 @@ theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {
     have grows : Core3.Grows start.store.core reached.store.core := by
       cases input with
       | executed segment => exact segment.checkedRun.grows
+    have writers : VisitorWriterPath profile ready base bindings start incoming ([.tau, .tau, .tau] ++ checked)
+        ([.tau, .tau] ++ canonical) reached peer := by
+      cases input with
+      | executed segment =>
+        exact .append (.allocation .collection (WriterPaths.ofRuns installed.checkedRun installed.canonicalRun)) segment.writers
     refine .inr ⟨checked, canonical, trailing, reached, peer, mark, by simpa using split, compared, tracked, paired, movement,
-      boundary, ?_⟩
+      writers, boundary, ?_⟩
     by_cases active : mark = some (.active 0 0)
     · subst mark
       let area := ABI.layout destination.width element
@@ -7472,7 +7477,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
   | ok value =>
     cases value
     simp only [prepared] at sliced
-    rcases sliced with short | ⟨checked, canonical, trailing, reached, peer, mark, split, seen, tracked, paired, movement, ending, returned⟩
+    rcases sliced with short | ⟨checked, canonical, trailing, reached, peer, mark, split, seen, tracked, paired, movement, writers, ending, returned⟩
     · exact ⟨[], [], labels, start, incoming, [], rfl, rfl, frame.store,
         CallbackPrefix.stationaryTransport (fun place => .done start place) (fun place => .done incoming place),
         actual, WriterPaths.empty, .collectionInstall short⟩
@@ -7482,7 +7487,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
     have tail := callbackEndSteps ending
     rcases returned with pending | ⟨pointer, cursor, _, active, _, _, _, range, fresh⟩
     · exact ⟨leftTrace, rightTrace, trailing, reached, peer, [mark], split, observed, paired.data.1, movement, tail,
-        .allocation .collection (WriterPaths.ofTransport movement),
+        writers,
         .boundary (.callback tracked paired ending pending)⟩
     subst mark
     have advance {lhs rhs : Config (core3 grow) (HostState sig)} {effects : Trace grow sig}
@@ -7494,15 +7499,20 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
       cases aligned with
       | inside _ nonempty remainder =>
         exact ⟨leftTrace, rightTrace, trailing, reached, peer, _, split, observed, paired.data.1, movement, tail,
-          .allocation .collection (WriterPaths.ofTransport movement),
+          writers,
           .collectionRange nonempty remainder⟩
       | @reached residual used suffix =>
+        obtain ⟨_, ⟨frontLeft, frontRight⟩⟩ := CallbackPrefix.transportPaths movement none
+        obtain ⟨_, ⟨throughLeft, throughRight⟩⟩ := CallbackPrefix.transportPaths moved none
+        have rangeWriters := VisitorWriterPath.allocation (base := base) (bindings := bindings) .collection
+          (WriterPaths.ofRuns (stripExactPrefix frontLeft.steps throughLeft.steps)
+            (stripExactPrefix frontRight.steps throughRight.steps))
         have combined : labels = (leftTrace ++ checkRange) ++ residual := by
           simp only [leftTrace, split, used, List.append_assoc]
         have remaining : residual.length ≤ budget := by rw [combined, List.length_append] at bounded; omega
         exact prependValueVisit combined
           (by rw [visibleAppend leftTrace checkRange, visibleAppend rightTrace canonRange, observed, leftSeen, rightSeen]) moved
-          (.allocation .collection (WriterPaths.ofTransport moved))
+          (.append writers rangeWriters)
           (next residual suffix remaining)
     have trap (reason : TrapReason)
         (cut : AlignedCollectionRange profile ready base bindings start incoming (StepDefs.trapCfg reached) (StepDefs.trapCfg peer)
@@ -7939,6 +7949,15 @@ theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoo
     obtain ⟨_, caller⟩ := CallbackRange.collectionCaller site linked type element entries field live allocator
     exact ⟨range, finishCollectionRefusal site type element entries pointer caller range⟩
 
+open PayloadPrefix ReturnFrame.Occurrence in
+private theorem giveBodyAtEntryFrontier {left right : Config (core3 grow) (HostState sig)}
+    {checked canonical trailing : Trace grow sig} {marks : List (Option Location)}
+    (seen : visible checked = visible canonical) (store : left.store = right.store)
+    (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)
+    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    GiveBodyCut profile ready base bindings start incoming left right checked canonical trailing finish marks :=
+  ⟨seen, store, paths, run, .callbackBoundary .giveEntry (WriterPaths.ofTransport paths)⟩
+
 open ReturnFrame.Occurrence PayloadPrefix in
 private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route) (value : route.output.Result)
     {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
@@ -7947,6 +7966,7 @@ private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : Payload
     (residual : Steps profile ready (specDispatch ready base) left trailing finish)
     (combined : OccurrenceTransport profile ready base bindings site.start incoming (checkEntry ++ checkBody)
       canonLeading left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings site.start incoming (checkEntry ++ checkBody) canonLeading left right)
     (original : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) checkBody left (.active 0 0))
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (checkAt : left.ctl = check.control (site.reply (.ok value)))
@@ -7954,7 +7974,7 @@ private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : Payload
     (seen : visible (checkEntry ++ checkBody) = visible canonLeading) (bounded : actual.length ≤ budget)
     (compare : ShorterCallbackSlices profile ready base bindings budget) :
     GiveVisitCommonReply profile ready base bindings older site value incoming left right checkEntry checkBody canonLeading actual trailing finish := by
-  obtain ⟨checked, canonical, recorded, unchanged, paired, transport⟩ :=
+  obtain ⟨checked, canonical, recorded, unchanged, paired, transport, completion⟩ :=
     CallbackRange.completePublicTransport site value combined original frame checkAt canonAt
   obtain ⟨move, returned, outside⟩ := transport
   obtain ⟨_, lead, _⟩ := combined
@@ -7968,7 +7988,7 @@ private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : Payload
     rcases classifyReachedGrowth (returned none).1.steps with certified | openUpdate
     · have segment : ExecutedCallbackSegment profile ready base bindings older site.start incoming
           ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) (canonLeading ++ [.tau]) checked canonical :=
-        ⟨certified, by rw [visibleAppend, visibleAppend, seen]; rfl, paired, paths⟩
+        ⟨certified, by rw [visibleAppend, visibleAppend, seen]; rfl, paired, paths, .append writers completion⟩
       obtain ⟨continued, reference, remaining, reached, peer, division, suffixSegment, ending⟩ :=
         compare (Nat.lt_of_lt_of_le smaller bounded) tail paired
       exact .inl ⟨segment, _, _, remaining, reached, peer,
@@ -8012,8 +8032,10 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
   have visit := driveCompiledMemory (origin := site.checked.store) site.destination site.inst (flatNat pointer) shape
       matched fit (CallbackRange.preflightAllocator site linked) (.self _) embedder width sized ⟨aligned, bounds⟩ compare
       0 site.reply site.referenceReply site.checked entered site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
-  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, store, ⟨move, paths, outside⟩, residual, _, endpoint⟩ := visit
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, store, ⟨move, paths, outside⟩, residual, writers, endpoint⟩ := visit
   obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked checkTrack installed storage
+  have entryWriters : VisitorWriterPath profile ready base bindings site.start incoming checkEntry entry site.checked entered :=
+    .callbackBoundary .giveEntry (WriterPaths.ofTransport ⟨atEntry, track, frameEntry⟩)
   have leading (place : Option Location) :
       Trail profile ready (specDispatch ready base) site.start place (checkEntry ++ checked) left (move (atEntry place)) ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place
@@ -8038,7 +8060,7 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     rw [active] at marked
     obtain ⟨_, equal, caller⟩ := marked.survives
     cases equal
-    exact consumeGiveCommonReply site () split residual rebased caller returned checkAt canonAt observed bounded compare
+    exact consumeGiveCommonReply site () split residual rebased (.append entryWriters writers) caller returned checkAt canonAt observed bounded compare
   have refusedReply (active : callerMark = some (.active 0 0)) (issue : Stored.Endpoints.RecordLower.Issue)
       (check : Cursor (E := core3 grow) (HostState sig)) (checkAt : left.ctl = check.control (site.reply (.error issue))) :
       MemoryVisitRefusedReply profile ready base bindings older site incoming left right issue (checkEntry ++ checked)
@@ -8069,14 +8091,14 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
           exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
       refine .inr ⟨refused, fun install => ?_⟩
       rw [split, ← List.append_assoc]
-      exact callbackTerminalSlice paired (.refused install observed.symm refused)
+      exact callbackTerminalSlice paired (.refused install observed.symm (.append entryWriters writers) refused)
     · exact .inl short
   refine ⟨checked, canonical, trailing, left, right, marks, move, split, seen, store, paths, outside, residual, endpoint,
     fun active => ⟨fun empty ⟨check, canon, returned, checkAt, canonAt⟩ => common active empty check canon returned checkAt canonAt,
       refusedReply active⟩, fun install => ?_⟩
   have total : checkEntry ++ actual = (checkEntry ++ checked) ++ trailing := by rw [split, List.append_assoc]
   have cut : GiveBodyCut profile ready base bindings site.start incoming left right (checkEntry ++ checked)
-      (entry ++ canonical) trailing finish (marks ++ [callerMark]) := ⟨observed, store, rebased, residual⟩
+      (entry ++ canonical) trailing finish (marks ++ [callerMark]) := ⟨observed, store, rebased, residual, .append entryWriters writers⟩
   have stop (why : GiveBodyStop profile ready base left right trailing finish callerMark) :
       CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish :=
     total ▸ callbackTerminalSlice paired (.body install cut why)
@@ -8201,7 +8223,8 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
     rw [split, List.append_assoc]
     refine callbackTerminalSlice paired (.refused (route := route) (destination := site.destination)
       (ticket := site.start.host.nextTicket) (issue := issue) (left := stopped) (right := entered)
-      install ((silentVisible canonQuiet).trans quiet.symm) ?_)
+      install ((silentVisible canonQuiet).trans quiet.symm)
+      (.callbackBoundary .giveEntry (WriterPaths.ofRuns front (canonical (.active 0 0)).toTrail.steps)) ?_)
     refine ⟨suffix, _, rfl, front, completed, tail, rfl, rfl, fun place => ?_⟩
     cases place with
     | none => exact ⟨none, none, .absent (append front completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
@@ -8265,12 +8288,14 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
   obtain ⟨entry, peerEntry, quiet, installed, related, _, storage⟩ :=
     LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
   obtain ⟨peer, frame, canonAt⟩ := CallbackRange.referenceFrame site (site.reference_at linked site.referenceReply) related
-  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, storePaths, store, residual, _, endpoint⟩ :=
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, storePaths, store, residual, writers, endpoint⟩ :=
     driveCompiledFlat (origin := site.checked.store) site.destination site.inst shape matched fit
       (CallbackRange.preflightAllocator site linked) (.self _) embedder width compare
       0 site.reply site.referenceReply site.checked peerEntry site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
   obtain ⟨move, paths, outside⟩ := storePaths
   obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked entered installed storage
+  have entryWriters : VisitorWriterPath profile ready base bindings site.start incoming checkEntry entry site.checked peerEntry :=
+    .callbackBoundary .giveEntry (WriterPaths.ofTransport ⟨atEntry, track, frameEntry⟩)
   let caller := move (some (.active 0 0))
   have leading (place : Option Location) :
       Trail profile ready (specDispatch ready base) site.start place (checkEntry ++ checked) left (move (atEntry place)) ∧
@@ -8286,7 +8311,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
     rw [visibleAppend, visibleAppend, silent, silentVisible quiet, seen]
   have total : checkEntry ++ actual = (checkEntry ++ checked) ++ trailing := by rw [split, List.append_assoc]
   have cut : GiveBodyCut profile ready base bindings site.start incoming left right (checkEntry ++ checked)
-      (entry ++ canonical) trailing finish (marks ++ [caller]) := ⟨observed, store, rebased, residual⟩
+      (entry ++ canonical) trailing finish (marks ++ [caller]) := ⟨observed, store, rebased, residual, .append entryWriters writers⟩
   have stop (why : GiveBodyStop profile ready base left right trailing finish caller) :
       CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish :=
     total ▸ callbackTerminalSlice paired (.body install cut why)
@@ -8310,7 +8335,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
       cases arrived with
       | returned words returned _ checkAt canonAt =>
         rw [List.nil_append, show caller = some (.active 0 0) from active] at rebased
-        rcases consumeGiveCommonReply site words split residual rebased original returned checkAt canonAt observed bounded compare with
+        rcases consumeGiveCommonReply site words split residual rebased (.append entryWriters writers) original returned checkAt canonAt observed bounded compare with
           short | ⟨suffix, replied, peer, divided, _, tail, _, _, result⟩
         · exact stop (.replyPrefix none short)
         rcases result with ⟨_, compared⟩ | ⟨update, aligned, trails⟩
@@ -8338,7 +8363,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
               rw [reached] at checkedLead canonicalLead
               exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
           rw [total]
-          exact callbackTerminalSlice paired (.refused install observed.symm stopped)
+          exact callbackTerminalSlice paired (.refused install observed.symm (.append entryWriters writers) stopped)
         · exact stop (.replyPrefix (some issue) short)
     · cases arrived with
       | returned => exact stop (.callerNotTop none active)
@@ -8548,6 +8573,7 @@ private theorem crossDirectGiveRefusal {left right : Config (core3 grow) (HostSt
     {used live suffix : Trace grow sig}
     (split : labels = used ++ suffix)
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) live left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: used) live left right)
     (observed : PayloadPrefix.visible live = PayloadPrefix.visible (.tau :: used))
     (startPair : HostFrame.Related.Paired older start incoming)
     (site : PairedComponentSite older left right { after with frames := .prog resume :: after.frames }
@@ -8561,7 +8587,7 @@ private theorem crossDirectGiveRefusal {left right : Config (core3 grow) (HostSt
   | refl =>
     apply Or.inr
     rw [split, List.append_nil]
-    exact callbackTerminalSlice startPair (.directGiveFinite (right := right) ⟨observed.symm, site.data.1, paths, .refl _⟩)
+    exact callbackTerminalSlice startPair (.directGiveFinite (right := right) ⟨observed.symm, site.data.1, paths, .refl _, writers⟩)
   | @cons _ _ _ _ remaining step tail =>
     have paired := pairComponentFocus leftAt rightAt site
     have unmarked : OutsideMarks older (segmentStorage start) (segmentStorage incoming) [] :=
@@ -8582,9 +8608,12 @@ private theorem crossDirectGiveRefusal {left right : Config (core3 grow) (HostSt
         { right with ctl := peerCursor.control (resume (.flat words)) }, ?_, ?_, tail⟩
       · rw [split, List.append_assoc]
         rfl
-      · exact ⟨by simpa only [List.cons_append] using growing,
+      · have pops := VisitorWriterPath.framed (base := base) (bindings := bindings)
+          (.same pop rfl (.done _)) (.same (.popProg peerAt) rfl (.done _))
+        exact ⟨by simpa only [List.cons_append] using growing,
           by rw [← List.cons_append, visibleAppend, visibleAppend, observed],
-          pairAfterComponentPop frame, by simpa only [List.cons_append, List.map_nil] using whole⟩
+          pairAfterComponentPop frame, by simpa only [List.cons_append, List.map_nil] using whole,
+          by simpa only [List.cons_append, PayloadPrefix.Cursor.control] using writers.append pops⟩
     · exact .inr boundary
 
 open ReturnFrame.Occurrence in
@@ -8627,21 +8656,22 @@ private theorem cutCheckedProgramReply (reply : Event × List FlatValue)
       Trail profile ready (specDispatch ready base) read mark (.tau :: rest) target reached :=
     fun tail => .step set (by rwa [setEdit, stationary])
   rcases inspectReplyStep run with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, first, tail⟩
-  · exact .prefix (show 0 < 3 from by decide) rfl rfl (fun place => .done _ place)
+  · exact .prefix (show 0 < 3 from by decide) rfl rfl (.done _) (fun place => .done _ place)
   ·
     obtain ⟨rfl, rfl⟩ := silentStepUnique get first
     rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, second, tail⟩
-    · exact .prefix (show 1 < 3 from by decide) rfl rfl
+    · exact .prefix (show 1 < 3 from by decide) rfl rfl (.same get rfl (.done _))
         (fun place => .step get (by rw [getEdit]; rfl) (.done _ place))
     ·
       obtain ⟨rfl, rfl⟩ := silentStepUnique set second
       rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, third, tail⟩
-      · exact .prefix (show 2 < 3 from by decide) rfl rfl
+      · exact .prefix (show 2 < 3 from by decide) rfl rfl (.same get rfl (.same set rfl (.done _)))
           (fun place => .step get (by rw [getEdit]; rfl) (.step set rfl (.done _ place)))
       ·
         obtain ⟨rfl, rfl⟩ := silentStepUnique pop third
         exact .popped (fun place => .step get (by rw [getEdit]; rfl) (.step set rfl (.done _ _)))
-          (.cons pop tail) (fun mark => followGet (followSet (Trail.pop_prog mark rfl))) tail
+          (.same get rfl (.same set rfl (.done _))) (.cons pop tail)
+          (fun mark => followGet (followSet (Trail.pop_prog mark rfl))) tail
 
 open ReturnFrame.Occurrence in
 private theorem crossDirectGiveCompletion {left right : Config (core3 grow) (HostState sig)}
@@ -8650,6 +8680,7 @@ private theorem crossDirectGiveCompletion {left right : Config (core3 grow) (Hos
     (reply : Event × List FlatValue) {used live suffix : Trace grow sig}
     (split : labels = used ++ suffix)
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) live left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: used) live left right)
     (observed : PayloadPrefix.visible live = PayloadPrefix.visible (.tau :: used))
     (startPair : HostFrame.Related.Paired older start incoming)
     (site : PairedComponentSite older left right { check with frames := .prog resume :: check.frames }
@@ -8660,15 +8691,16 @@ private theorem crossDirectGiveCompletion {left right : Config (core3 grow) (Hos
     (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   cases cutCheckedProgramReply reply leftAt run with
-  | «prefix» _ quiet stored tail =>
+  | «prefix» _ quiet stored framed tail =>
     have moved := retainComparedOccurrences paths (fun place => ⟨tail place, Prefix.done right place⟩)
     rw [List.append_nil] at moved
     have seen : PayloadPrefix.visible (.tau :: (used ++ suffix)) = PayloadPrefix.visible live := by
       rw [← List.cons_append, visibleAppend, quiet, List.append_nil, ← observed]
     apply Or.inr
     rw [split]
-    exact callbackTerminalSlice startPair (.directGiveFinite (right := right) ⟨seen, stored.trans site.data.1, moved, .refl _⟩)
-  | @popped trailing _ writes remaining _ _ =>
+    exact callbackTerminalSlice startPair (.directGiveFinite (right := right) ⟨seen, stored.trans site.data.1, moved, .refl _,
+      by simpa only [List.cons_append, List.append_nil] using writers.append (.framed framed (.done _))⟩)
+  | @popped trailing _ writes framed remaining _ _ =>
     let written := { left with
       host := left.host.record reply.1
       ctl := { check with frames := .prog resume :: check.frames }.control (.pure (.flat reply.2)) }
@@ -8680,7 +8712,8 @@ private theorem crossDirectGiveCompletion {left right : Config (core3 grow) (Hos
     have quiet : PayloadPrefix.visible live = PayloadPrefix.visible (.tau :: (used ++ [.tau, .tau])) := by
       have silent : PayloadPrefix.visible ([.tau, .tau] : Trace grow sig) = [] := rfl
       rw [← List.cons_append, visibleAppend, observed, silent, List.append_nil]
-    exact crossDirectGiveRefusal total moved quiet startPair
+    exact crossDirectGiveRefusal total moved
+      (by simpa only [List.cons_append, List.append_nil] using writers.append (.framed framed (.done _))) quiet startPair
       (by simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace, written] using site)
       rfl rightAt remaining boundary
 
@@ -8694,6 +8727,7 @@ private theorem crossReturnedDirectField {left right reached peer : Config (core
     (install : GiveInstall bindings (specDispatch ready base) start .tau installed)
     (entry : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) live left right [some (.active 0 0)])
     (walk : OccurrenceTransport profile ready base bindings left right body canonBody reached peer)
+    (writers : VisitorWriterPath profile ready base bindings left right body canonBody reached peer)
     (checkedEntry : left.ctl = { initial with frames := .prog resume :: initial.frames }.control checkedProgram)
     (canonicalEntry : right.ctl = { initialPeer with frames := .prog resume :: initialPeer.frames }.control canonicalProgram)
     (observed : PayloadPrefix.visible (live ++ canonBody) = PayloadPrefix.visible (.tau :: (used ++ body)))
@@ -8705,6 +8739,10 @@ private theorem crossReturnedDirectField {left right reached peer : Config (core
     (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   obtain ⟨move, paths, tracks⟩ := CallbackPrefix.transportAppend entry walk
+  have allWriters : VisitorWriterPath profile ready base bindings start incoming (.tau :: (used ++ body))
+      (live ++ canonBody) reached peer := by
+    simpa only [List.cons_append] using (VisitorWriterPath.append
+      (.callbackBoundary .giveEntry (WriterPaths.ofTransport entry)) writers)
   by_cases top : move (some (.active 0 0)) = some (.active 0 0)
   · obtain ⟨checkedMark, canonicalMark⟩ := tracks (some (.active 0 0))
     rw [top] at checkedMark canonicalMark
@@ -8736,11 +8774,11 @@ private theorem crossReturnedDirectField {left right reached peer : Config (core
         let afterPeer : Cursor (E := core3 grow) (HostState sig) := ⟨peerThread, peerFrames, peerRest⟩
         exact crossDirectGiveCompletion (check := after) (canon := afterPeer) reply split
           (by simpa only [List.map_cons, List.map_nil, List.nil_append, List.cons_append, top] using paths)
-          observed startPair (pairAfterComponentPop frame) checked canonical run boundary
+          allWriters observed startPair (pairAfterComponentPop frame) checked canonical run boundary
   · apply Or.inr
     rw [split]
     exact callbackTerminalSlice startPair (.body (marks := []) install
-      ⟨observed.symm, frame.store, by simpa only [List.map_cons, List.map_nil, List.nil_append, List.cons_append] using paths, run⟩
+      ⟨observed.symm, frame.store, by simpa only [List.map_cons, List.map_nil, List.nil_append, List.cons_append] using paths, run, allWriters⟩
       (.callerNotTop none top))
 
 private theorem directWidthRead (request : GiveSelector bindings) (ticket : Nat)
@@ -9038,6 +9076,7 @@ private theorem stopDirectGiveBody {left right reached peer : Config (core3 grow
     (split : labels = (used ++ body) ++ suffix)
     (entry : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) live left right [some (.active 0 0)])
     (walk : OccurrenceTransport profile ready base bindings left right body canonBody reached peer marks)
+    (writers : VisitorWriterPath profile ready base bindings left right body canonBody reached peer)
     (observed : PayloadPrefix.visible (live ++ canonBody) = PayloadPrefix.visible (.tau :: (used ++ body)))
     (store : reached.store = peer.store)
     (startPair : HostFrame.Related.Paired older start incoming)
@@ -9051,7 +9090,9 @@ private theorem stopDirectGiveBody {left right reached peer : Config (core3 grow
   apply Or.inr
   rw [split]
   exact callbackTerminalSlice startPair (ending (move (some (.active 0 0)))
-    ⟨observed.symm, store, by simpa only [List.cons_append, List.map_cons, List.map_nil] using paths, run⟩)
+    ⟨observed.symm, store, by simpa only [List.cons_append, List.map_cons, List.map_nil] using paths, run,
+      by simpa only [List.cons_append] using (VisitorWriterPath.append
+        (.callbackBoundary .giveEntry (WriterPaths.ofTransport entry)) writers)⟩)
 
 open PayloadPrefix ReturnFrame.Occurrence in
 private theorem stopRefusedDirectField {left right reached peer installed : Config (core3 grow) (HostState sig)}
@@ -9063,6 +9104,7 @@ private theorem stopRefusedDirectField {left right reached peer installed : Conf
     (install : GiveInstall bindings (specDispatch ready base) start .tau installed)
     (entry : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) live left right [some (.active 0 0)])
     (walk : OccurrenceTransport profile ready base bindings left right body canonBody reached peer)
+    (writers : VisitorWriterPath profile ready base bindings left right body canonBody reached peer)
     (checkedEntry : left.ctl = { initial with frames := .prog resume :: initial.frames }.control checkedProgram)
     (observed : PayloadPrefix.visible (live ++ canonBody) = PayloadPrefix.visible (.tau :: (used ++ body)))
     (store : reached.store = peer.store)
@@ -9074,7 +9116,9 @@ private theorem stopRefusedDirectField {left right reached peer installed : Conf
   let mark := move (some (.active 0 0))
   have cut : GiveBodyCut profile ready base bindings start incoming reached peer (.tau :: (used ++ body))
       (live ++ canonBody) suffix finish [mark] :=
-    ⟨observed.symm, store, by simpa only [List.cons_append, List.map_cons, List.map_nil, List.nil_append, mark] using paths, run⟩
+    ⟨observed.symm, store, by simpa only [List.cons_append, List.map_cons, List.map_nil, List.nil_append, mark] using paths, run,
+      by simpa only [List.cons_append] using (VisitorWriterPath.append
+        (.callbackBoundary .giveEntry (WriterPaths.ofTransport entry)) writers)⟩
   apply Or.inr
   rw [split]
   apply callbackTerminalSlice startPair
@@ -9138,11 +9182,12 @@ private theorem crossPlacedDirectGive (request : GiveSelector bindings) (ticket 
       {marks : List (Option Location)} (division : suffix = body ++ trailing)
       (seen : PayloadPrefix.visible canonBody = PayloadPrefix.visible body)
       (walk : OccurrenceTransport profile ready base bindings left right body canonBody reached peer marks)
+      (writers : VisitorWriterPath profile ready base bindings left right body canonBody reached peer)
       (store : reached.store = peer.store) (residual : Steps profile ready (specDispatch ready base) reached trailing finish)
       (ending : StringSliceEnd profile ready base bindings older describe reached peer trailing finish marks)
       (unreachable : ∀ {pointer check canon}, describe pointer reached peer check canon → False) :
       CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
-    refine stopDirectGiveBody (usedAll division) paths walk (visibleAll seen) store startPair residual ?_
+    refine stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen) store startPair residual ?_
     cases ending with
     | descriptor focus => exact (unreachable focus).elim
     | trap left right => exact fun _ cut => .body install cut (.trap left right)
@@ -9156,24 +9201,24 @@ private theorem crossPlacedDirectGive (request : GiveSelector bindings) (ticket 
   cases route : request.schema with
   | none =>
     rw [route] at visit
-    obtain ⟨body, canonBody, trailing, reached, peer, marks, division, seen, store, walk, residual, _, endpoint⟩ := visit
+    obtain ⟨body, canonBody, trailing, reached, peer, marks, division, seen, store, walk, residual, writers, endpoint⟩ := visit
     cases endpoint with
     | @returned reachedCheck reachedCanon value frame _ checked canonical =>
-      exact crossReturnedDirectField (completion ticket (.ok 0)) (usedAll division) install paths walk checkedAt canonAt
+      exact crossReturnedDirectField (completion ticket (.ok 0)) (usedAll division) install paths walk writers checkedAt canonAt
         (visibleAll seen.symm) startPair frame checked canonical residual boundary
     | refused issue _ checked _ =>
       exact stopRefusedDirectField issue (completion ticket (.error (.lowerPayload issue))) (usedAll division)
-        install paths walk checkedAt (visibleAll seen.symm) store startPair checked residual
-    | boundary ending => exact stopString division seen.symm walk store residual ending (fun impossible => impossible)
+        install paths walk writers checkedAt (visibleAll seen.symm) store startPair checked residual
+    | boundary ending => exact stopString division seen.symm walk writers store residual ending (fun impossible => impossible)
     | collectionInstall short =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen.symm) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen.symm) store startPair residual
         (fun _ cut => .body install cut (.allocatorInstall short))
     | collectionRange nonempty tail =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen.symm) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen.symm) store startPair residual
         (fun _ cut => .body install cut (.localPrefix nonempty tail))
   | some schema =>
     rw [route] at visit
-    obtain ⟨body, canonBody, trailing, reached, peer, marks, division, seen, walk, store, residual, _, endpoint⟩ := visit
+    obtain ⟨body, canonBody, trailing, reached, peer, marks, division, seen, walk, store, residual, writers, endpoint⟩ := visit
     cases endpoint with
     | descriptor focus =>
       cases focus with
@@ -9183,25 +9228,25 @@ private theorem crossPlacedDirectGive (request : GiveSelector bindings) (ticket 
           by_cases shaped : words.map Stored.flatType = ABI.flatten request.destination.width schema <;>
             simp [flatCompletion, shaped]
         exact crossReturnedDirectField (flatCompletion ticket (ABI.flatten request.destination.width schema) (.ok words))
-          (usedAll division) install paths walk checkedAt canonAt (visibleAll seen) startPair frame checked
+          (usedAll division) install paths walk writers checkedAt canonAt (visibleAll seen) startPair frame checked
           (by rw [← sameWords]; exact canonical) residual boundary
       | refused issue checked =>
         exact stopRefusedDirectField issue (flatCompletion ticket (ABI.flatten request.destination.width schema) (.error (.lowerPayload issue)))
-          (usedAll division) install paths walk checkedAt (visibleAll seen) store startPair checked residual
+          (usedAll division) install paths walk writers checkedAt (visibleAll seen) store startPair checked residual
     | trap left right =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .body install cut (.trap left right))
     | localPrefix nonempty tail | collectionRange nonempty tail =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .body install cut (.localPrefix nonempty tail))
     | localChoice split choice shared step tail =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .body install cut (.localChoice split choice shared step tail))
     | installPrefix short | collectionInstall short =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .body install cut (.allocatorInstall short))
     | callback tracked paired ending notPopped =>
-      exact stopDirectGiveBody (usedAll division) paths walk (visibleAll seen) store startPair residual
+      exact stopDirectGiveBody (usedAll division) paths walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .allocator install cut tracked paired ending notPopped)
 
 open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
@@ -9807,13 +9852,13 @@ private theorem cutGiveQuietPrefix
     have moved := retainComparedOccurrences paths (fun place => ⟨(journal.track place).append (tracks place).1, (tracks place).2⟩)
     rw [front]
     exact callbackTerminalSlice paired (.directGiveFinite (right := peer)
-      ⟨by simp only [visibleAppend, visibleTaus, seen, List.append_nil], same, moved, .refl _⟩)
+      (giveBodyAtEntryFrontier (by simp only [visibleAppend, visibleTaus, seen, List.append_nil]) same moved (.refl _)))
   · obtain ⟨seen, checkedPrefix⟩ := quietCheckedShort journal run short
     have same := journal.shortIdentityStore (count := 2) run short
     have moved := retainComparedOccurrences paths (fun place => ⟨checkedPrefix place, Prefix.done right place⟩)
     rw [List.append_nil] at moved
     exact callbackTerminalSlice paired (.directGiveFinite (right := right)
-      ⟨by rw [visibleAppend, seen, List.append_nil], same.trans stored, moved, .refl _⟩)
+      (giveBodyAtEntryFrontier (by rw [visibleAppend, seen, List.append_nil]) (same.trans stored) moved (.refl _)))
 
 open ReturnFrame.Occurrence in
 private theorem cutGiveCommonRefusal (request : GiveSelector bindings) (thread : Option ThreadId)
@@ -9899,7 +9944,7 @@ private theorem cutGiveCommonRefusal (request : GiveSelector bindings) (thread :
       rw [aligned]
       refine .inl (callbackTerminalSlice paired (.directGiveFinite (right := peer)
         (canonical := [.tau, .tau, .tau] ++ List.replicate count .tau) (marks := [some (.active 0 0)])
-        ⟨?_, stored.trans sameStore, ?_, .refl _⟩))
+        (giveBodyAtEntryFrontier ?_ (stored.trans sameStore) ?_ (.refl _))))
       · simp only [visibleAppend, visibleTaus, seen, List.append_nil]
       · simpa only [List.length_append, List.length_cons, List.length_nil, List.length_replicate] using moved
   · exact .inl (cutGiveQuietPrefix total paths paired journal checked canonical sameStore rfl run (by omega))
@@ -9996,7 +10041,7 @@ private theorem cutGiveDangling (request : GiveSelector bindings) (worker : Thre
       exact (congrArg ([.tau, .tau, .tau] ++ ·) split).trans (List.append_assoc ..).symm
     rw [used]
     exact callbackTerminalSlice paired (.directGiveTrap
-      ⟨by simp only [visibleAppend, seen], congrArg StepDefs.lockdownSt sameStore, lost, residual⟩
+      (giveBodyAtEntryFrontier (by simp only [visibleAppend, seen]) (congrArg StepDefs.lockdownSt sameStore) lost residual)
       (by simp only [visibleAppend, seen]; rfl) rfl rfl)
 
 open ReturnFrame.Occurrence in
@@ -10056,7 +10101,7 @@ private theorem cutGiveDemandedRead (request : GiveSelector bindings) (worker : 
     (canonical := [.tau, .tau, .tau] ++ List.replicate 6 .tau)
     (check := check) (canon := canon) (checkNext := checkNext) (canonNext := canonNext) request
     ?_ rfl rfl checkRead canonRead demand (boundary.resolve_left short))
-  exact ⟨rfl, sameStore, moved, tail⟩
+  exact giveBodyAtEntryFrontier rfl sameStore moved tail
 
 open ReturnFrame.Occurrence in
 private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker : ThreadId)
@@ -10129,7 +10174,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
           CallbackSliceEnd.directGiveSelected (resume := resume) (check := check) (canon := canon)
             (left := checkedEntry) (right := canonicalEntry)
             (ticket := left.host.nextTicket) request root
-            ⟨(seen checkCount).trans (seen canonCount).symm, sameStore, moved, residual⟩
+            (giveBodyAtEntryFrontier ((seen checkCount).trans (seen canonCount).symm) sameStore moved residual)
             ⟨admitted.caller, admitted.mayLeave, admitted.unconfined, admitted.destination, admitted.selectedRoute⟩
             selectedSite rfl pending
         cases checked : request.preflight (grow := grow) root with
@@ -10163,7 +10208,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
         cut | ⟨used, _, _, _, _, split, moved, seen, replySite, checked, canonical, residual⟩
       · exact .inr cut
       exact crossDirectGiveRefusal (after := ⟨some worker, frames, rest⟩) (canon := ⟨some worker, peerFrames, peerRest⟩)
-        split moved seen paired replySite checked canonical residual boundary
+        split moved (.callbackBoundary .giveEntry (WriterPaths.ofTransport moved)) seen paired replySite checked canonical residual boundary
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
       exact lookupMismatch handle demand different
@@ -10205,7 +10250,7 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
     obtain ⟨_, leftPath⟩ := quietCheckedShort checkPath actual short
     obtain ⟨_, rightPath⟩ := quietCheckedShort canonPath (compared.choose_spec.1 none).2.steps short
     have moved := retainComparedOccurrences paths (fun place => ⟨leftPath place, rightPath place⟩)
-    exact callbackTerminalSlice paired (.directGiveFinite (right := peer) ⟨rfl, endpoint.data.1, moved, .refl _⟩)
+    exact callbackTerminalSlice paired (.directGiveFinite (right := peer) (giveBodyAtEntryFrontier rfl endpoint.data.1 moved (.refl _)))
   · rcases boundary with two | ⟨issue, refused, reads⟩
     swap
     · have refusal : Plain.runBody request.selector.program left.store left.host (some request.thread) =
@@ -10225,7 +10270,8 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
       rcases cutWaitableCorePop (bindings := bindings) (core := request.core) (resume := request.next)
           leftReply rightReply replySite remainder with ⟨empty, rfl⟩ | popped
       · rw [split, empty, List.append_nil]
-        exact callbackTerminalSlice paired (.directGiveFinite (right := peer) ⟨observed.symm, replySite.data.1, moved, .refl _⟩)
+        exact callbackTerminalSlice paired (.directGiveFinite (right := peer)
+          (giveBodyAtEntryFrontier observed.symm replySite.data.1 moved (.refl _)))
       obtain ⟨suffix, popped, residual, after, pop, lost⟩ := popped
       obtain ⟨move, whole, tracks⟩ := CallbackPrefix.transportAppend moved pop
       have gone : move (some (.active 0 0)) = none := by
@@ -10254,7 +10300,7 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
           omega
         obtain ⟨checked, canonical, restLabels, final, other, divided, run, ending⟩ := compare smaller residual after
         have prefixRun : ExecutedCallbackSegment profile ready base bindings older start incoming _ _ _ _ :=
-          ⟨growing, seen, after, joined⟩
+          CallbackPrefix.executedAtWriterBoundary .giveEntry growing seen after joined
         exact ⟨_, _, restLabels, final, other, by rw [full, divided]; simp only [List.append_assoc],
           CallbackPrefix.appendExecutedCallbacks prefixRun run, ending⟩
       · rw [full]
@@ -10338,7 +10384,7 @@ private theorem classifiedGiveCrossing
           cut | ⟨_, _, _, _, _, split, moved, seen, replySite, checked, canonical, residual⟩
       · exact .inr cut
       exact crossDirectGiveRefusal (after := ⟨none, frames, rest⟩) (canon := ⟨none, peerFrames, peerRest⟩)
-        split moved seen paired replySite checked canonical residual boundary
+        split moved (.callbackBoundary .giveEntry (WriterPaths.ofTransport moved)) seen paired replySite checked canonical residual boundary
 
 theorem classifyGiveCallbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -10380,8 +10426,8 @@ private theorem crossComponentReply {origin reference reached peer : Config (cor
         { peer with ctl := canon.control (resume (.cancel .none)) }, ?_, ?_, residual⟩
       · rw [split, popped, List.append_assoc]
         rfl
-      · exact ⟨by simpa only [List.cons_append] using growing, rfl, pairAfterComponentPop frame,
-          by simpa only [List.cons_append, List.map_nil] using whole⟩
+      · exact CallbackPrefix.executedAtWriterBoundary .dispatch (by simpa only [List.cons_append] using growing) rfl
+          (pairAfterComponentPop frame) (by simpa only [List.cons_append, List.map_nil] using whole)
     · exact .inr boundary
   · exact .inr boundary
 
@@ -10475,9 +10521,9 @@ private theorem crossAsymmetricFlatCalloutExit {Observation : Type} {code : Obse
       refine .inl ⟨leading ++ [.tau], .tau :: (canonLeading ++ [.tau]), remaining, replied, peerReply, ?_, ?_, residual⟩
       · rw [used, split, List.append_assoc]
         rfl
-      · exact ⟨by simpa only [List.cons_append] using growing,
-          by simp only [visibleTauCons, visibleAppend, observed], returned,
-          by simpa only [List.cons_append, List.map_nil, List.append_nil] using whole⟩
+      · exact CallbackPrefix.executedAtWriterBoundary .dispatch (by simpa only [List.cons_append] using growing)
+          (by simp only [visibleTauCons, visibleAppend, observed]) returned
+          (by simpa only [List.cons_append, List.map_nil, List.append_nil] using whole)
     · exact .inr boundary
 
 open ReturnFrame.Occurrence in
@@ -10606,7 +10652,8 @@ private theorem classifiedWaitCrossing : CallbackWaitableCrossing profile ready 
     | some waiter =>
       have aligned := pairComponentFocus checked canonical site
       rcases classifyReachedGrowth (CallbackPrefix.transportPaths decision none).choose_spec.1.steps with growing | _
-      · exact .inl ⟨leading, .tau :: leading, suffix, reached, peer, used, ⟨growing, rfl, aligned, decision⟩, residual⟩
+      · exact .inl ⟨leading, .tau :: leading, suffix, reached, peer, used,
+          CallbackPrefix.executedAtWriterBoundary .dispatch growing rfl aligned decision, residual⟩
       · exact .inr boundary
 
 open ReturnFrame.Occurrence in
@@ -10768,7 +10815,7 @@ private theorem crossCancelAfterHook {resumed peerResume : Config (core3 grow) (
     have fallback : CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
       rcases classifyReachedGrowth (CallbackPrefix.transportPaths throughDecision none).choose_spec.1.steps with growing | _
       · exact .inl ⟨checked ++ decision, .tau :: (canonical ++ decision), residual, reached, peer, consumed,
-          ⟨growing, seen, pairComponentFocus left right finalSite, throughDecision⟩, run⟩
+          CallbackPrefix.executedAtWriterBoundary .dispatch growing seen (pairComponentFocus left right finalSite) throughDecision, run⟩
       · exact .inr boundary
     obtain ⟨move, marked, _⟩ := CallbackPrefix.transportAppend caller pathDecision
     classical
@@ -10950,7 +10997,7 @@ theorem classifyMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     MixedCallbackSlice profile ready bindings callees older start incoming labels finish := by
   obtain ⟨checked, canonical, trailing, reached, peer, split, front, ending⟩ := foldMixedCallbacks run paired
   have residual := callbackEndSteps ending
-  refine ⟨checked, canonical, trailing, reached, peer, split, front, WriterPaths.ofTransport front.occurrences,
+  refine ⟨checked, canonical, trailing, reached, peer, split, front, WriterPaths.ofVisitor front.writers,
     ending, WriterPaths.ofSteps residual, ?_⟩
   cases residual with
   | refl => exact .inl ⟨rfl, rfl⟩
