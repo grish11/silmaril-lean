@@ -1811,12 +1811,12 @@ private theorem cutWaitCalloutDecision (mem : (core3 grow).MemAddr) (inst : Inst
   exact ⟨leading, suffix, reached, peer, split, moved, residual, frontier, fun live => (paths live).2⟩
 
 open ReturnFrame.Occurrence in
-private theorem retainComparedOccurrences {left right reached peer} {checked canonical leading : Trace grow sig} {introduced}
+private theorem retainComparedOccurrences {left right reached peer} {checked canonical leading canonLeading : Trace grow sig} {introduced}
     (install : OccurrenceTransport profile ready base bindings start incoming checked canonical left right introduced)
     (retained : ∀ place,
       Prefix profile ready (specDispatch ready base) left place leading reached place ∧
-      Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place leading peer place) :
-    OccurrenceTransport profile ready base bindings start incoming (checked ++ leading) (canonical ++ leading) reached peer introduced := by
+      Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place canonLeading peer place) :
+    OccurrenceTransport profile ready base bindings start incoming (checked ++ leading) (canonical ++ canonLeading) reached peer introduced := by
   obtain ⟨shift, trails, framed⟩ := install
   refine ⟨shift, ?_, ?_⟩
   · intro mark
@@ -7944,7 +7944,101 @@ private theorem directGivePreludePath (impl : HostImpl (core3 grow) (HostState s
     exact .step (.get rfl) rfl (.done _)
 
 open ReturnFrame.Occurrence in
+private theorem quietCheckedShort {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {updates : List (ComponentStoreEdit grow)} {target : Config (core3 grow) (HostState sig)}
+    (path : ComponentQuietPath profile ready (specDispatch ready base) check start updates target)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (short : labels.length < updates.length) :
+    PayloadPrefix.visible labels = [] ∧
+      ∀ place, Prefix profile ready (specDispatch ready base) start place labels finish place := by
+  induction path generalizing labels with
+  | done => simp at short
+  | step planned stationary _ ih =>
+    cases run with
+    | refl => exact ⟨rfl, fun _ => .done _ _⟩
+    | cons actual tail =>
+      obtain ⟨rfl, rfl⟩ := silentStepUnique planned actual
+      obtain ⟨seen, tracks⟩ := ih tail (by simpa using short)
+      exact ⟨(visibleTauCons _).trans seen, fun place => .step planned
+        (by rw [stationary]; rfl) (tracks place)⟩
+
+open ReturnFrame.Occurrence in
+private theorem directHostCheckedPath (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    (destination : RecordDestination) (schema : Option Stored.TypeOf) (inst : InstId)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (hostFrame : check.thread = none)
+    (focused : start.ctl = check.control (calloutBody Limits.spec Quirks.none ready base start.store check.thread (.embedder name kind) args)) :
+    let reply := giveAdmissionReply start.host.nextTicket destination schema .wrongContext
+    ComponentQuietPath profile ready (specDispatch ready base) check start [id, id, id, id, id, id]
+      { start with host := (start.host.enter name kind args).record reply.1, ctl := check.control (.pure (.flat reply.2)) } := by
+  cases check with
+  | mk thread frames rest =>
+    change thread = none at hostFrame
+    subst thread
+    cases schema <;>
+      simp only [calloutBody, PayloadPrefix.Cursor.control, threadMayLeave, instOfThread?, embedder,
+        Scheduled.host, dispatchImport, route, linked, Option.elim, invoke, giveFlat, currentInst?, currentTask?,
+        Prog.bind_eq, Prog.bind_assoc] at focused
+    all_goals
+      refine .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) ?_
+      refine .step (.hostSet rfl) rfl (.step (.currentThread rfl) rfl (.step (.get rfl) rfl ?_))
+      exact .step (.hostGet rfl) rfl (.step (.hostSet rfl) rfl (.done _))
+
+open ReturnFrame.Occurrence in
+private theorem directHostCanonicalPath (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    (destination : RecordDestination) (schema : Option Stored.TypeOf) (inst : InstId) (ticket : Nat)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)
+    (canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (hostFrame : canon.thread = none)
+    (focused : start.ctl = canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      start.store canon.thread (.embedder name kind) args)) :
+    let reply := giveAdmissionReply ticket destination schema .wrongContext
+    ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon start [id, id]
+      { start with ctl := canon.control (.pure (.flat reply.2)) } := by
+  cases canon with
+  | mk thread frames rest =>
+    change thread = none at hostFrame
+    subst thread
+    cases schema <;>
+      simp only [calloutBody, PayloadPrefix.Cursor.control, threadMayLeave, instOfThread?,
+        LiveDispatch.host, selectBinding, linked, Option.elim, memoryWords, flatWords, admit, currentInst?, currentTask?,
+        Prog.bind_eq, Prog.bind_assoc] at focused
+    all_goals exact .step (.currentThread focused) (by rw [transitionEdit, focused]; rfl) (.step (.get rfl) rfl (.done _))
+
+open ReturnFrame.Occurrence in
+private theorem cutDirectHostRefusal (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    (destination : RecordDestination) (schema : Option Stored.TypeOf) (inst : InstId)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFrame : check.thread = none) (rightFrame : canon.thread = none)
+    (leftFocus : left.ctl = check.control (calloutBody Limits.spec Quirks.none ready base left.store check.thread (.embedder name kind) args))
+    (rightFocus : right.ctl = canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      right.store canon.thread (.embedder name kind) args))
+    (site : PairedComponentSite older left right check canon)
+    (prelude : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+      left right [some (.active 0 0)])
+    (run : Steps profile ready (specDispatch ready base) left labels finish) :
+    DirectHostRefusalCut profile ready base bindings older name kind args destination schema check canon start incoming left right labels finish := by
+  have checked := directHostCheckedPath (profile := profile) name kind args destination schema inst linked embedder check leftFrame leftFocus
+  have canonical := directHostCanonicalPath (profile := profile) name kind args destination schema inst left.host.nextTicket linked canon rightFrame rightFocus
+  rcases splitSilent (count := 6) (checked.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
+  · let reply := giveAdmissionReply left.host.nextTicket destination schema .wrongContext
+    let leftReply := { left with host := (left.host.enter name kind args).record reply.1, ctl := check.control (.pure (.flat reply.2)) }
+    let rightReply := { right with ctl := canon.control (.pure (.flat reply.2)) }
+    have pairedReply : PairedComponentSite older leftReply rightReply check canon := by
+      simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace, leftReply, rightReply] using site
+    exact .inr ⟨trailing, leftReply, rightReply, split,
+      retainComparedOccurrences prelude (fun place => ⟨checked.track place, canonical.track place⟩),
+      rfl, rfl, rfl, rfl, pairedReply, residual⟩
+  · obtain ⟨seen, tracks⟩ := quietCheckedShort checked run short
+    exact .inl ⟨short, seen, retainComparedOccurrences prelude (fun place => ⟨tracks place, .done _ place⟩)⟩
+
+open ReturnFrame.Occurrence in
 private theorem cutDirectGivePrelude (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    (destination : RecordDestination) (schema : Option Stored.TypeOf) (inst : InstId)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (leftFocus : left.ctl = check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)))
@@ -7952,7 +8046,7 @@ private theorem cutDirectGivePrelude (name : String) (kind : V1.FuncType) (args 
     (site : PairedComponentSite older left right check canon)
     (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
     (run : Steps profile ready (specDispatch ready base) left labels finish) :
-    DirectGivePreludeCut profile ready base bindings older name kind args check canon start incoming left right labels finish := by
+    DirectGivePreludeCut profile ready base bindings older name kind args destination schema check canon start incoming left right labels finish := by
   have checked := directGivePreludePath (profile := profile) base name kind args check leftFocus
   have canonical := directGivePreludePath (profile := profile) (LiveDispatch.host bindings base) name kind args canon rightFocus
   rcases splitSilent (count := 2) (checked.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
@@ -7960,19 +8054,99 @@ private theorem cutDirectGivePrelude (name : String) (kind : V1.FuncType) (args 
         left.store check.thread (.embedder name kind) args) }
     let rightBody := { right with ctl := canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
         right.store canon.thread (.embedder name kind) args) }
-    exact .inr ⟨trailing, leftBody, rightBody, split, rfl, rfl, rfl, rfl, rfl, rfl, site,
-      retainComparedOccurrences installed (fun place => ⟨checked.track place, canonical.track place⟩), residual⟩
+    have paths : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+        leftBody rightBody [some (.active 0 0)] :=
+      retainComparedOccurrences installed (fun place => ⟨checked.track place, canonical.track place⟩)
+    exact .inr ⟨trailing, leftBody, rightBody, split, rfl, rfl, rfl, rfl, rfl, rfl, site, paths, residual,
+      fun leftFrame rightFrame => cutDirectHostRefusal name kind args destination schema inst linked embedder
+        leftFrame rightFrame rfl rfl site paths residual⟩
   · exact .inl (compareQuietShort checked canonical site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+
+private theorem pairComponentFocus {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {program}
+    (left : start.ctl = check.control program) (right : incoming.ctl = canon.control program)
+    (paired : PairedComponentSite older start incoming check canon) :
+    HostFrame.Related.Paired older start incoming := by
+  obtain ⟨frames, rest, shape, retargeted⟩ := paired.retarget
+    (thread := check.thread) (frames := check.frames) (rest := check.rest) rfl (.prog program) start.host incoming.host
+  simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at shape
+  obtain ⟨⟨thread, rfl⟩, rfl⟩ := shape
+  have leftExact : { start with ctl := check.control program } = start := by rw [← left]
+  have rightExact : { incoming with ctl := canon.control program } = incoming := by rw [← right]
+  rw [← leftExact, ← rightExact]
+  simpa only [PayloadPrefix.Cursor.control, thread] using retargeted
+
+private theorem pairAfterComponentPop {left right : Config (core3 grow) (HostState sig)}
+    {after canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {program : Session grow sig (Ret (core3 grow))}
+    (frame : LinkedCallback.ChildFrameOver older left right after canon) :
+    HostFrame.Related.Paired older { left with ctl := after.control program } { right with ctl := canon.control program } := by
+  have control : List.Forall₂ (ReturnFrame.Related.Active older) (after.control program) (canon.control program) := by
+    unfold PayloadPrefix.Cursor.control
+    rw [← frame.thread]
+    exact .cons (.mk frame.frames) frame.rest
+  have result := ReturnFrame.Related.Paired.mk (left := { left with host := right.host, ctl := after.control program }) control frame.blocked
+  have sameStore := frame.store
+  have samePending := frame.pending
+  have sameResults := frame.results
+  have sameCancels := frame.cancels
+  unfold HostFrame.Related.Paired HostFrame.replace
+  cases left
+  cases right
+  dsimp only at sameStore samePending sameResults sameCancels
+  rw [← sameStore, ← samePending, ← sameResults, ← sameCancels]
+  exact result
+
+open ReturnFrame.Occurrence in
+private theorem crossDirectGiveRefusal {left right : Config (core3 grow) (HostState sig)}
+    {after canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)} {words : List FlatValue}
+    {used live suffix : Trace grow sig}
+    (split : labels = used ++ suffix)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) live left right [some (.active 0 0)])
+    (observed : PayloadPrefix.visible live = PayloadPrefix.visible (.tau :: used))
+    (startPair : HostFrame.Related.Paired older start incoming)
+    (site : PairedComponentSite older left right { after with frames := .prog resume :: after.frames }
+      { canon with frames := .prog resume :: canon.frames })
+    (leftAt : left.ctl = { after with frames := .prog resume :: after.frames }.control (.pure (.flat words)))
+    (rightAt : right.ctl = { canon with frames := .prog resume :: canon.frames }.control (.pure (.flat words)))
+    (run : Steps profile ready (specDispatch ready base) left suffix finish)
+    (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  cases run with
+  | refl => exact .inr boundary
+  | @cons _ _ _ _ remaining step tail =>
+    have paired := pairComponentFocus leftAt rightAt site
+    have unmarked : OutsideMarks older (segmentStorage start) (segmentStorage incoming) [] :=
+      fun place _ => paired_outside (left := HostFrame.replace start incoming.host) startPair place (by simp)
+    have outside : Outside older (segmentStorage left) (segmentStorage right) (some (.active 0 0)) :=
+      outsideMarks_singleton.mp (paths.choose_spec.2 older [] unmarked)
+    have rightTop : segmentAt (segmentStorage right) (.active 0 0) = some (.prog resume) := by
+      rw [segmentStorage, rightAt]
+      rfl
+    obtain ⟨peerCursor, frame, peerAt⟩ := LinkedCallback.marked_pop_frame paired outside leftAt rightTop
+    have pop : Step profile ready (specDispatch ready base) left .tau { left with ctl := after.control (resume (.flat words)) } :=
+      .popProg leftAt
+    obtain ⟨rfl, rfl⟩ := silentStepUnique pop step
+    have whole := CallbackPrefix.transportAllocatorPop leftAt peerAt paths
+    rcases classifyReachedGrowth (CallbackPrefix.transportPaths whole none).choose_spec.1.steps with growing | _
+    · refine .inl ⟨used ++ [.tau], live ++ [.tau], remaining,
+        { left with ctl := after.control (resume (.flat words)) },
+        { right with ctl := peerCursor.control (resume (.flat words)) }, ?_, ?_, tail⟩
+      · rw [split, List.append_assoc]
+        rfl
+      · exact ⟨by simpa only [List.cons_append] using growing,
+          by rw [← List.cons_append, visibleAppend, visibleAppend, observed],
+          pairAfterComponentPop frame, by simpa only [List.cons_append, List.map_nil] using whole⟩
+    · exact .inr boundary
 
 private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackGiveCrossing profile ready base bindings := by
   classical
   intro changes checked canonical next finish label trailing install actual paired compare
-  apply Or.inr
   have run := Steps.cons install.step actual
   rcases install.request with ⟨⟨request⟩⟩ | direct
-  · by_cases reads : ∀ handle, request.lookupDemand = some handle →
+  · apply Or.inr
+    by_cases reads : ∀ handle, request.lookupDemand = some handle →
         Stored.Endpoints.Core.childFromHistory checked.host.writer.accepted handle =
           Stored.Endpoints.Core.childFromHistory canonical.host.writer.accepted handle
     · rcases request.selector_result with ⟨reason, trap⟩ | ⟨verdict, evaluated⟩
@@ -8004,9 +8178,20 @@ private theorem classifiedGiveCrossing
       cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired
     let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: frames, rest⟩
     let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: peerFrames, peerRest⟩
-    have prelude := cutDirectGivePrelude name kind args (check := check) (canon := canon) rfl rfl site paths actual
-    exact callbackTerminalSlice paired (.directGiveEntry (check := check) (canon := canon)
+    have prelude := cutDirectGivePrelude name kind args destination schema inst linked embedder
+      (check := check) (canon := canon) rfl rfl site paths actual
+    have boundary := callbackTerminalSlice paired (.directGiveEntry (check := check) (canon := canon)
       linked rfl rfl site paths leftMark rightMark prelude actual)
+    rcases prelude with _ | ⟨_, body, peerBody, entered, _, _, _, _, _, _, _, _, _, refuse⟩
+    · exact .inr boundary
+    cases thread with
+    | some _ => exact .inr boundary
+    | none =>
+      rcases refuse rfl rfl with _ | ⟨suffix, left, right, replySplit, moved, _, _, leftAt, rightAt, replyPair, residual⟩
+      · exact .inr boundary
+      have split : trailing = List.replicate 8 .tau ++ suffix := by rw [entered, replySplit]; rfl
+      exact crossDirectGiveRefusal (after := ⟨none, frames, rest⟩) (canon := ⟨none, peerFrames, peerRest⟩)
+        split moved rfl paired replyPair leftAt rightAt residual boundary
 
 theorem classifyGiveCallbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -8023,26 +8208,6 @@ private theorem markTransport {leading : Trace grow sig} {peer : Config (core3 g
   refine ⟨move, paths, ?_⟩
   intro older marks outside place off first second left right
   exact retained older marks outside place (fun member => off (List.mem_cons_of_mem _ member)) first second left right
-
-private theorem pairAfterComponentPop {left right : Config (core3 grow) (HostState sig)}
-    {after canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {program : Session grow sig (Ret (core3 grow))}
-    (frame : LinkedCallback.ChildFrameOver older left right after canon) :
-    HostFrame.Related.Paired older { left with ctl := after.control program } { right with ctl := canon.control program } := by
-  have control : List.Forall₂ (ReturnFrame.Related.Active older) (after.control program) (canon.control program) := by
-    unfold PayloadPrefix.Cursor.control
-    rw [← frame.thread]
-    exact .cons (.mk frame.frames) frame.rest
-  have result := ReturnFrame.Related.Paired.mk (left := { left with host := right.host, ctl := after.control program }) control frame.blocked
-  have sameStore := frame.store
-  have samePending := frame.pending
-  have sameResults := frame.results
-  have sameCancels := frame.cancels
-  unfold HostFrame.Related.Paired HostFrame.replace
-  cases left
-  cases right
-  dsimp only at sameStore samePending sameResults sameCancels
-  rw [← sameStore, ← samePending, ← sameResults, ← sameCancels]
-  exact result
 
 open ReturnFrame.Occurrence in
 private theorem crossComponentReply {origin reference reached peer : Config (core3 grow) (HostState sig)}
@@ -8205,19 +8370,6 @@ private theorem classifiedCancelResumeCrossing : CallbackCancelResumeCrossing pr
   refine crossFlatCalloutExit used exit (fun _ _ => paths) (fun stop => callbackTerminalSlice paired ?_) boundary
   rw [used]
   exact .cancelTerminal paths rfl exit stop actual
-
-private theorem pairComponentFocus {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {program}
-    (left : start.ctl = check.control program) (right : incoming.ctl = canon.control program)
-    (paired : PairedComponentSite older start incoming check canon) :
-    HostFrame.Related.Paired older start incoming := by
-  obtain ⟨frames, rest, shape, retargeted⟩ := paired.retarget
-    (thread := check.thread) (frames := check.frames) (rest := check.rest) rfl (.prog program) start.host incoming.host
-  simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at shape
-  obtain ⟨⟨thread, rfl⟩, rfl⟩ := shape
-  have leftExact : { start with ctl := check.control program } = start := by rw [← left]
-  have rightExact : { incoming with ctl := canon.control program } = incoming := by rw [← right]
-  rw [← leftExact, ← rightExact]
-  simpa only [PayloadPrefix.Cursor.control, thread] using retargeted
 
 open ReturnFrame.Occurrence in
 theorem cutCancelHookInstall (async : Bool) (subtask : SubtaskId) (hook : CancelRef)

@@ -378,12 +378,34 @@ def ComponentEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState s
     PairedComponentSite older finish peer check canon ∧
     (∃ program, finish.ctl = check.control program) ∧ (∃ program, peer.ctl = canon.control program)
 
+/-- The reached host-frame refusal at a direct give. The canonical body has
+no entry/completion journal steps; a checked prefix can end before the reply. -/
+def DirectHostRefusalCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (name : String) (kind : V1.FuncType)
+    (args : List FlatValue) (destination : RecordDestination) (schema : Option Stored.TypeOf)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (entry peerEntry start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  (labels.length < 6 ∧ PayloadPrefix.visible labels = [] ∧
+    OccurrenceTransport profile ready base bindings entry peerEntry ([.tau, .tau, .tau] ++ labels) [.tau, .tau, .tau]
+      finish incoming [some (.active 0 0)]) ∨
+  ∃ trailing left right,
+    let reply := giveAdmissionReply start.host.nextTicket destination schema .wrongContext
+    labels = List.replicate 6 .tau ++ trailing ∧
+    OccurrenceTransport profile ready base bindings entry peerEntry (List.replicate 9 .tau) (List.replicate 5 .tau)
+      left right [some (.active 0 0)] ∧
+    left.host = (start.host.enter name kind args).record reply.1 ∧ right.host = incoming.host ∧
+    left.ctl = check.control (.pure (.flat reply.2)) ∧ right.ctl = canon.control (.pure (.flat reply.2)) ∧
+    PairedComponentSite older left right check canon ∧ Steps profile ready (specDispatch ready base) left trailing finish
+
 /-- The direct dispatcher reads the active thread and live store before
-entering either embedder body. This cut has not performed give admission. -/
+entering either embedder body. At a host frame, continue to its refusal. -/
 def DirectGivePreludeCut (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (name : String) (kind : V1.FuncType)
-    (args : List FlatValue) (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (args : List FlatValue) (destination : RecordDestination) (schema : Option Stored.TypeOf)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (entry peerEntry start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop :=
   ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 2 ∨
@@ -396,7 +418,10 @@ def DirectGivePreludeCut (profile : ProfileKind) (ready : HostReady (HostState s
       PairedComponentSite older left right check canon ∧
       OccurrenceTransport profile ready base bindings entry peerEntry [.tau, .tau, .tau] [.tau, .tau, .tau]
         left right [some (.active 0 0)] ∧
-      Steps profile ready (specDispatch ready base) left trailing finish
+      Steps profile ready (specDispatch ready base) left trailing finish ∧
+      (check.thread = none → canon.thread = none →
+        DirectHostRefusalCut profile ready base bindings older name kind args destination schema
+          check canon entry peerEntry left right trailing finish)
 
 /-- Replay the exact extracted prefix, including silent steps. The selected
 mark can move between active and saved storage or disappear; all other
@@ -632,7 +657,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
       (checkedMark : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 0) = some (.prog resume))
       (canonicalMark : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 0) = some (.prog resume))
-      (prelude : DirectGivePreludeCut profile ready base bindings changes name kind args check canon reached peer left right trailing finish)
+      (prelude : DirectGivePreludeCut profile ready base bindings changes name kind args destination schema
+        check canon reached peer left right trailing finish)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | lookup {changes reached peer label next trailing finish handle} (request : CoreGiveRequest bindings reached)
