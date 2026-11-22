@@ -17,6 +17,15 @@ theorem register_claims {sig : Signature} {state registered : State sig} {tree :
       registered.endpoints = rootEndpoints tree ++ state.endpoints :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.register_claims success
 
+/-- Equal reached conflict tests and allocation indices give the same alias
+decision or handle, without identifying the two updated writers. -/
+theorem register_observations {sig : Signature} {left right : State sig} {tree : Tree sig}
+    (agrees : left.RegistrationChecksAgree right tree)
+    (length : left.accepted.length = right.accepted.length) :
+    (left.register tree).map (fun writer => writer.accepted.length) =
+      (right.register tree).map (fun writer => writer.accepted.length) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.register_observations agrees length
+
 theorem register_retains_retirement {sig : Signature} {state registered : State sig}
     {tree : Tree sig} {id : HandleObjId}
     (success : state.register tree = .ok registered) (retired : state.retiredOwner id) :

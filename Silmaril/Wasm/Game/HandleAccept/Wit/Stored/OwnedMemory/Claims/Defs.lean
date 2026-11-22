@@ -62,6 +62,15 @@ def State.register {sig : Signature} (state : State sig) (tree : Tree sig) : Exc
     .ok ⟨tree :: state.accepted, receipts ++ state.held, endpoints ++ state.endpoints⟩
   else .error .alias
 
+/-- Registration reads only conflicts with the new root's claims. The journals,
+unrelated claims, and representations need not agree. Handle selection separately
+reads the number of accepted roots. -/
+structure State.RegistrationChecksAgree {sig : Signature} (left right : State sig) (tree : Tree sig) : Prop where
+  owners : ∀ id ∈ (rootReceipts tree).map receiptId,
+    (id ∈ ((left.accepted.flatMap rootReceipts ++ left.held).map receiptId) ↔
+      id ∈ ((right.accepted.flatMap rootReceipts ++ right.held).map receiptId))
+  endpoints : ∀ id ∈ rootEndpoints tree, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
+
 /-- Look up the nominal type and representation from the held receipt, not from the caller.
 The result is a prospective update; the caller chooses when to commit it. -/
 def State.prepare {sig : Signature} (state : State sig) (resource : RtId) (id : HandleObjId) :

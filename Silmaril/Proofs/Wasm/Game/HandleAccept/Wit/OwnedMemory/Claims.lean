@@ -20,6 +20,27 @@ theorem register_claims {sig : Signature} {state registered : State sig}
   split at success <;> cases success
   exact ⟨rfl, rfl, rfl⟩
 
+private theorem containsAny_eq {α : Type} [BEq α] [LawfulBEq α] {demands left right : List α}
+    (agrees : ∀ id ∈ demands, (id ∈ left ↔ id ∈ right)) :
+    demands.any left.contains = demands.any right.contains := by
+  have absent : (demands.any left.contains = false) ↔ (demands.any right.contains = false) := by
+    constructor
+    · exact fun clear => List.any_eq_false.mpr fun id member found =>
+        List.any_eq_false.mp clear id member (List.contains_iff_mem.mpr ((agrees id member).mpr (List.contains_iff_mem.mp found)))
+    · exact fun clear => List.any_eq_false.mpr fun id member found =>
+        List.any_eq_false.mp clear id member (List.contains_iff_mem.mpr ((agrees id member).mp (List.contains_iff_mem.mp found)))
+  cases lhs : demands.any left.contains <;> cases rhs : demands.any right.contains <;> simp_all
+
+theorem register_observations {sig : Signature} {left right : State sig} {tree : OwnedMemory.Tree sig}
+    (agrees : left.RegistrationChecksAgree right tree)
+    (length : left.accepted.length = right.accepted.length) :
+    (left.register tree).map (fun writer => writer.accepted.length) =
+      (right.register tree).map (fun writer => writer.accepted.length) := by
+  unfold State.register
+  dsimp only
+  rw [containsAny_eq agrees.owners, containsAny_eq agrees.endpoints]
+  split <;> simp [Except.map, length]
+
 theorem register_retains_retirement {sig : Signature} {state registered : State sig}
     {tree : OwnedMemory.Tree sig} {id : HandleObjId}
     (success : state.register tree = .ok registered) (retired : state.retiredOwner id) :

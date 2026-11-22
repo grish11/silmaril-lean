@@ -3364,7 +3364,7 @@ theorem cutSuccessfulMarkedReply (callee : ComponentCall.Callee sig) (caller : C
     (argument payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
     {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
     (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
-    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {leftTicket rightTicket handle : Nat} {leftWriter : Stored.OwnedMemory.Claims.State sig}
     {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
     {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -3375,8 +3375,9 @@ theorem cutSuccessfulMarkedReply (callee : ComponentCall.Callee sig) (caller : C
     (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
     (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
     (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
-    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
-    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (claims : start.host.writer.RegistrationChecksAgree incoming.host.writer (.node callee.tag valid children))
+    (length : start.host.writer.accepted.length = incoming.host.writer.accepted.length)
+    (leftHandle : handle = leftWriter.accepted.length)
     (room : handle < 2 ^ 32)
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
     (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
@@ -3390,18 +3391,25 @@ theorem cutSuccessfulMarkedReply (callee : ComponentCall.Callee sig) (caller : C
       ComponentAcceptedFrontier wider check canon (.node callee.tag valid children) handle reached peer suffix ∧
       ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish := by
-  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier⟩ :=
-    cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
-      leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run
-  refine ⟨leading, suffix, reached, peer, split, moved, residual, frontier,
-    compareComponentMarkedReply leftInstalled rightInstalled outside moved residual (wider := wider) ?_⟩
-  intro atReturn
-  cases frontier with
-  | pending _ exhausted => exact .inl exhausted
-  | trapped checked _ _ =>
-    rw [checked] at atReturn
-    simp [PayloadPrefix.Cursor.control] at atReturn
-  | published _ _ pair _ _ => exact .inr pair
+  have same := Stored.OwnedMemory.Claims.register_observations claims length
+  rw [leftLive] at same
+  cases rightLive : incoming.host.writer.register (.node callee.tag valid children) with
+  | error issue => simp [rightLive, Except.map] at same
+  | ok rightWriter =>
+    have rightHandle : handle = rightWriter.accepted.length := by
+      simpa [rightLive, Except.map, leftHandle] using same
+    obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier⟩ :=
+      cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
+        leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run
+    refine ⟨leading, suffix, reached, peer, split, moved, residual, frontier,
+      compareComponentMarkedReply leftInstalled rightInstalled outside moved residual (wider := wider) ?_⟩
+    intro atReturn
+    cases frontier with
+    | pending _ exhausted => exact .inl exhausted
+    | trapped checked _ _ =>
+      rw [checked] at atReturn
+      simp [PayloadPrefix.Cursor.control] at atReturn
+    | published _ _ pair _ _ => exact .inr pair
 
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}

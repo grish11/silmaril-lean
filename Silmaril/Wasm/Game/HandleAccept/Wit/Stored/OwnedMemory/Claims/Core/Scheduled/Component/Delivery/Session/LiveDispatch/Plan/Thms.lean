@@ -406,13 +406,14 @@ theorem cut_component_successful_publication (callee : ComponentCall.Callee sig)
 
 open ReturnFrame.Occurrence in
 /-- Transport the installed caller from successful validation through live
-publication, then use only the actual checked residual to compare a marked pop.
+publication, deriving the peer's handle from reached claim and index agreement.
+Use only the actual checked residual to compare a marked pop.
 A pending prefix, trap or lost occurrence does not enter the caller. -/
 theorem cut_component_successful_marked_reply (callee : ComponentCall.Callee sig) (caller : CallerId)
     (argument payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
     {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
     (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
-    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {leftTicket rightTicket handle : Nat} {leftWriter : Stored.OwnedMemory.Claims.State sig}
     {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
     {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -423,8 +424,9 @@ theorem cut_component_successful_marked_reply (callee : ComponentCall.Callee sig
     (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
     (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
     (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
-    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
-    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (claims : start.host.writer.RegistrationChecksAgree incoming.host.writer (.node callee.tag valid children))
+    (length : start.host.writer.accepted.length = incoming.host.writer.accepted.length)
+    (leftHandle : handle = leftWriter.accepted.length)
     (room : handle < 2 ^ 32)
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
     (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
@@ -440,7 +442,7 @@ theorem cut_component_successful_marked_reply (callee : ComponentCall.Callee sig
         check first second suffix finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulMarkedReply
     callee caller argument payload children validated leftFocus rightFocus paired record resultType indirect
-    leftLive rightLive leftHandle rightHandle room leftInstalled rightInstalled outside run
+    leftLive claims length leftHandle room leftInstalled rightInstalled outside run
 
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
