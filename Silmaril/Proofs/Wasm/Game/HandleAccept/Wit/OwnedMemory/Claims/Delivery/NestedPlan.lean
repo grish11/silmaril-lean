@@ -345,6 +345,76 @@ theorem cutComponentStoreBody {Result : Type} (body : Session grow sig Result)
               (HostFrame.Related.Paired.set_store paired (StepDefs.lockdownSt incoming.store)).clear_control
         | _ => exact False.elim (localOp rfl)
 
+open AsyncRef ReturnFrame.Occurrence in
+private theorem refusalResolveTracks (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (ticket : Nat) (caller : CallerId) (issue : Scheduled.Issue)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = cursor.control (ComponentCall.resolveRefused ticket caller issue))
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1) :
+    ∀ place, Prefix profile ready dispatch start place [.tau, .tau, .tau]
+      { start with host := start.host.record (.refused ticket issue), ctl := cursor.control (do
+        maybeOnProgress subtask
+        let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+          [ComponentCall.resultType] (some ⟨args, pos⟩)
+        Subtask.resolve subtask .returned flat
+        return .cancel .none) } place := by
+  cases cursor with
+  | mk thread frames rest =>
+    intro place
+    refine .step (middle := place) (.hostGet focused) ?_ ?_
+    · rw [transitionEdit, focused]
+      cases place <;> rfl
+    refine .step (middle := place) (.hostSet rfl) (by cases place <;> rfl) ?_
+    have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch)
+      (m := { start with host := start.host.record (.refused ticket issue), ctl :=
+        ⟨thread, .prog (ComponentCall.resolveError ticket caller), frames⟩ :: rest }) rfl
+    simp only [Prog.bind, record, Prog.pure_eq, resultType, bne_self_eq_false, Bool.false_eq_true,
+      ite_false, Nat.not_lt.mpr indirect] at read
+    exact .step read (by cases place <;> rfl) (.done _ _)
+
+open AsyncRef in
+theorem cutComponentResolveRefused (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.resolveRefused leftTicket caller issue))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.resolveRefused rightTicket caller issue))
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let common : Session grow sig (Ret (core3 grow)) := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, pos⟩)
+      Subtask.resolve subtask .returned flat
+      return .cancel .none
+    let reached := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) ticket =>
+      { state with host := state.host.record (.refused ticket issue), ctl := cursor.control common }
+    (∃ suffix, labels = [.tau, .tau, .tau] ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+        (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      HostFrame.Related.Paired older (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨ labels.length < 3 := by
+  dsimp only
+  have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
+  have left := refusalResolveTracks (profile := profile) (ready := ready) (specDispatch ready base)
+    leftTicket caller issue check leftFocus record resultType indirect
+  have right := refusalResolveTracks (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    rightTicket caller issue canon rightFocus (same ▸ record) resultType indirect
+  rcases splitSilent (count := 3) (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left right, ?_, residual⟩
+    unfold PairedComponentSite at paired
+    obtain ⟨frames, rest, focus, aligned⟩ := HostFrame.Related.Paired.retarget paired rfl (.prog _)
+      (start.host.record (.refused leftTicket issue)) (incoming.host.record (.refused rightTicket issue))
+    simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
+    obtain ⟨⟨sameThread, sameFrames⟩, sameRest⟩ := focus
+    simpa only [PayloadPrefix.Cursor.control, ← sameThread, ← sameFrames, ← sameRest] using aligned
+  · exact .inr short
+
 private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
     {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :

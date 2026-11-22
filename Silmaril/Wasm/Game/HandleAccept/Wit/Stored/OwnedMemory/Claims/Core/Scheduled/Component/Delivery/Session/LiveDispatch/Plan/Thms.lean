@@ -201,6 +201,52 @@ theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (ca
   cut_component_store_body (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller)
     _ _ leftFocus rightFocus paired run
 
+/-- Follow the real preflight-refusal path without lifting the rejected payload.
+Only a reached skip result enters the ticket-specific refusal continuations. -/
+theorem cut_component_skipped_arguments (callee : ComponentCall.Callee sig) (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.error issue)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.error issue)))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier (Result := List Unit) older check canon (fun _ => ComponentCall.resolveRefused leftTicket caller issue)
+        (fun _ => ComponentCall.resolveRefused rightTicket caller issue) reached peer suffix :=
+  cut_component_store_body (ComponentCall.skipArguments caller) _ _ leftFocus rightFocus paired run
+
+open AsyncRef in
+/-- Record the actual shared preflight refusal under each side's ticket and
+consume the reached caller read. The common result-lowering focus is not a
+delivered reply, and may still trap before resolving the subtask. -/
+theorem cut_component_resolve_refused (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.resolveRefused leftTicket caller issue))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.resolveRefused rightTicket caller issue))
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let common : Session grow sig (Ret (core3 grow)) := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, pos⟩)
+      Subtask.resolve subtask .returned flat
+      return .cancel .none
+    let reached := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) ticket =>
+      { state with host := state.host.record (.refused ticket issue), ctl := cursor.control common }
+    (∃ suffix, labels = [.tau, .tau, .tau] ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+        (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      HostFrame.Related.Paired older (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨ labels.length < 3 :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentResolveRefused
+    caller issue leftFocus rightFocus record resultType indirect paired run
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
