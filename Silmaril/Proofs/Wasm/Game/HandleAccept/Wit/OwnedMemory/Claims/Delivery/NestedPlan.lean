@@ -47,6 +47,48 @@ private theorem append {dispatch : Call (core3 grow) → Session grow sig (Ret (
   | refl => exact back
   | cons step _ ih => exact .cons step (ih back)
 
+private theorem progOpEq {S : Sig} {Result : Type} {first second : S.Op}
+    {left : S.Resp first → Prog S Result} {right : S.Resp second → Prog S Result} :
+    Prog.op first left = Prog.op second right → first = second ∧ HEq left right := by
+  intro same
+  injection same with operation continuation
+  exact ⟨operation, continuation⟩
+
+set_option maxHeartbeats 1000000 in
+private theorem silentStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before left right : Config (core3 grow) (HostState sig)} {label}
+    (quiet : Step profile ready dispatch before .tau left) (actual : Step profile ready dispatch before label right) :
+    label = .tau ∧ left = right := by
+  cases quiet <;> cases actual
+  all_goals try (cases (show Fault before _ from by assumption))
+  all_goals simp_all [StepDefs.HostReadyCfg]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    obtain ⟨operation, continuation⟩ := progOpEq programs
+    simp_all
+  all_goals (injection operation; subst_vars; simp_all)
+
+private theorem splitSilent {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before replied finish : Config (core3 grow) (HostState sig)} {count : Nat} {labels : Trace grow sig}
+    (quiet : Steps profile ready dispatch before (List.replicate count .tau) replied)
+    (actual : Steps profile ready dispatch before labels finish) :
+    (∃ rest, labels = List.replicate count .tau ++ rest ∧ Steps profile ready dispatch replied rest finish) ∨ labels.length < count := by
+  induction count generalizing before labels with
+  | zero => cases quiet; exact .inl ⟨labels, rfl, actual⟩
+  | succ count ih =>
+    rw [List.replicate_succ] at quiet
+    cases quiet with
+    | cons first quiet =>
+      cases actual with
+      | refl => exact .inr (Nat.zero_lt_succ _)
+      | cons second actual =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique first second
+        rcases ih quiet actual with ⟨rest, rfl, tail⟩ | short
+        · exact .inl ⟨rest, by rw [List.replicate_succ]; rfl, tail⟩
+        · exact .inr (Nat.succ_lt_succ short)
+
 private theorem silentVisible {trace : Trace grow sig} (silent : trace.all (· matches .tau) = true) :
     PayloadPrefix.visible trace = [] := by
   induction trace with
@@ -1024,10 +1066,10 @@ theorem recursiveRequestCut (request : CoreGiveRequest bindings start) {callees 
       exact .trapped trap left right
     · cases verdict with
       | error issue =>
-        obtain ⟨_, _, _, _, left, right, aligned, checkedHost, canonicalHost⟩ := request.paired_admission_refusal
+        obtain ⟨_, _, _, _, progress, left, right, aligned, checkedHost, canonicalHost⟩ := request.paired_admission_refusal_tracks
           (profile := profile) (ready := ready) (base := ComponentCall.hostWithComponent bindings callees)
           (ComponentCall.hostWithComponent bindings callees) rfl paired evaluated reads
-        exact .refused evaluated left right aligned checkedHost canonicalHost (rejoinedTail aligned)
+        exact .refused evaluated progress left right aligned checkedHost canonicalHost (rejoinedTail aligned)
       | ok result =>
         obtain ⟨route, ⟨selection⟩⟩ := request.selected_of_return evaluated
         have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected
@@ -1127,6 +1169,83 @@ private theorem requestWorkerTail {callees : List (ComponentCall.Callee sig)}
     exact ⟨checkReached, canonReached, checkPath.append checkTail, canonPath.append canonTail⟩
 
 open ReturnFrame.Occurrence in
+private theorem appendRefusalTracks {callees : List (ComponentCall.Callee sig)}
+    {request reference left right : Config (core3 grow) (HostState sig)} {seen : Trace grow sig} {checkCount canonCount : Nat}
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      request reference seen start incoming)
+    (checked : ∀ place, Prefix profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      start place (List.replicate checkCount .tau) left place)
+    (canonical : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings (ComponentCall.hostWithComponent bindings callees)))
+      incoming place (List.replicate canonCount .tau) right place) :
+    RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings request reference seen left right := by
+  obtain ⟨frontLeft, frontRight, leftSeen, rightSeen, paths⟩ := arrived
+  refine ⟨frontLeft ++ List.replicate checkCount .tau, frontRight ++ List.replicate canonCount .tau, ?_, ?_, ?_⟩
+  · rw [visibleAppend, leftSeen, visibleTaus, List.append_nil]
+  · rw [visibleAppend, rightSeen, visibleTaus, List.append_nil]
+  intro mark
+  obtain ⟨leftMost, rightMost, leftPath, rightPath⟩ := paths mark
+  refine ⟨leftMost, rightMost, leftPath.append ?_, rightPath.append ?_⟩
+  · cases leftMost with
+    | none => exact Trail.absent (checked (.active 0 0)).toTrail.steps
+    | some place => exact (checked place).toTrail
+  · cases rightMost with
+    | none => exact Trail.absent (canonical (.active 0 0)).toTrail.steps
+    | some place => exact (canonical place).toTrail
+
+open ReturnFrame.Occurrence in
+theorem requestWorkerRefusals {callees : List (ComponentCall.Callee sig)}
+    {request reference : Config (core3 grow) (HostState sig)} {seen : Trace grow sig}
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      request reference seen start incoming)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    RequestWorkerRefusals profile ready bindings callees older request reference seen start incoming := by
+  intro labels finish run
+  induction lengthEq : labels.length using Nat.strong_induction_on generalizing start incoming seen labels finish with
+  | ind limit ih =>
+    cases requestWorkerTail arrived paired run with
+    | complete live paired trail =>
+      exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, run, live, rfl, .refl _, paired, trail, .done⟩
+    | @boundary leading label remaining beforeLeft beforeRight afterLeft afterRight split checked live paired trail cut lhs rhs tail =>
+      exact ⟨leading, leading, label :: remaining, beforeLeft, beforeRight, split, checked, live, rfl, .cons lhs tail,
+        paired, trail, .boundary cut lhs rhs⟩
+    | @request leading label remaining beforeLeft beforeRight afterLeft split checked live paired trail install cut tail =>
+      have first : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) beforeLeft label afterLeft := by
+        cases install with
+        | direct focused _ => exact .call focused
+        | core focused calling _ => exact .coreCallout focused calling
+      have run := Steps.cons first tail
+      have stop (endCut : WorkerRefusalCut profile ready bindings callees older beforeLeft beforeRight (label :: remaining)) :
+          WorkerRefusalRun profile ready bindings callees older request reference seen start incoming labels finish :=
+        ⟨leading, leading, label :: remaining, beforeLeft, beforeRight, split, checked, live, rfl, run, paired, trail, endCut⟩
+      rcases cut with direct | ⟨next, cut⟩
+      · exact stop (.request install (.inl direct))
+      cases cut with
+      | lookup demand different =>
+        exact stop (.request install (.inr ⟨next, .lookup demand different, .inl ⟨_, demand, different⟩⟩))
+      | trapped caller left right =>
+        exact stop (.request install (.inr ⟨next, .trapped caller left right, .inr (.inl ⟨_, caller⟩)⟩))
+      | admitted selection selected body =>
+        exact stop (.request install (.inr ⟨next, .admitted selection selected body, .inr (.inr (.inl ⟨_, ⟨selection⟩⟩))⟩))
+      | @refused issue checkCount canonCount replied liveReply verdict positive left right aligned leftHost rightHost rest =>
+        have reflected := (left (.active 0 0)).toTrail.steps
+        rcases splitSilent reflected run with ⟨suffix, spliced, suffixRun⟩ | short
+        · have smaller : suffix.length < limit := by
+            rw [← lengthEq, split, spliced, List.length_append, List.length_append, List.length_replicate]
+            omega
+          have continued := appendRefusalTracks trail left right
+          obtain ⟨middle, canonMiddle, trailing, lastLeft, lastRight, ends, checkMiddle, liveMiddle, matched, checkTail, related, paths, cut⟩ :=
+            ih suffix.length smaller continued aligned suffixRun rfl
+          refine ⟨leading ++ (List.replicate checkCount .tau ++ middle), leading ++ (List.replicate canonCount .tau ++ canonMiddle),
+            trailing, lastLeft, lastRight, ?_, append checked (append reflected checkMiddle),
+            append live (append (right (.active 0 0)).toTrail.steps liveMiddle), ?_, checkTail, related, ?_, cut⟩
+          · rw [split, spliced, ends]
+            simp only [List.append_assoc]
+          · simp only [visibleAppend, visibleTaus, List.nil_append, matched]
+          · simpa only [visibleAppend, visibleTaus, List.nil_append, List.append_assoc] using paths
+        · exact stop (.request install (.inr ⟨next, .refused verdict positive left right aligned leftHost rightHost rest,
+            .inr (.inr (.inr ⟨issue, checkCount, replied, short, verdict, reflected⟩))⟩))
+
+open ReturnFrame.Occurrence in
 theorem rejoinedTrackedWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
     {checkLabels canonLabels observed : Trace grow sig} {value : route.output.Result}
@@ -1159,6 +1278,16 @@ theorem requestWorkerTailAfterDelivery {callees : List (ComponentCall.Callee sig
     ClassifiedWorkerTail profile ready bindings callees older start incoming (deliveryLabels ++ workerLabels) queued
       (fun added left right => RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees)
         bindings request reference (seen ++ PayloadPrefix.visible added) left right) :=
+  tail (append delivery.runs.1.steps worker)
+
+theorem requestWorkerRefusalsAfterDelivery {callees : List (ComponentCall.Callee sig)}
+    {request reference delivered finish : Config (core3 grow) (HostState sig)} {seen deliveryLabels workerLabels : Trace grow sig}
+    {actions outgoing}
+    (tail : RequestWorkerRefusals profile ready bindings callees older request reference seen start incoming)
+    (delivery : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees) start incoming.host
+      actions deliveryLabels delivered outgoing)
+    (worker : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) delivered workerLabels finish) :
+    WorkerRefusalRun profile ready bindings callees older request reference seen start incoming (deliveryLabels ++ workerLabels) finish :=
   tail (append delivery.runs.1.steps worker)
 
 open ReturnFrame.Occurrence in

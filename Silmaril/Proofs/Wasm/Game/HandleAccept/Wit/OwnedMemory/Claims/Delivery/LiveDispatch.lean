@@ -953,23 +953,45 @@ private theorem returnPath (impl : HostImpl (core3 grow) (HostState sig))
     (calling : (core3 grow).status start.store.core core = .callout (.embedder name kind) args)
     (evaluated : Plain.runBody (effective start.store thread (impl.embedder name kind args))
         start.store start.host (some thread) = (start.store, reached, .ok words)) :
-    ∃ count, Steps profile ready (specDispatch ready impl) start (List.replicate count .tau)
+    ∃ count, 0 < count ∧ ∀ place, Prefix profile ready (specDispatch ready impl) start place (List.replicate count .tau)
       { start with host := reached
-                   ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values words)) next, frames⟩ :: rest } := by
+                   ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values words)) next, frames⟩ :: rest } place := by
   let body := effective start.store thread (impl.embedder name kind args)
   let entered := { start with ctl := ⟨thread, .prog (body >>= fun reply => pure (.flat reply)), .core core next :: frames⟩ :: rest }
-  obtain ⟨labels, silent, run⟩ := Plain.runBody_thread_steps body entered start.store reached words
+  obtain ⟨labels, silent, run⟩ := Plain.runBody_thread_tracks_all body entered start.store reached words
     (fun reply => pure (.flat reply)) thread _ rest profile ready (specDispatch ready impl) rfl evaluated
-  have returned := append run (.cons (.popCore rfl) (.refl _))
-  have entire := Plain.prepend_embedder_callout (impl := impl) (profile := profile) (ready := ready) focused calling
-    (by cases leaves : threadMayLeave start.store thread <;>
-          simpa [entered, body, effective, calloutBody, leaves] using returned)
   have replicated : labels = List.replicate labels.length .tau := List.eq_replicate_length.mpr (fun label member => by
     have tau := List.all_eq_true.mp silent label member
     cases label <;> first | rfl | contradiction)
-  refine ⟨3 + (labels.length + 1), ?_⟩
+  refine ⟨3 + (labels.length + 1), by omega, ?_⟩
   rw [List.replicate_add, List.replicate_add, ← replicated]
-  exact entire
+  intro place
+  let bumped := ((Edit.push (.core core next)).follow place).getD place
+  have push : (transitionEdit start .tau).follow place = some bumped := by
+    simp only [transitionEdit, focused, calling, bumped]
+    cases place with
+    | active activation _ => cases activation <;> rfl
+    | saved _ _ => rfl
+  have pop : (Edit.pop (E := core3 grow) (Host := HostState sig)).follow bumped = some place := by
+    cases place with
+    | active activation _ => cases activation <;> rfl
+    | saved _ _ => rfl
+  have returned := (run bumped).append (.step (.popCore rfl) pop (.done _ _))
+  have installed : calloutBody Limits.spec Quirks.none ready impl start.store thread (.embedder name kind) args =
+      (body >>= fun reply => pure (.flat reply)) := by
+    simp only [calloutBody, body, effective]
+    split <;> rfl
+  have enteredPath : Prefix profile ready (specDispatch ready impl)
+      { start with ctl := ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready impl
+        start.store thread (.embedder name kind) args), .core core next :: frames⟩ :: rest } bumped (labels ++ [.tau])
+      { start with
+        host := reached
+        ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values words)) next, frames⟩ :: rest } place := by
+    rw [installed]
+    exact returned
+  refine .step (.coreCallout focused calling) push ?_
+  refine Prefix.step (middle := bumped) (.currentThread rfl) (by cases bumped <;> rfl) ?_
+  exact .step (.get rfl) (by cases bumped <;> rfl) enteredPath
 
 private theorem trapPath (impl : HostImpl (core3 grow) (HostState sig))
     {thread core next frames rest name kind args reached reason}
@@ -1001,7 +1023,7 @@ private theorem selectionAfterEntry (request : CoreGiveRequest bindings start) {
   cases before
   exact after
 
-theorem pairedAdmissionRefusal (request : CoreGiveRequest bindings start)
+theorem pairedAdmissionRefusalTracks (request : CoreGiveRequest bindings start)
     (impl : HostImpl (core3 grow) (HostState sig))
     (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
@@ -1011,9 +1033,10 @@ theorem pairedAdmissionRefusal (request : CoreGiveRequest bindings start)
     (reads : ∀ handle, request.lookupDemand = some handle →
       Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
         Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
-    ∃ leftCount rightCount checked canonical,
-      Steps profile ready (specDispatch ready impl) start (List.replicate leftCount .tau) checked ∧
-      Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) other (List.replicate rightCount .tau) canonical ∧
+    ∃ leftCount rightCount checked canonical, 0 < leftCount ∧
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place (List.replicate leftCount .tau) checked place) ∧
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place
+        (List.replicate rightCount .tau) canonical place) ∧
       HostFrame.Related.Paired older checked canonical ∧
       checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1 ∧
       canonical.host = other.host := by
@@ -1036,12 +1059,33 @@ theorem pairedAdmissionRefusal (request : CoreGiveRequest bindings start)
   let resumed := (core3 grow).resume start.store.core request.core (.values (request.admissionReply issue).2)
   have aligned : ReturnFrame.Related.Paired older (HostFrame.replace start other.host) other := paired
   obtain ⟨frames, rest, focused, residual⟩ := aligned.push_shared_frames request.focused (.core resumed request.next) []
-  obtain ⟨leftCount, left⟩ := returnPath (profile := profile) (ready := ready) impl request.focused request.calling returned
-  obtain ⟨rightCount, right⟩ := returnPath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
+  obtain ⟨leftCount, positive, left⟩ := returnPath (profile := profile) (ready := ready) impl request.focused request.calling returned
+  obtain ⟨rightCount, _, right⟩ := returnPath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
     focused (shared ▸ request.calling) (shared ▸ rightEval)
-  refine ⟨leftCount, rightCount, _, _, left, right, ?_, rfl, rfl⟩
+  refine ⟨leftCount, rightCount, _, _, positive, left, right, ?_, rfl, rfl⟩
   change ReturnFrame.Related.Paired older _ _
   simpa only [HostFrame.replace, ← shared, resumed, List.nil_append] using residual
+
+theorem pairedAdmissionRefusal (request : CoreGiveRequest bindings start)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older start other) {issue : Issue}
+    (refused : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok (.error issue)))
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    ∃ leftCount rightCount checked canonical,
+      Steps profile ready (specDispatch ready impl) start (List.replicate leftCount .tau) checked ∧
+      Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) other (List.replicate rightCount .tau) canonical ∧
+      HostFrame.Related.Paired older checked canonical ∧
+      checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1 ∧
+      canonical.host = other.host := by
+  obtain ⟨leftCount, rightCount, checked, canonical, _, left, right, aligned, checkHost, canonHost⟩ :=
+    pairedAdmissionRefusalTracks (base := base) (profile := profile) (ready := ready) request impl embedder paired refused reads
+  exact ⟨leftCount, rightCount, checked, canonical, (left (.active 0 0)).toTrail.steps, (right (.active 0 0)).toTrail.steps,
+    aligned, checkHost, canonHost⟩
 
 private theorem selectorCallerTrap (request : CoreGiveRequest bindings start) (observer : HostState sig)
     {reason : TrapReason} (trapped : Plain.callerInstance start.store request.thread = .error (.trapped reason)) :

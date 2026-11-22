@@ -246,6 +246,29 @@ theorem LiveDispatch.CoreGiveRequest.paired_admission_refusal (request : LiveDis
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedAdmissionRefusal
     request impl embedder paired refused reads
 
+open ReturnFrame.Occurrence in
+/-- Both actual ABI refusal paths push and pop their own caller. All older
+active and saved coordinates survive with their original positions. -/
+theorem LiveDispatch.CoreGiveRequest.paired_admission_refusal_tracks (request : LiveDispatch.CoreGiveRequest bindings start)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Core.Scheduled.host (grow := grow) bindings).embedder)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older start other) {issue : Issue}
+    (refused : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok (.error issue)))
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    ∃ leftCount rightCount checked canonical, 0 < leftCount ∧
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place (List.replicate leftCount .tau) checked place) ∧
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place
+        (List.replicate rightCount .tau) canonical place) ∧
+      HostFrame.Related.Paired older checked canonical ∧
+      checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1 ∧
+      canonical.host = other.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedAdmissionRefusalTracks
+    request impl embedder paired refused reads
+
 /-- A failed arena lookup while resolving the caller is a canonical trap,
 not a refusal or journal lookup. Both sides lock down the reached store;
 the checked entry remains journaled, and neither caller receives a reply. -/

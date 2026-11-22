@@ -1667,4 +1667,27 @@ theorem RequestWorkerTail.classify_after_delivery {callees : List (ComponentCall
         bindings request reference (seen ++ PayloadPrefix.visible added) left right) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.requestWorkerTailAfterDelivery tail delivery worker
 
+/-- Consume repeated common ABI refusals in an actual finite checked run.
+The remaining run begins at the first open or unhandled request, an early
+prefix of a refusal, or a genuine scheduler boundary. -/
+theorem RequestExitOccurrences.worker_refusals {callees : List (ComponentCall.Callee sig)}
+    {request reference : Config (core3 grow) (HostState sig)} {seen : Trace grow sig}
+    (arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      request reference seen start incoming)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    RequestWorkerRefusals profile ready bindings callees older request reference seen start incoming :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.requestWorkerRefusals arrived paired
+
+/-- Trace actual checked delivery followed by a finite worker suffix,
+without assuming that any original event survives delivery. -/
+theorem RequestWorkerRefusals.after_delivery {callees : List (ComponentCall.Callee sig)}
+    {request reference delivered done : Config (core3 grow) (HostState sig)} {seen deliveryLabels workerLabels : Trace grow sig}
+    {actions outgoing}
+    (tail : RequestWorkerRefusals profile ready bindings callees older request reference seen start incoming)
+    (delivery : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees) start incoming.host
+      actions deliveryLabels delivered outgoing)
+    (worker : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) delivered workerLabels done) :
+    WorkerRefusalRun profile ready bindings callees older request reference seen start incoming (deliveryLabels ++ workerLabels) done :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.requestWorkerRefusalsAfterDelivery tail delivery worker
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

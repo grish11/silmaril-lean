@@ -3163,10 +3163,11 @@ inductive RecursiveRequestCut (profile : ProfileKind) (ready : HostReady (HostSt
   | refused {issue leftCount rightCount checked canonical}
       (verdict : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
         (start.store, start.host, .ok (.error issue)))
-      (left : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
-        start (List.replicate leftCount .tau) checked)
-      (right : Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
-        incoming (List.replicate rightCount .tau) canonical)
+      (progress : 0 < leftCount)
+      (left : ∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        start place (List.replicate leftCount .tau) checked place)
+      (right : ∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming place (List.replicate rightCount .tau) canonical place)
       (paired : HostFrame.Related.Paired older checked canonical)
       (checkedHost : checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1)
       (canonicalHost : canonical.host = incoming.host)
@@ -3240,5 +3241,63 @@ def RequestWorkerTail (profile : ProfileKind) (ready : HostReady (HostState sig)
     ClassifiedWorkerTail profile ready bindings callees older checked canonical labels finish
       (fun added left right => RequestExitOccurrences profile ready base bindings request reference
         (seen ++ PayloadPrefix.visible added) left right)
+
+/-- The residual run after replay through common ABI refusals. A short
+refusal prefix has not reached its reply; the canonical machine is still
+at the request. Admitted bodies and open hooks are separate next cuts. -/
+inductive WorkerRefusalCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) : Trace grow sig → Prop where
+  | done : WorkerRefusalCut profile ready bindings callees older left right []
+  | boundary {label remaining checked canonical}
+      (cut : HostFrame.Related.Boundary older left right label checked canonical)
+      (check : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) left label checked)
+      (live : Step profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees))) right label canonical) :
+      WorkerRefusalCut profile ready bindings callees older left right (label :: remaining)
+  | request {label remaining installed}
+      (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) left label installed)
+      (cut : DirectGiveAt bindings left ∨ ∃ request : CoreGiveRequest bindings left,
+        RecursiveRequestCut profile ready callees request older right ∧
+        ((∃ handle, request.lookupDemand = some handle ∧
+            Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
+            Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) ∨
+          (∃ reason, Plain.callerInstance left.store request.thread = .error (.trapped reason)) ∨
+          (∃ route, Nonempty (request.Selected route)) ∨
+          (∃ issue count replied, (label :: remaining).length < count ∧
+            Plain.runBody request.selectionProgram left.store left.host (some request.thread) =
+              (left.store, left.host, .ok (.error issue)) ∧
+            Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) left
+              (List.replicate count .tau) replied))) :
+      WorkerRefusalCut profile ready bindings callees older left right (label :: remaining)
+
+/-- Matched worker prefixes reach a paired cut and retain both original
+request paths. The residual is still part of the actual checked run. -/
+def WorkerRefusalRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (request reference : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (checked canonical : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  let base := ComponentCall.hostWithComponent bindings callees
+  ∃ leading canonicalLeading trailing left right,
+    labels = leading ++ trailing ∧
+    Steps profile ready (specDispatch ready base) checked leading left ∧
+    Steps profile ready (specDispatch ready (host bindings base)) canonical canonicalLeading right ∧
+    PayloadPrefix.visible canonicalLeading = PayloadPrefix.visible leading ∧
+    Steps profile ready (specDispatch ready base) left trailing finish ∧
+    HostFrame.Related.Paired older left right ∧
+    RequestExitOccurrences profile ready base bindings request reference (seen ++ PayloadPrefix.visible leading) left right ∧
+    WorkerRefusalCut profile ready bindings callees older left right trailing
+
+/-- Consume every reached common ABI refusal that finishes within the
+supplied finite worker run. -/
+def RequestWorkerRefusals (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (request reference : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (checked canonical : Config (core3 grow) (HostState sig)) : Prop :=
+  ∀ {labels finish}, Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) checked labels finish →
+    WorkerRefusalRun profile ready bindings callees older request reference seen checked canonical labels finish
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch
