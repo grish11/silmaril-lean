@@ -15,61 +15,28 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower (Object)
 
-private theorem prepareOwner_live {sig : Signature} {left right : State sig}
-    (agrees : left.LiveClaimsAgree right) (receipt : Receipt) :
-    (∃ issue, prepareOwner left receipt = .error issue ∧ prepareOwner right receipt = .error issue) ∨
-      ∃ rep lhs rhs, prepareOwner left receipt = .ok (rep, lhs) ∧ prepareOwner right receipt = .ok (rep, rhs) ∧
-        lhs.LiveClaimsAgree rhs := by
-  have observed := agrees.prepare receipt.1 (receiptId receipt)
+private theorem prepareOwner_observed {sig : Signature} {left right : State sig} (receipt : Receipt)
+    (agrees : (Spend.owner (receiptId receipt)).ObservationAgrees left right) :
+    (prepareOwner left receipt).map Prod.fst = (prepareOwner right receipt).map Prod.fst := by
+  have observed := State.prepare_observation_eq receipt.1 (receiptId receipt) agrees
   cases first : left.prepare receipt.1 (receiptId receipt) with
   | error issue =>
     cases second : right.prepare receipt.1 (receiptId receipt) with
     | error peer =>
       simp [first, second, Except.map] at observed
       subst peer
-      exact .inl ⟨.claims issue, by simp [prepareOwner, first, Except.mapError, bind, Except.bind],
-        by simp [prepareOwner, second, Except.mapError, bind, Except.bind]⟩
+      simp [prepareOwner, first, second, Except.mapError, Except.map, bind, Except.bind]
     | ok _ => simp [first, second, Except.map] at observed
   | ok result =>
-    obtain ⟨rep, lhs⟩ := result
-    obtain ⟨rhs, second, next⟩ := agrees.prepare_success first
-    by_cases equal : rep = receipt.2.representation
-    · exact .inr ⟨rep, lhs, rhs, by simp [prepareOwner, first, Except.mapError, bind, Except.bind, equal]; rfl,
-        by simp [prepareOwner, second, Except.mapError, bind, Except.bind, equal]; rfl, next⟩
-    · exact .inl ⟨.ownerReceipt, by simp [prepareOwner, first, Except.mapError, bind, Except.bind, equal]; rfl,
-        by simp [prepareOwner, second, Except.mapError, bind, Except.bind, equal]; rfl⟩
-
-theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
-    (plan : List Object) {left right : State sig} (agrees : left.LiveClaimsAgree right) :
-    prepare store left plan = prepare store right plan := by
-  induction plan generalizing left right with
-  | nil => rfl
-  | cons object rest ih =>
-    cases object with
-    | owner receipt =>
-      rcases prepareOwner_live agrees receipt with ⟨issue, first, second⟩ | ⟨rep, lhs, rhs, first, second, next⟩
-      · simp [prepare, first, second, bind, Except.bind]
-      · simpa [prepare, first, second, bind, Except.bind] using ih next
-    | shared object =>
-      cases object with
-      | endpoint channel element id =>
-        by_cases present : id ∈ right.endpoints
-        · have leftPresent := (agrees.endpoints id).mpr present
-          cases ready : Async.Transfer.readyToGive store channel element ⟨id⟩ with
-          | error _ =>
-            simp [prepare, prepareEndpoint, State.spendEndpoint, Except.mapError, leftPresent, present, ready,
-              bind, Except.bind]
-          | ok _ =>
-            simp [prepare, prepareEndpoint, State.spendEndpoint, Except.mapError, leftPresent, present, ready,
-              bind, Except.bind]
-            exact ih (agrees.spend (.endpoint id))
-        · have leftAbsent := mt (agrees.endpoints id).mp present
-          simp [prepare, prepareEndpoint, State.spendEndpoint, Except.mapError, leftAbsent, present, bind, Except.bind]
-      | errorContext id =>
-        simp only [prepare]
-        split
-        · exact ih agrees
-        · rfl
+    cases second : right.prepare receipt.1 (receiptId receipt) with
+    | error _ => simp [first, second, Except.map] at observed
+    | ok peer =>
+      obtain ⟨rep, lhs⟩ := result
+      obtain ⟨other, rhs⟩ := peer
+      simp [first, second, Except.map] at observed
+      subst other
+      by_cases equal : rep = receipt.2.representation <;>
+        simp [prepareOwner, first, second, Except.mapError, Except.map, bind, Except.bind, equal] <;> rfl
 
 private theorem after_spend {sig : Signature} {state : State sig} {spent later : Spend}
     (held : later.Live (spent.apply state)) : later ≠ spent ∧ later.Live state := by
@@ -137,6 +104,61 @@ theorem endpoint_prepared {E : CoreEngine} {sig : Signature} {store : CStore E}
       exact (Except.ok.inj checked).symm
   · simp [prepareEndpoint, State.spendEndpoint, Except.mapError, present] at checked
     cases checked
+
+theorem prepare_observations {E : CoreEngine} {sig : Signature} (store : CStore E)
+    (plan : List Object) {left right : State sig}
+    (agrees : ∀ probe ∈ exclusiveSpends plan, probe.ObservationAgrees left right) :
+    prepare store left plan = prepare store right plan := by
+  induction plan generalizing left right with
+  | nil => rfl
+  | cons object rest ih =>
+    cases object with
+    | owner receipt =>
+      have head := prepareOwner_observed receipt (agrees (.owner (receiptId receipt)) (by simp [exclusiveSpends]))
+      cases first : prepareOwner left receipt with
+      | error issue =>
+        cases second : prepareOwner right receipt with
+        | error peer =>
+          simp [first, second, Except.map] at head
+          subst peer
+          simp [prepare, first, second, bind, Except.bind]
+        | ok _ => simp [first, second, Except.map] at head
+      | ok result =>
+        cases second : prepareOwner right receipt with
+        | error _ => simp [first, second, Except.map] at head
+        | ok peer =>
+          obtain ⟨rep, lhs⟩ := result
+          obtain ⟨other, rhs⟩ := peer
+          obtain ⟨rfl, _⟩ := owner_prepared first
+          obtain ⟨rfl, _⟩ := owner_prepared second
+          simpa [prepare, first, second, bind, Except.bind] using ih
+            (fun probe member => (agrees probe (List.mem_cons_of_mem _ member)).spend (.owner (receiptId receipt)))
+    | shared object =>
+      cases object with
+      | endpoint channel element id =>
+        have same : id ∈ left.endpoints ↔ id ∈ right.endpoints := agrees (.endpoint id) (by simp [exclusiveSpends])
+        by_cases present : id ∈ right.endpoints
+        · have leftPresent := same.mpr present
+          cases ready : Async.Transfer.readyToGive store channel element ⟨id⟩ with
+          | error _ =>
+            simp [prepare, prepareEndpoint, State.spendEndpoint, Except.mapError, leftPresent, present, ready,
+              bind, Except.bind]
+          | ok _ =>
+            simp [prepare, prepareEndpoint, State.spendEndpoint, Except.mapError, leftPresent, present, ready,
+              bind, Except.bind]
+            exact ih (fun probe member => (agrees probe (List.mem_cons_of_mem _ member)).spend (.endpoint id))
+        · have leftAbsent := mt same.mp present
+          simp [prepare, prepareEndpoint, State.spendEndpoint, Except.mapError, leftAbsent, present, bind, Except.bind]
+      | errorContext id =>
+        simp only [prepare]
+        split
+        · exact ih agrees
+        · rfl
+
+theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
+    (plan : List Object) {left right : State sig} (agrees : left.LiveClaimsAgree right) :
+    prepare store left plan = prepare store right plan :=
+  prepare_observations store plan (fun probe _ => agrees.observe probe)
 
 private theorem prepared {E : CoreEngine} {sig : Signature} (store : CStore E)
     (state : State sig) (plan : List Object) (checked : prepare store state plan = .ok ()) :

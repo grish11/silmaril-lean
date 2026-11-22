@@ -41,6 +41,25 @@ theorem Spend.prepare_observation_agrees {sig : Signature} {left right : State s
     ((update.apply left).prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.prepare_after_left_spend update resource id agrees frames
 
+theorem Spend.ObservationAgrees.spend {sig : Signature} {left right : State sig} {probe : Spend}
+    (agrees : probe.ObservationAgrees left right) (update : Spend) :
+    probe.ObservationAgrees (update.apply left) (update.apply right) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.observation_after_spend agrees update
+
+theorem Spend.ObservationAgrees.left_spend {sig : Signature} {left right : State sig} {probe : Spend}
+    (agrees : probe.ObservationAgrees left right) (update : Spend) (distinct : probe ≠ update) :
+    probe.ObservationAgrees (update.apply left) right :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.observation_after_left_spend agrees update distinct
+
+theorem State.LiveClaimsAgree.observe {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (probe : Spend) : probe.ObservationAgrees left right := by
+  cases probe with | owner id => exact agrees.owners id | endpoint id => exact agrees.endpoints id
+
+theorem State.prepare_observation_eq {sig : Signature} {left right : State sig}
+    (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id) :
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.prepare_observation_eq resource id agrees
+
 theorem State.IndexedClaimsAgree.registration {sig : Signature} {left right : State sig}
     (agrees : left.IndexedClaimsAgree right) (tree : Tree sig) : left.RegistrationChecksAgree right tree :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexedClaims_registration agrees tree

@@ -145,6 +145,44 @@ private theorem findOwner_filter (held : List Receipt) (spent id : HandleObjId) 
     funext receipt
     by_cases found : receiptId receipt = id <;> simp_all
 
+theorem observation_after_spend {sig : Signature} {left right : State sig} {probe : Spend}
+    (agrees : probe.ObservationAgrees left right) (update : Spend) :
+    probe.ObservationAgrees (update.apply left) (update.apply right) := by
+  cases probe with
+  | owner id =>
+    cases update with
+    | owner spent =>
+      simp only [Spend.ObservationAgrees, State.ownerObservation, Spend.apply, findOwner_filter]
+      by_cases same : id = spent
+      · simp only [ite_eq_left same]
+      · simpa only [ite_eq_right same, Spend.ObservationAgrees, State.ownerObservation] using agrees
+    | endpoint => exact agrees
+  | endpoint id =>
+    cases update with
+    | owner => exact agrees
+    | endpoint spent =>
+      have membership : id ∈ left.endpoints ↔ id ∈ right.endpoints := agrees
+      simp only [Spend.ObservationAgrees, Spend.apply, List.mem_filter, bne_iff_ne, membership]
+
+theorem observation_after_left_spend {sig : Signature} {left right : State sig} {probe : Spend}
+    (agrees : probe.ObservationAgrees left right) (update : Spend) (distinct : probe ≠ update) :
+    probe.ObservationAgrees (update.apply left) right := by
+  cases probe with
+  | owner id =>
+    cases update with
+    | owner spent =>
+      have separate : id ≠ spent := fun same => distinct (congrArg Spend.owner same)
+      simpa only [Spend.ObservationAgrees, State.ownerObservation, Spend.apply, findOwner_filter,
+        ite_eq_right separate] using agrees
+    | endpoint => exact agrees
+  | endpoint id =>
+    cases update with
+    | owner => exact agrees
+    | endpoint spent =>
+      have separate : id ≠ spent := fun same => distinct (congrArg Spend.endpoint same)
+      exact ⟨fun member => agrees.mp (List.mem_filter.mp member).1,
+        fun member => List.mem_filter.mpr ⟨agrees.mpr member, bne_iff_ne.mpr separate⟩⟩
+
 theorem liveClaims_spend {sig : Signature} {left right : State sig}
     (agrees : left.LiveClaimsAgree right) (update : Spend) :
     (update.apply left).LiveClaimsAgree (update.apply right) := by
@@ -191,10 +229,15 @@ private theorem prepare_observation {sig : Signature} (state : State sig) (resou
   | none => rfl
   | some receipt => by_cases typed : receipt.1 = resource <;> simp [Except.map, typed]
 
+theorem prepare_observation_eq {sig : Signature} {left right : State sig}
+    (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id) :
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
+  rw [prepare_observation, prepare_observation, agrees]
+
 theorem liveClaims_prepare {sig : Signature} {left right : State sig}
     (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
-    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
-  rw [prepare_observation, prepare_observation, agrees.owners]
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
+  prepare_observation_eq resource id (agrees.owners id)
 
 theorem prepare_after_left_spend {sig : Signature} {left right : State sig} (update : Spend)
     (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id)

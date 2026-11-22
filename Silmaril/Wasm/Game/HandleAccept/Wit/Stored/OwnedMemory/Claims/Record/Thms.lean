@@ -55,6 +55,14 @@ theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
     prepare store left plan = prepare store right plan :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_live store plan agrees
 
+/-- A compiled plan reads only its own nominal claims. Prospective spends on
+both sides preserve agreement for the remaining demands, including duplicates. -/
+theorem prepare_observations {E : CoreEngine} {sig : Signature} (store : CStore E)
+    (plan : List RecordLower.Object) {left right : State sig}
+    (agrees : ∀ probe ∈ exclusiveSpends plan, probe.ObservationAgrees left right) :
+    prepare store left plan = prepare store right plan :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_observations store plan agrees
+
 theorem owner_prepared {sig : Signature} {state next : State sig} {receipt : Receipt} {rep : Nat}
     (checked : prepareOwner state receipt = .ok (rep, next)) :
     next = (Spend.owner (receiptId receipt)).apply state ∧ (Spend.owner (receiptId receipt)).Live state :=

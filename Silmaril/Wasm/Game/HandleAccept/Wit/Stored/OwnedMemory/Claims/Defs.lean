@@ -97,6 +97,13 @@ def State.ownerObservation {sig : Signature} (state : State sig) (id : HandleObj
   (state.held.find? (fun receipt => receiptId receipt == id)).map (fun receipt =>
     (receipt.1, receipt.2.representation))
 
+/-- Live equality at one nominal claim. A different owner or endpoint may have
+been consumed, and the two acceptance histories need not agree. -/
+def Spend.ObservationAgrees {sig : Signature} (probe : Spend) (left right : State sig) : Prop :=
+  match probe with
+  | .owner id => left.ownerObservation id = right.ownerObservation id
+  | .endpoint id => id ∈ left.endpoints ↔ id ∈ right.endpoints
+
 /-- Ordered accepted observations and live authority agree; the underlying
 claim lists (and any surrounding host journals) need not be equal. -/
 structure State.LiveClaimsAgree {sig : Signature} (left right : State sig) : Prop where

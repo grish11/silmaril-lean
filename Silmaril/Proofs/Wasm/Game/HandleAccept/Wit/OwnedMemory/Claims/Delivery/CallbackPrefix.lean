@@ -736,6 +736,25 @@ theorem compareReachedRecordPrepare {changes : ReturnFrame.Substitutions (core3 
   obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next observed)
   exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
+open Stored.OwnedMemory.Claims.Record in
+theorem compareReachedRecordPrepareAfterLeaf {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (plan : List Object) (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label update} {left right : HostState sig}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (flow : ExclusiveLeafWriterFlow update left right start.host incoming.host)
+    (before : left.writer.LiveClaimsAgree right.writer) (disjoint : update ∉ exclusiveSpends plan) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      ExclusiveLeafWriterFlow update left right finish.host peer.host := by
+  have observed : prepare start.store start.host.writer plan = prepare start.store incoming.host.writer plan := by
+    rw [flow.checkedHost, flow.canonicalHost]
+    exact prepare_observations start.store plan (fun probe member => (before.observe probe).left_spend update
+      (fun equal => disjoint (equal ▸ member)))
+  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next observed)
+  exact ⟨peer, compared, by rwa [lhs, rhs]⟩
+
 theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label middle trailing}
     (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)

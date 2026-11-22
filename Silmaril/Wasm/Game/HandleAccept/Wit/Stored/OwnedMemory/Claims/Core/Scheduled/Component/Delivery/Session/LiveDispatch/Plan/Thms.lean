@@ -73,6 +73,24 @@ theorem compareReachedRecordPrepare (plan : List Object)
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedRecordPrepare
     plan next focus step paired agrees
 
+open Stored.OwnedMemory.Claims.Record in
+/-- An executed prepare read disjoint from the leaf's checked-only spend sees
+the same result from the actual writers. The read commits neither dry run and
+retains the asymmetric writer flow and all locations. -/
+theorem compareReachedRecordPrepareAfterLeaf (plan : List Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label update} {left right : HostState sig}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (flow : ExclusiveLeafWriterFlow update left right start.host incoming.host)
+    (before : left.writer.LiveClaimsAgree right.writer) (disjoint : update ∉ exclusiveSpends plan) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [label] [label] finish peer ∧
+      ExclusiveLeafWriterFlow update left right finish.host peer.host :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedRecordPrepareAfterLeaf
+    plan next focus step paired flow before disjoint
+
 /-- The scheduled spend commits the identity-specific update to each reached writer.
 The continuation sees separate journals and no restored claim. -/
 theorem compareClaimSpend (update : Spend) (next : Session grow sig (Ret (core3 grow))) {thread frames rest}
