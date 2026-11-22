@@ -893,7 +893,7 @@ private theorem compareReachedHostUpdate {changes : ReturnFrame.Substitutions (c
       cases place <;> rfl
     · cases place <;> rfl
 
-theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+theorem compareReachedHostAssignment {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread read frames rest left right next}
     (focus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest)
     (paired : HostFrame.Related.Paired changes start incoming)
@@ -903,6 +903,30 @@ theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 
       { start with host := left, ctl := ⟨thread, .prog next, frames⟩ :: rest } peer := by
   obtain ⟨peer, executed, _⟩ := compareReachedHostUpdate focus paired checked canonical
   exact ⟨peer, executed⟩
+
+theorem comparePendingHostAssignment {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread read frames rest left right next label}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (checked : read start.host = .op (.hostSet left) (fun _ => next))
+    (canonical : read incoming.host = .op (.hostSet right) (fun _ => next)) :
+    CallbackSliceEnd profile ready base bindings changes start incoming [label] finish := by
+  obtain ⟨rfl, rfl⟩ := actualHostGet focus step
+  obtain ⟨peerFrames, peerRest, atPeer, _⟩ := paired.retarget focus (.prog next) start.host incoming.host
+  refine .pendingAssignment (right := { incoming with ctl := ⟨thread, .prog (read incoming.host), peerFrames⟩ :: peerRest })
+    (leftTarget := left) (rightTarget := right) (next := next)
+    ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩ ?_ ?_ (stationaryTransport ?_ ?_) ⟨rfl, rfl⟩
+  · simp only [PayloadPrefix.Cursor.control, checked]
+  · simp only [PayloadPrefix.Cursor.control, canonical]
+  · intro place
+    refine .step (.hostGet focus) ?_ (.done _ _)
+    rw [transitionEdit, focus]
+    cases place <;> rfl
+  · intro place
+    refine .step (.hostGet atPeer) ?_ (.done _ _)
+    rw [transitionEdit, atPeer]
+    cases place <;> rfl
 
 theorem compareClaimSpend {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (update : Spend) (next : Session grow sig (Ret (core3 grow))) {thread frames rest}

@@ -2458,11 +2458,11 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
           exact ⟨leading ++ [label] ++ checked, leading ++ [label] ++ canonical, trailing, lhs, rhs,
             by rw [split, used]; simp only [List.append_assoc, List.cons_append, List.nil_append],
             CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front read) continued, ending⟩
-        · by_cases journal : ∃ left right next,
+        · by_cases assignment : ∃ left right next,
               resume reached.host = .op (.hostSet left) (fun _ => next) ∧
                 resume peer.host = .op (.hostSet right) (fun _ => next)
-          · obtain ⟨left, right, nextProgram, checkedWrite, canonicalWrite⟩ := journal
-            obtain ⟨afterWrite, compared⟩ := CallbackPrefix.compareReachedJournalUpdate focus front.paired checkedWrite canonicalWrite
+          · obtain ⟨left, right, nextProgram, checkedWrite, canonicalWrite⟩ := assignment
+            obtain ⟨afterWrite, compared⟩ := CallbackPrefix.compareReachedHostAssignment focus front.paired checkedWrite canonicalWrite
             rcases splitSilent (count := 2) compared.checkedRun.steps (.cons step tail) with ⟨remaining, consumed, actual⟩ | _
             · have decreases : remaining.length < budget := by
                 rw [← size, split, consumed, List.length_append, List.length_append, List.length_replicate]
@@ -2472,7 +2472,12 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
               exact ⟨leading ++ [.tau, .tau] ++ checked, leading ++ [.tau, .tau] ++ canonical, trailing, lhs, rhs,
                 by rw [split, consumed, used]; simp only [List.replicate_succ, List.replicate_zero, List.append_assoc],
                 CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front compared) continued, ending⟩
-            · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
+            · rename_i short
+              cases trailing with
+              | nil =>
+                cases tail
+                exact stop (CallbackPrefix.comparePendingHostAssignment focus step front.paired checkedWrite canonicalWrite)
+              | cons => simp only [List.length_cons] at short; omega
           · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
       | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
       | componentInstall focus =>
@@ -2522,6 +2527,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | observation _ _ paths tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentRegistrationMismatch _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
@@ -2555,6 +2561,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
+  | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentRegistrationMismatch _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]

@@ -845,6 +845,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] next otherNext)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  | pendingAssignment {changes reached peer left right leftTarget rightTarget next}
+      (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+      (checked : left.ctl = check.control (.op (.hostSet leftTarget) (fun _ => next)))
+      (canonical : right.ctl = canon.control (.op (.hostSet rightTarget) (fun _ => next)))
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right)
+      (writers : left.host.writer = reached.host.writer ∧ right.host.writer = peer.host.writer) :
+      CallbackSliceEnd profile ready base bindings changes reached peer [.tau] left
   | componentRegistrationMismatch {changes wider reached peer left right leading trailing finish mark}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket caller tree}
       (mismatch : ReachedRegistrationMismatch profile ready base bindings left right check canon leftTicket rightTicket caller tree)
