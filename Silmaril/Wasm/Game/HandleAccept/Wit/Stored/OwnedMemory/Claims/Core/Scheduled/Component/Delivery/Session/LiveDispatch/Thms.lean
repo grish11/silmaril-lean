@@ -60,6 +60,21 @@ theorem LiveDispatch.entry_paired_tracks (site : Site grow sig route) (linked : 
       HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedEntryTracks site linked paired selected
 
+/-- The selected entry performs one segment-storage push; the following
+selector reads install the body without editing active or saved slots. -/
+theorem LiveDispatch.entry_paired_storage (site : Site grow sig route) (linked : site.Linked bindings)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start other)
+    (selected : Stored.Endpoints.Core.childFromHistory other.host.writer.accepted site.handle = some site.tree) :
+    ∃ labels entered,
+      labels.all (· matches .tau) = true ∧
+      (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        other place labels entered (site.entryPlace place)) ∧
+      HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host ∧
+      ReturnFrame.Occurrence.segmentStorage entered = (ReturnFrame.Occurrence.Edit.push (.core site.core site.resume)).apply
+        (ReturnFrame.Occurrence.segmentStorage other) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pairedEntryStorage site linked paired selected
+
 /-- A same-instance public give reached in a confined allocator callback
 returns boundary refusal words without consulting the canonical host's
 journal. Both active and saved older frames remain paired. -/

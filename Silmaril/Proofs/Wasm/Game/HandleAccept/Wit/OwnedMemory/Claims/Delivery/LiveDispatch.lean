@@ -156,7 +156,7 @@ theorem entry (site : Site grow sig route) (linked : site.Linked bindings) (othe
   obtain ⟨labels, silent, run⟩ := entryTracks (profile := profile) (ready := ready) (base := base) site linked other selected
   exact ⟨labels, silent, (prefix_survives (run (.active 0 0))).1⟩
 
-theorem pairedEntryTracks (site : Site grow sig route) (linked : site.Linked bindings)
+theorem pairedEntryStorage (site : Site grow sig route) (linked : site.Linked bindings)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : State grow sig}
     (paired : HostFrame.Related.Paired older site.start other)
     (selected : Stored.Endpoints.Core.childFromHistory other.host.writer.accepted site.handle = some site.tree) :
@@ -164,7 +164,8 @@ theorem pairedEntryTracks (site : Site grow sig route) (linked : site.Linked bin
       labels.all (· matches .tau) = true ∧
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
         (((Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
-      HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host := by
+      HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host ∧
+      segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage other) := by
   have related : ReturnFrame.Related.Paired older (HostFrame.replace site.start other.host) other := paired
   obtain ⟨frames, rest, focused, residual⟩ := related.push_shared linked.parked
     (.prog (site.referenceProgram >>= site.referenceReply)) (.core site.core site.resume)
@@ -181,7 +182,21 @@ theorem pairedEntryTracks (site : Site grow sig route) (linked : site.Linked bin
       admitted := linked.admitted
       compiled := linked.compiled }
   obtain ⟨labels, silent, path⟩ := entryTracks (profile := profile) (ready := ready) (base := base) shadow shadowLinked other.host selected
-  exact ⟨labels, _, silent, path, residual, rfl⟩
+  refine ⟨labels, _, silent, path, residual, rfl, ?_⟩
+  simp only [shadow, HostFrame.replace, Site.reference, Site.cursor, PayloadPrefix.Cursor.control, segmentStorage,
+    focused, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
+
+theorem pairedEntryTracks (site : Site grow sig route) (linked : site.Linked bindings)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : State grow sig}
+    (paired : HostFrame.Related.Paired older site.start other)
+    (selected : Stored.Endpoints.Core.childFromHistory other.host.writer.accepted site.handle = some site.tree) :
+    ∃ labels entered,
+      labels.all (· matches .tau) = true ∧
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
+        (((Edit.push (.core site.core site.resume)).follow place).getD place)) ∧
+      HostFrame.Related.Paired older (site.reference site.referenceReply) entered ∧ entered.host = other.host := by
+  obtain ⟨labels, entered, silent, path, residual, hostSame, _⟩ := pairedEntryStorage site linked paired selected
+  exact ⟨labels, entered, silent, path, residual, hostSame⟩
 
 theorem pairedEntry (site : Site grow sig route) (linked : site.Linked bindings)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : State grow sig}

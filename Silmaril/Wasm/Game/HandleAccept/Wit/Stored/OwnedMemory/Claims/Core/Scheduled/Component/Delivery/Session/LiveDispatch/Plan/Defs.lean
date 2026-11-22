@@ -2872,6 +2872,44 @@ def LinkedMemoryOccurrenceBody (profile : ProfileKind) (ready : HostReady (HostS
       (fun seen left right _ _ => PublicOccurrenceExit profile ready base bindings older site entered (.ok ()) seen left right)
       [] site.checked entered site.cursor peer
 
+/-- At a successful body endpoint, carry every older occurrence from the
+original request. Only the reached original caller at the top licenses
+the checked completion and common Core return. -/
+def PublicSuccessTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (incoming entered : Config (core3 grow) (HostState sig))
+    (checkEntry canonEntry : Trace grow sig) (value : route.output.Result) (seen : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∃ checkBody canonBody mark,
+    PayloadPrefix.visible checkBody = seen ∧ PayloadPrefix.visible canonBody = seen ∧
+    OccurrenceTransport profile ready base bindings site.start incoming (checkEntry ++ checkBody) (canonEntry ++ canonBody)
+      left right [mark] ∧
+    Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
+    Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+    (mark = some (.active 0 0) → ∃ checked canonical,
+      checked.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
+      canonical.host = right.host ∧ HostFrame.Related.Paired older checked canonical ∧
+      OccurrenceTransport profile ready base bindings site.start incoming
+        ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical)
+
+/-- The checked entry prefix here is the one supplied by the placed branch
+of the public cut. No separate body or callback return plan is requested. -/
+def LinkedMemoryTransportBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ canonLabels entered peer, PayloadPrefix.visible canonLabels = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
+    ∀ checkLabels, site.EntryPrefix profile ready base checkLabels site.checked →
+      recursiveAllocatingTransportPaths profile ready base bindings older site.destination site.inst site.checked entered
+        (publicOccurrenceSink profile ready base bindings older site entered) (sig.payload site.tag)
+        site.field 0 (flatNat pointer) site.reply site.referenceReply
+        (fun seen left right _ _ => PublicSuccessTransport profile ready base bindings older site incoming entered
+          checkLabels canonLabels () seen left right) [] site.checked entered site.cursor peer
+
 /-- The actual range verdict after an allocator return. A late reservation
 refusal runs only the checked completion; canonical is at child entry with
 the reached store, before any element write or descriptor publication. -/

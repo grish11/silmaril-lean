@@ -1096,6 +1096,18 @@ theorem string_map_entry_occurrence_transport {destination : RecordDestination} 
       field value index slot checkNext canonNext seen left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryTransport leading run next
 
+/-- Start the all-location induction from the actual compiler and linked
+entry, then execute the original Core caller's successful return only if
+its installed occurrence survives at the reached reply slot. -/
+theorem linked_memory_transport_body {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryTransportBody profile ready base bindings older site incoming) base :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedMemoryTransportBody site linked family paired selected embedder
+
 /-- Derive every child lift by induction on the compiled recursive memory
 schema, including heterogeneous fields and the selected sum arm. No child
 histories are supplied as premises. -/

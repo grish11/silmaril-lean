@@ -4046,6 +4046,124 @@ theorem linkedMemoryOccurrenceBody {pointer : FlatValue} (site : PayloadRoot.Sit
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ tracks _ ⟨paired, checkAt, canonicalAt⟩ =>
         publicOccurrenceRejoin site () tracks paired checkAt canonicalAt)
 
+private theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) {incoming entered : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry : Trace grow sig}
+    (checked : site.EntryPrefix profile ready base checkEntry site.checked)
+    (reference : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonEntry entered (site.entryPlace place))
+    (storage : segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage incoming)) :
+    OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
+      [some (.active 0 0)] := by
+  refine ⟨Option.map Location.pushed, ?_, ?_⟩
+  · intro mark
+    cases mark with
+    | none => exact ⟨.absent (checked (.active 0 0)).toTrail.steps, .absent (reference (.active 0 0)).toTrail.steps⟩
+    | some place =>
+      have pushed : site.entryPlace place = place.pushed := by
+        cases place with
+        | active activation segment => cases activation <;> rfl
+        | saved slot segment => rfl
+      exact ⟨by simpa only [Option.map_some, pushed] using (checked place).toTrail,
+        by simpa only [Option.map_some, pushed] using (reference place).toTrail⟩
+  · intro retained marks previous
+    have pushed : segmentStorage site.checked = (Edit.push (.core site.core site.resume)).apply (segmentStorage site.start) := by
+      simp only [segmentStorage, PayloadRoot.Site.checked, PayloadRoot.Site.withBody, PayloadRoot.Site.cursor,
+        Cursor.control, linked.parked, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
+    rw [pushed, storage]
+    exact previous.push _ _
+
+private theorem publicSuccessTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {incoming entered left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkEntry canonEntry observed : Trace grow sig} (value : route.output.Result)
+    (entry : OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
+      [some (.active 0 0)])
+    (history : ComparedOccurrenceTransport profile ready base bindings site.checked entered observed left right)
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (checkAt : left.ctl = check.control (site.reply (.ok value)))
+    (canonAt : right.ctl = canon.control (site.referenceReply value)) :
+    PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry value observed left right := by
+  obtain ⟨checkBody, canonBody, body, checkSeen, canonSeen, _⟩ := history
+  obtain ⟨move, combined, tracks⟩ := CallbackPrefix.transportAppend entry body
+  obtain ⟨checkMark, canonMark⟩ := tracks (some (.active 0 0))
+  refine ⟨checkBody, canonBody, move (some (.active 0 0)), checkSeen, canonSeen, combined, checkMark, canonMark, ?_⟩
+  intro atTop
+  rw [atTop] at checkMark
+  obtain ⟨_, same, original⟩ := checkMark.survives
+  cases same
+  obtain ⟨checkFrames, checkCaller⟩ := site.reached_caller checkAt original
+  have paired := frame.frames
+  rw [checkCaller] at paired
+  have top {frames} (matched : List.Forall₂ (ReturnFrame.Related.Segment older)
+      (.core site.core site.resume :: checkFrames) frames) : ∃ rest,
+      frames = .core site.core site.resume :: rest ∧ List.Forall₂ (ReturnFrame.Related.Segment older) checkFrames rest := by
+    cases matched with
+    | cons head tail => cases head with | same => exact ⟨_, rfl, tail⟩
+  obtain ⟨canonFrames, canonCaller, tails⟩ := top paired
+  rw [Cursor.control, checkCaller] at checkAt
+  rw [Cursor.control, ← frame.thread, canonCaller] at canonAt
+  simp only [List.nil_append, List.map_cons, List.map_nil, atTop] at combined
+  let reply := route.reply site.destination site.start.host.nextTicket (.ok value)
+  have returned := CallbackPrefix.transportCoreCompletion (reply := reply) checkAt canonAt combined
+  let checked := { left with
+    host := left.host.record reply.1
+    ctl := ⟨check.thread, .core ((core3 grow).resume left.store.core site.core (.values reply.2)) site.resume, checkFrames⟩ :: check.rest }
+  let canonical := { right with
+    ctl := ⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest }
+  refine ⟨checked, canonical, rfl, rfl, ?_, returned⟩
+  have pair {lhs rhs : Config (core3 grow) (HostState sig)} (store : lhs.store = rhs.store)
+      (pending : lhs.pending = rhs.pending) (results : lhs.results = rhs.results) (cancels : lhs.cancels = rhs.cancels)
+      (active : List.Forall₂ (ReturnFrame.Related.Active older) lhs.ctl rhs.ctl)
+      (blocked : List.Forall₂ (ReturnFrame.Related.Saved older) lhs.conts rhs.conts) : HostFrame.Related.Paired older lhs rhs := by
+    cases lhs
+    cases rhs
+    dsimp only at *
+    subst_vars
+    exact .mk active blocked
+  apply pair (lhs := checked) (rhs := canonical) frame.store frame.pending frame.results frame.cancels _ frame.blocked
+  change List.Forall₂ (ReturnFrame.Related.Active older)
+    (⟨check.thread, .core ((core3 grow).resume left.store.core site.core (.values reply.2)) site.resume, checkFrames⟩ :: check.rest)
+    (⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest)
+  rw [frame.store]
+  exact .cons (.mk tails) frame.rest
+
+theorem linkedMemoryTransportBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryTransportBody profile ready base bindings older site incoming) base := by
+  refine site.parked_after_admission linked _ (fun fits placed _ => ?_) base embedder
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+  have source : CollectionSource site.destination site.field (sig.payload site.tag) :=
+    ⟨matched, Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits, preflightAllocator site linked⟩
+  obtain ⟨labels, entered, quiet, installed, aligned, hostSame, storage⟩ :=
+    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨peer, frame, canonAt⟩ := referenceFrame site (site.reference_at linked site.referenceReply) aligned
+  have width := site.destination.check_width site.start.store linked.destination
+  have position : placement site.destination site.checked.store (layout site.destination.width site.field.type) (flatNat pointer) = .ok () :=
+    matched.type_eq.symm ▸ placed
+  have compiledBody := collectionFieldRule (profile := profile) (ready := ready) (base := base) (older := older)
+    (origin := site.checked.store) site.destination site.inst family site.field (flatNat pointer)
+    matched linked.emitted source (.self _) embedder
+  have body := compiledBody 0 site.reply site.referenceReply site.checked entered site.cursor peer frame
+    (Core3.Grows.refl _) width position rfl canonAt (MemoryRootFinish older site)
+    (fun _ _ _ _ linkedFrame _ checkAt canonicalAt => ⟨linkedFrame, checkAt, canonicalAt⟩)
+  refine ⟨labels, entered, peer, silent ?_, installed, hostSame, ?_⟩
+  · intro label member
+    have tau := List.all_eq_true.mp quiet label member
+    cases label <;> simp_all
+  · intro checkLabels checked
+    have entry := publicEntryTransport site linked checked installed storage
+    exact RecursiveTrails.recursiveAllocatingTransport (publicOccurrenceCovers (older := older) site entered) family
+      site.field 0 (flatNat pointer) _ _ _ _ site.reply site.referenceReply _ _ [] body
+      ⟨[], [], CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), rfl, rfl, frame.store⟩ frame.store
+      (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ reached _ ⟨endFrame, checkAt, referenceAt⟩ =>
+        publicSuccessTransport site () entry reached endFrame checkAt referenceAt)
+
 private theorem collectionReturnFailure {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (type element : Stored.TypeOf) (entries : List Field) (pointer : Nat)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}

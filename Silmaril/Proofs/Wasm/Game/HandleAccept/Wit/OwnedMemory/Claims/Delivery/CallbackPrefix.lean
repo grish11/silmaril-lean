@@ -807,6 +807,48 @@ theorem transportAllocatorPop {leftStart rightStart left right : Config (core3 g
     simpa only [List.singleton_append, List.nil_append, List.map_cons, List.map_map, gone, outsideMarks_drop_lost]
       using (invariant retained marks previous).edit (.pop : Edit (core3 grow) (HostState sig))
 
+theorem transportCoreCompletion {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
+    {checkTrace canonTrace : Trace grow sig} {reply : Event × List FlatValue}
+    {thread core resume leftFrames rightFrames leftRest rightRest}
+    (checkAt : left.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core resume :: leftFrames⟩ :: leftRest)
+    (canonAt : right.ctl = ⟨thread, .prog (.pure (.flat reply.2)),
+      .core core resume :: rightFrames⟩ :: rightRest)
+    (paths : OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace left right [some (.active 0 0)]) :
+    OccurrenceTransport profile ready base bindings leftStart rightStart (checkTrace ++ [.tau, .tau, .tau]) (canonTrace ++ [.tau])
+      { left with host := left.host.record reply.1
+                  ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values reply.2)) resume, leftFrames⟩ :: leftRest }
+      { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values reply.2)) resume, rightFrames⟩ :: rightRest } := by
+  obtain ⟨move, trails, invariant⟩ := paths
+  let drop := fun mark : Option Location => mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow
+  refine ⟨drop ∘ move, ?_, ?_⟩
+  · intro mark
+    obtain ⟨lhs, rhs⟩ := trails mark
+    cases atMark : move mark with
+    | none =>
+      rw [atMark] at lhs rhs
+      simp only [Function.comp_apply, atMark]
+      exact ⟨lhs.append (.absent (Plain.give_completion_steps reply checkAt)),
+        rhs.append (.absent (.cons (.popCore canonAt) (.refl _)))⟩
+    | some place =>
+      rw [atMark] at lhs rhs
+      simp only [Function.comp_apply, atMark]
+      exact ⟨lhs.append (Plain.give_completion_trail reply place checkAt), rhs.append (Trail.pop_core place canonAt)⟩
+  · intro retained marks previous
+    have leftStorage : segmentStorage
+        { left with host := left.host.record reply.1
+                    ctl := ⟨thread, .core ((core3 grow).resume left.store.core core (.values reply.2)) resume, leftFrames⟩ :: leftRest } =
+        (Edit.pop : Edit (core3 grow) (HostState sig)).apply (segmentStorage left) := by
+      simp only [segmentStorage, checkAt, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
+    have rightStorage : segmentStorage
+        { right with ctl := ⟨thread, .core ((core3 grow).resume right.store.core core (.values reply.2)) resume, rightFrames⟩ :: rightRest } =
+        (Edit.pop : Edit (core3 grow) (HostState sig)).apply (segmentStorage right) := by
+      simp only [segmentStorage, canonAt, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
+    rw [leftStorage, rightStorage]
+    have gone : (some (Location.active 0 0)).bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow = none := rfl
+    simpa only [List.singleton_append, List.nil_append, List.map_cons, List.map_map, gone, outsideMarks_drop_lost]
+      using (invariant retained marks previous).edit (.pop : Edit (core3 grow) (HostState sig))
+
 theorem pop {checkEntry canonEntry : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
     {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)}
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
