@@ -947,7 +947,7 @@ theorem rejoinPublished {route : GiveEffectRoute} (site : PayloadRoot.Site grow 
   obtain ⟨checkLabels, canonLabels, checkTracks, canonTracks, checkSeen, canonSeen⟩ := leading
   have terminal : CollectionSegment profile ready base bindings older left right check site.reply site.referenceReply 0
       (fun _ => False) := by
-    obtain ⟨store, outcome, labels, observed, lhs, rhs, _, continuation⟩ := publish
+    obtain ⟨store, outcome, labels, observed, lhs, rhs, _, _, continuation⟩ := publish
     cases outcome with
     | error reason =>
       exact ⟨canon, .trapped reason, labels, labels, _, _, lhs.steps, rhs.steps, rfl, rfl, rfl, rfl, [], leafTrap observed⟩
@@ -1076,11 +1076,11 @@ theorem livePublish (destination : RecordDestination) (inst : InstId) (pointer c
     (leftAt : left.ctl = check.control (ListLower.publish (destination.context inst) destination.width pointer count output >>= fun value => checkNext (.ok value)))
     (rightAt : right.ctl = canon.control (ListLower.publish (destination.context inst) destination.width pointer count output >>= canonNext)) :
     LiveListPublish profile ready base bindings output checkNext canonNext finish left right check canon := by
-  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, occurrences⟩ :=
+  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, path, occurrences⟩ :=
     collection_descriptor_occurrences_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) (destination.context inst) destination.width
       output pointer count left right check canon (fun value => checkNext (.ok value)) canonNext paired.store leftAt rightAt
-  refine ⟨store, result, labels, observed, lhsRun, rhsRun, CallbackPrefix.localLeafTransport occurrences, ?_⟩
+  refine ⟨store, result, labels, observed, lhsRun, rhsRun, path, CallbackPrefix.localLeafTransport occurrences, ?_⟩
   intro value returned
   have chain := kept.trans lhsRun.grows
   subst result
@@ -2080,7 +2080,7 @@ private theorem stringMapSlotRule (destination : RecordDestination) (inst : Inst
       width sized aligned bounds valid checkNext canonNext frame growth embedder checkAt canonAt
     refine ⟨key, rfl, mapStringKeyFinish _ _ _ _ _ _ ?_ keyRun⟩
     intro address lhs rhs cursor peer reached
-    obtain ⟨related, kept, store, result, labels, observed, checkRun, canonRun, tracks, occurrences⟩ := reached
+    obtain ⟨related, kept, store, result, labels, observed, checkRun, canonRun, tracks, _, occurrences⟩ := reached
     refine ⟨store, result, labels, observed, checkRun, canonRun, CallbackPrefix.localLeafTransport occurrences, ?_⟩
     cases result with
     | error reason => exact True.intro
@@ -2203,11 +2203,11 @@ private theorem stringValueCommitWith (cx : LiftLowerContext (core3 grow)) (widt
       Core3.Grows left.store.core lhs.store.core →
       lhs.ctl = check.control (checkNext (.ok value)) → rhs.ctl = canon.control (canonNext value) → published value lhs rhs check canon) :
     LiveValueCommit profile ready base bindings output checkNext canonNext published left right check canon := by
-  obtain ⟨store, outcome, labels, seen, checked, reference, tracks, occurrences⟩ := string_descriptor_occurrences
+  obtain ⟨store, outcome, labels, seen, checked, reference, tracks, path, occurrences⟩ := string_descriptor_occurrences
     (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     (reference := specDispatch ready (LiveDispatch.host bindings base)) cx width output plan pointer left right check canon
     (fun value => checkNext (.ok value)) canonNext frame.store checkAt canonAt
-  refine ⟨store, outcome, labels, seen, checked, reference, CallbackPrefix.localLeafTransport occurrences, ?_⟩
+  refine ⟨store, outcome, labels, seen, checked, reference, path, CallbackPrefix.localLeafTransport occurrences, ?_⟩
   intro value equal
   subst outcome
   exact ⟨fun depth => (tracks value rfl depth).1, fun depth => (tracks value rfl depth).2,
@@ -2266,7 +2266,7 @@ private theorem stringFieldThen (destination : RecordDestination) (inst : InstId
   let plan := storePlanFor Quirks.none destination.encoding destination.width str.value
   refine ⟨str, rfl, stringValueThen destination inst str output source path embedder frame growth width placed checkAt canonAt ?_⟩
   intro pointer lhs rhs cursor peer paired grew _ checkAt canonAt
-  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, trails⟩ :=
+  obtain ⟨store, result, labels, observed, lhsRun, rhsRun, tracks, _, trails⟩ :=
     string_descriptor_occurrences cx destination.width output plan pointer lhs rhs cursor peer
       (fun result => checkNext (.ok result)) canonNext paired.store checkAt canonAt
   refine ⟨store, result, labels, labels, lhsRun.steps, rhsRun.steps, rfl, CallbackPrefix.localLeafTransport trails, ?_⟩
@@ -2613,14 +2613,14 @@ private theorem flatStringPaths (destination : RecordDestination) (inst : InstId
   have body := stringValueThen (profile := profile) (ready := ready) (base := base) (origin := origin)
     destination inst str .flat source path embedder frame growth (growth.memAddrType memoryWidth) rfl checkAt canonAt
     (finish := commit) (fun pointer lhs rhs cursor peer related grew lhsAt rhsAt => by
-      obtain ⟨store, outcome, labels, seen, checked, canonical, occurrences, continued⟩ :=
+      obtain ⟨store, outcome, labels, seen, checked, canonical, path, occurrences, continued⟩ :=
         stringValueCommit (destination.context inst) destination.width .flat _ pointer related lhsAt rhsAt
-      exact ⟨store, outcome, labels, seen, checked, canonical, occurrences, fun value equal =>
+      exact ⟨store, outcome, labels, seen, checked, canonical, path, occurrences, fun value equal =>
         let ⟨checkTracks, canonTracks, after⟩ := continued value equal
         ⟨checkTracks, canonTracks, after, grew.trans checked.grows⟩⟩)
   refine ⟨str, rfl, CallbackPrefix.stringValuePaths leading body ?_⟩
   intro _ lhs rhs cursor peer observed published tracks
-  obtain ⟨store, outcome, labels, seen, checked, canonical, _, continued⟩ := published
+  obtain ⟨store, outcome, labels, seen, checked, canonical, _, _, continued⟩ := published
   cases outcome with
   | error reason =>
     have trap := leafTrap seen
@@ -2727,9 +2727,9 @@ private theorem flatStringOccurrences (destination : RecordDestination) (inst : 
   have body := stringValueThen (profile := profile) (ready := ready) (base := base) (origin := origin)
     destination inst str .flat source path embedder frame growth (growth.memAddrType memoryWidth) rfl checkAt canonAt
     (finish := commit) (fun pointer lhs rhs cursor peer related grew lhsAt rhsAt => by
-      obtain ⟨store, outcome, labels, seen, checked, canonical, occurrences, continued⟩ :=
+      obtain ⟨store, outcome, labels, seen, checked, canonical, path, occurrences, continued⟩ :=
         stringValueCommit (destination.context inst) destination.width .flat _ pointer related lhsAt rhsAt
-      refine ⟨store, outcome, labels, seen, checked, canonical, occurrences, ?_⟩
+      refine ⟨store, outcome, labels, seen, checked, canonical, path, occurrences, ?_⟩
       intro value equal
       subst outcome
       obtain ⟨checkTracks, canonTracks, after⟩ := continued value rfl
@@ -2797,9 +2797,9 @@ private theorem flatStringTransport (destination : RecordDestination) (inst : In
   have body := stringValueThen (profile := profile) (ready := ready) (base := base) (origin := origin)
     destination inst str .flat source path embedder frame growth (growth.memAddrType memoryWidth) rfl checkAt canonAt
     (finish := commit) (fun pointer lhs rhs cursor peer related grew lhsAt rhsAt => by
-      obtain ⟨store, outcome, labels, seen, checked, canonical, occurrences, continued⟩ :=
+      obtain ⟨store, outcome, labels, seen, checked, canonical, path, occurrences, continued⟩ :=
         stringValueCommit (destination.context inst) destination.width .flat _ pointer related lhsAt rhsAt
-      refine ⟨store, outcome, labels, seen, checked, canonical, occurrences, ?_⟩
+      refine ⟨store, outcome, labels, seen, checked, canonical, path, occurrences, ?_⟩
       intro value equal
       subst outcome
       obtain ⟨checkTracks, canonTracks, after⟩ := continued value rfl

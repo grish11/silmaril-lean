@@ -119,6 +119,7 @@ variable {profile : ProfileKind} {ready : HostReady Host}
 
 private theorem prepend {left right left' right' : Config (core3 grow) Host} {check canon}
     {checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))}
+    (same : left.store = right.store)
     (leftGrows : CoreUpdateGrows left) (rightGrows : CoreUpdateGrows right)
     (leftStep : Step profile ready dispatch left .tau left') (rightStep : Step profile ready reference right .tau right')
     (leftEdit : ReturnFrame.Occurrence.transitionEdit left .tau = .same)
@@ -130,10 +131,10 @@ private theorem prepend {left right left' right' : Config (core3 grow) Host} {ch
       localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext outcome)
     (next : StringLocalCutBetween profile ready dispatch reference left' right' check canon checkNext canonNext true) :
     StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true := by
-  obtain ⟨store, outcome, labels, observed, lhs, rhs, tracks, trails⟩ := next
+  obtain ⟨store, outcome, labels, observed, lhs, rhs, tracks, path, trails⟩ := next
   rw [leftHost, leftEnd] at lhs
   rw [rightHost, rightEnd] at rhs
-  refine ⟨store, outcome, .tau :: labels, ?_, .cons leftGrows leftStep lhs, .cons rightGrows rightStep rhs, ?_, ?_⟩
+  refine ⟨store, outcome, .tau :: labels, ?_, .cons leftGrows leftStep lhs, .cons rightGrows rightStep rhs, ?_, ?_, ?_⟩
   · cases outcome with
     | ok value => exact observed
     | error reason =>
@@ -144,6 +145,8 @@ private theorem prepend {left right left' right' : Config (core3 grow) Host} {ch
     rw [leftHost, leftEnd] at keptLeft
     rw [rightHost, rightEnd] at keptRight
     exact ⟨.step leftStep (by rw [leftEdit]; rfl) keptLeft, .step rightStep (by rw [rightEdit]; rfl) keptRight⟩
+  · rw [leftHost, rightHost, leftEnd, rightEnd] at path
+    exact .step same leftStep rightStep leftHost rightHost leftEdit (rightEdit.trans leftEdit.symm) path
   · intro mark
     obtain ⟨keptLeft, keptRight⟩ := trails mark
     rw [leftHost, leftEnd] at keptLeft
@@ -169,34 +172,40 @@ private theorem closedCut {body : P (core3 grow) Host Result} (closed : Closed b
     have rightEnd : localLeafEnd right right.host right.store canon.thread canon.frames canon.rest canonNext (.ok value) = right := by
       cases right
       simp_all [localLeafEnd, Cursor.control]
-    refine ⟨right.store, .ok value, [], rfl, leftEnd ▸ .refl _, rightEnd ▸ .refl _, ?_, ?_⟩
+    refine ⟨right.store, .ok value, [], rfl, leftEnd ▸ .refl _, rightEnd ▸ .refl _, ?_, ?_, ?_⟩
     · intro _ _ _
       rw [leftEnd, rightEnd]
       exact ⟨.done _ _, .done _ _⟩
+    · rw [leftEnd, rightEnd]
+      exact .done same
     · intro mark
       rw [leftEnd, rightEnd]
       cases mark <;> exact ⟨.done _ _, .done _ _⟩
   | @op effect continuation admitted _ ih =>
     cases effect with
     | get =>
-      refine prepend (by simp [CoreUpdateGrows, checkAt, Cursor.control, Prog.bind])
+      refine prepend same (by simp [CoreUpdateGrows, checkAt, Cursor.control, Prog.bind])
         (by simp [CoreUpdateGrows, canonAt, Cursor.control, Prog.bind]) (.get checkAt) (.get canonAt) ?_ ?_ rfl rfl
         (fun _ result => by cases result <;> rfl) (fun _ result => by cases result <;> rfl) ?_
       · rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl
       · rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl
       · exact ih right.store _ _ same (congrArg (fun store => check.control (continuation store >>= checkNext)) same) rfl
     | modify update =>
-      refine prepend (by simpa [CoreUpdateGrows, checkAt, Cursor.control, Prog.bind] using admitted left.store)
+      refine prepend same (by simpa [CoreUpdateGrows, checkAt, Cursor.control, Prog.bind] using admitted left.store)
         (by simpa [CoreUpdateGrows, canonAt, Cursor.control, Prog.bind] using admitted right.store)
         (.modify checkAt) (.modify canonAt) ?_ ?_ rfl rfl (fun _ result => by cases result <;> rfl)
         (fun _ result => by cases result <;> rfl) (ih () _ _ (congrArg update same) rfl rfl)
       · rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl
       · rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl
     | trap reason =>
-      refine ⟨right.store, .error reason, [.trap reason], ⟨0, rfl⟩, ?_, ?_, (fun _ returned => by cases returned), ?_⟩
+      refine ⟨right.store, .error reason, [.trap reason], ⟨0, rfl⟩, ?_, ?_, (fun _ returned => by cases returned), ?_, ?_⟩
       · rw [← same]
         exact .cons (by simp [CoreUpdateGrows, checkAt, Cursor.control, Prog.bind]) (.trap checkAt) (.refl _)
       · exact .cons (by simp [CoreUpdateGrows, canonAt, Cursor.control, Prog.bind]) (.trap canonAt) (.refl _)
+      · have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
+            StepDefs.trapCfg left := by rw [← same]; rfl
+        rw [leftEnd]
+        exact .step same (.trap checkAt) (.trap canonAt) rfl rfl rfl rfl (.done (congrArg StepDefs.lockdownSt same))
       · intro mark
         have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
             StepDefs.trapCfg left := by rw [← same]; rfl

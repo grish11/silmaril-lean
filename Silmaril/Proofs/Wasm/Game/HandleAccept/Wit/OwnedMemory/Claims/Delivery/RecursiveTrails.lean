@@ -210,7 +210,7 @@ theorem descriptorPaths {output : Stored.Lower.Output} {checkNext : ValueCheckNe
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset → lhs.store = rhs.store →
       finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     LocalPathsThen profile ready base bindings start incoming seen offset visit := by
-  obtain ⟨store, result, labels, shape, lhs, rhs, _, continued⟩ := run
+  obtain ⟨store, result, labels, shape, lhs, rhs, _, _, continued⟩ := run
   cases result with
   | error reason =>
     have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape
@@ -232,7 +232,7 @@ theorem descriptorOccurrences {output : Stored.Lower.Output} {checkNext : ValueC
       ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
       finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     LocalOccurrenceThen profile ready base bindings start incoming seen visit := by
-  obtain ⟨store, result, labels, shape, _, _, paths, continued⟩ := run
+  obtain ⟨store, result, labels, shape, _, _, _, paths, continued⟩ := run
   cases result with
   | error reason =>
     have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape
@@ -254,7 +254,7 @@ theorem descriptorTransport {output : Stored.Lower.Output} {checkNext : ValueChe
       ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
       finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
     LocalTransportThen profile ready base bindings start incoming seen visit := by
-  obtain ⟨store, result, labels, shape, _, _, paths, continued⟩ := run
+  obtain ⟨store, result, labels, shape, _, _, _, paths, continued⟩ := run
   cases result with
   | error reason =>
     have trapped : PayloadPrefix.visible labels = [.trap reason] := CallbackPrefix.visibleLeaf shape

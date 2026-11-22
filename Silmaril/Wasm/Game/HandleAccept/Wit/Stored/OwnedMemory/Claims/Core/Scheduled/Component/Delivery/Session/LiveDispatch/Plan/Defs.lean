@@ -1095,6 +1095,7 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
       (fun front : StringFront length => front.remaining cx >>= canonNext) result
     LocalLeafLabels result labels ∧ CoreGrowthSteps profile ready checkDispatch left labels lhs ∧
     CoreGrowthSteps profile ready canonDispatch right labels rhs ∧
+    PairedLeafSteps profile ready checkDispatch canonDispatch left right labels lhs rhs ∧
     OccurrenceTransport profile ready base bindings left right labels labels lhs rhs ∧
     ∀ front, result = .ok front →
       RetainsActiveSlots profile ready checkDispatch left labels lhs ∧
@@ -1833,6 +1834,7 @@ def LiveValueCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
     LocalLeafLabels result labels ∧
     CoreGrowthSteps profile ready (specDispatch ready base) left labels lhs ∧
     CoreGrowthSteps profile ready (specDispatch ready (LiveDispatch.host bindings base)) right labels rhs ∧
+    PairedLeafSteps profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base)) left right labels lhs rhs ∧
     OccurrenceTransport profile ready base bindings left right labels labels lhs rhs ∧
     ∀ value, result = .ok value →
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready (specDispatch ready base) left labels lhs ∧
@@ -4888,6 +4890,7 @@ def ValueCommitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
     let lhs := localLeafEnd left left.host store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result
     let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
     OccurrenceTransport profile ready base bindings left right labels labels lhs rhs ∧
+    PairedLeafSteps profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base)) left right labels lhs rhs ∧
     LocalRunAlignment profile ready (specDispatch ready base) lhs labels actual finish ∧
     ∀ value, result = .ok value → published value lhs rhs check canon
 

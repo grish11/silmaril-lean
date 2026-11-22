@@ -254,7 +254,10 @@ def StringLocalCutBetween {grow : SingleThreaded.GrowOracle} {Host Result : Type
         (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) (.active 0 depth) ∧
       ReturnFrame.Occurrence.Prefix profile ready reference right (.active 0 depth) labels
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) (.active 0 depth)
-    if trackOccurrences then active ∧ ∀ mark,
+    if trackOccurrences then active ∧
+      PairedLeafSteps profile ready dispatch reference left right labels
+        (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧ ∀ mark,
       ReturnFrame.Occurrence.Trail profile ready dispatch left mark labels
         (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) (localOccurrenceEnd result mark) ∧
       ReturnFrame.Occurrence.Trail profile ready reference right mark labels

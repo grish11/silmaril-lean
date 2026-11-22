@@ -1516,9 +1516,9 @@ theorem stringReplay (cx : LiftLowerContext (core3 grow)) (pointer : Nat) (steps
       (dispatch := specDispatch ready base) (reference := specDispatch ready (LiveDispatch.host bindings base))
       cx pointer steps left right check canon checkNext canonNext frame.store checkAt canonAt
     rw [measured] at cut
-    obtain ⟨store, result, labels, observed, checked, canonical, tracked, trails⟩ := cut
+    obtain ⟨store, result, labels, observed, checked, canonical, tracked, path, trails⟩ := cut
     rw [LiveStringReplay]
-    refine ⟨store, result, labels, observed, checked, canonical, localLeafTransport trails, ?_⟩
+    refine ⟨store, result, labels, observed, checked, canonical, path, localLeafTransport trails, ?_⟩
     intro front success
     subst result
     refine ⟨fun depth => (tracked front rfl depth).1, fun depth => (tracked front rfl depth).2, ?_⟩
@@ -1575,8 +1575,8 @@ theorem stringReplayMap {cx : LiftLowerContext (core3 grow)}
   induction length using Nat.strong_induction_on generalizing left right check canon with
   | ind length ih =>
     rw [LiveStringReplay] at run ⊢
-    obtain ⟨store, result, labels, observed, checked, canonical, localTrails, nextCut⟩ := run
-    refine ⟨store, result, labels, observed, checked, canonical, localTrails, ?_⟩
+    obtain ⟨store, result, labels, observed, checked, canonical, path, localTrails, nextCut⟩ := run
+    refine ⟨store, result, labels, observed, checked, canonical, path, localTrails, ?_⟩
     intro front success
     obtain ⟨tracksLeft, tracksRight, matched⟩ := nextCut front success
     refine ⟨tracksLeft, tracksRight, ?_⟩
@@ -1765,7 +1765,7 @@ theorem stringOccurrencesFrom {cx : LiftLowerContext (core3 grow)}
   | ind length ih =>
     rw [LiveStringReplay] at run
     rw [LiveStringOccurrences]
-    obtain ⟨store, result, labels, observed, _, _, localTrails, nextCut⟩ := run
+    obtain ⟨store, result, labels, observed, _, _, _, localTrails, nextCut⟩ := run
     obtain ⟨bodySeen, checked, canonical, prefixTransport, checkView, canonView, shared⟩ := incomingTransport
     have localTransport := (transportAppend prefixTransport localTrails).choose_spec.1
     have localHistory := appendComparedTransport ⟨checked, canonical, prefixTransport, checkView, canonView, shared⟩
@@ -2014,7 +2014,7 @@ theorem stringPaths {cx : LiftLowerContext (core3 grow)}
   | ind length ih =>
     rw [LiveStringReplay] at run
     rw [LiveStringPaths]
-    obtain ⟨store, result, labels, observed, checked, canonical, _, nextCut⟩ := run
+    obtain ⟨store, result, labels, observed, checked, canonical, _, _, nextCut⟩ := run
     refine ⟨store, result, labels, observed, checked.steps, canonical.steps, ?_⟩
     cases result with
     | error reason =>
