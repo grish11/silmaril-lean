@@ -24,8 +24,8 @@ def NoHostAssignment (state : Config (core3 grow) (HostState sig)) : Prop :=
     state.ctl ≠ ⟨thread, .prog (.op (.hostSet value) next), frames⟩ :: rest
 
 /-- Reached allocator steps before a protected return. Ordinary steps must
-not install an overlaid give or assign the host; confined gives and the
-actual synchronous readiness read have their own rules. The endpoint may
+not install an overlaid give or assign the host; confined gives and
+reached host reads with a closed observation have their own rules. The endpoint may
 be suspended, trapped, ready to pop a protected frame, or at an open hook. -/
 inductive ClosedCallbackPrefix (bindings : List (Binding sig)) (profile : ProfileKind)
     (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
@@ -41,12 +41,11 @@ inductive ClosedCallbackPrefix (bindings : List (Binding sig)) (profile : Profil
   | confinedGive {start finish seen} (callout : LinkedCallback.ClosedGive bindings start)
       (tail : ClosedCallbackPrefix bindings profile ready base protectedReturn callout.resume seen finish) :
       ClosedCallbackPrefix bindings profile ready base protectedReturn start seen finish
-  | syncReady {start finish seen task inst thread frames rest}
-      (focused : start.ctl = ⟨thread, .prog (.op .hostGet (fun current =>
-        syncLiftCandidates task (start.store.instCandidates (ready current) inst))), frames⟩ :: rest)
-      (agrees : LinkedCallback.ReadyAgreement ready start inst)
+  | closedRead {start finish seen thread frames rest resume}
+      (focused : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+      (agrees : ∀ host, resume start.host = resume host)
       (tail : ClosedCallbackPrefix bindings profile ready base protectedReturn { start with ctl := ⟨thread,
-        .prog (syncLiftCandidates task (start.store.instCandidates (ready start.host) inst)), frames⟩ :: rest } seen finish) :
+        .prog (resume start.host), frames⟩ :: rest } seen finish) :
       ClosedCallbackPrefix bindings profile ready base protectedReturn start seen finish
 
 /-- A reached synchronous lift read whose candidate filter is independent
@@ -56,6 +55,13 @@ def ClosedSyncReadyRead (ready : HostReady (HostState sig)) (state : Config (cor
     state.ctl = ⟨thread, .prog (.op .hostGet (fun current =>
       syncLiftCandidates task (state.store.instCandidates (ready current) inst))), frames⟩ :: rest ∧
     LinkedCallback.ReadyAgreement ready state inst
+
+/-- The actual reached read produces the same continuation for any host journal. This makes
+no assertion about future reads or the existence of a runnable thread. -/
+def ClosedHostRead (state : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ thread resume frames rest,
+    state.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest ∧
+    ∀ host, resume state.host = resume host
 
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
@@ -67,7 +73,7 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | give (install : GiveInstall bindings dispatch before label next)
   | read {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
-      (openRead : ¬ ClosedSyncReadyRead ready before)
+      (openRead : ¬ ClosedHostRead before)
   | protectedPop {thread value resume frames rest} (retained : protectedReturn resume)
       (focus : before.ctl = ⟨thread, .prog (.pure value), .prog resume :: frames⟩ :: rest)
   | write {thread value resume frames rest}

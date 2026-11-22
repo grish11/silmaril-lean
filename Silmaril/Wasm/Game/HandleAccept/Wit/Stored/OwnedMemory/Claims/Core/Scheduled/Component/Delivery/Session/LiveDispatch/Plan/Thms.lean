@@ -34,6 +34,34 @@ theorem ClosedSyncReadyRead.fixed (policy : Nat → Bool) {task inst thread fram
     ClosedSyncReadyRead (fun _ => policy) start :=
   ⟨task, inst, thread, frames, rest, focused, LinkedCallback.ReadyAgreement.fixed policy start inst⟩
 
+theorem ClosedSyncReadyRead.closed_host_read (read : ClosedSyncReadyRead ready start) : ClosedHostRead start :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.closedSyncRead read
+
+/-- Close the actual scheduler read when no reached blocked candidate consults the host. The
+continuation can still choose, resume a saved frame, or have no runnable candidate. -/
+theorem ClosedHostRead.tick (next : List ThreadId → Session grow sig (Ret (core3 grow))) {thread frames rest}
+    (focused : start.ctl = ⟨thread, .prog (.op .hostGet (fun host => next (start.store.candidates (ready host)))), frames⟩ :: rest)
+    (closed : ∀ candidate ∈ start.store.waiting, ∀ entry, start.store.thread? candidate = some entry →
+      entry.blocked = true → ∀ query, entry.readyCond ≠ some (.host query)) : ClosedHostRead start :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.closedTickRead next focused closed
+
+/-- Derive the closed readiness frontier directly from the machine tick program, without asking
+for a candidate or a replay continuation. The prefix stops before taking the choice. -/
+theorem ClosedHostRead.reached_tick (enabled : StepDefs.HostReadyCfg start)
+    (closed : let entered := StepDefs.enterHostSt start.store
+      ∀ candidate ∈ entered.waiting, ∀ entry, entered.thread? candidate = some entry →
+        entry.blocked = true → ∀ query, entry.readyCond ≠ some (.host query)) :
+    ∃ atRead, Steps profile ready (specDispatch ready base) start [.host .tick, .tau, .tau] atRead ∧ ClosedHostRead atRead :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.reachedClosedTickRead enabled closed
+
+/-- Started cancellation samples the reached implicit thread alone. A store-only readiness
+condition makes this read closed without assuming that cancellation immediately delivers. -/
+theorem ClosedHostRead.cancel (target : ThreadId) (next : Bool → Session grow sig (Ret (core3 grow))) {thread frames rest}
+    (focused : start.ctl = ⟨thread, .prog (.op .hostGet (fun host => next (start.store.threadReady (ready host) target))), frames⟩ :: rest)
+    (closed : ∀ entry, start.store.thread? target = some entry → entry.blocked = true →
+      ∀ query, entry.readyCond ≠ some (.host query)) : ClosedHostRead start :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.closedCancelRead target next focused closed
+
 /-- Compose two consecutive executed callback segments without imposing
 equality of their journals or of their full traces. -/
 theorem ExecutedCallbackSegment.append {middle peer last : Config (core3 grow) (HostState sig)}

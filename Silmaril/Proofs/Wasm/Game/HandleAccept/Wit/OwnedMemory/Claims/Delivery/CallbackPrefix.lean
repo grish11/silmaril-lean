@@ -176,23 +176,74 @@ private theorem ordinaryPeer {before next peer : Config (core3 grow) (HostState 
   cases replay with
   | cons _ step tail => cases tail; exact ⟨after, step, aligned⟩
 
-private theorem readyPeer {before peer : Config (core3 grow) (HostState sig)} {task inst thread frames rest}
+theorem closedSyncRead (read : ClosedSyncReadyRead ready start) : ClosedHostRead start := by
+  obtain ⟨task, inst, thread, frames, rest, focused, agrees⟩ := read
+  refine ⟨thread, _, frames, rest, focused, fun other => ?_⟩
+  exact congrArg (syncLiftCandidates task) (HostFrame.instCandidates_eq start.store inst (ready start.host) (ready other)
+    (fun entry live candidate member suspended found blocked query condition =>
+      agrees entry live candidate member suspended found blocked query condition other))
+
+private theorem threadReadyClosed (store : CStore (core3 grow)) (thread : ThreadId) (left right : Nat → Bool)
+    (closed : ∀ entry, store.thread? thread = some entry → entry.blocked = true →
+      ∀ query, entry.readyCond ≠ some (.host query)) :
+    store.threadReady left thread = store.threadReady right thread := by
+  simp only [CStore.threadReady, CStore.threadIs]
+  split
+  · rename_i entry found
+    unfold Thread.ready
+    cases blocked : entry.blocked
+    · rfl
+    cases condition : entry.readyCond with
+    | none => rfl
+    | some predicate =>
+      cases predicate <;> try rfl
+      exact (closed entry found blocked _ condition).elim
+  · rfl
+
+theorem closedTickRead (next : List ThreadId → Session grow sig (Ret (core3 grow))) {thread frames rest}
+    (focused : start.ctl = ⟨thread, .prog (.op .hostGet (fun host => next (start.store.candidates (ready host)))), frames⟩ :: rest)
+    (closed : ∀ candidate ∈ start.store.waiting, ∀ entry, start.store.thread? candidate = some entry →
+      entry.blocked = true → ∀ query, entry.readyCond ≠ some (.host query)) : ClosedHostRead start := by
+  refine ⟨thread, _, frames, rest, focused, fun other => congrArg next ?_⟩
+  exact List.filter_congr (fun candidate member => threadReadyClosed start.store candidate (ready start.host) (ready other)
+    (closed candidate member))
+
+theorem closedCancelRead (target : ThreadId) (next : Bool → Session grow sig (Ret (core3 grow))) {thread frames rest}
+    (focused : start.ctl = ⟨thread, .prog (.op .hostGet (fun host => next (start.store.threadReady (ready host) target))), frames⟩ :: rest)
+    (closed : ∀ entry, start.store.thread? target = some entry → entry.blocked = true →
+      ∀ query, entry.readyCond ≠ some (.host query)) : ClosedHostRead start :=
+  ⟨thread, _, frames, rest, focused, fun other => congrArg next
+    (threadReadyClosed start.store target (ready start.host) (ready other) closed)⟩
+
+theorem reachedClosedTickRead (enabled : StepDefs.HostReadyCfg start)
+    (closed : let entered := StepDefs.enterHostSt start.store
+      ∀ candidate ∈ entered.waiting, ∀ entry, entered.thread? candidate = some entry →
+        entry.blocked = true → ∀ query, entry.readyCond ≠ some (.host query)) :
+    ∃ atRead, Steps profile ready (specDispatch ready base) start [.host .tick, .tau, .tau] atRead ∧ ClosedHostRead atRead := by
+  let entered := StepDefs.enterHostSt start.store
+  let next : List ThreadId → Session grow sig (Ret (core3 grow)) := fun candidates => do
+    match candidates with
+    | [] => pure ()
+    | first :: rest =>
+      let chosen ← pickTick first rest
+      Thread.resume chosen
+    modifyStore StepDefs.leaveHostSt
+    pure .unit
+  let enteredState := { start with store := entered }
+  let atRead := { enteredState with ctl := [Activation.ofProg none (.op .hostGet (fun host => next (entered.candidates (ready host))))] }
+  exact ⟨atRead, .cons (.hostTick enabled) (.cons (.modify rfl) (.cons (.get rfl) (.refl _))), closedTickRead next rfl closed⟩
+
+private theorem closedReadPeer {before peer : Config (core3 grow) (HostState sig)} {thread frames rest resume}
     {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired changes before peer)
-    (focus : before.ctl = ⟨thread, .prog (.op .hostGet (fun current =>
-      syncLiftCandidates task (before.store.instCandidates (ready current) inst))), frames⟩ :: rest)
-    (agrees : LinkedCallback.ReadyAgreement ready before inst) :
+    (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+    (agrees : ∀ host, resume before.host = resume host) :
     ∃ after, Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer .tau after ∧
       HostFrame.Related.Paired changes { before with ctl := ⟨thread,
-        .prog (syncLiftCandidates task (before.store.instCandidates (ready before.host) inst)), frames⟩ :: rest } after := by
-  let residual := syncLiftCandidates (E := core3 grow) (σ := HostState sig) task (before.store.instCandidates (ready before.host) inst)
-  obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog residual) before.host peer.host
-  have candidates := HostFrame.instCandidates_eq before.store inst (ready before.host) (ready peer.host)
-    (fun entry live thread member suspended found blocked query condition =>
-      agrees entry live thread member suspended found blocked query condition peer.host)
-  refine ⟨{ peer with ctl := ⟨thread, .prog residual, peerFrames⟩ :: peerRest }, ?_, aligned⟩
-  unfold residual
-  rw [candidates]
+        .prog (resume before.host), frames⟩ :: rest } after := by
+  obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume before.host)) before.host peer.host
+  refine ⟨{ peer with ctl := ⟨thread, .prog (resume before.host), peerFrames⟩ :: peerRest }, ?_, aligned⟩
+  rw [agrees peer.host]
   exact .hostGet atPeer
 
 private theorem actualReplayDone {protectedReturn} (state : Config (core3 grow) (HostState sig)) :
@@ -241,17 +292,17 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     have stop (cut : CallbackWorkerBoundary bindings ready (specDispatch ready base) protectedReturn before label next) :
         ClassifiedCallbackRun bindings profile ready base protectedReturn before (label :: trailing) after :=
       .boundary (leading := []) rfl (.done before) (.refl before) (actualReplayDone before) cut step tail
-    by_cases closedRead : ClosedSyncReadyRead ready before
-    · obtain ⟨task, inst, thread, frames, rest, focus, agrees⟩ := closedRead
+    by_cases closedRead : ClosedHostRead before
+    · obtain ⟨thread, resume, frames, rest, focus, agrees⟩ := closedRead
       obtain ⟨rfl, rfl⟩ := actualHostGet focus step
       have grows : CoreUpdateGrows before := by simp [CoreUpdateGrows, focus]
       cases ih with
       | complete closed replay growing =>
-        exact .complete (.syncReady focus agrees closed) (actualReplayCons step (fun _ paired => readyPeer paired focus agrees) replay)
+        exact .complete (.closedRead focus agrees closed) (actualReplayCons step (fun _ paired => closedReadPeer paired focus agrees) replay)
           (.cons grows step growing)
       | @boundary leading _ _ _ _ split closed growing replay cut actual rest =>
-        exact .boundary (leading := .tau :: leading) (congrArg (Label.tau :: ·) split) (.syncReady focus agrees closed)
-          (.cons grows step growing) (actualReplayCons step (fun _ paired => readyPeer paired focus agrees) replay) cut actual rest
+        exact .boundary (leading := .tau :: leading) (congrArg (Label.tau :: ·) split) (.closedRead focus agrees closed)
+          (.cons grows step growing) (actualReplayCons step (fun _ paired => closedReadPeer paired focus agrees) replay) cut actual rest
     rcases unchangedOrGive (bindings := bindings) step with unchanged | install
     · by_cases interior : HostFrame.InteriorFor protectedReturn before
       · by_cases noWrite : NoHostAssignment before
@@ -507,17 +558,13 @@ theorem replayMarked {protectedReturn} {wider : ReturnFrame.Substitutions (core3
       exact invariant place offMarks first second
         ((prefix_survives (checkedSlots place)).2.symm.trans leftAt)
         ((prefix_survives (canonSlots place)).2.symm.trans rightAt)
-  | @syncReady current _ _ task inst thread frames rest focused agrees _ ih =>
-    let residual := syncLiftCandidates (E := core3 grow) (σ := HostState sig) task
-      (current.store.instCandidates (ready current.host) inst)
+  | @closedRead current _ _ thread frames rest resume focused agrees _ ih =>
+    let residual := resume current.host
     obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focused (.prog residual) current.host incoming.host
-    have candidates := HostFrame.instCandidates_eq current.store inst (ready current.host) (ready incoming.host)
-      (fun entry live blockedThread member suspended found blocked query condition =>
-        agrees entry live blockedThread member suspended found blocked query condition incoming.host)
     have peerStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
         { incoming with ctl := ⟨thread, .prog residual, peerFrames⟩ :: peerRest } := by
       unfold residual
-      rw [candidates]
+      rw [agrees incoming.host]
       exact .hostGet atPeer
     have nextOutside : Outside older
         (segmentStorage { current with ctl := ⟨thread, .prog residual, frames⟩ :: rest })
