@@ -143,6 +143,21 @@ inductive ComponentStoreFrontier {Result : Type}
   | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
       (paired : HostFrame.Related.Paired older left right)
 
+/-- A finite input ending before a component protocol reaches its common
+program. Both endpoints are at their original component cursors, with separate
+focused programs and journals; the selected and enclosing occurrences follow
+the actual consumed steps. -/
+def ComponentEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) (limit : Nat) : Prop :=
+  labels.length < limit ∧ ∃ peer,
+    OccurrenceTransport profile ready base bindings start incoming labels labels finish peer ∧
+    PairedComponentSite older finish peer check canon ∧
+    (∃ program, finish.ctl = check.control program) ∧ (∃ program, peer.ctl = canon.control program)
+
 /-- Replay the exact extracted prefix, including silent steps. The selected
 mark can move between active and saved storage or disappear; all other
 locations also retain their actual scheduler paths. -/

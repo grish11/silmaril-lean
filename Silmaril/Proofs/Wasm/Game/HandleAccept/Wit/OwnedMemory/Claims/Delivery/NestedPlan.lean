@@ -355,8 +355,78 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
               (HostFrame.Related.Paired.set_store paired (StepDefs.lockdownSt incoming.store)).clear_control
         | _ => exact False.elim (localOp rfl)
 
+private abbrev ComponentStoreEdit (grow : SingleThreaded.GrowOracle) := CStore (core3 grow) → CStore (core3 grow)
+
+open ReturnFrame.Occurrence in
+private inductive ComponentQuietPath (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :
+    Config (core3 grow) (HostState sig) → List (ComponentStoreEdit grow) → Config (core3 grow) (HostState sig) → Prop where
+  | done (state : Config (core3 grow) (HostState sig)) : ComponentQuietPath profile ready dispatch cursor state [] state
+  | step {before after : Config (core3 grow) (HostState sig)} {update updates host program}
+      (actual : Step profile ready dispatch before .tau
+        { before with store := update before.store, host, ctl := cursor.control program })
+      (stationary : transitionEdit before .tau = .same)
+      (tail : ComponentQuietPath profile ready dispatch cursor
+        { before with store := update before.store, host, ctl := cursor.control program } updates after) :
+      ComponentQuietPath profile ready dispatch cursor before (update :: updates) after
+
+open ReturnFrame.Occurrence in
+private theorem ComponentQuietPath.track {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {updates : List (ComponentStoreEdit grow)}
+    (path : ComponentQuietPath profile ready dispatch cursor start updates finish) (place : Location) :
+    Prefix profile ready dispatch start place (List.replicate updates.length .tau) finish place := by
+  induction path with
+  | done => exact .done _ _
+  | step actual stationary _ ih => exact .step actual (by rw [stationary]; cases place <;> rfl) ih
+
+private theorem pairQuietHost {left right : Config (core3 grow) (HostState sig)}
+    (paired : ReturnFrame.Related.Paired older left right) (host : HostState sig) :
+    ReturnFrame.Related.Paired older { left with host } { right with host } := by
+  cases paired with
+  | mk control blocked => exact .mk control blocked
+
+open ReturnFrame.Occurrence in
+private theorem compareQuietShort {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {updates : List (ComponentStoreEdit grow)} {target peerTarget : Config (core3 grow) (HostState sig)}
+    (left : ComponentQuietPath profile ready (specDispatch ready base) check start updates target)
+    (right : ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming updates peerTarget)
+    (paired : PairedComponentSite older start incoming check canon)
+    (leftFocus : ∃ program, start.ctl = check.control program) (rightFocus : ∃ program, incoming.ctl = canon.control program)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (short : labels.length < updates.length) :
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish updates.length := by
+  induction updates generalizing start incoming target peerTarget labels with
+  | nil => simp at short
+  | cons update updates ih =>
+    cases run with
+    | refl =>
+      exact ⟨short, incoming, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
+        paired, leftFocus, rightFocus⟩
+    | cons first tail =>
+      cases left with
+      | step leftStep leftEdit leftTail =>
+        cases right with
+        | step rightStep rightEdit rightTail =>
+          rename_i leftHost leftProgram rightHost rightProgram
+          obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep first
+          have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
+          have nextPaired : PairedComponentSite older
+              { start with store := update start.store, host := leftHost, ctl := check.control leftProgram }
+              { incoming with store := update incoming.store, host := rightHost, ctl := canon.control rightProgram } check canon := by
+            unfold PairedComponentSite
+            rw [← same]
+            exact pairQuietHost (paired.set_store (update start.store)) rightHost
+          obtain ⟨_, peer, moved, endpoint, leftReached, rightReached⟩ :=
+            ih leftTail rightTail nextPaired ⟨_, rfl⟩ ⟨_, rfl⟩ tail (by simpa using short)
+          have firstMove := CallbackPrefix.stationaryTransport (bindings := bindings)
+            (fun place => .step leftStep (by rw [leftEdit]; cases place <;> rfl) (.done _ place))
+            (fun place => .step rightStep (by rw [rightEdit]; cases place <;> rfl) (.done _ place))
+          refine ⟨short, peer, ?_, endpoint, leftReached, rightReached⟩
+          simpa only [List.map_nil, List.append_nil, List.singleton_append] using
+            (CallbackPrefix.transportAppend firstMove moved).choose_spec.1
+
 open AsyncRef ReturnFrame.Occurrence in
-private theorem refusalResolveTracks (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+private theorem refusalResolvePath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (ticket : Nat) (caller : CallerId) (issue : Scheduled.Issue)
     {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
     {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
@@ -364,26 +434,23 @@ private theorem refusalResolveTracks (dispatch : Call (core3 grow) → Session g
     (focused : start.ctl = cursor.control (ComponentCall.resolveRefused ticket caller issue))
     (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
     (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1) :
-    ∀ place, Prefix profile ready dispatch start place [.tau, .tau, .tau]
+    ComponentQuietPath profile ready dispatch cursor start [id, id, id]
       { start with host := start.host.record (.refused ticket issue), ctl := cursor.control (do
         maybeOnProgress subtask
         let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
           [ComponentCall.resultType] (some ⟨args, pos⟩)
         Subtask.resolve subtask .returned flat
-        return .cancel .none) } place := by
+        return .cancel .none) } := by
   cases cursor with
   | mk thread frames rest =>
-    intro place
-    refine .step (middle := place) (.hostGet focused) ?_ ?_
-    · rw [transitionEdit, focused]
-      cases place <;> rfl
-    refine .step (middle := place) (.hostSet rfl) (by cases place <;> rfl) ?_
+    refine .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) ?_
+    refine .step (.hostSet rfl) rfl ?_
     have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch)
       (m := { start with host := start.host.record (.refused ticket issue), ctl :=
         ⟨thread, .prog (ComponentCall.resolveError ticket caller), frames⟩ :: rest }) rfl
     simp only [Prog.bind, record, Prog.pure_eq, resultType, bne_self_eq_false, Bool.false_eq_true,
       ite_false, Nat.not_lt.mpr indirect] at read
-    exact .step read (by cases place <;> rfl) (.done _ _)
+    exact .step read rfl (.done _)
 
 open AsyncRef in
 theorem cutComponentResolveRefused (caller : CallerId) (issue : Scheduled.Issue)
@@ -408,25 +475,32 @@ theorem cutComponentResolveRefused (caller : CallerId) (issue : Scheduled.Issue)
       OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
         (reached start check leftTicket) (reached incoming canon rightTicket) ∧
       HostFrame.Related.Paired older (reached start check leftTicket) (reached incoming canon rightTicket) ∧
-      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨ labels.length < 3 := by
+      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 3 := by
   dsimp only
   have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
-  have left := refusalResolveTracks (profile := profile) (ready := ready) (specDispatch ready base)
+  have left := refusalResolvePath (profile := profile) (ready := ready) (specDispatch ready base)
     leftTicket caller issue check leftFocus record resultType indirect
-  have right := refusalResolveTracks (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+  have right := refusalResolvePath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
     rightTicket caller issue canon rightFocus (same ▸ record) resultType indirect
-  rcases splitSilent (count := 3) (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
-  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left right, ?_, residual⟩
+  rcases splitSilent (count := 3) (left.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left.track right.track, ?_, residual⟩
     unfold PairedComponentSite at paired
     obtain ⟨frames, rest, focus, aligned⟩ := HostFrame.Related.Paired.retarget paired rfl (.prog _)
       (start.host.record (.refused leftTicket issue)) (incoming.host.record (.refused rightTicket issue))
     simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
     obtain ⟨⟨sameThread, sameFrames⟩, sameRest⟩ := focus
     simpa only [PayloadPrefix.Cursor.control, ← sameThread, ← sameFrames, ← sameRest] using aligned
-  · exact .inr short
+  · exact .inr (compareQuietShort left right paired ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
 
 open ReturnFrame.Occurrence in
-private theorem refusalSkipTracks (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+private def refusalSkipEdits (record : Subtask) (subtask : SubtaskId) (caller : CallerId) (pos : Nat) :
+    List (ComponentStoreEdit grow) :=
+  [id, id] ++ (if record.index.isSome then [fun store => store.setPendingSt (.subtask subtask) (.subtask subtask)] else []) ++
+    [LowerSt.startSt subtask, LowerSt.setCallerPosSt caller pos]
+
+open ReturnFrame.Occurrence in
+private theorem refusalSkipPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (callee : ComponentCall.Callee sig) (caller : CallerId) (ticket : Nat) (issue : Scheduled.Issue)
     {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
     {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
@@ -435,29 +509,28 @@ private theorem refusalSkipTracks (dispatch : Call (core3 grow) → Session grow
     (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
     (live : start.store.subtask? subtask = some record) :
     let queued := if record.index.isSome then start.store.setPendingSt (.subtask subtask) (.subtask subtask) else start.store
-    ∀ place, Prefix profile ready dispatch start place (List.replicate (if record.index.isSome then 5 else 4) .tau)
+    ComponentQuietPath profile ready dispatch cursor start (refusalSkipEdits record subtask caller (args.length - 1))
       { start with
         store := LowerSt.setCallerPosSt caller (args.length - 1) (LowerSt.startSt subtask queued)
-        ctl := cursor.control (ComponentCall.resolveRefused ticket caller issue) } place := by
-  dsimp only
+        ctl := cursor.control (ComponentCall.resolveRefused ticket caller issue) } := by
+  dsimp only [refusalSkipEdits]
   cases cursor with
   | mk thread frames rest =>
-    intro place
     have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) focused
     simp only [Prog.bind, callerRecord, Prog.pure_eq] at read
     rw [CStore.subtask?] at live
     cases indexed : record.index with
     | none =>
-      refine .step (middle := place) read (by rw [transitionEdit, focused]; cases place <;> rfl) ?_
-      refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+      refine .step read (by rw [transitionEdit, focused]; rfl) ?_
+      refine .step (.get rfl) rfl ?_
       simp [Prog.bind, live, indexed, pure, Prog.bind_assoc]
-      exact .step (middle := place) (.modify rfl) (by cases place <;> rfl) (.step (.modify rfl) (by cases place <;> rfl) (.done _ _))
+      exact .step (.modify rfl) rfl (.step (.modify rfl) rfl (.done _))
     | some _ =>
-      refine .step (middle := place) read (by rw [transitionEdit, focused]; cases place <;> rfl) ?_
-      refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+      refine .step read (by rw [transitionEdit, focused]; rfl) ?_
+      refine .step (.get rfl) rfl ?_
       simp [Prog.bind, live, indexed, pure, Prog.bind_assoc, Waitable.setPendingEvent]
-      refine .step (middle := place) (.modify rfl) (by cases place <;> rfl) ?_
-      exact .step (middle := place) (.modify rfl) (by cases place <;> rfl) (.step (.modify rfl) (by cases place <;> rfl) (.done _ _))
+      refine .step (.modify rfl) rfl ?_
+      exact .step (.modify rfl) rfl (.step (.modify rfl) rfl (.done _))
 
 private theorem admittedRefusalGuards (callee : ComponentCall.Callee sig) {subtask : SubtaskId}
     {cx : LiftLowerContext (core3 grow)} {args : List FlatValue} {pos : Nat}
@@ -504,7 +577,7 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
       OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
       reached.ctl = check.control common ∧ peer.ctl = canon.control common ∧
       HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
-    labels.length < count := by
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish count := by
   dsimp only
   let skipCount := if record.index.isSome then 5 else 4
   let skipped := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat) =>
@@ -513,10 +586,16 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
       store := LowerSt.setCallerPosSt caller (args.length - 1) (LowerSt.startSt subtask queued)
       ctl := cursor.control (ComponentCall.resolveRefused ticket caller issue) }
   have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
-  have left := refusalSkipTracks (profile := profile) (ready := ready) (specDispatch ready base)
+  have leftPath := refusalSkipPath (profile := profile) (ready := ready) (specDispatch ready base)
     callee caller leftTicket issue record check leftFocus callerRecord live
-  have right := refusalSkipTracks (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+  have rightPath := refusalSkipPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
     callee caller rightTicket issue record canon rightFocus (same ▸ callerRecord) (same ▸ live)
+  have edits : (refusalSkipEdits (grow := grow) record subtask caller (args.length - 1)).length = skipCount := by
+    unfold refusalSkipEdits skipCount
+    cases indexed : record.index <;> rfl
+  have left := leftPath.track
+  have right := rightPath.track
+  rw [edits] at left right
   have count : skipCount + 3 = (if record.index.isSome then 8 else 7) := by
     unfold skipCount
     cases record.index <;> rfl
@@ -534,7 +613,7 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
       all_goals change (ArenaField.callers.get? start.store caller).map _ = _
       all_goals rw [callerRecord]; rfl
     obtain ⟨resultType, indirect⟩ := admittedRefusalGuards callee admitted
-    rcases cutComponentResolveRefused caller issue rfl rfl reachedRecord resultType indirect skipSite residual with
+    rcases cutComponentResolveRefused (bindings := bindings) caller issue rfl rfl reachedRecord resultType indirect skipSite residual with
       ⟨suffix, more, moved, paired, remaining⟩ | short
     · refine .inl ⟨suffix, _, _, ?_, ?_, rfl, rfl, paired, remaining⟩
       · rw [← count, split, more, ← List.append_assoc, List.replicate_add]; rfl
@@ -542,10 +621,17 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
         rw [← count, List.replicate_add]
         simpa only [skipCount, List.map_nil, List.append_nil, List.replicate_succ, List.replicate_zero] using
           (CallbackPrefix.transportAppend movement moved).choose_spec.1
-    · apply Or.inr
-      rw [← count, split, List.length_append, List.length_replicate]
-      omega
-  · exact .inr (by rw [← count]; omega)
+    · obtain ⟨shorter, peer, moved, endpoint, leftProgram, rightProgram⟩ := short
+      refine .inr ⟨?_, peer, ?_, endpoint, leftProgram, rightProgram⟩
+      · rw [← count, split, List.length_append, List.length_replicate]
+        omega
+      · rw [split]
+        simpa only [List.map_nil, List.append_nil] using
+          (CallbackPrefix.transportAppend (CallbackPrefix.stationaryTransport left right) moved).choose_spec.1
+  · apply Or.inr
+    have early := compareQuietShort (bindings := bindings) leftPath rightPath paired ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run
+      (edits.symm ▸ short)
+    exact ⟨by rw [← count]; omega, early.2⟩
 
 private abbrev StoreEffects {Result : Type} (body : Session grow sig Result) : Prop :=
   Prog.Every (fun op => componentStoreOp op = true) body
@@ -649,7 +735,8 @@ theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : C
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
-        (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨ labels.length < (if record.index.isSome then 8 else 7) := by
+        (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish (if record.index.isSome then 8 else 7) := by
   rcases cutAdmittedRefusal (bindings := bindings) callee caller issue record leftFocus rightFocus callerRecord live admitted paired run with
     ⟨tail, observed, observedPeer, split, moved, left, right, aligned, residual⟩ | short
   · obtain ⟨_, indirect⟩ := admittedRefusalGuards callee admitted

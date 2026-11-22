@@ -243,7 +243,8 @@ theorem cut_component_resolve_refused (caller : CallerId) (issue : Scheduled.Iss
       OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
         (reached start check leftTicket) (reached incoming canon rightTicket) ∧
       HostFrame.Related.Paired older (reached start check leftTicket) (reached incoming canon rightTicket) ∧
-      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨ labels.length < 3 :=
+      Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 3 :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentResolveRefused
     caller issue leftFocus rightFocus record resultType indirect paired run
 
@@ -273,7 +274,7 @@ theorem cut_component_admitted_refusal (callee : ComponentCall.Callee sig) (call
       OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
       reached.ctl = check.control common ∧ peer.ctl = canon.control common ∧
       HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
-    labels.length < count :=
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish count :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusal
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
 
@@ -296,7 +297,8 @@ theorem cut_component_admitted_refusal_result (callee : ComponentCall.Callee sig
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
-        (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨ labels.length < (if record.index.isSome then 8 else 7) :=
+        (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalResult
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
 
