@@ -2327,6 +2327,15 @@ theorem actual_memory_request {pointer : FlatValue} (site : PayloadRoot.Site gro
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualMemoryRequest
     site linked shape paired selected embedder run compare
 
+/-- Read the local callback cut from an actual placed request. This covers
+unfinished entry, recursive body stops, and executed original caller replies. -/
+theorem ActualMemoryRequestRun.callback {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (body : ActualMemoryRequestRun profile ready base bindings older site incoming labels finish)
+    {label next} (install : GiveInstall bindings (specDispatch ready base) site.start label next) :
+    CallbackSlice profile ready base bindings older site.start incoming labels finish := by
+  obtain ⟨_, _, _, _, compare⟩ := body
+  exact compare install
+
 /-- Recover the recursive memory site from the successful compiler result
 of the selected request at an actual give installation. -/
 theorem GiveInstall.actual_selected_memory_request {pointer : FlatValue} {request : CoreGiveRequest bindings start}

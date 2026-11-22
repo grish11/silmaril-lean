@@ -203,6 +203,10 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | refused _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
+  | entryPrefix _ run _ _ => exact run
+  | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | allocator _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | uncertified _ _ _ paths residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {resume value}
@@ -213,18 +217,18 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | allocator install _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | uncertified install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
 
-private theorem checkedOnlyReplySlice {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
-    {route : GiveEffectRoute} {destination ticket issue left right checkLeading canonLeading trailing label next}
+private theorem callbackTerminalSlice {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired changes start incoming)
-    (install : GiveInstall bindings (specDispatch ready base) start label next)
-    (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
-    (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming left right
-      checkLeading canonLeading trailing finish) :
-    CallbackSlice profile ready base bindings changes start incoming (checkLeading ++ trailing) finish :=
+    (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish) :
+    CallbackSlice profile ready base bindings changes start incoming labels finish :=
   ⟨[], [], _, start, incoming, rfl,
     ⟨.refl _, rfl, paired, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place)⟩,
-    .refused install observed reply⟩
+    ending⟩
 
 theorem prependCheckedOnlyReply {route : GiveEffectRoute} {destination ticket issue}
     {left right checkStop canonStop : Config (core3 grow) (HostState sig)}
@@ -3647,27 +3651,41 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
       matched fit (CallbackRange.preflightAllocator site linked) (.self _) embedder width sized ⟨aligned, bounds⟩ compare
       0 site.reply site.referenceReply site.checked entered site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
   obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, store, ⟨move, paths, outside⟩, residual, endpoint⟩ := visit
-  refine ⟨checked, canonical, trailing, left, right, marks, move, split, seen, store, paths, outside, residual, endpoint, fun active => ?_⟩
-  have marked := (paths (some (.active 0 0))).1
-  rw [active] at marked
-  obtain ⟨_, equal, caller⟩ := marked.survives
-  cases equal
   obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked checkTrack installed storage
   have leading (place : Option Location) :
       Trail profile ready (specDispatch ready base) site.start place (checkEntry ++ checked) left (move (atEntry place)) ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place
         (entry ++ canonical) right (move (atEntry place)) :=
     ⟨(track place).1.append (paths (atEntry place)).1, (track place).2.append (paths (atEntry place)).2⟩
-  constructor
-  · rintro rfl ⟨check, canon, paired, checkAt, canonAt⟩
-    have combined : OccurrenceTransport profile ready base bindings site.start incoming
-        (checkEntry ++ checked) (entry ++ canonical) left right [some (.active 0 0)] := by
-      refine ⟨move ∘ atEntry, leading, fun changes retained prior => ?_⟩
-      simpa only [List.nil_append, List.map_append, List.map_cons, List.map_map, List.map_nil, active]
-        using outside changes _ (frameEntry changes retained prior)
-    refine consumeMemoryCommonReply site split residual combined caller paired checkAt canonAt ?_ bounded compare
+  let callerMark := move (some (.active 0 0))
+  have rebased : OccurrenceTransport profile ready base bindings site.start incoming
+      (checkEntry ++ checked) (entry ++ canonical) left right (marks ++ [callerMark]) := by
+    refine ⟨move ∘ atEntry, leading, fun changes retained prior => ?_⟩
+    simpa only [List.append_assoc, List.map_append, List.map_cons, List.map_map, List.map_nil, callerMark]
+      using outside changes _ (frameEntry changes retained prior)
+  have observed : visible (checkEntry ++ checked) = visible (entry ++ canonical) := by
     rw [visibleAppend, visibleAppend, checkQuiet, silentVisible quiet, seen]
-  · intro issue check checkAt
+  have common (active : callerMark = some (.active 0 0)) (empty : marks = [])
+      (check canon : Cursor (E := core3 grow) (HostState sig)) (returned : LinkedCallback.ChildFrameOver older left right check canon)
+      (checkAt : left.ctl = check.control (site.reply (.ok ()))) (canonAt : right.ctl = canon.control (site.referenceReply ())) :
+      MemoryVisitCommonReply profile ready base bindings older site incoming left right checkEntry checked
+        (entry ++ canonical) actual trailing finish := by
+    rw [empty, List.nil_append, active] at rebased
+    have marked := (paths (some (.active 0 0))).1
+    change move (some (.active 0 0)) = some (.active 0 0) at active
+    rw [active] at marked
+    obtain ⟨_, equal, caller⟩ := marked.survives
+    cases equal
+    exact consumeMemoryCommonReply site split residual rebased caller returned checkAt canonAt observed bounded compare
+  have refusedReply (active : callerMark = some (.active 0 0)) (issue : Stored.Endpoints.RecordLower.Issue)
+      (check : Cursor (E := core3 grow) (HostState sig)) (checkAt : left.ctl = check.control (site.reply (.error issue))) :
+      MemoryVisitRefusedReply profile ready base bindings older site incoming left right issue (checkEntry ++ checked)
+        (entry ++ canonical) (checkEntry ++ actual) trailing finish := by
+    have marked := (paths (some (.active 0 0))).1
+    change move (some (.active 0 0)) = some (.active 0 0) at active
+    rw [active] at marked
+    obtain ⟨_, equal, caller⟩ := marked.survives
+    cases equal
     obtain ⟨segments, frames⟩ := site.reached_caller checkAt caller
     let reply := (GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.error issue)
     have atReply : left.ctl = ⟨check.thread, .prog (do return .flat (← writeCompletion reply)),
@@ -3689,9 +3707,45 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
           exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
       refine .inr ⟨refused, fun install => ?_⟩
       rw [split, ← List.append_assoc]
-      refine checkedOnlyReplySlice paired install ?_ refused
-      rw [visibleAppend, visibleAppend, checkQuiet, silentVisible quiet, seen]
+      exact callbackTerminalSlice paired (.refused install observed.symm refused)
     · exact .inl short
+  refine ⟨checked, canonical, trailing, left, right, marks, move, split, seen, store, paths, outside, residual, endpoint,
+    fun active => ⟨fun empty ⟨check, canon, returned, checkAt, canonAt⟩ => common active empty check canon returned checkAt canonAt,
+      refusedReply active⟩, fun install => ?_⟩
+  have total : checkEntry ++ actual = (checkEntry ++ checked) ++ trailing := by rw [split, List.append_assoc]
+  have cut : GiveBodyCut profile ready base bindings site.start incoming left right (checkEntry ++ checked)
+      (entry ++ canonical) trailing finish (marks ++ [callerMark]) := ⟨observed, store, rebased, residual⟩
+  have stop (why : GiveBodyStop profile ready base left right trailing finish callerMark) :
+      CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish :=
+    total ▸ callbackTerminalSlice paired (.body install cut why)
+  cases endpoint with
+  | returned check canon frame _ checkAt canonAt =>
+    by_cases active : callerMark = some (.active 0 0)
+    · rcases common active rfl check canon frame checkAt canonAt with short | ⟨suffix, replied, peer, divided, _, tail, _, _, result⟩
+      · exact stop (.replyPrefix none short)
+      rcases result with ⟨_, compared⟩ | ⟨update, aligned, trails⟩
+      · exact compared
+      · rw [total, divided, ← List.append_assoc]
+        exact callbackTerminalSlice paired (.uncertified install update aligned trails tail)
+    · exact stop (.callerNotTop none active)
+  | refused issue check checkAt _ =>
+    by_cases active : callerMark = some (.active 0 0)
+    · rcases refusedReply active issue check checkAt with short | ⟨_, compared⟩
+      · exact stop (.replyPrefix (some issue) short)
+      · exact compared install
+    · exact stop (.callerNotTop (some issue) active)
+  | boundary ending =>
+    cases ending with
+    | descriptor impossible => exact impossible.elim
+    | trap left right => exact stop (.trap left right)
+    | localPrefix nonempty tail => exact stop (.localPrefix nonempty tail)
+    | localChoice split choice shared step tail => exact stop (.localChoice split choice shared step tail)
+    | installPrefix short => exact stop (.allocatorInstall short)
+    | callback tracked aligned ending notPopped =>
+      rw [total]
+      exact callbackTerminalSlice paired (.allocator install cut tracked aligned ending notPopped)
+  | collectionInstall short => exact stop (.allocatorInstall short)
+  | collectionRange nonempty tail => exact stop (.localPrefix nonempty tail)
 
 theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (shape : MemoryVisitShape site.field)
@@ -3707,11 +3761,15 @@ theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow 
   | @placed entry quiet verdict prepared entered body =>
     refine .placed quiet verdict prepared entered ⟨entry, entered, quiet, ?_⟩
     cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
-    | inside split nonempty tail => exact .inl ⟨_, split, nonempty, tail⟩
+    | inside split nonempty tail =>
+      exact ⟨.inl ⟨_, split, nonempty, tail⟩, fun install => callbackTerminalSlice paired (.entryPrefix install run nonempty tail)⟩
     | @reached residual split tail =>
       obtain ⟨canonEntry, canon, silent, tracks, host, visit⟩ := body
       have bounded : residual.length ≤ labels.length := by rw [split, List.length_append]; omega
-      exact .inr ⟨canonEntry, canon, residual, split, silent, tracks, host, visit entry entered quiet residual finish tail bounded⟩
+      have visited := visit entry entered quiet residual finish tail bounded
+      refine ⟨.inr ⟨canonEntry, canon, residual, split, silent, tracks, host, visited⟩, fun install => ?_⟩
+      obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, cut⟩ := visited
+      exact split ▸ cut install
 
 theorem actualSelectedMemoryRequest {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {field : Stored.Endpoints.RecordLower.Field} {plan label}

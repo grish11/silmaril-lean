@@ -251,25 +251,96 @@ def CheckedOnlyGiveReply (profile : ProfileKind) (ready : HostReady (HostState s
       Trail profile ready (specDispatch ready base) start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark
 
-/-- The terminal cut of a compared callback. A checked-only reply has its
-own executed paths and residual; it is not a paired callback segment. -/
-inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+/-- A checked trace may reach an open store update that cannot be used to
+transport a linked-memory width. This is a comparison boundary, not a
+runtime refusal, and does not require later updates to preserve growth. -/
+def ReachedNonGrowingUpdate (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start : Config (core3 grow) (HostState sig)) (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading label trailing reached next,
+    labels = leading ++ label :: trailing ∧ CoreGrowthSteps profile ready dispatch start leading reached ∧
+    ¬ CoreUpdateGrows reached ∧ Step profile ready dispatch reached label next ∧ Steps profile ready dispatch next trailing finish
+
+def workerBranchLabel : Label (core3 grow) (HostState sig) → Prop
+  | .choice _ _ | .host _ => True
+  | _ => False
+
+/-- A recursive body stopped before a common caller reply. A local branch
+retains the reached checked action, not an invented canonical action. -/
+inductive GiveBodyStop (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) (trailing : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) (caller : Option ReturnFrame.Occurrence.Location) : Prop where
+  | trap (leftLocked : left.ctl = []) (rightLocked : right.ctl = [])
+  | localPrefix {target remaining} (nonempty : remaining ≠ [])
+      (tail : Steps profile ready (specDispatch ready base) finish remaining target)
+  | localChoice {leading taken suffix middle next} (split : trailing = leading ++ taken :: suffix)
+      (choice : workerBranchLabel taken) (shared : Steps profile ready (specDispatch ready base) left leading middle)
+      (step : Step profile ready (specDispatch ready base) middle taken next)
+      (tail : Steps profile ready (specDispatch ready base) next suffix finish)
+  | allocatorInstall {count : Nat} (short : trailing.length < count)
+  | replyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue) (short : trailing.length < 3)
+  | callerNotTop (refusal : Option Stored.Endpoints.RecordLower.Issue) (missing : caller ≠ some (.active 0 0))
+
+/-- The part of a give actually compared, rebased through its own entry.
+Both trails end before executing the checked residual. -/
+structure GiveBodyCut (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
-    (reached peer : Config (core3 grow) (HostState sig)) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
-  | exhausted : CallbackSliceEnd profile ready base bindings changes reached peer [] reached
-  | boundary {label next trailing finish}
+    (start peer left right : Config (core3 grow) (HostState sig))
+    (checked canonical trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
+    (marks : List (Option ReturnFrame.Occurrence.Location)) : Prop where
+  observed : PayloadPrefix.visible checked = PayloadPrefix.visible canonical
+  store : left.store = right.store
+  paths : OccurrenceTransport profile ready base bindings start peer checked canonical left right marks
+  residual : Steps profile ready (specDispatch ready base) left trailing finish
+
+/-- The terminal cut of a compared callback. In-body cuts keep the exact
+give prefix before a residual; an inner allocator cut can itself diverge. -/
+inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
+    ReturnFrame.Substitutions (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+    Config (core3 grow) (HostState sig) → Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | exhausted {changes reached peer} : CallbackSliceEnd profile ready base bindings changes reached peer [] reached
+  | boundary {changes reached peer label next trailing finish}
       (kind : CallbackWorkerBoundary bindings ready (specDispatch ready base) (fun resume => ∃ peer, changes resume peer)
         reached label next)
       (step : Step profile ready (specDispatch ready base) reached label next)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
-  | refused {label next route destination ticket issue left right checkLeading canonLeading trailing finish}
+  | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)
       (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue reached peer left right
         checkLeading canonLeading trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checkLeading ++ trailing) finish
+  | entryPrefix {changes reached peer label next actual finish entry remaining}
+      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+      (run : Steps profile ready (specDispatch ready base) reached actual finish) (nonempty : remaining ≠ [])
+      (rest : Steps profile ready (specDispatch ready base) finish remaining entry) :
+      CallbackSliceEnd profile ready base bindings changes reached peer actual finish
+  | body {changes reached peer label next left right checked canonical trailing finish marks caller}
+      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish (marks ++ [caller]))
+      (stop : GiveBodyStop profile ready base left right trailing finish caller) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | allocator {changes reached peer label next left right checked canonical trailing finish caller
+      checkEntry canonEntry checkLabels canonLabels mark first second}
+      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [mark, caller])
+      (tracked : AllocatorMark profile ready base bindings changes checkEntry canonEntry checkLabels canonLabels left right mark)
+      (paired : HostFrame.Related.Paired (ReturnFrame.Extend changes first second) left right)
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second) left right trailing finish)
+      (notPopped : trailing = [] ∨ mark ≠ some (.active 0 0) ∨ ¬ ∃ (pointer : Nat)
+        (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+        left.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | uncertified {changes reached peer label next left right checked canonical trailing finish}
+      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+      (update : ReachedNonGrowingUpdate profile ready (specDispatch ready base) reached checked left)
+      (paired : HostFrame.Related.Paired changes left right)
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -333,16 +404,6 @@ def InstalledCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState
       (some (checkLabels, canonLabels, peer)) (PayloadPrefix.visible checkLabels) reached ∧
     CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached peer trailing finish
 
-/-- A checked trace may reach an open store update that cannot be used to
-transport a linked-memory width. This is a comparison boundary, not a
-runtime refusal, and does not require later updates to preserve growth. -/
-def ReachedNonGrowingUpdate (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
-    (start : Config (core3 grow) (HostState sig)) (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  ∃ leading label trailing reached next,
-    labels = leading ++ label :: trailing ∧ CoreGrowthSteps profile ready dispatch start leading reached ∧
-    ¬ CoreUpdateGrows reached ∧ Step profile ready dispatch reached label next ∧ Steps profile ready dispatch next trailing finish
-
 /-- Compare an actual residual string program under the fixed live give
 dispatcher. Each local segment may trap; each entered allocator can expose
 any finite classified prefix. Only a pop of its marked occurrence enters a
@@ -398,10 +459,6 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
                   (.tau :: canonLabels ++ [.tau]) after referenceAfter ∧
                 LiveStringReplay profile ready base bindings older cx checkNext canonNext finish rest.length after referenceAfter cursor peer
 termination_by length
-
-def workerBranchLabel : Label (core3 grow) (HostState sig) → Prop
-  | .choice _ _ | .host _ => True
-  | _ => False
 
 /-- A string-plan traversal stops at the actual descriptor continuation, a
 trap, a finite cut before the next local frontier, or an installed callback
@@ -4665,7 +4722,9 @@ def MemoryVisitWithReply (profile : ProfileKind) (ready : HostReady (HostState s
           checkEntry checked (canonEntry ++ canonical) actual trailing finish) ∧
       ∀ issue (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)), left.ctl = check.control (site.reply (.error issue)) →
         MemoryVisitRefusedReply profile ready base bindings older site incoming left right issue
-          (checkEntry ++ checked) (canonEntry ++ canonical) (checkEntry ++ actual) trailing finish)
+          (checkEntry ++ checked) (canonEntry ++ canonical) (checkEntry ++ actual) trailing finish) ∧
+    ∀ {label next}, GiveInstall bindings (specDispatch ready base) site.start label next →
+      CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish
 
 /-- On the placed branch, distinguish a finite prefix inside entry from
 an actually reached body. No canonical body path is used in the short case. -/
@@ -4681,6 +4740,8 @@ def ActualMemoryRequestRun (profile : ProfileKind) (ready : HostReady (HostState
     ∃ canonEntry entered body, actual = checkEntry ++ body ∧ PayloadPrefix.visible canonEntry = [] ∧
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
         incoming place canonEntry entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
-      MemoryVisitWithReply profile ready base bindings older site incoming entered checkEntry canonEntry body finish)
+      MemoryVisitWithReply profile ready base bindings older site incoming entered checkEntry canonEntry body finish) ∧
+    ∀ {label next}, GiveInstall bindings (specDispatch ready base) site.start label next →
+      CallbackSlice profile ready base bindings older site.start incoming actual finish
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch
