@@ -2003,22 +2003,27 @@ private theorem mapCompiled {item : Field} {key : WIT.KeyType} {element : Stored
   | @endpoint channel _ _ => cases channel <;> cases matched
   | primitive | enum | flags | context | owner | aggregate | fixed | list | sum => cases matched
 
-theorem preflightAllocator {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (linked : site.Linked bindings) : Field.AllocatorFor site.destination.realloc site.field := by
+theorem compiledAllocator (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf)
+    (payload : Stored.OwnedMemory.Payload type) (output : Stored.Lower.Output) (field : Field) (plan : List Object)
+    (compiled : Record.preflightValue (destination.context (grow := grow) inst) type payload output = .ok (field, plan)) :
+    Field.AllocatorFor destination.realloc field := by
   intro child desc pointer
-  obtain ⟨plan, compiled⟩ := linked.compiled
   have rootPtr := desc.containsPtr (Record.preflightValue_layout _ _ _ _ _ plan compiled) pointer
-  cases alloc : site.destination.realloc with
+  cases alloc : destination.realloc with
   | some addr => exact ⟨addr, rfl⟩
   | none =>
-    have options : Stored.Lower.checkOptions (site.destination.context (grow := grow) site.inst) (sig.payload site.tag)
-        route.output = .error .reallocRequired := by
+    have options : Stored.Lower.checkOptions (destination.context (grow := grow) inst) type output = .error .reallocRequired := by
       simp [Stored.Lower.checkOptions, RecordDestination.context, rootPtr, alloc, Option.isNone]
       rfl
     simp only [Record.preflightValue, bind, Except.bind, Except.mapError] at compiled
     split at compiled
     · contradiction
     · simp [RecordLower.compileValue, options, bind, Except.bind, Except.mapError] at compiled
+
+theorem preflightAllocator {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (linked : site.Linked bindings) : Field.AllocatorFor site.destination.realloc site.field := by
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  exact compiledAllocator site.destination site.inst _ site.payload route.output site.field plan compiled
 
 private theorem mapStringKeyFinish (destination : RecordDestination) (inst : InstId) (key : LinkedCallback.StringField)
     (address : Nat) (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))

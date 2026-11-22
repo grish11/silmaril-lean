@@ -3108,6 +3108,27 @@ theorem compiled_memory_visit {origin : CStore (core3 grow)} {root item : Field}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCompiledMemory
     destination inst address shape rootLayout fits allocates path embedder width sized placed compare
 
+/-- Consume the original direct program's checked field residual on either
+public route. Compilation determines both visitor shape and canonical
+field; only actual checked callback slices may advance the visitor. -/
+theorem direct_give_placed_visit (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Field) (plan : List Object)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (site : PairedComponentSite older start incoming check canon)
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (linked : request.destination.check start.store = .ok ())
+    (fit : request.selectedFits selected request.destination.width = true)
+    (placed : request.selectedPlacement selected start.store = .ok ())
+    (checkedAt : start.ctl = check.control (request.fieldContinuation ticket selected field))
+    (canonAt : incoming.ctl = canon.control
+      (referenceTail request.inst request.destination request.schema (.ok selected) >>= fun reply => pure (.flat reply)))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) {budget : Nat}
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    DirectGiveVisitRun profile ready base bindings older request ticket start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.visitDirectGivePlaced
+    request ticket selected field plan site compiled linked fit placed checkedAt canonAt embedder run bounded compare
+
 /-- Consume the actual value-mode element residual after a validated
 collection range. Run the descriptor write only after all elements return. -/
 theorem compiled_memory_elements {origin : CStore (core3 grow)} {root : Field} {schema : Stored.TypeOf} {budget bytes : Nat}

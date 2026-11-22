@@ -15,6 +15,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
@@ -8431,6 +8432,92 @@ private theorem cutDirectGivePreparation (request : GiveSelector bindings) (tick
       simp only [cursor, prepared, accepted]
   · obtain ⟨_, paths⟩ := quietCheckedShort path run short
     exact .prefix short (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
+
+private theorem directChildFrame {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (site : PairedComponentSite older start incoming check canon) :
+    LinkedCallback.ChildFrameOver older start incoming check canon := by
+  obtain ⟨store, pending, results, cancels⟩ := site.data
+  have paths {left right : Config (core3 grow) (HostState sig)} (paired : ReturnFrame.Related.Paired older left right) :
+      List.Forall₂ (ReturnFrame.Related.Active older) left.ctl right.ctl ∧
+      List.Forall₂ (ReturnFrame.Related.Saved older) left.conts right.conts := by
+    cases paired with
+    | mk active saved => exact ⟨active, saved⟩
+  obtain ⟨active, saved⟩ := paths site
+  rcases check with ⟨thread, frames, rest⟩
+  rcases canon with ⟨peerThread, peerFrames, peerRest⟩
+  change List.Forall₂ (ReturnFrame.Related.Active older)
+    (⟨thread, .prog (.pure (.cancel .none)), frames⟩ :: rest)
+    (⟨peerThread, .prog (.pure (.cancel .none)), peerFrames⟩ :: peerRest) at active
+  cases active with
+  | cons head tail =>
+    cases head with
+    | mk related => exact ⟨store, pending, results, cancels, saved, rfl, related, tail⟩
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
+theorem visitDirectGivePlaced (request : GiveSelector bindings) (ticket : Nat)
+    (selected : SelectionValue sig request.schema) (field : Field) (plan : List Object)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (site : PairedComponentSite older start incoming check canon)
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (linked : request.destination.check start.store = .ok ())
+    (fit : request.selectedFits selected request.destination.width = true)
+    (placed : request.selectedPlacement selected start.store = .ok ())
+    (checkedAt : start.ctl = check.control (request.fieldContinuation ticket selected field))
+    (canonAt : incoming.ctl = canon.control
+      (referenceTail request.inst request.destination request.schema (.ok selected) >>= fun reply => pure (.flat reply)))
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) {budget : Nat}
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    DirectGiveVisitRun profile ready base bindings older request ticket start incoming labels finish := by
+  have frame := directChildFrame site
+  have width := request.destination.check_width start.store linked
+  rcases request with ⟨name, kind, args, inst, destination, schema, binding⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, pointer⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      let type := sig.payload root.1
+      change Record.preflightValue (destination.context (grow := grow) inst) type root.2 (.memory pointer) = .ok (field, plan) at compiled
+      change Stored.Lower.fits Quirks.none destination.encoding destination.width type root.2.val.value = true at fit
+      have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+      have fitField := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fit
+      have position : placement destination start.store (layout destination.width field.type) pointer = .ok () := matched.type_eq.symm ▸ placed
+      obtain ⟨aligned, bytes, sized, bounds⟩ := CallbackRange.placementInterval destination start.store _ _ position
+      have shape := (compiledVisitShapes (Record.preflightValue_emitted _ _ _ _ _ plan compiled) matched).2
+      have allocates := CallbackRange.compiledAllocator destination inst type root.2 (.memory pointer) field plan compiled
+      let next : Unit → Session grow sig (Ret (core3 grow)) := fun _ => pure (.flat (completion 0 (.ok 0)).2)
+      have pending : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+          (destination.context inst) destination.width field (.memory pointer) >>= next) := by
+        rw [destination.compiled_payload_reference inst type root.2 (.memory pointer) field plan compiled]
+        change incoming.ctl = canon.control (store Limits.spec Quirks.none (destination.context inst)
+          root.2.val.value type pointer >>= next)
+        simpa only [referenceTail, memoryBody, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', next, type] using canonAt
+      exact driveCompiledMemory (origin := start.store) destination inst pointer shape matched fitField allocates (.self _)
+        embedder width sized ⟨aligned, bounds⟩ compare 0 _ next start incoming check canon frame (Core3.Grows.refl _)
+        checkedAt pending labels finish run bounded
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      let type := sig.payload root.1
+      change Record.preflightValue (destination.context (grow := grow) inst) type root.2 .flat = .ok (field, plan) at compiled
+      change Stored.Lower.fits Quirks.none destination.encoding destination.width type root.2.val.value = true at fit
+      have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+      have fitField := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fit
+      have shape := (compiledVisitShapes (Record.preflightValue_emitted _ _ _ _ _ plan compiled) matched).1
+      have allocates := CallbackRange.compiledAllocator destination inst type root.2 .flat field plan compiled
+      let next : List FlatValue → Session grow sig (Ret (core3 grow)) := fun words =>
+        pure (.flat (flatCompletion 0 (ABI.flatten destination.width schema) (.ok words)).2)
+      have pending : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+          (destination.context inst) destination.width field .flat >>= next) := by
+        rw [destination.compiled_payload_reference inst type root.2 .flat field plan compiled]
+        change incoming.ctl = canon.control (lowerFlatAt Limits.spec Quirks.none (destination.context inst)
+          destination.width root.2.val.value type >>= next)
+        simpa only [referenceTail, flatBody, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', next, type] using canonAt
+      exact driveCompiledFlat (origin := start.store) destination inst shape matched fitField allocates (.self _)
+        embedder width compare 0 _ next start incoming check canon frame (Core3.Grows.refl _) checkedAt pending labels finish run bounded
 
 open ReturnFrame.Occurrence in
 private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker : ThreadId)

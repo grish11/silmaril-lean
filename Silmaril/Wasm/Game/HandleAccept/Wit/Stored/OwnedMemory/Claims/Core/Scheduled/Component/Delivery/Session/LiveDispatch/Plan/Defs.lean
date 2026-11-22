@@ -5608,6 +5608,25 @@ def MemoryVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
     ∀ actual finish, Steps profile ready (specDispatch ready base) left actual finish → actual.length ≤ budget →
     MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext left right actual finish
 
+/-- Comparison of the actual remaining direct field program, including
+its original completion continuation. This does not assert the program
+pop or that a finite residual reaches the completion. -/
+def DirectGiveVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (request : GiveSelector bindings) (ticket : Nat)
+    (left right : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  match request.schema with
+  | none => MemoryVisitRun profile ready base bindings older left.store request.destination request.inst
+      (fun verdict => do return .flat (← writeCompletion (completion ticket (verdict.mapError Issue.lowerPayload |>.map (fun _ => 0)))))
+      (fun _ => pure (.flat (completion 0 (.ok 0)).2)) left right actual finish
+  | some schema => FlatVisitRun profile ready base bindings older left.store
+      (fun verdict => do return .flat (← writeCompletion (flatCompletion ticket (ABI.flatten request.destination.width schema)
+        (verdict.mapError Issue.lowerPayload))))
+      (fun words => pure (.flat (flatCompletion 0 (ABI.flatten request.destination.width schema) (.ok words)).2))
+      left right actual finish
+
 /-- The executed checked-only reply leaves the exact canonical program
 pending. Occurrences on the two sides now follow independent paths. -/
 def MemoryVisitRefusedReply (profile : ProfileKind) (ready : HostReady (HostState sig))
