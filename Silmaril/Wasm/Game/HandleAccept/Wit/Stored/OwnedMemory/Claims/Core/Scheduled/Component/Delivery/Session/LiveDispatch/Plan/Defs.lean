@@ -498,6 +498,20 @@ def ComponentEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState s
     PairedComponentSite older finish peer check canon ∧
     (∃ program, finish.ctl = check.control program) ∧ (∃ program, peer.ctl = canon.control program)
 
+/-- An interior component-entry cut with a frame at every executed writer site,
+not just equal writers at the endpoints. -/
+def FramedComponentEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) (limit : Nat) : Prop :=
+  labels.length < limit ∧ ∃ peer,
+    OccurrenceTransport profile ready base bindings start incoming labels labels finish peer ∧
+    PairedComponentSite older finish peer check canon ∧
+    VisitorWriterPath profile ready base bindings start incoming labels labels finish peer ∧
+    (∃ program, finish.ctl = check.control program) ∧ (∃ program, peer.ctl = canon.control program)
+
 def ComponentPublicationEarlyPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -950,6 +964,23 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right)
       (writers : left.host.writer = reached.host.writer ∧ right.host.writer = peer.host.writer) :
       CallbackSliceEnd profile ready base bindings changes reached peer [.tau] left
+  | componentEntryPrefix {changes wider reached peer left right labels mark}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (site : PairedComponentSite wider left right check canon)
+      (checked : ∃ program, left.ctl = check.control program)
+      (canonical : ∃ program, right.ctl = canon.control program)
+      (paths : OccurrenceTransport profile ready base bindings reached peer labels labels left right [mark])
+      (writers : VisitorWriterPath profile ready base bindings reached peer labels labels left right) :
+      CallbackSliceEnd profile ready base bindings changes reached peer labels left
+  | componentRefusedTerminal {changes wider reached peer left right leading trailing finish mark}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (frontier : ComponentStoreFrontier (Result := Unit) wider check canon
+        (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none)) left right trailing True)
+      (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right [mark])
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | componentRegistrationMismatch {changes wider reached peer left right leading trailing finish mark}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket caller tree}
       (mismatch : ReachedRegistrationMismatch profile ready base bindings left right check canon leftTicket rightTicket caller tree)
@@ -5282,6 +5313,7 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
   | refused
       (frontier : ComponentStoreFrontier (Result := Unit) wider check canon
         (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none)) reached peer suffix True)
+      (writers : VisitorWriterPath profile ready base bindings start incoming leading leading reached peer)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
   | accepted {tree handle}
@@ -5334,7 +5366,7 @@ def ComponentAdmissionCut (profile : ProfileKind) (ready : HostReady (HostState 
     (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
     (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  (∃ canon, ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7) ∨
+  (∃ canon, FramedComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7) ∨
   ∃ peerFrames peerRest suffix,
     let canon := { check with frames := peerFrames, rest := peerRest }
     let reached := componentPreflightAt callee caller cx args start check

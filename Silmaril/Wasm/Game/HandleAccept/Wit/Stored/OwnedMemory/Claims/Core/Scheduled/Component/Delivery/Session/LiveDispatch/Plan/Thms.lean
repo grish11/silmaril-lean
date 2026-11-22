@@ -416,7 +416,7 @@ theorem cut_component_preflight (callee : ComponentCall.Callee sig) (caller : Ca
       OccurrenceTransport profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
       VisitorWriterPath profile ready base bindings start incoming (List.replicate 7 .tau) (List.replicate 7 .tau) reached peer ∧
       PairedComponentSite older reached peer check canon ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
-      ∃ canon, ComponentEarlyPrefix profile ready base bindings older ⟨some active, frames, rest⟩ canon start incoming labels finish 7 :=
+      ∃ canon, FramedComponentEarlyPrefix profile ready base bindings older ⟨some active, frames, rest⟩ canon start incoming labels finish 7 :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentPreflight
     callee caller focused record liveThread liveTask context admitted run paired
 
@@ -903,9 +903,11 @@ theorem cut_component_resolve_refused (caller : CallerId) (issue : Scheduled.Iss
     (∃ suffix, labels = [.tau, .tau, .tau] ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
         (reached start check leftTicket) (reached incoming canon rightTicket) ∧
+      VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+        (reached start check leftTicket) (reached incoming canon rightTicket) ∧
       HostFrame.Related.Paired older (reached start check leftTicket) (reached incoming canon rightTicket) ∧
       Steps profile ready (specDispatch ready base) (reached start check leftTicket) suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 3 :=
+    FramedComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 3 :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentResolveRefused
     caller issue leftFocus rightFocus record resultType indirect paired run
 
