@@ -3204,9 +3204,9 @@ theorem classify_give_callbacks
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
 
 /-- One finite checked-run fold under the fixed component dispatcher. Parked
-gives, admitted component calls and returning public polls share the
-shorter-run induction, including inside allocator callbacks. Exhausted and
-trapped polls retain their reached endpoints without rejoining. Other
+gives, admitted component calls, public polls and reached wait resumes share
+the shorter-run induction, including inside allocator callbacks. Exhausted
+and trapped deliveries retain their reached endpoints without rejoining. Other
 component sites remain at the exact install cut with their admission and
 body outcome. -/
 theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
@@ -3214,6 +3214,22 @@ theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     (paired : HostFrame.Related.Paired older start incoming) :
     MixedCallbackSlice profile ready bindings callees older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyMixedCallbacks run paired
+
+/-- Compare an executed wait park and its actual mixed suffix, transporting
+the original Core caller across intervening work and any reached resumption.
+Loss, including overwrite by an equal continuation, is not a return. -/
+theorem classify_parked_wait_callbacks {callees : List (ComponentCall.Callee sig)}
+    (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨some thread, .prog (waitableWaitAfterDecision mem entry (some thread)), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨some thread, .prog (waitableWaitAfterDecision mem entry (some thread)),
+      .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨some thread, .core core resume :: frames, rest⟩
+      ⟨some thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ParkedWaitCallbackSlice profile ready (ComponentCall.hostWithComponent bindings callees) bindings older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyParkedWaitCallbacks
+    mem entry leftFocus rightFocus paired run
 
 /-- Enter the live worker fold only on the actually executed marked pop.
 The fold consumes the extracted shorter suffix under the same dispatcher;

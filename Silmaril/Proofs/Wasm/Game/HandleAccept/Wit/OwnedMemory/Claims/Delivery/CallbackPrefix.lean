@@ -284,7 +284,7 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
 
 theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     (run : Steps profile ready (specDispatch ready base) start labels finish) (includeComponentCalls : Bool := false)
-    (includePoll : Bool := false) :
+    (includePoll : Bool := false) (includeWaitResume : Bool := false) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
   classical
   induction run with
@@ -302,6 +302,12 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
         (core3 grow).status before.store.core core = .callout (.builtin (.waitableSetPoll mem) inst) args
     · obtain ⟨_, _, _, _, _, _, _, _, _, focus, calling⟩ := poll
       exact stop (.pollInstall focus calling)
+    by_cases resumedWait : includeWaitResume = true ∧
+        ∃ waiter resumer afterResume frames rest core resume savedFrames mem entry,
+          before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest ∧
+          before.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩
+    · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, focus, saved⟩ := resumedWait
+      exact stop (.waitResume focus saved)
     by_cases closedRead : ClosedHostRead before
     · obtain ⟨thread, resume, frames, rest, focus, agrees⟩ := closedRead
       obtain ⟨rfl, rfl⟩ := actualHostGet focus step

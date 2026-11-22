@@ -63,6 +63,20 @@ def ClosedHostRead (state : Config (core3 grow) (HostState sig)) : Prop :=
     state.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest ∧
     ∀ host, resume state.host = resume host
 
+/-- Parameters obtained from the reached callout checks and live handle lookup. -/
+structure WaitableCalloutEntry where
+  inst : InstId
+  set : WsetId
+  ptr : Nat
+
+/-- Shared by the early and actually resumed wait. Selection reads the
+current store at this point, not the event checked by the readiness read. -/
+def waitableWaitContinue (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) : Session grow sig (Ret (core3 grow)) := do
+  modifyStore (CStore.wsetDecWaitingSt entry.set)
+  let event ← wsetGetPendingEvent entry.set
+  let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
+  pure (.flat [i32Flat code])
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -76,6 +90,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | pollInstall {thread core resume frames rest mem inst args}
       (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
       (calling : (core3 grow).status before.store.core core = .callout (.builtin (.waitableSetPoll mem) inst) args)
+  | waitResume {waiter resumer afterResume frames rest core resume savedFrames mem entry}
+      (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+      (found : before.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
   | read {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (openRead : ¬ ClosedHostRead before)
@@ -127,12 +144,6 @@ def componentStoreOp : (Eff (core3 grow) (HostState sig)).Op → Bool
   | .get | .modify _ | .currentThread | .choose _ | .trap _ => true
   | _ => false
 
-/-- Parameters obtained from the reached callout checks and live handle lookup. -/
-structure WaitableCalloutEntry where
-  inst : InstId
-  set : WsetId
-  ptr : Nat
-
 def waitableCalloutHost (poll : Bool) (mem : (core3 grow).MemAddr) (inst : InstId) : CanonHost (core3 grow) :=
   .builtin (if poll then .waitableSetPoll mem else .waitableSetWait mem) inst
 
@@ -177,14 +188,6 @@ def waitableWaitDecision (entry : WaitableCalloutEntry) : Session grow sig (Opti
   if early then pure none else do
     Thread.startWaiting thread (.wsetHasEvent entry.set)
     pure (some thread)
-
-/-- Shared by the early and actually resumed wait. Selection reads the
-current store at this point, not the event checked by the readiness read. -/
-def waitableWaitContinue (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) : Session grow sig (Ret (core3 grow)) := do
-  modifyStore (CStore.wsetDecWaitingSt entry.set)
-  let event ← wsetGetPendingEvent entry.set
-  let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
-  pure (.flat [i32Flat code])
 
 def waitableWaitAfterDecision (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry) :
     Option ThreadId → Session grow sig (Ret (core3 grow))
@@ -568,6 +571,12 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | waitResumeTerminal {changes reached peer left right checked trailing finish check canon}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right)
+      (frontier : ComponentStoreFrontier changes check canon waitableFlatReply waitableFlatReply left right trailing True)
+      (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -578,6 +587,25 @@ def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     actual = checkLabels ++ trailing ∧
     ExecutedCallbackSegment profile ready base bindings changes checked canonical checkLabels canonLabels reached peer ∧
     CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+
+/-- Start with the original active Core slot at a wait block and follow it
+through the compared part of the mixed suffix, including actual resumes.
+The ending retains the unconsumed checked residual. An absent occurrence
+does not identify a later, equal saved frame as the original waiter. -/
+def ParkedWaitCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  (actual = [] ∧ finish = checked) ∨
+    ∃ checkLabels canonLabels trailing reached peer mark,
+      actual = (.tau :: checkLabels) ++ trailing ∧
+      OccurrenceTransport profile ready base bindings checked canonical (.tau :: checkLabels) (.tau :: canonLabels) reached peer ∧
+      Trail profile ready (specDispatch ready base) checked (some (.active 0 0)) (.tau :: checkLabels) reached mark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical (some (.active 0 0))
+        (.tau :: canonLabels) peer mark ∧
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
 
 /-- The induction hypothesis available inside a reached give, including
 callbacks with freshly extended substitutions. -/
