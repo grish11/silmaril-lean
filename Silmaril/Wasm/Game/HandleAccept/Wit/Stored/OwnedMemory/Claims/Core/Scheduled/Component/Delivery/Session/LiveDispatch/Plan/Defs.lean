@@ -69,6 +69,16 @@ def PairedWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig)
     WriterPath profile ready (specDispatch ready base) start checked left leftEffects ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right rightEffects
 
+/-- A compiled leaf has no writer-changing raw step. On the checked side,
+only the linked guard can change the writer, at its actual spend assignment. -/
+def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (checked canonical : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) (plan : Option Stored.OwnedMemory.Claims.Spend) : Prop :=
+  ∃ changes, WriterPath profile ready (specDispatch ready base) start checked left changes ∧
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] ∧
+    (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update)
+
 /-- Reached allocator steps before a protected return. Ordinary steps must
 not install an overlaid give or assign the host; confined gives and
 reached host reads with a closed observation have their own rules. The endpoint may

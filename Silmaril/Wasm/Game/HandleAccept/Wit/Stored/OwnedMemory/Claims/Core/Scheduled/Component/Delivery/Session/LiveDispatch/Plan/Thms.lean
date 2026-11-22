@@ -210,7 +210,8 @@ theorem cutGuardedLeafPrefix {leftEnd rightEnd : Config (core3 grow) (HostState 
     ∃ used peer spends, finish.store = peer.store ∧ visible labels = visible used ∧
       OccurrenceTransport profile ready base bindings start incoming labels used finish peer ∧
       CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer spends ∧
-      used = labels.drop guard.length ∧ spends = if guard.length ≤ labels.length then plan.toList else [] :=
+      used = labels.drop guard.length ∧ (spends = if guard.length ≤ labels.length then plan.toList else []) ∧
+      CompiledLeafWriterPaths profile ready base bindings start incoming labels used finish peer plan :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutGuardedLeaf path split same run
 
 open PayloadPrefix in

@@ -81,6 +81,37 @@ theorem classify (change : WriterChange sig) :
   · exact .inr (.inl registers)
   exact .inr (.inr ⟨fun _ found => spends ⟨_, found⟩, fun _ found => registers ⟨_, found⟩⟩)
 
+open Stored.OwnedMemory.Claims in
+theorem liveOfChangedSpend (state : State sig) (update : Spend) (changed : update.apply state ≠ state) : update.Live state := by
+  classical
+  by_contra absent
+  apply changed
+  cases update with
+  | owner id =>
+    have keeps : state.held.filter (fun entry => receiptId entry != id) = state.held := List.filter_eq_self.mpr (by
+      intro entry member
+      have different : receiptId entry ≠ id := fun same => absent (same ▸ List.mem_map_of_mem member)
+      simp [different])
+    simp [Spend.apply, keeps]
+  | endpoint id =>
+    have keeps : state.endpoints.filter (· != id) = state.endpoints := List.filter_eq_self.mpr (by
+      intro endpoint member
+      have different : endpoint ≠ id := fun same => absent (same ▸ member)
+      simp [different])
+    simp [Spend.apply, keeps]
+
+open Stored.OwnedMemory.Claims in
+theorem spendStep {label : Label (core3 grow) (HostState sig)} (update : Spend)
+    (step : Step profile ready dispatch start label finish)
+    (assigned : finish.host.writer = update.apply start.host.writer) :
+    ∃ changes, WriterPath profile ready dispatch start [label] finish changes ∧
+      (changes = [] ∨ ∃ change nominal, changes = [change] ∧ some update = some nominal ∧ change.IsSpend nominal) := by
+  classical
+  by_cases same : finish.host.writer = start.host.writer
+  · exact ⟨[], .same step same (.done _), .inl rfl⟩
+  · exact ⟨_, .changed step same (.done _), .inr ⟨_, update, rfl, rfl,
+      liveOfChangedSpend _ update (assigned ▸ same), assigned⟩⟩
+
 variable {base : HostImpl (core3 grow) (HostState sig)} {bindings : List (Binding sig)}
 variable {marks : List (Option ReturnFrame.Occurrence.Location)}
 

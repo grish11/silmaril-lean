@@ -2706,11 +2706,14 @@ private theorem pairedLeafPrefix {leftEnd rightEnd : Config (core3 grow) (HostSt
       start incoming planned leftEnd rightEnd)
     (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
     ∃ peer, finish.store = peer.store ∧ finish.host = start.host ∧ peer.host = incoming.host ∧
-      OccurrenceTransport profile ready base bindings start incoming labels labels finish peer := by
+      OccurrenceTransport profile ready base bindings start incoming labels labels finish peer ∧
+      WriterPath profile ready (specDispatch ready base) start labels finish [] ∧
+      WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming labels peer [] := by
   induction run generalizing incoming planned with
   | refl state =>
     have same : state.store = incoming.store := by cases path <;> assumption
-    exact ⟨incoming, same, rfl, rfl, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place)⟩
+    exact ⟨incoming, same, rfl, rfl, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
+      .done state, .done incoming⟩
   | @cons before middle finish label labels step tail ih =>
     cases path with
     | done => simp at split
@@ -2718,9 +2721,10 @@ private theorem pairedLeafPrefix {leftEnd rightEnd : Config (core3 grow) (HostSt
       obtain ⟨sameLabel, shorter⟩ := List.cons.inj split
       subst label
       cases labelledStepUnique step checked
-      obtain ⟨peer, stores, leftHost, rightHost, move, paths, transported⟩ := ih rest shorter
+      obtain ⟨peer, stores, leftHost, rightHost, ⟨move, paths, transported⟩, leftPath, rightPath⟩ := ih rest shorter
       let edit := transitionEdit before action
-      refine ⟨peer, stores, leftHost.trans checkedHost, rightHost.trans rawHost, fun mark => move (mark.bind edit.follow), ?_, ?_⟩
+      refine ⟨peer, stores, leftHost.trans checkedHost, rightHost.trans rawHost, ⟨fun mark => move (mark.bind edit.follow), ?_, ?_⟩,
+        .same step (congrArg HostState.writer checkedHost) leftPath, .same raw (congrArg HostState.writer rawHost) rightPath⟩
       · intro mark
         obtain ⟨lhs, rhs⟩ := paths (mark.bind edit.follow)
         exact ⟨.step step lhs, .step raw (by rw [agree]; exact rhs)⟩
@@ -2797,7 +2801,7 @@ theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
       cases result <;> simp [workerBranchLabel]
     cases alignLocalBody checked.steps actual (noBranchOfVisible rfl localOnly) with
     | inside split nonempty localTail =>
-      obtain ⟨peer, same, _, _, movement⟩ := pairedLeafPrefix path split actual
+      obtain ⟨peer, same, _, _, movement, _, _⟩ := pairedLeafPrefix path split actual
       exact ⟨labels, labels, [], finish, peer, [], (List.append_nil _).symm, rfl, movement,
         same, .refl _, .localPrefix nonempty localTail⟩
     | @reached remaining split remainder =>
@@ -2932,7 +2936,7 @@ theorem driveStringCommit {destination : RecordDestination} {inst : InstId} {key
     obtain ⟨store, verdict, effects, writes, path, aligned, continues⟩ := driveValueCommit commit remainder
     cases aligned with
     | inside planned nonempty tail =>
-      obtain ⟨peer, same, _, _, prefixPath⟩ := pairedLeafPrefix path planned remainder
+      obtain ⟨peer, same, _, _, prefixPath, _, _⟩ := pairedLeafPrefix path planned remainder
       refine ⟨checked ++ trailing, canonical ++ trailing, [], finish, peer, [], ?_, ?_, ?_, same, .refl _, .localPrefix nonempty tail⟩
       · simpa only [List.append_nil] using split
       · rw [visibleAppend, visibleAppend, observed]
@@ -3087,29 +3091,33 @@ private theorem leafGuardPrefix {target : Config (core3 grow) (HostState sig)} {
     finish.store = start.store ∧ visible labels = [] ∧
     finish.host = (if remaining.isEmpty then plan else none).elim start.host
       (fun spend => { start.host with writer := spend.apply start.host.writer }) ∧
-    ∀ place, Prefix profile ready (specDispatch ready base) start place labels finish place := by
+    (∀ place, Prefix profile ready (specDispatch ready base) start place labels finish place) ∧
+    ∃ changes, WriterPath profile ready (specDispatch ready base) start labels finish changes ∧
+      (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update) := by
   induction run generalizing plan planned with
   | refl state =>
     cases remaining with
     | nil =>
       subst planned
       cases path
-      exact ⟨rfl, rfl, rfl, fun place => .done _ _⟩
-    | cons first rest => exact ⟨rfl, rfl, rfl, fun place => .done _ _⟩
+      exact ⟨rfl, rfl, rfl, fun place => .done _ _, [], .done _, .inl rfl⟩
+    | cons first rest => exact ⟨rfl, rfl, rfl, fun place => .done _ _, [], .done state, .inl rfl⟩
   | @cons before middle finish label labels step tail ih =>
     cases path with
     | done => simp at split
     | read expected edit store host back =>
       obtain ⟨rfl, shorter⟩ := List.cons.inj split
       cases labelledStepUnique step expected
-      obtain ⟨same, quiet, writer, paths⟩ := ih back shorter
-      exact ⟨same.trans store, quiet, by rw [writer, host], fun place => .step step (by rw [edit]; rfl) (paths place)⟩
-    | commit expected edit store host =>
+      obtain ⟨same, quiet, writer, paths, changes, effects, nominal⟩ := ih back shorter
+      exact ⟨same.trans store, quiet, by rw [writer, host], fun place => .step step (by rw [edit]; rfl) (paths place),
+        changes, .same step (congrArg HostState.writer host) effects, nominal⟩
+    | @commit _ _ update expected edit store host =>
       obtain ⟨rfl, empty⟩ := List.cons.inj split
       obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.mp empty.symm
       cases labelledStepUnique step expected
       cases tail
-      exact ⟨store, rfl, host, fun place => .step step (by rw [edit]; rfl) (.done _ _)⟩
+      exact ⟨store, rfl, host, fun place => .step step (by rw [edit]; rfl) (.done _ _),
+        WriterPaths.spendStep update step (congrArg HostState.writer host)⟩
 
 open PayloadPrefix ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem cutRefusedLeaf {target : Config (core3 grow) (HostState sig)} {guard remaining : Trace grow sig}
@@ -3119,7 +3127,7 @@ private theorem cutRefusedLeaf {target : Config (core3 grow) (HostState sig)} {g
     finish.store = incoming.store ∧ visible labels = [] ∧
     OccurrenceTransport profile ready base bindings start incoming labels [] finish incoming ∧
     CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer incoming.host.writer [] := by
-  obtain ⟨store, quiet, host, paths⟩ := leafGuardPrefix path split run
+  obtain ⟨store, quiet, host, paths, _⟩ := leafGuardPrefix path split run
   have unchanged : finish.host = start.host := by simpa using host
   exact ⟨store.trans same, quiet, CallbackPrefix.stationaryTransport paths (fun place => .done _ place), congrArg HostState.writer unchanged, rfl⟩
 
@@ -3133,16 +3141,17 @@ theorem cutGuardedLeaf {leftEnd rightEnd : Config (core3 grow) (HostState sig)} 
     ∃ used peer spends, finish.store = peer.store ∧ visible labels = visible used ∧
       OccurrenceTransport profile ready base bindings start incoming labels used finish peer ∧
       CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer spends ∧
-      used = labels.drop guard.length ∧ spends = if guard.length ≤ labels.length then plan.toList else [] := by
+      used = labels.drop guard.length ∧ (spends = if guard.length ≤ labels.length then plan.toList else []) ∧
+      CompiledLeafWriterPaths profile ready base bindings start incoming labels used finish peer plan := by
   obtain ⟨committed, guarded, rfl, body⟩ := path
   rcases List.append_eq_append_iff.mp split with ⟨front, labelSplit, checkSplit⟩ | ⟨front, guardSplit, _⟩
   · have tracks := guarded.tracks
     have entered := (prefix_survives (tracks (.active 0 0))).1
     have suffix := stripExactPrefix entered (labelSplit ▸ run)
-    obtain ⟨_, quiet, host, _⟩ := leafGuardPrefix guarded (List.append_nil guard).symm entered
-    obtain ⟨peer, stores, leftHost, rightHost, path⟩ := pairedLeafPrefix body checkSplit suffix
+    obtain ⟨_, quiet, host, _, changes, guardEffects, nominal⟩ := leafGuardPrefix guarded (List.append_nil guard).symm entered
+    obtain ⟨peer, stores, leftHost, rightHost, path, leftEffects, rightEffects⟩ := pairedLeafPrefix body checkSplit suffix
     have movement := CallbackPrefix.transportAppend (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place)) path
-    refine ⟨front, peer, plan.toList, stores, ?_, ?_, ?_, ?_, ?_⟩
+    refine ⟨front, peer, plan.toList, stores, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [labelSplit, visibleAppend, quiet, List.nil_append]
     · simpa only [labelSplit, List.nil_append, List.map_nil, List.append_nil] using movement.choose_spec.1
     · refine ⟨?_, congrArg HostState.writer rightHost⟩
@@ -3150,9 +3159,11 @@ theorem cutGuardedLeaf {leftEnd rightEnd : Config (core3 grow) (HostState sig)} 
       cases plan <;> rfl
     · simp [labelSplit]
     · simp [labelSplit]
-  · obtain ⟨store, quiet, host, paths⟩ := leafGuardPrefix guarded guardSplit run
+    · exact ⟨changes, by simpa only [labelSplit, List.append_nil] using WriterPaths.append guardEffects leftEffects,
+        rightEffects, nominal⟩
+  · obtain ⟨store, quiet, host, paths, changes, guardEffects, nominal⟩ := leafGuardPrefix guarded guardSplit run
     refine ⟨[], incoming, (if front.isEmpty then plan else none).toList, store.trans same, quiet,
-      CallbackPrefix.stationaryTransport paths (fun place => .done _ place), ?_, ?_, ?_⟩
+      CallbackPrefix.stationaryTransport paths (fun place => .done _ place), ?_, ?_, ?_, ⟨changes, guardEffects, .done _, nominal⟩⟩
     · refine ⟨?_, rfl⟩
       rw [host]
       cases (if front.isEmpty then plan else none) <;> rfl
@@ -3200,7 +3211,7 @@ private theorem driveFlatHandle {origin : CStore (core3 grow)} (destination : Re
       cases verdict <;> simp [workerBranchLabel]
     cases alignLocalBody checkRun run (noBranchOfVisible observed localOnly) with
     | inside split nonempty tail =>
-      obtain ⟨used, peer, _, store, observed, movement, _, _, _⟩ := cutGuardedLeaf path split frame.store run
+      obtain ⟨used, peer, _, store, observed, movement, _, _, _, _⟩ := cutGuardedLeaf path split frame.store run
       exact ⟨actual, used, [], finish, peer, [], (List.append_nil _).symm, observed.symm, movement, store, .refl _, .localPrefix nonempty tail⟩
     | reached split tail =>
       refine ⟨guard ++ checkLabels, canonLabels, _, _, _, [], split, observed.symm,
@@ -6327,7 +6338,7 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
         cases verdict <;> simp [workerBranchLabel]
       cases alignLocalBody checkRun actual (noBranchOfVisible observed localOnly) with
       | inside split nonempty tail =>
-        obtain ⟨used, peer, spends, store, observed, movement, flow, _, _⟩ := cutGuardedLeaf path split frame.store actual
+        obtain ⟨used, peer, spends, store, observed, movement, flow, _, _, _⟩ := cutGuardedLeaf path split frame.store actual
         exact ⟨labels, used, [], finish, peer, (List.append_nil _).symm, observed, store, movement, .refl _, ⟨spends, flow⟩, .inside nonempty tail⟩
       | reached split tail =>
         have movement := CallbackPrefix.localLeafTransport tracks
@@ -6498,7 +6509,7 @@ theorem driveStringListBody (destination : RecordDestination) (inst : InstId) (e
     obtain ⟨store, verdict, effects, written, path, compared, continued⟩ := driveValueCommit publish tail
     cases compared with
     | inside planned nonempty residual =>
-      obtain ⟨peer, same, _, _, prefixPath⟩ := pairedLeafPrefix path planned tail
+      obtain ⟨peer, same, _, _, prefixPath, _, _⟩ := pairedLeafPrefix path planned tail
       refine ⟨checked ++ trailing, canonical ++ trailing, [], finish, peer, [], ?_, ?_,
         (CallbackPrefix.transportAppend move prefixPath).choose_spec.1, same, .refl _, .localPrefix nonempty residual⟩
       · simpa only [List.append_nil] using split
@@ -6567,7 +6578,7 @@ theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (
     obtain ⟨store, verdict, effects, written, path, aligned, continues⟩ := driveValueCommit commit rest
     cases aligned with
     | inside planned nonempty tail =>
-      obtain ⟨peer, same, leftHost, rightHost, prefixPath⟩ := pairedLeafPrefix path planned rest
+      obtain ⟨peer, same, leftHost, rightHost, prefixPath, _, _⟩ := pairedLeafPrefix path planned rest
       refine ⟨checked ++ trailing, canonical ++ trailing, [], finish, peer, ?_, ?_, same,
         (CallbackPrefix.transportAppend movement prefixPath).choose_spec.1, .refl _, ⟨spends, ?_⟩, .inside nonempty tail⟩
       · simpa only [List.append_nil] using split
@@ -6771,7 +6782,7 @@ private theorem driveMemoryHandle {origin : CStore (core3 grow)} (destination : 
       cases verdict <;> simp [workerBranchLabel]
     cases alignLocalBody checkRun actual (noBranchOfVisible observed localOnly) with
     | inside split nonempty tail =>
-      obtain ⟨used, peer, _, store, seen, movement, _, _, _⟩ := cutGuardedLeaf path split frame.store actual
+      obtain ⟨used, peer, _, store, seen, movement, _, _, _, _⟩ := cutGuardedLeaf path split frame.store actual
       exact ⟨labels, used, [], finish, peer, [], (List.append_nil _).symm, seen, store, movement, .refl _, .boundary (.localPrefix nonempty tail)⟩
     | reached split tail =>
       refine ⟨guard ++ checkLabels, canonLabels, _, _, _, [], split, observed, ?_,
@@ -7091,7 +7102,7 @@ private theorem driveCollectionPublish {origin visited : CStore (core3 grow)}
     obtain ⟨store, verdict, effects, written, path, aligned, continued⟩ := driveValueCommit publish tail
     cases aligned with
     | inside planned nonempty residual =>
-      obtain ⟨peer, same, _, _, prefixPath⟩ := pairedLeafPrefix path planned tail
+      obtain ⟨peer, same, _, _, prefixPath, _, _⟩ := pairedLeafPrefix path planned tail
       exact prependValueVisit split seen movement
         ⟨trailing, trailing, [], finish, peer, [], (List.append_nil _).symm, rfl, same, prefixPath, .refl _, .boundary (.localPrefix nonempty residual)⟩
     | @reached residual used remainder =>
