@@ -627,7 +627,8 @@ inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (Hos
     (resume : ReturnFrame.Continuation (core3 grow) (HostState sig)) (reply : Event × List FlatValue) :
     Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
   | prefix {actual finish} (short : actual.length < 3)
-      (paths : ∀ mark, Trail profile ready dispatch start mark actual finish mark) :
+      (quiet : PayloadPrefix.visible actual = []) (store : finish.store = start.store)
+      (paths : ∀ place, Prefix profile ready dispatch start place actual finish place) :
       CheckedProgramReplyCut profile ready dispatch start caller resume reply actual finish
   | popped {trailing finish}
       (written : ∀ place, Prefix profile ready dispatch start place [.tau, .tau]
@@ -876,6 +877,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (do return .flat (← writeCompletion reply)))
       (replyCut : CheckedProgramReplyCut profile ready (specDispatch ready base) left caller resume reply trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | directGiveFinite {changes reached peer right checked canonical finish marks}
+      (cut : GiveBodyCut profile ready base bindings reached peer finish right checked canonical [] finish marks) :
+      CallbackSliceEnd profile ready base bindings changes reached peer checked finish
   | allocator {changes reached peer label next left right checked canonical trailing finish caller
       checkEntry canonEntry checkLabels canonLabels mark first second}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
