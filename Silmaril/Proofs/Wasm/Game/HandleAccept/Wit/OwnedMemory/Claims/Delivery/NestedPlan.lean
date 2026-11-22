@@ -11,6 +11,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Public.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
@@ -2279,6 +2280,210 @@ theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {
             alignRangeTransport movement movementLocal (by simp) (.cons pop suffix), child⟩
       · exact .inl (.inr (.inr returning))
     · exact .inl (.inr (.inl active))
+
+open PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
+theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (entries : List Field) (stride pointer index : Nat)
+    (nominal : ∀ item ∈ entries, CanonicalHandle item)
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (checkAt : start.ctl = check.control (Record.Effects.elements recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width entries stride pointer index >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.elements Limits.spec Quirks.none
+      (destination.context inst) destination.width entries .value stride pointer >>= canonNext))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish) :
+    AllocatedElementRun profile ready base bindings older checkNext canonNext
+      (ElementStop destination inst entries stride pointer canonNext) check canon start incoming labels finish := by
+  have static (left right : Config (core3 grow) (HostState sig)) :
+      OccurrenceTransport profile ready base bindings left right [] [] left right :=
+    CallbackPrefix.stationaryTransport (fun place => .done left place) (fun place => .done right place)
+  induction entries generalizing pointer index start incoming labels with
+  | nil =>
+    simp only [Record.Effects.elements, CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] at checkAt canonAt
+    exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, .returned ⟨(), frame, checkAt, canonAt⟩⟩
+  | cons item rest ih =>
+    let checkTail := LinkedCallback.MemorySequence.checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext
+    let canonTail := LinkedCallback.MemorySequence.canonTail (.elements stride) destination inst rest (pointer + stride) canonNext
+    have atHead : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+        (destination.context inst) destination.width item index (.memory pointer) >>= checkTail) := by
+      rw [checkAt, Record.Effects.elements]
+      congr 1
+      simp only [Prog.bind_eq, Prog.bind_assoc, checkTail]
+      congr 1
+      funext verdict
+      cases verdict with
+      | error _ => rfl
+      | ok value => cases value; rfl
+    have atCanonHead : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+        (destination.context inst) destination.width item (.memory pointer) >>= canonTail) := by
+      rw [canonAt, CanonicalTree.elements]
+      congr 1
+      exact Prog.bind_assoc _ _ _
+    have leaf := LinkedCallback.ChildFrameOver.handle_field_then_between
+      (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst item (nominal item (by simp))
+      index (.memory pointer) checkTail canonTail frame (Core3.Grows.refl _) atHead atCanonHead
+      (next := fun _ lhs rhs check canon => LinkedCallback.ChildFrameOver older lhs rhs check canon)
+      (fun _ _ _ _ _ frame _ _ _ => frame)
+    unfold LinkedCallback.HandleFieldThenBetween at leaf
+    cases decision : liveLeafPlan start.store start.host.writer index item with
+    | error issue =>
+      rw [decision] at leaf
+      obtain ⟨guard, tau, tracks⟩ := leaf
+      have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
+      cases alignLocalBody (prefix_survives (tracks (.active 0 0))).1 actual (noBranchOfVisible quiet (by simp)) with
+      | inside _ nonempty tail =>
+        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, .inside nonempty tail⟩
+      | reached split tail =>
+        refine ⟨guard, [], _, _, incoming, split, quiet, ?_,
+          CallbackPrefix.stationaryTransport tracks (fun place => .done _ place), tail,
+          .refused issue ⟨rfl, _, ⟨[], item :: rest, rfl, by simp, by simp⟩, canonAt⟩⟩
+        exact frame.store
+    | ok plan =>
+      rw [decision] at leaf
+      obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, continued⟩ := leaf
+      have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
+      have observed : visible (guard ++ checkLabels) = visible canonLabels := by
+        rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
+        cases verdict <;> rfl
+      have localOnly : ∀ action ∈ visible canonLabels, ¬ workerBranchLabel action := by
+        rw [CallbackPrefix.visibleLeaf rightKind]
+        cases verdict <;> simp [workerBranchLabel]
+      cases alignLocalBody checkRun actual (noBranchOfVisible observed localOnly) with
+      | inside _ nonempty tail =>
+        exact ⟨[], [], labels, start, incoming, rfl, rfl, frame.store, static .., actual, .inside nonempty tail⟩
+      | reached split tail =>
+        have movement := CallbackPrefix.localLeafTransport tracks
+        cases verdict with
+        | error reason =>
+          refine ⟨_, _, _, _, _, split, observed, ?_, movement, tail, .trapped rfl rfl⟩
+          rfl
+        | ok value =>
+          cases value
+          obtain ⟨_, _, paired⟩ := continued () rfl
+          obtain ⟨checked, canonical, residual, lhs, rhs, restSplit, seen, same, restMovement, after, ending⟩ :=
+            ih (pointer := pointer + stride) (index := index + 1) (fun child included => nominal child (List.mem_cons_of_mem _ included))
+              paired rfl rfl tail
+          refine ⟨(guard ++ checkLabels) ++ checked, canonLabels ++ canonical, residual, lhs, rhs,
+            by simp only [split, restSplit, List.append_assoc],
+            by rw [visibleAppend (guard ++ checkLabels) checked, visibleAppend canonLabels canonical, observed, seen],
+            same, (CallbackPrefix.transportAppend movement restMovement).choose_spec.1, after, ?_⟩
+          cases ending with
+          | returned success => exact .returned success
+          | trapped checked canonical => exact .trapped checked canonical
+          | inside nonempty tail => exact .inside nonempty tail
+          | refused issue stopped =>
+            obtain ⟨checkedAt, stop, ⟨preceding, pending, remaining, nonempty, canonStop⟩, canonicalAt⟩ := stopped
+            refine .refused issue ⟨checkedAt, stop, ⟨item :: preceding, pending, congrArg (item :: ·) remaining, nonempty, ?_⟩, canonicalAt⟩
+            simpa only [List.length_cons, Nat.succ_mul, Nat.add_assoc, Nat.add_comm stride] using canonStop
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+theorem driveNominalListBody (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (entries : List Field) (index pointer : Nat) (output : Stored.Lower.Output)
+    (nominal : NominalElement element)
+    (matched : Field.LayoutMatches (.dynamic (.list element) element entries) (.list element))
+    (emitted : Field.Emitted (.dynamic (.list element) element entries))
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    start.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    incoming.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    Steps profile ready (specDispatch ready base) start labels finish →
+    AllocatedElementRun profile ready base bindings older checkNext canonNext
+      (ElementStop destination inst entries area.size pointer
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish := by
+  intro area mode checkAt canonAt actual
+  have valueMode : mode = .value := by cases output <;> rfl
+  obtain ⟨checkElements, canonElements⟩ := CallbackRange.collectionElementFoci destination inst entries area mode output pointer index
+    checkNext canonNext checkAt canonAt
+  rw [valueMode] at canonElements
+  have shapes := CallbackRange.listEntries matched
+  have handles : ∀ item ∈ entries, CanonicalHandle item := by
+    intro item member
+    cases emitted with
+    | list children => exact CallbackRange.nominalEntry nominal (entries_match_of_mem shapes member) (children item member)
+  obtain ⟨checked, canonical, trailing, left, right, split, observed, same, movement, rest, ending⟩ :=
+    driveNominalElements destination inst entries area.size pointer 0 handles frame checkElements canonElements actual
+  have keep (ending : ElementRunEnd profile ready base
+      (fun lhs rhs => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs check canon ∧
+        lhs.ctl = check.control (checkNext (.ok value)) ∧ rhs.ctl = canon.control (canonNext value))
+      (fun issue lhs rhs => lhs.ctl = check.control (checkNext (.error issue)) ∧
+        ∃ stop, ElementStop destination inst entries area.size pointer (publishCanonical destination inst pointer entries.length output canonNext) stop ∧
+          rhs.ctl = canon.control stop) left right trailing finish) :
+      AllocatedElementRun profile ready base bindings older checkNext canonNext
+        (ElementStop destination inst entries area.size pointer (publishCanonical destination inst pointer entries.length output canonNext))
+        check canon start incoming labels finish :=
+    ⟨checked, canonical, trailing, left, right, split, observed, same, movement, rest, ending⟩
+  cases ending with
+  | inside nonempty tail => exact keep (.inside nonempty tail)
+  | trapped checked canonical => exact keep (.trapped checked canonical)
+  | refused issue stop => exact keep (.refused (.nested index issue) stop)
+  | returned published =>
+    obtain ⟨⟨⟩, frame, checkedAt, canonicalAt⟩ := published
+    have commit := CallbackRange.livePublish (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+      destination inst pointer entries.length output checkNext canonNext
+      (fun value lhs rhs check canon => LinkedCallback.ChildFrameOver older lhs rhs check canon ∧
+        lhs.ctl = check.control (checkNext (.ok value)) ∧ rhs.ctl = canon.control (canonNext value))
+      (fun _ _ _ _ _ frame _ lhs rhs => ⟨frame, lhs, rhs⟩) frame (Core3.Grows.refl _) checkedAt canonicalAt
+    obtain ⟨store, verdict, effects, written, aligned, continues⟩ := driveValueCommit commit rest
+    cases aligned with
+    | inside _ nonempty tail => exact keep (.inside nonempty tail)
+    | reached used tail =>
+      refine ⟨checked ++ effects, canonical ++ effects, _, _, _, by rw [split, used, List.append_assoc],
+        by rw [visibleAppend, visibleAppend, observed], ?_, (CallbackPrefix.transportAppend movement written).choose_spec.1, tail, ?_⟩
+      · cases verdict <;> rfl
+      · cases verdict with
+        | error reason => exact .trapped rfl rfl
+        | ok value => exact .returned ⟨value, continues value rfl⟩
+
+open PayloadPrefix in
+private theorem prependElementSlice
+    {success : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    {refusal : Stored.Endpoints.RecordLower.Issue → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    {left right : Config (core3 grow) (HostState sig)} {leading canonical trailing : Trace grow sig}
+    (split : labels = leading ++ trailing) (seen : visible leading = visible canonical)
+    (prefixTransport : OccurrenceTransport profile ready base bindings start incoming leading canonical left right)
+    (body : ElementRunSlice profile ready base bindings success refusal left right trailing finish) :
+    ElementRunSlice profile ready base bindings success refusal start incoming labels finish := by
+  obtain ⟨checked, peer, residual, lhs, rhs, bodySplit, observed, same, movement, tail, ending⟩ := body
+  refine ⟨leading ++ checked, canonical ++ peer, residual, lhs, rhs, ?_, ?_, same,
+    (CallbackPrefix.transportAppend prefixTransport movement).choose_spec.1, tail, ending⟩
+  · simp only [split, bodySplit, List.append_assoc]
+  · rw [visibleAppend leading checked, visibleAppend canonical peer, seen, observed]
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+theorem driveNominalListAfterRange (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (entries : List Field) (index pointer : Nat) (output : Stored.Lower.Output)
+    (nominal : NominalElement element)
+    (matched : Field.LayoutMatches (.dynamic (.list element) element entries) (.list element))
+    (emitted : Field.Emitted (.dynamic (.list element) element entries))
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (split : labels = checked ++ trailing) (seen : visible checked = visible canonical) :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
+    AllocatedElementRun profile ready base bindings older checkNext canonNext
+      (ElementStop destination inst entries area.size pointer
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish := by
+  intro area mode checkAt canonAt range
+  obtain ⟨leftTail, rightTail, movement, silentLeft, silentRight, _, aligned⟩ := range
+  cases aligned with
+  | inside _ nonempty tail => exact .inl ⟨_, nonempty, tail⟩
+  | reached used suffix =>
+    have combined := split.trans (congrArg (checked ++ ·) used)
+    have observed : visible (checked ++ leftTail) = visible (canonical ++ rightTail) := by
+      rw [visibleAppend checked leftTail, visibleAppend canonical rightTail, seen, silentLeft, silentRight]
+    exact .inr (prependElementSlice (combined.trans (List.append_assoc ..).symm) observed movement
+      (driveNominalListBody destination inst element entries index pointer output nominal matched emitted
+        checkNext canonNext frame checkAt canonAt suffix))
 
 private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
     {seen : Trace grow sig} {cursor destination area count pointer plan checkNext canonNext}

@@ -4069,6 +4069,46 @@ inductive LocalRunAlignment (profile : ProfileKind) (ready : HostReady (HostStat
   | inside {remaining} (split : planned = actual ++ remaining) (nonempty : remaining ≠ [])
       (tail : Steps profile ready dispatch finish remaining target)
 
+/-- Classify a finite run at its last compared field frontier. A prefix
+inside a local leaf retains its original suffix without completing the leaf. -/
+inductive ElementRunEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig))
+    (success : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
+    (refusal : Stored.Endpoints.RecordLower.Issue → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
+    (left right : Config (core3 grow) (HostState sig)) (trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | returned (reached : success left right)
+  | refused (issue : Stored.Endpoints.RecordLower.Issue) (reached : refusal issue left right)
+  | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
+  | inside {remaining target} (nonempty : remaining ≠ [])
+      (tail : Steps profile ready (specDispatch ready base) finish remaining target)
+
+def ElementRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (success : Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
+    (refusal : Stored.Endpoints.RecordLower.Issue → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
+    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ checked canonical trailing left right, actual = checked ++ trailing ∧
+    PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
+    OccurrenceTransport profile ready base bindings start incoming checked canonical left right ∧
+    Steps profile ready (specDispatch ready base) left trailing finish ∧
+    ElementRunEnd profile ready base success refusal left right trailing finish
+
+/-- An allocated element sequence ending in the stated output continuations.
+On refusal the checked body follows its error arm, while canonical remains
+at the exact canonical suffix admitted by the sequence. -/
+def AllocatedElementRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    {Result : Type} (checkNext : Except Stored.Endpoints.RecordLower.Issue Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : Result → Session grow sig (Ret (core3 grow))) (stopsAt : Session grow sig (Ret (core3 grow)) → Prop)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ElementRunSlice profile ready base bindings
+    (fun left right => ∃ value, LinkedCallback.ChildFrameOver older left right check canon ∧
+      left.ctl = check.control (checkNext (.ok value)) ∧ right.ctl = canon.control (canonNext value))
+    (fun issue left right => left.ctl = check.control (checkNext (.error issue)) ∧
+      ∃ stop, stopsAt stop ∧ right.ctl = canon.control stop) start incoming actual finish
+
 /-- Match the actual local descriptor program before exposing a successful
 publication or a trap. A checked prefix inside the program cannot advance
 the enclosing continuation. -/

@@ -684,6 +684,54 @@ theorem LiveCollectionOccurrenceEntry.drive_actual {destination : RecordDestinat
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCollectionSlice
     body same width actual bounded compare
 
+open PayloadPrefix LinkedCallback.MemorySequence in
+/-- Once the admitted list's range is actually reached, consume the nominal
+element suffix in order. Publication is entered only after every element
+returns; a guard refusal leaves canonical at the exact unexecuted suffix. -/
+theorem drive_nominal_list_body (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (entries : List Field) (index pointer : Nat) (output : Stored.Lower.Output)
+    (nominal : NominalElement element)
+    (matched : Field.LayoutMatches (.dynamic (.list element) element entries) (.list element))
+    (emitted : Field.Emitted (.dynamic (.list element) element entries))
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    start.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    incoming.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    Steps profile ready (specDispatch ready base) start labels finish →
+    AllocatedElementRun profile ready base bindings older checkNext canonNext
+      (ElementStop destination inst entries area.size pointer
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveNominalListBody
+    destination inst element entries index pointer output nominal matched emitted checkNext canonNext frame
+
+open PayloadPrefix LinkedCallback.MemorySequence in
+/-- Use the executed range split from `LiveCollectionOccurrenceEntry.drive_actual`.
+The body never runs when the checked prefix ends inside the range. -/
+theorem drive_nominal_list_after_range (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf)
+    (entries : List Field) (index pointer : Nat) (output : Stored.Lower.Output)
+    (nominal : NominalElement element)
+    (matched : Field.LayoutMatches (.dynamic (.list element) element entries) (.list element))
+    (emitted : Field.Emitted (.dynamic (.list element) element entries))
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (split : labels = checked ++ trailing) (seen : visible checked = visible canonical) :
+    let area := layout destination.width element
+    let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
+    left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
+    right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
+    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
+    AllocatedElementRun profile ready base bindings older checkNext canonNext
+      (ElementStop destination inst entries area.size pointer
+        (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveNominalListAfterRange
+    destination inst element entries index pointer output nominal matched emitted checkNext canonNext frame split seen
+
 /-- A reached marked collection return uses the live memory and claim table.
 Both paths take the actual range checks under their respective dispatchers.
 Invalid range traps both; valid range hands the checked suffix its fresh

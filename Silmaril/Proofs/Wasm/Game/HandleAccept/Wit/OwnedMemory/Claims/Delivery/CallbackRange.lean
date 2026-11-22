@@ -954,12 +954,12 @@ theorem rejoinPublished {route : GiveEffectRoute} (site : PayloadRoot.Site grow 
         rfl, rfl, keepsLeft, keepsRight, trivial⟩
   exact replies site caller (prependSegment checkTracks canonTracks (checkSeen.trans canonSeen.symm) terminal)
 
-private theorem listEntries {entries : List Field} {element schema : Stored.TypeOf}
+theorem listEntries {entries : List Field} {element schema : Stored.TypeOf}
     (matched : Field.LayoutMatches (.dynamic (.list element) element entries) schema) : Field.EntriesMatch entries element := by
   cases matched with
   | list children => exact children
 
-private theorem nominalEntry {item : Field} {element : Stored.TypeOf}
+theorem nominalEntry {item : Field} {element : Stored.TypeOf}
     (nominal : NominalElement element) (shape : item.LayoutMatches element) (emitted : item.Emitted) : CanonicalHandle item := by
   cases item with
   | owner | endpoint | context => trivial
@@ -1061,7 +1061,7 @@ private theorem liveElementsRule (destination : RecordDestination) (inst : InstI
       (by simpa only [checked, checkTail, Track.checked, pointer, stride, Nat.add_mul, Nat.one_mul, Nat.add_assoc] using checkedAt)
       (by simpa only [canonical, canonTail, Track.canonical, pointer, stride, Nat.add_mul, Nat.one_mul, Nat.add_assoc] using canonicalAt)
 
-private theorem livePublish (destination : RecordDestination) (inst : InstId) (pointer count : Nat)
+theorem livePublish (destination : RecordDestination) (inst : InstId) (pointer count : Nat)
     (output : Stored.Lower.Output) (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     (finish : ValueFinish grow sig output) {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {origin : CStore (core3 grow)}
@@ -1085,7 +1085,7 @@ private theorem livePublish (destination : RecordDestination) (inst : InstId) (p
     done value _ _ check canon ⟨rfl, paired.pending, paired.results, paired.cancels, paired.blocked, paired.thread,
       paired.frames, paired.rest⟩ chain rfl rfl⟩
 
-private theorem collectionElementFoci (destination : RecordDestination) (inst : InstId) (entries : List Field)
+theorem collectionElementFoci (destination : RecordDestination) (inst : InstId) (entries : List Field)
     (area : Layout) (mode : CanonicalTree.EntryMode) (output : Stored.Lower.Output) (pointer index : Nat)
     (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     {lhs rhs : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
