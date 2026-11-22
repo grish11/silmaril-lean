@@ -633,6 +633,31 @@ theorem executeClassifiedPrefix {protectedReturn checkLabels}
     (paired_outside (left := HostFrame.replace start incoming.host) paired)
   exact ⟨peer, run, rfl, aligned, movement⟩
 
+theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread resume frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (agrees : resume start.host = resume incoming.host) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer := by
+  obtain ⟨rfl, rfl⟩ := actualHostGet focus step
+  obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume start.host)) start.host incoming.host
+  let peer := { incoming with ctl := ⟨thread, .prog (resume start.host), peerFrames⟩ :: peerRest }
+  have live : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer := by
+    change Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+      { incoming with ctl := ⟨thread, .prog (resume start.host), peerFrames⟩ :: peerRest }
+    rw [agrees]
+    exact .hostGet atPeer
+  refine ⟨peer, .cons (by simp [CoreUpdateGrows, focus]) (.hostGet focus) (.refl _), rfl, aligned, stationaryTransport ?_ ?_⟩
+  · intro place
+    refine .step (.hostGet focus) ?_ (.done _ _)
+    rw [transitionEdit, focus]
+    cases place <;> rfl
+  · intro place
+    refine .step live ?_ (.done _ _)
+    rw [transitionEdit, atPeer]
+    cases place <;> rfl
+
 private theorem allocatorCallbackEvidence
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
     {index : CallbackPathIndex grow sig}

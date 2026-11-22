@@ -189,7 +189,15 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
         · obtain ⟨checked, canonical, trailing, reached, peer, tailSplit, nested, ending⟩ := ending
           exact ⟨leading ++ checked, leading ++ canonical, trailing, reached, peer,
             by rw [split, tailSplit, List.append_assoc], CallbackPrefix.appendExecutedCallbacks front nested, ending⟩
-      | read focus openRead => exact stop (.boundary (.read focus openRead) step tail)
+      | @read thread resume frames rest focus _ =>
+        by_cases agrees : resume reached.host = resume peer.host
+        · obtain ⟨afterRead, read⟩ := CallbackPrefix.compareReachedHostRead focus step front.paired agrees
+          obtain ⟨checked, canonical, trailing, lhs, rhs, used, continued, ending⟩ :=
+            ih trailing.length (size ▸ smaller) tail read.paired rfl
+          exact ⟨leading ++ [label] ++ checked, leading ++ [label] ++ canonical, trailing, lhs, rhs,
+            by rw [split, used]; simp only [List.append_assoc, List.cons_append, List.nil_append],
+            CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front read) continued, ending⟩
+        · exact stop (.observation focus agrees step tail)
       | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
       | write focus => exact stop (.boundary (.write focus) step tail)
       | nonGrowingUpdate failed => exact stop (.boundary (.nonGrowingUpdate failed) step tail)
@@ -200,6 +208,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   cases ending with
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
+  | observation _ _ step tail => exact .cons step tail
   | refused _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
@@ -220,6 +229,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   cases ending with
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
+  | observation _ _ step tail => exact .cons step tail
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]

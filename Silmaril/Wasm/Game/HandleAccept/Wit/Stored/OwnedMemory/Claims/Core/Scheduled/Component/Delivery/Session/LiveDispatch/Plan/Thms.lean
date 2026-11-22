@@ -2414,9 +2414,9 @@ theorem GiveInstall.actual_selected_memory_callback {pointer : FlatValue} {reque
     selection install tail paired selected embedder compare
 
 /-- Classify finite callbacks under the fixed live dispatcher. The fold derives the installed
-Core request, its actual selector and the visitor shape of the compiled field. Parked flat and
-memory gives and common ABI refusals use shorter checked derivations. A differing live lookup
-or a direct install remains a separate proof cut. -/
+Core request, its actual selector and the visitor shape of the compiled field. Parked gives and
+reached reads with agreeing continuations use shorter checked derivations. A differing read,
+live lookup, or direct install remains a separate proof cut. -/
 theorem classify_give_callbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
