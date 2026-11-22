@@ -2497,7 +2497,7 @@ private theorem variantCompiled {item : Field} {cases : List (String × Option S
   | @endpoint channel _ _ => cases channel <;> cases matched
   | _ => cases matched
 
-private theorem variantLayouts (width : AddrType) (cases : List (String × Option Stored.TypeOf)) :
+theorem variantLayouts (width : AddrType) (cases : List (String × Option Stored.TypeOf)) :
     layoutCases width cases = (cases.map Prod.snd).map (layoutOption width) := by
   induction cases with
   | nil => simp only [layoutCases, List.map_nil]

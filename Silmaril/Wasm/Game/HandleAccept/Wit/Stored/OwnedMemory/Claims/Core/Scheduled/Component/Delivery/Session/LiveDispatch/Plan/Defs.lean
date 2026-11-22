@@ -4487,4 +4487,79 @@ def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostSt
       ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
         (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
+/-- Compiled memory fragment consumed by the finite visitor. Compound nodes
+carry layout evidence and the shapes of their active children. This is a
+proof domain, not a runtime check for support. -/
+inductive MemoryVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
+  | handle {item} : CanonicalHandle item → MemoryVisitShape item
+  | scalar {type} {payload : Stored.Payload type} : PayloadPrefix.LocalDataType type → MemoryVisitShape (.data type payload)
+  | string {item} : item.LayoutMatches (.prim .string) → item.Emitted → MemoryVisitShape item
+  | aggregate {type items} : Stored.Endpoints.RecordLower.Field.LayoutMatches (.aggregate type items) type →
+      (∀ item ∈ items, MemoryVisitShape item) → MemoryVisitShape (.aggregate type items)
+  | sum {type arms tag selected} :
+      (∀ width, ABI.layout width type = ABI.variantLayout (arms.map (ABI.layoutOption width))) →
+      (∀ item, selected = some item → some item.type ∈ arms) →
+      (∀ item, selected = some item → MemoryVisitShape item) →
+      MemoryVisitShape (.sum type arms tag selected)
+
+/-- Keep the reached canonical program on a checked-only refusal. Its first
+pending operation is the linked field at which the comparison stopped. -/
+def PendingMemoryField (destination : RecordDestination) (inst : InstId)
+    (right : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ (peer : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (item : Stored.Endpoints.RecordLower.Field)
+    (address : Nat) (next : LinkedCallback.MemorySequence.CanonNext grow sig),
+    right.ctl = peer.control (Stored.Endpoints.RecordLower.CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width item (.memory address) >>= next)
+
+/-- A visitor can advance a sibling only after a common return. In a paused
+allocator keep its current occurrence, even when that occurrence is lost. -/
+inductive MemoryVisitEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (destination : RecordDestination) (inst : InstId)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (left right : Config (core3 grow) (HostState sig)) (trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) :
+    List (Option ReturnFrame.Occurrence.Location) → Prop where
+  | returned (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+      (frame : LinkedCallback.ChildFrameOver older left right check canon) (growth : Core3.Grows origin.core left.store.core)
+      (checked : left.ctl = check.control (checkNext (.ok ()))) (canonical : right.ctl = canon.control (canonNext ())) :
+      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish []
+  | refused (issue : Stored.Endpoints.RecordLower.Issue) (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+      (checked : left.ctl = check.control (checkNext (.error issue))) (pending : PendingMemoryField destination inst right) :
+      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish []
+  | boundary {marks} (reached : StringSliceEnd profile ready base bindings older (fun _ _ _ _ _ => False)
+      left right trailing finish marks) :
+      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish marks
+
+/-- An actual checked derivation cut at a compiled visitor endpoint, with a
+canonical path to its reached peer and all-location occurrence transport. -/
+def MemoryVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (destination : RecordDestination) (inst : InstId)
+    (checkNext : LinkedCallback.MemorySequence.CheckNext grow sig) (canonNext : LinkedCallback.MemorySequence.CanonNext grow sig)
+    (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ checked canonical trailing left right marks, actual = checked ++ trailing ∧
+    PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
+    OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
+    Steps profile ready (specDispatch ready base) left trailing finish ∧
+    MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish marks
+
+/-- A local comparison invoked on a real residual from a placed compiled
+field. The budget refers to checked steps, not allocator or scheduler fuel. -/
+def MemoryVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (destination : RecordDestination) (inst : InstId) (budget : Nat)
+    (item : Stored.Endpoints.RecordLower.Field) (address : Nat) : Prop :=
+  open PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+  ∀ index (checkNext : CheckNext grow sig) (canonNext : CanonNext grow sig) left right check canon,
+    LinkedCallback.ChildFrameOver older left right check canon → Core3.Grows origin.core left.store.core →
+    left.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index (.memory address) >>= checkNext) →
+    right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width item (.memory address) >>= canonNext) →
+    ∀ actual finish, Steps profile ready (specDispatch ready base) left actual finish → actual.length ≤ budget →
+    MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext left right actual finish
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

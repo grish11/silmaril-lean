@@ -103,7 +103,7 @@ private theorem readWidthTracks (destination : RecordDestination) (inst : InstId
     (Prefix.read_at (profile := profile) (ready := ready) (dispatch := dispatch) (before := right)
       (next := fun store => body (ptrTypeIn store (destination.context inst))) place focused)
 
-private theorem focusStep (mode : Track) (destination : RecordDestination) (inst : InstId) (item : Field) (rest : List Field)
+theorem focusStep (mode : Track) (destination : RecordDestination) (inst : InstId) (item : Field) (rest : List Field)
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (cursor : Nat) (canonNext : CanonNext grow sig) (right : State grow sig) (canon : Cursor (E := core3 grow) (HostState sig))
     (width : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
@@ -234,7 +234,7 @@ theorem mixedRule {older : ReturnFrame.Substitutions (core3 grow) (HostState sig
     exact .inr ⟨str, rfl, frame.string_field_then destination inst str (.memory address) index checkNext canonNext
       growth present realloc fit placed checkAt canonAt (fun () => ends)⟩
 
-private theorem aggregateEntry {origin : CStore (core3 grow)}
+theorem aggregateEntry {origin : CStore (core3 grow)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (type : TypeOf) (items : List Field) (index address : Nat)
     (left : State grow sig) (check : Cursor (E := core3 grow) (HostState sig)) (checkNext : CheckNext grow sig)

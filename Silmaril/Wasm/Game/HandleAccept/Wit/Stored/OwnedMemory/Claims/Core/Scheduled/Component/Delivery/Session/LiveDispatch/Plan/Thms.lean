@@ -2249,4 +2249,56 @@ theorem PublicOccurrenceExit.align_worker {route : GiveEffectRoute} {site : Payl
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignPublicGiveWorker
     site checked canonical checkQuiet canonQuiet body arrived run
 
+/-- The compiler's layout relation supplies the sum slot. Only the
+selected compiled field needs a visitor shape. -/
+theorem MemoryVisitShape.compiled_sum {type : Stored.TypeOf} {arms : List (Option Stored.TypeOf)} {tag : Nat} {selected : Option Field}
+    (matched : Field.LayoutMatches (.sum type arms tag selected) type)
+    (children : ∀ item, selected = some item → MemoryVisitShape item) : MemoryVisitShape (.sum type arms tag selected) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.compiledSumVisitShape matched children
+
+/-- Run a placed compiled visitor on the actual finite checked derivation.
+Siblings and selected arms use the executed residual; a boundary or typed
+refusal does not run a sibling or publish the enclosing value. -/
+theorem compiled_memory_visit {origin : CStore (core3 grow)} {root item : Field} {schema : Stored.TypeOf} {budget bytes : Nat}
+    (destination : RecordDestination) (inst : InstId) (address : Nat) (shape : MemoryVisitShape item)
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root) (path : root.Descendant item)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (placed : LinkedCallback.MemorySequence.SlotFits destination.width bytes item address)
+    (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    MemoryVisitField profile ready base bindings older origin destination inst budget item address :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCompiledMemory
+    destination inst address shape rootLayout fits allocates path embedder width sized placed compare
+
+/-- Consume the actual value-mode element residual after a validated
+collection range. Run the descriptor write only after all elements return. -/
+theorem compiled_memory_elements {origin : CStore (core3 grow)} {root : Field} {schema : Stored.TypeOf} {budget bytes : Nat}
+    (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf) (entries : List Field) (index pointer address : Nat)
+    (matching : Field.EntriesMatch entries element) (shapes : ∀ item ∈ entries, MemoryVisitShape item)
+    (paths : ∀ item ∈ entries, root.Descendant item)
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? start.store.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width element).alignment)
+    (bounds : pointer + entries.length * (layout destination.width element).size ≤ bytes)
+    {checkNext : LinkedCallback.MemorySequence.CheckNext grow sig} {canonNext : LinkedCallback.MemorySequence.CanonNext grow sig}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
+    (checkAt : start.ctl = check.control (PayloadPrefix.checkedCollectionTail destination inst entries (layout destination.width element)
+      index (.memory address) pointer (.ok ()) >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (PayloadPrefix.canonicalCollectionTail destination inst entries (layout destination.width element)
+      (.memory address) pointer .value >>= canonNext))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ budget) (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCompiledMemoryElements
+    destination inst element entries index pointer address matching shapes paths rootLayout fits allocates embedder width sized
+    aligned bounds frame growth checkAt canonAt actual bounded compare
+
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

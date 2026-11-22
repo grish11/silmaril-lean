@@ -32,6 +32,34 @@ theorem Track.elements_slots (width : AddrType) {element : TypeOf} {items : List
     (Track.elements (layout width element).size).Slots width rule items base :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.elementSlots width matched aligned bounds rule child
 
+/-- Enter the selected canonical field, taking the live width read only
+when the sequence uses the record/tuple cursor. -/
+theorem Track.focus_prefix {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (mode : Track) (destination : RecordDestination) (inst : InstId) (item : Field) (rest : List Field)
+    (cursor : Nat) (canonNext : CanonNext grow sig) (right : State grow sig) (canon : Cursor (E := core3 grow) (HostState sig))
+    (width : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    (atProgram : right.ctl = canon.control (mode.canonical destination inst (item :: rest) cursor >>= canonNext)) :
+    ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch right place mode.readLabels
+      (focus mode destination inst item cursor right canon
+        (canonTail mode destination inst rest (mode.slot destination.width item cursor).2 canonNext)) place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.focusStep
+    mode destination inst item rest cursor canonNext right canon width atProgram
+
+/-- The checked aggregate takes its range guard before the first field. -/
+theorem aggregate_entry_prefix {origin : CStore (core3 grow)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (items : List Field) (index address : Nat)
+    (left : State grow sig) (check : Cursor (E := core3 grow) (HostState sig)) (checkNext : CheckNext grow sig)
+    (growth : Core3.Grows origin.core left.store.core)
+    {bytes : Nat} (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : address % (layout destination.width type).alignment.bytes = 0)
+    (bounds : address + (layout destination.width type).size ≤ bytes)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
+      destination.width (.aggregate type items) index (.memory address) >>= checkNext)) :
+    ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch left place [.tau]
+      (enterAggregate destination inst items index address left check checkNext) place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemorySequence.aggregateEntry
+    destination inst type items index address left check checkNext growth sized aligned bounds checkAt
+
 /-- Traverse both actual memory sequences. Record/tuple reads are taken in
 the reached store and element slots keep their validated stride. The rule
 for the next sibling applies only on the preceding child's common return. -/
