@@ -1202,11 +1202,11 @@ private theorem classifyReachedGrowth {dispatch : Call (core3 grow) → Session 
 
 theorem cutExecutedCallback
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (paired : HostFrame.Related.Paired older start incoming) :
+    (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) :
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
   let protectedReturn := fun resume => ∃ rhs, older resume rhs
   have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
-  cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run with
+  cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run includeComponentCalls with
   | complete _ replay growing =>
     obtain ⟨_, prefixRun⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     exact .complete prefixRun
@@ -1274,6 +1274,7 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
             · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
           · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
       | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
+      | componentInstall focus => exact stop (.boundary (.componentInstall focus) step tail)
       | write focus =>
         obtain ⟨rfl, rfl⟩ := silentStepUnique (.hostSet focus) step
         obtain ⟨afterWrite, compared⟩ := CallbackPrefix.compareReachedHostWrite focus front.paired
@@ -4071,6 +4072,23 @@ theorem classifyLinkedComponentAdmission {callees : List (ComponentCall.Callee s
     cutLinkedComponentInstall linked focused taken paired
   exact ⟨peerFrames, peerRest, silent, install,
     cutAdmittedComponent callee caller rfl record liveThread liveTask context admitted aligned leftMark rightMark outside run⟩
+
+theorem classifyComponentWorkerPrefix {callees : List (ComponentCall.Callee sig)}
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ComponentWorkerCut profile ready bindings callees older start incoming labels finish := by
+  classical
+  cases cutExecutedCallback run paired (includeComponentCalls := true) with
+  | complete segment => exact .complete segment
+  | @boundary _ _ _ reached _ _ split prefixSegment kind step tail smaller =>
+    refine .boundary split prefixSegment kind step tail smaller ?_
+    intro active hostId caller resume frames rest focused
+    by_cases admits : ComponentHostAdmission callees hostId caller active reached
+    · obtain ⟨callee, subtask, cx, args, pos, ft, limits, results, entry, task, linked, record, liveThread, liveTask, context, admitted⟩ := admits
+      obtain ⟨peerFrames, peerRest, silent, installed, body⟩ :=
+        classifyLinkedComponentAdmission linked focused step tail prefixSegment.paired record liveThread liveTask context admitted
+      exact .inr ⟨callee, cx, args, peerFrames, peerRest, linked, silent, installed, body⟩
+    · exact .inl admits
 
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}

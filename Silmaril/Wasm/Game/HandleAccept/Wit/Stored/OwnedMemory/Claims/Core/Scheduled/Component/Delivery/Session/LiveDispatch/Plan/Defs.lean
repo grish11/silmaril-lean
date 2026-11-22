@@ -71,6 +71,8 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
     (before : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
     (next : Config (core3 grow) (HostState sig)) : Prop where
   | give (install : GiveInstall bindings dispatch before label next)
+  | componentInstall {active hostId caller resume frames rest}
+      (focus : before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
   | read {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (openRead : ¬ ClosedHostRead before)
@@ -4603,6 +4605,56 @@ def ComponentAdmissionCut (profile : ProfileKind) (ready : HostReady (HostState 
       (callee.childPreflight start.host.writer.accepted start.store cx args)
       (callee.childPreflight incoming.host.writer.accepted incoming.store cx args)
       check canon first second reached peer suffix finish
+
+/-- The positive dispatch and admission branch, inspected at the actual call
+site. Failure of this predicate is a frontier, not a synthetic runtime reply. -/
+def ComponentHostAdmission (callees : List (ComponentCall.Callee sig)) (hostId : HostFuncId) (caller : CallerId)
+    (active : ThreadId) (state : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ callee subtask cx args pos ft limits results entry task,
+    callees.filter (·.hostId == hostId) = [callee] ∧
+    ArenaField.callers.get? state.store caller = some (.lower subtask cx args pos ft limits results) ∧
+    ArenaField.threads.get? state.store active = some entry ∧
+    ArenaField.tasks.get? state.store entry.task = some task ∧ task.inst = callee.inst ∧
+    callee.check state.store subtask cx args pos ft (limits, results) = .ok ()
+
+/-- At a reached host-function request, keep either the failed admission guard
+or the installed comparison of the actual body. The fresh mark is introduced by
+the taken step, not by the caller of the classifier. -/
+def ComponentInstallOutcome (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (before incoming next finish : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
+    (trailing : Trace grow sig) : Prop :=
+  ∀ active hostId caller resume frames rest,
+    before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest →
+    ¬ ComponentHostAdmission callees hostId caller active before ∨
+    ∃ callee cx args peerFrames peerRest,
+      let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+      let peer := { incoming with ctl := ⟨some active, .prog (ComponentCall.invoke callee caller), .prog resume :: peerFrames⟩ :: peerRest }
+      callees.filter (·.hostId == hostId) = [callee] ∧ label = .tau ∧
+      OccurrenceTransport profile ready base bindings before incoming [.tau] [.tau] next peer [some (.active 0 0)] ∧
+      ComponentAdmissionCut profile ready base bindings older older callee caller cx args
+        ⟨some active, .prog resume :: frames, rest⟩ resume resume next peer trailing finish
+
+/-- The worker prefix is paired until its first boundary. A component install
+uses the boundary's exact checked step and suffix to classify the admitted body. -/
+inductive ComponentWorkerCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | complete {peer} (segment : ExecutedCallbackSegment profile ready (ComponentCall.hostWithComponent bindings callees)
+      bindings older start incoming labels labels finish peer)
+  | boundary {leading label trailing reached peer next}
+      (split : labels = leading ++ label :: trailing)
+      (segment : ExecutedCallbackSegment profile ready (ComponentCall.hostWithComponent bindings callees)
+        bindings older start incoming leading leading reached peer)
+      (kind : CallbackWorkerBoundary bindings ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+        (fun resume => ∃ other, older resume other) reached label next)
+      (step : Step profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached label next)
+      (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next trailing finish)
+      (smaller : trailing.length < labels.length)
+      (installed : ComponentInstallOutcome profile ready bindings callees older reached peer next finish label trailing)
 
 /-- Consume the actual post-pop worker run, when reached. A different resumed
 program is an explicit boundary, not a replay or a runtime refusal. -/

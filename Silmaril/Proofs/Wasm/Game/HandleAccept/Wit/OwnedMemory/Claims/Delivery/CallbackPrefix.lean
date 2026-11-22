@@ -283,7 +283,7 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
   simpa only [List.map_map] using outsideTails older _ moved
 
 theorem classifyActual {protectedReturn} {labels : Trace grow sig}
-    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (includeComponentCalls : Bool := false) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
   classical
   induction run with
@@ -292,6 +292,10 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     have stop (cut : CallbackWorkerBoundary bindings ready (specDispatch ready base) protectedReturn before label next) :
         ClassifiedCallbackRun bindings profile ready base protectedReturn before (label :: trailing) after :=
       .boundary (leading := []) rfl (.done before) (.refl before) (actualReplayDone before) cut step tail
+    by_cases component : includeComponentCalls = true ∧ ∃ active hostId caller resume frames rest,
+        before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest
+    · obtain ⟨_, _, _, _, _, _, _, focus⟩ := component
+      exact stop (.componentInstall focus)
     by_cases closedRead : ClosedHostRead before
     · obtain ⟨thread, resume, frames, rest, focus, agrees⟩ := closedRead
       obtain ⟨rfl, rfl⟩ := actualHostGet focus step
