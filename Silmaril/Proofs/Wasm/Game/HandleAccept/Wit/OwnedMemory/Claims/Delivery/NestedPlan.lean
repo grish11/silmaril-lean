@@ -6444,7 +6444,7 @@ private theorem alignRangeTransport {leftEntry rightEntry checked canonical lhs 
   exact ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same,
     alignLocalBody (stripExactPrefix before.steps after.steps) actual (noBranchOfVisible checkSeen notBranch), path⟩
 
-open ReturnFrame.Occurrence in
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims.Record in
 private theorem alignCollectionRange {leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
     {checkTrace canonTrace seen : Trace grow sig} {cursor destination area count pointer plan checkNext canonNext}
     (movement : OccurrenceTransport profile ready base bindings leftEntry rightEntry checkTrace canonTrace checked canonical
@@ -6472,8 +6472,33 @@ private theorem alignCollectionRange {leftEntry rightEntry checked canonical : C
   · simp only [ite_eq_right misaligned] at verdict ⊢
     by_cases fits : pointer + count * area.size ≤ bytes
     · simp only [ite_eq_left fits] at verdict ⊢
-      obtain ⟨canon, frame, _, _, _, suffix⟩ := verdict
-      exact ⟨canon, frame, align (by simp) suffix⟩
+      obtain ⟨canon, frame, _, _, _, suffix, reader, readSite⟩ := verdict
+      have beforeRead := (readSite.checkedTracks none).steps
+      have checkedPrefix := append beforeRead (prefix_survives (readSite.read.tracks (.active 0 0))).1
+      refine ⟨canon, frame, align (by simp) suffix, ?_⟩
+      cases alignLocalBody checkedPrefix actual (by simp [workerBranchLabel]) with
+      | inside split nonempty _ =>
+        have length := congrArg List.length split
+        have remaining := List.length_pos_iff.mpr nonempty
+        simp only [List.length_append, List.length_cons, List.length_nil] at length
+        cases alignLocalBody beforeRead actual (by simp [workerBranchLabel]) with
+        | inside before _ tail => exact .inl ⟨reader, _, before, readSite, tail⟩
+        | @reached rest before tail =>
+          have size := congrArg List.length before
+          simp only [List.length_append, List.length_cons, List.length_nil] at size
+          have empty : rest = [] := List.length_eq_zero_iff.mp (by omega)
+          subst rest
+          cases tail
+          exact .inl ⟨_, [], by simpa only [List.append_nil] using before.symm, readSite, .refl _⟩
+      | reached split tail =>
+        refine .inr ⟨reader, _, split, readSite, tail, ?_⟩
+        intro pending related
+        have live : reader.host.writer.ClaimDiscrepancies
+            ({ canonical with ctl := canon.control (canonNext pointer) }).host.writer pending := by
+          rwa [readSite.checkedHost, readSite.rawHost]
+        by_cases same : prepare reader.store reader.host.writer plan = prepare reader.store canonical.host.writer plan
+        · exact .inl same
+        · exact .inr (prepare_conflict reader.store plan live same)
     · simp only [ite_eq_right fits] at verdict ⊢
       exact align (trap .outOfBounds) verdict.2
 
@@ -7838,7 +7863,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
       cases prepared : Record.prepare reached.store reached.host.writer (Field.listObjects entries) with
       | error issue =>
         simp only [prepared] at range
-        obtain ⟨peerCursor, paired, cut⟩ := range
+        obtain ⟨peerCursor, paired, cut, _⟩ := range
         refine advance cut (fun residual suffix _ => ?_)
         let refused := LinkedCallback.CollectionVisit.afterAllocation index issue
         let lhs := { reached with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer (.error issue) >>= checkNext) }
@@ -8165,9 +8190,9 @@ private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked c
   · simp only [ite_eq_right misaligned] at verdict ⊢
     by_cases fits : pointer + count * area.size ≤ bytes
     · simp only [ite_eq_left fits] at verdict ⊢
-      obtain ⟨canon, frame, returned, peer, paths, transport⟩ := verdict
+      obtain ⟨canon, frame, returned, peer, paths, transport, readSite⟩ := verdict
       exact ⟨canon, frame, returned, peer,
-        by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths, transport⟩
+        by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths, transport, readSite⟩
     · simp only [ite_eq_right fits] at verdict ⊢
       exact ⟨by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict.1, verdict.2⟩
 

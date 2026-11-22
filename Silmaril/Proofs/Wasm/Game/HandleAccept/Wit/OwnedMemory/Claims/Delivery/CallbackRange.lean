@@ -181,7 +181,10 @@ private theorem collectionRangeSites (destination : RecordDestination) (inst : I
     else if pointer + count * area.size ≤ bytes then
       RangePath profile ready base bindings checked canonical [.tau, .tau, .tau, .tau] [.tau, .tau]
         { checked with ctl := check.control (finish pointer (Record.prepare checked.store checked.host.writer plan)) }
-        { canonical with ctl := canon.control (peerFinish pointer) } (rangeMove grow sig false)
+        { canonical with ctl := canon.control (peerFinish pointer) } (rangeMove grow sig false) ∧
+      (∃ reader, CollectionPrepareSite profile ready base bindings checked canonical
+        { checked with ctl := check.control (finish pointer (Record.prepare checked.store checked.host.writer plan)) }
+        { canonical with ctl := canon.control (peerFinish pointer) } reader check plan (finish pointer))
     else trapped 2 .outOfBounds := by
   let context := destination.context (grow := grow) inst
   let recheck := fun address => do
@@ -246,14 +249,19 @@ private theorem collectionRangeSites (destination : RecordDestination) (inst : I
     have hostGet : SilentLocalStep profile ready (specDispatch ready base) afterStore
         { checked with ctl := check.control (continuation checked.store checked.host) } :=
       ⟨fun place => .step (.hostGet (k := continuation checked.store) rfl) (by cases place <;> rfl) (.done _ _), rfl, rfl⟩
-    rw [← rightNext]
-    change RangePath _ _ _ _ _ _ _ _ { checked with ctl := check.control (continuation checked.store checked.host) } _ _
     have move : (fun mark => id ((mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow).bind
         (Edit.same : Edit (core3 grow) (HostState sig)).follow)) = rangeMove grow sig false := by
       funext mark
       unfold rangeMove
       cases mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow <;> rfl
-    exact move ▸ pop (reads (rangeCheckedRead get (rangeCheckedRead hostGet (rangeDone same))))
+    refine ⟨?_, afterStore, ?_⟩
+    · rw [← rightNext]
+      exact move ▸ pop (reads (rangeCheckedRead get (rangeCheckedRead hostGet (rangeDone same))))
+    · rw [← rightNext]
+      have beforeRead : RangePath profile ready base bindings checked canonical [.tau, .tau, .tau] [.tau, .tau]
+          afterStore rightRange (rangeMove grow sig false) :=
+        move ▸ pop (reads (rangeCheckedRead get (rangeDone same)))
+      exact ⟨fun mark => (beforeRead.2 mark).1, fun mark => (beforeRead.2 mark).2, rfl, hostGet, rfl, rfl, same⟩
   · rw [ite_eq_right fits]
     have leftTrap : leftRange.ctl = check.control (trap .outOfBounds) := by
       simp [leftRange, readRange, size, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
@@ -389,15 +397,16 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
   · simp only [ite_eq_right misaligned] at sites ⊢
     by_cases bounds : pointer + entries.length * area.size ≤ bytes
     · simp only [ite_eq_left bounds] at sites ⊢
-      have left (mark : Option Location) := (sites.2 mark).1
-      have right (mark : Option Location) := (sites.2 mark).2
+      obtain ⟨localPath, readSite⟩ := sites
+      have left (mark : Option Location) := (localPath.2 mark).1
+      have right (mark : Option Location) := (localPath.2 mark).2
       have leftQuiet : visible ([.tau, .tau, .tau, .tau] : Trace grow sig) = [] := rfl
       have rightQuiet : visible ([.tau, .tau] : Trace grow sig) = [] := rfl
       refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩,
-        ⟨_, by simp, left⟩, ⟨_, by simp, right⟩, ?_, ?_⟩
+        ⟨_, by simp, left⟩, ⟨_, by simp, right⟩, ?_, ?_, readSite⟩
       · simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
           (comparedRange left right leftQuiet rightQuiet frame.store)
-      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) leftQuiet rightQuiet frame.store sites.1
+      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) leftQuiet rightQuiet frame.store localPath.1
     · simp only [ite_eq_right bounds] at sites ⊢
       exact traps .outOfBounds 2 sites
 
@@ -567,7 +576,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       by_cases bounds : pointer + entries.length * (layout destination.width element).size ≤ capacity
       · rw [ite_eq_left bounds] at outcomes ⊢
         intro issue fresh
-        obtain ⟨peer, _, ⟨_, checkTau, checkTrails⟩, ⟨_, canonTau, canonTrails⟩, paths, range⟩ := outcomes
+        obtain ⟨peer, _, ⟨_, checkTau, checkTrails⟩, ⟨_, canonTau, canonTrails⟩, paths, range, _⟩ := outcomes
         have stopped : (checkedCollectionTail destination inst entries area index output pointer (.error issue) >>= checkNext) =
             checkNext (.error (LinkedCallback.CollectionVisit.afterAllocation index issue)) := by cases issue <;> rfl
         dsimp only at checkTrails paths range
@@ -581,7 +590,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
   intro bytes sized aligned bounds fresh
   have capacityEq := Option.some.inj (liveSize.symm.trans sized)
   rw [ite_eq_right (not_not_intro aligned), capacityEq, ite_eq_left bounds] at outcomes
-  obtain ⟨peer, frameAfter, ⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩, paths, range⟩ := outcomes
+  obtain ⟨peer, frameAfter, ⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩, paths, range, _⟩ := outcomes
   dsimp only at frameAfter checkTracks paths range
   rw [fresh] at frameAfter checkTracks paths range
   exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths,

@@ -1798,6 +1798,23 @@ def CollectionRangeTransport (profile : ProfileKind) (ready : HostReady (HostSta
       PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
         checked canonical leftTail rightTail lhs rhs
 
+open Stored.OwnedMemory.Claims.Record in
+/-- In the in-bounds route the marked pop and range/store reads reach a
+checked-only `hostGet`. Raw is already at the pending child entry. -/
+structure CollectionPrepareSite (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checked canonical left right reader : Config (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) : Prop where
+  checkedTracks : RangeReturnTrails profile ready (specDispatch ready base) checked [.tau, .tau, .tau] reader
+  rawTracks : RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical [.tau, .tau] right
+  focus : reader.ctl = cursor.control (.op .hostGet (fun state => next (prepare reader.store state.writer plan)))
+  read : PayloadPrefix.SilentLocalStep profile ready (specDispatch ready base) reader left
+  checkedHost : reader.host = checked.host
+  rawHost : right.host = canonical.host
+  sameStore : reader.store = right.store
+
 /-- Cumulative paths through the real collection return. A fresh verdict
 selects the checked continuation only; the canonical child program is still
 pending. Range traps instead end both paths at the reached lockdown states. -/
@@ -1827,7 +1844,8 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
         (∃ labels, (∀ label ∈ labels, label = .tau) ∧
           RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical labels right) ∧
         ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right ∧
-        CollectionRangeTransport profile ready base bindings checked canonical left right []
+        CollectionRangeTransport profile ready base bindings checked canonical left right [] ∧
+        ∃ reader, CollectionPrepareSite profile ready base bindings checked canonical left right reader cursor plan (checkNext pointer)
     else traps .outOfBounds
 
 /-- Entry into the exact recursive bodies of a nested collection after its
@@ -5184,6 +5202,26 @@ def AlignedCollectionRange (profile : ProfileKind) (ready : HostReady (HostState
     PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
       checked canonical leftTail rightTail lhs rhs
 
+open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
+/-- A finite cut in the preceding range prefix has not read prepare. At
+the executed read, compare its verdict against the actual pending raw
+writer, without giving raw a prepare or consuming a child step. -/
+def CollectionPrepareRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checked canonical left right finish : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) : Prop :=
+  (∃ reader remaining, [.tau, .tau, .tau] = actual ++ remaining ∧
+    CollectionPrepareSite profile ready base bindings checked canonical left right reader cursor plan next ∧
+    Steps profile ready (specDispatch ready base) finish remaining reader) ∨
+  ∃ reader residual, actual = [.tau, .tau, .tau, .tau] ++ residual ∧
+    CollectionPrepareSite profile ready base bindings checked canonical left right reader cursor plan next ∧
+    Steps profile ready (specDispatch ready base) left residual finish ∧
+    ∀ pending, checked.host.writer.ClaimDiscrepancies canonical.host.writer pending →
+      prepare reader.store reader.host.writer plan = prepare reader.store right.host.writer plan ∨
+      ∃ probe, pending probe ∧ ReachedPrepareConflict reader.store reader.host.writer right.host.writer plan probe
+
 /-- The concrete checked verdict chooses the reached continuation. A range
 trap does not enter that continuation; a refusal leaves the peer at its
 canonical child entry. -/
@@ -5208,7 +5246,8 @@ def CollectionRangeRun (profile : ProfileKind) (ready : HostReady (HostState sig
         let lhs := { checked with ctl := cursor.control (checkNext pointer verdict) }
         let rhs := { canonical with ctl := canon.control (canonNext pointer) }
         LinkedCallback.ChildFrameOver older lhs rhs cursor canon ∧
-        AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical lhs rhs checkTrace canonTrace [] actual finish
+        AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical lhs rhs checkTrace canonTrace [] actual finish ∧
+        CollectionPrepareRun profile ready base bindings checked canonical lhs rhs finish actual cursor plan (checkNext pointer)
     else trap .outOfBounds
 
 /-- Cut the collection field's original derivation at the install, callback,
