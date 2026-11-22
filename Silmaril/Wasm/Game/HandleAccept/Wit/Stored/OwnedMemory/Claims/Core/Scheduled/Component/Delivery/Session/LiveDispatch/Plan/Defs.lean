@@ -1262,9 +1262,9 @@ inductive StringSliceEnd (profile : ProfileKind) (ready : HostReady (HostState s
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
   | collectionInstall (short : trailing.length < 3) :
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
-  | collectionRange {reached remaining} (nonempty : remaining ≠ [])
+  | collectionRange {reached remaining marks} (nonempty : remaining ≠ [])
       (localTail : Steps profile ready (specDispatch ready base) finish remaining reached) :
-      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish [some (.active 0 0)]
+      StringSliceEnd profile ready base bindings older describe checked canonical trailing finish marks
   | callback {checkEntry canonEntry checkLabels canonLabels mark first second}
       (tracked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels checked canonical mark)
       (paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) checked canonical)
@@ -1642,7 +1642,9 @@ def CollectionRangeTransport (profile : ProfileKind) (ready : HostReady (HostSta
     OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace checked canonical [some (.active 0 0)] →
     ∃ leftTail rightTail, OccurrenceTransport profile ready base bindings leftStart rightStart
       (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs ∧
-      PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store
+      PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store ∧
+      PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+        checked canonical leftTail rightTail lhs rhs
 
 /-- Cumulative paths through the real collection return. A fresh verdict
 selects the checked continuation only; the canonical child program is still
@@ -5019,14 +5021,16 @@ def ValueCommitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
 of the checked child or error continuation. -/
 def AlignedCollectionRange (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (leftEntry rightEntry lhs rhs : Config (core3 grow) (HostState sig))
+    (leftEntry rightEntry checked canonical lhs rhs : Config (core3 grow) (HostState sig))
     (checkTrace canonTrace observed actual : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop :=
   ∃ leftTail rightTail,
     OccurrenceTransport profile ready base bindings leftEntry rightEntry
       (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs ∧
     PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store ∧
-    LocalRunAlignment profile ready (specDispatch ready base) lhs leftTail actual finish
+    LocalRunAlignment profile ready (specDispatch ready base) lhs leftTail actual finish ∧
+    PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      checked canonical leftTail rightTail lhs rhs
 
 /-- The concrete checked verdict chooses the reached continuation. A range
 trap does not enter that continuation; a refusal leaves the peer at its
@@ -5041,7 +5045,7 @@ def CollectionRangeRun (profile : ProfileKind) (ready : HostReady (HostState sig
     (plan : List Stored.Endpoints.RecordLower.Object)
     (checkNext : Nat → Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (canonNext : Nat → Session grow sig (Ret (core3 grow))) : Prop :=
-  let trap := fun reason => AlignedCollectionRange profile ready base bindings leftEntry rightEntry
+  let trap := fun reason => AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical
     (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) checkTrace canonTrace [.trap reason] actual finish
   ∃ bytes, (core3 grow).memAddrType? checked.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
@@ -5052,7 +5056,7 @@ def CollectionRangeRun (profile : ProfileKind) (ready : HostReady (HostState sig
         let lhs := { checked with ctl := cursor.control (checkNext pointer verdict) }
         let rhs := { canonical with ctl := canon.control (canonNext pointer) }
         LinkedCallback.ChildFrameOver older lhs rhs cursor canon ∧
-        AlignedCollectionRange profile ready base bindings leftEntry rightEntry lhs rhs checkTrace canonTrace [] actual finish
+        AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical lhs rhs checkTrace canonTrace [] actual finish
     else trap .outOfBounds
 
 /-- Cut the collection field's original derivation at the install, callback,
@@ -5116,7 +5120,7 @@ def CollectionRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig
               Core3.Grows start.store.core lhs.store.core ∧
               lhs.ctl = cursor.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) ∧
               rhs.ctl = peerCursor.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) ∧
-              AlignedCollectionRange profile ready base bindings start incoming lhs rhs checkTrace canonTrace [] trailing finish ∧
+              AlignedCollectionRange profile ready base bindings start incoming reached peer lhs rhs checkTrace canonTrace [] trailing finish ∧
               visit pointer bytes (before ++ PayloadPrefix.visible checked) lhs rhs cursor peerCursor))
 
 /-- The observed return focus is not itself an executed pop. Only the
@@ -5742,10 +5746,10 @@ inductive ValueVisitEnd (profile : ProfileKind) (ready : HostReady (HostState si
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks
   | collectionInstall (short : trailing.length < 3) :
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish []
-  | collectionRange {target remaining} (nonempty : remaining ≠ [])
+  | collectionRange {target remaining marks} (nonempty : remaining ≠ [])
       (tail : Steps profile ready (specDispatch ready base) finish remaining target) :
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish
-        [some (.active 0 0)]
+        marks
 
 /-- An actual checked derivation cut at a compiled visitor endpoint, with a
 canonical path to its reached peer and all-location occurrence transport. -/

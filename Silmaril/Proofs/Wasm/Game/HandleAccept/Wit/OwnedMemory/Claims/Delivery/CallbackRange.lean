@@ -116,6 +116,157 @@ private def rangeMove (grow : SingleThreaded.GrowOracle) (sig : Signature) (trap
   let popped := mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow
   if trapped then popped.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow else popped
 
+private def RangePath (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) (leftLabels rightLabels : Trace grow sig)
+    (left right : Config (core3 grow) (HostState sig)) (move : Option Location → Option Location) : Prop :=
+  PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+    checked canonical leftLabels rightLabels left right ∧
+  ∀ mark, Trail profile ready (specDispatch ready base) checked mark leftLabels left (move mark) ∧
+    Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical mark rightLabels right (move mark)
+
+private theorem rangeDone {left right : Config (core3 grow) (HostState sig)} (same : left.store = right.store) :
+    RangePath profile ready base bindings left right [] [] left right id :=
+  ⟨.done same, fun mark => ⟨.done _ mark, .done _ mark⟩⟩
+
+private theorem rangeStep {checked canonical lhs rhs left right : Config (core3 grow) (HostState sig)}
+    {leftLabels rightLabels : Trace grow sig} {label : Label (core3 grow) (HostState sig)}
+    {move : Option Location → Option Location} (edit : Edit (core3 grow) (HostState sig))
+    (same : checked.store = canonical.store)
+    (step : Step profile ready (specDispatch ready base) checked label lhs)
+    (peerStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical label rhs)
+    (leftHost : lhs.host = checked.host) (rightHost : rhs.host = canonical.host)
+    (leftEdit : transitionEdit checked label = edit) (rightEdit : transitionEdit canonical label = edit)
+    (tail : RangePath profile ready base bindings lhs rhs leftLabels rightLabels left right move) :
+    RangePath profile ready base bindings checked canonical (label :: leftLabels) (label :: rightLabels) left right
+      (fun mark => move (mark.bind edit.follow)) := by
+  refine ⟨.step same step peerStep leftHost rightHost (rightEdit.trans leftEdit.symm) tail.1, fun mark => ?_⟩
+  obtain ⟨left, right⟩ := tail.2 (mark.bind edit.follow)
+  exact ⟨.step step (by simpa only [leftEdit] using left), .step peerStep (by simpa only [rightEdit] using right)⟩
+
+private theorem rangeCheckedRead {checked lhs rhs left right : Config (core3 grow) (HostState sig)}
+    {leftLabels rightLabels : Trace grow sig} {move : Option Location → Option Location}
+    (read : SilentLocalStep profile ready (specDispatch ready base) checked lhs)
+    (tail : RangePath profile ready base bindings lhs rhs leftLabels rightLabels left right move) :
+    RangePath profile ready base bindings checked rhs (.tau :: leftLabels) rightLabels left right move := by
+  refine ⟨.checkedRead read tail.1, fun mark => ?_⟩
+  obtain ⟨left, right⟩ := tail.2 mark
+  cases mark with
+  | none => exact ⟨(Trail.absent (prefix_survives (read.tracks (.active 0 0))).1).append left, right⟩
+  | some place => exact ⟨(read.tracks place).toTrail.append left, right⟩
+
+private theorem rangeTrapBind {Result Next : Type} (reason : TrapReason) (next : Result → Session grow sig Next) :
+    (trap reason : Session grow sig Result).bind next = trap reason := by
+  apply congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap reason))
+  funext impossible
+  exact nomatch impossible
+
+private theorem collectionRangeSites (destination : RecordDestination) (inst : InstId) (area : Layout)
+    (count pointer bytes : Nat) (plan : List Object)
+    (finish : Nat → Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (peerFinish : Nat → Session grow sig (Ret (core3 grow)))
+    {checked canonical : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (same : checked.store = canonical.store)
+    (size : (core3 grow).memSize? checked.store.core destination.memory = some bytes)
+    (leftAt : checked.ctl = { check with frames := .prog (listRangeResume (destination.context inst) area count
+      (fun address => do
+        let verdict ← (Record.authority recordClaims Limits.spec (destination.context inst)).prepare plan
+        finish address verdict)) :: check.frames }.control (.pure (.nat pointer)))
+    (rightAt : canonical.ctl = { canon with frames := .prog (listRangeResume (destination.context inst) area count
+      peerFinish) :: canon.frames }.control (.pure (.nat pointer))) :
+    let trapped := fun count reason => RangePath profile ready base bindings checked canonical
+      (List.replicate count .tau ++ [.trap reason]) (List.replicate count .tau ++ [.trap reason])
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) (rangeMove grow sig true)
+    if pointer ≠ alignTo pointer area.alignment then trapped 1 .unalignedPointer
+    else if pointer + count * area.size ≤ bytes then
+      RangePath profile ready base bindings checked canonical [.tau, .tau, .tau, .tau] [.tau, .tau]
+        { checked with ctl := check.control (finish pointer (Record.prepare checked.store checked.host.writer plan)) }
+        { canonical with ctl := canon.control (peerFinish pointer) } (rangeMove grow sig false)
+    else trapped 2 .outOfBounds := by
+  let context := destination.context (grow := grow) inst
+  let recheck := fun address => do
+    let verdict ← (Record.authority recordClaims Limits.spec context).prepare plan
+    finish address verdict
+  let leftPop := { checked with ctl := check.control (listRangeResume context area count recheck (.nat pointer)) }
+  let rightPop := { canonical with ctl := canon.control (listRangeResume context area count peerFinish (.nat pointer)) }
+  have pop {left right leftLabels rightLabels move}
+      (tail : RangePath profile ready base bindings leftPop rightPop leftLabels rightLabels left right move) :=
+    rangeStep .pop same (.popProg leftAt) (.popProg rightAt) rfl rfl
+      (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl) tail
+  have trapPair {reason : TrapReason} {lhs rhs : Config (core3 grow) (HostState sig)}
+      (leftStore : lhs.store = checked.store) (rightStore : rhs.store = canonical.store)
+      (leftHost : StepDefs.trapCfg lhs = StepDefs.trapCfg checked) (rightHost : StepDefs.trapCfg rhs = StepDefs.trapCfg canonical)
+      (leftStep : Step profile ready (specDispatch ready base) lhs (.trap reason) (StepDefs.trapCfg lhs))
+      (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rhs (.trap reason) (StepDefs.trapCfg rhs)) :
+      RangePath profile ready base bindings lhs rhs [.trap reason] [.trap reason]
+        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) (fun mark => mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow) := by
+    rw [← leftHost, ← rightHost]
+    have stores := leftStore.trans (same.trans rightStore.symm)
+    exact rangeStep .clear stores leftStep rightStep rfl rfl rfl rfl (rangeDone (congrArg StepDefs.lockdownSt stores))
+  dsimp only
+  by_cases misaligned : pointer ≠ alignTo pointer area.alignment
+  · rw [ite_eq_left misaligned]
+    have leftTrap : leftPop.ctl = check.control (trap .unalignedPointer) := by
+      simp [leftPop, listRangeResume, validateListRange, trapIf, misaligned, Prog.bind_assoc, rangeTrapBind]
+    have rightTrap : rightPop.ctl = canon.control (trap .unalignedPointer) := by
+      simp [rightPop, listRangeResume, validateListRange, trapIf, misaligned, Prog.bind_assoc, rangeTrapBind]
+    exact pop (trapPair rfl rfl rfl rfl (.trap leftTrap) (.trap rightTrap))
+  rw [ite_eq_right misaligned]
+  let readRange := fun (next : Nat → Session grow sig (Ret (core3 grow))) (store : CStore (core3 grow)) =>
+    (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>= fun capacity =>
+      trapIf (decide (pointer + count * area.size > capacity)) .outOfBounds) >>= fun _ => next pointer
+  have rangeFocus (next : Nat → Session grow sig (Ret (core3 grow))) :
+      listRangeResume context area count next (.nat pointer) = .op .get (readRange next) := by
+    have selected : context.opts.memory = some destination.memory := rfl
+    have aligned := not_ne_iff.mp misaligned
+    simp [listRangeResume, validateListRange, trapIf, checkInBounds, memLen, memAddr, orTrap, selected,
+      getStore, readRange, Prog.bind_assoc]
+    rw [ite_eq_left aligned]
+    rfl
+  let leftRange := { checked with ctl := check.control (readRange recheck checked.store) }
+  let rightRange := { canonical with ctl := canon.control (readRange peerFinish canonical.store) }
+  have leftRead : leftPop.ctl = check.control (.op .get (readRange recheck)) := congrArg check.control (rangeFocus recheck)
+  have rightRead : rightPop.ctl = canon.control (.op .get (readRange peerFinish)) := congrArg canon.control (rangeFocus peerFinish)
+  have reads {left right leftLabels rightLabels move}
+      (tail : RangePath profile ready base bindings leftRange rightRange leftLabels rightLabels left right move) :=
+    rangeStep (checked := leftPop) (canonical := rightPop) .same same (.get leftRead) (.get rightRead) rfl rfl
+      (by rw [transitionEdit, leftRead]; rfl) (by rw [transitionEdit, rightRead]; rfl) tail
+  have peerSize : (core3 grow).memSize? canonical.store.core destination.memory = some bytes := same ▸ size
+  by_cases fits : pointer + count * area.size ≤ bytes
+  · rw [ite_eq_left fits]
+    have leftNext : leftRange.ctl = check.control (recheck pointer) := by
+      simp [leftRange, readRange, size, trapIf, Nat.not_lt.mpr fits, orTrap, Prog.bind_eq]
+    have rightNext : rightRange = { canonical with ctl := canon.control (peerFinish pointer) } := by
+      simp [rightRange, readRange, peerSize, trapIf, Nat.not_lt.mpr fits, orTrap, Prog.bind_eq]
+    let continuation := fun (store : CStore (core3 grow)) (host : HostState sig) => finish pointer (Record.prepare store host.writer plan)
+    let afterStore := { checked with ctl := check.control (.op .hostGet (continuation checked.store)) }
+    have recheckAt : leftRange.ctl = check.control (.op .get fun store => .op .hostGet (continuation store)) := leftNext
+    have get : SilentLocalStep profile ready (specDispatch ready base) leftRange afterStore :=
+      ⟨fun place => Prefix.read_at place recheckAt, rfl, rfl⟩
+    have hostGet : SilentLocalStep profile ready (specDispatch ready base) afterStore
+        { checked with ctl := check.control (continuation checked.store checked.host) } :=
+      ⟨fun place => .step (.hostGet (k := continuation checked.store) rfl) (by cases place <;> rfl) (.done _ _), rfl, rfl⟩
+    rw [← rightNext]
+    change RangePath _ _ _ _ _ _ _ _ { checked with ctl := check.control (continuation checked.store checked.host) } _ _
+    have move : (fun mark => id ((mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow).bind
+        (Edit.same : Edit (core3 grow) (HostState sig)).follow)) = rangeMove grow sig false := by
+      funext mark
+      unfold rangeMove
+      cases mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow <;> rfl
+    exact move ▸ pop (reads (rangeCheckedRead get (rangeCheckedRead hostGet (rangeDone same))))
+  · rw [ite_eq_right fits]
+    have leftTrap : leftRange.ctl = check.control (trap .outOfBounds) := by
+      simp [leftRange, readRange, size, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
+    have rightTrap : rightRange.ctl = canon.control (trap .outOfBounds) := by
+      simp [rightRange, readRange, peerSize, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
+    have move : (fun mark => ((mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow).bind
+        (Edit.same : Edit (core3 grow) (HostState sig)).follow).bind
+        (Edit.clear : Edit (core3 grow) (HostState sig)).follow) = rangeMove grow sig true := by
+      funext mark
+      unfold rangeMove
+      cases mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow <;> rfl
+    exact move ▸ pop (reads (trapPair rfl rfl rfl rfl (.trap leftTrap) (.trap rightTrap)))
+
 private theorem rangeFrames {checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
     {leftLabels rightLabels : Trace grow sig} {trapped : Bool}
     (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
@@ -149,11 +300,13 @@ private theorem rangeTransport {checked canonical lhs rhs : Config (core3 grow) 
     (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
     (right : RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical rightLabels rhs trapped)
     (locked : trapped = true → lhs.ctl = []) (checkSeen : visible leftLabels = observed) (canonSeen : visible rightLabels = observed)
-    (same : lhs.store = rhs.store) :
+    (same : lhs.store = rhs.store)
+    (path : PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      checked canonical leftLabels rightLabels lhs rhs) :
     CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed := by
   intro leftStart rightStart checkTrace canonTrace leading
   obtain ⟨move, trails, retained⟩ := leading
-  refine ⟨leftLabels, rightLabels, ⟨rangeMove grow sig trapped ∘ move, ?_, ?_⟩, checkSeen, canonSeen, same⟩
+  refine ⟨leftLabels, rightLabels, ⟨rangeMove grow sig trapped ∘ move, ?_, ?_⟩, checkSeen, canonSeen, same, path⟩
   · intro mark
     obtain ⟨lhs, rhs⟩ := trails mark
     exact ⟨lhs.append (left _), rhs.append (right _)⟩
@@ -208,55 +361,45 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
     rw [width]
     rfl
   obtain ⟨bytes, sized⟩ := Option.isSome_iff_exists.mp hasSize
-  have canonSize : (core3 grow).memSize? canonical.store.core destination.memory = some bytes := by
-    rw [← frame.store]
-    exact sized
   let lhs := fun addr verdict => checkedCollectionTail destination inst entries area index output addr verdict >>= checkNext
   let rhs := fun addr => canonicalCollectionTail destination inst entries area output addr mode >>= canonNext
   have checkedAt : checked.ctl = ⟨cursor.thread, .prog (.pure (.nat pointer)), .prog first :: cursor.frames⟩ :: cursor.rest := returning
   have canonicalAt : canonical.ctl = ⟨canon.thread, .prog (.pure (.nat pointer)), .prog second :: canon.frames⟩ :: canon.rest := canonAt
-  have checkedRange := destination.listRange_resume_tracks (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-    inst area entries.length pointer (fun ptr => do
-      let verdict ← (Record.authority recordClaims Limits.spec (destination.context inst)).prepare (Field.listObjects entries)
-      lhs ptr verdict) first rfl checkedAt
-  have canonicalRange := destination.listRange_resume_tracks (profile := profile) (ready := ready)
-    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) inst area entries.length pointer rhs second rfl canonicalAt
-  dsimp only at checkedRange canonicalRange
-  rw [destination.listRange_body, sized] at checkedRange
-  rw [destination.listRange_body, canonSize] at canonicalRange
+  have sites := collectionRangeSites (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+    destination inst area entries.length pointer bytes (Field.listObjects entries) lhs rhs
+    frame.store sized checkedAt canonicalAt
   refine ⟨bytes, width, sized, ?_⟩
-  have traps (reason : TrapReason)
-      (left : ∃ count, RangeReturnTrails profile ready (specDispatch ready base) checked
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg checked) true)
-      (right : ∃ count, RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg canonical) true) :
+  have traps (reason : TrapReason) (count : Nat)
+      (sites : RangePath profile ready base bindings checked canonical
+        (List.replicate count .tau ++ [.trap reason]) (List.replicate count .tau ++ [.trap reason])
+        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) (rangeMove grow sig true)) :
       ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ [.trap reason])
         (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
       CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) [.trap reason] := by
-    obtain ⟨leftCount, left⟩ := left
-    obtain ⟨rightCount, right⟩ := right
     have same := congrArg StepDefs.lockdownSt frame.store
-    have leftSeen := trapVisible (grow := grow) (sig := sig) leftCount reason
-    have rightSeen := trapVisible (grow := grow) (sig := sig) rightCount reason
-    exact ⟨CallbackPrefix.appendComparedOccurrences leading (comparedRange left right leftSeen rightSeen same),
-      rangeTransport left right (fun _ => rfl) leftSeen rightSeen same⟩
+    have observed := trapVisible (grow := grow) (sig := sig) count reason
+    have left (mark : Option Location) := (sites.2 mark).1
+    have right (mark : Option Location) := (sites.2 mark).2
+    exact ⟨CallbackPrefix.appendComparedOccurrences leading
+      (comparedRange left right observed observed same),
+      rangeTransport left right (fun _ => rfl) observed observed same sites.1⟩
   by_cases misaligned : pointer ≠ alignTo pointer area.alignment
-  · simp only [ite_eq_left misaligned] at checkedRange canonicalRange ⊢
-    exact traps .unalignedPointer checkedRange canonicalRange
-  · simp only [ite_eq_right misaligned] at checkedRange canonicalRange ⊢
+  · simp only [ite_eq_left misaligned] at sites ⊢
+    exact traps .unalignedPointer 1 sites
+  · simp only [ite_eq_right misaligned] at sites ⊢
     by_cases bounds : pointer + entries.length * area.size ≤ bytes
-    · simp only [ite_eq_left bounds] at canonicalRange ⊢
-      obtain ⟨checkLabels, checkQuiet, left⟩ := destination.listRange_recheck_tracks (profile := profile)
-        (ready := ready) (dispatch := specDispatch ready base) checked inst area entries.length pointer
-        (Field.listObjects entries) lhs first rfl checkedAt (not_ne_iff.mp misaligned) sized bounds
-      obtain ⟨canonLabels, canonQuiet, right⟩ := canonicalRange
+    · simp only [ite_eq_left bounds] at sites ⊢
+      have left (mark : Option Location) := (sites.2 mark).1
+      have right (mark : Option Location) := (sites.2 mark).2
+      have leftQuiet : visible ([.tau, .tau, .tau, .tau] : Trace grow sig) = [] := rfl
+      have rightQuiet : visible ([.tau, .tau] : Trace grow sig) = [] := rfl
       refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩,
-        ⟨checkLabels, checkQuiet, left⟩, ⟨canonLabels, canonQuiet, right⟩, ?_, ?_⟩
+        ⟨_, by simp, left⟩, ⟨_, by simp, right⟩, ?_, ?_⟩
       · simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
-          (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
-      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) (silent checkQuiet) (silent canonQuiet) frame.store
-    · simp only [ite_eq_right bounds] at checkedRange canonicalRange ⊢
-      exact traps .outOfBounds checkedRange canonicalRange
+          (comparedRange left right leftQuiet rightQuiet frame.store)
+      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) leftQuiet rightQuiet frame.store sites.1
+    · simp only [ite_eq_right bounds] at sites ⊢
+      exact traps .outOfBounds 2 sites
 
 theorem collectionOccurrences (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (output : Stored.Lower.Output) (index : Nat)
@@ -391,7 +534,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
   have continued {left right : Config (core3 grow) (HostState sig)} {observed : Trace grow sig}
       (suffix : CollectionRangeTransport profile ready base bindings finish reached left right observed) :
       ComparedOccurrenceTransport profile ready base bindings start incoming (seen ++ observed) left right := by
-    obtain ⟨labels, peers, paths, leftSeen, rightSeen, shared⟩ := suffix transport
+    obtain ⟨labels, peers, paths, leftSeen, rightSeen, shared, _⟩ := suffix transport
     exact ⟨_, _, paths, by rw [appendVisible, checkObserved, leftSeen], by rw [appendVisible, canonObserved, rightSeen], shared⟩
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
     checkNext canonNext marked paired returning (frame.store ▸ width) growth

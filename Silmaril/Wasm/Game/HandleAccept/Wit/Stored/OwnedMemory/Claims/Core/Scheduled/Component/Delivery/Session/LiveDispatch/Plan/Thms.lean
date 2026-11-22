@@ -1852,7 +1852,7 @@ theorem drive_string_list_after_range (destination : RecordDestination) (inst : 
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     {check canon : Cursor (E := core3 grow) (HostState sig)}
-    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    {rangeStart rangePeer left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (split : labels = checked ++ trailing) (seen : visible checked = visible canonical)
     (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
@@ -1865,7 +1865,7 @@ theorem drive_string_list_after_range (destination : RecordDestination) (inst : 
     pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
     left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
     right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
-    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    AlignedCollectionRange profile ready base bindings start incoming rangeStart rangePeer left right checked canonical [] trailing finish →
     (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
     StringRunSlice profile ready base bindings older
       (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
@@ -1911,14 +1911,14 @@ theorem drive_nominal_list_after_range (destination : RecordDestination) (inst :
     (emitted : Field.Emitted (.dynamic (.list element) element entries))
     (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     {check canon : Cursor (E := core3 grow) (HostState sig)}
-    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    {rangeStart rangePeer left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (split : labels = checked ++ trailing) (seen : visible checked = visible canonical) :
     let area := layout destination.width element
     let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
     left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
     right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
-    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    AlignedCollectionRange profile ready base bindings start incoming rangeStart rangePeer left right checked canonical [] trailing finish →
     (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
     AllocatedElementRun profile ready base bindings older checkNext canonNext
       (ElementStop destination inst entries area.size pointer

@@ -6221,12 +6221,12 @@ private theorem alignRangeTransport {leftEntry rightEntry checked canonical lhs 
     (suffix : CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed)
     (notBranch : ∀ action ∈ observed, ¬ workerBranchLabel action)
     (actual : Steps profile ready (specDispatch ready base) checked labels finish) :
-    AlignedCollectionRange profile ready base bindings leftEntry rightEntry lhs rhs checkTrace canonTrace observed labels finish := by
-  obtain ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same⟩ := suffix movement
+    AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical lhs rhs checkTrace canonTrace observed labels finish := by
+  obtain ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same, path⟩ := suffix movement
   obtain ⟨_, before, _⟩ := CallbackPrefix.transportPaths movement none
   obtain ⟨_, after, _⟩ := CallbackPrefix.transportPaths whole none
   exact ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same,
-    alignLocalBody (stripExactPrefix before.steps after.steps) actual (noBranchOfVisible checkSeen notBranch)⟩
+    alignLocalBody (stripExactPrefix before.steps after.steps) actual (noBranchOfVisible checkSeen notBranch), path⟩
 
 open ReturnFrame.Occurrence in
 private theorem alignCollectionRange {leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
@@ -6241,7 +6241,7 @@ private theorem alignCollectionRange {leftEntry rightEntry checked canonical : C
   have align {lhs rhs : Config (core3 grow) (HostState sig)} {observed : Trace grow sig}
       (notBranch : ∀ action ∈ observed, ¬ workerBranchLabel action)
       (suffix : CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed) :
-      AlignedCollectionRange profile ready base bindings leftEntry rightEntry lhs rhs checkTrace canonTrace observed labels finish :=
+      AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical lhs rhs checkTrace canonTrace observed labels finish :=
     alignRangeTransport movement suffix notBranch actual
   have trap (reason : TrapReason) : ∀ action ∈ ([.trap reason] : Trace grow sig), ¬ workerBranchLabel action := by
     intro action member
@@ -6808,21 +6808,21 @@ theorem driveNominalListAfterRange (destination : RecordDestination) (inst : Ins
     (emitted : Field.Emitted (.dynamic (.list element) element entries))
     (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     {check canon : Cursor (E := core3 grow) (HostState sig)}
-    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    {rangeStart rangePeer left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (split : labels = checked ++ trailing) (seen : visible checked = visible canonical) :
     let area := layout destination.width element
     let mode := CanonicalTree.EntryMode.forOutput destination.width (.list element) output
     left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
     right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
-    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    AlignedCollectionRange profile ready base bindings start incoming rangeStart rangePeer left right checked canonical [] trailing finish →
     (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
     AllocatedElementRun profile ready base bindings older checkNext canonNext
       (ElementStop destination inst entries area.size pointer
         (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish
       (fun lhs rhs => ∃ spends, CheckedSpendFlow left.host.writer right.host.writer lhs.host.writer rhs.host.writer spends) := by
   intro area mode checkAt canonAt range
-  obtain ⟨leftTail, rightTail, movement, silentLeft, silentRight, _, aligned⟩ := range
+  obtain ⟨leftTail, rightTail, movement, silentLeft, silentRight, _, aligned, _⟩ := range
   cases aligned with
   | inside _ nonempty tail => exact .inl ⟨_, nonempty, tail⟩
   | reached used suffix =>
@@ -6845,7 +6845,7 @@ theorem driveStringListAfterRange (destination : RecordDestination) (inst : Inst
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     {check canon : Cursor (E := core3 grow) (HostState sig)}
-    {left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
+    {rangeStart rangePeer left right : Config (core3 grow) (HostState sig)} {checked canonical trailing : Trace grow sig}
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (split : labels = checked ++ trailing) (seen : visible checked = visible canonical)
     (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
@@ -6858,14 +6858,14 @@ theorem driveStringListAfterRange (destination : RecordDestination) (inst : Inst
     pointer = alignTo pointer area.alignment → pointer + entries.length * area.size ≤ bytes →
     left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) →
     right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) →
-    AlignedCollectionRange profile ready base bindings start incoming left right checked canonical [] trailing finish →
+    AlignedCollectionRange profile ready base bindings start incoming rangeStart rangePeer left right checked canonical [] trailing finish →
     (∃ remaining, remaining ≠ [] ∧ Steps profile ready (specDispatch ready base) finish remaining left) ∨
     StringRunSlice profile ready base bindings older
       (fun _ lhs rhs cursor peer => ∃ value, LinkedCallback.ChildFrameOver older lhs rhs cursor peer ∧
         Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
       start incoming labels finish := by
   intro element area mode aligned bounds checkAt canonAt range
-  obtain ⟨rangeLeft, rangeRight, rangeMovement, silentLeft, silentRight, _, rangeRun⟩ := range
+  obtain ⟨rangeLeft, rangeRight, rangeMovement, silentLeft, silentRight, _, rangeRun, _⟩ := range
   cases rangeRun with
   | inside _ nonempty tail => exact .inl ⟨_, nonempty, tail⟩
   | @reached suffixLabels used suffix =>
@@ -7582,31 +7582,31 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
         .boundary (.callback tracked paired ending pending)⟩
     subst mark
     have advance {lhs rhs : Config (core3 grow) (HostState sig)} {effects : Trace grow sig}
-        (cut : AlignedCollectionRange profile ready base bindings start incoming lhs rhs leftTrace rightTrace effects trailing finish)
+        (cut : AlignedCollectionRange profile ready base bindings start incoming reached peer lhs rhs leftTrace rightTrace effects trailing finish)
         (next : ∀ residual, Steps profile ready (specDispatch ready base) lhs residual finish → residual.length ≤ budget →
           ValueVisitRun profile ready base bindings older origin output.Result pending checkNext canonNext lhs rhs residual finish) :
         ValueVisitRun profile ready base bindings older origin output.Result pending checkNext canonNext start incoming labels finish := by
-      obtain ⟨checkRange, canonRange, moved, leftSeen, rightSeen, _, aligned⟩ := cut
+      obtain ⟨checkRange, canonRange, moved, leftSeen, rightSeen, _, aligned, path⟩ := cut
       cases aligned with
-      | inside _ nonempty remainder =>
-        exact ⟨leftTrace, rightTrace, trailing, reached, peer, _, split, observed, paired.data.1, movement, tail,
-          writers,
-          .collectionRange nonempty remainder⟩
+      | inside cut nonempty remainder =>
+        obtain ⟨used, rangePeer, store, seen, _, _, rangeMovement, leftEffects, rightEffects⟩ :=
+          pairedLocalPrefix path cut tail
+        have whole := (CallbackPrefix.transportAppend movement rangeMovement).choose_spec.1
+        exact ⟨leftTrace ++ trailing, rightTrace ++ used, [], finish, rangePeer, _,
+          by simpa only [List.append_nil] using split,
+          by rw [visibleAppend leftTrace trailing, visibleAppend rightTrace used, observed, seen],
+          store, whole, .refl _, .append writers (.framed leftEffects rightEffects), .collectionRange nonempty remainder⟩
       | @reached residual used suffix =>
-        obtain ⟨_, ⟨frontLeft, frontRight⟩⟩ := CallbackPrefix.transportPaths movement none
-        obtain ⟨_, ⟨throughLeft, throughRight⟩⟩ := CallbackPrefix.transportPaths moved none
-        have rangeWriters := VisitorWriterPath.allocation (base := base) (bindings := bindings) .collection
-          (WriterPaths.ofRuns (stripExactPrefix frontLeft.steps throughLeft.steps)
-            (stripExactPrefix frontRight.steps throughRight.steps))
+        obtain ⟨leftEffects, rightEffects⟩ := WriterPaths.frameLocal path
         have combined : labels = (leftTrace ++ checkRange) ++ residual := by
           simp only [leftTrace, split, used, List.append_assoc]
         have remaining : residual.length ≤ budget := by rw [combined, List.length_append] at bounded; omega
         exact prependValueVisit combined
           (by rw [visibleAppend leftTrace checkRange, visibleAppend rightTrace canonRange, observed, leftSeen, rightSeen]) moved
-          (.append writers rangeWriters)
+          (.append writers (.framed leftEffects rightEffects))
           (next residual suffix remaining)
     have trap (reason : TrapReason)
-        (cut : AlignedCollectionRange profile ready base bindings start incoming (StepDefs.trapCfg reached) (StepDefs.trapCfg peer)
+        (cut : AlignedCollectionRange profile ready base bindings start incoming reached peer (StepDefs.trapCfg reached) (StepDefs.trapCfg peer)
           leftTrace rightTrace [.trap reason] trailing finish) :
         ValueVisitRun profile ready base bindings older origin output.Result pending checkNext canonNext start incoming labels finish :=
       advance cut (fun residual suffix _ => ⟨[], [], residual, StepDefs.trapCfg reached, StepDefs.trapCfg peer, [], rfl, rfl,
