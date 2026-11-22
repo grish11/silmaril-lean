@@ -46,9 +46,9 @@ private theorem rangePathsFrom {destination : RecordDestination} {area : Layout}
     by_cases bounds : pointer + entries.length * area.size ≤ bytes
     · simp only [ite_eq_left bounds] at outcome ⊢
       intro issue refused
-      obtain ⟨peer, same, stopped, occurrences, _⟩ := outcome issue refused
+      obtain ⟨peer, same, stopped, occurrences, transport, _⟩ := outcome issue refused
       have reached := CallbackPrefix.appendComparedSlots leading stopped
-      exact ⟨peer, same, reached, occurrences, covers refuse admitted (wrap issue) _ _ _ check rfl same reached⟩
+      exact ⟨peer, same, reached, occurrences, transport, covers refuse admitted (wrap issue) _ _ _ check rfl same reached⟩
     · simp only [ite_eq_right bounds] at outcome ⊢
       exact ⟨trap .outOfBounds outcome.1, outcome.2⟩
   · simp only [ite_eq_left aligned] at outcome ⊢
@@ -76,10 +76,10 @@ theorem allocationPaths {destination : RecordDestination} {inst : InstId} {type 
   obtain ⟨range, failed, children⟩ := returns pointer cursor top returning
   refine ⟨range, rangePathsFrom covers admitted leading failed, ?_⟩
   intro bytes sized aligned bounds fresh
-  obtain ⟨lhs, rhs, peer, tracks, occurrences, frame, width, size, align, bound, growth, checkAt, canonAt, body⟩ :=
+  obtain ⟨lhs, rhs, peer, tracks, occurrences, retained, frame, width, size, align, bound, growth, checkAt, canonAt, body⟩ :=
     children bytes sized aligned bounds fresh
   have reached := CallbackPrefix.appendComparedSlots leading tracks
-  exact ⟨lhs, rhs, peer, reached, occurrences, frame, width, size, align, bound, growth, checkAt, canonAt,
+  exact ⟨lhs, rhs, peer, reached, occurrences, retained, frame, width, size, align, bound, growth, checkAt, canonAt,
     next pointer bytes (seen ++ suffix) lhs rhs cursor peer reached frame.store body⟩
 
 theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
@@ -103,7 +103,7 @@ theorem collectionEntryPaths {destination : RecordDestination} {inst : InstId} {
     simp only [prepared] at run ⊢
     have reached := CallbackPrefix.appendComparedSlots leading run.2.2.1
     rw [List.append_nil] at reached
-    exact ⟨run.1, run.2.1, reached, run.2.2.2.1, covers _ admitted _ _ _ _ check rfl run.1 reached⟩
+    exact ⟨run.1, run.2.1, reached, run.2.2.2.1, run.2.2.2.2.1, covers _ admitted _ _ _ _ check rfl run.1 reached⟩
   | ok value =>
     cases value
     simp only [prepared] at run ⊢
@@ -131,7 +131,7 @@ theorem collectionEntryOccurrences {destination : RecordDestination} {inst : Ins
     simp only [prepared] at run ⊢
     have reached := CallbackPrefix.appendComparedOccurrences leading run.2.2.2.1
     rw [List.append_nil] at reached
-    exact ⟨reached, covers _ admitted _ _ _ _ check rfl reached⟩
+    exact ⟨reached, run.2.2.2.2.1, covers _ admitted _ _ _ _ check rfl reached⟩
   | ok value =>
     cases value
     simp only [prepared] at run ⊢
@@ -143,22 +143,22 @@ theorem collectionEntryOccurrences {destination : RecordDestination} {inst : Ins
     refine ⟨bytes, sized, ?_⟩
     by_cases misaligned : pointer ≠ ABI.alignTo pointer (ABI.layout destination.width element).alignment
     · rw [ite_eq_left misaligned] at failed ⊢
-      simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2
+      exact ⟨by simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2.1, failed.2.2⟩
     · rw [ite_eq_right misaligned] at failed ⊢
       by_cases fits : pointer + entries.length * (ABI.layout destination.width element).size ≤ bytes
       · rw [ite_eq_left fits] at failed ⊢
         refine ⟨?_, ?_⟩
         · intro issue stale
-          obtain ⟨peer, _, _, stopped, _⟩ := failed issue stale
+          obtain ⟨peer, _, _, stopped, retained, _⟩ := failed issue stale
           have rebased := CallbackPrefix.appendComparedOccurrences leading stopped
-          exact ⟨peer, rebased, covers _ admitted _ _ _ _ cursor rfl rebased⟩
+          exact ⟨peer, rebased, retained, covers _ admitted _ _ _ _ cursor rfl rebased⟩
         · intro fresh
-          obtain ⟨lhs, rhs, peer, _, paths, frame, _, _, _, _, growth, checkAt, canonAt, body⟩ :=
+          obtain ⟨lhs, rhs, peer, _, paths, retained, frame, _, _, _, _, growth, checkAt, canonAt, body⟩ :=
             children bytes sized (Classical.not_not.mp misaligned) fits fresh
           have rebased := CallbackPrefix.appendComparedOccurrences leading paths
-          exact ⟨lhs, rhs, peer, rebased, frame, growth, checkAt, canonAt, next pointer bytes _ lhs rhs cursor peer rebased body⟩
+          exact ⟨lhs, rhs, peer, rebased, retained, frame, growth, checkAt, canonAt, next pointer bytes _ lhs rhs cursor peer rebased body⟩
       · rw [ite_eq_right fits] at failed ⊢
-        simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2
+        exact ⟨by simpa only [List.append_assoc] using CallbackPrefix.appendComparedOccurrences leading failed.2.1, failed.2.2⟩
 
 theorem descriptorPaths {output : Stored.Lower.Output} {checkNext : ValueCheckNext grow sig output}
     {canonNext : ValueCanonNext grow sig output} {left right : Config (core3 grow) (HostState sig)}

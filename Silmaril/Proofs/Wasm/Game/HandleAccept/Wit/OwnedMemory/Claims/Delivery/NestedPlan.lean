@@ -1689,14 +1689,15 @@ private theorem rebaseRange {leftStart rightStart leftEntry rightEntry checked c
   refine ⟨bytes, width, sized, ?_⟩
   by_cases misaligned : pointer ≠ ABI.alignTo pointer area.alignment
   · simp only [ite_eq_left misaligned] at verdict ⊢
-    simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict
+    exact ⟨by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict.1, verdict.2⟩
   · simp only [ite_eq_right misaligned] at verdict ⊢
     by_cases fits : pointer + count * area.size ≤ bytes
     · simp only [ite_eq_left fits] at verdict ⊢
-      obtain ⟨canon, frame, returned, peer, paths⟩ := verdict
-      exact ⟨canon, frame, returned, peer, by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths⟩
+      obtain ⟨canon, frame, returned, peer, paths, transport⟩ := verdict
+      exact ⟨canon, frame, returned, peer,
+        by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry paths, transport⟩
     · simp only [ite_eq_right fits] at verdict ⊢
-      simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict
+      exact ⟨by simpa only [List.nil_append] using CallbackPrefix.appendComparedOccurrences entry verdict.1, verdict.2⟩
 
 open Stored.Endpoints.RecordLower ABI PayloadPrefix ReturnFrame.Occurrence in
 private theorem finishCollectionRefusal {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
@@ -1721,7 +1722,7 @@ private theorem finishCollectionRefusal {route : GiveEffectRoute} (site : Payloa
   by_cases misaligned : pointer ≠ alignTo pointer area.alignment
   · exact False.elim (misaligned aligned)
   simp only [ite_eq_right misaligned, ite_eq_left fits] at verdict
-  obtain ⟨canon, _, ⟨localLabels, _, tracks⟩, _, paths⟩ := verdict
+  obtain ⟨canon, _, ⟨localLabels, _, tracks⟩, _, paths, _⟩ := verdict
   let refused := LinkedCallback.CollectionVisit.afterAllocation 0 issue
   let reply := route.reply site.destination site.start.host.nextTicket (.error refused)
   have stop : (checkedCollectionTail site.destination site.inst entries area 0 route.output pointer (.error issue) >>= site.reply) =

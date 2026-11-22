@@ -537,6 +537,17 @@ def CollectionRangeCut (profile : ProfileKind) (ready : HostReady (HostState sig
         { canonical with ctl := canonCursor.control (canonNext pointer) })
     else traps .outOfBounds
 
+/-- Extend the exact enclosing trail across a collection's reached range
+suffix. The input mark is the allocator's returned top occurrence, not an
+arbitrary frame with an equal continuation. -/
+def CollectionRangeTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checked canonical lhs rhs : Config (core3 grow) (HostState sig)) : Prop :=
+  ∀ {leftStart rightStart checkTrace canonTrace},
+    OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace checked canonical [some (.active 0 0)] →
+    ∃ leftTail rightTail, OccurrenceTransport profile ready base bindings leftStart rightStart
+      (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs
+
 /-- Cumulative paths through the real collection return. A fresh verdict
 selects the checked continuation only; the canonical child program is still
 pending. Range traps instead end both paths at the reached lockdown states. -/
@@ -550,7 +561,8 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
     (checkNext : Nat → Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (canonNext : Nat → Session grow sig (Ret (core3 grow))) : Prop :=
   let traps := fun reason => ComparedOccurrencePaths profile ready base bindings leftStart rightStart
-    (seen ++ [.trap reason]) (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+    (seen ++ [.trap reason]) (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
+    CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
   ∃ bytes, (core3 grow).memAddrType? checked.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then traps .unalignedPointer
@@ -564,7 +576,8 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
           RangeReturnTrails profile ready (specDispatch ready base) checked labels left) ∧
         (∃ labels, (∀ label ∈ labels, label = .tau) ∧
           RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical labels right) ∧
-        ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right
+        ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right ∧
+        CollectionRangeTransport profile ready base bindings checked canonical left right
     else traps .outOfBounds
 
 /-- Entry into the exact recursive bodies of a nested collection after its
@@ -590,6 +603,7 @@ def LiveCollectionChildren (profile : ProfileKind) (ready : HostReady (HostState
   ∃ left right canon,
     ComparedSlots profile ready base bindings leftStart rightStart observed left right offset ∧
     ComparedOccurrencePaths profile ready base bindings start incoming localSeen left right ∧
+    (∃ labels peers, OccurrenceTransport profile ready base bindings start incoming labels peers left right) ∧
     LinkedCallback.ChildFrameOver older left right check canon ∧
     (core3 grow).memAddrType? left.store.core destination.memory = some destination.width ∧
     (core3 grow).memSize? left.store.core destination.memory = some bytes ∧
@@ -617,7 +631,9 @@ def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState s
   let trap := fun reason => ComparedPaths profile ready base bindings leftStart rightStart (observed ++ [.trap reason])
     (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
     ComparedOccurrencePaths profile ready base bindings leftEntry rightEntry (localSeen ++ [.trap reason])
-      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
+    (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical))
   ∃ bytes, (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
     else if pointer + entries.length * area.size ≤ bytes then
@@ -628,6 +644,7 @@ def CollectionRangePaths (profile : ProfileKind) (ready : HostReady (HostState s
           checked.store = canonical.store ∧ ComparedSlots profile ready base bindings leftStart rightStart observed
             stopped reference offset ∧
           ComparedOccurrencePaths profile ready base bindings leftEntry rightEntry localSeen stopped reference ∧
+          (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers stopped reference) ∧
           sink.exit refuse (wrap issue) observed stopped reference check
     else trap .outOfBounds
 
@@ -709,6 +726,7 @@ def LiveCollectionEntry (profile : ProfileKind) (ready : HostReady (HostState si
     let stopped := { start with ctl := check.control (checkNext (.error refusal)) }
     ComparedSlots profile ready base bindings leftStart rightStart leading stopped incoming offset ∧
     ComparedOccurrencePaths profile ready base bindings start incoming [] stopped incoming ∧
+    OccurrenceTransport profile ready base bindings start incoming [.tau, .tau] [] stopped incoming ∧
     sink.exit (fun reason => checkNext (.error reason)) refusal leading stopped incoming check
   | .ok () => (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width →
     LiveCollectionPaths profile ready base bindings older destination inst type element entries index output checkNext canonNext
@@ -1307,7 +1325,7 @@ before the child program, and only a successful reservation enters it. -/
 def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
-    (start incoming checked canonical : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (start incoming leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
     (destination : RecordDestination) (area : ABI.Layout) (entries : List Stored.Endpoints.RecordLower.Field)
     (pointer : Nat) (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (refuse : IssueProgram grow sig) (wrap : Stored.Endpoints.RecordLower.Issue → Stored.Endpoints.RecordLower.Issue)
@@ -1315,7 +1333,9 @@ def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (Ho
     (visit : Nat → TrailFinish grow sig) (sink : RefusalSink grow sig) : Prop :=
   open Stored.Endpoints.RecordLower in
   let trap := fun reason => ComparedOccurrencePaths profile ready base bindings start incoming (seen ++ [.trap reason])
-    (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical)
+    (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
+    (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers
+      (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical))
   ∃ bytes, (core3 grow).memSize? checked.store.core destination.memory = some bytes ∧
     if pointer ≠ ABI.alignTo pointer area.alignment then trap .unalignedPointer
     else if pointer + entries.length * area.size ≤ bytes then
@@ -1324,9 +1344,11 @@ def CollectionOccurrenceRangeThen (profile : ProfileKind) (ready : HostReady (Ho
           let stopped := { checked with ctl := check.control (refuse (wrap issue)) }
           let reference := { canonical with ctl := canon.control canonicalChildren }
           ComparedOccurrencePaths profile ready base bindings start incoming seen stopped reference ∧
+          (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers stopped reference) ∧
           sink.exit refuse (wrap issue) seen stopped reference check) ∧
       (OwnedMemory.Claims.Record.prepare checked.store checked.host.writer (Field.listObjects entries) = .ok () →
         ∃ left right canon, ComparedOccurrencePaths profile ready base bindings start incoming seen left right ∧
+          (∃ labels peers, OccurrenceTransport profile ready base bindings leftEntry rightEntry labels peers left right) ∧
           LinkedCallback.ChildFrameOver older left right check canon ∧ Core3.Grows origin.core left.store.core ∧
           left.ctl = check.control checkedChildren ∧ right.ctl = canon.control canonicalChildren ∧
           visit bytes seen left right check canon)
@@ -1353,6 +1375,7 @@ def LiveCollectionOccurrenceEntry (profile : ProfileKind) (ready : HostReady (Ho
       | reason => Issue.nested index reason
     let stopped := { left with ctl := check.control (checkNext (.error refusal)) }
     ComparedOccurrencePaths profile ready base bindings start incoming before stopped right ∧
+    OccurrenceTransport profile ready base bindings left right [.tau, .tau] [] stopped right ∧
     sink.exit (fun reason => checkNext (.error reason)) refusal before stopped right check
   | .ok () =>
     let area := layout destination.width element
@@ -1373,7 +1396,7 @@ def LiveCollectionOccurrenceEntry (profile : ProfileKind) (ready : HostReady (Ho
           ([.tau, .tau] ++ canonLabels) finish reached [mark] ∧
         ∀ pointer cursor, mark = some (.active 0 0) →
           finish.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer)) →
-          CollectionOccurrenceRangeThen profile ready base bindings older left.store start incoming finish reached (before ++ seen)
+          CollectionOccurrenceRangeThen profile ready base bindings older left.store start incoming left right finish reached (before ++ seen)
             destination area entries pointer cursor (fun issue => checkNext (.error issue))
             (LinkedCallback.CollectionVisit.afterAllocation index)
             (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext)

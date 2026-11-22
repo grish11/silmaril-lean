@@ -109,6 +109,56 @@ private theorem trapVisible (count : Nat) (reason : TrapReason) :
     visible (List.replicate count .tau) ++ visible [.trap reason] from List.filter_append .., quiet]
   rfl
 
+private def rangeMove (grow : SingleThreaded.GrowOracle) (sig : Signature) (trapped : Bool) (mark : Option Location) :
+    Option Location :=
+  let popped := mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow
+  if trapped then popped.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow else popped
+
+private theorem rangeFrames {checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
+    {leftLabels rightLabels : Trace grow sig} {trapped : Bool}
+    (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
+    (right : RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical rightLabels rhs trapped)
+    (locked : trapped = true → lhs.ctl = []) :
+    ∀ older marks, OutsideMarks older (segmentStorage checked) (segmentStorage canonical) marks →
+      OutsideMarks older (segmentStorage lhs) (segmentStorage rhs) (marks.map (rangeMove grow sig trapped)) := by
+  intro older marks invariant place unmarked first second leftAt rightAt
+  have retained (kept : rangeMove grow sig trapped (some place.pushed) = some place) : ReturnFrame.Related.Segment older first second := by
+    have oldUnmarked : some place.pushed ∉ marks := fun found => unmarked (List.mem_map.mpr ⟨_, found, kept⟩)
+    have leftPath : Trail profile ready (specDispatch ready base) checked (some place.pushed) leftLabels lhs (some place) :=
+      kept ▸ left (some place.pushed)
+    have rightPath : Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical (some place.pushed)
+        rightLabels rhs (some place) := kept ▸ right (some place.pushed)
+    obtain ⟨leftPrior, leftEq, leftPath⟩ := leftPath.survives
+    obtain ⟨rightPrior, rightEq, rightPath⟩ := rightPath.survives
+    have leftPlace := Option.some.inj leftEq
+    have rightPlace := Option.some.inj rightEq
+    subst leftPrior rightPrior
+    exact invariant place.pushed oldUnmarked first second ((prefix_survives leftPath).2.symm.trans leftAt)
+      ((prefix_survives rightPath).2.symm.trans rightAt)
+  cases place with
+  | saved => apply retained; cases trapped <;> rfl
+  | active activation segment =>
+    cases trapped with
+    | false => apply retained; cases activation <;> rfl
+    | true => simp [segmentStorage, segmentAt, locked rfl] at leftAt
+
+private theorem rangeTransport {checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
+    {leftLabels rightLabels : Trace grow sig} {trapped : Bool}
+    (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
+    (right : RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical rightLabels rhs trapped)
+    (locked : trapped = true → lhs.ctl = []) :
+    CollectionRangeTransport profile ready base bindings checked canonical lhs rhs := by
+  intro leftStart rightStart checkTrace canonTrace leading
+  obtain ⟨move, trails, retained⟩ := leading
+  refine ⟨leftLabels, rightLabels, rangeMove grow sig trapped ∘ move, ?_, ?_⟩
+  · intro mark
+    obtain ⟨lhs, rhs⟩ := trails mark
+    exact ⟨lhs.append (left _), rhs.append (right _)⟩
+  · intro older marks previous
+    have retired : rangeMove grow sig trapped (some (.active 0 0)) = none := by cases trapped <;> rfl
+    simpa only [List.nil_append, List.singleton_append, List.map_cons, List.map_map, retired, outsideMarks_drop_lost]
+      using rangeFrames left right locked older _ (retained older marks previous)
+
 private theorem comparedRange {checked canonical lhs rhs : Config (core3 grow) (HostState sig)}
     {leftLabels rightLabels seen : Trace grow sig} {trapped : Bool}
     (left : RangeReturnTrails profile ready (specDispatch ready base) checked leftLabels lhs trapped)
@@ -178,11 +228,12 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
       (right : ∃ count, RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg canonical) true) :
       ComparedOccurrencePaths profile ready base bindings leftStart rightStart (seen ++ [.trap reason])
-        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) := by
+        (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) ∧
+      CollectionRangeTransport profile ready base bindings checked canonical (StepDefs.trapCfg checked) (StepDefs.trapCfg canonical) := by
     obtain ⟨leftCount, left⟩ := left
     obtain ⟨rightCount, right⟩ := right
-    exact CallbackPrefix.appendComparedOccurrences leading (comparedRange left right (trapVisible leftCount reason)
-      (trapVisible rightCount reason) (congrArg StepDefs.lockdownSt frame.store))
+    exact ⟨CallbackPrefix.appendComparedOccurrences leading (comparedRange left right (trapVisible leftCount reason)
+      (trapVisible rightCount reason) (congrArg StepDefs.lockdownSt frame.store)), rangeTransport left right (fun _ => rfl)⟩
   by_cases misaligned : pointer ≠ alignTo pointer area.alignment
   · simp only [ite_eq_left misaligned] at checkedRange canonicalRange ⊢
     exact traps .unalignedPointer checkedRange canonicalRange
@@ -194,9 +245,10 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
         (Field.listObjects entries) lhs first rfl checkedAt (not_ne_iff.mp misaligned) sized bounds
       obtain ⟨canonLabels, canonQuiet, right⟩ := canonicalRange
       refine ⟨canon, ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩,
-        ⟨checkLabels, checkQuiet, left⟩, ⟨canonLabels, canonQuiet, right⟩, ?_⟩
-      simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
-        (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
+        ⟨checkLabels, checkQuiet, left⟩, ⟨canonLabels, canonQuiet, right⟩, ?_, ?_⟩
+      · simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
+          (comparedRange left right (silent checkQuiet) (silent canonQuiet) frame.store)
+      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible)
     · simp only [ite_eq_right bounds] at checkedRange canonicalRange ⊢
       exact traps .outOfBounds checkedRange canonicalRange
 
@@ -320,6 +372,11 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
     (CallbackPrefix.allocatorPaths leftInstall rightInstall marked checkObserved canonObserved sameStore), occurrences, transport, ?_⟩
   intro pointer cursor atTop returning
   subst mark
+  have continued {left right : Config (core3 grow) (HostState sig)}
+      (suffix : CollectionRangeTransport profile ready base bindings finish reached left right) :
+      ∃ labels peers, OccurrenceTransport profile ready base bindings start incoming labels peers left right := by
+    obtain ⟨labels, peers, paths⟩ := suffix transport
+    exact ⟨_, _, paths⟩
   have cut := collectionRange (profile := profile) (ready := ready) destination inst type element entries output index pointer
     checkNext canonNext marked paired returning (frame.store ▸ width) growth
   obtain ⟨capacity, liveWidth, liveSize, outcomes⟩ := collectionRangeOccurrences (profile := profile) (ready := ready)
@@ -351,24 +408,24 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       by_cases bounds : pointer + entries.length * (layout destination.width element).size ≤ capacity
       · rw [ite_eq_left bounds] at outcomes ⊢
         intro issue fresh
-        obtain ⟨peer, _, ⟨_, checkTau, checkTrails⟩, ⟨_, canonTau, canonTrails⟩, paths⟩ := outcomes
+        obtain ⟨peer, _, ⟨_, checkTau, checkTrails⟩, ⟨_, canonTau, canonTrails⟩, paths, range⟩ := outcomes
         have stopped : (checkedCollectionTail destination inst entries area index output pointer (.error issue) >>= checkNext) =
             checkNext (.error (LinkedCallback.CollectionVisit.afterAllocation index issue)) := by cases issue <;> rfl
-        dsimp only at checkTrails paths
-        rw [fresh, stopped] at checkTrails paths
-        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTrails.retains canonTrails.retains, paths, trivial⟩
+        dsimp only at checkTrails paths range
+        rw [fresh, stopped] at checkTrails paths range
+        exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTrails.retains canonTrails.retains, paths, continued range, trivial⟩
       · rw [ite_eq_right bounds] at outcomes ⊢
-        exact ⟨traps .outOfBounds outcomes, outcomes⟩
+        exact ⟨traps .outOfBounds outcomes.1, outcomes.1, continued outcomes.2⟩
     · rw [ite_eq_left aligned] at outcomes ⊢
-      exact ⟨traps .unalignedPointer outcomes, outcomes⟩
+      exact ⟨traps .unalignedPointer outcomes.1, outcomes.1, continued outcomes.2⟩
   intro bytes sized aligned bounds fresh
   have capacityEq := Option.some.inj (liveSize.symm.trans sized)
   rw [ite_eq_right (not_not_intro aligned), capacityEq, ite_eq_left bounds] at outcomes
-  obtain ⟨peer, frameAfter, ⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩, paths⟩ := outcomes
-  dsimp only at frameAfter checkTracks paths
-  rw [fresh] at frameAfter checkTracks paths
-  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths, frameAfter, liveWidth, sized, aligned, bounds,
-    growth, rfl, rfl, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
+  obtain ⟨peer, frameAfter, ⟨_, checkTau, checkTracks⟩, ⟨_, canonTau, canonTracks⟩, paths, range⟩ := outcomes
+  dsimp only at frameAfter checkTracks paths range
+  rw [fresh] at frameAfter checkTracks paths range
+  exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths, continued range, frameAfter, liveWidth, sized,
+    aligned, bounds, growth, rfl, rfl, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
 
 private theorem collectionEntryVisiting (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
@@ -425,7 +482,13 @@ private theorem collectionEntryVisiting (destination : RecordDestination) (inst 
       cases mark with
       | none => exact ⟨none, Trail.absent (prefix_survives (track (.active 0 0))).1, .done _ _⟩
       | some place => exact ⟨some place, (track place).toTrail, .done _ _⟩
-    exact ⟨frame.store, canonAt, by cases issue <;> exact reached, by cases issue <;> exact occurrences, trivial⟩
+    have transport : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau] []
+        { start with ctl := check.control (entered (.error issue)) } incoming := by
+      refine ⟨id, fun mark => ⟨CallbackPrefix.unchangedTrail track mark, .done _ mark⟩, ?_⟩
+      intro _ _ invariant
+      simpa only [List.nil_append, List.map_id, segmentStorage, fetched, Cursor.control, List.map_cons, Activation.segs] using invariant
+    exact ⟨frame.store, canonAt, by cases issue <;> exact reached, by cases issue <;> exact occurrences,
+      by cases issue <;> exact transport, trivial⟩
 
 theorem collectionEntryPathsFrom (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)
