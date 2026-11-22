@@ -84,6 +84,35 @@ theorem State.LiveClaimsAgree.spend {sig : Signature} {left right : State sig}
     (update.apply left).LiveClaimsAgree (update.apply right) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_spend agrees update
 
+theorem State.LiveClaimsAgree.noDiscrepancies {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) : left.ClaimDiscrepancies right (fun _ => False) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_no_discrepancies agrees
+
+theorem State.ClaimDiscrepancies.spendLeft {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (update : Spend) :
+    (update.apply left).ClaimDiscrepancies right (fun probe => pending probe ∨ probe = update) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.discrepancies_spend_left related update
+
+theorem State.ClaimDiscrepancies.spendBoth {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (update : Spend) :
+    (update.apply left).ClaimDiscrepancies (update.apply right) (fun probe => pending probe ∧ probe ≠ update) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.discrepancies_spend_both related update
+
+/-- An already accepted owner conflicts regardless of a discrepancy in live authority. -/
+theorem State.ClaimDiscrepancies.registrationChecks {sig : Signature} {left right : State sig}
+    {pending : Spend → Prop} (related : left.ClaimDiscrepancies right pending) (tree : Tree sig)
+    (owners : ∀ id ∈ (rootReceipts tree).map receiptId,
+      pending (.owner id) → id ∈ (left.accepted.flatMap rootReceipts).map receiptId)
+    (endpoints : ∀ id ∈ rootEndpoints tree, ¬ pending (.endpoint id)) : left.RegistrationChecksAgree right tree :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.discrepancies_registration_checks
+    related tree owners endpoints
+
+theorem State.ClaimDiscrepancies.register {sig : Signature} {left right lhs rhs : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) {tree : Tree sig}
+    (first : left.register tree = .ok lhs) (second : right.register tree = .ok rhs) :
+    lhs.ClaimDiscrepancies rhs pending :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.discrepancies_register related first second
+
 theorem State.LiveClaimsAgree.prepare {sig : Signature} {left right : State sig}
     (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
     (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=

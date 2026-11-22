@@ -5058,8 +5058,9 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
-      (writerFlow : suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.LiveClaimsAgree incoming.host.writer →
-        reached.host.writer.LiveClaimsAgree peer.host.writer))
+      (writerFlow : suffix = [] ∨ reached.ctl = [] ∨ (∀ pending,
+        start.host.writer.ClaimDiscrepancies incoming.host.writer pending →
+        reached.host.writer.ClaimDiscrepancies peer.host.writer pending))
 
 /-- The classification after the admitted entry reaches child preflight.
 Disagreement is on the demanded decision, not on the complete journals.

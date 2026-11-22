@@ -2245,8 +2245,8 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
-      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.LiveClaimsAgree incoming.host.writer →
-        reached.host.writer.LiveClaimsAgree peer.host.writer)) := by
+      (suffix = [] ∨ reached.ctl = [] ∨ (∀ pending, start.host.writer.ClaimDiscrepancies incoming.host.writer pending →
+        reached.host.writer.ClaimDiscrepancies peer.host.writer pending)) := by
   rcases cutSuccessfulPayload (bindings := bindings) callee caller first payload children validated
       leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run with
     ⟨leading, suffix, reached, peer, split, _, initialTransport, residual, frontier, leftHost, rightHost⟩ | early
@@ -2265,13 +2265,9 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
           .published rfl rfl pair leftLookup rightLookup, .inr (.inr ?_)⟩
         · rw [split, used, List.append_assoc]
         · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport publication).choose_spec.1
-        · intro indexed
-          change leftWriter.LiveClaimsAgree rightWriter
-          rcases indexed.register (.node callee.tag valid children) with
-            ⟨_, denied, _⟩ | ⟨_, _, registered, peerRegistered, together⟩
-          · rw [leftLive] at denied
-            cases denied
-          · simpa only [Except.ok.inj (registered.symm.trans leftLive), Except.ok.inj (peerRegistered.symm.trans rightLive)] using together
+        · intro pending related
+          change leftWriter.ClaimDiscrepancies rightWriter pending
+          exact related.register leftLive rightLive
       · obtain ⟨_, finalPeer, moved, endpoint, _, _⟩ := early
         refine ⟨leading ++ suffix, [], finish, finalPeer, ?_, ?_, .refl _, .pending endpoint rfl, .inl rfl⟩
         · simpa only [List.append_nil] using split

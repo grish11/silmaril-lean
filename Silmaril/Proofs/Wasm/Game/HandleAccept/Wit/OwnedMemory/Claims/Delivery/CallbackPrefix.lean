@@ -161,6 +161,22 @@ private theorem actualHostGet {thread resume frames rest label}
     | exact congrArg (fun next => next start.host) continuation
     | cases operation
 
+private theorem actualHostSet {thread value resume frames rest label}
+    (focused : start.ctl = ⟨thread, .prog (.op (.hostSet value) resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish) :
+    label = .tau ∧ finish = { start with host := value, ctl := ⟨thread, .prog (resume ()), frames⟩ :: rest } := by
+  cases step
+  case' fault failed => cases failed
+  all_goals simp_all [StepDefs.HostReadyCfg]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    have programs := heads.1.2.1
+    injection programs with operation continuation
+    first
+    | injection operation; subst_vars; simp_all
+    | cases operation
+
 private theorem ordinaryPeer {before next peer : Config (core3 grow) (HostState sig)} {label protectedReturn}
     {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (covers : ∀ first second, changes first second → protectedReturn first)
@@ -706,6 +722,21 @@ theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow)
   obtain ⟨peer, compared, _, _⟩ := compareReachedHostReadFramed focus step paired agrees
   exact ⟨peer, compared⟩
 
+private theorem compareReachedAcceptedLookupFramed {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (handle : BitVec 32) (next : Option (Stored.OwnedMemory.Tree sig) → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (select handle >>= next), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (history : start.host.writer.accepted = incoming.host.writer.accepted) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host = start.host ∧ peer.host = incoming.host := by
+  let read := fun (state : HostState sig) => next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle)
+  have readFocus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest := focus
+  have agrees : read start.host = read incoming.host := congrArg
+    (fun entries => next (Stored.Endpoints.Core.childFromHistory entries handle)) history
+  exact compareReachedHostReadFramed readFocus step paired agrees
+
 theorem compareReachedAcceptedLookup {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (handle : BitVec 32) (next : Option (Stored.OwnedMemory.Tree sig) → Session grow sig (Ret (core3 grow)))
     {thread frames rest label}
@@ -715,11 +746,19 @@ theorem compareReachedAcceptedLookup {changes : ReturnFrame.Substitutions (core3
     (indexed : start.host.writer.IndexedClaimsAgree incoming.host.writer) :
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
       finish.host.writer.IndexedClaimsAgree peer.host.writer := by
-  let read := fun (state : HostState sig) => next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle)
-  have readFocus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest := focus
-  have agrees : read start.host = read incoming.host := congrArg
-    (fun history => next (Stored.Endpoints.Core.childFromHistory history handle)) indexed.accepted
-  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed readFocus step paired agrees
+  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedAcceptedLookupFramed handle next focus step paired indexed.accepted
+  exact ⟨peer, compared, by rwa [lhs, rhs]⟩
+
+theorem compareReachedAcceptedLookupWithDiscrepancies {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (handle : BitVec 32) (next : Option (Stored.OwnedMemory.Tree sig) → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label pending}
+    (focus : start.ctl = ⟨thread, .prog (select handle >>= next), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host.writer.ClaimDiscrepancies peer.host.writer pending := by
+  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedAcceptedLookupFramed handle next focus step paired related.accepted
   exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
 theorem compareReachedRecordPrepare {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -733,6 +772,22 @@ theorem compareReachedRecordPrepare {changes : ReturnFrame.Substitutions (core3 
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
       finish.host.writer.LiveClaimsAgree peer.host.writer := by
   have observed := Stored.OwnedMemory.Claims.Record.prepare_live start.store plan agrees
+  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next observed)
+  exact ⟨peer, compared, by rwa [lhs, rhs]⟩
+
+open Stored.OwnedMemory.Claims.Record in
+theorem compareReachedRecordPrepareWithDiscrepancies {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (plan : List Object) (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label pending}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending)
+    (demanded : ∀ probe ∈ exclusiveSpends plan, ¬ pending probe) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host.writer.ClaimDiscrepancies peer.host.writer pending := by
+  have observed := prepare_observations start.store plan (fun probe member => related.observe probe (demanded probe member))
   obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next observed)
   exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
@@ -850,6 +905,28 @@ theorem compareClaimSpend {changes : ReturnFrame.Substitutions (core3 grow) (Hos
   have atRead : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest := focus
   obtain ⟨peer, executed, host⟩ := compareReachedHostUpdate atRead paired rfl rfl
   exact ⟨peer, executed, by rw [host]; exact agrees.spend update⟩
+
+theorem consumeClaimSpend {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (update : Spend) (next : Session grow sig (Ret (core3 grow))) {thread frames rest first second trailing pending}
+    (focus : start.ctl = ⟨thread, .prog (claims.spend update >>= fun _ => next), frames⟩ :: rest)
+    (run : Steps profile ready (specDispatch ready base) start (first :: second :: trailing) finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    first = .tau ∧ second = .tau ∧ ∃ after peer,
+      ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau, .tau] [.tau, .tau] after peer ∧
+      Steps profile ready (specDispatch ready base) after trailing finish ∧
+      after.host.writer.ClaimDiscrepancies peer.host.writer (fun probe => pending probe ∧ probe ≠ update) := by
+  let read (state : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+    .op (.hostSet { state with writer := update.apply state.writer }) (fun _ => next)
+  have atRead : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest := focus
+  cases run with
+  | cons firstStep remaining =>
+    obtain ⟨rfl, rfl⟩ := actualHostGet atRead firstStep
+    cases remaining with
+    | cons secondStep tail =>
+      obtain ⟨rfl, rfl⟩ := actualHostSet rfl secondStep
+      obtain ⟨peer, executed, host⟩ := compareReachedHostUpdate atRead paired rfl rfl
+      exact ⟨rfl, rfl, _, peer, executed, tail, by rw [host]; exact related.spendBoth update⟩
 
 private theorem allocatorCallbackEvidence
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}

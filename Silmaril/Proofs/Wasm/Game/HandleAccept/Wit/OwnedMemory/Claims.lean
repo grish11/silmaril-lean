@@ -209,6 +209,66 @@ theorem spend_not_live {sig : Signature} (update : Spend) (state : State sig) : 
     simp [same] at different
   | endpoint id => simp [Spend.Live, Spend.apply]
 
+theorem liveClaims_no_discrepancies {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) : left.ClaimDiscrepancies right (fun _ => False) := by
+  refine ⟨agrees.accepted, ?_⟩
+  intro probe _
+  cases probe with | owner id => exact agrees.owners id | endpoint id => exact agrees.endpoints id
+
+theorem discrepancies_spend_left {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (update : Spend) :
+    (update.apply left).ClaimDiscrepancies right (fun probe => pending probe ∨ probe = update) := by
+  refine ⟨?_, fun probe clean => observation_after_left_spend
+    (related.observe probe (fun present => clean (.inl present))) update (fun same => clean (.inr same))⟩
+  cases update <;> exact related.accepted
+
+theorem discrepancies_spend_both {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (update : Spend) :
+    (update.apply left).ClaimDiscrepancies (update.apply right) (fun probe => pending probe ∧ probe ≠ update) := by
+  refine ⟨?_, ?_⟩
+  · cases update <;> exact related.accepted
+  intro probe clean
+  by_cases same : probe = update
+  · subst probe
+    cases update with
+    | owner id => simp only [Spend.ObservationAgrees, State.ownerObservation, Spend.apply, findOwner_filter,
+        ite_true]
+    | endpoint id => simp [Spend.ObservationAgrees, Spend.apply]
+  · exact observation_after_spend (related.observe probe (fun present => clean ⟨present, same⟩)) update
+
+theorem discrepancies_registration_checks {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (tree : OwnedMemory.Tree sig)
+    (owners : ∀ id ∈ (rootReceipts tree).map receiptId,
+      pending (.owner id) → id ∈ (left.accepted.flatMap rootReceipts).map receiptId)
+    (endpoints : ∀ id ∈ rootEndpoints tree, ¬ pending (.endpoint id)) : left.RegistrationChecksAgree right tree := by
+  refine ⟨?_, fun id member => related.observe (.endpoint id) (endpoints id member)⟩
+  intro id demand
+  simp only [List.map_append, List.mem_append, ← related.accepted]
+  by_cases exception : pending (.owner id)
+  · simp only [owners id demand exception, true_or]
+  · have observed : left.ownerObservation id = right.ownerObservation id := related.observe (.owner id) exception
+    apply or_congr Iff.rfl
+    rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, observed]
+
+theorem discrepancies_register {sig : Signature} {left right lhs rhs : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) {tree : OwnedMemory.Tree sig}
+    (first : left.register tree = .ok lhs) (second : right.register tree = .ok rhs) :
+    lhs.ClaimDiscrepancies rhs pending := by
+  obtain ⟨leftHistory, leftHeld, leftEnds⟩ := register_claims first
+  obtain ⟨rightHistory, rightHeld, rightEnds⟩ := register_claims second
+  refine ⟨by rw [leftHistory, rightHistory, related.accepted], ?_⟩
+  intro probe clean
+  have observed := related.observe probe clean
+  cases probe with
+  | owner id =>
+    simp only [Spend.ObservationAgrees, State.ownerObservation, leftHeld, rightHeld, List.find?_append]
+    cases (rootReceipts tree).find? (fun receipt => receiptId receipt == id)
+    · exact observed
+    · rfl
+  | endpoint id =>
+    simp only [Spend.ObservationAgrees, leftEnds, rightEnds, List.mem_append]
+    exact or_congr Iff.rfl observed
+
 theorem liveClaims_asymmetricSpend {sig : Signature} {left right : State sig}
     (agrees : left.LiveClaimsAgree right) {update : Spend} (live : update.Live left) :
     (update.apply left).LiveClaimsAgree (update.apply right) ∧ ¬ (update.apply left).LiveClaimsAgree right := by

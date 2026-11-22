@@ -111,6 +111,12 @@ structure State.LiveClaimsAgree {sig : Signature} (left right : State sig) : Pro
   owners : ∀ id, left.ownerObservation id = right.ownerObservation id
   endpoints : ∀ id, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
 
+/-- Cap the possible disagreements of the two actual writers by nominal identity.
+Accepted indices still agree. An exceptional claim is not necessarily live on either side. -/
+structure State.ClaimDiscrepancies {sig : Signature} (left right : State sig) (pending : Spend → Prop) : Prop where
+  accepted : left.accepted = right.accepted
+  observe : ∀ probe, ¬ pending probe → probe.ObservationAgrees left right
+
 /-- Look up the nominal type and representation from the held receipt, not from the caller.
 The result is a prospective update; the caller chooses when to commit it. -/
 def State.prepare {sig : Signature} (state : State sig) (resource : RtId) (id : HandleObjId) :

@@ -9,6 +9,7 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.Ca
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 
 public section
 
@@ -39,12 +40,36 @@ theorem compareReachedAcceptedLookup (handle : BitVec 32)
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedAcceptedLookup
     handle next focus step paired indexed
 
+/-- Lookup uses the reached accepted history even if earlier leaves spent live claims on only one side. -/
+theorem compareReachedAcceptedLookupWithDiscrepancies (handle : BitVec 32)
+    (next : Option (Stored.OwnedMemory.Tree sig) → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label pending}
+    (focus : start.ctl = ⟨thread, .prog (select handle >>= next), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [label] [label] finish peer ∧
+      finish.host.writer.ClaimDiscrepancies peer.host.writer pending :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedAcceptedLookupWithDiscrepancies
+    handle next focus step paired related
+
 /-- The actual registration probe classifies equal alias, exhaustion or next
 handle observations without requiring equal writers. -/
 theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.State sig}
     (indexed : left.IndexedClaimsAgree right) (tree : Stored.OwnedMemory.Tree sig) :
     componentRegistration left tree = componentRegistration right tree :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.indexedClaims_registrationProbe indexed tree
+
+open Stored.OwnedMemory.Claims in
+/-- Compare raw registration probes when the demanded discrepancies cannot affect conflicts. -/
+theorem claimDiscrepancies_registrationProbe {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (tree : Stored.OwnedMemory.Tree sig)
+    (owners : ∀ id ∈ (rootReceipts tree).map receiptId,
+      pending (.owner id) → id ∈ (left.accepted.flatMap rootReceipts).map receiptId)
+    (endpoints : ∀ id ∈ rootEndpoints tree, ¬ pending (.endpoint id)) :
+    componentRegistration left tree = componentRegistration right tree :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.registrationProbe_observations
+    (related.registrationChecks tree owners endpoints) (congrArg List.length related.accepted)
 
 open Stored.OwnedMemory.Claims in
 /-- The raw registration probes after an asymmetric leaf spend can still
@@ -59,6 +84,16 @@ theorem leafSpend_registrationProbe {update : Spend} {left right checked canonic
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.leafSpend_registrationProbe
     flow together tree frames
 
+open Stored.OwnedMemory.Claims in
+/-- Carry an executed exclusive leaf spend into the next visitor without assigning a
+matching spend to the raw canonical writer. -/
+theorem leafSpend_claimDiscrepancies {update : Spend} {left right checked canonical : HostState sig}
+    {pending : Spend → Prop} (flow : ExclusiveLeafWriterFlow update left right checked canonical)
+    (related : left.writer.ClaimDiscrepancies right.writer pending) :
+    checked.writer.ClaimDiscrepancies canonical.writer (fun probe => pending probe ∨ probe = update) := by
+  rw [flow.checkedHost, flow.canonicalHost]
+  exact related.spendLeft update
+
 /-- Compare an executed shared host read of a recursive claim plan after its store read.
 Neither side commits the prospective dry-run spends. -/
 theorem compareReachedRecordPrepare (plan : List Object)
@@ -72,6 +107,23 @@ theorem compareReachedRecordPrepare (plan : List Object)
       finish.host.writer.LiveClaimsAgree peer.host.writer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedRecordPrepare
     plan next focus step paired agrees
+
+open Stored.OwnedMemory.Claims.Record in
+/-- Prepare reads the reached writers, even after multiple exclusive spends. Only
+the plan's demanded claims must avoid the current discrepancies. -/
+theorem compareReachedRecordPrepareWithDiscrepancies (plan : List Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label pending}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending)
+    (demanded : ∀ probe ∈ exclusiveSpends plan, ¬ pending probe) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [label] [label] finish peer ∧
+      finish.host.writer.ClaimDiscrepancies peer.host.writer pending :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedRecordPrepareWithDiscrepancies
+    plan next focus step paired related demanded
 
 open Stored.OwnedMemory.Claims.Record in
 /-- An executed prepare read disjoint from the leaf's checked-only spend sees
@@ -104,6 +156,21 @@ theorem compareClaimSpend (update : Spend) (next : Session grow sig (Ret (core3 
       after.host.writer.LiveClaimsAgree peer.host.writer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareClaimSpend
     update next focus paired agrees
+
+/-- Remove a discrepancy only after the paired spend executes. The residual
+is the tail of the supplied checked run, not a restarted caller. -/
+theorem consumeClaimSpend (update : Spend) (next : Session grow sig (Ret (core3 grow)))
+    {thread frames rest first second trailing pending}
+    (focus : start.ctl = ⟨thread, .prog (claims.spend update >>= fun _ => next), frames⟩ :: rest)
+    (run : Steps profile ready (specDispatch ready base) start (first :: second :: trailing) finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    first = .tau ∧ second = .tau ∧ ∃ after peer,
+      ExecutedCallbackSegment profile ready base bindings older start incoming [.tau, .tau] [.tau, .tau] after peer ∧
+      Steps profile ready (specDispatch ready base) after trailing finish ∧
+      after.host.writer.ClaimDiscrepancies peer.host.writer (fun probe => pending probe ∧ probe ≠ update) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.consumeClaimSpend
+    update next focus run paired related
 
 /-- A synchronous readiness read under a host-independent policy needs
 no hypothesis on the writer or the existence of runnable candidates. -/
@@ -814,7 +881,8 @@ theorem cut_component_successful_payload (callee : ComponentCall.Callee sig) (ca
 
 /-- Follow the actual successful payload residual through the result writes
 and live publication. A finite prefix or trap does not produce a common reply;
-publication itself exposes only the reply focus, not the caller pop or delivery. -/
+publication preserves the current claim discrepancy bound, but exposes only
+the reply focus, not the caller pop or delivery. -/
 theorem cut_component_successful_publication (callee : ComponentCall.Callee sig) (caller : CallerId)
     (first payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
     {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
@@ -837,8 +905,8 @@ theorem cut_component_successful_publication (callee : ComponentCall.Callee sig)
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
-      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.LiveClaimsAgree incoming.host.writer →
-        reached.host.writer.LiveClaimsAgree peer.host.writer)) :=
+      (suffix = [] ∨ reached.ctl = [] ∨ (∀ pending, start.host.writer.ClaimDiscrepancies incoming.host.writer pending →
+        reached.host.writer.ClaimDiscrepancies peer.host.writer pending)) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPublication
     callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive rightLive leftHandle rightHandle room run
