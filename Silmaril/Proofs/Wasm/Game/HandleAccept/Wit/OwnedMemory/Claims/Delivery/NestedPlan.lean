@@ -1785,6 +1785,29 @@ theorem classifyAfterDelivery {callees : List (ComponentCall.Callee sig)}
   have paired := LiveDispatch.paired_replace reached outgoing
   exact ⟨checked, live, classifyReplay (LiveDispatch.paired_replay paired next), roots⟩
 
+theorem alignDeliveryResidual {callees : List (ComponentCall.Callee sig)}
+    {actions reached outgoing} {deliveryLabels : Trace grow sig}
+    (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)
+    (empty : ∀ first second, ¬ older first second)
+    (between : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      start incoming.host actions deliveryLabels reached outgoing)
+    (actual : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    WorkerBodyAlignment profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      start reached deliveryLabels labels finish ∧
+    ∀ suffix, labels = deliveryLabels ++ suffix →
+      Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached suffix finish ∧
+      Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming deliveryLabels (HostFrame.replace reached outgoing) ∧
+      ClassifiedWorkerTail profile ready bindings callees (fun _ _ => False) reached (HostFrame.replace reached outgoing) suffix finish ∧
+      (deliveryLabels ≠ [] → suffix.length < labels.length) := by
+  obtain ⟨checked, canonical, _⟩ := tail.delivery empty between
+  refine ⟨alignWorkerBody checked actual, fun suffix split => ?_⟩
+  have residual := stripExactPrefix checked (split ▸ actual)
+  refine ⟨residual, canonical, classifyReplay (LiveDispatch.paired_replay (LiveDispatch.paired_replace reached outgoing) residual), ?_⟩
+  intro progress
+  rw [split, List.length_append]
+  exact Nat.lt_add_of_pos_left (List.length_pos_iff.mpr progress)
+
 open ReturnFrame.Occurrence in
 theorem rebaseAllocatorAtRequest {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {entered lhs rhs : Config (core3 grow) (HostState sig)} {checkedEntry canonEntry seen : Trace grow sig}

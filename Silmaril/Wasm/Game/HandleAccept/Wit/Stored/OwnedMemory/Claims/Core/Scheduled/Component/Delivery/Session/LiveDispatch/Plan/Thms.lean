@@ -1881,6 +1881,26 @@ theorem RejoinedWorkerTail.classify_after_delivery {callees : List (ComponentCal
     (incoming.host.writer.accepted = start.host.writer.accepted → outgoing.writer.accepted = reached.host.writer.accepted) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyAfterDelivery tail empty between next
 
+/-- Align closed delivery with the actual checked residual. A common give
+reply does not imply that delivery executes: a short prefix or scheduler
+departure does not release the canonical delivery or a new worker tail. -/
+theorem RejoinedWorkerTail.align_delivery {callees : List (ComponentCall.Callee sig)}
+    {actions reached outgoing} {deliveryLabels : Trace grow sig}
+    (tail : RejoinedWorkerTail profile ready bindings callees older start incoming)
+    (empty : ∀ first second, ¬ older first second)
+    (between : JournalInterleaving profile ready (ComponentCall.hostWithComponent bindings callees)
+      start incoming.host actions deliveryLabels reached outgoing)
+    (actual : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    WorkerBodyAlignment profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      start reached deliveryLabels labels finish ∧
+    ∀ suffix, labels = deliveryLabels ++ suffix →
+      Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) reached suffix finish ∧
+      Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming deliveryLabels (HostFrame.replace reached outgoing) ∧
+      ClassifiedWorkerTail profile ready bindings callees (fun _ _ => False) reached (HostFrame.replace reached outgoing) suffix finish ∧
+      (deliveryLabels ≠ [] → suffix.length < labels.length) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignDeliveryResidual tail empty between actual
+
 open ReturnFrame.Occurrence in
 /-- Both real public root entries follow the same push for every previously
 installed occurrence, even though checked performs additional guard reads. -/
