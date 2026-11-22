@@ -1790,7 +1790,8 @@ theorem CoreGiveRequest.Selected.compiler_stop_after_worker_prefix {callees : Li
 
 open ReturnFrame.Occurrence in
 /-- Match a derived recursive body endpoint against the actual checked run.
-Only a reached marked pop continues the worker comparison; a typed reply
+Only a reached marked common pop couples older occurrences and extracts the
+next actual callback prefix, including closed readiness reads. A typed reply
 retains the stopped canonical body and never replays the checked suffix. -/
 theorem PublicOccurrenceExit.align_worker {route : GiveEffectRoute} {site : PayloadRoot.Site grow sig route}
     {callees : List (ComponentCall.Callee sig)} {origin reference entered left right : Config (core3 grow) (HostState sig)}
@@ -1804,7 +1805,7 @@ theorem PublicOccurrenceExit.align_worker {route : GiveEffectRoute} {site : Payl
       origin reference prior site.start incoming)
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
     PublicGiveWorkerAlignment profile ready bindings callees older site entered left right verdict
-      origin reference checkLabels prior seen labels finish :=
+      origin reference incoming checkLabels canonLabels prior seen labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignPublicGiveWorker
     site checked canonical checkQuiet canonQuiet body arrived run
 

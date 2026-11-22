@@ -3796,7 +3796,11 @@ theorem rebasePublicOccurrenceExitWithPop {route : GiveEffectRoute} (site : Payl
       (mark = some (.active 0 0) → ∃ checked canonical,
         Steps profile ready (specDispatch ready base) left [.tau, .tau, .tau] checked ∧
         RequestExitOccurrences profile ready base bindings site.start incoming seen checked canonical ∧
-        RequestExitKind older verdict right checked canonical) := by
+        RequestExitKind older verdict right checked canonical ∧
+        match verdict with
+        | .error _ => True
+        | .ok _ => CoupledOccurrencePaths profile ready base bindings site.start incoming
+            ((checkLabels ++ checkBody) ++ [.tau, .tau, .tau]) ((canonLabels ++ canonBody) ++ [.tau]) checked canonical) := by
   obtain ⟨checkBody, canonBody, mark, tracks, checkSeen, canonSeen, _, leftMark, rightMark, reply⟩ := body
   have visibleAppend (first second : Trace grow sig) : PayloadPrefix.visible (first ++ second) =
       PayloadPrefix.visible first ++ PayloadPrefix.visible second := List.filter_append ..
@@ -3821,7 +3825,7 @@ theorem rebasePublicOccurrenceExitWithPop {route : GiveEffectRoute} (site : Payl
   | error issue =>
     change peer = right at returned
     subst peer
-    refine ⟨resumed, right, (checkPop (.active 0 0)).steps, ⟨_, _, checkSilent, rightSeen, fun place => ?_⟩, rfl⟩
+    refine ⟨resumed, right, (checkPop (.active 0 0)).steps, ⟨_, _, checkSilent, rightSeen, fun place => ?_⟩, rfl, trivial⟩
     obtain ⟨endpoint, lhs, rhs⟩ := request place
     obtain ⟨next, suffix⟩ := checkedSuffix endpoint
     exact ⟨next, endpoint, ((checked place).toTrail.append lhs).append suffix, (canonical place).toTrail.append rhs⟩
@@ -3829,13 +3833,23 @@ theorem rebasePublicOccurrenceExitWithPop {route : GiveEffectRoute} (site : Payl
     obtain ⟨_, related, canonPop⟩ := returned
     have canonSilent : PayloadPrefix.visible ((canonLabels ++ canonBody) ++ [.tau]) = seen := by
       rw [visibleAppend, rightSeen]; exact List.append_nil _
-    refine ⟨resumed, peer, (checkPop (.active 0 0)).steps, ⟨_, _, checkSilent, canonSilent, fun place => ?_⟩, related⟩
-    obtain ⟨endpoint, lhs, rhs⟩ := request place
-    obtain ⟨next, suffix⟩ := checkedSuffix endpoint
-    have checkPath := ((checked place).toTrail.append lhs).append suffix
-    cases endpoint with
-    | none => exact ⟨next, none, checkPath, ((canonical place).toTrail.append rhs).append (.absent (canonPop (.active 0 0)).steps)⟩
-    | some atReply => exact ⟨next, _, checkPath, ((canonical place).toTrail.append rhs).append (canonPop atReply)⟩
+    have coupled : CoupledOccurrencePaths profile ready base bindings site.start incoming
+        ((checkLabels ++ checkBody) ++ [.tau, .tau, .tau]) ((canonLabels ++ canonBody) ++ [.tau]) resumed peer := by
+      intro mark
+      cases mark with
+      | none =>
+        exact ⟨none, .absent (appendRun (appendRun (checked (.active 0 0)).toTrail.steps leftMark.steps) (checkPop (.active 0 0)).steps),
+          .absent (appendRun (appendRun (canonical (.active 0 0)).toTrail.steps rightMark.steps) (canonPop (.active 0 0)).steps)⟩
+      | some place =>
+        obtain ⟨endpoint, lhs, rhs⟩ := request place
+        cases endpoint with
+        | none => exact ⟨none, ((checked place).toTrail.append lhs).append (.absent (checkPop (.active 0 0)).steps),
+            ((canonical place).toTrail.append rhs).append (.absent (canonPop (.active 0 0)).steps)⟩
+        | some atReply => exact ⟨_, ((checked place).toTrail.append lhs).append (checkPop atReply),
+            ((canonical place).toTrail.append rhs).append (canonPop atReply)⟩
+    exact ⟨resumed, peer, (checkPop (.active 0 0)).steps, ⟨_, _, checkSilent, canonSilent, fun place => by
+      obtain ⟨endpoint, lhs, rhs⟩ := coupled (some place)
+      exact ⟨endpoint, endpoint, lhs, rhs⟩⟩, related, coupled⟩
 
 theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -3856,7 +3870,7 @@ theorem rebasePublicOccurrenceExit {route : GiveEffectRoute} (site : PayloadRoot
   obtain ⟨checkBody, canonBody, mark, lhs, rhs, paths, rejoins⟩ :=
     rebasePublicOccurrenceExitWithPop site checked canonical checkQuiet canonQuiet body
   exact ⟨checkBody, canonBody, mark, lhs, rhs, paths, fun active => by
-    obtain ⟨left, right, _, paths, kind⟩ := rejoins active
+    obtain ⟨left, right, _, paths, kind, _⟩ := rejoins active
     exact ⟨left, right, paths, kind⟩⟩
 
 private theorem publicOccurrenceCovers {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

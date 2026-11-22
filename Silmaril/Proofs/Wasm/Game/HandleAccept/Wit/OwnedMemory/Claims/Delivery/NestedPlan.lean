@@ -1421,6 +1421,39 @@ theorem compilerStopAfterWorkerPrefix {callees : List (ComponentCall.Callee sig)
     contradiction
 
 open ReturnFrame.Occurrence in
+private theorem replayRejoinedCallback {callees : List (ComponentCall.Callee sig)}
+    {request reference : Config (core3 grow) (HostState sig)} {checkPrefix canonPrefix : Trace grow sig}
+    (arrived : CoupledOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+      request reference checkPrefix canonPrefix start incoming)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    RejoinedCallbackReplay profile ready bindings callees older request reference start incoming checkPrefix canonPrefix labels finish := by
+  let protectedReturn := fun resume => ∃ peer, older resume peer
+  have replayPrefix {leading reached}
+      (replay : ActualCallbackReplay bindings profile ready (ComponentCall.hostWithComponent bindings callees)
+        protectedReturn start leading reached) :
+      ∃ peer, Steps profile ready (specDispatch ready (host bindings (ComponentCall.hostWithComponent bindings callees)))
+        incoming leading peer ∧ HostFrame.Related.Paired older reached peer ∧
+        CoupledOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings request reference
+          (checkPrefix ++ leading) (canonPrefix ++ leading) reached peer := by
+    obtain ⟨peer, _, live, aligned, _, _, _, tracks⟩ :=
+      replay (fun first second holds => ⟨second, holds⟩) paired
+        (paired_outside (left := HostFrame.replace start incoming.host) paired)
+    refine ⟨peer, live, aligned, ?_⟩
+    intro place
+    obtain ⟨middle, checked, canonical⟩ := arrived place
+    obtain ⟨next, checkTail, canonTail⟩ := tracks middle
+    exact ⟨next, checked.append checkTail, canonical.append canonTail⟩
+  cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run with
+  | complete _ replay =>
+    obtain ⟨peer, live, aligned, tracks⟩ := replayPrefix replay
+    exact ⟨labels, [], finish, peer, (List.append_nil _).symm, run, live, aligned, tracks, .inl ⟨rfl, rfl⟩⟩
+  | boundary split _ prefixSteps replay cut step tail =>
+    obtain ⟨peer, live, aligned, tracks⟩ := replayPrefix replay
+    exact ⟨_, _, _, peer, split, prefixSteps, live, aligned, tracks,
+      .inr ⟨_, _, _, rfl, step, tail, cut, fun install => recursiveInstallCut install aligned⟩⟩
+
+open ReturnFrame.Occurrence in
 theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} {origin reference entered left right : Config (core3 grow) (HostState sig)}
     {checkLabels canonLabels prior seen : Trace grow sig} {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
@@ -1433,14 +1466,14 @@ theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site
       origin reference prior site.start incoming)
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
     PublicGiveWorkerAlignment profile ready bindings callees older site entered left right verdict
-      origin reference checkLabels prior seen labels finish := by
+      origin reference incoming checkLabels canonLabels prior seen labels finish := by
   obtain ⟨bodyLabels, liveLabels, mark, checkBody, canonBody, bodyTracks, reached⟩ :=
     CallbackRange.rebasePublicOccurrenceExitWithPop site checked canonical checkQuiet canonQuiet body
   have throughBody := append (checked (.active 0 0)).toTrail.steps checkBody.steps
   refine ⟨bodyLabels, liveLabels, mark, checkBody, canonBody, appendExitOccurrences arrived bodyTracks,
     alignWorkerBody throughBody run, ?_⟩
   intro tail split actualTail active
-  obtain ⟨replied, peer, pop, tracks, kind⟩ := reached active
+  obtain ⟨replied, peer, pop, tracks, kind, coupled⟩ := reached active
   rcases splitSilent (count := 3) pop actualTail with ⟨suffix, replySplit, suffixRun⟩ | short
   · have smaller : suffix.length < labels.length := by
       simp only [split, replySplit, List.length_append, List.length_replicate]
@@ -1449,7 +1482,7 @@ theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site
     refine .inr ⟨suffix, replied, peer, replySplit, smaller, suffixRun, paths, ?_⟩
     cases verdict with
     | error => exact kind
-    | ok => exact ⟨kind, requestWorkerRefusals paths kind suffixRun⟩
+    | ok => exact ⟨kind, coupled, replayRejoinedCallback coupled kind suffixRun, requestWorkerRefusals paths kind suffixRun⟩
   · exact .inl short
 
 open ReturnFrame.Occurrence in

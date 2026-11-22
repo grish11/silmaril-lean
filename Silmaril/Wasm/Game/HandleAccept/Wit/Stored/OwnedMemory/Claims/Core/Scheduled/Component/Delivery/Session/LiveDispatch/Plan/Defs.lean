@@ -3474,16 +3474,39 @@ inductive RecursiveGiveEntryAlignment (profile : ProfileKind) (ready : HostReady
       (aligned : RecursiveRootEntryAlignment profile ready bindings callees older incoming
         (selection.site tag payload arity children field) actual finish)
 
+/-- Replay the closed part of the actual suffix after a common public reply.
+A further give is classified at its reached pair, with the real checked
+installation and tail. Other boundary actions are not replayed here. -/
+def RejoinedCallbackReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (request reference checked canonical : Config (core3 grow) (HostState sig))
+    (checkPrefix canonPrefix actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  let base := ComponentCall.hostWithComponent bindings callees
+  let dispatch := specDispatch ready base
+  ∃ leading remaining lhs rhs,
+    actual = leading ++ remaining ∧ Steps profile ready dispatch checked leading lhs ∧
+    Steps profile ready (specDispatch ready (host bindings base)) canonical leading rhs ∧
+    HostFrame.Related.Paired older lhs rhs ∧
+    CoupledOccurrencePaths profile ready base bindings request reference (checkPrefix ++ leading) (canonPrefix ++ leading) lhs rhs ∧
+    ((remaining = [] ∧ lhs = finish) ∨
+      ∃ label tail next, remaining = label :: tail ∧ Step profile ready dispatch lhs label next ∧
+        Steps profile ready dispatch next tail finish ∧
+        CallbackWorkerBoundary bindings ready dispatch (fun resume => ∃ peer, older resume peer) lhs label next ∧
+        (GiveInstall bindings dispatch lhs label next →
+          DirectGiveAt bindings lhs ∨ ∃ req : CoreGiveRequest bindings lhs, RecursiveRequestCut profile ready callees req older rhs))
+
 /-- Match an actual checked run against a marked public body endpoint.
-Only an executed reply pop supplies a worker suffix. A typed reply does
-not authorize that suffix on the canonical side. -/
+Only an executed reply pop supplies a worker suffix. A common return carries
+the same older occurrence coordinates through both replies, including loss;
+a typed reply does not authorize a canonical pop or suffix. -/
 def PublicGiveWorkerAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) (entered left right : Config (core3 grow) (HostState sig))
     (verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result)
-    (origin reference : Config (core3 grow) (HostState sig))
-    (entryLabels prior seen actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+    (origin reference incoming : Config (core3 grow) (HostState sig))
+    (entryLabels canonEntryLabels prior seen actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   open ReturnFrame.Occurrence in
   let base := ComponentCall.hostWithComponent bindings callees
   let dispatch := specDispatch ready base
@@ -3501,6 +3524,10 @@ def PublicGiveWorkerAlignment (profile : ProfileKind) (ready : HostReady (HostSt
         match verdict with
         | .error _ => canonical = right
         | .ok _ => HostFrame.Related.Paired older checked canonical ∧
+          CoupledOccurrencePaths profile ready base bindings site.start incoming
+            ((entryLabels ++ bodyLabels) ++ [.tau, .tau, .tau]) ((canonEntryLabels ++ canonLabels) ++ [.tau]) checked canonical ∧
+          RejoinedCallbackReplay profile ready bindings callees older site.start incoming checked canonical
+            ((entryLabels ++ bodyLabels) ++ [.tau, .tau, .tau]) ((canonEntryLabels ++ canonLabels) ++ [.tau]) suffix finish ∧
           WorkerRefusalRun profile ready bindings callees older origin reference (prior ++ seen) checked canonical suffix finish
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch
