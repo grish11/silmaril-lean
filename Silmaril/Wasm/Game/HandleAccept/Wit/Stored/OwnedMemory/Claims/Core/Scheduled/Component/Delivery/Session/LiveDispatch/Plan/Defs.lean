@@ -1106,6 +1106,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | pollTerminal {changes reached peer left right checked trailing finish mark check canon}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right [mark])
+      (writerPath : VisitorWriterPath profile ready base bindings reached peer checked checked left right)
       (writers : CheckedSpendFlow reached.host.writer peer.host.writer left.host.writer right.host.writer [])
       (frontier : ComponentStoreFrontier changes check canon waitableFlatReply waitableFlatReply left right trailing True)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
@@ -1114,12 +1115,14 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   | waitTerminal {changes reached peer left right checked trailing finish check canon marks} {Result : Type}
       {next : Result → Session grow sig (Ret (core3 grow))}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right marks)
+      (writerPath : VisitorWriterPath profile ready base bindings reached peer checked checked left right)
       (frontier : ComponentStoreFrontier changes check canon next next left right trailing True)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | cancelTerminal {changes reached peer left right checked canonical trailing finish marks}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (writerPath : VisitorWriterPath profile ready base bindings reached peer checked canonical left right)
       (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
       (exit : CancelFinishExit profile ready base bindings changes left right trailing finish)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
@@ -1128,12 +1131,14 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   | cancelHookBody {changes reached peer left right entry peerEntry checked canonical hookChecked hookCanonical trailing
         finish mark marks resume}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer checked canonical left right)
       (observed : PayloadPrefix.visible checked = PayloadPrefix.visible canonical)
       (hook : AllocatorMark profile ready base bindings changes entry peerEntry hookChecked hookCanonical left right mark)
       (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes resume resume) left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | cancelDecisionTerminal {changes reached peer left right checked canonical trailing finish check canon subtask marks}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer checked canonical left right)
       (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
       (frontier : ComponentStoreFrontier changes check canon (cancelAfterHookDecision subtask) (cancelAfterHookDecision subtask)
         left right trailing True)
@@ -1142,6 +1147,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | cancelParked {changes reached peer left right checked canonical trailing finish mark}
       (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right [mark])
+      (writers : VisitorWriterPath profile ready base bindings reached peer checked canonical left right)
       (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
       (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
@@ -5217,6 +5223,7 @@ def CancelHookCallbackSlice (profile : ProfileKind) (ready : HostReady (HostStat
       actual = .tau :: (checkLabels ++ trailing) ∧
       OccurrenceTransport profile ready base bindings checked canonical [.tau] [.tau] checkEntry canonEntry [some (.active 0 0)] ∧
       OccurrenceTransport profile ready base bindings checked canonical (.tau :: checkLabels) (.tau :: canonLabels) reached peer [mark] ∧
+      VisitorWriterPath profile ready base bindings checked canonical (.tau :: checkLabels) (.tau :: canonLabels) reached peer ∧
       PayloadPrefix.visible checkLabels = PayloadPrefix.visible canonLabels ∧
       AllocatorMark profile ready base bindings older checkEntry canonEntry checkLabels canonLabels reached peer mark ∧
       CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older resume resume) reached peer trailing finish ∧

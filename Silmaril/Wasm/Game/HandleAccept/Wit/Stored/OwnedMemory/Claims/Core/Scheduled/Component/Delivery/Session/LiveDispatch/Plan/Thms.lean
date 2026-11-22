@@ -753,6 +753,7 @@ theorem cut_public_poll (mem : (core3 grow).MemAddr) (inst : InstId) (args : Lis
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon waitableFlatReply waitableFlatReply reached peer suffix True ∧
       CheckedSpendFlow start.host.writer incoming.host.writer reached.host.writer peer.host.writer [] ∧
+      VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer ∧
       WaitableCalloutExit profile ready base bindings older reached peer suffix finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicPoll
     mem inst args focused calling step run paired
@@ -778,7 +779,8 @@ theorem cut_waitable_wait_delivery (mem : (core3 grow).MemAddr) (entry : Waitabl
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
         Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) ∧
-      reached.host = start.host ∧ peer.host = incoming.host :=
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableWaitDelivery
     mem entry leftFocus rightFocus paired run
 
@@ -804,7 +806,8 @@ theorem cut_resumed_wait_delivery (mem : (core3 grow).MemAddr) (entry : Waitable
           (.tau :: leading) reached (some (.active 0 0)) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
           (.tau :: leading) peer (some (.active 0 0))) ∧
-      reached.host = start.host ∧ peer.host = incoming.host :=
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutResumedWaitDelivery
     mem entry scheduled found step run paired
 
@@ -3579,7 +3582,8 @@ theorem cut_public_wait_decision (mem : (core3 grow).MemAddr) (inst : InstId) (a
         reached peer [some (.active 0 0)]) ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon (fun result : WaitableCalloutEntry × Option ThreadId => waitableWaitAfterDecision mem result.1 result.2)
-        (fun result => waitableWaitAfterDecision mem result.1 result.2) reached peer suffix True :=
+        (fun result => waitableWaitAfterDecision mem result.1 result.2) reached peer suffix True ∧
+      VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicWaitDecision
     mem inst args focused calling step run paired
 
@@ -3603,7 +3607,8 @@ theorem cut_public_cancel_entry (async : Bool) (inst : InstId) (args : List Flat
       (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
         reached peer [some (.active 0 0)]) ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon (cancelCalloutBody async) (cancelCalloutBody async) reached peer suffix True :=
+      ComponentStoreFrontier older check canon (cancelCalloutBody async) (cancelCalloutBody async) reached peer suffix True ∧
+      VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicCancelEntry
     async inst args focused calling step run paired
 
@@ -3621,7 +3626,8 @@ theorem cut_cancel_request_write (async : Bool) (subtask : SubtaskId) (hook : Ca
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon (fun _ : Unit => cancelAfterRequestWrite async subtask hook)
-        (fun _ => cancelAfterRequestWrite async subtask hook) reached peer suffix True :=
+        (fun _ => cancelAfterRequestWrite async subtask hook) reached peer suffix True ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelRequestWrite
     async subtask hook leftFocus rightFocus paired run
 
@@ -3639,7 +3645,8 @@ theorem cut_cancel_hook_decision (async : Bool) (subtask : SubtaskId) (result : 
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon (cancelAfterHookDecision subtask) (cancelAfterHookDecision subtask)
-        reached peer suffix True :=
+        reached peer suffix True ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelHookDecision
     async subtask result leftFocus rightFocus paired run
 
@@ -3709,6 +3716,7 @@ theorem cut_cancel_delivery (async : Bool) (subtask : SubtaskId)
       ComponentStoreFrontier older ⟨thread, .core core resume :: frames, rest⟩
         ⟨thread, .core core resume :: peerFrames, peerRest⟩ waitableFlatReply waitableFlatReply reached peer suffix True ∧
       WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
         Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
@@ -3733,7 +3741,8 @@ theorem cut_cancel_finish (subtask : SubtaskId)
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
         Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) ∧
-      reached.host = start.host ∧ peer.host = incoming.host :=
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelFinish
     subtask leftFocus rightFocus paired run
 
@@ -3757,7 +3766,8 @@ theorem cut_resumed_cancel_finish (subtask : SubtaskId)
           (.tau :: leading) reached (some (.active 0 0)) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
           (.tau :: leading) peer (some (.active 0 0))) ∧
-      reached.host = start.host ∧ peer.host = incoming.host :=
+      reached.host = start.host ∧ peer.host = incoming.host ∧
+      VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutResumedCancelFinish
     subtask scheduled found step run paired
 
