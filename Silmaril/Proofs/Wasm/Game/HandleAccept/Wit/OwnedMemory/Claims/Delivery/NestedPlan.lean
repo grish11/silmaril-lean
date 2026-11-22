@@ -9037,7 +9037,7 @@ private theorem selectorReadStep
   exact ⟨read, .step read (by rw [transitionEdit, focus]; rfl) (.done _)⟩
 
 open ReturnFrame.Occurrence in
-private theorem cutGiveDemandedMismatch (request : GiveSelector bindings) (worker : ThreadId)
+private theorem cutGiveDemandedRead (request : GiveSelector bindings) (worker : ThreadId)
     {left right : Config (core3 grow) (HostState sig)} {frames rest peerFrames peerRest} {bodyLabels}
     (entered : labels = [.tau, .tau] ++ bodyLabels)
     (leftAt : left.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
@@ -9052,7 +9052,7 @@ private theorem cutGiveDemandedMismatch (request : GiveSelector bindings) (worke
     (paired : HostFrame.Related.Paired older start incoming)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (handle : BitVec IntType.i32.width) (demand : request.lookupDemand left.store (some worker) = some handle)
-    (different : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
+    (boundary : bodyLabels.length < 8 ∨ Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
       Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) :
     CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish := by
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
@@ -9084,7 +9084,8 @@ private theorem cutGiveDemandedMismatch (request : GiveSelector bindings) (worke
     have checkPath := beforeCheck.append checkLast
     have canonPath := beforeCanon.append canonLast
     rcases splitSilent (count := 6) (checkPath.track (.active 0 0)).toTrail.steps residual with ⟨trailing, split, tail⟩ | early
-    · have moved := retainComparedOccurrences paths (fun place =>
+    · have different := boundary.resolve_left (by rw [front, split]; simp)
+      have moved := retainComparedOccurrences paths (fun place =>
         ⟨(journal.append checkPath).track place, canonPath.track place⟩)
       have used : .tau :: labels = ([.tau, .tau, .tau] ++ List.replicate 8 .tau) ++ trailing := by
         rw [total, front, split]
@@ -9137,12 +9138,15 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
     (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
+  by_cases early : ∃ handle, request.lookupDemand left.store (some worker) = some handle ∧ bodyLabels.length < 8
+  · obtain ⟨handle, demand, short⟩ := early
+    exact .inr (cutGiveDemandedRead request worker entered leftAt rightAt site paths run paired embedder handle demand (.inl short))
   have lookupMismatch (handle : BitVec IntType.i32.width)
       (demand : request.lookupDemand left.store (some worker) = some handle)
       (different : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
         Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) :
       CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
-    exact .inr (cutGiveDemandedMismatch request worker entered leftAt rightAt site paths run paired embedder handle demand different)
+    exact .inr (cutGiveDemandedRead request worker entered leftAt rightAt site paths run paired embedder handle demand (.inr different))
   rcases request.result left (some worker) with ⟨reason, trapped⟩ | ⟨verdict, selected⟩
   · obtain ⟨checked, canonical⟩ := request.trap_bodies (ready := ready) (base := base) left (some worker) right.host base embedder trapped
     have sameStore := site.data.1
@@ -9271,14 +9275,14 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
       exact lookupMismatch handle demand different
 
 open ReturnFrame.Occurrence in
-private theorem cutCoreGiveDemandedMismatch (request : CoreGiveRequest bindings start)
+private theorem cutCoreGiveDemandedRead (request : CoreGiveRequest bindings start)
     {label : Label (core3 grow) (HostState sig)} {next : Config (core3 grow) (HostState sig)}
     (install : GiveInstall bindings (specDispatch ready base) start label next)
     (actual : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (handle : BitVec IntType.i32.width) (demand : request.lookupDemand = some handle)
-    (different : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle ≠
+    (boundary : labels.length < 10 ∨ Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle ≠
       Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle) :
     CallbackSlice profile ready base bindings older start incoming (label :: labels) finish := by
   obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, _, _⟩ := cutSharedCalloutInstall
@@ -9308,11 +9312,18 @@ private theorem cutCoreGiveDemandedMismatch (request : CoreGiveRequest bindings 
         rw [leftStore]
         change giveLookupDemand start.store (some worker) request.inst request.destination request.schema request.args = _
         simpa only [CoreGiveRequest.lookupDemand, thread] using demand
-      exact cutGiveDemandedMismatch request.selector worker entered
+      refine cutGiveDemandedRead request.selector worker entered
         (by simpa only [check, thread, CoreGiveRequest.selector] using leftAt)
         (by simpa only [canon, thread, CoreGiveRequest.selector] using rightAt)
         (by simpa only [check, canon, thread] using bodySite) bodyPaths bodyRun paired embedder handle wanted
-        (by simpa only [leftHost, rightHost] using different)
+        ?_
+      rcases boundary with short | different
+      · left
+        rw [entered, List.length_append] at short
+        simp only [List.length_cons, List.length_nil] at short
+        omega
+      · right
+        simpa only [leftHost, rightHost] using different
 
 private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
@@ -9322,6 +9333,9 @@ private theorem classifiedGiveCrossing
   have run := Steps.cons install.step actual
   rcases install.request with ⟨⟨request⟩⟩ | direct
   · apply Or.inr
+    by_cases early : ∃ handle, request.lookupDemand = some handle ∧ trailing.length < 10
+    · obtain ⟨handle, demand, short⟩ := early
+      exact cutCoreGiveDemandedRead request install actual paired embedder handle demand (.inl short)
     by_cases reads : ∀ handle, request.lookupDemand = some handle →
         Stored.Endpoints.Core.childFromHistory checked.host.writer.accepted handle =
           Stored.Endpoints.Core.childFromHistory canonical.host.writer.accepted handle
@@ -9348,7 +9362,7 @@ private theorem classifiedGiveCrossing
             exact actualSelectedMemoryCallback selection install actual paired selected embedder compare
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
-      exact cutCoreGiveDemandedMismatch request install actual paired embedder handle demand different
+      exact cutCoreGiveDemandedRead request install actual paired embedder handle demand (.inr different)
   · obtain ⟨name, kind, args, thread, resume, frames, rest, inst, destination, schema, focused, linked⟩ := direct
     obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, leftMark, rightMark, _⟩ :=
       cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired
