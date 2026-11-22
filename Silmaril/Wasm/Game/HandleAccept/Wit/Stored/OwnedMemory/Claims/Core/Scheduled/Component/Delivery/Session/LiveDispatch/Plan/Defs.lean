@@ -630,6 +630,14 @@ inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (Hos
       (paths : ∀ mark, Trail profile ready dispatch start mark actual finish mark) :
       CheckedProgramReplyCut profile ready dispatch start caller resume reply actual finish
   | popped {trailing finish}
+      (written : ∀ place, Prefix profile ready dispatch start place [.tau, .tau]
+        { start with
+          host := start.host.record reply.1
+          ctl := { caller with frames := .prog resume :: caller.frames }.control (.pure (.flat reply.2)) } place)
+      (remaining : Steps profile ready dispatch
+        { start with
+          host := start.host.record reply.1
+          ctl := { caller with frames := .prog resume :: caller.frames }.control (.pure (.flat reply.2)) } (.tau :: trailing) finish)
       (paths : ∀ mark, Trail profile ready dispatch start mark [.tau, .tau, .tau]
         { start with host := start.host.record reply.1, ctl := caller.control (resume (.flat reply.2)) }
         (mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow))
@@ -663,11 +671,12 @@ inductive DirectGivePlacementCut (profile : ProfileKind) (ready : HostReady (Hos
       (focus : after = { start with
         ctl := { caller with frames := .prog resume :: caller.frames }.control (request.fieldContinuation ticket selected field) })
       (placement : request.selectedPlacement selected start.store = .ok ())
-      (paths : OccurrenceTransport profile ready base bindings start peer used [] after peer)
+      (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place used after place)
       (quiet : PayloadPrefix.visible used = [])
       (residual : Steps profile ready (specDispatch ready base) after trailing finish) :
       DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field (used ++ trailing) finish
 
+open ReturnFrame.Occurrence in
 /-- A finite cut at the real width read. Fit is decided in the reached
 continuation; the peer still has its original canonical program pending. -/
 inductive DirectGiveWidthCut (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -684,7 +693,7 @@ inductive DirectGiveWidthCut (profile : ProfileKind) (ready : HostReady (HostSta
       (focus : after = { start with
         ctl := { caller with frames := .prog resume :: caller.frames }.control
           (request.measuredContinuation ticket selected field (ptrTypeIn start.store (request.destination.context request.inst))) })
-      (paths : OccurrenceTransport profile ready base bindings start peer [.tau] [] after peer)
+      (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place [.tau] after place)
       (residual : Steps profile ready (specDispatch ready base) after trailing finish)
       (decision : let width := ptrTypeIn start.store (request.destination.context request.inst)
         (request.selectedFits selected width = false ∧
@@ -697,6 +706,7 @@ inductive DirectGiveWidthCut (profile : ProfileKind) (ready : HostReady (HostSta
           DirectGivePlacementCut profile ready base bindings after peer caller resume request ticket selected field trailing finish)) :
       DirectGiveWidthCut profile ready base bindings start peer caller resume request ticket selected field (.tau :: trailing) finish
 
+open ReturnFrame.Occurrence in
 /-- A finite checked cut at the compiled root's preparation reads. No
 canonical step is spent by these checked-only reads. -/
 inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -714,7 +724,7 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
       (focus : after = { start with
         ctl := { caller with frames := .prog resume :: caller.frames }.control
           (request.preparedContinuation ticket selected field (Record.prepare start.store start.host.writer field.objects)) })
-      (paths : OccurrenceTransport profile ready base bindings start peer [.tau, .tau] [] after peer)
+      (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place [.tau, .tau] after place)
       (residual : Steps profile ready (specDispatch ready base) after trailing finish)
       (refused : ∀ issue, Record.prepare start.store start.host.writer field.objects = .error issue →
         CheckedProgramReplyCut profile ready (specDispatch ready base) after caller resume
