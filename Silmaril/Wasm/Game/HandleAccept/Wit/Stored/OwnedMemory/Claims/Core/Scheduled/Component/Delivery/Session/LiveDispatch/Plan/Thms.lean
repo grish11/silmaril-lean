@@ -1108,6 +1108,32 @@ theorem linked_memory_transport_body {pointer : FlatValue} (site : PayloadRoot.S
     PayloadRoot.Cut site profile ready bindings (LinkedMemoryTransportBody profile ready base bindings older site incoming) base :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedMemoryTransportBody site linked family paired selected embedder
 
+/-- Align the derived occurrence paths with the actual checked execution.
+The next dispatch sees only the residual after the executed original pop. -/
+theorem align_public_transport_worker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry seen : Trace grow sig} {value : route.output.Result}
+    (body : PublicSuccessTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      site incoming entered checkEntry canonEntry value seen left right)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignPublicTransportWorker site body run
+
+/-- Derive the worker cut from the linked memory request and its actual
+checked run. At a reached success, only an executed original caller pop
+exposes a shorter suffix and the next fixed-dispatch boundary. -/
+theorem linked_memory_worker_body {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    {callees : List (ComponentCall.Callee sig)}
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : (ComponentCall.hostWithComponent bindings callees).embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryWorkerBody profile ready bindings callees older site incoming labels finish)
+      (ComponentCall.hostWithComponent bindings callees) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedMemoryWorkerBody
+    site linked family paired selected embedder run
+
 /-- Derive every child lift by induction on the compiled recursive memory
 schema, including heterogeneous fields and the selected sum arm. No child
 histories are supplied as premises. -/

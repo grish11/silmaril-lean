@@ -2841,6 +2841,19 @@ def publicOccurrenceSink (profile : ProfileKind) (ready : HostReady (HostState s
   exit next issue seen left right _ := ∃ reported, next issue = site.reply (.error reported) ∧
     PublicOccurrenceExit profile ready base bindings older site entered (.error reported) seen left right
 
+/-- Keep the reached refused continuation and attach a local observation
+of the typed error at the same checked/canonical cut. -/
+def publicOccurrenceSinkWith (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (entered : Config (core3 grow) (HostState sig))
+    (refused : Stored.Endpoints.RecordLower.Issue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop) : RefusalSink grow sig :=
+  { publicOccurrenceSink profile ready base bindings older site entered with
+    exit := fun next issue seen left right _ => ∃ reported, next issue = site.reply (.error reported) ∧
+      PublicOccurrenceExit profile ready base bindings older site entered (.error reported) seen left right ∧
+      refused reported seen left right }
+
 /-- The flat body resolves each reached compiled field and accumulates older
 active and saved tracks all the way to the actual public reply. The canonical
 entry retains its paths from the live original request. -/
@@ -2894,21 +2907,37 @@ def PublicSuccessTransport (profile : ProfileKind) (ready : HostReady (HostState
       OccurrenceTransport profile ready base bindings site.start incoming
         ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical)
 
-/-- The checked entry prefix here is the one supplied by the placed branch
-of the public cut. No separate body or callback return plan is requested. -/
-def LinkedMemoryTransportBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+/-- The terminal observation is inside the recursive visitor, so it is
+applied only at a reached success, not at a trap, refusal or suspension. -/
+def LinkedMemoryTransportBodyWith (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
-    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig))
+    (success : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop)
+    (refused : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) →
+      Stored.Endpoints.RecordLower.Issue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop) : Prop :=
   ∃ canonLabels entered peer, PayloadPrefix.visible canonLabels = [] ∧
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
     ∀ checkLabels, site.EntryPrefix profile ready base checkLabels site.checked →
       recursiveAllocatingTransportPaths profile ready base bindings older site.destination site.inst site.checked entered
-        (publicOccurrenceSink profile ready base bindings older site entered) (sig.payload site.tag)
+        (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels canonLabels entered)) (sig.payload site.tag)
         site.field 0 (flatNat pointer) site.reply site.referenceReply
-        (fun seen left right _ _ => PublicSuccessTransport profile ready base bindings older site incoming entered
-          checkLabels canonLabels () seen left right) [] site.checked entered site.cursor peer
+        (fun seen left right _ _ => success checkLabels canonLabels entered seen left right)
+        [] site.checked entered site.cursor peer
+
+/-- The checked entry prefix is supplied by the placed branch of the cut.
+The recursive visitor derives the terminal observation from reached paths. -/
+def LinkedMemoryTransportBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig)) : Prop :=
+  LinkedMemoryTransportBodyWith profile ready base bindings older site incoming
+    (fun checkEntry canonEntry entered seen left right =>
+      PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry () seen left right)
+    (fun _ _ _ _ _ _ _ => True)
 
 /-- The actual range verdict after an allocator return. A late reservation
 refusal runs only the checked completion; canonical is at child entry with
@@ -3814,6 +3843,34 @@ def RejoinedCallbackReplay (profile : ProfileKind) (ready : HostReady (HostState
         (GiveInstall bindings dispatch lhs label next →
           DirectGiveAt bindings lhs ∨ ∃ req : CoreGiveRequest bindings lhs, RecursiveRequestCut profile ready callees req older rhs))
 
+/-- Compare the derived successful body with the actual finite worker run.
+A different scheduler branch, an unfinished body, or a missing original
+caller does not authorize a reply. After an executed pop, only the actual
+shorter residual can drive the next dispatch. -/
+def PublicTransportWorkerAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (incoming left right : Config (core3 grow) (HostState sig))
+    (checkEntry canonEntry seen actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  open ReturnFrame.Occurrence in
+  let base := ComponentCall.hostWithComponent bindings callees
+  let dispatch := specDispatch ready base
+  ∃ (checkBody canonBody : Trace grow sig) (mark : Option Location),
+    PayloadPrefix.visible checkBody = seen ∧ PayloadPrefix.visible canonBody = seen ∧
+    OccurrenceTransport profile ready base bindings site.start incoming (checkEntry ++ checkBody) (canonEntry ++ canonBody)
+      left right [mark] ∧
+    WorkerBodyAlignment profile ready dispatch site.start left (checkEntry ++ checkBody) actual finish ∧
+    ∀ tail, actual = (checkEntry ++ checkBody) ++ tail → Steps profile ready dispatch left tail finish →
+      mark = some (.active 0 0) →
+      tail.length < 3 ∨ ∃ suffix checked canonical,
+        tail = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
+        Steps profile ready dispatch checked suffix finish ∧ HostFrame.Related.Paired older checked canonical ∧
+        OccurrenceTransport profile ready base bindings site.start incoming
+          ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical ∧
+        RejoinedWorkerTail profile ready bindings callees older checked canonical ∧
+        RejoinedCallbackReplay profile ready bindings callees older site.start incoming checked canonical
+          ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) suffix finish
+
 /-- Match an actual checked run against a marked public body endpoint.
 Only an executed reply pop supplies a worker suffix. A common return carries
 the same older occurrence coordinates through both replies, including loss;
@@ -3847,5 +3904,20 @@ def PublicGiveWorkerAlignment (profile : ProfileKind) (ready : HostReady (HostSt
           RejoinedCallbackReplay profile ready bindings callees older site.start incoming checked canonical
             ((entryLabels ++ bodyLabels) ++ [.tau, .tau, .tau]) ((canonEntryLabels ++ canonLabels) ++ [.tau]) suffix finish ∧
           WorkerRefusalRun profile ready bindings callees older origin reference (prior ++ seen) checked canonical suffix finish
+
+/-- Use the checked run from the original request at each reached success
+or late typed refusal. The refused branch advances only checked execution
+and keeps the reached canonical body endpoint. -/
+def LinkedMemoryWorkerBody (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming : Config (core3 grow) (HostState sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  LinkedMemoryTransportBodyWith profile ready (ComponentCall.hostWithComponent bindings callees) bindings older site incoming
+    (fun checkEntry canonEntry _ seen left right =>
+      PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen actual finish)
+    (fun checkEntry canonEntry entered issue seen left right => PayloadPrefix.visible checkEntry = [] →
+      PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
+        site.start incoming incoming checkEntry canonEntry [] seen actual finish)
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

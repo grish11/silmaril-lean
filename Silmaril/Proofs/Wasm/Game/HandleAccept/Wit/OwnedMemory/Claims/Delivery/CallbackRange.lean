@@ -4128,13 +4128,27 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
   rw [frame.store]
   exact .cons (.mk tails) frame.rest
 
-theorem linkedMemoryTransportBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+theorem linkedMemoryTransportBodyWith {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older site.start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    PayloadRoot.Cut site profile ready bindings (LinkedMemoryTransportBody profile ready base bindings older site incoming) base := by
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {success : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    {refused : Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) →
+      Stored.Endpoints.RecordLower.Issue → Trace grow sig →
+      Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop}
+    (observe : ∀ checkEntry canonEntry entered seen left right,
+      PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry () seen left right →
+      success checkEntry canonEntry entered seen left right)
+    (observeRefused : ∀ checkEntry canonEntry entered issue seen left right,
+      site.EntryPrefix profile ready base checkEntry site.checked →
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming place canonEntry entered (site.entryPlace place)) → PayloadPrefix.visible canonEntry = [] →
+      PublicOccurrenceExit profile ready base bindings older site entered (.error issue) seen left right →
+      refused checkEntry canonEntry entered issue seen left right) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryTransportBodyWith profile ready base bindings older site incoming success refused) base := by
   refine site.parked_after_admission linked _ (fun fits placed _ => ?_) base embedder
   obtain ⟨plan, compiled⟩ := linked.compiled
   have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
@@ -4152,17 +4166,33 @@ theorem linkedMemoryTransportBody {pointer : FlatValue} (site : PayloadRoot.Site
   have body := compiledBody 0 site.reply site.referenceReply site.checked entered site.cursor peer frame
     (Core3.Grows.refl _) width position rfl canonAt (MemoryRootFinish older site)
     (fun _ _ _ _ linkedFrame _ checkAt canonicalAt => ⟨linkedFrame, checkAt, canonicalAt⟩)
-  refine ⟨labels, entered, peer, silent ?_, installed, hostSame, ?_⟩
-  · intro label member
+  have canonQuiet : PayloadPrefix.visible labels = [] := silent (by
+    intro label member
     have tau := List.all_eq_true.mp quiet label member
-    cases label <;> simp_all
-  · intro checkLabels checked
-    have entry := publicEntryTransport site linked checked installed storage
-    exact RecursiveTrails.recursiveAllocatingTransport (publicOccurrenceCovers (older := older) site entered) family
+    cases label <;> simp_all)
+  refine ⟨labels, entered, peer, canonQuiet, installed, hostSame, ?_⟩
+  intro checkLabels checked
+  have entry := publicEntryTransport site linked checked installed storage
+  have covers : (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels labels entered)).CoversOccurrences
+      profile ready base bindings site.checked entered := by
+    intro next admitted issue seen left right check focus paths
+    obtain ⟨reported, atReply, reached⟩ := publicOccurrenceCovers (older := older) site entered next admitted issue seen left right check focus paths
+    exact ⟨reported, atReply, reached, observeRefused _ _ _ _ _ _ _ checked installed canonQuiet reached⟩
+  exact RecursiveTrails.recursiveAllocatingTransport covers family
       site.field 0 (flatNat pointer) _ _ _ _ site.reply site.referenceReply _ _ [] body
       ⟨[], [], CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), rfl, rfl, frame.store⟩ frame.store
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ reached _ ⟨endFrame, checkAt, referenceAt⟩ =>
-        publicSuccessTransport site () entry reached endFrame checkAt referenceAt)
+        observe _ _ _ _ _ _ (publicSuccessTransport site () entry reached endFrame checkAt referenceAt))
+
+theorem linkedMemoryTransportBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {incoming : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryTransportBody profile ready base bindings older site incoming) base :=
+  linkedMemoryTransportBodyWith site linked family paired selected embedder
+    (fun _ _ _ _ _ _ transport => transport) (fun _ _ _ _ _ _ _ _ _ _ _ => trivial)
 
 private theorem collectionReturnFailure {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (type element : Stored.TypeOf) (entries : List Field) (pointer : Nat)

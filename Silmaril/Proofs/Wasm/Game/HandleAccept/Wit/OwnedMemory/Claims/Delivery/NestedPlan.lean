@@ -106,6 +106,19 @@ private theorem labelledStepUnique {dispatch : Call (core3 grow) → Session gro
     simp_all
   all_goals (injection operation; subst_vars; simp_all)
 
+private theorem stripExactPrefix {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before middle after : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
+    (front : Steps profile ready dispatch before leading middle)
+    (whole : Steps profile ready dispatch before (leading ++ trailing) after) :
+    Steps profile ready dispatch middle trailing after := by
+  induction front with
+  | refl => exact whole
+  | cons first _ ih =>
+    cases whole with
+    | cons actual rest =>
+      cases labelledStepUnique first actual
+      exact ih rest
+
 private theorem faultUnique {before : Config (core3 grow) (HostState sig)} {left right : String}
     (first : Fault before left) (second : Fault before right) : left = right := by
   cases first <;> cases second <;> simp_all
@@ -1454,6 +1467,32 @@ private theorem replayRejoinedCallback {callees : List (ComponentCall.Callee sig
       .inr ⟨_, _, _, rfl, step, tail, cut, fun install => recursiveInstallCut install aligned⟩⟩
 
 open ReturnFrame.Occurrence in
+theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry seen : Trace grow sig} {value : route.output.Result}
+    (body : PublicSuccessTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings older
+      site incoming entered checkEntry canonEntry value seen left right)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen labels finish := by
+  obtain ⟨checkBody, canonBody, mark, checkSeen, canonSeen, transport, _, _, complete⟩ := body
+  obtain ⟨moveBody, through, outsideBody⟩ := transport
+  refine ⟨checkBody, canonBody, mark, checkSeen, canonSeen, ⟨moveBody, through, outsideBody⟩,
+    alignWorkerBody (through none).1.steps run, ?_⟩
+  intro tail split actualTail active
+  obtain ⟨checked, canonical, _, _, paired, returned⟩ := complete active
+  obtain ⟨move, tracks, outside⟩ := returned
+  let dispatch := specDispatch ready (ComponentCall.hostWithComponent (grow := grow) bindings callees)
+  have reply : Steps profile ready dispatch left (List.replicate 3 .tau) checked :=
+    stripExactPrefix (through none).1.steps (tracks none).1.steps
+  rcases splitSilent reply actualTail with ⟨suffix, replySplit, suffixRun⟩ | short
+  · have smaller : suffix.length < labels.length := by
+      simp only [split, replySplit, List.length_append, List.length_replicate]
+      omega
+    exact .inr ⟨suffix, checked, canonical, replySplit, smaller, suffixRun, paired, ⟨move, tracks, outside⟩, rejoinedTail paired,
+      replayRejoinedCallback (fun cursor => ⟨move cursor, tracks cursor⟩) paired suffixRun⟩
+  · exact .inl short
+
+open ReturnFrame.Occurrence in
 theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} {origin reference entered left right : Config (core3 grow) (HostState sig)}
     {checkLabels canonLabels prior seen : Trace grow sig} {verdict : Except Stored.Endpoints.RecordLower.Issue route.output.Result}
@@ -1484,6 +1523,24 @@ theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site
     | error => exact kind
     | ok => exact ⟨kind, coupled, replayRejoinedCallback coupled kind suffixRun, requestWorkerRefusals paths kind suffixRun⟩
   · exact .inl short
+
+open ReturnFrame.Occurrence in
+theorem linkedMemoryWorkerBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    {callees : List (ComponentCall.Callee sig)}
+    (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : (ComponentCall.hostWithComponent bindings callees).embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
+    PayloadRoot.Cut site profile ready bindings (LinkedMemoryWorkerBody profile ready bindings callees older site incoming labels finish)
+      (ComponentCall.hostWithComponent bindings callees) := by
+  apply CallbackRange.linkedMemoryTransportBodyWith site linked family paired selected embedder
+  · exact fun _ _ _ _ _ _ reached => alignPublicTransportWorker site reached run
+  · intro checkEntry canonEntry entered issue seen left right checked canonical canonQuiet reached checkQuiet
+    have arrived : RequestExitOccurrences profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        site.start incoming [] site.start incoming :=
+      ⟨[], [], rfl, rfl, fun place => ⟨some place, some place, .done _ _, .done _ _⟩⟩
+    exact alignPublicGiveWorker site checked canonical checkQuiet canonQuiet reached arrived run
 
 open ReturnFrame.Occurrence in
 theorem rejoinedTrackedWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
