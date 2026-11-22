@@ -555,15 +555,22 @@ private theorem admitReturns {Result : Type} (inst : InstId) (thread : Option Th
     · refine ⟨.error .wrongContext, ?_⟩
       simp [admit, Prog.bind_eq, Plain.runBody_currentInst, caller, readStore, same, Prog.pure_eq, Plain.runBody]
 
-theorem selectorResult (request : CoreGiveRequest bindings start) :
-    (∃ reason, Plain.callerInstance start.store request.thread = .error (.trapped reason)) ∨
-    ∃ result, Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+theorem giveSelectorResult (request : GiveSelector bindings) (start : Config (core3 grow) (HostState sig))
+    (thread : Option ThreadId) :
+    (∃ reason, Plain.callerInstance start.store thread = .error (.trapped reason)) ∨
+    ∃ result, Plain.runBody request.program start.store start.host (some thread) =
       (start.store, start.host, .ok result) := by
   cases request with
-  | mk name kind args inst destination schema thread core next frames rest focused calling linked =>
+  | mk name kind args inst destination schema linked =>
     cases schema with
     | none => exact admitReturns inst thread _ (memorySelectorReturns destination args thread)
     | some schema => exact admitReturns inst thread _ (flatSelectorReturns destination schema args thread)
+
+theorem selectorResult (request : CoreGiveRequest bindings start) :
+    (∃ reason, Plain.callerInstance start.store request.thread = .error (.trapped reason)) ∨
+    ∃ result, Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
+      (start.store, start.host, .ok result) :=
+  giveSelectorResult request.selector start request.thread
 
 theorem selectionLinked {request : CoreGiveRequest bindings start} (selection : request.Selected route)
     {tag : sig.Tag} {payload : Stored.OwnedMemory.Payload (sig.payload tag)} {arity : Nat}
@@ -705,13 +712,14 @@ private theorem flatObservations {destination : RecordDestination} {args : List 
         cases sameSchema : rootHasSchema tree schema <;> simp [sameSchema, Plain.runBody, Prog.pure_eq]
   next => exact ⟨_, rfl, rfl⟩
 
-private theorem selectionObservations (request : CoreGiveRequest bindings start) (other : HostState sig)
-    (reads : ∀ handle, request.lookupDemand = some handle →
+private theorem giveSelectorObservations (request : GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (other : HostState sig)
+    (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
       Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
         Stored.Endpoints.Core.childFromHistory other.writer.accepted handle) :
-    Observations request.selectionProgram start.store start.host other request.thread := by
+    Observations request.program start.store start.host other thread := by
   cases request with
-  | mk name kind args inst destination schema thread core next frames rest focused calling linked =>
+  | mk name kind args inst destination schema linked =>
     cases schema with
     | none =>
       apply admitObservations
@@ -721,7 +729,7 @@ private theorem selectionObservations (request : CoreGiveRequest bindings start)
       apply reads handle
       change args = [.int .i32 handle, pointer] at arguments
       change Stored.flatType pointer = ABI.pointerType destination.width at width
-      simp [CoreGiveRequest.lookupDemand, caller, mayLeave, arguments, Execution.Runtime.Value.int, width, checked]
+      simp [GiveSelector.lookupDemand, giveLookupDemand, caller, mayLeave, arguments, Execution.Runtime.Value.int, width, checked]
     | some schema =>
       apply admitObservations
       intro caller mayLeave
@@ -729,7 +737,14 @@ private theorem selectionObservations (request : CoreGiveRequest bindings start)
       intro handle arguments checked
       apply reads handle
       change args = [.int .i32 handle] at arguments
-      simp [CoreGiveRequest.lookupDemand, caller, mayLeave, arguments, Execution.Runtime.Value.int, checked]
+      simp [GiveSelector.lookupDemand, giveLookupDemand, caller, mayLeave, arguments, Execution.Runtime.Value.int, checked]
+
+private theorem selectionObservations (request : CoreGiveRequest bindings start) (other : HostState sig)
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.writer.accepted handle) :
+    Observations request.selectionProgram start.store start.host other request.thread :=
+  giveSelectorObservations request.selector start request.thread other reads
 
 theorem pairedSelectionObservations (request : CoreGiveRequest bindings start)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
@@ -801,8 +816,8 @@ private theorem fixedBind {Value Result : Type} (program : Session grow sig Valu
     confine (program >>= next) = program >>= next := by
   rw [confineBind, before, funext after]
 
-private theorem confineSelector (request : CoreGiveRequest bindings start) :
-    confine request.selectionProgram = request.selectionProgram := by
+private theorem confineSelector (request : GiveSelector bindings) :
+    confine (request.program (grow := grow)) = request.program := by
   have object {Id Value : Type} (arena : ArenaField (core3 grow) Id Value) (id : Id) :
       confine (getObj arena id : Session grow sig Value) = getObj arena id := by
     unfold getObj
@@ -861,7 +876,7 @@ private theorem confineSelector (request : CoreGiveRequest bindings start) :
           change confine (if !rootHasSchema tree schema then no else yes) = (if !rootHasSchema tree schema then no else yes)
           split <;> rfl
     · rfl
-  unfold CoreGiveRequest.selectionProgram
+  unfold GiveSelector.program
   cases request.schema <;> unfold admit <;> apply fixedBind _ _ caller <;> intro inst <;>
     apply fixedBind _ _ rfl <;> intro reference <;> split <;> first | rfl | exact memory | apply flat
 
@@ -890,16 +905,16 @@ private noncomputable def referenceTail (inst : InstId) (destination : RecordDes
   | some schema, .error issue => pure (flatCompletion 0 (ABI.flatten destination.width schema) (.error issue)).2
   | some schema, .ok tree => flatBody inst destination schema tree
 
-private theorem checkedSplit (request : CoreGiveRequest bindings start) :
+private theorem checkedSplit (request : GiveSelector bindings) :
     (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder request.name request.kind request.args =
       (do
         let state ← hostGet
         hostSet (state.enter request.name request.kind request.args)
-        let verdict ← request.selectionProgram
+        let verdict ← request.program
         checkedTail request.inst request.destination state.nextTicket request.schema verdict) := by
-  rcases request with ⟨name, kind, args, inst, destination, schema, _, _, _, _, _, _, _, linked⟩
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
   cases schema <;> simp only [Stored.OwnedMemory.Claims.Core.Scheduled.host, dispatchImport, route, linked,
-    Option.elim, CoreGiveRequest.selectionProgram, checkedTail, admit, giveFlat, invoke, givePayload, giveToMemory,
+    Option.elim, GiveSelector.program, checkedTail, admit, giveFlat, invoke, givePayload, giveToMemory,
     Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq]
   all_goals
     congr 1
@@ -917,12 +932,12 @@ private theorem checkedSplit (request : CoreGiveRequest bindings start) :
       funext verdict
       cases verdict <;> rfl
 
-private theorem referenceSplit (request : CoreGiveRequest bindings start) :
+private theorem referenceSplit (request : GiveSelector bindings) :
     (LiveDispatch.host bindings base).embedder request.name request.kind request.args =
-      request.selectionProgram >>= referenceTail request.inst request.destination request.schema := by
-  rcases request with ⟨name, kind, args, inst, destination, schema, _, _, _, _, _, _, _, linked⟩
+      request.program >>= referenceTail request.inst request.destination request.schema := by
+  rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
   cases schema <;> simp only [LiveDispatch.host, selectBinding, linked, Option.elim,
-    memoryWords, flatWords, CoreGiveRequest.selectionProgram] <;>
+    memoryWords, flatWords, GiveSelector.program] <;>
     congr 1 <;> funext verdict <;> cases verdict <;> rfl
 
 private def effective {Result : Type} (store : CStore (core3 grow)) (thread : Option ThreadId)
@@ -941,40 +956,41 @@ private theorem evalEffectiveBind {Value Result : Type} (program : Session grow 
   · simp only [runBind]
   · simp only [confineBind, fixed, runBind]
 
-private theorem evalChecked (request : CoreGiveRequest bindings start)
+private theorem evalChecked (request : GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
     (impl : HostImpl (core3 grow) (HostState sig))
     (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
     let entered := start.host.enter request.name request.kind request.args
-    Plain.runBody (effective start.store request.thread (impl.embedder request.name request.kind request.args))
-        start.store start.host (some request.thread) =
-      match Plain.runBody request.selectionProgram start.store entered (some request.thread) with
+    Plain.runBody (effective start.store thread (impl.embedder request.name request.kind request.args))
+        start.store start.host (some thread) =
+      match Plain.runBody request.program start.store entered (some thread) with
       | (reached, reachedHost, .ok verdict) => Plain.runBody
-          (effective start.store request.thread (checkedTail request.inst request.destination start.host.nextTicket request.schema verdict))
-          reached reachedHost (some request.thread)
+          (effective start.store thread (checkedTail request.inst request.destination start.host.nextTicket request.schema verdict))
+          reached reachedHost (some thread)
       | (reached, reachedHost, .error issue) => (reached, reachedHost, .error issue) := by
   rw [embedder, checkedSplit request, evalEffectiveBind _ _ _ _ _ rfl]
   change Plain.runBody (effective _ _ (hostSet _ >>= _)) _ _ _ = _
   rw [evalEffectiveBind _ _ _ _ _ rfl]
-  change Plain.runBody (effective _ _ (request.selectionProgram >>= _)) _ _ _ = _
+  change Plain.runBody (effective _ _ (request.program >>= _)) _ _ _ = _
   rw [evalEffectiveBind _ _ _ _ _ (confineSelector request)]
-  generalize Plain.runBody request.selectionProgram start.store (start.host.enter request.name request.kind request.args)
-    (some request.thread) = evaluated
+  generalize Plain.runBody request.program start.store (start.host.enter request.name request.kind request.args)
+    (some thread) = evaluated
   rcases evaluated with ⟨_, _, verdict⟩
   cases verdict <;> rfl
 
-private theorem checkedReply (request : CoreGiveRequest bindings start) (issue : Issue) (state : HostState sig) :
-    Plain.runBody (effective start.store request.thread
-      (checkedTail request.inst request.destination start.host.nextTicket request.schema (.error issue)))
-      start.store state (some request.thread) =
-        (start.store, state.record (request.admissionReply issue).1, .ok (request.admissionReply issue).2) := by
-  rcases request with ⟨_, _, _, _, _, schema, thread, _, _, _, _, _, _, _⟩
+private theorem checkedReply (request : GiveSelector bindings) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (ticket : Nat) (issue : Issue) (state : HostState sig) :
+    let reply := giveAdmissionReply ticket request.destination request.schema issue
+    Plain.runBody (effective store thread (checkedTail request.inst request.destination ticket request.schema (.error issue)))
+      store state (some thread) = (store, state.record reply.1, .ok reply.2) := by
+  rcases request with ⟨_, _, _, _, _, schema, _⟩
   cases schema <;> unfold effective <;> split <;> rfl
 
-private theorem referenceReply (request : CoreGiveRequest bindings start) (issue : Issue) (state : HostState sig) :
-    Plain.runBody (effective start.store request.thread
-      (referenceTail request.inst request.destination request.schema (.error issue))) start.store state (some request.thread) =
-      (start.store, state, .ok (request.admissionReply issue).2) := by
-  rcases request with ⟨_, _, _, _, _, schema, _, _, _, _, _, _, _, _⟩
+private theorem referenceReply (request : GiveSelector bindings) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (ticket : Nat) (issue : Issue) (state : HostState sig) :
+    Plain.runBody (effective store thread (referenceTail request.inst request.destination request.schema (.error issue)))
+      store state (some thread) = (store, state, .ok (giveAdmissionReply ticket request.destination request.schema issue).2) := by
+  rcases request with ⟨_, _, _, _, _, schema, _⟩
   cases schema <;> unfold effective <;> split <;> rfl
 
 private theorem returnPath (impl : HostImpl (core3 grow) (HostState sig))
@@ -1042,16 +1058,63 @@ private theorem trapPath (impl : HostImpl (core3 grow) (HostState sig))
   rw [List.replicate_add, List.append_assoc]
   exact entire
 
-private theorem selectionAfterEntry (request : CoreGiveRequest bindings start) {verdict}
-    (evaluated : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
-      (start.store, start.host, verdict)) :
+private theorem evalGiveRefusal (request : GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (other : HostState sig)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
+    {issue : Issue} (refused : Plain.runBody request.program start.store start.host (some thread) =
+      (start.store, start.host, .ok (.error issue)))
+    (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.writer.accepted handle) :
     let entered := start.host.enter request.name request.kind request.args
-    Plain.runBody request.selectionProgram start.store entered (some request.thread) = (start.store, entered, verdict) := by
-  obtain ⟨_, before, after⟩ := selectionObservations request (start.host.enter request.name request.kind request.args)
-    (fun _ _ => rfl)
-  rw [evaluated] at before
-  cases before
-  exact after
+    let reply := giveAdmissionReply start.host.nextTicket request.destination request.schema issue
+    Plain.runBody (effective start.store thread (impl.embedder request.name request.kind request.args))
+      start.store start.host (some thread) = (start.store, entered.record reply.1, .ok reply.2) ∧
+    Plain.runBody (effective start.store thread ((LiveDispatch.host bindings base).embedder request.name request.kind request.args))
+      start.store other (some thread) = (start.store, other, .ok reply.2) := by
+  have selected (observer : HostState sig)
+      (seen : ∀ handle, request.lookupDemand start.store thread = some handle →
+        Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+          Stored.Endpoints.Core.childFromHistory observer.writer.accepted handle) :
+      Plain.runBody request.program start.store observer (some thread) = (start.store, observer, .ok (.error issue)) := by
+    obtain ⟨_, left, right⟩ := giveSelectorObservations request start thread observer seen
+    rw [refused] at left
+    cases left
+    exact right
+  constructor
+  · rw [evalChecked request start thread impl embedder,
+      selected (start.host.enter request.name request.kind request.args) (fun _ _ => rfl)]
+    exact checkedReply request start.store thread start.host.nextTicket issue _
+  · rw [referenceSplit request, evalEffectiveBind _ _ _ _ _ (confineSelector request), selected other reads]
+    exact referenceReply request start.store thread start.host.nextTicket issue _
+
+theorem giveSelectorRefusalBodies (request : GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (other : HostState sig)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder)
+    {issue : Issue} (refused : Plain.runBody request.program start.store start.host (some thread) =
+      (start.store, start.host, .ok (.error issue)))
+    (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.writer.accepted handle) :
+    let entered := start.host.enter request.name request.kind request.args
+    let reply := giveAdmissionReply start.host.nextTicket request.destination request.schema issue
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready impl start.store thread (.embedder request.name request.kind) request.args)
+      start.store start.host (some thread) = (start.store, entered.record reply.1, .ok (.flat reply.2)) ∧
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) start.store thread
+      (.embedder request.name request.kind) request.args) start.store other (some thread) = (start.store, other, .ok (.flat reply.2)) := by
+  obtain ⟨checked, canonical⟩ := evalGiveRefusal (base := base) request start thread other impl embedder refused reads
+  have program (dispatch : HostImpl (core3 grow) (HostState sig)) :
+      calloutBody Limits.spec Quirks.none ready dispatch start.store thread (.embedder request.name request.kind) request.args =
+      (effective start.store thread (dispatch.embedder request.name request.kind request.args) >>= fun words => pure (.flat words)) := by
+    simp only [calloutBody, effective]
+    split <;> rfl
+  constructor
+  · rw [program, runBind, checked]
+    rfl
+  · rw [program, runBind, canonical]
+    rfl
 
 theorem pairedAdmissionRefusalTracks (request : CoreGiveRequest bindings start)
     (impl : HostImpl (core3 grow) (HostState sig))
@@ -1070,21 +1133,8 @@ theorem pairedAdmissionRefusalTracks (request : CoreGiveRequest bindings start)
       HostFrame.Related.Paired older checked canonical ∧
       checked.host = (start.host.enter request.name request.kind request.args).record (request.admissionReply issue).1 ∧
       canonical.host = other.host := by
-  have selected : Plain.runBody request.selectionProgram start.store other.host (some request.thread) =
-      (start.store, other.host, .ok (.error issue)) := by
-    obtain ⟨_, before, after⟩ := selectionObservations request other.host reads
-    rw [refused] at before
-    cases before
-    exact after
-  have leftEval := evalChecked request impl embedder
-  dsimp only at leftEval
-  rw [selectionAfterEntry request refused] at leftEval
-  have returned := leftEval.trans (checkedReply request issue _)
-  have rightEval : Plain.runBody (effective start.store request.thread
-      ((LiveDispatch.host bindings base).embedder request.name request.kind request.args))
-      start.store other.host (some request.thread) = (start.store, other.host, .ok (request.admissionReply issue).2) := by
-    rw [referenceSplit request, evalEffectiveBind _ _ _ _ _ (confineSelector request), selected]
-    exact referenceReply request issue _
+  obtain ⟨returned, rightEval⟩ := evalGiveRefusal (base := base) request.selector start request.thread other.host
+    impl embedder refused reads
   have shared := paired.data.1
   let resumed := (core3 grow).resume start.store.core request.core (.values (request.admissionReply issue).2)
   have aligned : ReturnFrame.Related.Paired older (HostFrame.replace start other.host) other := paired
@@ -1094,7 +1144,7 @@ theorem pairedAdmissionRefusalTracks (request : CoreGiveRequest bindings start)
     focused (shared ▸ request.calling) (shared ▸ rightEval)
   refine ⟨leftCount, rightCount, _, _, positive, left, right, ?_, rfl, rfl⟩
   change ReturnFrame.Related.Paired older _ _
-  simpa only [HostFrame.replace, ← shared, resumed, List.nil_append] using residual
+  simpa only [HostFrame.replace, ← shared, resumed, CoreGiveRequest.admissionReply, CoreGiveRequest.selector, List.nil_append] using residual
 
 theorem pairedAdmissionRefusal (request : CoreGiveRequest bindings start)
     (impl : HostImpl (core3 grow) (HostState sig))
@@ -1117,12 +1167,19 @@ theorem pairedAdmissionRefusal (request : CoreGiveRequest bindings start)
   exact ⟨leftCount, rightCount, checked, canonical, (left (.active 0 0)).toTrail.steps, (right (.active 0 0)).toTrail.steps,
     aligned, checkHost, canonHost⟩
 
-private theorem selectorCallerTrap (request : CoreGiveRequest bindings start) (observer : HostState sig)
-    {reason : TrapReason} (trapped : Plain.callerInstance start.store request.thread = .error (.trapped reason)) :
-    Plain.runBody request.selectionProgram start.store observer (some request.thread) =
-      (start.store, observer, .error (.trapped reason)) := by
-  unfold CoreGiveRequest.selectionProgram
+private theorem selectorCallerTrap (request : GiveSelector bindings) (store : CStore (core3 grow))
+    (thread : Option ThreadId) (observer : HostState sig)
+    {reason : TrapReason} (trapped : Plain.callerInstance store thread = .error (.trapped reason)) :
+    Plain.runBody request.program store observer (some thread) = (store, observer, .error (.trapped reason)) := by
+  unfold GiveSelector.program
   cases request.schema <;> simp only [admit, Prog.bind_eq, Plain.runBody_currentInst, trapped]
+
+private theorem evalReferenceTrap (request : GiveSelector bindings) (store : CStore (core3 grow))
+    (thread : Option ThreadId) (other : HostState sig)
+    {reason : TrapReason} (trapped : Plain.callerInstance store thread = .error (.trapped reason)) :
+    Plain.runBody (effective store thread ((LiveDispatch.host bindings base).embedder request.name request.kind request.args))
+      store other (some thread) = (store, other, .error (.trapped reason)) := by
+  rw [referenceSplit request, evalEffectiveBind _ _ _ _ _ (confineSelector request), selectorCallerTrap request store thread _ trapped]
 
 theorem pairedAdmissionTrap (request : CoreGiveRequest bindings start)
     (impl : HostImpl (core3 grow) (HostState sig))
@@ -1136,14 +1193,11 @@ theorem pairedAdmissionTrap (request : CoreGiveRequest bindings start)
       Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) other
         (List.replicate rightCount .tau ++ [.trap reason]) (StepDefs.trapCfg other) := by
   obtain ⟨_, _, focused, _⟩ := paired.push_shared_frames request.focused (.core request.core request.next) []
-  have leftEval := evalChecked request impl embedder
+  have leftEval := evalChecked request.selector start request.thread impl embedder
   dsimp only at leftEval
-  rw [selectorCallerTrap request _ trapped] at leftEval
+  rw [selectorCallerTrap request.selector start.store request.thread _ trapped] at leftEval
   have shared := paired.data.1
-  have rightEval : Plain.runBody (effective start.store request.thread
-      ((LiveDispatch.host bindings base).embedder request.name request.kind request.args))
-      start.store other.host (some request.thread) = (start.store, other.host, .error (.trapped reason)) := by
-    rw [referenceSplit request, evalEffectiveBind _ _ _ _ _ (confineSelector request), selectorCallerTrap request _ trapped]
+  have rightEval := evalReferenceTrap (base := base) request.selector start.store request.thread other.host trapped
   obtain ⟨leftCount, left⟩ := trapPath (profile := profile) (ready := ready) impl request.focused request.calling leftEval
   obtain ⟨rightCount, right⟩ := trapPath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
     focused (shared ▸ request.calling) (shared ▸ rightEval)
@@ -1154,7 +1208,7 @@ theorem selectedDemand {request : CoreGiveRequest bindings start} (selection : r
   have action : request.schema.elim (.givePayload request.destination) (.giveFlat request.destination) =
       route.action (sig := sig) request.destination :=
     congrArg Binding.action (Except.ok.inj (request.linked.symm.trans selection.linked))
-  unfold CoreGiveRequest.lookupDemand
+  unfold CoreGiveRequest.lookupDemand giveLookupDemand
   rw [selection.caller, selection.args]
   cases route with
   | memory pointer =>

@@ -16,6 +16,34 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {route : GiveEffec
   {profile : ProfileKind} {ready : HostReady (HostState sig)} {base : HostImpl (core3 grow) (HostState sig)}
   {bindings : List (Binding sig)}
 
+/-- A live selector either reaches a dangling caller read or yields a verdict
+without modifying the store or journal. Neither caller kind is assumed. -/
+theorem LiveDispatch.GiveSelector.result (request : LiveDispatch.GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) :
+    (∃ reason, Plain.callerInstance start.store thread = .error (.trapped reason)) ∨
+    ∃ result, Plain.runBody request.program start.store start.host (some thread) = (start.store, start.host, .ok result) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorResult request start thread
+
+/-- Compare the reached confined or unconfined bodies for a common ABI
+refusal. Only agreement of the lookup actually demanded is required. -/
+theorem LiveDispatch.GiveSelector.refusal_bodies (request : LiveDispatch.GiveSelector bindings)
+    (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (other : HostState sig)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    {issue : Issue} (refused : Plain.runBody request.program start.store start.host (some thread) =
+      (start.store, start.host, .ok (.error issue)))
+    (reads : ∀ handle, request.lookupDemand start.store thread = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.writer.accepted handle) :
+    let entered := start.host.enter request.name request.kind request.args
+    let reply := LiveDispatch.giveAdmissionReply start.host.nextTicket request.destination request.schema issue
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready impl start.store thread (.embedder request.name request.kind) request.args)
+      start.store start.host (some thread) = (start.store, entered.record reply.1, .ok (.flat reply.2)) ∧
+    Plain.runBody (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) start.store thread
+      (.embedder request.name request.kind) request.args) start.store other (some thread) = (start.store, other, .ok (.flat reply.2)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorRefusalBodies
+    request start thread other impl embedder refused reads
+
 /-- The give overlay does not replace the program installed at an on-cancel
 request. The installed program can still consult the reached host later. -/
 theorem LiveDispatch.cancel_dispatch (callback : CancelRef) :

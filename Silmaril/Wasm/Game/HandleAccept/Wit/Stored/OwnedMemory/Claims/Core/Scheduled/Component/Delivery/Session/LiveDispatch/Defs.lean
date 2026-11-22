@@ -129,11 +129,31 @@ abbrev SelectionValue (sig : Signature) : Option Stored.TypeOf → Type
   | none => Tree sig × Nat
   | some _ => Tree sig
 
-def CoreGiveRequest.selectionProgram {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
-    (request : CoreGiveRequest bindings state) : Session grow sig (Except Issue (SelectionValue sig request.schema)) :=
+/-- The reached link supplies the selector for either kind of caller. The
+selector itself does not carry a program or Core return frame. -/
+structure GiveSelector (bindings : List (Binding sig)) where
+  name : String
+  kind : V1.FuncType
+  args : List FlatValue
+  inst : InstId
+  destination : RecordDestination
+  schema : Option Stored.TypeOf
+  linked : resolveBinding bindings name kind = .ok ⟨name, inst,
+    schema.elim (.givePayload destination) (.giveFlat destination)⟩
+
+def CoreGiveRequest.selector {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    (request : CoreGiveRequest bindings state) : GiveSelector bindings :=
+  ⟨request.name, request.kind, request.args, request.inst, request.destination, request.schema, request.linked⟩
+
+def GiveSelector.program {bindings : List (Binding sig)} (request : GiveSelector bindings) :
+    Session grow sig (Except Issue (SelectionValue sig request.schema)) :=
   match request.schema with
   | none => admit request.inst (selectMemoryDestination request.destination request.args)
   | some schema => admit request.inst (selectFlatDestination request.destination schema request.args)
+
+def CoreGiveRequest.selectionProgram {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    (request : CoreGiveRequest bindings state) : Session grow sig (Except Issue (SelectionValue sig request.schema)) :=
+  request.selector.program
 
 /-- The checked journal records the ticket; either caller sees only status
 and ABI-typed padding. -/
@@ -149,19 +169,27 @@ def CoreGiveRequest.admissionReply {bindings : List (Binding sig)} {state : Conf
 /-- The one journal read actually demanded by the guarded selector. Wrong
 callers, invalid argument words and invalid destinations do not consult it.
 The flat schema check itself comes after this read. -/
-def CoreGiveRequest.lookupDemand {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
-    (request : CoreGiveRequest bindings state) : Option (BitVec IntType.i32.width) :=
-  match Plain.callerInstance state.store request.thread with
+def giveLookupDemand (store : CStore (core3 grow)) (thread : Option ThreadId) (inst : InstId)
+    (destination : RecordDestination) (schema : Option Stored.TypeOf) (args : List FlatValue) : Option (BitVec IntType.i32.width) :=
+  match Plain.callerInstance store thread with
   | .error _ => none
   | .ok caller =>
-    if caller != some request.inst || !(state.store.inst? request.inst).any (·.mayLeave) then none
-    else match request.schema, request.args with
+    if caller != some inst || !(store.inst? inst).any (·.mayLeave) then none
+    else match schema, args with
     | none, [.int .i32 handle, pointer] =>
-      if Stored.flatType pointer != ABI.pointerType request.destination.width then none
-      else if let .error _ := request.destination.check state.store then none else some handle
+      if Stored.flatType pointer != ABI.pointerType destination.width then none
+      else if let .error _ := destination.check store then none else some handle
     | some _, [.int .i32 handle] =>
-      if let .error _ := request.destination.check state.store then none else some handle
+      if let .error _ := destination.check store then none else some handle
     | _, _ => none
+
+def GiveSelector.lookupDemand {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (store : CStore (core3 grow)) (thread : Option ThreadId) : Option (BitVec IntType.i32.width) :=
+  giveLookupDemand store thread request.inst request.destination request.schema request.args
+
+def CoreGiveRequest.lookupDemand {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
+    (request : CoreGiveRequest bindings state) : Option (BitVec IntType.i32.width) :=
+  giveLookupDemand state.store request.thread request.inst request.destination request.schema request.args
 
 /-- A direct program call has a program return frame, not the parked Core
 caller of the two public give routes. Its actual focus is kept separate. -/

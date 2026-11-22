@@ -8138,6 +8138,67 @@ private theorem crossDirectGiveRefusal {left right : Config (core3 grow) (HostSt
           pairAfterComponentPop frame, by simpa only [List.cons_append, List.map_nil] using whole⟩
     · exact .inr boundary
 
+open ReturnFrame.Occurrence in
+private theorem directRefusalBodyTracks (impl : HostImpl (core3 grow) (HostState sig))
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (body : Session grow sig (Ret (core3 grow)))
+    {journal : HostState sig} {words : List FlatValue}
+    (focus : start.ctl = check.control body)
+    (evaluated : Plain.runBody body start.store start.host (some check.thread) = (start.store, journal, .ok (.flat words))) :
+    ∃ count, ∀ place, Prefix profile ready (specDispatch ready impl) start place (List.replicate count .tau)
+      { start with host := journal, ctl := check.control (.pure (.flat words)) } place := by
+  have focused : start.ctl = check.control (body >>= Prog.pure) := by
+    simpa only [Prog.bind_eq, Prog.bind_pure] using focus
+  obtain ⟨labels, silent, paths⟩ := Plain.runBody_thread_tracks_all body start start.store journal (.flat words) Prog.pure
+    check.thread check.frames check.rest profile ready (specDispatch ready impl) focused evaluated
+  have replicated : labels = List.replicate labels.length .tau := List.eq_replicate_length.mpr (fun label member => by
+    have tau := List.all_eq_true.mp silent label member
+    cases label <;> first | rfl | contradiction)
+  exact ⟨labels.length, replicated ▸ paths⟩
+
+open ReturnFrame.Occurrence in
+private theorem crossActiveDirectGiveRefusal (request : GiveSelector bindings) (worker : ThreadId)
+    {left right : Config (core3 grow) (HostState sig)} {resume frames rest peerFrames peerRest} {bodyLabels}
+    (entered : labels = [.tau, .tau] ++ bodyLabels)
+    (leftAt : left.ctl = (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base left.store (some worker) (.embedder request.name request.kind) request.args))
+    (rightAt : right.ctl = (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) right.store (some worker)
+        (.embedder request.name request.kind) request.args))
+    (site : PairedComponentSite older left right ⟨some worker, .prog resume :: frames, rest⟩
+      ⟨some worker, .prog resume :: peerFrames, peerRest⟩)
+    (paths : OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+      left right [some (.active 0 0)])
+    (run : Steps profile ready (specDispatch ready base) left bodyLabels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  classical
+  rcases request.result left (some worker) with trapped | ⟨verdict, selected⟩
+  · exact .inr boundary
+  cases verdict with
+  | ok => exact .inr boundary
+  | error issue =>
+    by_cases reads : ∀ handle, request.lookupDemand left.store (some worker) = some handle →
+      Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle
+    · obtain ⟨checked, canonical⟩ := request.refusal_bodies (ready := ready) (base := base) left (some worker) right.host base embedder selected reads
+      have sameStore := site.data.1
+      obtain ⟨checkCount, leftPath⟩ := directRefusalBodyTracks (profile := profile) (ready := ready) base _ _ leftAt checked
+      obtain ⟨canonCount, rightPath⟩ := directRefusalBodyTracks (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
+        _ _ rightAt (sameStore ▸ canonical)
+      rcases splitSilent (count := checkCount) (leftPath (.active 0 0)).toTrail.steps run with ⟨remaining, split, residual⟩ | short
+      · have moved := retainComparedOccurrences paths (fun place => ⟨leftPath place, rightPath place⟩)
+        have whole : labels = ([.tau, .tau] ++ List.replicate checkCount .tau) ++ remaining := by rw [entered, split, List.append_assoc]
+        have seen : PayloadPrefix.visible ([.tau, .tau, .tau] ++ List.replicate canonCount .tau : Trace grow sig) =
+            PayloadPrefix.visible (.tau :: ([.tau, .tau] ++ List.replicate checkCount .tau)) := by
+          simp only [List.cons_append, List.nil_append, visibleTauCons, visibleTaus]
+        exact crossDirectGiveRefusal (after := ⟨some worker, frames, rest⟩) (canon := ⟨some worker, peerFrames, peerRest⟩)
+          whole moved seen paired (by simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace] using site)
+          rfl rfl residual boundary
+      · exact .inr boundary
+    · exact .inr boundary
+
 private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackGiveCrossing profile ready base bindings := by
@@ -8182,10 +8243,12 @@ private theorem classifiedGiveCrossing
       (check := check) (canon := canon) rfl rfl site paths actual
     have boundary := callbackTerminalSlice paired (.directGiveEntry (check := check) (canon := canon)
       linked rfl rfl site paths leftMark rightMark prelude actual)
-    rcases prelude with _ | ⟨_, body, peerBody, entered, _, _, _, _, _, _, _, _, _, refuse⟩
+    rcases prelude with _ | ⟨_, body, peerBody, entered, _, _, _, _, bodyAt, peerAt, bodySite, bodyPaths, bodyRun, refuse⟩
     · exact .inr boundary
     cases thread with
-    | some _ => exact .inr boundary
+    | some worker =>
+      exact crossActiveDirectGiveRefusal ⟨name, kind, args, inst, destination, schema, linked⟩ worker
+        entered bodyAt peerAt bodySite bodyPaths bodyRun paired embedder boundary
     | none =>
       rcases refuse rfl rfl with _ | ⟨suffix, left, right, replySplit, moved, _, _, leftAt, rightAt, replyPair, residual⟩
       · exact .inr boundary
