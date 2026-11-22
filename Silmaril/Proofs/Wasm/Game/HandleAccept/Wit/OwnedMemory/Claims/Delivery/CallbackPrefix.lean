@@ -820,6 +820,40 @@ theorem compareReachedRecordPrepareWithDiscrepancies {changes : ReturnFrame.Subs
   exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
 open Stored.OwnedMemory.Claims.Record in
+theorem classifyReachedRecordPrepare {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (plan : List Object) (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label pending}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    (∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host.writer.ClaimDiscrepancies peer.host.writer pending) ∨
+    (label = .tau ∧ ∃ peer, ReachedRecordPrepareMismatch profile ready base bindings start incoming finish peer plan next pending) := by
+  classical
+  by_cases same : prepare start.store start.host.writer plan = prepare start.store incoming.host.writer plan
+  · obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next same)
+    exact .inl ⟨peer, compared, by rwa [lhs, rhs]⟩
+  · obtain ⟨rfl, rfl⟩ := actualHostGet focus step
+    obtain ⟨peerFrames, peerRest, atPeer, _⟩ := paired.retarget focus
+      (.prog (next (prepare start.store start.host.writer plan))) start.host incoming.host
+    let peer := { incoming with ctl := ⟨thread, .prog (next (prepare start.store incoming.host.writer plan)), peerFrames⟩ :: peerRest }
+    have live : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peer :=
+      .hostGet atPeer
+    refine .inr ⟨rfl, peer, thread, frames, rest, peerFrames, peerRest, focus, atPeer, rfl, rfl,
+      stationaryTransport ?_ ?_, .same (.hostGet focus) rfl (.done _), .same live rfl (.done _),
+      related, same, prepare_conflict start.store plan related same⟩
+    · intro place
+      refine .step (.hostGet focus) ?_ (.done _ _)
+      rw [transitionEdit, focus]
+      cases place <;> rfl
+    · intro place
+      refine .step live ?_ (.done _ _)
+      rw [transitionEdit, atPeer]
+      cases place <;> rfl
+
+open Stored.OwnedMemory.Claims.Record in
 theorem compareReachedRecordPrepareAfterLeaf {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (plan : List Object) (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     {thread frames rest label update} {left right : HostState sig}

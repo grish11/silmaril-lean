@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Observation.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare
 
@@ -62,6 +62,15 @@ theorem prepare_observations {E : CoreEngine} {sig : Signature} (store : CStore 
     (agrees : ∀ probe ∈ exclusiveSpends plan, probe.ObservationAgrees left right) :
     prepare store left plan = prepare store right plan :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_observations store plan agrees
+
+/-- An unequal dry-run result witnesses an actually reached pending claim,
+not merely a claim mentioned in an unvisited suffix of the compiled plan. -/
+theorem prepare_conflict {E : CoreEngine} {sig : Signature} (store : CStore E)
+    (plan : List RecordLower.Object) {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending)
+    (unequal : prepare store left plan ≠ prepare store right plan) :
+    ∃ probe, pending probe ∧ ReachedPrepareConflict store left right plan probe :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_conflict store plan related unequal
 
 theorem owner_prepared {sig : Signature} {state next : State sig} {receipt : Receipt} {rep : Nat}
     (checked : prepareOwner state receipt = .ok (rep, next)) :

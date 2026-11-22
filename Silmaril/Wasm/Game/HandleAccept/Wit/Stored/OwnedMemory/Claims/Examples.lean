@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.Soundness.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 import Silmaril.Wasm.Component.Reference.Engine.Mock.Defs
 import Silmaril.Wasm.Verify.Kernel.Defs
 
@@ -275,5 +276,34 @@ theorem mixed_trap_sound (X : Mock.mock.Exec) :
     Machine.Steps .deterministic noReady noCalls (initial trapAfterMixedMoves)
       (run X trapAfterMixedMoves).labels (run X trapAfterMixedMoves).config :=
   Machine.run_sound noReady noCalls X Machine.Oracle.first 256 (initial trapAfterMixedMoves)
+
+private def requestedOwner : Receipt := ⟨resource, ⟨⟨0⟩, 77⟩⟩
+private def staleOwner : Receipt := ⟨resource, ⟨⟨0⟩, 78⟩⟩
+
+/-- The same live arena identity does not imply the same owner representation. -/
+theorem prepare_observes_live_representation :
+    let store : CStore Mock.mock := CStore.empty
+    let checked : State sig := { held := [requestedOwner] }
+    let raw : State sig := { held := [staleOwner] }
+    let plan := [.owner requestedOwner]
+    Record.prepare store checked plan = .ok () ∧
+      Record.prepare store raw plan = .error .ownerReceipt ∧
+      Record.ReachedPrepareConflict store checked raw plan (.owner ⟨0⟩) := by
+  refine ⟨by kernel_rfl, by kernel_rfl, .owner ?_⟩
+  change ¬ (some (resource, 77) = some (resource, 78))
+  decide
+
+/-- A real discrepancy in a compiled suffix is not read after an earlier stop. -/
+theorem prepare_missing_context_masks_suffix {probe : Spend} :
+    let store : CStore Mock.mock := CStore.empty
+    let checked : State sig := { held := [requestedOwner] }
+    let raw : State sig := { held := [staleOwner] }
+    let plan := [.shared (.errorContext ⟨0⟩), .owner requestedOwner]
+    Record.prepare store checked plan = Record.prepare store raw plan ∧
+      ¬ Record.ReachedPrepareConflict store checked raw plan probe := by
+  refine ⟨by kernel_rfl, ?_⟩
+  intro reached
+  cases reached with
+  | afterContext found _ => exact Bool.noConfusion found
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Examples

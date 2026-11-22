@@ -290,6 +290,24 @@ theorem compareReachedRecordPrepareWithDiscrepancies (plan : List Object)
     plan next focus step paired related demanded
 
 open Stored.OwnedMemory.Claims.Record in
+/-- Classify the actual read: equal dry-run results continue, while unequal
+results retain both executed reads and the first conflicting pending demand.
+No premise is needed for claims in a short-circuited suffix. -/
+theorem classifyReachedRecordPrepare (plan : List Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label pending}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (related : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    (∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [label] [label] finish peer ∧
+      finish.host.writer.ClaimDiscrepancies peer.host.writer pending) ∨
+    (label = .tau ∧ ∃ peer, ReachedRecordPrepareMismatch profile ready base bindings start incoming finish peer plan next pending) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.classifyReachedRecordPrepare
+    plan next focus step paired related
+
+open Stored.OwnedMemory.Claims.Record in
 /-- An executed prepare read disjoint from the leaf's checked-only spend sees
 the same result from the actual writers. The read commits neither dry run and
 retains the asymmetric writer flow and all locations. -/

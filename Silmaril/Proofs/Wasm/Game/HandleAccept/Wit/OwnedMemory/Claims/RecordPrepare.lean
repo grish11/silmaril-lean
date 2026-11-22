@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Observation.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 
 @[expose] public section
@@ -159,6 +159,68 @@ theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
     (plan : List Object) {left right : State sig} (agrees : left.LiveClaimsAgree right) :
     prepare store left plan = prepare store right plan :=
   prepare_observations store plan (fun probe _ => agrees.observe probe)
+
+theorem prepare_conflict {E : CoreEngine} {sig : Signature} (store : CStore E)
+    (plan : List Object) {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending)
+    (unequal : prepare store left plan ≠ prepare store right plan) :
+    ∃ probe, pending probe ∧ ReachedPrepareConflict store left right plan probe := by
+  induction plan generalizing left right pending with
+  | nil => exact False.elim (unequal rfl)
+  | cons object rest ih =>
+    classical
+    cases object with
+    | owner receipt =>
+      by_cases agrees : (Spend.owner (receiptId receipt)).ObservationAgrees left right
+      · have head := prepareOwner_observed receipt agrees
+        cases checked : prepareOwner left receipt with
+        | error issue =>
+          cases raw : prepareOwner right receipt with
+          | error other =>
+            have equal : issue = other := by simpa [checked, raw, Except.map] using head
+            exact False.elim (unequal (by simp [prepare, checked, raw, equal, bind, Except.bind]))
+          | ok _ => simp [checked, raw, Except.map] at head
+        | ok lhs =>
+          cases raw : prepareOwner right receipt with
+          | error _ => simp [checked, raw, Except.map] at head
+          | ok rhs =>
+            obtain ⟨rep, lhs⟩ := lhs
+            obtain ⟨other, rhs⟩ := rhs
+            have equal : rep = other := by simpa [checked, raw, Except.map] using head
+            subst other
+            obtain ⟨rfl, _⟩ := owner_prepared checked
+            obtain ⟨rfl, _⟩ := owner_prepared raw
+            obtain ⟨probe, bounded, conflict⟩ := ih (related.spendBoth (.owner (receiptId receipt)))
+              (by simpa [prepare, checked, raw, bind, Except.bind] using unequal)
+            exact ⟨probe, bounded.1, .afterOwner agrees checked raw conflict⟩
+      · exact ⟨.owner (receiptId receipt), not_not.mp (fun absent => agrees (related.observe _ absent)), .owner agrees⟩
+    | shared object =>
+      cases object with
+      | endpoint channel element id =>
+        by_cases agrees : (Spend.endpoint id).ObservationAgrees left right
+        · by_cases present : id ∈ right.endpoints
+          · have leftPresent := agrees.mpr present
+            cases ready : Async.Transfer.readyToGive store channel element ⟨id⟩ with
+            | error issue =>
+              exact False.elim (unequal (by simp [prepare, prepareEndpoint, State.spendEndpoint,
+                Except.mapError, leftPresent, present, ready, bind, Except.bind]))
+            | ok value =>
+              have checked : prepareEndpoint store left channel element id = .ok ((Spend.endpoint id).apply left) := by
+                simp [prepareEndpoint, State.spendEndpoint, Except.mapError, leftPresent, ready, bind, Except.bind, pure, Except.pure]
+              have raw : prepareEndpoint store right channel element id = .ok ((Spend.endpoint id).apply right) := by
+                simp [prepareEndpoint, State.spendEndpoint, Except.mapError, present, ready, bind, Except.bind, pure, Except.pure]
+              obtain ⟨probe, bounded, conflict⟩ := ih (related.spendBoth (.endpoint id))
+                (by simpa [prepare, checked, raw, bind, Except.bind] using unequal)
+              exact ⟨probe, bounded.1, .afterEndpoint agrees checked raw conflict⟩
+          · have leftAbsent := mt agrees.mp present
+            exact False.elim (unequal (by simp [prepare, prepareEndpoint, State.spendEndpoint,
+              Except.mapError, leftAbsent, present, bind, Except.bind]))
+        · exact ⟨.endpoint id, not_not.mp (fun absent => agrees (related.observe _ absent)), .endpoint agrees⟩
+      | errorContext id =>
+        cases found : (store.errCtx? id).isSome
+        · exact False.elim (unequal (by simp [prepare, found]))
+        · obtain ⟨probe, bounded, conflict⟩ := ih related (by simpa [prepare, found] using unequal)
+          exact ⟨probe, bounded, .afterContext found conflict⟩
 
 private theorem prepared {E : CoreEngine} {sig : Signature} (store : CStore E)
     (state : State sig) (plan : List Object) (checked : prepare store state plan = .ok ()) :

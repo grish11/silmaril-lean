@@ -6,6 +6,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Dispatch.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Defs
+public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Observation.Defs
 
 @[expose] public section
 
@@ -958,6 +959,27 @@ def ReachedRegistrationMismatch (profile : ProfileKind) (ready : HostReady (Host
     left.ctl = check.control (componentRegistrationProgram leftTicket caller tree (componentRegistration left.host.writer tree)) ∧
     right.ctl = canon.control (componentRegistrationProgram rightTicket caller tree (componentRegistration right.host.writer tree)) ∧
     componentRegistration left.host.writer tree ≠ componentRegistration right.host.writer tree
+
+open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
+/-- The two executed prepare reads frame their actual writers. The discrepancy
+is in a visited dry-run demand, not in an unexecuted write or caller reply. -/
+def ReachedRecordPrepareMismatch (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (left right reached peer : Config (core3 grow) (HostState sig))
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (pending : Spend → Prop) : Prop :=
+  ∃ thread lhsFrames lhsRest rhsFrames rhsRest,
+    left.ctl = ⟨thread, .prog (.op .hostGet (fun state => next (prepare left.store state.writer plan))), lhsFrames⟩ :: lhsRest ∧
+    right.ctl = ⟨thread, .prog (.op .hostGet (fun state => next (prepare left.store state.writer plan))), rhsFrames⟩ :: rhsRest ∧
+    reached.ctl = ⟨thread, .prog (next (prepare left.store left.host.writer plan)), lhsFrames⟩ :: lhsRest ∧
+    peer.ctl = ⟨thread, .prog (next (prepare left.store right.host.writer plan)), rhsFrames⟩ :: rhsRest ∧
+    OccurrenceTransport profile ready base bindings left right [.tau] [.tau] reached peer ∧
+    WriterPath profile ready (specDispatch ready base) left [.tau] reached [] ∧
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] peer [] ∧
+    reached.host.writer.ClaimDiscrepancies peer.host.writer pending ∧
+    prepare left.store left.host.writer plan ≠ prepare left.store right.host.writer plan ∧
+    ∃ probe, pending probe ∧ ReachedPrepareConflict left.store left.host.writer right.host.writer plan probe
 
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
