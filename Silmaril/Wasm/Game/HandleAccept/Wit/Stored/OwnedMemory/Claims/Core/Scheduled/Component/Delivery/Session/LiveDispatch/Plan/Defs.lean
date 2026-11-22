@@ -4580,33 +4580,21 @@ def MemoryVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
     ∀ actual finish, Steps profile ready (specDispatch ready base) left actual finish → actual.length ≤ budget →
     MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext left right actual finish
 
-/-- The checked completion records the reached result. On refusal the
-canonical program is still pending and performs no reply. -/
-def MemoryVisitCompletion (profile : ProfileKind) (ready : HostReady (HostState sig))
+/-- The executed checked-only reply leaves the exact canonical program
+pending. Occurrences on the two sides now follow independent paths. -/
+def MemoryVisitRefusedReply (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
-    (site : PayloadRoot.Site grow sig (.memory pointer)) (left right checked canonical : Config (core3 grow) (HostState sig))
-    (verdict : Except Stored.Endpoints.RecordLower.Issue Unit) : Prop :=
+    {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    (incoming left right : Config (core3 grow) (HostState sig)) (issue : Stored.Endpoints.RecordLower.Issue)
+    (checkLeading canonLeading actual trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   open ReturnFrame.Occurrence in
-  let edit : Edit (core3 grow) (HostState sig) := .pop
-  checked.host = left.host.record ((GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket verdict).1 ∧
-  (∀ place, Trail profile ready (specDispatch ready base) left (some place) [.tau, .tau, .tau] checked (edit.follow place)) ∧
-  match verdict with
-  | .error _ => canonical = right
-  | .ok _ => canonical.host = right.host ∧ HostFrame.Related.Paired older checked canonical ∧
-    ∀ place, Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) right (some place) [.tau] canonical (edit.follow place)
-
-/-- Expose a checked suffix only when the supplied run executes the reply. -/
-def MemoryVisitPublicReply (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
-    (site : PayloadRoot.Site grow sig (.memory pointer)) (left right : Config (core3 grow) (HostState sig))
-    (verdict : Except Stored.Endpoints.RecordLower.Issue Unit) (actual trailing : Trace grow sig)
-    (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  trailing.length < 3 ∨ ∃ suffix checked canonical,
+  trailing.length < 3 ∨ ∃ suffix checked,
     trailing = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
     Steps profile ready (specDispatch ready base) checked suffix finish ∧
-    MemoryVisitCompletion profile ready base bindings older site left right checked canonical verdict
+    checked.host = left.host.record ((GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.error issue)).1 ∧
+    ∀ cursor : Option Location, ∃ checkedMark canonMark,
+      Trail profile ready (specDispatch ready base) site.start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark
 
 /-- A common reply carries the complete request and its original occurrence
 paths. A reached uncertified growth step is explicit, not silently replayed. -/
@@ -4652,7 +4640,8 @@ def MemoryVisitWithReply (profile : ProfileKind) (ready : HostReady (HostState s
         MemoryVisitCommonReply profile ready base bindings older site incoming left right
           checkEntry checked (canonEntry ++ canonical) actual trailing finish) ∧
       ∀ issue (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)), left.ctl = check.control (site.reply (.error issue)) →
-        MemoryVisitPublicReply profile ready base bindings older site left right (.error issue) actual trailing finish)
+        MemoryVisitRefusedReply profile ready base bindings site incoming left right issue
+          (checkEntry ++ checked) (canonEntry ++ canonical) actual trailing finish)
 
 /-- On the placed branch, distinguish a finite prefix inside entry from
 an actually reached body. No canonical body path is used in the short case. -/

@@ -3535,19 +3535,6 @@ theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoo
     obtain ⟨_, caller⟩ := CallbackRange.collectionCaller site linked type element entries field live allocator
     exact ⟨range, finishCollectionRefusal site type element entries pointer caller range⟩
 
-open ReturnFrame.Occurrence in
-private theorem consumeMemoryVisitReply {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
-    {left right checked canonical : Config (core3 grow) (HostState sig)} {actual consumed trailing : Trace grow sig}
-    {verdict : Except Stored.Endpoints.RecordLower.Issue Unit}
-    (split : actual = consumed ++ trailing)
-    (residual : Steps profile ready (specDispatch ready base) left trailing finish)
-    (reply : MemoryVisitCompletion profile ready base bindings older site left right checked canonical verdict) :
-    MemoryVisitPublicReply profile ready base bindings older site left right verdict actual trailing finish := by
-  rcases splitSilent (count := 3) (reply.2.1 (.active 0 0)).steps residual with ⟨suffix, divided, tail⟩ | short
-  · exact .inr ⟨suffix, checked, canonical, divided, by simp only [split, divided, List.length_append, List.length_replicate]; omega,
-      tail, reply⟩
-  · exact .inl short
-
 open ReturnFrame.Occurrence PayloadPrefix in
 private theorem consumeMemoryCommonReply {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
@@ -3627,15 +3614,19 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
   rw [active] at marked
   obtain ⟨_, equal, caller⟩ := marked.survives
   cases equal
+  obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked checkTrack installed storage
+  have leading (place : Option Location) :
+      Trail profile ready (specDispatch ready base) site.start place (checkEntry ++ checked) left (move (atEntry place)) ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place
+        (entry ++ canonical) right (move (atEntry place)) :=
+    ⟨(track place).1.append (paths (atEntry place)).1, (track place).2.append (paths (atEntry place)).2⟩
   constructor
   · rintro rfl ⟨check, canon, paired, checkAt, canonAt⟩
-    obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked checkTrack installed storage
     have combined : OccurrenceTransport profile ready base bindings site.start incoming
         (checkEntry ++ checked) (entry ++ canonical) left right [some (.active 0 0)] := by
-      refine ⟨move ∘ atEntry, fun place => ?_, fun changes retained prior => ?_⟩
-      · exact ⟨(track place).1.append (paths (atEntry place)).1, (track place).2.append (paths (atEntry place)).2⟩
-      · simpa only [List.nil_append, List.map_append, List.map_cons, List.map_map, List.map_nil, active]
-          using outside changes _ (frameEntry changes retained prior)
+      refine ⟨move ∘ atEntry, leading, fun changes retained prior => ?_⟩
+      simpa only [List.nil_append, List.map_append, List.map_cons, List.map_map, List.map_nil, active]
+        using outside changes _ (frameEntry changes retained prior)
     refine consumeMemoryCommonReply site split residual combined caller paired checkAt canonAt ?_ bounded compare
     rw [visibleAppend, visibleAppend, checkQuiet, silentVisible quiet, seen]
   · intro issue check checkAt
@@ -3644,9 +3635,21 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     have atReply : left.ctl = ⟨check.thread, .prog (do return .flat (← writeCompletion reply)),
         .core site.core site.resume :: segments⟩ :: check.rest := by
       simpa only [Cursor.control, frames, PayloadRoot.Site.reply, reply] using checkAt
-    exact consumeMemoryVisitReply site split residual
-      (show MemoryVisitCompletion profile ready base bindings older site left right _ right (.error issue) from
-        ⟨rfl, fun place => Plain.give_completion_trail reply place atReply, rfl⟩)
+    have completed := Plain.give_completion_steps (profile := profile) (ready := ready)
+      (dispatch := specDispatch ready base) reply atReply
+    rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
+    · have smaller : suffix.length < actual.length := by
+        simp only [split, divided, List.length_append, List.length_replicate]; omega
+      refine .inr ⟨suffix, _, divided, smaller, tail, rfl, fun place => ?_⟩
+      obtain ⟨checkedLead, canonicalLead⟩ := leading place
+      cases reached : move (atEntry place) with
+      | none =>
+        rw [reached] at checkedLead canonicalLead
+        exact ⟨none, none, checkedLead.append (.absent completed), canonicalLead⟩
+      | some prior =>
+        rw [reached] at checkedLead canonicalLead
+        exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
+    · exact .inl short
 
 theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (shape : MemoryVisitShape site.field)
