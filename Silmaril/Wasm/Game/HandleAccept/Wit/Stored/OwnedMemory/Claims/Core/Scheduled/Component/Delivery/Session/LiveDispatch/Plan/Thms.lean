@@ -3305,6 +3305,30 @@ theorem cut_cancel_hook_install (async : Bool) (subtask : SubtaskId) (hook : Can
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelHookInstall
     async subtask hook leftFocus rightFocus paired run
 
+open ReturnFrame.Occurrence in
+/-- At the reached cancel delivery body, match consumption of the live event
+and the subsequent record read. Only an executed Core pop exposes the caller
+residual; a late trap retains the effects of the preceding take. -/
+theorem cut_cancel_delivery (async : Bool) (subtask : SubtaskId)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨thread, .prog (cancelCalloutBody async (subtask, none)), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨thread, .prog (cancelCalloutBody async (subtask, none)), .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨thread, .core core resume :: frames, rest⟩
+      ⟨thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older ⟨thread, .core core resume :: frames, rest⟩
+        ⟨thread, .core core resume :: peerFrames, peerRest⟩ waitableFlatReply waitableFlatReply reached peer suffix True ∧
+      WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
+      (reached.ctl ≠ [] → ∀ place,
+        Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelDelivery
+    async subtask leftFocus rightFocus paired run
+
 /-- Compare an executed wait park and its actual mixed suffix, transporting
 the original Core caller across intervening work and any reached resumption.
 Loss, including overwrite by an equal continuation, is not a return. -/

@@ -214,6 +214,13 @@ def cancelHookReturn (async : Bool) (subtask : SubtaskId) (result : Ret (core3 g
 def cancelAfterRequestWrite (async : Bool) (subtask : SubtaskId) (hook : CancelRef) : Session grow sig (Ret (core3 grow)) :=
   .op (.call (.onCancel hook)) (cancelHookReturn async subtask)
 
+/-- Cancellation consumes the currently reached event before reading the result state.
+The event records what was delivered; only the result code is returned to Core. -/
+def cancelDeliveryObservation (subtask : SubtaskId) : Session grow sig (AsyncRef.EventTuple × Nat) := do
+  let event ← Runtime.Waitable.getPendingEvent (.subtask subtask)
+  let record ← getObj ArenaField.subtasks subtask
+  pure (event, AsyncRef.subtaskCancelResult (some record.state))
+
 /-- Record the event consumed by the public poll's actual buffer program.
 Only the code becomes a flat result for Core. -/
 def pollCalloutObservation (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue) :
