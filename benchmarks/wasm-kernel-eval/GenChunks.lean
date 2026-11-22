@@ -15,6 +15,8 @@ public def main (args : List String) : IO Unit := do
   let [size, chunk] := args | throw (IO.userError "usage: GenChunks.lean N CHUNK")
   let some (n + 1) := size.toNat? | throw (IO.userError "N must be positive")
   let n := n + 1
+  if n > 65536 / 4 then
+    throw (IO.userError "N exceeds the number of i32 cells in one memory page")
   let some (k + 1) := chunk.toNat? | throw (IO.userError "CHUNK must be positive")
   let chunkSize := k + 1
   let c0 := Config.init fillSort (fillSortLocals n) (NatMem.zeros 65536)

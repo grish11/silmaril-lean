@@ -86,13 +86,14 @@ is not Core 3.0.
   `add sub mul and or xor shl shr_u eq ne lt_u eqz`, `i32.load/store/load8_u/store8`,
   `block`, `loop`, `br`, `br_if`, `unreachable`.
 - **Machine:** a small-step machine over code, operand stack, labels, locals and memory.
-- **Results:** `.trap` is a Wasm trap. `.stuck` means ill-formed code, kept separate from
-  traps. `.running` means the fuel ran out.
+- **Results:** `.trap` handles `unreachable` and out-of-bounds memory access. `.stuck` handles
+  missing instruction operands and out-of-range locals or labels. `.running` means the fuel
+  ran out. Block exits and branches assume the required stack arity.
 
 | Proved (no `sorry`, standard axioms) | Not proved / not claimed |
 | --- | --- |
 | `runRec_eq_run`, `runRec_eq_run_csimp`: the kernel and compiled drivers are the reference `run`. | That `run` agrees with `Execution.Core.Step`. The machine follows the Core rules for these instructions, but no simulation is proved. |
-| `run_add`, `run_add_of_running`: runs compose, which makes piecewise checks sound. | Typing and validation: ill-formed code is `.stuck`, not excluded. |
+| `run_add`, `run_add_of_running`: runs compose, which makes piecewise checks sound. | Typing and validation, including stack arity at block and branch boundaries. |
 | `step_mapMem`, `run_mapMem`: any memory simulation (`MemSim`) lifts to whole runs. | Calls, globals, i64, floats, `memory.grow`, tables, multi-value block parameters. |
 | `memSim_toNatMem`, `returns_toNatMem`, `zeros_eq`: packed memory is the list memory. | The historical compiled benchmark trusted the compiler and used `Lean.ofReduceBool`. |
 | `run_of_returns`: what a `true` check means for the reference run. | |

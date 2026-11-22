@@ -22,9 +22,10 @@ loops that dominate compiled code (see the opcode census in the documentation).
 the operand stack of that block, the enclosing labels (each with its continuation, its branch
 arity, its branch target and the outer stack), the locals and the memory. `step` performs one
 instruction, or leaves a block whose code is exhausted; `run n c` does at most `n` steps and
-returns `.running c'` if the fuel runs out, so that runs compose (`run_add`). Ill-formed code
-(a missing operand, an out-of-range local or label) gets stuck (`.stuck`), distinguished from a
-Wasm trap (`.trap`: `unreachable`, an out-of-bounds access).
+returns `.running c'` if the fuel runs out, so that runs compose (`run_add`). Missing instruction
+operands and out-of-range locals or labels yield `.stuck`. Executing `unreachable` or accessing
+memory out of bounds yields `.trap`. Block exits and branches assume the stack has at least the
+label's result arity and take that many values.
 
 **Memory interface (`MemOps`).** The machine is generic in its memory: `ListMem` (a list of
 bytes, read and written by `take`/`drop` splices and little-endian decoding, as Core's
