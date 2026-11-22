@@ -138,6 +138,12 @@ def Outside (older : Substitutions E Host) (left right : Stacks E Host) (mark : 
   ∀ place, some place ≠ mark → ∀ first second,
     segmentAt left place = some first → segmentAt right place = some second → Related.Segment older first second
 
+/-- Several installed occurrences can coexist. Only their exact reached
+locations are exempt; a lost mark no longer exempts any segment. -/
+def OutsideMarks (older : Substitutions E Host) (left right : Stacks E Host) (marks : List (Option Location)) : Prop :=
+  ∀ place, some place ∉ marks → ∀ first second,
+    segmentAt left place = some first → segmentAt right place = some second → Related.Segment older first second
+
 /-- The only edit that consumes the marked top segment is the actual pop.
 Other ways of losing it (lockdown or an overwritten slot) are not returns. -/
 def Edit.pops (edit : Edit E Host) (place : Location) : Prop :=

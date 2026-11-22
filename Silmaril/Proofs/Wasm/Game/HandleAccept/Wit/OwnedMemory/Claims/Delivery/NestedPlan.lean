@@ -1205,7 +1205,7 @@ theorem actualCallbackGive {callees : List (ComponentCall.Callee sig)} {protecte
     Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start (labels ++ label :: trailing) finish ∧
     ClassifiedWorkerTail profile ready bindings callees older start incoming (labels ++ label :: trailing) finish
       (WorkerOccurrencePrefix profile ready bindings callees retained start incoming mark) := by
-  obtain ⟨peer, finalMark, live, aligned, kept, checkedTrail, liveTrail, movement⟩ := replay covers paired outside
+  obtain ⟨peer, finalMark, live, aligned, kept, checkedTrail, liveTrail, movement, _⟩ := replay covers paired outside
   exact ⟨append checkedTrail.steps (.cons actual tail), .request rfl checkedTrail.steps live aligned
     ⟨finalMark, checkedTrail, liveTrail, kept, movement⟩ install (recursiveInstallCut install aligned) tail⟩
 
@@ -1436,7 +1436,7 @@ private theorem replayRejoinedCallback {callees : List (ComponentCall.Callee sig
         incoming leading peer ∧ HostFrame.Related.Paired older reached peer ∧
         CoupledOccurrencePaths profile ready (ComponentCall.hostWithComponent bindings callees) bindings request reference
           (checkPrefix ++ leading) (canonPrefix ++ leading) reached peer := by
-    obtain ⟨peer, _, live, aligned, _, _, _, tracks⟩ :=
+    obtain ⟨peer, _, live, aligned, _, _, _, tracks, _⟩ :=
       replay (fun first second holds => ⟨second, holds⟩) paired
         (paired_outside (left := HostFrame.replace start incoming.host) paired)
     refine ⟨peer, live, aligned, ?_⟩
@@ -1578,9 +1578,10 @@ theorem alignAllocatorPop
     cases run with
     | refl => exact .inr (.inl ⟨rfl, rfl⟩)
     | @cons _ _ _ _ trailing head tail =>
-      obtain ⟨canon, frame, checked, live, _, _, paths⟩ := CallbackPrefix.pop marked paired returning installed
+      obtain ⟨canon, frame, checked, live, _, _, paths, canonAt⟩ := CallbackPrefix.pop marked paired returning installed
       obtain ⟨rfl, rfl⟩ := silentStepUnique checked head
-      exact .inr (.inr ⟨trailing, canon, rfl, rfl, by simp, tail, live, frame, paths⟩)
+      exact .inr (.inr ⟨trailing, canon, rfl, rfl, by simp, tail, live, frame, paths,
+        fun transport => CallbackPrefix.transportAllocatorPop returning canonAt transport⟩)
   · exact .inl top
 
 open ReturnFrame.Occurrence in

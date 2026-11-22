@@ -66,6 +66,27 @@ theorem outside_edit {older : Substitutions E Host} {left right : Stacks E Host}
     Outside older (edit.apply left) (edit.apply right) (mark.bind edit.follow) :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.outside_edit outside edit
 
+theorem OutsideMarks.edit {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)}
+    (outside : OutsideMarks older left right marks) (edit : Edit E Host) :
+    OutsideMarks older (edit.apply left) (edit.apply right) (marks.map (·.bind edit.follow)) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.outsideMarks_edit outside edit
+
+/-- Installing a new continuation preserves each enclosing exception at
+its shifted location and exempts only the freshly installed slot. -/
+theorem OutsideMarks.push {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)}
+    (outside : OutsideMarks older left right marks) (first second : Seg E Host) :
+    OutsideMarks older ((Edit.push first).apply left) ((Edit.push second).apply right)
+      (some (.active 0 0) :: marks.map (·.map Location.pushed)) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.outsideMarks_push first second outside
+
+theorem outsideMarks_singleton {older : Substitutions E Host} {left right : Stacks E Host} {mark : Option Location} :
+    OutsideMarks older left right [mark] ↔ Outside older left right mark := by
+  simp only [OutsideMarks, List.mem_singleton, Outside]
+
+theorem outsideMarks_drop_lost {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)} :
+    OutsideMarks older left right (none :: marks) ↔ OutsideMarks older left right marks := by
+  simp only [OutsideMarks, List.mem_cons, reduceCtorEq, false_or]
+
 theorem narrow {older wider : Substitutions E Host} {left right : Config E Host}
     (paired : Related.Paired wider left right)
     (outside : Outside older (segmentStorage left) (segmentStorage right) none) : Related.Paired older left right :=

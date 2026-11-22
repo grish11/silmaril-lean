@@ -89,6 +89,53 @@ theorem ActualCallbackReplay.allocator_prefix {protectedReturn}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.actualAllocatorPrefix
     replay covers paired outside
 
+/-- The allocating string action saves the real shorter program, while
+all enclosing marks retain their actual active/saved coordinate trails. -/
+theorem ActualCallbackReplay.string_install (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (oldSize : Option Nat)
+    (alignment : Alignment) (size : Nat) (steps : List StoreStep)
+    (checkNext canonNext : Nat → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (checkAt : start.ctl = check.control (runStoreSteps cx ptr
+      ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: steps) >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (runStoreSteps cx ptr
+      ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: steps) >>= canonNext)) :
+    let first := PayloadPrefix.stringPlanResume cx steps checkNext
+    let second := PayloadPrefix.stringPlanResume cx steps canonNext
+    let checkEntry := LinkedCallback.stringReallocEntry ready bindings cx ptr oldSize alignment size steps checkNext start check
+    let canonEntry := stringAllocatorEntry (specDispatch ready (LiveDispatch.host bindings base)) cx ptr oldSize alignment size incoming canon second
+    ActualCallbackReplay bindings profile ready base (fun resume => (∃ peer, older resume peer) ∨ resume = first) checkEntry labels finish →
+    ActualAllocatorOccurrencePrefix profile ready base bindings older (ReturnFrame.Extend older first second) start incoming checkEntry canonEntry
+      [.tau] [.tau] labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.actualStringInstall
+    cx ptr oldSize alignment size steps checkNext canonNext frame checkAt canonAt
+
+/-- The real guarded list/map allocation uses the reached width and
+authority check, and keeps the placement mode of the canonical suffix. -/
+theorem ActualCallbackReplay.collection_install (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+    (entries : List Field) (output : Stored.Lower.Output) (index : Nat)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (frame : LinkedCallback.ChildFrameOver older start incoming check canon)
+    (width : (core3 grow).memAddrType? incoming.store.core destination.memory = some destination.width)
+    (prepared : Stored.OwnedMemory.Claims.Record.prepare start.store start.host.writer (Field.listObjects entries) = .ok ())
+    (checkAt : start.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext)) :
+    let area := layout destination.width element
+    let first := PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext
+    let second := PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext
+      (CanonicalTree.EntryMode.forOutput destination.width type output)
+    let checkEntry := PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready base) start check first
+    let canonEntry := PayloadPrefix.collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base)) incoming canon second
+    ActualCallbackReplay bindings profile ready base (fun resume => (∃ peer, older resume peer) ∨ resume = first) checkEntry labels finish →
+    ActualAllocatorOccurrencePrefix profile ready base bindings older (ReturnFrame.Extend older first second) start incoming checkEntry canonEntry
+      [.tau, .tau, .tau] [.tau, .tau] labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.actualCollectionInstall
+    destination inst type element entries output index checkNext canonNext frame width prepared checkAt canonAt
+
 /-- An actual Core engine step in the callback needs no host-write,
 dispatch or readiness premise. The reached store need not equal the old one. -/
 theorem ClosedCallbackPrefix.core_internal {protectedReturn thread core next frames rest store coreNext}
@@ -523,7 +570,7 @@ theorem AllocatorMark.pop {checkEntry canonEntry : Config (core3 grow) (HostStat
         { finish with ctl := check.control (first value) } ∧
       ReturnFrame.Occurrence.RetainsBelowTop profile ready (specDispatch ready (LiveDispatch.host bindings base))
         canonEntry (canonTrace ++ [.tau]) { incoming with ctl := canon.control (second value) } :=
-  let ⟨canon, frame, lhs, rhs, checkTracks, canonTracks, _⟩ :=
+  let ⟨canon, frame, lhs, rhs, checkTracks, canonTracks, _, _⟩ :=
     Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.pop marked paired returning installed
   ⟨canon, frame, lhs, rhs, checkTracks, canonTracks⟩
 
@@ -547,7 +594,8 @@ theorem AllocatorMark.pop_movement {checkEntry canonEntry : Config (core3 grow) 
 open ReturnFrame.Occurrence in
 /-- Align the marked allocator return with the actual checked derivation.
 A return focus at the end of a finite run does not advance either machine;
-only the executed pop advances canonical and gives a shorter checked tail. -/
+only the executed pop advances canonical, retires the allocator's mark while
+preserving enclosing ones, and gives a shorter checked tail. -/
 theorem AllocatorMark.align_actual_pop
     {checkEntry canonEntry last : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
     {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)} {mark : Option Location}

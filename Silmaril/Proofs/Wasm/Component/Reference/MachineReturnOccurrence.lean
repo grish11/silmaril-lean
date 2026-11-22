@@ -212,6 +212,42 @@ theorem outside_edit {older : Substitutions E Host} {left right : Stacks E Host}
     subst second
     exact .same first
 
+theorem outsideMarks_edit {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)}
+    (outside : OutsideMarks older left right marks) (edit : Edit E Host) :
+    OutsideMarks older (edit.apply left) (edit.apply right) (marks.map (·.bind edit.follow)) := by
+  intro place offMarks first second leftAt rightAt
+  rw [read_source] at leftAt rightAt
+  cases source : edit.source place with
+  | inl prior =>
+    rw [source] at leftAt rightAt
+    apply outside prior _ first second leftAt rightAt
+    intro marked
+    exact offMarks (List.mem_map.mpr ⟨some prior, marked, follow_source source⟩)
+  | inr fresh =>
+    rw [source] at leftAt rightAt
+    cases Option.some.inj (leftAt.symm.trans rightAt)
+    exact .same first
+
+theorem outsideMarks_push {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)}
+    (first second : Seg E Host) (outside : OutsideMarks older left right marks) :
+    OutsideMarks older ((Edit.push first).apply left) ((Edit.push second).apply right)
+      (some (.active 0 0) :: marks.map (·.map Location.pushed)) := by
+  have follow (mark : Option Location) : mark.bind (Edit.push first).follow = mark.map Location.pushed := by
+    cases mark with
+    | none => rfl
+    | some place => cases place with
+      | saved => rfl
+      | active activation segment => cases activation <;> rfl
+  have transported := outsideMarks_edit outside (.push first)
+  simp only [follow] at transported
+  intro place offMarks lhs rhs leftAt rightAt
+  apply transported place (fun found => offMarks (List.mem_cons_of_mem _ found)) lhs rhs leftAt
+  rw [read_source] at rightAt ⊢
+  cases place with
+  | active activation segment =>
+    cases activation <;> cases segment <;> first | exact rightAt | exact (offMarks (by simp)).elim
+  | saved _ _ => exact rightAt
+
 private theorem pointwise {Item : Type} {before after : Item → Item → Prop} {left right : List Item}
     (paired : List.Forall₂ before left right) :
     (∀ (index : Nat) first second, left[index]? = some first → right[index]? = some second → after first second) ↔

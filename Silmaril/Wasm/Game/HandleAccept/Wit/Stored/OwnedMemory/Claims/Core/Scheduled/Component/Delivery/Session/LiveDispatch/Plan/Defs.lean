@@ -86,6 +86,20 @@ def CoupledOccurrencePaths (profile : ProfileKind) (ready : HostReady (HostState
     Trail profile ready (specDispatch ready base) checkEntry cursor checkTrace checked reached ∧
     Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonEntry cursor canonTrace canonical reached
 
+/-- The same occurrence map both witnesses the machine paths and transports
+the older relation around every enclosing mark. In particular a fresh
+frame cannot take the place of a lost occurrence. -/
+def OccurrenceTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (checkEntry canonEntry : Config (core3 grow) (HostState sig)) (checkTrace canonTrace : Trace grow sig)
+    (checked canonical : Config (core3 grow) (HostState sig)) (introduced : List (Option ReturnFrame.Occurrence.Location) := []) : Prop :=
+  open ReturnFrame.Occurrence in
+  ∃ move : Option Location → Option Location,
+    (∀ cursor, Trail profile ready (specDispatch ready base) checkEntry cursor checkTrace checked (move cursor) ∧
+      Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonEntry cursor canonTrace canonical (move cursor)) ∧
+    ∀ older marks, OutsideMarks older (segmentStorage checkEntry) (segmentStorage canonEntry) marks →
+      OutsideMarks older (segmentStorage checked) (segmentStorage canonical) (introduced ++ marks.map move)
+
 /-- Replay the exact extracted prefix, including silent steps. The selected
 mark can move between active and saved storage or disappear; all other
 locations also retain their actual scheduler paths. -/
@@ -103,7 +117,8 @@ def ActualCallbackReplay (bindings : List (Binding sig)) (profile : ProfileKind)
       Outside retained (segmentStorage finish) (segmentStorage reached) finalMark ∧
       Trail profile ready (specDispatch ready base) start mark labels finish finalMark ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer mark labels reached finalMark ∧
-      CoupledOccurrencePaths profile ready base bindings start peer labels labels finish reached
+      CoupledOccurrencePaths profile ready base bindings start peer labels labels finish reached ∧
+      OccurrenceTransport profile ready base bindings start peer labels labels finish reached
 
 /-- Extract a closed prefix from the actual finite derivation, leaving any
 boundary action and the rest of the checked run at their original states. -/
@@ -138,6 +153,19 @@ structure AllocatorMark (profile : ProfileKind) (ready : HostReady (HostState si
   canonicalTrail : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
     canonEntry (some (.active 0 0)) canonTrace canonical mark
   movement : CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry checkTrace canonTrace checked canonical
+
+/-- Follow an actual allocation install into an extracted finite callback.
+The newly installed occurrence is tracked separately from the enclosing
+ones; each may independently move or be lost. -/
+def ActualAllocatorOccurrencePrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right checkEntry canonEntry : Config (core3 grow) (HostState sig))
+    (checkInstall canonInstall callback : Trace grow sig) (checked : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ canonical mark, HostFrame.Related.Paired changes checked canonical ∧
+    AllocatorMark profile ready base bindings older checkEntry canonEntry callback callback checked canonical mark ∧
+    OccurrenceTransport profile ready base bindings left right (checkInstall ++ callback) (canonInstall ++ callback)
+      checked canonical [mark]
 
 def stringAllocatorEntry (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (oldSize : Option Nat) (alignment : ABI.Alignment) (size : Nat)
@@ -3423,7 +3451,10 @@ def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
       Steps profile ready (specDispatch ready base) resumed trailing finish ∧
       Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer ∧
       LinkedCallback.ChildFrameOver older left right check canon ∧
-      CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau]) resumed peer
+      CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau]) resumed peer ∧
+      ∀ {leftStart rightStart : Config (core3 grow) (HostState sig)} {leftLabels rightLabels : Trace grow sig},
+        OccurrenceTransport profile ready base bindings leftStart rightStart leftLabels rightLabels left right [some (.active 0 0)] →
+        OccurrenceTransport profile ready base bindings leftStart rightStart (leftLabels ++ [.tau]) (rightLabels ++ [.tau]) resumed peer
 
 /-- Compare the checked run with the entry obtained from the real public
 guards. A short run need not have taken the displayed refusal or trap. -/
