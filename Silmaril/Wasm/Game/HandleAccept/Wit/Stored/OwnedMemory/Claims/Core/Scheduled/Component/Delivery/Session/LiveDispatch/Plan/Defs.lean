@@ -4617,10 +4617,10 @@ def ComponentHostAdmission (callees : List (ComponentCall.Callee sig)) (hostId :
     ArenaField.tasks.get? state.store entry.task = some task ∧ task.inst = callee.inst ∧
     callee.check state.store subtask cx args pos ft (limits, results) = .ok ()
 
-/-- The reached failed-link program records its own ticket and diagnostic on
-each side. The input may stop before lockdown; no original caller pop is
-claimed in either case. -/
-def ComponentLinkFailure (profile : ProfileKind) (ready : HostReady (HostState sig))
+/-- A failed link or admission follows the executed dispatcher through any
+entry and diagnostic writes. An exhausted prefix may precede lockdown;
+neither outcome claims an original caller pop. -/
+def ComponentEntryFailure (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (start incoming finish : Config (core3 grow) (HostState sig))
@@ -4634,7 +4634,7 @@ def ComponentLinkFailure (profile : ProfileKind) (ready : HostReady (HostState s
       (reached.ctl = [] ∧ peer.ctl = [] ∧ HostFrame.Related.Paired older reached peer))
 
 /-- Classify nominal linkage separately from the linked caller's admission.
-A missing or ambiguous link has its own executed diagnostic/lockdown path. -/
+Both failures carry their executed prefixes, not synthetic caller replies. -/
 def ComponentInstallOutcome (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -4642,9 +4642,11 @@ def ComponentInstallOutcome (profile : ProfileKind) (ready : HostReady (HostStat
     (trailing : Trace grow sig) : Prop :=
   ∀ active hostId caller resume frames rest,
     before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest →
-    ((∃ callee, callees.filter (·.hostId == hostId) = [callee]) ∧ ¬ ComponentHostAdmission callees hostId caller active before) ∨
+    ((∃ callee, callees.filter (·.hostId == hostId) = [callee]) ∧
+      ¬ ComponentHostAdmission callees hostId caller active before ∧
+      ComponentEntryFailure profile ready bindings callees older before incoming finish label trailing) ∨
     ((¬ ∃ callee, callees.filter (·.hostId == hostId) = [callee]) ∧
-      ComponentLinkFailure profile ready bindings callees older before incoming finish label trailing) ∨
+      ComponentEntryFailure profile ready bindings callees older before incoming finish label trailing) ∨
     ∃ callee cx args peerFrames peerRest,
       let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
       let peer := { incoming with ctl := ⟨some active, .prog (ComponentCall.invoke callee caller), .prog resume :: peerFrames⟩ :: peerRest }
