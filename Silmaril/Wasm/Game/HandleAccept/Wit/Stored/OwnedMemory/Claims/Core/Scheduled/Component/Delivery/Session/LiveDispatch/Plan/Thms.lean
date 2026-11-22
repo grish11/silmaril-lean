@@ -247,6 +247,36 @@ theorem cut_component_resolve_refused (caller : CallerId) (issue : Scheduled.Iss
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentResolveRefused
     caller issue leftFocus rightFocus record resultType indirect paired run
 
+open AsyncRef in
+/-- Cross the executed argument skip and refusal journaling as one cut. The
+skipped caller position and result guards come from the starting caller and
+successful linked check, not a second post-skip caller premise. -/
+theorem cut_component_admitted_refusal (callee : ComponentCall.Callee sig) (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat} (record : Subtask)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.error issue)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.error issue)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let count := if record.index.isSome then 8 else 7
+    let common : Session grow sig (Ret (core3 grow)) := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, args.length - 1⟩)
+      Subtask.resolve subtask .returned flat
+      return .cancel .none
+    (∃ suffix reached peer, labels = List.replicate count .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
+      reached.ctl = check.control common ∧ peer.ctl = canon.control common ∧
+      HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
+    labels.length < count :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusal
+    callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}

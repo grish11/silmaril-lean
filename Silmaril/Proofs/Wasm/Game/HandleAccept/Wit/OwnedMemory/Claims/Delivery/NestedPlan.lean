@@ -415,6 +415,128 @@ theorem cutComponentResolveRefused (caller : CallerId) (issue : Scheduled.Issue)
     simpa only [PayloadPrefix.Cursor.control, ← sameThread, ← sameFrames, ← sameRest] using aligned
   · exact .inr short
 
+open ReturnFrame.Occurrence in
+private theorem refusalSkipTracks (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (callee : ComponentCall.Callee sig) (caller : CallerId) (ticket : Nat) (issue : Scheduled.Issue)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = cursor.control (ComponentCall.acceptPlanned callee caller ticket (.error issue)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record) :
+    let queued := if record.index.isSome then start.store.setPendingSt (.subtask subtask) (.subtask subtask) else start.store
+    ∀ place, Prefix profile ready dispatch start place (List.replicate (if record.index.isSome then 5 else 4) .tau)
+      { start with
+        store := LowerSt.setCallerPosSt caller (args.length - 1) (LowerSt.startSt subtask queued)
+        ctl := cursor.control (ComponentCall.resolveRefused ticket caller issue) } place := by
+  dsimp only
+  cases cursor with
+  | mk thread frames rest =>
+    intro place
+    have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) focused
+    simp only [Prog.bind, callerRecord, Prog.pure_eq] at read
+    rw [CStore.subtask?] at live
+    cases indexed : record.index with
+    | none =>
+      refine .step (middle := place) read (by rw [transitionEdit, focused]; cases place <;> rfl) ?_
+      refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+      simp [Prog.bind, live, indexed, pure, Prog.bind_assoc]
+      exact .step (middle := place) (.modify rfl) (by cases place <;> rfl) (.step (.modify rfl) (by cases place <;> rfl) (.done _ _))
+    | some _ =>
+      refine .step (middle := place) read (by rw [transitionEdit, focused]; cases place <;> rfl) ?_
+      refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+      simp [Prog.bind, live, indexed, pure, Prog.bind_assoc, Waitable.setPendingEvent]
+      refine .step (middle := place) (.modify rfl) (by cases place <;> rfl) ?_
+      exact .step (middle := place) (.modify rfl) (by cases place <;> rfl) (.step (.modify rfl) (by cases place <;> rfl) (.done _ _))
+
+private theorem admittedRefusalGuards (callee : ComponentCall.Callee sig) {subtask : SubtaskId}
+    {cx : LiftLowerContext (core3 grow)} {args : List FlatValue} {pos : Nat}
+    {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat}
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ()) :
+    ft.result = some ComponentCall.resultType ∧ results ≤ 1 := by
+  have sameType : ft = callee.funcType := by
+    by_contra different
+    simp [ComponentCall.Callee.check, different, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at admitted
+  have modes : (limits, results) = lowerLimits callee.async_ := by
+    by_contra different
+    by_cases context : cx.inst = callee.inst ∧ cx.scope = .subtask subtask
+    · simp [ComponentCall.Callee.check, sameType, context.1, context.2, different, bind, Except.bind,
+        throw, throwThe, MonadExceptOf.throw] at admitted
+    · have wrong : ¬cx.inst = callee.inst ∨ ¬cx.scope = .subtask subtask := by
+        by_cases sameInst : cx.inst = callee.inst
+        · exact .inr (fun sameScope => context ⟨sameInst, sameScope⟩)
+        · exact .inl sameInst
+      simp [ComponentCall.Callee.check, sameType, wrong, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at admitted
+  refine ⟨congrArg WIT.FuncType.result sameType, ?_⟩
+  rw [show results = (lowerLimits callee.async_).2 from congrArg Prod.snd modes]
+  cases callee.async_ <;> decide
+
+open AsyncRef in
+theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat} (record : Subtask)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.error issue)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.error issue)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let count := if record.index.isSome then 8 else 7
+    let common : Session grow sig (Ret (core3 grow)) := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, args.length - 1⟩)
+      Subtask.resolve subtask .returned flat
+      return .cancel .none
+    (∃ suffix reached peer, labels = List.replicate count .tau ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
+      reached.ctl = check.control common ∧ peer.ctl = canon.control common ∧
+      HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
+    labels.length < count := by
+  dsimp only
+  let skipCount := if record.index.isSome then 5 else 4
+  let skipped := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat) =>
+    let queued := if record.index.isSome then state.store.setPendingSt (.subtask subtask) (.subtask subtask) else state.store
+    { state with
+      store := LowerSt.setCallerPosSt caller (args.length - 1) (LowerSt.startSt subtask queued)
+      ctl := cursor.control (ComponentCall.resolveRefused ticket caller issue) }
+  have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
+  have left := refusalSkipTracks (profile := profile) (ready := ready) (specDispatch ready base)
+    callee caller leftTicket issue record check leftFocus callerRecord live
+  have right := refusalSkipTracks (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    callee caller rightTicket issue record canon rightFocus (same ▸ callerRecord) (same ▸ live)
+  have count : skipCount + 3 = (if record.index.isSome then 8 else 7) := by
+    unfold skipCount
+    cases record.index <;> rfl
+  rcases splitSilent (count := skipCount) (left (.active 0 0)).toTrail.steps run with ⟨tail, split, residual⟩ | short
+  · have skipSite : PairedComponentSite older (skipped start check leftTicket) (skipped incoming canon rightTicket) check canon := by
+      unfold PairedComponentSite at paired ⊢
+      dsimp only [skipped]
+      rw [← same]
+      exact paired.set_store _
+    have reachedRecord : ArenaField.callers.get? (skipped start check leftTicket).store caller =
+        some (.lower subtask cx args (args.length - 1) ft limits results) := by
+      dsimp only [skipped]
+      rw [LowerSt.setCallerPosSt, ArenaField.get?_modify_self]
+      cases indexed : record.index <;> simp only [Option.isSome, Bool.false_eq_true, ite_false, ite_true]
+      all_goals change (ArenaField.callers.get? start.store caller).map _ = _
+      all_goals rw [callerRecord]; rfl
+    obtain ⟨resultType, indirect⟩ := admittedRefusalGuards callee admitted
+    rcases cutComponentResolveRefused caller issue rfl rfl reachedRecord resultType indirect skipSite residual with
+      ⟨suffix, more, moved, paired, remaining⟩ | short
+    · refine .inl ⟨suffix, _, _, ?_, ?_, rfl, rfl, paired, remaining⟩
+      · rw [← count, split, more, ← List.append_assoc, List.replicate_add]; rfl
+      · have movement := CallbackPrefix.stationaryTransport (bindings := bindings) left right
+        rw [← count, List.replicate_add]
+        simpa only [skipCount, List.map_nil, List.append_nil, List.replicate_succ, List.replicate_zero] using
+          (CallbackPrefix.transportAppend movement moved).choose_spec.1
+    · apply Or.inr
+      rw [← count, split, List.length_append, List.length_replicate]
+      omega
+  · exact .inr (by rw [← count]; omega)
+
 private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
     {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :
