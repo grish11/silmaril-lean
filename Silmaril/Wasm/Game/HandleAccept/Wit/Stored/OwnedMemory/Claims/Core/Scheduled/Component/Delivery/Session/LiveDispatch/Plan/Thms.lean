@@ -9,6 +9,7 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.Ca
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 
@@ -3583,6 +3584,25 @@ theorem classify_mixed_callback_discrepancies {callees : List (ComponentCall.Cal
   obtain ⟨checked, canonical, trailing, reached, peer, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
   exact ⟨checked, canonical, trailing, reached, peer, split, segment,
     Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.discrepancyCut segment.writers initial, ending⟩
+
+open ReturnFrame.Occurrence in
+/-- Extend the mixed worker comparison through the reached, certified endpoint
+segments. The two traces retain their own journals and all occurrence moves.
+An asymmetric reply or a site missing a paired certificate leaves an actual
+checked residual; it does not extend the raw execution. -/
+theorem classify_mixed_callback_endpoint_discrepancies {callees : List (ComponentCall.Callee sig)}
+    {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+    ∃ checked canonical trailing reached peer marks, labels = checked ++ trailing ∧
+      OccurrenceTransport profile ready base bindings start incoming checked canonical reached peer marks ∧
+      VisitorWriterPath profile ready base bindings start incoming checked canonical reached peer ∧
+      WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical reached peer ∧
+      Steps profile ready (specDispatch ready base) reached trailing finish := by
+  obtain ⟨_, _, _, _, _, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
+  exact Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.extend split segment ending initial
 
 open ReturnFrame.Occurrence in
 /-- Follow the original Core wait install through the actual entry and
