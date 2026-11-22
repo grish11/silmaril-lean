@@ -119,6 +119,35 @@ private theorem stripExactPrefix {dispatch : Call (core3 grow) → Session grow 
       cases labelledStepUnique first actual
       exact ih rest
 
+private theorem classifyReachedGrowth {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (run : Steps profile ready dispatch start labels finish) :
+    CoreGrowthSteps profile ready dispatch start labels finish ∨ ReachedNonGrowingUpdate profile ready dispatch start labels finish := by
+  classical
+  induction run with
+  | refl => exact .inl (.refl _)
+  | @cons before next after label trailing first rest ih =>
+    by_cases grows : CoreUpdateGrows before
+    · rcases ih with certified | ⟨leading, action, remaining, reached, next, split, certified, openUpdate, actual, tail⟩
+      · exact .inl (.cons grows first certified)
+      · exact .inr ⟨label :: leading, action, remaining, reached, next, congrArg (label :: ·) split,
+          .cons grows first certified, openUpdate, actual, tail⟩
+    · exact .inr ⟨[], label, trailing, before, next, rfl, .refl _, grows, first, rest⟩
+
+theorem cutExecutedCallback
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
+  let protectedReturn := fun resume => ∃ rhs, older resume rhs
+  have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
+  cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run with
+  | complete _ replay growing =>
+    obtain ⟨_, prefixRun⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
+    exact .complete prefixRun
+  | @boundary leading label trailing reached next split _ growing replay kind step tail =>
+    obtain ⟨_, compared⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
+    have smaller : trailing.length < labels.length := by simp [split, List.length_append]; omega
+    exact .boundary split compared kind step tail smaller
+
 private theorem faultUnique {before : Config (core3 grow) (HostState sig)} {left right : String}
     (first : Fault before left) (second : Fault before right) : left = right := by
   cases first <;> cases second <;> simp_all
@@ -1460,12 +1489,12 @@ private theorem replayRejoinedCallback {callees : List (ComponentCall.Callee sig
     obtain ⟨next, checkTail, canonTail⟩ := tracks middle
     exact ⟨next, checked.append checkTail, canonical.append canonTail⟩
   cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run with
-  | complete _ replay =>
+  | complete _ replay _ =>
     obtain ⟨peer, live, aligned, movement, tracks⟩ := replayPrefix replay
     exact ⟨labels, [], finish, peer, (List.append_nil _).symm, run, live, aligned, tracks, movement, .inl ⟨rfl, rfl⟩⟩
-  | boundary split _ prefixSteps replay cut step tail =>
+  | boundary split _ growing replay cut step tail =>
     obtain ⟨peer, live, aligned, movement, tracks⟩ := replayPrefix replay
-    exact ⟨_, _, _, peer, split, prefixSteps, live, aligned, tracks, movement,
+    exact ⟨_, _, _, peer, split, growing.steps, live, aligned, tracks, movement,
       .inr ⟨_, _, _, rfl, step, tail, cut, fun install => recursiveInstallCut install aligned⟩⟩
 
 open ReturnFrame.Occurrence in
@@ -1510,10 +1539,18 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
       simp only [split, replySplit, List.length_append, List.length_replicate]
       omega
     refine .inr ⟨suffix, checked, canonical, replySplit, smaller, suffixRun, paired, ⟨move, tracks, outside⟩, rejoinedTail paired,
-      replayRejoinedCallback (fun cursor => ⟨move cursor, tracks cursor⟩) paired suffixRun, ?_⟩
-    intro retained enclosingLeft enclosingRight leftTrace rightTrace cursor tracked
-    obtain ⟨reached, marked⟩ := carryAllocatorTransport tracked ⟨move, tracks, outside⟩
-    exact ⟨reached, marked, classifyWithOccurrence suffixRun paired marked.outside⟩
+      replayRejoinedCallback (fun cursor => ⟨move cursor, tracks cursor⟩) paired suffixRun, ?_, ?_⟩
+    · intro entrySeen
+      rcases classifyReachedGrowth (tracks none).1.steps with certified | openUpdate
+      · refine .inl ⟨certified, ?_, paired, ⟨move, tracks, outside⟩⟩
+        rw [visibleAppend, visibleAppend, visibleAppend, visibleAppend, checkSeen, canonSeen, entrySeen]
+        have silentCanon : PayloadPrefix.visible ([.tau] : Trace grow sig) = [] := visibleTaus 1
+        have silentCheck : PayloadPrefix.visible ([.tau, .tau, .tau] : Trace grow sig) = [] := visibleTaus 3
+        rw [silentCanon, silentCheck]
+      · exact .inr openUpdate
+    · intro retained enclosingLeft enclosingRight leftTrace rightTrace cursor tracked
+      obtain ⟨reached, marked⟩ := carryAllocatorTransport tracked ⟨move, tracks, outside⟩
+      exact ⟨reached, marked, classifyWithOccurrence suffixRun paired marked.outside⟩
   · exact .inl short
 
 open ReturnFrame.Occurrence in

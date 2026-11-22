@@ -34,6 +34,24 @@ theorem ClosedSyncReadyRead.fixed (policy : Nat → Bool) {task inst thread fram
     ClosedSyncReadyRead (fun _ => policy) start :=
   ⟨task, inst, thread, frames, rest, focused, LinkedCallback.ReadyAgreement.fixed policy start inst⟩
 
+/-- Compose two consecutive executed callback segments without imposing
+equality of their journals or of their full traces. -/
+theorem ExecutedCallbackSegment.append {middle peer last : Config (core3 grow) (HostState sig)}
+    {checkLeading canonLeading checkTrailing canonTrailing : Trace grow sig}
+    (first : ExecutedCallbackSegment profile ready base bindings older start incoming checkLeading canonLeading middle peer)
+    (second : ExecutedCallbackSegment profile ready base bindings older middle peer checkTrailing canonTrailing finish last) :
+    ExecutedCallbackSegment profile ready base bindings older start incoming
+      (checkLeading ++ checkTrailing) (canonLeading ++ canonTrailing) finish last :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.appendExecutedCallbacks first second
+
+/-- Derive the closed part of an actual checked callback. A reached give,
+protected pop, or genuine open boundary keeps its original checked tail. -/
+theorem cut_executed_callback
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ExecutedCallbackCut profile ready base bindings older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutExecutedCallback run paired
+
 /-- Classify the actual checked callback derivation without choosing an
 allocator return or supplying an independent callback execution. Only
 reached synchronous reads with compatible candidate queries are crossed. -/

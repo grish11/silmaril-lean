@@ -129,10 +129,11 @@ inductive ClassifiedCallbackRun (bindings : List (Binding sig)) (profile : Profi
     (finish : Config (core3 grow) (HostState sig)) : Prop where
   | complete (closed : ClosedCallbackPrefix bindings profile ready base protectedReturn start (PayloadPrefix.visible labels) finish)
       (replay : ActualCallbackReplay bindings profile ready base protectedReturn start labels finish)
+      (growing : CoreGrowthSteps profile ready (specDispatch ready base) start labels finish)
   | boundary {leading label trailing reached next}
       (split : labels = leading ++ label :: trailing)
       (closed : ClosedCallbackPrefix bindings profile ready base protectedReturn start (PayloadPrefix.visible leading) reached)
-      (prefixSteps : Steps profile ready (specDispatch ready base) start leading reached)
+      (growing : CoreGrowthSteps profile ready (specDispatch ready base) start leading reached)
       (replay : ActualCallbackReplay bindings profile ready base protectedReturn start leading reached)
       (cut : CallbackWorkerBoundary bindings ready (specDispatch ready base) protectedReturn reached label next)
       (actual : Step profile ready (specDispatch ready base) reached label next)
@@ -174,6 +175,61 @@ def stringAllocatorEntry (dispatch : Call (core3 grow) → Session grow sig (Ret
   let request := Call.reallocate cx (oldSize.elim 0 (fun _ => ptr)) (oldSize.getD 0) alignment.bytes size
   { state with ctl := { cursor with frames := .prog resume :: cursor.frames }.control (dispatch request) }
 
+/-- The executed part of a callback. Its checked and canonical traces are
+indexed separately; the reached pair keeps the actual journals. -/
+structure ExecutedCallbackSegment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) (checkLabels canonLabels : Trace grow sig)
+    (finish peer : Config (core3 grow) (HostState sig)) : Prop where
+  checkedRun : CoreGrowthSteps profile ready (specDispatch ready base) checked checkLabels finish
+  observed : PayloadPrefix.visible canonLabels = PayloadPrefix.visible checkLabels
+  paired : HostFrame.Related.Paired changes finish peer
+  occurrences : OccurrenceTransport profile ready base bindings checked canonical checkLabels canonLabels finish peer
+
+/-- The callback evidence shared by string and collection traversal. In the
+executed case the two prefixes may have different silent steps. Growth is
+certified at reached updates on the checked prefix; the journals need not
+be preserved. Neither case asserts that the installed occurrence returns. -/
+inductive AllocatorCallbackPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | closed {seen finish} (path : ClosedCallbackPrefix bindings profile ready base
+      (fun resume => (∃ peer, older resume peer) ∨ resume = first) checked seen finish) :
+      AllocatorCallbackPrefix profile ready base bindings older first second checked canonical seen finish
+  | executed {checkLabels canonLabels finish peer}
+      (run : ExecutedCallbackSegment profile ready base bindings (ReturnFrame.Extend older first second)
+        checked canonical checkLabels canonLabels finish peer) :
+      AllocatorCallbackPrefix profile ready base bindings older first second checked canonical (PayloadPrefix.visible checkLabels) finish
+
+/-- Cut a growing checked derivation at the first action not covered by
+closed replay. No part of a boundary action is replayed by this cut. -/
+inductive ExecutedCallbackCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  | complete {peer} (segment : ExecutedCallbackSegment profile ready base bindings changes checked canonical actual actual finish peer)
+  | boundary {leading label trailing reached peer next}
+      (split : actual = leading ++ label :: trailing)
+      (segment : ExecutedCallbackSegment profile ready base bindings changes checked canonical leading leading reached peer)
+      (kind : CallbackWorkerBoundary bindings ready (specDispatch ready base) (fun resume => ∃ rhs, changes resume rhs) reached label next)
+      (step : Step profile ready (specDispatch ready base) reached label next)
+      (tail : Steps profile ready (specDispatch ready base) next trailing finish)
+      (smaller : trailing.length < actual.length)
+
+/-- A checked trace may reach an open store update that cannot be used to
+transport a linked-memory width. This is a comparison boundary, not a
+runtime refusal, and does not require later updates to preserve growth. -/
+def ReachedNonGrowingUpdate (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start : Config (core3 grow) (HostState sig)) (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading label trailing reached next,
+    labels = leading ++ label :: trailing ∧ CoreGrowthSteps profile ready dispatch start leading reached ∧
+    ¬ CoreUpdateGrows reached ∧ Step profile ready dispatch reached label next ∧ Steps profile ready dispatch next trailing finish
+
 /-- Compare an actual residual string program under the fixed live give
 dispatcher. Each local segment may trap; each entered allocator can expose
 any finite classified prefix. Only a pop of its marked occurrence enters a
@@ -207,16 +263,13 @@ def LiveStringReplay (profile : ProfileKind) (ready : HostReady (HostState sig))
         let second := stringPlanResume cx rest canonNext
         let firstEntry := LinkedCallback.stringReallocEntry ready bindings cx pointer oldSize alignment size rest checkNext lhs check
         let secondEntry := stringAllocatorEntry canonDispatch cx pointer oldSize alignment size rhs canon second
-        ∀ {seen reached}, ClosedCallbackPrefix bindings profile ready base
-          (fun resume => (∃ peer, older resume peer) ∨ resume = first) firstEntry seen reached →
+        ∀ {seen reached}, AllocatorCallbackPrefix profile ready base bindings older first second firstEntry secondEntry seen reached →
           ∃ checkLabels canonLabels reference mark,
             Steps profile ready checkDispatch lhs (.tau :: checkLabels) reached ∧
             Steps profile ready canonDispatch rhs (.tau :: canonLabels) reference ∧
             visible checkLabels = seen ∧ visible canonLabels = seen ∧
             HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached reference ∧
             Core3.Grows lhs.store.core reached.store.core ∧
-            reached.host.writer.accepted = lhs.host.writer.accepted ∧
-            reference.host.writer.accepted = rhs.host.writer.accepted ∧
             AllocatorMark profile ready base bindings older firstEntry secondEntry checkLabels canonLabels reached reference mark ∧
             OccurrenceTransport profile ready base bindings lhs rhs (.tau :: checkLabels) (.tau :: canonLabels) reached reference [mark] ∧
             ∀ (value : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)), mark = some (.active 0 0) →
@@ -293,8 +346,7 @@ def LiveStringOccurrences (profile : ProfileKind) (ready : HostReady (HostState 
       let firstEntry := LinkedCallback.stringReallocEntry ready bindings cx pointer oldSize alignment size rest checkNext lhs check
       let secondEntry := stringAllocatorEntry (specDispatch ready (LiveDispatch.host bindings base))
         cx pointer oldSize alignment size rhs canon second
-      ∀ {observed reached}, ClosedCallbackPrefix bindings profile ready base
-        (fun resume => (∃ peer, older resume peer) ∨ resume = first) firstEntry observed reached →
+      ∀ {observed reached}, AllocatorCallbackPrefix profile ready base bindings older first second firstEntry secondEntry observed reached →
         ∃ checkLabels canonLabels reference mark,
           AllocatorMark profile ready base bindings older firstEntry secondEntry checkLabels canonLabels reached reference mark ∧
           HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached reference ∧
@@ -511,8 +563,7 @@ def LiveStringPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
       let second := stringPlanResume cx rest canonNext
       let firstEntry := LinkedCallback.stringReallocEntry ready bindings cx pointer oldSize alignment size rest checkNext lhs check
       let secondEntry := stringAllocatorEntry canonDispatch cx pointer oldSize alignment size rhs canon second
-      ∀ {observed reached}, ClosedCallbackPrefix bindings profile ready base
-        (fun resume => (∃ peer, older resume peer) ∨ resume = first) firstEntry observed reached →
+      ∀ {observed reached}, AllocatorCallbackPrefix profile ready base bindings older first second firstEntry secondEntry observed reached →
         ∃ checkLabels canonLabels reference mark,
           AllocatorMark profile ready base bindings older firstEntry secondEntry checkLabels canonLabels reached reference mark ∧
           HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached reference ∧
@@ -692,8 +743,7 @@ def LiveCollectionPaths (profile : ProfileKind) (ready : HostReady (HostState si
   let leftEntry := collectionEntry destination inst area entries.length (specDispatch ready base) start check first
   let rightEntry := collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
     incoming canon second
-  ∀ {seen finish}, ClosedCallbackPrefix bindings profile ready base
-      (fun resume => (∃ peer, older resume peer) ∨ resume = first) leftEntry seen finish →
+  ∀ {seen finish}, AllocatorCallbackPrefix profile ready base bindings older first second leftEntry rightEntry seen finish →
     ∃ checkLabels canonLabels reached mark,
       AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
@@ -1434,8 +1484,7 @@ def LiveCollectionOccurrenceEntry (profile : ProfileKind) (ready : HostReady (Ho
     let rightEntry := collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base))
       right canon second
     (core3 grow).memAddrType? right.store.core destination.memory = some destination.width →
-    ∀ {seen finish}, ClosedCallbackPrefix bindings profile ready base
-        (fun resume => (∃ peer, older resume peer) ∨ resume = first) leftEntry seen finish →
+    ∀ {seen finish}, AllocatorCallbackPrefix profile ready base bindings older first second leftEntry rightEntry seen finish →
       ∃ checkLabels canonLabels reached mark,
         AllocatorMark profile ready base bindings older leftEntry rightEntry checkLabels canonLabels finish reached mark ∧
         HostFrame.Related.Paired (ReturnFrame.Extend older first second) finish reached ∧
@@ -3981,6 +4030,10 @@ def PublicTransportWorkerAlignment (profile : ProfileKind) (ready : HostReady (H
         RejoinedWorkerTail profile ready bindings callees older checked canonical ∧
         RejoinedCallbackReplay profile ready bindings callees older site.start incoming checked canonical
           ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) suffix finish ∧
+        (PayloadPrefix.visible checkEntry = PayloadPrefix.visible canonEntry →
+          ExecutedCallbackSegment profile ready base bindings older site.start incoming
+            ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical ∨
+          ReachedNonGrowingUpdate profile ready dispatch site.start ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) checked) ∧
         ∀ {retained enclosingLeft enclosingRight leftTrace rightTrace cursor},
           AllocatorMark profile ready base bindings retained enclosingLeft enclosingRight leftTrace rightTrace site.start incoming cursor →
           ∃ reached,

@@ -354,8 +354,8 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
       start incoming check canon (fun pointer bytes _ => visit pointer bytes) leftStart rightStart before offset := by
   unfold LiveCollectionPaths
   intro area mode first second leftEntry rightEntry seen finish path
-  obtain ⟨lhs, rhs, reached, mark, _, _, paired, checkSeen, canonSeen, growth, _, _, marked, occurrences, transport⟩ :=
-    CallbackPrefix.collectionPrefix (profile := profile) (ready := ready) destination inst type element entries output index
+  obtain ⟨lhs, rhs, reached, mark, checkSeen, canonSeen, paired, growth, marked, occurrences, transport⟩ :=
+    CallbackPrefix.collectionVisitorCallback (profile := profile) (ready := ready) destination inst type element entries output index
       checkNext canonNext frame width prepared checkAt canonAt embedder path
   have checkObserved : visible ([.tau, .tau, .tau] ++ lhs) = seen := by
     rw [appendVisible, silent (by simp), List.nil_append, checkSeen]
@@ -4498,7 +4498,7 @@ private theorem liftLinkedCollectionFailures {route : GiveEffectRoute} (site : P
   obtain ⟨entries, leading, entered, peer, field, quiet, entry, _, paths⟩ := body
   refine ⟨entries, leading, entered, peer, field, quiet, entry, ?_⟩
   intro area mode first second checkedEntry canonEntry seen checked callback
-  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, _, _, returns⟩ := paths callback
+  obtain ⟨lhs, rhs, canonical, mark, marked, _, compared, _, _, returns⟩ := paths (.closed callback)
   refine ⟨lhs, rhs, canonical, mark, marked, ?_, ?_⟩
   · simpa only [List.nil_append] using CallbackPrefix.allocatorSteps compared
   intro pointer cursor active returned
