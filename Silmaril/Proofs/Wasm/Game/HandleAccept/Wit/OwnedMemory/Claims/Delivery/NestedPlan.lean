@@ -267,11 +267,12 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
       labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix closed := by
+      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix closed ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
   induction labels generalizing start incoming body with
   | nil =>
     cases run
-    refine ⟨[], [], finish, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _), .refl _, ?_⟩
+    refine ⟨[], [], finish, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _), .refl _, ?_, rfl, rfl⟩
     cases body with
     | pure result => exact .returned result leftFocus rightFocus paired
     | op op next => exact .pending op next leftFocus rightFocus paired (.inl rfl)
@@ -279,7 +280,7 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
     cases body with
     | pure result =>
       exact ⟨[], label :: suffix, start, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
-        run, .returned result leftFocus rightFocus paired⟩
+        run, .returned result leftFocus rightFocus paired, rfl, rfl⟩
     | op op next =>
       have leftOp : start.ctl = check.control (.op op (fun response => next response >>= checkNext)) := leftFocus
       have rightOp : incoming.ctl = canon.control (.op op (fun response => next response >>= canonNext)) := rightFocus
@@ -289,7 +290,7 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
           cases certified proven with
           | op allowed _ => rw [localOp] at allowed; contradiction
         exact ⟨[], label :: suffix, start, incoming, rfl, CallbackPrefix.stationaryTransport (fun _ => .done _ _) (fun _ => .done _ _),
-          run, .pending op next leftOp rightOp paired (.inr ⟨notClosed, localOp⟩)⟩
+          run, .pending op next leftOp rightOp paired (.inr ⟨notClosed, localOp⟩), rfl, rfl⟩
       cases run with
       | @cons _ middle _ _ _ first tail =>
         have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
@@ -305,7 +306,8 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
             ∃ leading trailing reached peer, label :: suffix = leading ++ trailing ∧
               OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
               Steps profile ready (specDispatch ready base) reached trailing finish ∧
-              ComponentStoreFrontier older check canon checkNext canonNext reached peer trailing closed := by
+              ComponentStoreFrontier older check canon checkNext canonNext reached peer trailing closed ∧
+              reached.host = start.host ∧ peer.host = incoming.host := by
           obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep first
           let nextPeer := { incoming with store := updated, ctl := canon.control (next response >>= canonNext) }
           have aligned : PairedComponentSite older
@@ -315,12 +317,12 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
             intro proven
             cases certified proven with
             | op _ continuations => exact continuations response
-          obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier⟩ :=
+          obtain ⟨leading, trailing, reached, peer, split, moved, residual, frontier, leftHost, rightHost⟩ :=
             ih (next response) followingCertified rfl (show nextPeer.ctl = _ from rfl) aligned tail
           have movement : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] _ nextPeer :=
             CallbackPrefix.stationaryTransport (fun place => .step leftStep (by rw [leftEdit]; rfl) (.done _ place))
               (fun place => .step rightStep (by rw [rightEdit]; rfl) (.done _ place))
-          refine ⟨.tau :: leading, trailing, reached, peer, congrArg (.tau :: ·) split, ?_, residual, frontier⟩
+          refine ⟨.tau :: leading, trailing, reached, peer, congrArg (.tau :: ·) split, ?_, residual, frontier, leftHost, rightHost⟩
           simpa only [List.map_nil, List.append_nil, List.singleton_append] using
             (CallbackPrefix.transportAppend movement moved).choose_spec.1
         cases op with
@@ -338,7 +340,7 @@ theorem cutComponentStoreBody {Result : Type} {closed : Prop} (body : Session gr
         | trap reason =>
           obtain ⟨rfl, rfl⟩ := componentTrapUnique leftOp first
           refine ⟨[.trap reason], suffix, StepDefs.trapCfg start, StepDefs.trapCfg incoming, rfl, ?_, tail,
-            .trapped rfl rfl ?_⟩
+            .trapped rfl rfl ?_, rfl, rfl⟩
           · have tracking := CallbackPrefix.localLeafTransport (check := check) (canon := canon) (checkNext := checkNext)
               (left := start) (right := incoming) (store := start.store) (leftHost := start.host) (rightHost := incoming.host)
               (checked := [.trap reason]) (canonical := [.trap reason]) (canonNext := canonNext) (result := .error reason)
@@ -696,9 +698,10 @@ private theorem storeEffectWrite (cx : LiftLowerContext (core3 grow)) (ptr : Nat
   · exact storeEffectTrap _
   · exact storeEffectModify _
 
-private theorem refusalLowerEffects (cx : LiftLowerContext (core3 grow)) (cursor : FlatCursor)
-    (results : Nat) (indirect : results ≤ 1) :
-    StoreEffects (lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+private theorem resultLowerEffects (cx : LiftLowerContext (core3 grow)) (cursor : FlatCursor)
+    (results : Nat) (indirect : results ≤ 1) (handle : Option Nat) :
+    StoreEffects (lowerFlatValues Limits.spec Quirks.none cx results
+      [handle.elim (.variant 1 none) (fun value => .variant 0 (some (Value.Val.u32 value)))]
       [ComponentCall.resultType] (some cursor) : Session grow sig (List FlatValue)) := by
   unfold lowerFlatValues
   refine (storeEffectPtrType _).bind fun width => ?_
@@ -714,30 +717,43 @@ private theorem refusalLowerEffects (cx : LiftLowerContext (core3 grow)) (cursor
     · exact storeEffectTrap _
   refine spill.bind fun (ptr, _) => (storeEffectTrapIf _ _).bind fun _ =>
     (storeEffectBounds _ _ _).bind fun _ => Prog.Every.bind ?_ fun _ => .pure _
-  simp only [store, storeTuple, ComponentCall.resultType, storeOpt]
-  refine (storeEffectPtrType _).bind fun _ => Prog.Every.bind ?_ fun _ => .pure _
-  refine (storeEffectPtrType _).bind fun _ => ?_
-  exact ((storeEffectWrite _ _ _).bind fun _ => .pure _).bind fun _ => .pure _
+  cases handle with
+  | none =>
+    simp only [Option.elim, store, storeTuple, ComponentCall.resultType, storeOpt]
+    refine (storeEffectPtrType _).bind fun _ => Prog.Every.bind ?_ fun _ => .pure _
+    refine (storeEffectPtrType _).bind fun _ => ?_
+    exact ((storeEffectWrite _ _ _).bind fun _ => .pure _).bind fun _ => .pure _
+  | some handle =>
+    simp only [Option.elim, store, storeTuple, ComponentCall.resultType, storeOpt]
+    refine (storeEffectPtrType _).bind fun _ => Prog.Every.bind ?_ fun _ => .pure _
+    refine (storeEffectPtrType _).bind fun _ => ?_
+    unfold storeVariantHead
+    refine ((storeEffectWrite _ _ _).bind fun _ => .pure _).bind fun _ => ?_
+    exact storeEffectWrite _ _ _
+
+private theorem progressEffects (subtask : SubtaskId) :
+    StoreEffects (maybeOnProgress subtask : Session grow sig Unit) := by
+  unfold maybeOnProgress getObj
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  refine storeEffectGet.bind fun _ => ?_
+  split
+  · simp only [Prog.pure_eq, Prog.pure_bind']
+    split
+    · exact storeEffectModify _
+    · exact .pure ()
+  · exact .op rfl fun response => nomatch response
 
 open AsyncRef in
-private theorem refusalResultEffects (subtask : SubtaskId) (cx : LiftLowerContext (core3 grow))
-    (cursor : FlatCursor) (results : Nat) (indirect : results ≤ 1) :
+private theorem resultEffects (subtask : SubtaskId) (cx : LiftLowerContext (core3 grow))
+    (cursor : FlatCursor) (results : Nat) (indirect : results ≤ 1) (handle : Option Nat) :
     StoreEffects ((do
       maybeOnProgress subtask
-      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results
+        [handle.elim (.variant 1 none) (fun value => .variant 0 (some (Value.Val.u32 value)))]
         [ComponentCall.resultType] (some cursor)
-      Subtask.resolve subtask .returned flat) : Session grow sig Unit) := by
-  have progress : StoreEffects (maybeOnProgress subtask : Session grow sig Unit) := by
-    unfold maybeOnProgress getObj
-    simp only [Prog.bind_eq, Prog.bind_assoc]
-    refine storeEffectGet.bind fun _ => ?_
-    split
-    · simp only [Prog.pure_eq, Prog.pure_bind']
-      split
-      · exact storeEffectModify _
-      · exact .pure ()
-    · exact .op rfl fun response => nomatch response
-  exact progress.bind fun _ => (refusalLowerEffects cx cursor results indirect).bind fun _ => storeEffectModify _
+      Subtask.resolve subtask .returned flat) : Session grow sig Unit) :=
+  (progressEffects subtask).bind fun _ =>
+    (resultLowerEffects cx cursor results indirect handle).bind fun _ => storeEffectModify _
 
 open AsyncRef in
 theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : CallerId) (issue : Scheduled.Issue)
@@ -776,8 +792,8 @@ theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : C
       simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
       obtain ⟨⟨threadEq, framesEq⟩, restEq⟩ := focus
       simpa only [PayloadPrefix.Cursor.control, ← threadEq, ← framesEq, ← restEq] using normalized
-    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier⟩ :=
-      cutComponentStoreBody (bindings := bindings) (closed := True) body _ _ (fun _ => refusalResultEffects subtask cx _ results indirect)
+    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier, _, _⟩ :=
+      cutComponentStoreBody (bindings := bindings) (closed := True) body _ _ (fun _ => resultEffects subtask cx _ results indirect none)
         leftBody rightBody site residual
     refine .inl ⟨List.replicate (if record.index.isSome then 8 else 7) .tau ++ leading,
       suffix, reached, peer, ?_, ?_, ?_, remaining, frontier⟩
@@ -787,6 +803,97 @@ theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : C
     · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved finishMove).choose_spec.1
   · exact .inr short
 
+open AsyncRef in
+private def acceptedResultBody (subtask : SubtaskId) (cx : LiftLowerContext (core3 grow))
+    (args : FlatCursor) (results handle : Nat) : Session grow sig Unit := do
+  maybeOnProgress subtask
+  let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 0 (some (Value.Val.u32 handle))]
+    [ComponentCall.resultType] (some args)
+  Subtask.resolve subtask .returned flat
+
+open AsyncRef ReturnFrame.Occurrence in
+private theorem acceptedResolvePath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig)
+    {handle : Nat} {writer : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = cursor.control (ComponentCall.resolveTree ticket caller tree))
+    (registered : start.host.writer.register tree = .ok writer) (expected : handle = writer.accepted.length)
+    (room : handle < 2 ^ 32)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) :
+    ComponentQuietPath profile ready dispatch cursor start [id, id]
+      { start with ctl := cursor.control (acceptedResultBody subtask cx ⟨args, pos⟩ results handle >>=
+          fun _ => ComponentCall.completeResolvedTree ticket tree handle) } := by
+  cases cursor with
+  | mk thread frames rest =>
+    let lower := lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))]) >>=
+      fun _ => ComponentCall.completeResolvedTree (grow := grow) ticket tree handle
+    have enter : Step profile ready dispatch start .tau { start with ctl := ⟨thread, .prog lower, frames⟩ :: rest } := by
+      have read := Step.hostGet (prof := profile) (hr := ready) (dispatch := dispatch) focused
+      simpa only [ComponentCall.resolveTree, Prog.bind, registered, ← expected, Nat.not_le.mpr room, ite_false] using read
+    refine .step enter (by rw [transitionEdit, focused]; rfl) ?_
+    have read := Step.get (prof := profile) (hr := ready) (dispatch := dispatch)
+      (m := { start with ctl := ⟨thread, .prog lower, frames⟩ :: rest }) rfl
+    simp only [lower, Prog.bind, record, resultType, Option.toList, Quirks.none, Bool.false_eq_true,
+      ite_false, Prog.pure_eq] at read
+    exact .step read rfl (.done _)
+
+theorem cutSuccessfulPayload (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (first payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+    {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
+    (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
+    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket (some children) [first, payload]))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket (some children) [first, payload]))
+    (paired : PairedComponentSite older start incoming check canon)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
+    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let tree : Stored.OwnedMemory.Tree sig := .node callee.tag valid children
+    (∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧ suffix.length < labels.length ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier (Result := Unit) older check canon
+        (fun _ => ComponentCall.completeResolvedTree leftTicket tree handle)
+        (fun _ => ComponentCall.completeResolvedTree rightTicket tree handle) reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host) ∨
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 2 := by
+  dsimp only
+  simp only [ComponentCall.acceptPayload, validated] at leftFocus rightFocus
+  have same : start.store = incoming.store := (HostFrame.Related.Paired.data paired).1
+  have left := acceptedResolvePath (profile := profile) (ready := ready) (specDispatch ready base)
+    leftTicket caller _ check leftFocus leftLive leftHandle room record resultType
+  have right := acceptedResolvePath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    rightTicket caller _ canon rightFocus rightLive rightHandle room (same ▸ record) resultType
+  rcases splitSilent (count := 2) (left.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · have transport := CallbackPrefix.stationaryTransport (bindings := bindings) left.track right.track
+    let body : Session grow sig Unit := acceptedResultBody subtask cx ⟨args, pos⟩ results handle
+    let next (ticket : Nat) (_ : Unit) := ComponentCall.completeResolvedTree (grow := grow) ticket
+      (.node callee.tag valid children) handle
+    let leftBody := { start with ctl := check.control (body >>= next leftTicket) }
+    let rightBody := { incoming with ctl := canon.control (body >>= next rightTicket) }
+    obtain ⟨leading, trailing, reached, peer, bodySplit, moved, remaining, frontier, leftHost, rightHost⟩ :=
+      cutComponentStoreBody (bindings := bindings) (closed := True)
+        (start := leftBody) (incoming := rightBody) body (next leftTicket) (next rightTicket)
+        (fun _ => resultEffects subtask cx _ results indirect (some handle))
+        rfl rfl paired residual
+    refine .inl ⟨List.replicate 2 .tau ++ leading, trailing, reached, peer, ?_, ?_, ?_, remaining, frontier, leftHost, rightHost⟩
+    · rw [split, bodySplit, List.append_assoc]
+    · rw [split, bodySplit, List.length_append, List.length_append, List.length_replicate]
+      omega
+    · simpa only [List.map_nil, List.append_nil, List.length_cons, List.length_nil] using
+        (CallbackPrefix.transportAppend transport moved).choose_spec.1
+  · exact .inr (compareQuietShort left right paired ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+
 private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
     {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :
@@ -795,6 +902,26 @@ private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {hand
   unfold Stored.Endpoints.Core.childFromHistory
   rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt room, expected]
   simp [guard]
+
+open ReturnFrame.Occurrence in
+private theorem publicationPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (ticket handle : Nat) (tree : Stored.OwnedMemory.Tree sig) (writer : Stored.OwnedMemory.Claims.State sig)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = cursor.control (ComponentCall.completeResolvedTree ticket tree handle))
+    (registered : start.host.writer.register tree = .ok writer)
+    (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :
+    ComponentQuietPath profile ready dispatch cursor start [id, id, id, id]
+      { start with
+        host := (({ start.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := cursor.control (.pure (.cancel .none)) } := by
+  subst handle
+  cases cursor with
+  | mk thread frames rest =>
+    have read := Step.hostGet (prof := profile) (hr := ready) (dispatch := dispatch) focused
+    simp only [Prog.bind, registered, Option.any, bne_self_eq_false, Bool.false_eq_true, ite_false, Nat.not_le.mpr room] at read
+    refine .step read (by rw [transitionEdit, focused]; rfl) ?_
+    exact .step (.hostSet rfl) rfl (.step (.hostGet rfl) rfl (.step (.hostSet rfl) rfl (.done _)))
 
 theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
     {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
@@ -817,14 +944,15 @@ theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle lef
       HostFrame.Related.Paired older (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
       Stored.Endpoints.Core.childFromHistory leftWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
       Stored.Endpoints.Core.childFromHistory rightWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
-      Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨ labels.length < 4 := by
+      Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨
+    ComponentEarlyPrefix profile ready base bindings older leftCursor rightCursor start incoming labels finish 4 := by
   dsimp only
-  have left := ComponentCall.complete_commit_tracks (prof := profile) (ready := ready) (dispatch := specDispatch ready base)
-    leftTicket handle tree leftWriter leftLive leftHandle room leftFocus
-  have right := ComponentCall.complete_commit_tracks (prof := profile) (ready := ready)
-    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightTicket handle tree rightWriter rightLive rightHandle room rightFocus
-  rcases splitSilent (count := 4) (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
-  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left right, ?_,
+  have left := publicationPath (profile := profile) (ready := ready) (specDispatch ready base)
+    leftTicket handle tree leftWriter leftCursor leftFocus leftLive leftHandle room
+  have right := publicationPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    rightTicket handle tree rightWriter rightCursor rightFocus rightLive rightHandle room
+  rcases splitSilent (count := 4) (left.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left.track right.track, ?_,
       publishedHandleLookup leftLive leftHandle room, publishedHandleLookup rightLive rightHandle room, residual⟩
     have replaceHost {first second : Config (core3 grow) (HostState sig)}
         (paired : ReturnFrame.Related.Paired older first second) (host : HostState sig) :
@@ -832,7 +960,54 @@ theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle lef
       cases paired with
       | mk control blocked => exact .mk control blocked
     exact replaceHost site _
-  · exact .inr short
+  · exact .inr (compareQuietShort left right site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+
+theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (first payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+    {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
+    (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
+    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket (some children) [first, payload]))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket (some children) [first, payload]))
+    (paired : PairedComponentSite older start incoming check canon)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
+    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix := by
+  rcases cutSuccessfulPayload (bindings := bindings) callee caller first payload children validated
+      leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run with
+    ⟨leading, suffix, reached, peer, split, _, initialTransport, residual, frontier, leftHost, rightHost⟩ | early
+  · cases frontier with
+    | pending _ _ _ _ site boundary =>
+      rcases boundary with exhausted | impossible
+      · exact ⟨leading, suffix, reached, peer, split, initialTransport, residual, .pending site exhausted⟩
+      · exact False.elim (impossible.1 trivial)
+    | trapped checked canonical site =>
+      exact ⟨leading, suffix, reached, peer, split, initialTransport, residual, .trapped checked canonical site⟩
+    | returned _ checked canonical site =>
+      rcases cutComponentPublication (bindings := bindings) checked canonical site
+          (leftHost ▸ leftLive) (rightHost ▸ rightLive) leftHandle rightHandle room residual with
+        ⟨trailing, used, publication, pair, leftLookup, rightLookup, remaining⟩ | early
+      · refine ⟨leading ++ [.tau, .tau, .tau, .tau], trailing, _, _, ?_, ?_, remaining,
+          .published rfl rfl pair leftLookup rightLookup⟩
+        · rw [split, used, List.append_assoc]
+        · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport publication).choose_spec.1
+      · obtain ⟨_, finalPeer, moved, endpoint, _, _⟩ := early
+        refine ⟨leading ++ suffix, [], finish, finalPeer, ?_, ?_, .refl _, .pending endpoint rfl⟩
+        · simpa only [List.append_nil] using split
+        · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport moved).choose_spec.1
+  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := early
+    exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .pending endpoint rfl⟩
 
 set_option maxHeartbeats 2000000 in
 private theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}

@@ -143,6 +143,22 @@ inductive ComponentStoreFrontier {Result : Type}
   | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
       (paired : HostFrame.Related.Paired older left right)
 
+/-- The reached endpoint of a successful validation path. Publication can
+reach the reply focus without returning to the caller or delivering an event. -/
+inductive ComponentAcceptedFrontier
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (tree : Stored.OwnedMemory.Tree sig) (handle : Nat)
+    (left right : Config (core3 grow) (HostState sig)) (suffix : Trace grow sig) : Prop where
+  | pending (paired : PairedComponentSite older left right check canon) (exhausted : suffix = [])
+  | trapped (checked : left.ctl = []) (canonical : right.ctl = [])
+      (paired : HostFrame.Related.Paired older left right)
+  | published (checked : left.ctl = check.control (.pure (.cancel .none)))
+      (canonical : right.ctl = canon.control (.pure (.cancel .none)))
+      (paired : HostFrame.Related.Paired older left right)
+      (checkedLookup : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted (BitVec.ofNat 32 handle) = some tree)
+      (canonicalLookup : Stored.Endpoints.Core.childFromHistory right.host.writer.accepted (BitVec.ofNat 32 handle) = some tree)
+
 /-- A finite input ending before a component protocol reaches its common
 program. Both endpoints are at their original component cursors, with separate
 focused programs and journals; the selected and enclosing occurrences follow

@@ -178,7 +178,8 @@ theorem cut_component_store_body {Result : Type} (body : Session grow sig Result
       labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix :=
+      ComponentStoreFrontier older check canon checkNext canonNext reached peer suffix ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
     body checkNext canonNext False.elim leftFocus rightFocus paired run
 
@@ -198,7 +199,8 @@ theorem cut_component_observed_arguments (callee : ComponentCall.Callee sig) (ca
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier older check canon (ComponentCall.acceptPayload callee caller leftTicket planned)
-        (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix True :=
+        (ComponentCall.acceptPayload callee caller rightTicket planned) reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentStoreBody
     (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller) _ _
     (fun _ => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.observedArgumentsEffects caller)
@@ -217,7 +219,8 @@ theorem cut_component_skipped_arguments (callee : ComponentCall.Callee sig) (cal
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := List Unit) older check canon (fun _ => ComponentCall.resolveRefused leftTicket caller issue)
-        (fun _ => ComponentCall.resolveRefused rightTicket caller issue) reached peer suffix :=
+        (fun _ => ComponentCall.resolveRefused rightTicket caller issue) reached peer suffix ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   cut_component_store_body (ComponentCall.skipArguments caller) _ _ leftFocus rightFocus paired run
 
 open AsyncRef in
@@ -337,6 +340,70 @@ theorem cut_component_admitted_refusal_marked_reply (callee : ComponentCall.Call
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalMarkedReply
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired leftInstalled rightInstalled outside run
 
+/-- Cross the successful checked payload branch at a live caller. The two
+registration probes need only agree on success and the returned handle.
+Only an executed result body reaches publication; before that, the paired
+cut keeps the exact finite prefix or the reached lockdown. -/
+theorem cut_component_successful_payload (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (first payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+    {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
+    (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
+    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket (some children) [first, payload]))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket (some children) [first, payload]))
+    (paired : PairedComponentSite older start incoming check canon)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
+    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let tree : Stored.OwnedMemory.Tree sig := .node callee.tag valid children
+    (∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧ suffix.length < labels.length ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier (Result := Unit) older check canon
+        (fun _ => ComponentCall.completeResolvedTree leftTicket tree handle)
+        (fun _ => ComponentCall.completeResolvedTree rightTicket tree handle) reached peer suffix True ∧
+      reached.host = start.host ∧ peer.host = incoming.host) ∨
+    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish 2 :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPayload
+    callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
+    leftLive rightLive leftHandle rightHandle room run
+
+/-- Follow the actual successful payload residual through the result writes
+and live publication. A finite prefix or trap does not produce a common reply;
+publication itself exposes only the reply focus, not the caller pop or delivery. -/
+theorem cut_component_successful_publication (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (first payload : Stored.OwnedMemory.Observed) (children : List (Stored.OwnedMemory.Tree sig))
+    {valid : Stored.OwnedMemory.Payload (sig.payload callee.tag)}
+    (validated : Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .ok valid)
+    {leftTicket rightTicket handle : Nat} {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPayload callee caller leftTicket (some children) [first, payload]))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket (some children) [first, payload]))
+    (paired : PairedComponentSite older start incoming check canon)
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (leftLive : start.host.writer.register (.node callee.tag valid children) = .ok leftWriter)
+    (rightLive : incoming.host.writer.register (.node callee.tag valid children) = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPublication
+    callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
+    leftLive rightLive leftHandle rightHandle room run
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
@@ -360,7 +427,8 @@ theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle l
       HostFrame.Related.Paired older (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
       Stored.Endpoints.Core.childFromHistory leftWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
       Stored.Endpoints.Core.childFromHistory rightWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
-      Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨ labels.length < 4 :=
+      Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨
+    ComponentEarlyPrefix profile ready base bindings older leftCursor rightCursor start incoming labels finish 4 :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentPublication
     leftFocus rightFocus site leftLive rightLive leftHandle rightHandle room run
 
