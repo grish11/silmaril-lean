@@ -116,20 +116,21 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
       have placement := root_placement_tracks (profile := profile) (ready := ready) (dispatch := dispatch)
         site.destination site.inst (sig.payload site.tag) site.field route.output root site.cursor site.reply rfl
       change (match rootPlacement site.destination site.start.store (sig.payload site.tag) route.output with
-        | .ok () => ∃ labels, visible labels = [] ∧ ∀ place, Prefix profile ready dispatch root place labels site.checked place
-        | .error reason => ∃ count, ∀ place, Trail profile ready dispatch root (some place)
+        | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
+            ∀ place, Prefix profile ready dispatch root place labels site.checked place
+        | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile ready dispatch root (some place)
             (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked)
             ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place)) at placement
       cases placed : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output with
       | error reason =>
         rw [placed] at placement
-        obtain ⟨count, halted⟩ := placement
+        obtain ⟨count, _, halted⟩ := placement
         refine .placementTrap reason (front.length + 3 + count) placed ?_
         rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
         exact fun place => (rootRun place).toTrail.append (halted (site.entryPlace place))
       | ok _ =>
         rw [placed] at placement
-        obtain ⟨labels, placementSilent, placedRun⟩ := placement
+        obtain ⟨labels, _, placementSilent, placedRun⟩ := placement
         refine .placed ?_ placed prepared (fun place => (rootRun place).append (placedRun (site.entryPlace place)))
           (afterFit fits placed prepared)
         rw [visibleAppend, visibleAppend, silent, placementSilent]

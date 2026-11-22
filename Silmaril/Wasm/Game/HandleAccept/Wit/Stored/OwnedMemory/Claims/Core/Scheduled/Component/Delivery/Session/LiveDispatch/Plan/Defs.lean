@@ -771,12 +771,15 @@ inductive DirectGivePlacementCut (profile : ProfileKind) (ready : HostReady (Hos
     (field : Stored.Endpoints.RecordLower.Field) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
   | prefix {actual finish}
       (paths : ∀ mark, ∃ reached, Trail profile ready (specDispatch ready base) start mark actual finish reached)
+      (writers : WriterPath profile ready (specDispatch ready base) start actual finish [])
       (pending : ∃ suffix, suffix ≠ [] ∧ ∃ target, Steps profile ready (specDispatch ready base) finish suffix target) :
       DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field actual finish
   | trapped {reason count trailing finish}
       (placement : request.selectedPlacement selected start.store = .error reason)
       (paths : ∀ mark, Trail profile ready (specDispatch ready base) start mark (List.replicate count .tau ++ [.trap reason])
         (StepDefs.trapCfg start) (mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow))
+      (writers : WriterPath profile ready (specDispatch ready base) start (List.replicate count .tau ++ [.trap reason])
+        (StepDefs.trapCfg start) [])
       (residual : Steps profile ready (specDispatch ready base) (StepDefs.trapCfg start) trailing finish) :
       DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field
         ((List.replicate count .tau ++ [.trap reason]) ++ trailing) finish
@@ -786,6 +789,7 @@ inductive DirectGivePlacementCut (profile : ProfileKind) (ready : HostReady (Hos
         ctl := { caller with frames := .prog resume :: caller.frames }.control (request.fieldContinuation ticket selected field) })
       (placement : request.selectedPlacement selected start.store = .ok ())
       (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place used after place)
+      (writers : WriterPath profile ready (specDispatch ready base) start used after [])
       (quiet : PayloadPrefix.visible used = [])
       (residual : Steps profile ready (specDispatch ready base) after trailing finish) :
       DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field (used ++ trailing) finish
@@ -808,6 +812,7 @@ inductive DirectGiveWidthCut (profile : ProfileKind) (ready : HostReady (HostSta
         ctl := { caller with frames := .prog resume :: caller.frames }.control
           (request.measuredContinuation ticket selected field (ptrTypeIn start.store (request.destination.context request.inst))) })
       (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place [.tau] after place)
+      (writers : WriterPath profile ready (specDispatch ready base) start [.tau] after [])
       (residual : Steps profile ready (specDispatch ready base) after trailing finish)
       (decision : let width := ptrTypeIn start.store (request.destination.context request.inst)
         (request.selectedFits selected width = false ∧
@@ -831,7 +836,8 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
     (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
     (field : Stored.Endpoints.RecordLower.Field) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
   | prefix {actual finish} (short : actual.length < 2)
-      (paths : OccurrenceTransport profile ready base bindings start peer actual [] finish peer) :
+      (paths : OccurrenceTransport profile ready base bindings start peer actual [] finish peer)
+      (writers : WriterPath profile ready (specDispatch ready base) start actual finish []) :
       DirectGivePreparationCut profile ready base bindings start peer caller resume request ticket selected field actual finish
   | reached {trailing finish}
       (after : Config (core3 grow) (HostState sig))
@@ -839,6 +845,7 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
         ctl := { caller with frames := .prog resume :: caller.frames }.control
           (request.preparedContinuation ticket selected field (Record.prepare start.store start.host.writer field.objects)) })
       (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place [.tau, .tau] after place)
+      (writers : WriterPath profile ready (specDispatch ready base) start [.tau, .tau] after [])
       (residual : Steps profile ready (specDispatch ready base) after trailing finish)
       (refused : ∀ issue, Record.prepare start.store start.host.writer field.objects = .error issue →
         CheckedProgramReplyCut profile ready (specDispatch ready base) after caller resume

@@ -1391,7 +1391,7 @@ theorem collectionInstall (destination : RecordDestination) (inst : InstId) (typ
   simpa only [mode] using collectionInstallMode destination inst type element entries output index left right cursor
     checkNext canonNext same reachedWidth prepared checkAt canonAt
 
-theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+private theorem checkPlacementRunBounded {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId)
     (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
     (finish : P (core3 grow) Host (Ret (core3 grow)))
@@ -1402,7 +1402,7 @@ theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3
     match placement destination start.store area ptr with
     | .ok () => ∀ place, Prefix profile ready placementDispatch start place [.tau]
         { start with ctl := cursor.control finish } place
-    | .error reason => ∃ count, ∀ place, Trail profile ready placementDispatch start (some place)
+    | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile ready placementDispatch start (some place)
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) Host).follow place) := by
   by_cases aligned : ptr % area.alignment.bytes = 0
   · let sizeCheck := fun (store : CStore (core3 grow)) =>
@@ -1425,7 +1425,7 @@ theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3
         funext answer
         exact nomatch answer
       simp [placement, aligned, sized]
-      exact ⟨1, trapped trapAt⟩
+      exact ⟨1, Nat.le_refl _, trapped trapAt⟩
     | some size =>
       by_cases fits : ptr + area.size ≤ size
       · have done : sizeCheck start.store = finish := by
@@ -1440,10 +1440,35 @@ theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3
           funext answer
           exact nomatch answer
         simp [placement, aligned, sized, Nat.lt_of_not_ge fits]
-        exact ⟨1, trapped trapAt⟩
+        exact ⟨1, Nat.le_refl _, trapped trapAt⟩
   · simp [checkAligned, trapIf, aligned, trap, Prog.bind_eq, Prog.bind] at focused
     simp [placement, aligned]
-    exact ⟨0, fun _ => .step (.trap focused) (.done _ _)⟩
+    exact ⟨0, Nat.zero_le _, fun _ => .step (.trap focused) (.done _ _)⟩
+
+theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId)
+    (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
+    (finish : P (core3 grow) Host (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ∀ place, Prefix profile ready placementDispatch start place [.tau]
+        { start with ctl := cursor.control finish } place
+    | .error reason => ∃ count, ∀ place, Trail profile ready placementDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) Host).follow place) := by
+  have bounded := checkPlacementRunBounded (ready := ready) (placementDispatch := placementDispatch)
+    (profile := profile) destination inst start area ptr cursor finish focused
+  cases verdict : placement destination start.store area ptr with
+  | ok accepted =>
+    cases accepted
+    rw [verdict] at bounded
+    exact bounded
+  | error reason =>
+    rw [verdict] at bounded
+    obtain ⟨count, _, tracks⟩ := bounded
+    exact ⟨count, tracks⟩
 
 theorem checkPlacementRun {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId)
@@ -3164,14 +3189,14 @@ theorem rootPlacementTracks (destination : RecordDestination) (inst : InstId) (t
     let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 output >>= finish)
     match rootPlacement destination start.store type output with
-    | .ok () => ∃ labels, visible labels = [] ∧
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
         ∀ place, Prefix profile scheduledReady scheduledDispatch start place labels { start with ctl := child } place
-    | .error reason => ∃ count, ∀ place, Trail profile scheduledReady scheduledDispatch start (some place)
+    | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile scheduledReady scheduledDispatch start (some place)
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
         ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) := by
   cases output with
   | flat =>
-    refine ⟨[], rfl, ?_⟩
+    refine ⟨[], .inl rfl, rfl, ?_⟩
     change start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 .flat >>= finish) at focused
     have entered : start = { start with ctl := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -3188,13 +3213,13 @@ theorem rootPlacementTracks (destination : RecordDestination) (inst : InstId) (t
         body) := by
       rw [focused]
       simp only [Record.Effects.root, body, area, Prog.bind_eq, Prog.bind_assoc]
-    have run := checkPlacementRunAll (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
+    have run := checkPlacementRunBounded (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
       destination inst start area ptr cursor body guardAt
     change (match placement destination start.store area ptr with
       | .ok () => _ | .error _ => _)
     cases verdict : placement destination start.store area ptr with
     | error _ => rw [verdict] at run; exact run
-    | ok result => cases result; rw [verdict] at run; exact ⟨[.tau], rfl, run⟩
+    | ok result => cases result; rw [verdict] at run; exact ⟨[.tau], .inr rfl, rfl, run⟩
 
 theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameStore : left.store = right.store)
     (destination : RecordDestination) (inst : InstId) (tag : sig.Tag)

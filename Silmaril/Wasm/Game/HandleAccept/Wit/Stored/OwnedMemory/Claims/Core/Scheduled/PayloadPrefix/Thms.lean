@@ -1314,9 +1314,9 @@ theorem root_placement_tracks (destination : RecordDestination) (inst : InstId) 
     let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 output >>= finish)
     match rootPlacement destination start.store type output with
-    | .ok () => ∃ labels, visible labels = [] ∧
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
         ∀ place, Prefix profile ready dispatch start place labels { start with ctl := child } place
-    | .error reason => ∃ count, ∀ place, Trail profile ready dispatch start (some place)
+    | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile ready dispatch start (some place)
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
         ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementTracks destination inst type
