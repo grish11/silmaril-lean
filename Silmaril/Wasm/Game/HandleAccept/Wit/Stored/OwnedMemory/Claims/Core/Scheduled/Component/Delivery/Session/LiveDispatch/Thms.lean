@@ -53,6 +53,17 @@ theorem LiveDispatch.GiveSelector.entry_tracks (request : LiveDispatch.GiveSelec
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorEntryTracks
     request start other thread focus peerFocus embedder sameStore evaluated reads
 
+/-- A refused root compilation is a checked ticketed reply. It does not run
+placement or lowering, even when the caller program is confined. -/
+theorem LiveDispatch.GiveSelector.compiler_refused (request : LiveDispatch.GiveSelector bindings)
+    (store : CStore (core3 grow)) (thread : Option ThreadId) (ticket : Nat)
+    (selected : LiveDispatch.SelectionValue sig request.schema)
+    {issue : Stored.Endpoints.RecordLower.Issue} (refused : request.preflight (grow := grow) selected = .error issue) :
+    request.checkedContinuation store thread (ticket, .ok selected) =
+      (do return .flat (← writeCompletion (LiveDispatch.giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)))) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.directCompilerRefused
+    request store thread ticket selected refused
+
 /-- Compare the reached confined or unconfined bodies for a common ABI
 refusal. Only agreement of the lookup actually demanded is required. -/
 theorem LiveDispatch.GiveSelector.refusal_bodies (request : LiveDispatch.GiveSelector bindings)

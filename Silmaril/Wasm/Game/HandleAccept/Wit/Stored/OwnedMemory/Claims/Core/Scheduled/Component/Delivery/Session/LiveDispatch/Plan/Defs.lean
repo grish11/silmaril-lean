@@ -617,6 +617,26 @@ structure GiveBodyCut (profile : ProfileKind) (ready : HostReady (HostState sig)
   paths : OccurrenceTransport profile ready base bindings start peer checked canonical left right marks
   residual : Steps profile ready (specDispatch ready base) left trailing finish
 
+open ReturnFrame.Occurrence in
+/-- The checked-only completion of a direct give. A finite prefix before
+the program pop retains its mark; only the actual pop may lose that mark and
+start the original caller with the recorded reply. -/
+inductive CheckedProgramReplyCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))) (start : Config (core3 grow) (HostState sig))
+    (caller : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (resume : ReturnFrame.Continuation (core3 grow) (HostState sig)) (reply : Event × List FlatValue) :
+    Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | prefix {actual finish} (short : actual.length < 3)
+      (paths : ∀ mark, Trail profile ready dispatch start mark actual finish mark) :
+      CheckedProgramReplyCut profile ready dispatch start caller resume reply actual finish
+  | popped {trailing finish}
+      (paths : ∀ mark, Trail profile ready dispatch start mark [.tau, .tau, .tau]
+        { start with host := start.host.record reply.1, ctl := caller.control (resume (.flat reply.2)) }
+        (mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow))
+      (residual : Steps profile ready dispatch
+        { start with host := start.host.record reply.1, ctl := caller.control (resume (.flat reply.2)) } trailing finish) :
+      CheckedProgramReplyCut profile ready dispatch start caller resume reply ([.tau, .tau, .tau] ++ trailing) finish
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -684,12 +704,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (trapped : PayloadPrefix.visible checked = [.trap reason])
       (checkedLocked : left.ctl = []) (canonicalLocked : right.ctl = []) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | directGiveSelected {changes reached peer left right checked canonical trailing finish check canon ticket}
+  | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
-      (site : PairedComponentSite changes left right check canon)
-      (checkedFocus : left.ctl = check.control (request.checkedContinuation left.store check.thread (ticket, .ok selected)))
-      (canonicalFocus : right.ctl = canon.control (request.canonicalContinuation right.store canon.thread (.ok selected))) :
+      (site : PairedComponentSite changes left right
+        { check with frames := .prog resume :: check.frames } { canon with frames := .prog resume :: canon.frames })
+      (checkedFocus : left.ctl = { check with frames := .prog resume :: check.frames }.control
+        (request.checkedContinuation left.store check.thread (ticket, .ok selected)))
+      (canonicalFocus : right.ctl = { canon with frames := .prog resume :: canon.frames }.control
+        (request.canonicalContinuation right.store canon.thread (.ok selected)))
+      (compiler : (∃ plan, request.preflight (grow := grow) selected = .ok plan) ∨
+        ∃ issue, request.preflight (grow := grow) selected = .error issue ∧
+          CheckedProgramReplyCut profile ready (specDispatch ready base) left check resume
+            (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)) trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | compilerRefused {changes reached peer label next count canonLabels entered issue trailing finish route}
       {request : CoreGiveRequest bindings reached} (selection : request.Selected route)

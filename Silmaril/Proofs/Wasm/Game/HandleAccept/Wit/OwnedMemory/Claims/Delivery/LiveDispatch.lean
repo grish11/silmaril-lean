@@ -1019,6 +1019,38 @@ theorem giveSelectorEntryTracks (request : GiveSelector bindings)
     cases label <;> first | rfl | contradiction)
   exact ⟨checked.length, canonical.length, checkTaus ▸ checkedPaths, canonTaus ▸ canonicalPaths⟩
 
+theorem directCompilerRefused (request : GiveSelector bindings) (store : CStore (core3 grow))
+    (thread : Option ThreadId) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    {issue : Stored.Endpoints.RecordLower.Issue} (refused : request.preflight (grow := grow) selected = .error issue) :
+    request.checkedContinuation store thread (ticket, .ok selected) =
+      (do return .flat (← writeCompletion (giveAdmissionReply ticket request.destination request.schema (.lowerPayload issue)))) := by
+  have fixed (reply : Event × List FlatValue) : confine (writeCompletion (grow := grow) (sig := sig) reply) = writeCompletion reply := rfl
+  cases request with
+  | mk name kind args inst destination schema linked =>
+    cases schema with
+    | none =>
+      obtain ⟨tree, pointer⟩ := selected
+      cases tree with
+      | atom impossible => exact impossible.elim
+      | tag root arity children =>
+        simp only [GiveSelector.preflight, SelectionValue.tree, SelectionValue.output] at refused
+        simp only [GiveSelector.checkedContinuation, checkedTail, Stored.OwnedMemory.Claims.Record.lowerPayloadRoot,
+          Stored.OwnedMemory.Claims.Record.lowerValue, Stored.Endpoints.RecordLower.Internal.lowerWithPlan, refused,
+          Prog.bind_eq, Prog.pure_eq, Prog.pure_bind', Except.mapError, Except.map,
+          Stored.OwnedMemory.Claims.Core.Scheduled.finish, giveAdmissionReply, Option.elim]
+        rw [fixed]
+        split <;> rfl
+    | some schema =>
+      cases selected with
+      | atom impossible => exact impossible.elim
+      | tag root arity children =>
+        simp only [GiveSelector.preflight, SelectionValue.tree, SelectionValue.output] at refused
+        simp only [GiveSelector.checkedContinuation, checkedTail, Stored.OwnedMemory.Claims.Record.lowerPayloadRoot,
+          Stored.OwnedMemory.Claims.Record.lowerValue, Stored.Endpoints.RecordLower.Internal.lowerWithPlan, refused,
+          Prog.bind_eq, Prog.pure_eq, Prog.pure_bind', Except.mapError, giveAdmissionReply, Option.elim]
+        rw [fixed]
+        split <;> rfl
+
 private theorem evalChecked (request : GiveSelector bindings)
     (start : Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
     (impl : HostImpl (core3 grow) (HostState sig))

@@ -2515,7 +2515,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | directGiveSelected _ _ cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | directGiveSelected _ _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -2543,7 +2543,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | directGiveSelected _ _ cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | directGiveSelected _ _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -8173,6 +8173,59 @@ private theorem directTrapBodyTracks (impl : HostImpl (core3 grow) (HostState si
     profile ready (specDispatch ready impl) focused evaluated
 
 open ReturnFrame.Occurrence in
+private theorem inspectReplyStep {before : Config (core3 grow) (HostState sig)} {actual : Trace grow sig}
+    (run : Steps profile ready (specDispatch ready base) before actual finish) :
+    (actual = [] ∧ finish = before) ∨ ∃ label rest next, actual = label :: rest ∧
+      Step profile ready (specDispatch ready base) before label next ∧
+      Steps profile ready (specDispatch ready base) next rest finish := by
+  cases run with
+  | refl => exact .inl ⟨rfl, rfl⟩
+  | cons first tail => exact .inr ⟨_, _, _, rfl, first, tail⟩
+
+open ReturnFrame.Occurrence in
+private theorem cutCheckedProgramReply (reply : Event × List FlatValue)
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (focus : start.ctl = { check with frames := .prog resume :: check.frames }.control
+      (do return .flat (← writeCompletion reply)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CheckedProgramReplyCut profile ready (specDispatch ready base) start check resume reply labels finish := by
+  let caller := { check with frames := .prog resume :: check.frames }
+  let recorded := start.host.record reply.1
+  let read := { start with ctl := caller.control (hostSet recorded >>= fun _ => pure (.flat reply.2)) }
+  let written := { start with host := recorded, ctl := caller.control (.pure (.flat reply.2)) }
+  let rejoined := { start with host := recorded, ctl := check.control (resume (.flat reply.2)) }
+  have get : Step profile ready (specDispatch ready base) start .tau read := .hostGet focus
+  have set : Step profile ready (specDispatch ready base) read .tau written :=
+    .hostSet (m := read) (s := recorded) (k := fun _ => .pure (.flat reply.2)) rfl
+  have pop : Step profile ready (specDispatch ready base) written .tau rejoined := .popProg (m := written) rfl
+  have getEdit : transitionEdit start .tau = .same := by rw [transitionEdit, focus]; rfl
+  have setEdit : transitionEdit read .tau = .same := rfl
+  have stationary (mark : Option Location) : mark.bind (Edit.same : Edit (core3 grow) (HostState sig)).follow = mark := by
+    cases mark <;> rfl
+  have followGet {mark : Option Location} {rest : Trace grow sig} {target} {reached} :
+      Trail profile ready (specDispatch ready base) read mark rest target reached →
+      Trail profile ready (specDispatch ready base) start mark (.tau :: rest) target reached :=
+    fun tail => .step get (by rwa [getEdit, stationary])
+  have followSet {mark : Option Location} {rest : Trace grow sig} {target} {reached} :
+      Trail profile ready (specDispatch ready base) written mark rest target reached →
+      Trail profile ready (specDispatch ready base) read mark (.tau :: rest) target reached :=
+    fun tail => .step set (by rwa [setEdit, stationary])
+  rcases inspectReplyStep run with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, first, tail⟩
+  · exact .prefix (show 0 < 3 from by decide) (fun mark => .done _ mark)
+  ·
+    obtain ⟨rfl, rfl⟩ := silentStepUnique get first
+    rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, second, tail⟩
+    · exact .prefix (show 1 < 3 from by decide) (fun mark => followGet (.done _ mark))
+    ·
+      obtain ⟨rfl, rfl⟩ := silentStepUnique set second
+      rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, third, tail⟩
+      · exact .prefix (show 2 < 3 from by decide) (fun mark => followGet (followSet (.done _ mark)))
+      ·
+        obtain ⟨rfl, rfl⟩ := silentStepUnique pop third
+        exact .popped (fun mark => followGet (followSet (Trail.pop_prog mark rfl))) tail
+
+open ReturnFrame.Occurrence in
 private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker : ThreadId)
     {left right : Config (core3 grow) (HostState sig)} {resume frames rest peerFrames peerRest} {bodyLabels}
     {installed : Config (core3 grow) (HostState sig)}
@@ -8252,12 +8305,18 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
           exact (congrArg ([.tau, .tau, .tau] ++ ·) split).trans (List.append_assoc ..).symm
         apply Or.inr
         rw [used]
-        refine callbackTerminalSlice paired (.directGiveSelected
-          (check := ⟨some worker, .prog resume :: frames, rest⟩)
-          (canon := ⟨some worker, .prog resume :: peerFrames, peerRest⟩) (ticket := left.host.nextTicket) request root
-          ⟨(seen checkCount).trans (seen canonCount).symm, ?_, moved, residual⟩ ?_ rfl rfl)
+        refine callbackTerminalSlice paired (.directGiveSelected (resume := resume)
+          (check := ⟨some worker, frames, rest⟩) (canon := ⟨some worker, peerFrames, peerRest⟩)
+          (ticket := left.host.nextTicket) request root
+          ⟨(seen checkCount).trans (seen canonCount).symm, ?_, moved, residual⟩ ?_ rfl rfl ?_)
         · exact sameStore
         · simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace] using site
+        · cases checked : request.preflight (grow := grow) root with
+          | ok plan => exact .inl ⟨plan, rfl⟩
+          | error issue =>
+            refine .inr ⟨issue, rfl, cutCheckedProgramReply _ ?_ residual⟩
+            have reply := request.compiler_refused left.store (some worker) left.host.nextTicket root checked
+            exact congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control reply
       · exact .inr boundary
     · exact .inr boundary
   | error issue =>

@@ -129,6 +129,14 @@ abbrev SelectionValue (sig : Signature) : Option Stored.TypeOf → Type
   | none => Tree sig × Nat
   | some _ => Tree sig
 
+def SelectionValue.tree : (schema : Option Stored.TypeOf) → SelectionValue sig schema → Tree sig
+  | none, selected => selected.1
+  | some _, selected => selected
+
+def SelectionValue.output : (schema : Option Stored.TypeOf) → SelectionValue sig schema → Lower.Output
+  | none, selected => .memory selected.2
+  | some _, _ => .flat
+
 /-- The reached link supplies the selector for either kind of caller. The
 selector itself does not carry a program or Core return frame. -/
 structure GiveSelector (bindings : List (Binding sig)) where
@@ -195,6 +203,15 @@ noncomputable def GiveSelector.canonicalContinuation {bindings : List (Binding s
     (selected : Except Issue (SelectionValue sig request.schema)) : Session grow sig (Ret (core3 grow)) :=
   let words := referenceTail request.inst request.destination request.schema selected
   (if threadMayLeave store thread then words else confine words) >>= fun reply => pure (.flat reply)
+
+/-- Compile the root selected by the live callout, before any authority
+preparation, placement check, or payload effect. -/
+def GiveSelector.preflight {bindings : List (Binding sig)} (request : GiveSelector bindings)
+    (selected : SelectionValue sig request.schema) : Except RecordLower.Issue (RecordLower.Field × List RecordLower.Object) :=
+  match SelectionValue.tree request.schema selected with
+  | .atom impossible => impossible.elim
+  | .tag payload _ _ => Record.preflightValue (request.destination.context (grow := grow) request.inst)
+      (sig.payload payload.1) payload.2 (SelectionValue.output request.schema selected)
 
 def CoreGiveRequest.selectionProgram {bindings : List (Binding sig)} {state : Config (core3 grow) (HostState sig)}
     (request : CoreGiveRequest bindings state) : Session grow sig (Except Issue (SelectionValue sig request.schema)) :=
