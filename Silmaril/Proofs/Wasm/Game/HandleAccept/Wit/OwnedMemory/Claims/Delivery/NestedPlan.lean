@@ -1528,6 +1528,29 @@ theorem classifyAllocatorTail {callees : List (ComponentCall.Callee sig)}
   mapWorkerTrack (classifyWithOccurrence run paired tracked.outside) (fun _ _ _ _ => extendMark tracked)
 
 open ReturnFrame.Occurrence in
+theorem alignAllocatorPop
+    {checkEntry canonEntry last : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)} {mark : Option Location}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (marked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (paired : HostFrame.Related.Paired wider start incoming)
+    (returning : start.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+    (installed : segmentAt (segmentStorage canonEntry) (.active 0 0) = some (.prog second))
+    (run : Steps profile ready (specDispatch ready base) start labels last) :
+    ActualMarkedPop profile ready base bindings older checkEntry canonEntry start incoming checkTrace canonTrace mark
+      check first second value labels last := by
+  by_cases top : mark = some (.active 0 0)
+  · subst mark
+    cases run with
+    | refl => exact .inr (.inl ⟨rfl, rfl⟩)
+    | @cons _ _ _ _ trailing head tail =>
+      obtain ⟨canon, frame, checked, live, _, _, paths⟩ := CallbackPrefix.pop marked paired returning installed
+      obtain ⟨rfl, rfl⟩ := silentStepUnique checked head
+      exact .inr (.inr ⟨trailing, canon, rfl, rfl, by simp, tail, live, frame, paths⟩)
+  · exact .inl top
+
+open ReturnFrame.Occurrence in
 theorem classifyEnclosingAllocatorTail {callees : List (ComponentCall.Callee sig)}
     {checkEntry canonEntry leftStart rightStart : Config (core3 grow) (HostState sig)}
     {checkTrace canonTrace seen : Trace grow sig} {offset : Nat}

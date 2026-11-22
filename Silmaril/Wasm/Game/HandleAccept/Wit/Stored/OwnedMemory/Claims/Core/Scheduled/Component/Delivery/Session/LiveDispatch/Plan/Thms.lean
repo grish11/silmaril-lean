@@ -544,6 +544,25 @@ theorem AllocatorMark.pop_movement {checkEntry canonEntry : Config (core3 grow) 
         { finish with ctl := check.control (first value) } { incoming with ctl := canon.control (second value) } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.popMovement marked paired returning installed
 
+open ReturnFrame.Occurrence in
+/-- Align the marked allocator return with the actual checked derivation.
+A return focus at the end of a finite run does not advance either machine;
+only the executed pop advances canonical and gives a shorter checked tail. -/
+theorem AllocatorMark.align_actual_pop
+    {checkEntry canonEntry last : Config (core3 grow) (HostState sig)} {checkTrace canonTrace : Trace grow sig}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {value : Ret (core3 grow)} {mark : Option Location}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (marked : AllocatorMark profile ready base bindings older checkEntry canonEntry checkTrace canonTrace start incoming mark)
+    (paired : HostFrame.Related.Paired wider start incoming)
+    (returning : start.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+    (installed : segmentAt (segmentStorage canonEntry) (.active 0 0) = some (.prog second))
+    (run : Steps profile ready (specDispatch ready base) start labels last) :
+    ActualMarkedPop profile ready base bindings older checkEntry canonEntry start incoming checkTrace canonTrace mark
+      check first second value labels last :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignAllocatorPop
+    marked paired returning installed run
+
 /-- A reached marked collection return uses the live memory and claim table.
 Both paths take the actual range checks under their respective dispatchers.
 Invalid range traps both; valid range hands the checked suffix its fresh

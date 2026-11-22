@@ -3405,6 +3405,26 @@ inductive WorkerBodyAlignment (profile : ProfileKind) (ready : HostReady (HostSt
       (planned : Step profile ready dispatch middle expected next) (bodyTail : Steps profile ready dispatch next rest body)
       (actualStep : Step profile ready dispatch middle taken actualNext) (actualTail : Steps profile ready dispatch actualNext suffix finish)
 
+/-- The observed return focus is not itself an executed pop. Only the
+matched case advances both continuations and exposes an actual shorter
+checked residual. A displaced or lost mark cannot authorize this pop. -/
+def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (checkEntry canonEntry left right : Config (core3 grow) (HostState sig)) (checkTrace canonTrace : Trace grow sig)
+    (mark : Option ReturnFrame.Occurrence.Location) (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig)) (value : Ret (core3 grow))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  mark ≠ some (.active 0 0) ∨ (actual = [] ∧ finish = left) ∨
+    ∃ (trailing : Trace grow sig) (canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+      let resumed := { left with ctl := check.control (first value) }
+      let peer := { right with ctl := canon.control (second value) }
+      mark = some (.active 0 0) ∧ actual = .tau :: trailing ∧ trailing.length < actual.length ∧
+      Steps profile ready (specDispatch ready base) resumed trailing finish ∧
+      Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer ∧
+      LinkedCallback.ChildFrameOver older left right check canon ∧
+      CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau]) resumed peer
+
 /-- Compare the checked run with the entry obtained from the real public
 guards. A short run need not have taken the displayed refusal or trap. -/
 inductive RecursiveRootEntryAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
