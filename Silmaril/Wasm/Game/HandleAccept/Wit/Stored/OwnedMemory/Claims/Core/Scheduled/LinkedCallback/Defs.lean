@@ -431,10 +431,10 @@ structure StringField where
 
 def StringField.field (item : StringField) : Field := .data (.prim .string) ⟨.string item.value, .string item.valid⟩
 
-/-- On refusal only the checked live guard advances, retaining the caller
-slots. On success the same slots reach the next field along with the spent
-writer and the reached canonical store. On trap neither side enters a success
-continuation, and the reached effects are retained. -/
+/-- On refusal only the checked live guard advances. Success retains the
+caller slots and passes the reached store and raw writers to the next field.
+The one-sided spend is recorded at the exact leaf endpoint, including on a
+trap, which enters neither success continuation. -/
 def HandleFieldThenBetween (profile : ProfileKind) (ready : HostReady (HostState sig))
     (dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (item : Field) (index : Nat) (output : Stored.Lower.Output) (left right : State grow sig)
@@ -462,6 +462,9 @@ def HandleFieldThenBetween (profile : ProfileKind) (ready : HostReady (HostState
         ReturnFrame.Occurrence.Trail profile ready reference right mark canonLabels
           (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result)
           (localOccurrenceEnd result mark)) ∧
+      (∀ update, plan = some update → ExclusiveLeafWriterFlow update left.host right.host
+        (localLeafEnd left spent store check.thread check.frames check.rest (fun value => checkNext (.ok value)) result).host
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result).host) ∧
       ∀ value, result = .ok value →
         let lhs := { left with store, host := spent, ctl := check.control (checkNext (.ok value)) }
         let rhs := { right with store, ctl := canon.control (canonNext value) }

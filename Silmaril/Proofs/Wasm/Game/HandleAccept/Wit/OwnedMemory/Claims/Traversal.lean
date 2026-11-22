@@ -82,8 +82,8 @@ theorem handleTrackFinish {originLeft originRight left right : State grow sig}
   unfold HandleFieldThen HandleFieldThenBetween at run ⊢
   split <;> rename_i verdict live <;> simp only [live] at run
   · exact run
-  · obtain ⟨store, result, reads, checkLabels, canonLabels, readTau, checkSilent, canonSilent, checked, canonical, trails, tail⟩ := run
-    refine ⟨store, result, reads, checkLabels, canonLabels, readTau, checkSilent, canonSilent, checked, canonical, trails, ?_⟩
+  · obtain ⟨store, result, reads, checkLabels, canonLabels, readTau, checkSilent, canonSilent, checked, canonical, trails, flow, tail⟩ := run
+    refine ⟨store, result, reads, checkLabels, canonLabels, readTau, checkSilent, canonSilent, checked, canonical, trails, flow, ?_⟩
     intro value returned
     subst result
     obtain ⟨lhs, rhs, finish⟩ := tail value rfl

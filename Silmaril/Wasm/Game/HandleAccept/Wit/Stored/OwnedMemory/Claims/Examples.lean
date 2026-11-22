@@ -16,7 +16,7 @@ private def resource : RtId := ⟨0⟩
 private def element : Element := some (.prim .u16)
 
 private inductive Tag where
-  | owners | inactiveBorrow | mixed | lateTrap
+  | owners | inactiveBorrow | mixed | lateTrap | endpointOnly
 
 private def sig : Signature :=
   ⟨Tag, fun
@@ -24,7 +24,8 @@ private def sig : Signature :=
     | .inactiveBorrow =>
       .result (some (.own resource)) (some (.future (some (.option (.borrow resource)))))
     | .mixed => .record [("owner", .own resource), ("end", .stream element)]
-    | .lateTrap => .tuple [.own resource, .stream element, .own resource], fun _ => .fixed 0⟩
+    | .lateTrap => .tuple [.own resource, .stream element, .own resource]
+    | .endpointOnly => .stream element, fun _ => .fixed 0⟩
 
 private abbrev World := State sig
 
@@ -132,6 +133,26 @@ private noncomputable def trapAfterMixedMoves : P Mock.mock World (Ret Mock.mock
   let _ ← acceptNode sig limits Quirks.none context .lateTrap (.flat [i32Flat 1, i32Flat 2, i32Flat 1]) []
   pure .unit
 
+private noncomputable def endpointRelift (checked : Bool) : P Mock.mock World (Ret Mock.mock) := do
+  let _ ← Builtins.streamNew limits element
+  let endpoint ← Endpoint.inspect .readableStream element context.inst 1
+  let .ok _ ← acceptNode sig limits Quirks.none context .endpointOnly (.flat [i32Flat 1]) []
+    | internal "initial endpoint registration failed"
+  let slot ← if checked then do
+    let .ok slot ← giveEndpoint limits context .stream element endpoint
+      | internal "checked endpoint lowering failed"
+    pure slot
+  else lowerAsyncValue limits .readableStream context endpoint.id
+  let resumed ← Endpoint.inspect .readableStream element context.inst slot
+  trapIf (resumed.id != endpoint.id) (.internal "lower changed the arena identity")
+  let registration ← acceptNode sig limits Quirks.none context .endpointOnly (.flat [i32Flat slot]) []
+  match checked, registration with
+  | true, .ok tree =>
+    trapIf (rootEndpoints tree != [endpoint.id]) (.internal "re-lift changed the arena identity")
+    pure .unit
+  | false, .error .alias => pure .unit
+  | _, _ => internal "unexpected endpoint re-registration decision"
+
 private noncomputable def initial (program : P Mock.mock World (Ret Mock.mock)) :
     Machine.Config Mock.mock World where
   store := { CStore.empty with
@@ -217,6 +238,26 @@ theorem mixed_round_trip_transfers_both_claims_once (X : Mock.mock.Exec) :
       result.config.host.endpoints.length) = (.resolved, 1, 0, 0) := by
   dsimp only
   kernel_rfl
+
+theorem endpoint_relift_trace_sound (exec : Mock.mock.Exec) (checked : Bool) :
+    Machine.Steps .deterministic noReady noCalls (initial (endpointRelift checked))
+      (run exec (endpointRelift checked)).labels (run exec (endpointRelift checked)).config :=
+  Machine.run_sound noReady noCalls exec Machine.Oracle.first 256 (initial (endpointRelift checked))
+
+/-- Both re-lifts remove the handle and release ownership. Only the checked
+lowering spent the claim, so only that run publishes the second root.
+This is a local machine fixture, not a linked public-dispatch session. -/
+theorem endpoint_relift_conflicts_only_after_raw_lower (exec : Mock.mock.Exec) :
+    let observations := fun checked =>
+      let result := run exec (endpointRelift checked)
+      let store := result.config.store
+      (result.outcome, result.config.host.accepted.map rootEndpoints, result.config.host.endpoints,
+        (store.inst? ⟨0⟩).bind (·.handles.get? 1),
+        (store.end? ⟨0⟩).map (fun entry => (entry.owner, entry.index)))
+    observations true = (.resolved, [[⟨0⟩], [⟨0⟩]], [⟨0⟩], none, some (none, none)) ∧
+    observations false = (.resolved, [[⟨0⟩]], [⟨0⟩], none, some (none, none)) := by
+  dsimp only
+  exact ⟨by kernel_rfl, by kernel_rfl⟩
 
 theorem late_trap_retains_both_moves_but_publishes_neither_claim_nor_tree (X : Mock.mock.Exec) :
     let result := run X trapAfterMixedMoves

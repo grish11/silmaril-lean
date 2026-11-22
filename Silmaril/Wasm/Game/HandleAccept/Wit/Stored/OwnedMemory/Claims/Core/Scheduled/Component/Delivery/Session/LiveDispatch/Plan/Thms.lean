@@ -46,6 +46,19 @@ theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.
     componentRegistration left tree = componentRegistration right tree :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.indexedClaims_registrationProbe indexed tree
 
+open Stored.OwnedMemory.Claims in
+/-- The raw registration probes after an asymmetric leaf spend can still
+agree: a historical owner remains a conflict, and unrelated endpoints are not
+observed. This neither projects a spend onto the canonical writer nor claims
+that a subsequent probe executes. -/
+theorem leafSpend_registrationProbe {update : Spend} {left right checked canonical : HostState sig}
+    (flow : ExclusiveLeafWriterFlow update left right checked canonical)
+    (together : left.writer.IndexedClaimsAgree right.writer) (tree : Stored.OwnedMemory.Tree sig)
+    (frames : update.FramesRegistration left.writer tree) :
+    componentRegistration checked.writer tree = componentRegistration canonical.writer tree :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.leafSpend_registrationProbe
+    flow together tree frames
+
 /-- Compare an executed shared host read of a recursive claim plan after its store read.
 Neither side commits the prospective dry-run spends. -/
 theorem compareReachedRecordPrepare (plan : List Object)

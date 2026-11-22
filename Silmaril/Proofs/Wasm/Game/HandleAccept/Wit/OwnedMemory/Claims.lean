@@ -32,6 +32,15 @@ private theorem containsAny_eq {α : Type} [BEq α] [LawfulBEq α] {demands left
         List.any_eq_false.mp clear id member (List.contains_iff_mem.mpr ((agrees id member).mp (List.contains_iff_mem.mp found)))
   cases lhs : demands.any left.contains <;> cases rhs : demands.any right.contains <;> simp_all
 
+private theorem owner_spend_membership {sig : Signature} (state : State sig) (spent id : HandleObjId) :
+    id ∈ ((Spend.owner spent).apply state).held.map receiptId ↔ id ∈ state.held.map receiptId ∧ id ≠ spent := by
+  simp only [Spend.apply, List.mem_map, List.mem_filter, bne_iff_ne]
+  constructor
+  · rintro ⟨receipt, ⟨member, fresh⟩, same⟩
+    exact ⟨⟨receipt, member, same⟩, same ▸ fresh⟩
+  · rintro ⟨⟨receipt, member, same⟩, fresh⟩
+    exact ⟨receipt, ⟨member, same.symm ▸ fresh⟩, same⟩
+
 theorem register_observations {sig : Signature} {left right : State sig} {tree : OwnedMemory.Tree sig}
     (agrees : left.RegistrationChecksAgree right tree)
     (length : left.accepted.length = right.accepted.length) :
@@ -56,19 +65,38 @@ theorem indexedClaims_spend {sig : Signature} {left right : State sig}
   | owner spent =>
     refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
     intro id
-    have membership (state : State sig) :
-        id ∈ ((Spend.owner spent).apply state).held.map receiptId ↔ id ∈ state.held.map receiptId ∧ id ≠ spent := by
-      simp only [Spend.apply, List.mem_map, List.mem_filter, bne_iff_ne]
-      constructor
-      · rintro ⟨receipt, ⟨member, fresh⟩, same⟩
-        exact ⟨⟨receipt, member, same⟩, same ▸ fresh⟩
-      · rintro ⟨⟨receipt, member, same⟩, fresh⟩
-        exact ⟨receipt, ⟨member, same.symm ▸ fresh⟩, same⟩
-    rw [membership, membership, agrees.held id]
+    rw [owner_spend_membership, owner_spend_membership, agrees.held id]
   | endpoint spent =>
     refine ⟨agrees.accepted, agrees.held, ?_⟩
     intro id
     simp only [Spend.apply, List.mem_filter, bne_iff_ne, agrees.endpoints]
+
+theorem registration_after_left_spend {sig : Signature} {left right : State sig} {tree : OwnedMemory.Tree sig}
+    (agrees : left.RegistrationChecksAgree right tree) (update : Spend)
+    (frames : update.FramesRegistration left tree) :
+    (update.apply left).RegistrationChecksAgree right tree := by
+  cases update with
+  | owner spent =>
+    refine ⟨?_, agrees.endpoints⟩
+    intro id demand
+    rw [← agrees.owners id demand]
+    simp only [List.map_append, List.mem_append]
+    rw [owner_spend_membership]
+    have unchanged : ((Spend.owner spent).apply left).accepted = left.accepted := rfl
+    rw [unchanged]
+    by_cases same : id = spent
+    · subst id
+      unfold Spend.FramesRegistration at frames
+      cases frames with
+      | inl absent => exact (absent demand).elim
+      | inr historical => simp only [historical, true_or]
+    · exact ⟨fun member => member.elim Or.inl (fun kept => Or.inr kept.1),
+        fun member => member.elim Or.inl (fun kept => Or.inr ⟨kept, same⟩)⟩
+  | endpoint spent =>
+    refine ⟨agrees.owners, ?_⟩
+    intro id demand
+    have different : id ≠ spent := fun same => frames (same ▸ demand)
+    simpa [Spend.apply, List.mem_filter, different] using agrees.endpoints id demand
 
 theorem indexedClaims_register {sig : Signature} {left right : State sig}
     (agrees : left.IndexedClaimsAgree right) (tree : OwnedMemory.Tree sig) :
@@ -153,19 +181,31 @@ theorem liveClaims_asymmetricSpend {sig : Signature} {left right : State sig}
   | owner id => exact (after.held id).mpr ((before.held id).mp live)
   | endpoint id => exact (after.endpoints id).mpr ((before.endpoints id).mp live)
 
+private theorem prepare_observation {sig : Signature} (state : State sig) (resource : RtId) (id : HandleObjId) :
+    (state.prepare resource id).map Prod.fst = match state.ownerObservation id with
+    | none => .error .unclaimed
+    | some (nominal, representation) =>
+      if nominal != resource then .error .wrongResourceType else .ok representation := by
+  unfold State.prepare State.ownerObservation
+  cases state.held.find? (fun receipt => receiptId receipt == id) with
+  | none => rfl
+  | some receipt => by_cases typed : receipt.1 = resource <;> simp [Except.map, typed]
+
 theorem liveClaims_prepare {sig : Signature} {left right : State sig}
     (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
     (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
-  have observe (state : State sig) : (state.prepare resource id).map Prod.fst =
-      match state.ownerObservation id with
-      | none => .error .unclaimed
-      | some (nominal, representation) =>
-        if nominal != resource then .error .wrongResourceType else .ok representation := by
-    unfold State.prepare State.ownerObservation
-    cases state.held.find? (fun receipt => receiptId receipt == id) with
-    | none => rfl
-    | some receipt => by_cases typed : receipt.1 = resource <;> simp [Except.map, typed]
-  rw [observe, observe, agrees.owners]
+  rw [prepare_observation, prepare_observation, agrees.owners]
+
+theorem prepare_after_left_spend {sig : Signature} {left right : State sig} (update : Spend)
+    (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id)
+    (frames : ∀ spent, update = .owner spent → id ≠ spent) :
+    ((update.apply left).prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
+  rw [prepare_observation, prepare_observation]
+  congr 1
+  rw [← agrees]
+  cases update with
+  | endpoint => rfl
+  | owner spent => simp only [State.ownerObservation, Spend.apply, findOwner_filter, ite_eq_right (frames spent rfl)]
 
 theorem liveClaims_prepare_success {sig : Signature} {left right next : State sig}
     (agrees : left.LiveClaimsAgree right) {resource : RtId} {id : HandleObjId} {representation : Nat}

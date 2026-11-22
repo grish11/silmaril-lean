@@ -26,6 +26,21 @@ theorem register_observations {sig : Signature} {left right : State sig} {tree :
       (right.register tree).map (fun writer => writer.accepted.length) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.register_observations agrees length
 
+/-- A one-sided owner spend does not change conflicts for a historically
+accepted owner. A one-sided endpoint spend frames probes disjoint from it. -/
+theorem State.RegistrationChecksAgree.left_spend {sig : Signature} {left right : State sig} {tree : Tree sig}
+    (agrees : left.RegistrationChecksAgree right tree) (update : Spend)
+    (frames : update.FramesRegistration left tree) :
+    (update.apply left).RegistrationChecksAgree right tree :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.registration_after_left_spend agrees update frames
+
+/-- A prepare probe observes the raw writer, but only at its nominal arena identity. -/
+theorem Spend.prepare_observation_agrees {sig : Signature} {left right : State sig} (update : Spend)
+    (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id)
+    (frames : ∀ spent, update = .owner spent → id ≠ spent) :
+    ((update.apply left).prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.prepare_after_left_spend update resource id agrees frames
+
 theorem State.IndexedClaimsAgree.registration {sig : Signature} {left right : State sig}
     (agrees : left.IndexedClaimsAgree right) (tree : Tree sig) : left.RegistrationChecksAgree right tree :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexedClaims_registration agrees tree

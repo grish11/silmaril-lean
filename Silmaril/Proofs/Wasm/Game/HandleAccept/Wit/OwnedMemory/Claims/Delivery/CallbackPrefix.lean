@@ -2096,7 +2096,7 @@ theorem handleValueOccurrences {item : Field} {index : Nat} {output : Stored.Low
     exact .inl ⟨issue, decision, reached, covers _ admitted issue _ _ _ check rfl reached⟩
   | ok plan =>
     rw [decision] at run
-    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, _, _, trails, continued⟩ := run
+    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, _, _, trails, _, continued⟩ := run
     have silent : PayloadPrefix.visible guard = [] :=
       invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have lhsSeen := (List.filter_append ..).trans (congrArg₂ List.append silent (visibleLeaf lhsKind))
@@ -2136,7 +2136,7 @@ theorem handleValueTransport {item : Field} {index : Nat} {output : Stored.Lower
     exact .inl ⟨issue, decision, reached, covers _ admitted issue _ _ _ check rfl (comparedTransportPaths reached)⟩
   | ok plan =>
     rw [decision] at run
-    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, _, _, trails, continued⟩ := run
+    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, _, _, trails, _, continued⟩ := run
     have silent : PayloadPrefix.visible guard = [] :=
       invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have lhsSeen := (List.filter_append ..).trans (congrArg₂ List.append silent (visibleLeaf lhsKind))
@@ -2239,7 +2239,7 @@ theorem handleValuePaths {item : Field} {index offset : Nat} {output : Stored.Lo
     | some place => exact (retained place).toTrail
   | ok plan =>
     rw [decision] at run
-    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, lhsRun, rhsRun, trails, continued⟩ := run
+    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, lhsRun, rhsRun, trails, _, continued⟩ := run
     have silent : PayloadPrefix.visible guard = [] :=
       invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
     have lhsSeen := (List.filter_append ..).trans (congrArg₂ List.append silent (visibleLeaf lhsKind))

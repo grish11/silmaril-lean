@@ -626,7 +626,7 @@ private theorem nominalElements (destination : RecordDestination) (inst : InstId
         fun depth => tracks (.active 0 depth), fun depth => .done _ _⟩
     | ok plan =>
       rw [live] at leaf
-      obtain ⟨store, result, initial, leftLabels, rightLabels, quiet, seenLeft, seenRight, runLeft, runRight, _, success⟩ := leaf
+      obtain ⟨store, result, initial, leftLabels, rightLabels, quiet, seenLeft, seenRight, runLeft, runRight, _, _, success⟩ := leaf
       cases result with
       | error reason =>
         have seen := leafTrap seenRight
@@ -1322,7 +1322,7 @@ private theorem nominalMapValue (destination : RecordDestination) (inst : InstId
       .refl _, frame.store, silent quiet, pending, rfl, rfl, canonAt, fun depth => tracks (.active 0 depth), fun depth => .done _ _⟩
   | ok plan =>
     rw [live] at leaf
-    obtain ⟨store, result, guard, checkLabels, canonLabels, quiet, seenLeft, seenRight, runLeft, runRight, _, success⟩ := leaf
+    obtain ⟨store, result, guard, checkLabels, canonLabels, quiet, seenLeft, seenRight, runLeft, runRight, _, _, success⟩ := leaf
     have runCanonical := appendRun (prefix_survives (tracksPlacement 0)).1 runRight
     cases result with
     | error reason =>

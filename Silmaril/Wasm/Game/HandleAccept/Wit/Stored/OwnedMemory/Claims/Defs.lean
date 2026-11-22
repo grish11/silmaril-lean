@@ -76,6 +76,13 @@ structure State.RegistrationChecksAgree {sig : Signature} (left right : State si
       id ∈ ((right.accepted.flatMap rootReceipts ++ right.held).map receiptId))
   endpoints : ∀ id ∈ rootEndpoints tree, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
 
+/-- A spend frames the next root's conflict probes if it cannot remove any
+requested conflict. An accepted owner remains a conflict after its spend. -/
+def Spend.FramesRegistration {sig : Signature} (update : Spend) (state : State sig) (tree : Tree sig) : Prop :=
+  match update with
+  | .owner id => id ∉ (rootReceipts tree).map receiptId ∨ id ∈ (state.accepted.flatMap rootReceipts).map receiptId
+  | .endpoint id => id ∉ rootEndpoints tree
+
 /-- The ordered acceptance history fixes handle lookup and the next registration
 index. Live claims are compared by nominal identity, not by list representation.
 This does not compare owner representations used by `State.prepare`. -/

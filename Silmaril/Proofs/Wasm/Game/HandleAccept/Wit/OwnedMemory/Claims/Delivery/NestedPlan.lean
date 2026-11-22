@@ -2986,7 +2986,7 @@ private theorem driveFlatHandle {origin : CStore (core3 grow)} (destination : Re
         .descriptor (pointer := 0) (cursor := check) (peer := canon) (.refused issue rfl)⟩
   | ok plan =>
     rw [decision] at leaf
-    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, continued⟩ := leaf
+    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
     have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
     have observed : visible (guard ++ checkLabels) = visible canonLabels := by
       rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
@@ -4972,12 +4972,29 @@ private theorem rejectPayloadShape (callee : ComponentCall.Callee sig) (caller :
     | some children => exact (wrong ⟨argument, payload, children, rfl, rfl⟩).elim
   · rfl
 
+open Stored.OwnedMemory.Claims in
+theorem registrationProbe_observations {left right : Stored.OwnedMemory.Claims.State sig}
+    {tree : Stored.OwnedMemory.Tree sig} (checks : left.RegistrationChecksAgree right tree)
+    (length : left.accepted.length = right.accepted.length) :
+    componentRegistration left tree = componentRegistration right tree := by
+  have observed := register_observations checks length
+  cases lhs : left.register tree <;> cases rhs : right.register tree <;>
+    simp_all only [Except.map, Except.error.injEq, Except.ok.injEq, reduceCtorEq, componentRegistration]
+
 theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.State sig}
     (indexed : left.IndexedClaimsAgree right) (tree : Stored.OwnedMemory.Tree sig) :
-    componentRegistration left tree = componentRegistration right tree := by
-  rcases indexed.register tree with ⟨_, leftDenied, rightDenied⟩ | ⟨_, _, leftRegistered, rightRegistered, together⟩
-  · simp only [componentRegistration, leftDenied, rightDenied]
-  · simp only [componentRegistration, leftRegistered, rightRegistered, together.accepted]
+    componentRegistration left tree = componentRegistration right tree :=
+  registrationProbe_observations (indexed.registration tree) (congrArg List.length indexed.accepted)
+
+open Stored.OwnedMemory.Claims in
+theorem leafSpend_registrationProbe {update : Spend} {left right checked canonical : HostState sig}
+    (flow : ExclusiveLeafWriterFlow update left right checked canonical)
+    (together : left.writer.IndexedClaimsAgree right.writer) (tree : Stored.OwnedMemory.Tree sig)
+    (frames : update.FramesRegistration left.writer tree) :
+    componentRegistration checked.writer tree = componentRegistration canonical.writer tree := by
+  rw [flow.checkedHost, flow.canonicalHost]
+  apply registrationProbe_observations ((together.registration tree).left_spend update frames)
+  cases update <;> exact congrArg List.length together.accepted
 
 private theorem registrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
     ComponentCall.resolveTree (grow := grow) ticket caller tree =
@@ -6046,7 +6063,7 @@ theorem driveNominalElements (destination : RecordDestination) (inst : InstId) (
         exact frame.store
     | ok plan =>
       rw [decision] at leaf
-      obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, continued⟩ := leaf
+      obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
       have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
       have observed : visible (guard ++ checkLabels) = visible canonLabels := by
         rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
@@ -6467,7 +6484,7 @@ private theorem driveMemoryHandle {origin : CStore (core3 grow)} (destination : 
         .refused issue check rfl (.field canon item address canonNext canonAt)⟩
   | ok plan =>
     rw [decision] at leaf
-    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, continued⟩ := leaf
+    obtain ⟨store, verdict, guard, checkLabels, canonLabels, tau, leftKind, rightKind, checkRun, _, tracks, _, continued⟩ := leaf
     have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [tau action member]))
     have observed : visible (guard ++ checkLabels) = visible canonLabels := by
       rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind, CallbackPrefix.visibleLeaf rightKind]
