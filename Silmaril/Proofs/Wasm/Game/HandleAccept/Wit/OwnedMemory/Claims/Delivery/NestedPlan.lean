@@ -551,6 +551,135 @@ theorem driveStringCommit {destination : RecordDestination} {inst : InstId} {key
         | error reason => exact .trap rfl rfl
         | ok value => exact .descriptor (pointer := pointer) ⟨value, continues value rfl⟩
 
+private theorem mapStringEnd
+    {first second : Nat → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+      PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → PayloadPrefix.Cursor (E := core3 grow) (HostState sig) → Prop}
+    {trailing : Trace grow sig} {marks}
+    (map : ∀ pointer check canon, first pointer start incoming check canon → second pointer start incoming check canon)
+    (ending : StringSliceEnd profile ready base bindings older first start incoming trailing finish marks) :
+    StringSliceEnd profile ready base bindings older second start incoming trailing finish marks := by
+  cases ending with
+  | descriptor reached => exact .descriptor (map _ _ _ reached)
+  | trap left right => exact .trap left right
+  | localPrefix nonempty tail => exact .localPrefix nonempty tail
+  | localChoice split choice shared step tail => exact .localChoice split choice shared step tail
+  | installPrefix short => exact .installPrefix short
+  | callback tracked paired terminal notPopped => exact .callback tracked paired terminal notPopped
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+private theorem driveFlatScalar {origin : CStore (core3 grow)} (destination : RecordDestination) (inst : InstId) (budget : Nat)
+    (type : Stored.TypeOf) (localType : LocalDataType type) (payload : Stored.Payload type)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width) :
+    FlatVisitField profile ready base bindings older origin destination inst budget (.data type payload) := by
+  intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+  have widthAt : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width := growth.memAddrType width
+  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, trails⟩ :=
+    local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type localType payload index
+      .flat origin left right (frame.store ▸ growth)
+      (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]) rfl
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
+  have stop (ending : StringSliceEnd profile ready base bindings older
+      (fun _ => FlatVisitFocus older origin checkNext canonNext) left right actual finish []) :
+      FlatVisitRun profile ready base bindings older origin checkNext canonNext left right actual finish :=
+    ⟨[], [], actual, left, right, [], rfl, rfl,
+      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), frame.store, run, ending⟩
+  cases alignWorkerBody lhs run with
+  | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
+  | departure _ split shared _ branch _ _ step tail => exact stop (.localChoice split branch.2 shared step tail)
+  | reached split tail =>
+    refine ⟨checked, canonical, _, _, _, [], split, observed.symm, CallbackPrefix.localLeafTransport trails, ?_, tail, ?_⟩
+    · cases result <;> rfl
+    · cases result with
+      | error reason => exact .trap rfl rfl
+      | ok words =>
+        exact .descriptor (pointer := 0) (cursor := check) (peer := canon) ⟨words,
+          ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩, cut.1, rfl, rfl⟩
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+private theorem driveFlatSequence {origin : CStore (core3 grow)} {budget : Nat}
+    (destination : RecordDestination) (inst : InstId) (items : List Field) (index : Nat) (leading : List FlatValue)
+    (rules : ∀ item ∈ items, FlatVisitField profile ready base bindings older origin destination inst budget item)
+    (checkNext : FlatSequenceCheckNext grow sig) (canonNext : FlatSequenceCanonNext grow sig)
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
+    (checkAt : start.ctl = check.control (flatSequenceChecked destination inst items index leading checkNext))
+    (canonAt : incoming.ctl = canon.control (flatSequenceCanonical destination inst items leading canonNext))
+    (actual : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ budget) :
+    FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish := by
+  induction items generalizing index leading start incoming check canon labels with
+  | nil =>
+    refine ⟨[], [], labels, start, incoming, [], rfl, rfl,
+      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), frame.store, actual,
+      .descriptor (pointer := 0) (cursor := check) (peer := canon) ⟨leading, frame, growth, ?_, ?_⟩⟩
+    · simpa [flatSequenceChecked, Record.Effects.flat, Prog.bind_eq, Prog.pure_eq, Except.map] using checkAt
+    · simpa [flatSequenceCanonical, CanonicalTree.flat, Prog.bind_eq, Prog.pure_eq] using canonAt
+  | cons item rest ih =>
+    obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail, ending⟩ :=
+      rules item (List.mem_cons_self ..) index _ _ _ _ check canon frame growth
+        (checkAt.trans (congrArg check.control (flat_sequence_checked_cons destination inst item rest index leading checkNext)))
+        (canonAt.trans (congrArg canon.control (flat_sequence_canonical_cons destination inst item rest leading canonNext)))
+        _ finish actual bounded
+    have stop (why : StringSliceEnd profile ready base bindings older (fun _ => FlatVisitFocus older origin checkNext canonNext)
+        lhs rhs trailing finish marks) : FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish :=
+      ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail, why⟩
+    cases ending with
+    | trap left right => exact stop (.trap left right)
+    | localPrefix nonempty rest => exact stop (.localPrefix nonempty rest)
+    | localChoice divided choice shared step suffix => exact stop (.localChoice divided choice shared step suffix)
+    | installPrefix short => exact stop (.installPrefix short)
+    | callback tracked paired terminal notPopped => exact stop (.callback tracked paired terminal notPopped)
+    | @descriptor pointer cursor peer reached =>
+      obtain ⟨words, related, grew, atCheck, atCanon⟩ := reached
+      have remaining : trailing.length ≤ budget := by rw [split, List.length_append] at bounded; omega
+      obtain ⟨left, right, residual, reached, peer, marks, divided, observed, trails, equal, actualTail, done⟩ :=
+        ih (index + 1) (leading ++ words) (fun child member => rules child (List.mem_cons_of_mem _ member))
+          related grew atCheck atCanon tail remaining
+      exact ⟨checked ++ left, canonical ++ right, residual, reached, peer, marks,
+        by rw [split, divided, List.append_assoc], by rw [visibleAppend canonical right, visibleAppend checked left, seen, observed],
+        by simpa using (CallbackPrefix.transportAppend movement trails).choose_spec.1, equal, actualTail, done⟩
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+theorem driveCompiledFlat {origin : CStore (core3 grow)} {root item : Field} {schema : Stored.TypeOf} {budget : Nat}
+    (destination : RecordDestination) (inst : InstId) (shape : FlatVisitShape item)
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root) (path : root.Descendant item)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    FlatVisitField profile ready base bindings older origin destination inst budget item := by
+  induction shape with
+  | scalar type localType payload => exact driveFlatScalar destination inst budget type localType payload width
+  | string item matched emitted =>
+    intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+    obtain ⟨str, field⟩ := CallbackRange.compiledStringCommit destination inst .flat rootLayout fits allocates path
+      matched emitted embedder frame (growth.memAddrType width) rfl checkAt canonAt
+    obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, observed, movement, same, rest, ending⟩ :=
+      driveStringCommit field run bounded compare
+    exact ⟨checked, canonical, trailing, lhs, rhs, marks, split, observed, movement, same, rest,
+      mapStringEnd (fun _ _ _ ⟨words, paired, grew, checked, canonical⟩ => ⟨words, paired, growth.trans grew, checked, canonical⟩) ending⟩
+  | aggregate type fields children ih =>
+    intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+    have noLeading (verdict : Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) : verdict.map ([] ++ ·) = verdict := by
+      cases verdict <;> rfl
+    rw [Record.Effects.field] at checkAt
+    rw [CanonicalTree.field] at canonAt
+    obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail, ending⟩ :=
+      driveFlatSequence destination inst fields 0 []
+        (fun item member => ih item member (path.trans (.aggregate member (.self item))))
+        (fun verdict => checkNext (verdict.mapError (.nested index))) canonNext frame growth
+        (by
+          let body : Session grow sig (Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) :=
+            Record.Effects.flat recordClaims Limits.spec Quirks.none (destination.context inst) destination.width fields 0
+          change left.ctl = check.control ((body.bind fun verdict => .pure (verdict.mapError (.nested index))).bind checkNext) at checkAt
+          rw [Prog.bind_assoc] at checkAt
+          change left.ctl = check.control (body.bind fun verdict => checkNext (verdict.mapError (.nested index))) at checkAt
+          simpa only [flatSequenceChecked, noLeading, Prog.bind_eq] using checkAt)
+        (by simpa only [flatSequenceCanonical, List.nil_append] using! canonAt) run bounded
+    exact ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail,
+      mapStringEnd (fun _ _ _ ⟨words, paired, grew, checked, canonical⟩ => ⟨words, paired, grew, checked, canonical⟩) ending⟩
+
 private theorem visiblePrefix {left right : Trace grow sig} (initial : left <+: right) :
     PayloadPrefix.visible left <+: PayloadPrefix.visible right := by
   obtain ⟨tail, rfl⟩ := initial
@@ -3586,7 +3715,7 @@ theorem publicCollectionOccurrences {route : GiveEffectRoute} (site : PayloadRoo
     exact ⟨range, finishCollectionRefusal site type element entries pointer caller range⟩
 
 open ReturnFrame.Occurrence PayloadPrefix in
-private theorem consumeMemoryCommonReply {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route) (value : route.output.Result)
     {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
     {actual checkEntry canonLeading checkBody trailing : Trace grow sig} {budget : Nat}
     (split : actual = checkBody ++ trailing)
@@ -3595,13 +3724,13 @@ private theorem consumeMemoryCommonReply {pointer : FlatValue} (site : PayloadRo
       canonLeading left right [some (.active 0 0)])
     (original : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) checkBody left (.active 0 0))
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
-    (checkAt : left.ctl = check.control (site.reply (.ok ())))
-    (canonAt : right.ctl = canon.control (site.referenceReply ()))
+    (checkAt : left.ctl = check.control (site.reply (.ok value)))
+    (canonAt : right.ctl = canon.control (site.referenceReply value))
     (seen : visible (checkEntry ++ checkBody) = visible canonLeading) (bounded : actual.length ≤ budget)
     (compare : ShorterCallbackSlices profile ready base bindings budget) :
-    MemoryVisitCommonReply profile ready base bindings older site incoming left right checkEntry checkBody canonLeading actual trailing finish := by
+    GiveVisitCommonReply profile ready base bindings older site value incoming left right checkEntry checkBody canonLeading actual trailing finish := by
   obtain ⟨checked, canonical, recorded, unchanged, paired, transport⟩ :=
-    CallbackRange.completePublicTransport site () combined original frame checkAt canonAt
+    CallbackRange.completePublicTransport site value combined original frame checkAt canonAt
   obtain ⟨move, returned, outside⟩ := transport
   obtain ⟨_, lead, _⟩ := combined
   have popped := stripExactPrefix (lead none).1.steps (returned none).1.steps
@@ -3684,7 +3813,7 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     rw [active] at marked
     obtain ⟨_, equal, caller⟩ := marked.survives
     cases equal
-    exact consumeMemoryCommonReply site split residual rebased caller returned checkAt canonAt observed bounded compare
+    exact consumeGiveCommonReply site () split residual rebased caller returned checkAt canonAt observed bounded compare
   have refusedReply (active : callerMark = some (.active 0 0)) (issue : Stored.Endpoints.RecordLower.Issue)
       (check : Cursor (E := core3 grow) (HostState sig)) (checkAt : left.ctl = check.control (site.reply (.error issue))) :
       MemoryVisitRefusedReply profile ready base bindings older site incoming left right issue (checkEntry ++ checked)
@@ -3890,6 +4019,105 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
       obtain ⟨_, _, _, _, compare⟩ := body
       exact compare install
 
+open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
+private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat schema))
+    (linked : site.Linked bindings) (shape : FlatVisitShape site.field)
+    (paired : HostFrame.Related.Paired older site.start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (fits : Stored.Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag) site.payload.val.value = true)
+    {label next} (install : GiveInstall bindings (specDispatch ready base) site.start label next)
+    {checkEntry actual : Trace grow sig} {budget : Nat}
+    (entered : site.EntryPrefix profile ready base checkEntry site.checked) (silent : visible checkEntry = [])
+    (run : Steps profile ready (specDispatch ready base) site.checked actual finish) (bounded : actual.length ≤ budget)
+    (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish := by
+  obtain ⟨plan, compiled⟩ := linked.compiled
+  have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+  have fit := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits
+  have width := site.destination.check_width site.start.store linked.destination
+  obtain ⟨entry, peerEntry, quiet, installed, related, _, storage⟩ :=
+    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨peer, frame, canonAt⟩ := CallbackRange.referenceFrame site (site.reference_at linked site.referenceReply) related
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, seen, storePaths, store, residual, endpoint⟩ :=
+    driveCompiledFlat (origin := site.checked.store) site.destination site.inst shape matched fit
+      (CallbackRange.preflightAllocator site linked) (.self _) embedder width compare
+      0 site.reply site.referenceReply site.checked peerEntry site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
+  obtain ⟨move, paths, outside⟩ := storePaths
+  obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked entered installed storage
+  let caller := move (some (.active 0 0))
+  have rebased : OccurrenceTransport profile ready base bindings site.start incoming
+      (checkEntry ++ checked) (entry ++ canonical) left right (marks ++ [caller]) := by
+    refine ⟨move ∘ atEntry, fun place => ⟨(track place).1.append (paths (atEntry place)).1,
+      (track place).2.append (paths (atEntry place)).2⟩, fun changes retained prior => ?_⟩
+    simpa only [List.append_assoc, List.map_append, List.map_cons, List.map_map, List.map_nil, caller]
+      using outside changes _ (frameEntry changes retained prior)
+  have observed : visible (checkEntry ++ checked) = visible (entry ++ canonical) := by
+    rw [visibleAppend, visibleAppend, silent, silentVisible quiet, seen]
+  have total : checkEntry ++ actual = (checkEntry ++ checked) ++ trailing := by rw [split, List.append_assoc]
+  have cut : GiveBodyCut profile ready base bindings site.start incoming left right (checkEntry ++ checked)
+      (entry ++ canonical) trailing finish (marks ++ [caller]) := ⟨observed, store, rebased, residual⟩
+  have stop (why : GiveBodyStop profile ready base left right trailing finish caller) :
+      CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish :=
+    total ▸ callbackTerminalSlice paired (.body install cut why)
+  cases endpoint with
+  | trap lhs rhs => exact stop (.trap lhs rhs)
+  | localPrefix nonempty tail => exact stop (.localPrefix nonempty tail)
+  | localChoice divided choice shared step tail => exact stop (.localChoice divided choice shared step tail)
+  | installPrefix short => exact stop (.allocatorInstall short)
+  | callback tracked aligned ending notPopped =>
+    rw [total]
+    exact callbackTerminalSlice paired (.allocator install cut tracked aligned ending notPopped)
+  | descriptor arrived =>
+    obtain ⟨words, returned, _, checkAt, canonAt⟩ := arrived
+    by_cases active : caller = some (.active 0 0)
+    · rw [List.nil_append, active] at rebased
+      have marked := (paths (some (.active 0 0))).1
+      change move (some (.active 0 0)) = some (.active 0 0) at active
+      rw [active] at marked
+      obtain ⟨_, equal, original⟩ := marked.survives
+      cases equal
+      rcases consumeGiveCommonReply site words split residual rebased original returned checkAt canonAt observed bounded compare with
+        short | ⟨suffix, replied, peer, divided, _, tail, _, _, result⟩
+      · exact stop (.replyPrefix none short)
+      rcases result with ⟨_, compared⟩ | ⟨update, aligned, trails⟩
+      · exact compared
+      · rw [total, divided, ← List.append_assoc]
+        exact callbackTerminalSlice paired (.uncertified install update aligned trails tail)
+    · exact stop (.callerNotTop none active)
+
+private theorem actualSelectedFlatCallback {schema : Stored.TypeOf} {request : CoreGiveRequest bindings start}
+    (selection : request.Selected (.flat schema)) {label next}
+    (domain : ∀ field plan, selection.preflight = .ok (field, plan) → FlatVisitShape field)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (tail : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+    CallbackSlice profile ready base bindings older start incoming (label :: labels) finish := by
+  have run := Steps.cons install.step tail
+  cases compiled : selection.preflight with
+  | error issue => exact compilerRefusedCallback selection compiled install run paired selected embedder
+  | ok result =>
+    obtain ⟨field, plan⟩ := result
+    obtain ⟨tag, payload, arity, children, root, linked⟩ := selection.compiler_success compiled
+    let site := selection.site tag payload arity children field
+    have chosen : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree :=
+      selected.trans (congrArg some root)
+    have cut := site.parked_after_admission (profile := profile) (ready := ready) linked
+      (Stored.Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag) site.payload.val.value = true)
+      (fun fits _ _ => fits) base embedder
+    cases cut with
+    | refused issue quiet entered => exact rootRefusedCallback site linked install quiet entered run paired chosen
+    | placementTrap reason count verdict entered => cases verdict
+    | @placed entry quiet verdict prepared entered fits =>
+      cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
+      | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+      | @reached remaining split tail =>
+        have bounded : remaining.length ≤ (label :: labels).length := by rw [split, List.length_append]; omega
+        exact split ▸ driveFlatGiveBody site linked (domain _ _ compiled) paired chosen embedder fits install entered quiet tail bounded compare
+
 private theorem admissionRefusalCallback (request : CoreGiveRequest bindings start) {issue label next}
     (refused : Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
       (start.store, start.host, .ok (.error issue)))
@@ -3922,7 +4150,7 @@ private theorem admissionRefusalCallback (request : CoreGiveRequest bindings sta
     · rw [split]
       exact callbackTerminalSlice paired (.uncertified install uncertified after transport residual)
 
-private theorem classifiedMemoryCrossing
+private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackGiveCrossing profile ready base bindings := by
   classical
@@ -3951,7 +4179,10 @@ private theorem classifiedMemoryCrossing
           obtain ⟨route, ⟨selection⟩⟩ := request.selected_of_return evaluated
           have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected
           cases route with
-          | flat schema => exact unclassified
+          | flat schema =>
+            by_cases domain : ∀ field plan, selection.preflight = .ok (field, plan) → FlatVisitShape field
+            · exact actualSelectedFlatCallback selection domain install actual paired selected embedder compare
+            · exact unclassified
           | memory pointer =>
             by_cases domain : ∀ field plan, selection.preflight = .ok (field, plan) → MemoryVisitShape field
             · exact actualSelectedMemoryCallback selection domain install actual paired selected embedder compare
@@ -3961,11 +4192,11 @@ private theorem classifiedMemoryCrossing
       exact callbackTerminalSlice paired (.lookup request install demand different actual)
   · exact unclassified
 
-theorem classifyMemoryCallbacks
+theorem classifyGiveCallbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish :=
-  foldCallbackSlices (classifiedMemoryCrossing embedder) run paired
+  foldCallbackSlices (classifiedGiveCrossing embedder) run paired
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan

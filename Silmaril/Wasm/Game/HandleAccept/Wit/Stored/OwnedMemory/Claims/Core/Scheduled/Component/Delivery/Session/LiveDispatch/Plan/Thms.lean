@@ -2269,6 +2269,21 @@ theorem MemoryVisitShape.compiled_sum {type : Stored.TypeOf} {arms : List (Optio
     (children : ∀ item, selected = some item → MemoryVisitShape item) : MemoryVisitShape (.sum type arms tag selected) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.compiledSumVisitShape matched children
 
+/-- Run the flat visitor on an executed checked residual. Each sibling
+starts at the actual returned focus and receives only the words that the
+previous sibling produced. -/
+theorem compiled_flat_visit {origin : CStore (core3 grow)} {root item : Field} {schema : Stored.TypeOf} {budget : Nat}
+    (destination : RecordDestination) (inst : InstId) (shape : FlatVisitShape item)
+    (rootLayout : root.LayoutMatches schema)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root) (path : root.Descendant item)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    FlatVisitField profile ready base bindings older origin destination inst budget item :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.driveCompiledFlat
+    destination inst shape rootLayout fits allocates path embedder width compare
+
 /-- Run a placed compiled visitor on the actual finite checked derivation.
 Siblings and selected arms use the executed residual; a boundary or typed
 refusal does not run a sibling or publish the enclosing value. -/
@@ -2372,14 +2387,21 @@ theorem GiveInstall.actual_selected_memory_callback {pointer : FlatValue} {reque
     selection domain install tail paired selected embedder compare
 
 /-- Classify finite callbacks under the fixed live dispatcher. The fold
-derives the installed Core request and its actual selector; supported
-memory gives and common ABI refusals use shorter checked derivations.
+derives the installed Core request and its actual selector; covered flat
+and memory gives and common ABI refusals use shorter checked derivations.
 A differing live lookup or an unclassified install remains a proof cut. -/
+theorem classify_give_callbacks
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    CallbackSlice profile ready base bindings older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
+
 theorem classify_memory_callbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyMemoryCallbacks embedder run paired
+  classify_give_callbacks embedder run paired
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

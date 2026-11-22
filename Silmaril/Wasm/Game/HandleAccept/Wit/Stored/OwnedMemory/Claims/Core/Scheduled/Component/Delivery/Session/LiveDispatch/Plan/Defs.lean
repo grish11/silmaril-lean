@@ -4616,6 +4616,45 @@ def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostSt
       ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
         (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
+/-- Flat scalar and string fields and aggregates of these fields. This is a
+proof domain, not a runtime check for support. -/
+inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
+  | scalar (type : Stored.TypeOf) (data : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type) :
+      FlatVisitShape (.data type payload)
+  | string (item : Stored.Endpoints.RecordLower.Field) (matched : item.LayoutMatches (.prim .string))
+      (emitted : item.Emitted) : FlatVisitShape item
+  | aggregate (type : Stored.TypeOf) (fields : List Stored.Endpoints.RecordLower.Field)
+      (children : ∀ field ∈ fields, FlatVisitShape field) : FlatVisitShape (.aggregate type fields)
+
+def FlatVisitFocus (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig)
+    (left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  ∃ words : List FlatValue, LinkedCallback.ChildFrameOver older left right check canon ∧
+    Core3.Grows origin.core left.store.core ∧ left.ctl = check.control (checkNext (.ok words)) ∧
+    right.ctl = canon.control (canonNext words)
+
+abbrev FlatVisitRun (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig) :=
+  StringRunSlice profile ready base bindings older (fun _ => FlatVisitFocus older origin checkNext canonNext)
+
+def FlatVisitField (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
+    (destination : RecordDestination) (inst : InstId) (budget : Nat) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
+  open PayloadPrefix Stored.Endpoints.RecordLower in
+  ∀ index (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig)
+      left right check canon,
+    LinkedCallback.ChildFrameOver older left right check canon → Core3.Grows origin.core left.store.core →
+    left.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index .flat >>= checkNext) →
+    right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+      destination.width item .flat >>= canonNext) →
+    ∀ actual finish, Steps profile ready (specDispatch ready base) left actual finish → actual.length ≤ budget →
+      FlatVisitRun profile ready base bindings older origin checkNext canonNext left right actual finish
+
 /-- Compiled memory fragment consumed by the finite visitor. Compound nodes
 carry layout evidence and the shapes of their active children. This is a
 proof domain, not a runtime check for support. -/
@@ -4725,15 +4764,15 @@ def MemoryVisitRefusedReply (profile : ProfileKind) (ready : HostReady (HostStat
 
 /-- A common reply carries the complete request and its original occurrence
 paths. A reached uncertified growth step is explicit, not silently replayed. -/
-def MemoryVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState sig))
+def GiveVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
-    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming left right : Config (core3 grow) (HostState sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
+    (site : PayloadRoot.Site grow sig route) (value : route.output.Result) (incoming left right : Config (core3 grow) (HostState sig))
     (checkEntry checkBody canonLeading actual trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   trailing.length < 3 ∨ ∃ suffix checked canonical,
     trailing = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
     Steps profile ready (specDispatch ready base) checked suffix finish ∧
-    checked.host = left.host.record ((GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.ok ())).1 ∧
+    checked.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
     canonical.host = right.host ∧
     let checkFull := (checkEntry ++ checkBody) ++ [.tau, .tau, .tau]
     let canonFull := canonLeading ++ [.tau]
@@ -4742,6 +4781,12 @@ def MemoryVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState
       (ReachedNonGrowingUpdate profile ready (specDispatch ready base) site.start checkFull checked ∧
         HostFrame.Related.Paired older checked canonical ∧
         OccurrenceTransport profile ready base bindings site.start incoming checkFull canonFull checked canonical)
+
+abbrev MemoryVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) :=
+  GiveVisitCommonReply profile ready base bindings older site ()
 
 /-- The reached visit retains both traces and the move used by all older
 occurrences. A reply requires the original call occurrence at the top. -/
