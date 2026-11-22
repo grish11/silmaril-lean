@@ -138,6 +138,26 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (tail : VisitorWriterPath profile ready base bindings left right leftTail rightTail finish peer) :
       VisitorWriterPath profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail) finish peer
 
+/-- Interpret the reached writer sites up to the first segment whose source
+classification is missing. A proof boundary describes an actual piece of the
+run, not a new runtime outcome or a classification of its writes. -/
+inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (pending : Stored.OwnedMemory.Claims.Spend → Prop) :
+    Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop where
+  | complete {checked canonical left right} (spends : List Stored.OwnedMemory.Claims.Spend)
+      (related : left.host.writer.ClaimDiscrepancies right.host.writer (fun probe => pending probe ∨ probe ∈ spends)) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical left right
+  | boundary {checked canonical left right atLeft atRight siteChecked siteCanonical siteLeft siteRight tailChecked tailCanonical}
+      (spends : List Stored.OwnedMemory.Claims.Spend)
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun probe => pending probe ∨ probe ∈ spends))
+      (site : VisitorAllocationBoundary ⊕ CallbackWriterBoundary)
+      (actual : PairedWriterPaths profile ready base bindings atLeft atRight siteChecked siteCanonical siteLeft siteRight)
+      (tail : VisitorWriterPath profile ready base bindings siteLeft siteRight tailChecked tailCanonical left right) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending
+        (checked ++ siteChecked ++ tailChecked) (canonical ++ siteCanonical ++ tailCanonical) left right
+
 /-- Reached allocator steps before a protected return. Ordinary steps must
 not install an overlaid give or assign the host; confined gives and
 reached host reads with a closed observation have their own rules. The endpoint may

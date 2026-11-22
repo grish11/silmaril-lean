@@ -3566,6 +3566,24 @@ theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     MixedCallbackSlice profile ready bindings callees older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyMixedCallbacks run paired
 
+/-- Accumulate the certified nominal discrepancies on the same segment as the
+actual finite mixed fold. Classify only executed sites and keep any missing
+source classification separate from the worker's runtime endpoint. -/
+theorem classify_mixed_callback_discrepancies {callees : List (ComponentCall.Callee sig)}
+    {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    ∃ checked canonical trailing reached peer, labels = checked ++ trailing ∧
+      ExecutedCallbackSegment profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        older start incoming checked canonical reached peer ∧
+      WriterDiscrepancyCut profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+        start incoming pending checked canonical reached peer ∧
+      CallbackSliceEnd profile ready (ComponentCall.hostWithComponent bindings callees) bindings older reached peer trailing finish := by
+  obtain ⟨checked, canonical, trailing, reached, peer, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
+  exact ⟨checked, canonical, trailing, reached, peer, split, segment,
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.discrepancyCut segment.writers initial, ending⟩
+
 open ReturnFrame.Occurrence in
 /-- Follow the original Core wait install through the actual entry and
 early/non-early decision. The reached prefix may still be pending or trapped.

@@ -217,6 +217,45 @@ theorem checkedSpends (leftPath : WriterPath profile ready (specDispatch ready b
     CheckedSpendFlow start.host.writer incoming.host.writer left.host.writer right.host.writer updates :=
   ⟨spend leftPath spends, spend rightPath (updates := []) .nil⟩
 
+theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
+    {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical left right := by
+  induction path generalizing pending with
+  | framed checked canonical =>
+    exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
+  | guarded paths =>
+    obtain ⟨changes, checked, canonical, empty | ⟨change, update, single, _, nominal⟩⟩ := paths
+    · subst changes
+      exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
+    · subst changes
+      obtain ⟨lhs, rhs⟩ := checkedSpends checked canonical (.cons nominal .nil)
+      refine .complete [update] ?_
+      rw [lhs, rhs]
+      simpa only [List.foldl_cons, List.foldl_nil, List.mem_singleton] using initial.spendLeft update
+  | publication paths =>
+    exact .complete [] (by simpa only [List.not_mem_nil, or_false] using publicationDiscrepancies paths initial)
+  | allocation boundary paths =>
+    simpa only [List.nil_append, List.append_nil] using
+      (WriterDiscrepancyCut.boundary [] empty (by simpa only [List.not_mem_nil, or_false] using initial)
+        (.inl boundary) paths empty)
+  | callbackBoundary boundary paths =>
+    simpa only [List.nil_append, List.append_nil] using
+      (WriterDiscrepancyCut.boundary [] empty (by simpa only [List.not_mem_nil, or_false] using initial)
+        (.inr boundary) paths empty)
+  | append front tail first later =>
+    cases first initial with
+    | complete spends reached =>
+      cases later reached with
+      | complete more related =>
+        exact .complete (spends ++ more) (by simpa only [List.mem_append, or_assoc] using related)
+      | boundary more leading related site actual trailing =>
+        simpa only [List.append_assoc] using (WriterDiscrepancyCut.boundary (spends ++ more) (front.append leading)
+          (by simpa only [List.mem_append, or_assoc] using related) site actual trailing)
+    | boundary spends leading related site actual trailing =>
+      simpa only [List.append_assoc] using
+        (WriterDiscrepancyCut.boundary spends leading related site actual (trailing.append tail))
+
 theorem registration {change : WriterChange sig} {tree : Stored.OwnedMemory.Tree sig}
     (path : WriterPath profile ready dispatch start labels finish [change])
     (registers : WriterChange.IsRegistration change tree) : start.host.writer.register tree = .ok finish.host.writer := by
