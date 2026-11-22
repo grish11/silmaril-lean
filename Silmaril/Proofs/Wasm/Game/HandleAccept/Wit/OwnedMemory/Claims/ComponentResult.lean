@@ -65,6 +65,45 @@ private theorem complete_read (ticket handle : Nat) (tree : Tree sig) (writer : 
   simp only [Prog.bind, registered, Option.any] at step
   exact step
 
+theorem invoke_lower_entry (callee : Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (record : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (pending : config.ctl = ⟨thread, .prog (ComponentCall.invoke callee caller), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau]
+      { config with
+        host := config.host.enter callee.name callee.coreType args
+        ctl := ⟨thread, .prog (invokeLower callee caller config.host subtask cx args pos ft limits results), segments⟩ :: rest }
+      place := by
+  intro place
+  have read := Step.get (prof := prof) (hr := ready) (dispatch := dispatch) pending
+  simp only [Prog.bind, record] at read
+  refine .step (middle := place) read ?_
+    (.step (middle := place) (.hostGet rfl) ?_ (.step (.hostSet rfl) ?_ (.done _ _)))
+  · rw [transitionEdit, pending]
+    cases place <;> rfl
+  · cases place <;> rfl
+  · cases place <;> rfl
+
+theorem complete_commit_tracks (ticket handle : Nat) (tree : Tree sig) (writer : State sig)
+    (registered : config.host.writer.register tree = .ok writer)
+    (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32)
+    (pending : config.ctl = ⟨thread, .prog (completeResolvedTree ticket tree handle), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with
+        host := (({ config.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := ⟨thread, .prog (.pure (.cancel .none)), segments⟩ :: rest } place := by
+  subst handle
+  intro place
+  refine .step (middle := place) (complete_read ticket writer.accepted.length tree writer registered pending) ?_ ?_
+  · rw [transitionEdit, pending]
+    cases place <;> rfl
+  simp only [bne_self_eq_false, Bool.false_eq_true, ite_false, Nat.not_le.mpr room]
+  refine .step (middle := place) (.hostSet rfl) ?_
+    (.step (middle := place) (.hostGet rfl) ?_ (.step (.hostSet rfl) ?_ (.done _ _))) <;>
+    cases place <;> rfl
+
 theorem complete_commit (ticket handle : Nat) (tree : Tree sig) (writer : State sig)
     (registered : config.host.writer.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32)

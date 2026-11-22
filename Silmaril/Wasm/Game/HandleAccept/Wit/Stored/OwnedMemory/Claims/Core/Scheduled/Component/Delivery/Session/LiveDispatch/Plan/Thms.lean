@@ -80,6 +80,55 @@ theorem cut_executed_callback
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutExecutedCallback run paired
 
+/-- Consume the reached caller read, host snapshot and entry assignment only if the actual
+checked derivation executes them. Each import gets its own ticket and host snapshot. -/
+theorem cut_component_lower_entry (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (focused : start.ctl = cursor.control (ComponentCall.invoke callee caller))
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let entered := fun (state : Config (core3 grow) (HostState sig)) (atSite : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) =>
+      { state with
+        host := state.host.enter callee.name callee.coreType args
+        ctl := atSite.control (ComponentCall.invokeLower callee caller state.host subtask cx args pos ft limits results) }
+    (∃ peerCursor suffix, labels = [.tau, .tau, .tau] ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+        (entered start cursor) (entered incoming peerCursor) ∧
+      PairedComponentSite older (entered start cursor) (entered incoming peerCursor) cursor peerCursor ∧
+      Steps profile ready (specDispatch ready base) (entered start cursor) suffix finish) ∨ labels.length < 3 :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentLowerEntry
+    callee caller focused record run paired
+
+/-- Rejoin at an actually executed completion. The two live registrations must confirm
+the handle written earlier; their writers and diagnostic tickets need not agree. -/
+theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
+    {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {leftCursor rightCursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = leftCursor.control (ComponentCall.completeResolvedTree leftTicket tree handle))
+    (rightFocus : incoming.ctl = rightCursor.control (ComponentCall.completeResolvedTree rightTicket tree handle))
+    (site : PairedComponentSite older start incoming leftCursor rightCursor)
+    (leftLive : start.host.writer.register tree = .ok leftWriter) (rightLive : incoming.host.writer.register tree = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let replied := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+        (ticket : Nat) (writer : Stored.OwnedMemory.Claims.State sig) =>
+      { state with
+        host := (({ state.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := cursor.control (.pure (.cancel .none)) }
+    (∃ suffix, labels = [.tau, .tau, .tau, .tau] ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau]
+        (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
+      HostFrame.Related.Paired older (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
+      Stored.Endpoints.Core.childFromHistory leftWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
+      Stored.Endpoints.Core.childFromHistory rightWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
+      Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨ labels.length < 4 :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutComponentPublication
+    leftFocus rightFocus site leftLive rightLive leftHandle rightHandle room run
+
 /-- Fold the actual checked callback with a local rule for reached give
 installs. The rule may use the fold on strictly shorter checked subruns. -/
 theorem fold_callback_slices (cross : CallbackGiveCrossing profile ready base bindings)

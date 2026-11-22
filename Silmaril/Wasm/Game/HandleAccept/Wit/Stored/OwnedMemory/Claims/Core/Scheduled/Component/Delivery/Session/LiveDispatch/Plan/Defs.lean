@@ -106,6 +106,16 @@ def OccurrenceTransport (profile : ProfileKind) (ready : HostReady (HostState si
     ∀ older marks, OutsideMarks older (segmentStorage checkEntry) (segmentStorage canonEntry) marks →
       OutsideMarks older (segmentStorage checked) (segmentStorage canonical) (introduced ++ marks.map move)
 
+/-- Compare the scheduler and all enclosing continuations while the focused
+component programs carry distinct diagnostic data. Normalizing the focus is
+only a relation on configurations, not a machine transition. -/
+def PairedComponentSite (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig))
+    (leftCursor rightCursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop :=
+  HostFrame.Related.Paired changes
+    { left with ctl := leftCursor.control (.pure (.cancel .none)) }
+    { right with ctl := rightCursor.control (.pure (.cancel .none)) }
+
 /-- Replay the exact extracted prefix, including silent steps. The selected
 mark can move between active and saved storage or disappear; all other
 locations also retain their actual scheduler paths. -/

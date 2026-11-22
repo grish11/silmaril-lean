@@ -62,6 +62,40 @@ theorem resolve_begin {prof : ProfileKind} {ready : HostReady (HostState sig)}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.resolve_begin
     ticket caller tree writer registered room pending
 
+/-- The actual component import reads the reached caller and snapshots its own host,
+then records entry before entering `invokeLower`. No active or saved slot moves. -/
+theorem invoke_lower_entry {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {thread : Option ThreadId} {segments rest}
+    (callee : Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (record : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (pending : config.ctl = ⟨thread, .prog (ComponentCall.invoke callee caller), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau]
+      { config with
+        host := config.host.enter callee.name callee.coreType args
+        ctl := ⟨thread, .prog (invokeLower callee caller config.host subtask cx args pos ft limits results), segments⟩ :: rest }
+      place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.invoke_lower_entry callee caller record pending
+
+/-- Publication and completion do not move active or saved occurrences. The ticket
+is diagnostic; the handle is checked again against the live registration. -/
+theorem complete_commit_tracks {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {thread : Option ThreadId} {segments rest}
+    (ticket handle : Nat) (tree : Tree sig) (writer : State sig)
+    (registered : config.host.writer.register tree = .ok writer)
+    (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32)
+    (pending : config.ctl = ⟨thread, .prog (completeResolvedTree ticket tree handle), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with
+        host := (({ config.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := ⟨thread, .prog (.pure (.cancel .none)), segments⟩ :: rest } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.complete_commit_tracks
+    ticket handle tree writer registered expected room pending
+
 /-- Once the canonical result program returns, valid live registration with the checked
 handle commits the root. This branch publishes before it records
 the reply; completion does not overwrite or roll back the reached reference store. -/

@@ -9,6 +9,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.StringPlan.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.Dispatch.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Public.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Thms
@@ -18,6 +19,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
@@ -95,6 +97,84 @@ private theorem splitSilent {dispatch : Call (core3 grow) → Session grow sig (
         rcases ih quiet actual with ⟨rest, rfl, tail⟩ | short
         · exact .inl ⟨rest, by rw [List.replicate_succ]; rfl, tail⟩
         · exact .inr (Nat.succ_lt_succ short)
+
+set_option maxHeartbeats 2000000 in
+theorem cutComponentLowerEntry (callee : ComponentCall.Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (focused : start.ctl = cursor.control (ComponentCall.invoke callee caller))
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let entered := fun (state : Config (core3 grow) (HostState sig)) (atSite : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) =>
+      { state with
+        host := state.host.enter callee.name callee.coreType args
+        ctl := atSite.control (ComponentCall.invokeLower callee caller state.host subtask cx args pos ft limits results) }
+    (∃ peerCursor suffix, labels = [.tau, .tau, .tau] ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau]
+        (entered start cursor) (entered incoming peerCursor) ∧
+      PairedComponentSite older (entered start cursor) (entered incoming peerCursor) cursor peerCursor ∧
+      Steps profile ready (specDispatch ready base) (entered start cursor) suffix finish) ∨ labels.length < 3 := by
+  dsimp only
+  obtain ⟨peerFrames, peerRest, peerFocus, aligned⟩ := paired.retarget focused (.prog (.pure (.cancel .none)))
+    (start.host.enter callee.name callee.coreType args) (incoming.host.enter callee.name callee.coreType args)
+  have peerRecord := paired.data.1 ▸ record
+  have left := ComponentCall.invoke_lower_entry (prof := profile) (ready := ready) (dispatch := specDispatch ready base)
+    callee caller record focused
+  have right := ComponentCall.invoke_lower_entry (prof := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) callee caller peerRecord peerFocus
+  rcases splitSilent (count := 3) (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · exact .inl ⟨⟨cursor.thread, peerFrames, peerRest⟩, suffix, split,
+      CallbackPrefix.stationaryTransport left right, aligned, residual⟩
+  · exact .inr short
+
+private theorem publishedHandleLookup {tree : Stored.OwnedMemory.Tree sig} {handle : Nat}
+    {before writer : Stored.OwnedMemory.Claims.State sig} (registered : before.register tree = .ok writer)
+    (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32) :
+    Stored.Endpoints.Core.childFromHistory writer.accepted (BitVec.ofNat 32 handle) = some tree := by
+  rw [(Stored.OwnedMemory.Claims.register_claims registered).1] at expected ⊢
+  unfold Stored.Endpoints.Core.childFromHistory
+  rw [BitVec.toNat_ofNat, Nat.mod_eq_of_lt room, expected]
+  simp [guard]
+
+theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
+    {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
+    {leftCursor rightCursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = leftCursor.control (ComponentCall.completeResolvedTree leftTicket tree handle))
+    (rightFocus : incoming.ctl = rightCursor.control (ComponentCall.completeResolvedTree rightTicket tree handle))
+    (site : PairedComponentSite older start incoming leftCursor rightCursor)
+    (leftLive : start.host.writer.register tree = .ok leftWriter) (rightLive : incoming.host.writer.register tree = .ok rightWriter)
+    (leftHandle : handle = leftWriter.accepted.length) (rightHandle : handle = rightWriter.accepted.length)
+    (room : handle < 2 ^ 32) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    let replied := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+        (ticket : Nat) (writer : Stored.OwnedMemory.Claims.State sig) =>
+      { state with
+        host := (({ state.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := cursor.control (.pure (.cancel .none)) }
+    (∃ suffix, labels = [.tau, .tau, .tau, .tau] ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau]
+        (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
+      HostFrame.Related.Paired older (replied start leftCursor leftTicket leftWriter) (replied incoming rightCursor rightTicket rightWriter) ∧
+      Stored.Endpoints.Core.childFromHistory leftWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
+      Stored.Endpoints.Core.childFromHistory rightWriter.accepted (BitVec.ofNat 32 handle) = some tree ∧
+      Steps profile ready (specDispatch ready base) (replied start leftCursor leftTicket leftWriter) suffix finish) ∨ labels.length < 4 := by
+  dsimp only
+  have left := ComponentCall.complete_commit_tracks (prof := profile) (ready := ready) (dispatch := specDispatch ready base)
+    leftTicket handle tree leftWriter leftLive leftHandle room leftFocus
+  have right := ComponentCall.complete_commit_tracks (prof := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightTicket handle tree rightWriter rightLive rightHandle room rightFocus
+  rcases splitSilent (count := 4) (left (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
+  · refine .inl ⟨suffix, split, CallbackPrefix.stationaryTransport left right, ?_,
+      publishedHandleLookup leftLive leftHandle room, publishedHandleLookup rightLive rightHandle room, residual⟩
+    have replaceHost {first second : Config (core3 grow) (HostState sig)}
+        (paired : ReturnFrame.Related.Paired older first second) (host : HostState sig) :
+        ReturnFrame.Related.Paired older (HostFrame.replace first host) (HostFrame.replace second host) := by
+      cases paired with
+      | mk control blocked => exact .mk control blocked
+    exact replaceHost site _
+  · exact .inr short
 
 set_option maxHeartbeats 2000000 in
 private theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
