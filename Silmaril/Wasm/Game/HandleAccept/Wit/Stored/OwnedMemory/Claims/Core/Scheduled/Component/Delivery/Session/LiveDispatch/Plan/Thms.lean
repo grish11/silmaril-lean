@@ -46,6 +46,34 @@ theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.
     componentRegistration left tree = componentRegistration right tree :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.indexedClaims_registrationProbe indexed tree
 
+/-- Compare an executed shared host read of a recursive claim plan after its store read.
+Neither side commits the prospective dry-run spends. -/
+theorem compareReachedRecordPrepare (plan : List Object)
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) {thread frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (Stored.OwnedMemory.Claims.Record.prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (agrees : start.host.writer.LiveClaimsAgree incoming.host.writer) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [label] [label] finish peer ∧
+      finish.host.writer.LiveClaimsAgree peer.host.writer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedRecordPrepare
+    plan next focus step paired agrees
+
+/-- The scheduled spend commits the identity-specific update to each reached writer.
+The continuation sees separate journals and no restored claim. -/
+theorem compareClaimSpend (update : Spend) (next : Session grow sig (Ret (core3 grow))) {thread frames rest}
+    (focus : start.ctl = ⟨thread, .prog (claims.spend update >>= fun _ => next), frames⟩ :: rest)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (agrees : start.host.writer.LiveClaimsAgree incoming.host.writer) :
+    let after := { start with
+      host := { start.host with writer := update.apply start.host.writer }
+      ctl := ⟨thread, .prog next, frames⟩ :: rest }
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [.tau, .tau] [.tau, .tau] after peer ∧
+      after.host.writer.LiveClaimsAgree peer.host.writer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareClaimSpend
+    update next focus paired agrees
+
 /-- A synchronous readiness read under a host-independent policy needs
 no hypothesis on the writer or the existence of runnable candidates. -/
 theorem ClosedSyncReadyRead.fixed (policy : Nat → Bool) {task inst thread frames rest}
@@ -778,8 +806,8 @@ theorem cut_component_successful_publication (callee : ComponentCall.Callee sig)
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
-      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.IndexedClaimsAgree incoming.host.writer →
-        reached.host.writer.IndexedClaimsAgree peer.host.writer)) :=
+      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.LiveClaimsAgree incoming.host.writer →
+        reached.host.writer.LiveClaimsAgree peer.host.writer)) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPublication
     callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive rightLive leftHandle rightHandle room run

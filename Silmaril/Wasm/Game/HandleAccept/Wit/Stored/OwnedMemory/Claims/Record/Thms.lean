@@ -48,6 +48,13 @@ theorem preflightValue_layout {E : CoreEngine} (cx : LiftLowerContext E) (type :
   simp only [preflightValue, bind, Except.bind, Except.mapError] at compiled
   split at compiled <;> first | contradiction | exact RecordLower.compileValue_layout _ _ _ _ _ _ _ compiled
 
+/-- Compare the reached dry run on the common live store. The prospective
+spends are threaded in list order, so repeated claims still fail on both sides. -/
+theorem prepare_live {E : CoreEngine} {sig : Signature} (store : CStore E)
+    (plan : List RecordLower.Object) {left right : State sig} (agrees : left.LiveClaimsAgree right) :
+    prepare store left plan = prepare store right plan :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_live store plan agrees
+
 /-- A successful whole-plan dry run authorizes each nominal owner or readable
 endpoint at most once. Error contexts are shared and do not enter the claim list. -/
 theorem prepare_distinct {E : CoreEngine} {sig : Signature} (store : CStore E)

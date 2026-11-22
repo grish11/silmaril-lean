@@ -2245,8 +2245,8 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
-      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.IndexedClaimsAgree incoming.host.writer →
-        reached.host.writer.IndexedClaimsAgree peer.host.writer)) := by
+      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.LiveClaimsAgree incoming.host.writer →
+        reached.host.writer.LiveClaimsAgree peer.host.writer)) := by
   rcases cutSuccessfulPayload (bindings := bindings) callee caller first payload children validated
       leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run with
     ⟨leading, suffix, reached, peer, split, _, initialTransport, residual, frontier, leftHost, rightHost⟩ | early
@@ -2266,7 +2266,7 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
         · rw [split, used, List.append_assoc]
         · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport publication).choose_spec.1
         · intro indexed
-          change leftWriter.IndexedClaimsAgree rightWriter
+          change leftWriter.LiveClaimsAgree rightWriter
           rcases indexed.register (.node callee.tag valid children) with
             ⟨_, denied, _⟩ | ⟨_, _, registered, peerRegistered, together⟩
           · rw [leftLive] at denied
@@ -5296,7 +5296,7 @@ theorem cutAdmittedComponent (callee : ComponentCall.Callee sig) (caller : Calle
     let leftPlan := callee.childPreflight start.host.writer.accepted start.store cx args
     let rightPlan := callee.childPreflight incoming.host.writer.accepted incoming.store cx args
     refine .inr ⟨peerFrames, peerRest, suffix, split, moved, residual, site, ?_⟩
-    change leftPlan ≠ rightPlan ∨ _
+    change (leftPlan ≠ rightPlan ∧ start.host.writer.accepted ≠ incoming.host.writer.accepted) ∨ _
     by_cases agrees : leftPlan = rightPlan
     · have leftStorage : segmentStorage reached = segmentStorage start := by
         simp only [reached, componentPreflightAt, segmentStorage, focused, check, PayloadPrefix.Cursor.control]
@@ -5336,7 +5336,8 @@ theorem cutAdmittedComponent (callee : ComponentCall.Callee sig) (caller : Calle
               simp [ComponentCall.Callee.check, live, indexed, bind, Except.bind, throw, throwThe, MonadExceptOf.throw] at admitted
               split_ifs at admitted
             exact .inl (by simpa only [unindexed, Option.isSome, Bool.false_eq_true, ite_false] using shortRefusal)
-    · exact .inl agrees
+    · refine .inl ⟨agrees, fun history => agrees ?_⟩
+      simp only [leftPlan, rightPlan, history, paired.data.1]
   · exact .inl early
 
 theorem classifyLinkedComponentAdmission {callees : List (ComponentCall.Callee sig)}

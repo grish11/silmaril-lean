@@ -5,6 +5,8 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedu
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
@@ -18,6 +20,7 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.
 open Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored (Signature)
+open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims (Spend)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
@@ -719,6 +722,20 @@ theorem compareReachedAcceptedLookup {changes : ReturnFrame.Substitutions (core3
   obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed readFocus step paired agrees
   exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
+theorem compareReachedRecordPrepare {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (plan : List Object) (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet (fun state =>
+      next (Stored.OwnedMemory.Claims.Record.prepare start.store state.writer plan))), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (agrees : start.host.writer.LiveClaimsAgree incoming.host.writer) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host.writer.LiveClaimsAgree peer.host.writer := by
+  have observed := Stored.OwnedMemory.Claims.Record.prepare_live start.store plan agrees
+  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next observed)
+  exact ⟨peer, compared, by rwa [lhs, rhs]⟩
+
 theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label middle trailing}
     (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
@@ -758,14 +775,14 @@ theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow
     rw [transitionEdit, atPeer]
     cases place <;> rfl
 
-theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+private theorem compareReachedHostUpdate {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread read frames rest left right next}
     (focus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest)
     (paired : HostFrame.Related.Paired changes start incoming)
     (checked : read start.host = .op (.hostSet left) (fun _ => next))
     (canonical : read incoming.host = .op (.hostSet right) (fun _ => next)) :
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau, .tau] [.tau, .tau]
-      { start with host := left, ctl := ⟨thread, .prog next, frames⟩ :: rest } peer := by
+      { start with host := left, ctl := ⟨thread, .prog next, frames⟩ :: rest } peer ∧ peer.host = right := by
   obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog next) left right
   have leftRead : Step profile ready (specDispatch ready base) start .tau
       { start with ctl := ⟨thread, .prog (.op (.hostSet left) (fun _ => next)), frames⟩ :: rest } := by
@@ -775,8 +792,8 @@ theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 
       { incoming with ctl := ⟨thread, .prog (.op (.hostSet right) (fun _ => next)), peerFrames⟩ :: peerRest } := by
     rw [← canonical]
     exact .hostGet atPeer
-  refine ⟨_, .cons (by simp [CoreUpdateGrows, focus]) leftRead
-    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _)), rfl, aligned, stationaryTransport ?_ ?_⟩
+  refine ⟨_, ⟨.cons (by simp [CoreUpdateGrows, focus]) leftRead
+    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _)), rfl, aligned, stationaryTransport ?_ ?_⟩, rfl⟩
   · intro place
     refine .step (middle := place) leftRead ?_ (.step (.hostSet rfl) ?_ (.done _ _))
     · rw [transitionEdit, focus]
@@ -787,6 +804,33 @@ theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 
     · rw [transitionEdit, atPeer]
       cases place <;> rfl
     · cases place <;> rfl
+
+theorem compareReachedJournalUpdate {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread read frames rest left right next}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (checked : read start.host = .op (.hostSet left) (fun _ => next))
+    (canonical : read incoming.host = .op (.hostSet right) (fun _ => next)) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau, .tau] [.tau, .tau]
+      { start with host := left, ctl := ⟨thread, .prog next, frames⟩ :: rest } peer := by
+  obtain ⟨peer, executed, _⟩ := compareReachedHostUpdate focus paired checked canonical
+  exact ⟨peer, executed⟩
+
+theorem compareClaimSpend {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (update : Spend) (next : Session grow sig (Ret (core3 grow))) {thread frames rest}
+    (focus : start.ctl = ⟨thread, .prog (claims.spend update >>= fun _ => next), frames⟩ :: rest)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (agrees : start.host.writer.LiveClaimsAgree incoming.host.writer) :
+    let after := { start with
+      host := { start.host with writer := update.apply start.host.writer }
+      ctl := ⟨thread, .prog next, frames⟩ :: rest }
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau, .tau] [.tau, .tau] after peer ∧
+      after.host.writer.LiveClaimsAgree peer.host.writer := by
+  let read (state : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+    .op (.hostSet { state with writer := update.apply state.writer }) (fun _ => next)
+  have atRead : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest := focus
+  obtain ⟨peer, executed, host⟩ := compareReachedHostUpdate atRead paired rfl rfl
+  exact ⟨peer, executed, by rw [host]; exact agrees.spend update⟩
 
 private theorem allocatorCallbackEvidence
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}

@@ -79,6 +79,19 @@ structure State.IndexedClaimsAgree {sig : Signature} (left right : State sig) : 
   held : ∀ id, (id ∈ left.held.map receiptId ↔ id ∈ right.held.map receiptId)
   endpoints : ∀ id, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
 
+/-- The held-owner information consulted by `prepare`, indexed by arena
+identity. Even on states with duplicate entries the first match matters. -/
+def State.ownerObservation {sig : Signature} (state : State sig) (id : HandleObjId) : Option (RtId × Nat) :=
+  (state.held.find? (fun receipt => receiptId receipt == id)).map (fun receipt =>
+    (receipt.1, receipt.2.representation))
+
+/-- Ordered accepted observations and live authority agree; the underlying
+claim lists (and any surrounding host journals) need not be equal. -/
+structure State.LiveClaimsAgree {sig : Signature} (left right : State sig) : Prop where
+  accepted : left.accepted = right.accepted
+  owners : ∀ id, left.ownerObservation id = right.ownerObservation id
+  endpoints : ∀ id, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
+
 /-- Look up the nominal type and representation from the held receipt, not from the caller.
 The result is a prospective update; the caller chooses when to commit it. -/
 def State.prepare {sig : Signature} (state : State sig) (resource : RtId) (id : HandleObjId) :

@@ -5058,8 +5058,8 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
-      (writerFlow : suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.IndexedClaimsAgree incoming.host.writer →
-        reached.host.writer.IndexedClaimsAgree peer.host.writer))
+      (writerFlow : suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.LiveClaimsAgree incoming.host.writer →
+        reached.host.writer.LiveClaimsAgree peer.host.writer))
 
 /-- The classification after the admitted entry reaches child preflight.
 Disagreement is on the demanded decision, not on the complete journals.
@@ -5073,7 +5073,8 @@ def ComponentPreflightTail (profile : ProfileKind) (ready : HostReady (HostState
     (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
     (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  leftPlan ≠ rightPlan ∨ ∃ plan, leftPlan = plan ∧ rightPlan = plan ∧
+  (leftPlan ≠ rightPlan ∧ start.host.writer.accepted ≠ incoming.host.writer.accepted) ∨
+  ∃ plan, leftPlan = plan ∧ rightPlan = plan ∧
     match plan with
     | .error _ =>
       ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7 ∨

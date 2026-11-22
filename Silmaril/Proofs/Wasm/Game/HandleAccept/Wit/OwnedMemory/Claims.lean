@@ -9,6 +9,7 @@ namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims
 open Silmaril.Wasm.Component.Runtime
   Silmaril.Wasm.Game.HandleAccept.Wit.Stored
   Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims
+open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory (Receipt)
 
 theorem register_claims {sig : Signature} {state registered : State sig}
     {tree : OwnedMemory.Tree sig} (success : state.register tree = .ok registered) :
@@ -83,6 +84,110 @@ theorem indexedClaims_register {sig : Signature} {left right : State sig}
     · intro id
       simp only [List.mem_append, agrees.endpoints]
   · exact .inl ⟨_, rfl, rfl⟩
+
+private theorem ownerObservation_none {sig : Signature} (state : State sig) (id : HandleObjId) :
+    state.ownerObservation id = none ↔ id ∉ state.held.map receiptId := by
+  have erase : state.ownerObservation id = none ↔ state.held.find? (fun receipt => receiptId receipt == id) = none := by
+    unfold State.ownerObservation
+    cases (state.held.find? (fun receipt => receiptId receipt == id)) <;> simp
+  rw [erase, List.find?_eq_none]
+  constructor
+  · intro absent member
+    obtain ⟨receipt, present, rfl⟩ := List.mem_map.mp member
+    simpa using absent receipt present
+  · intro absent receipt member
+    have distinct : receiptId receipt ≠ id := fun same => absent (List.mem_map.mpr ⟨receipt, member, same⟩)
+    simp [distinct]
+
+theorem liveClaims_indexed {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) : left.IndexedClaimsAgree right := by
+  refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
+  intro id
+  rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, agrees.owners]
+
+private theorem findOwner_filter (held : List Receipt) (spent id : HandleObjId) :
+    (held.filter (fun receipt => receiptId receipt != spent)).find? (fun receipt => receiptId receipt == id) =
+      if id = spent then none else held.find? (fun receipt => receiptId receipt == id) := by
+  rw [List.find?_filter]
+  by_cases same : id = spent
+  · subst spent
+    simp
+  · rw [ite_eq_right same]
+    congr 1
+    funext receipt
+    by_cases found : receiptId receipt = id <;> simp_all
+
+theorem liveClaims_spend {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (update : Spend) :
+    (update.apply left).LiveClaimsAgree (update.apply right) := by
+  cases update with
+  | owner spent =>
+    refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
+    intro id
+    simp only [State.ownerObservation, Spend.apply, findOwner_filter]
+    by_cases same : id = spent
+    · simp only [ite_eq_left same]
+    · simp only [ite_eq_right same]
+      exact agrees.owners id
+  | endpoint spent =>
+    refine ⟨agrees.accepted, agrees.owners, ?_⟩
+    intro id
+    simp only [Spend.apply, List.mem_filter, bne_iff_ne, agrees.endpoints]
+
+theorem liveClaims_prepare {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
+  have observe (state : State sig) : (state.prepare resource id).map Prod.fst =
+      match state.ownerObservation id with
+      | none => .error .unclaimed
+      | some (nominal, representation) =>
+        if nominal != resource then .error .wrongResourceType else .ok representation := by
+    unfold State.prepare State.ownerObservation
+    cases state.held.find? (fun receipt => receiptId receipt == id) with
+    | none => rfl
+    | some receipt => by_cases typed : receipt.1 = resource <;> simp [Except.map, typed]
+  rw [observe, observe, agrees.owners]
+
+theorem liveClaims_prepare_success {sig : Signature} {left right next : State sig}
+    (agrees : left.LiveClaimsAgree right) {resource : RtId} {id : HandleObjId} {representation : Nat}
+    (success : left.prepare resource id = .ok (representation, next)) :
+    ∃ peer, right.prepare resource id = .ok (representation, peer) ∧ next.LiveClaimsAgree peer := by
+  have paired := liveClaims_prepare agrees resource id
+  rw [success] at paired
+  cases compared : right.prepare resource id with
+  | error issue => simp [compared, Except.map] at paired
+  | ok result =>
+    obtain ⟨rep, peer⟩ := result
+    simp [compared, Except.map] at paired
+    subst rep
+    have update (state updated : State sig) (step : state.prepare resource id = .ok (representation, updated)) :
+        updated = (Spend.owner id).apply state := by
+      unfold State.prepare at step
+      split at step <;> try contradiction
+      split at step <;> cases step
+      rfl
+    exact ⟨peer, rfl, by rw [update _ _ success, update _ _ compared]; exact liveClaims_spend agrees _⟩
+
+theorem liveClaims_register {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (tree : OwnedMemory.Tree sig) :
+    (∃ issue, left.register tree = .error issue ∧ right.register tree = .error issue) ∨
+      ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.LiveClaimsAgree rhs := by
+  rcases indexedClaims_register (liveClaims_indexed agrees) tree with failure | ⟨lhs, rhs, first, second, matched⟩
+  · exact .inl failure
+  refine .inr ⟨lhs, rhs, first, second, ⟨matched.accepted, ?_, matched.endpoints⟩⟩
+  intro id
+  simp only [State.ownerObservation, (register_claims first).2.1, (register_claims second).2.1, List.find?_append]
+  cases (rootReceipts tree).find? (fun receipt => receiptId receipt == id)
+  · exact agrees.owners id
+  · rfl
+
+theorem indexed_not_owner_observations {sig : Signature} (resource : RtId) (identity : HandleObjId)
+    {rep other : Nat} (different : rep ≠ other) :
+    ∃ left right : State sig, left.IndexedClaimsAgree right ∧
+      (left.prepare resource identity).map Prod.fst ≠ (right.prepare resource identity).map Prod.fst := by
+  refine ⟨{ held := [⟨resource, ⟨identity, rep⟩⟩] }, { held := [⟨resource, ⟨identity, other⟩⟩] },
+    ⟨rfl, fun _ => Iff.rfl, fun _ => Iff.rfl⟩, ?_⟩
+  simpa [State.prepare, receiptId, Except.map] using different
 
 theorem accepted_not_endpoint_conflicts {sig : Signature} {tree : OwnedMemory.Tree sig} {id : EndId}
     (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :

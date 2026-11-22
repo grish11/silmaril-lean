@@ -41,6 +41,39 @@ theorem State.IndexedClaimsAgree.register {sig : Signature} {left right : State 
       ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.IndexedClaimsAgree rhs :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexedClaims_register agrees tree
 
+theorem State.LiveClaimsAgree.toIndexed {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) : left.IndexedClaimsAgree right :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_indexed agrees
+
+theorem State.LiveClaimsAgree.spend {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (update : Spend) :
+    (update.apply left).LiveClaimsAgree (update.apply right) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_spend agrees update
+
+theorem State.LiveClaimsAgree.prepare {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_prepare agrees resource id
+
+theorem State.LiveClaimsAgree.prepare_success {sig : Signature} {left right next : State sig}
+    (agrees : left.LiveClaimsAgree right) {resource : RtId} {id : HandleObjId} {representation : Nat}
+    (success : left.prepare resource id = .ok (representation, next)) :
+    ∃ peer, right.prepare resource id = .ok (representation, peer) ∧ next.LiveClaimsAgree peer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_prepare_success agrees success
+
+theorem State.LiveClaimsAgree.register {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (tree : Tree sig) :
+    (∃ issue, left.register tree = .error issue ∧ right.register tree = .error issue) ∨
+      ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.LiveClaimsAgree rhs :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.liveClaims_register agrees tree
+
+/-- Even equal live owner membership cannot determine a nominal prepare observation. -/
+theorem indexed_not_owner_observations {sig : Signature} (resource : RtId) (identity : HandleObjId)
+    {rep other : Nat} (different : rep ≠ other) :
+    ∃ left right : State sig, left.IndexedClaimsAgree right ∧
+      (left.prepare resource identity).map Prod.fst ≠ (right.prepare resource identity).map Prod.fst :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexed_not_owner_observations resource identity different
+
 /-- Equal accepted indices do not imply equal registration decisions: a
 real spend releases a live endpoint without removing the observed root. -/
 theorem accepted_not_endpoint_conflicts {sig : Signature} {tree : Tree sig} {id : EndId}
