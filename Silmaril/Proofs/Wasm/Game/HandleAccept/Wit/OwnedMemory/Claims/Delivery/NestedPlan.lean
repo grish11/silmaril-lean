@@ -2513,10 +2513,9 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | directGiveLookupMismatch _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
@@ -2544,10 +2543,9 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | directGiveLookupMismatch _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -9039,7 +9037,7 @@ private theorem selectorReadStep
   exact ⟨read, .step read (by rw [transitionEdit, focus]; rfl) (.done _)⟩
 
 open ReturnFrame.Occurrence in
-private theorem cutDirectGiveDemandedMismatch (request : GiveSelector bindings) (worker : ThreadId)
+private theorem cutGiveDemandedMismatch (request : GiveSelector bindings) (worker : ThreadId)
     {left right : Config (core3 grow) (HostState sig)} {frames rest peerFrames peerRest} {bodyLabels}
     (entered : labels = [.tau, .tau] ++ bodyLabels)
     (leftAt : left.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
@@ -9093,7 +9091,7 @@ private theorem cutDirectGiveDemandedMismatch (request : GiveSelector bindings) 
         simp only [← List.append_assoc]
         rfl
       rw [used]
-      refine callbackTerminalSlice paired (.directGiveLookupMismatch (beforeLeft := beforeLeft) (beforeRight := beforeRight)
+      refine callbackTerminalSlice paired (.giveLookupMismatch (beforeLeft := beforeLeft) (beforeRight := beforeRight)
         (canonical := [.tau, .tau, .tau] ++ List.replicate 6 .tau)
         (check := check) (canon := canon) (checkNext := checkNext) (canonNext := canonNext) request
         ?_ rfl rfl checkRead canonRead demand different)
@@ -9144,7 +9142,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
       (different : Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle ≠
         Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle) :
       CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
-    exact .inr (cutDirectGiveDemandedMismatch request worker entered leftAt rightAt site paths run paired embedder handle demand different)
+    exact .inr (cutGiveDemandedMismatch request worker entered leftAt rightAt site paths run paired embedder handle demand different)
   rcases request.result left (some worker) with ⟨reason, trapped⟩ | ⟨verdict, selected⟩
   · obtain ⟨checked, canonical⟩ := request.trap_bodies (ready := ready) (base := base) left (some worker) right.host base embedder trapped
     have sameStore := site.data.1
@@ -9272,6 +9270,50 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
       obtain ⟨handle, demand, different⟩ := reads
       exact lookupMismatch handle demand different
 
+open ReturnFrame.Occurrence in
+private theorem cutCoreGiveDemandedMismatch (request : CoreGiveRequest bindings start)
+    {label : Label (core3 grow) (HostState sig)} {next : Config (core3 grow) (HostState sig)}
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (actual : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (handle : BitVec IntType.i32.width) (demand : request.lookupDemand = some handle)
+    (different : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle ≠
+      Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle) :
+    CallbackSlice profile ready base bindings older start incoming (label :: labels) finish := by
+  obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, _, _⟩ := cutSharedCalloutInstall
+    (.embedder request.name request.kind) request.args request.focused request.calling install.step paired
+  let caller : Seg (core3 grow) (HostState sig) := .core request.core request.next
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨request.thread, caller :: request.frames, request.rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨request.thread, caller :: peerFrames, peerRest⟩
+  have prelude := cutDirectGivePrelude request.name request.kind request.args request.destination request.schema request.inst
+    request.linked embedder (check := check) (canon := canon) rfl rfl site paths actual
+  rcases prelude with ⟨short, peer, compared, endpoint, _, _⟩ |
+      ⟨_, left, right, entered, leftHost, rightHost, leftStore, _, leftAt, rightAt, bodySite, bodyPaths, bodyRun, _⟩
+  · let call : Call (core3 grow) := .hostCallout (.embedder request.name request.kind) request.args
+    have checkPath := directGivePreludePath (profile := profile) (ready := ready)
+      (start := { start with ctl := check.control (specDispatch ready base call) })
+      base request.name request.kind request.args check rfl
+    have canonPath := directGivePreludePath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
+      (start := { incoming with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) call) })
+      request.name request.kind request.args canon rfl
+    obtain ⟨_, leftPath⟩ := quietCheckedShort checkPath actual short
+    obtain ⟨_, rightPath⟩ := quietCheckedShort canonPath (compared.choose_spec.1 none).2.steps short
+    have moved := retainComparedOccurrences paths (fun place => ⟨leftPath place, rightPath place⟩)
+    exact callbackTerminalSlice paired (.directGiveFinite (right := peer) ⟨rfl, endpoint.data.1, moved, .refl _⟩)
+  · cases thread : request.thread with
+    | none => simp [CoreGiveRequest.lookupDemand, giveLookupDemand, Plain.callerInstance, thread] at demand
+    | some worker =>
+      have wanted : request.selector.lookupDemand left.store (some worker) = some handle := by
+        rw [leftStore]
+        change giveLookupDemand start.store (some worker) request.inst request.destination request.schema request.args = _
+        simpa only [CoreGiveRequest.lookupDemand, thread] using demand
+      exact cutGiveDemandedMismatch request.selector worker entered
+        (by simpa only [check, thread, CoreGiveRequest.selector] using leftAt)
+        (by simpa only [canon, thread, CoreGiveRequest.selector] using rightAt)
+        (by simpa only [check, canon, thread] using bodySite) bodyPaths bodyRun paired embedder handle wanted
+        (by simpa only [leftHost, rightHost] using different)
+
 private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackGiveCrossing profile ready base bindings := by
@@ -9306,7 +9348,7 @@ private theorem classifiedGiveCrossing
             exact actualSelectedMemoryCallback selection install actual paired selected embedder compare
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
-      exact callbackTerminalSlice paired (.lookup request install demand different actual)
+      exact cutCoreGiveDemandedMismatch request install actual paired embedder handle demand different
   · obtain ⟨name, kind, args, thread, resume, frames, rest, inst, destination, schema, focused, linked⟩ := direct
     obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, leftMark, rightMark, _⟩ :=
       cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired

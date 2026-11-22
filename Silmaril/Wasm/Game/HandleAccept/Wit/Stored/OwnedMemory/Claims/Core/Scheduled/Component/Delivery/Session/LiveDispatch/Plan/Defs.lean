@@ -779,13 +779,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         check canon reached peer left right trailing finish)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
-  | lookup {changes reached peer label next trailing finish handle} (request : CoreGiveRequest bindings reached)
-      (install : GiveInstall bindings (specDispatch ready base) reached label next)
-      (demand : request.lookupDemand = some handle)
-      (different : Stored.Endpoints.Core.childFromHistory reached.host.writer.accepted handle ≠
-        Stored.Endpoints.Core.childFromHistory peer.host.writer.accepted handle)
-      (residual : Steps profile ready (specDispatch ready base) next trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
   | admissionTrap {changes reached peer label next leftCount rightCount reason trailing finish}
       (request : CoreGiveRequest bindings reached)
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
@@ -802,7 +795,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (trapped : PayloadPrefix.visible checked = [.trap reason])
       (checkedLocked : left.ctl = []) (canonicalLocked : right.ctl = []) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | directGiveLookupMismatch {changes reached peer beforeLeft beforeRight left right checked canonical trailing finish handle}
+  | giveLookupMismatch {changes reached peer beforeLeft beforeRight left right checked canonical trailing finish handle}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {checkNext canonNext}
       (request : GiveSelector bindings)
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
