@@ -2513,6 +2513,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | waitTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelHookBody paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
+  | cancelDecisionTerminal paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {resume value}
@@ -2536,6 +2537,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | waitTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | cancelHookBody paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
+  | cancelDecisionTerminal paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem callbackTerminalSlice {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired changes start incoming)
@@ -8000,7 +8002,7 @@ private theorem crossComponentReply {origin reference reached peer : Config (cor
       · rw [split, popped, List.append_assoc]
         rfl
       · exact ⟨by simpa only [List.cons_append] using growing, rfl, pairAfterComponentPop frame,
-          by simpa only [List.cons_append] using whole⟩
+          by simpa only [List.cons_append, List.map_nil] using whole⟩
     · exact .inr boundary
   · exact .inr boundary
 
@@ -8244,6 +8246,42 @@ private theorem classifyCancelHookWith (async : Bool) (subtask : SubtaskId) (hoo
   intro value cursor returning
   exact alignAllocatorPop tracked compared.paired returning rfl (callbackEndSteps ending)
 
+private theorem crossCancelAfterHook {resumed peerResume : Config (core3 grow) (HostState sig)}
+    {checked canonical remaining : Trace grow sig} {marks}
+    (async : Bool) (subtask : SubtaskId) (value : Ret (core3 grow))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (split : labels = checked ++ remaining)
+    (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
+    (path : OccurrenceTransport profile ready base bindings start incoming (.tau :: checked) (.tau :: canonical) resumed peerResume)
+    (caller : OccurrenceTransport profile ready base bindings start incoming (.tau :: checked) (.tau :: canonical) resumed peerResume marks)
+    (leftFocus : resumed.ctl = check.control (cancelHookReturn async subtask value))
+    (rightFocus : peerResume.ctl = canon.control (cancelHookReturn async subtask value))
+    (site : PairedComponentSite older resumed peerResume check canon)
+    (actual : Steps profile ready (specDispatch ready base) resumed remaining finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  obtain ⟨decision, residual, reached, peer, used, pathDecision, run, frontier⟩ :=
+    cutCancelHookDecision (bindings := bindings) async subtask value leftFocus rightFocus site actual
+  have consumed : labels = (checked ++ decision) ++ residual := by rw [split, used, List.append_assoc]
+  have seen : PayloadPrefix.visible (.tau :: (canonical ++ decision)) = PayloadPrefix.visible (.tau :: (checked ++ decision)) := by
+    simp only [visibleTauCons, visibleAppend, observed]
+  have terminal (stop : residual = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])) :
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+    obtain ⟨_, throughDecision, _⟩ := CallbackPrefix.transportAppend caller pathDecision
+    refine .inr (callbackTerminalSlice paired ?_)
+    rw [consumed]
+    exact .cancelDecisionTerminal throughDecision seen frontier stop run
+  cases frontier with
+  | trapped left right _ => exact terminal (.inr ⟨left, right⟩)
+  | pending _ _ _ _ _ stop => exact terminal (.inl (stop.resolve_right (fun impossible => impossible.1 trivial)))
+  | returned _ left right finalSite =>
+    have throughDecision := (CallbackPrefix.transportAppend path pathDecision).choose_spec.1
+    rcases classifyReachedGrowth (CallbackPrefix.transportPaths throughDecision none).choose_spec.1.steps with growing | _
+    · exact .inl ⟨checked ++ decision, .tau :: (canonical ++ decision), residual, reached, peer, consumed,
+        ⟨growing, seen, pairComponentFocus left right finalSite, throughDecision⟩, run⟩
+    · exact .inr boundary
+
 open ReturnFrame.Occurrence in
 private theorem classifiedCancelCrossing : CallbackCancelCrossing profile ready base bindings := by
   intro changes start incoming next finish label labels thread core resume frames rest async inst args focused calling step tail paired compare
@@ -8302,8 +8340,8 @@ private theorem classifiedCancelCrossing : CallbackCancelCrossing profile ready 
         have full : labels = ((leading ++ write) ++ .tau :: ran) ++ trailing := by
           rw [useAll, hookUsed]
           simp only [List.append_assoc, List.cons_append]
-        have stopped : CallbackCrossingAt profile ready base bindings changes start incoming .tau labels finish := by
-          refine .inr (callbackTerminalSlice paired ?_)
+        have stopped : CallbackSlice profile ready base bindings changes start incoming (.tau :: labels) finish := by
+          refine callbackTerminalSlice paired ?_
           rw [full]
           refine .cancelHookBody whole ?_ tracked ending
           simp only [List.cons_append, visibleTauCons, visibleAppend, observed]
@@ -8312,27 +8350,25 @@ private theorem classifiedCancelCrossing : CallbackCancelCrossing profile ready 
             atHook.ctl = { cursor with frames := .prog (cancelHookReturn async subtask) :: cursor.frames }.control (.pure value)
         · obtain ⟨value, cursor, returning⟩ := returns
           rcases pop value cursor returning with _ | _ | ⟨remaining, canon, top, popped, _, rest, _, frame, _, transport⟩
-          · exact stopped
-          · exact stopped
+          · exact .inr stopped
+          · exact .inr stopped
           subst hookMark
           have initial := sharedTopTransport entry (frame := .core core resume)
             (by rw [segmentStorage, checked]; rfl) (by rw [segmentStorage, canonical]; rfl)
           have prior := (CallbackPrefix.transportAppend initial writePaths).choose_spec.1
           have hookOnly := (CallbackPrefix.transportAppend prior hookPaths).choose_spec.1
           have returned := transport hookOnly
-          rcases classifyReachedGrowth (CallbackPrefix.transportPaths returned none).choose_spec.1.steps with growing | _
-          · let consumed := (leading ++ write) ++ .tau :: ran
-            let canonLabels := (leading ++ write) ++ .tau :: ranCanon
-            refine .inl ⟨consumed ++ [.tau], .tau :: (canonLabels ++ [.tau]), remaining,
-              { atHook with ctl := cursor.control (cancelHookReturn async subtask value) },
-              { peerAtHook with ctl := canon.control (cancelHookReturn async subtask value) }, ?_, ?_, rest⟩
-            · rw [full, popped]
-              simp only [consumed, List.append_assoc, List.cons_append, List.nil_append]
-            · exact ⟨by simpa only [consumed, List.cons_append] using growing,
-                by simp only [consumed, canonLabels, visibleTauCons, visibleAppend, observed],
-                pairAfterComponentPop frame, by simpa only [consumed, canonLabels, List.cons_append] using returned⟩
-          · exact stopped
-        · exact stopped
+          have originalCaller := transport whole
+          let consumed := ((leading ++ write) ++ .tau :: ran) ++ [.tau]
+          let canonLabels := ((leading ++ write) ++ .tau :: ranCanon) ++ [.tau]
+          have usedAll : labels = consumed ++ remaining := by
+            rw [full, popped]
+            simp only [consumed, List.append_assoc, List.cons_append, List.nil_append]
+          have seen : PayloadPrefix.visible canonLabels = PayloadPrefix.visible consumed := by
+            simp only [consumed, canonLabels, visibleTauCons, visibleAppend, observed]
+          exact crossCancelAfterHook async subtask value cursor canon usedAll seen returned originalCaller rfl rfl
+            (pairAfterComponentPop (left := atHook) (right := peerAtHook) (program := .pure (.cancel .none)) frame) rest paired stopped
+        · exact .inr stopped
 
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)

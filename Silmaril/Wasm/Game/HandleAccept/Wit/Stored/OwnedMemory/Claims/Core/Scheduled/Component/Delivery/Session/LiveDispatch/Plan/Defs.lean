@@ -697,6 +697,14 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (hook : AllocatorMark profile ready base bindings changes entry peerEntry hookChecked hookCanonical left right mark)
       (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes resume resume) left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | cancelDecisionTerminal {changes reached peer left right checked canonical trailing finish check canon subtask marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (observed : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
+      (frontier : ComponentStoreFrontier changes check canon (cancelAfterHookDecision subtask) (cancelAfterHookDecision subtask)
+        left right trailing True)
+      (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -4719,8 +4727,11 @@ def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
       LinkedCallback.ChildFrameOver older left right check canon ∧
       CoupledOccurrencePaths profile ready base bindings checkEntry canonEntry (checkTrace ++ [.tau]) (canonTrace ++ [.tau]) resumed peer ∧
       ∀ {leftStart rightStart : Config (core3 grow) (HostState sig)} {leftLabels rightLabels : Trace grow sig},
-        OccurrenceTransport profile ready base bindings leftStart rightStart leftLabels rightLabels left right [some (.active 0 0)] →
+        ∀ {enclosing : List (Option ReturnFrame.Occurrence.Location)},
+        OccurrenceTransport profile ready base bindings leftStart rightStart leftLabels rightLabels left right
+          (some (.active 0 0) :: enclosing) →
         OccurrenceTransport profile ready base bindings leftStart rightStart (leftLabels ++ [.tau]) (rightLabels ++ [.tau]) resumed peer
+          (enclosing.map (fun place => place.bind (ReturnFrame.Occurrence.Edit.pop : ReturnFrame.Occurrence.Edit (core3 grow) (HostState sig)).follow))
 
 /-- Compare the actual suffix of a reached cancellation-hook installation.
 The installed occurrence can be lost or displaced; only its executed pop

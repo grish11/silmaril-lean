@@ -3207,7 +3207,8 @@ theorem classify_give_callbacks
 gives, admitted component calls, and public polls, waits and cancels share the
 shorter-run induction, including inside allocator and cancellation callbacks.
 An unresolved cancel enters the hook after the actual request write and
-installation, and continues after the hook only from its executed marked pop.
+installation. Its executed marked pop leads to the reached readiness decision,
+or to the actual trapped or exhausted prefix of that decision.
 A non-early wait enters the scheduler fold before any caller reply. Exhausted
 and trapped deliveries retain their reached endpoints without rejoining. Other
 component sites remain at their exact install cut with the reached outcome. -/

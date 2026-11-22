@@ -1115,14 +1115,16 @@ theorem actualCollectionInstall (destination : RecordDestination) (inst : InstId
       | current => exact .inr rfl) replay
 
 theorem transportAllocatorPop {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
-    {checkTrace canonTrace : Trace grow sig} {value : Ret (core3 grow)}
+    {checkTrace canonTrace : Trace grow sig} {value : Ret (core3 grow)} {enclosing : List (Option Location)}
     {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (leftAt : left.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
     (rightAt : right.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure value))
-    (paths : OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace left right [some (.active 0 0)]) :
+    (paths : OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace left right
+      (some (.active 0 0) :: enclosing)) :
     OccurrenceTransport profile ready base bindings leftStart rightStart (checkTrace ++ [.tau]) (canonTrace ++ [.tau])
-      { left with ctl := check.control (first value) } { right with ctl := canon.control (second value) } := by
+      { left with ctl := check.control (first value) } { right with ctl := canon.control (second value) }
+      (enclosing.map (fun mark => mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow)) := by
   obtain ⟨move, trails, invariant⟩ := paths
   let drop := fun mark : Option Location => mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow
   refine ⟨drop ∘ move, ?_, ?_⟩
@@ -1147,7 +1149,7 @@ theorem transportAllocatorPop {leftStart rightStart left right : Config (core3 g
       simpa only [PayloadPrefix.Cursor.control, popRight] using step_edit rightStep
     rw [leftStorage, rightStorage]
     have gone : (some (Location.active 0 0)).bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow = none := rfl
-    simpa only [List.singleton_append, List.nil_append, List.map_cons, List.map_map, gone, outsideMarks_drop_lost]
+    simpa only [List.cons_append, List.map_append, List.map_cons, List.map_map, gone, outsideMarks_drop_lost]
       using (invariant retained marks previous).edit (.pop : Edit (core3 grow) (HostState sig))
 
 theorem transportCoreCompletion {leftStart rightStart left right : Config (core3 grow) (HostState sig)}
