@@ -71,6 +71,14 @@ structure State.RegistrationChecksAgree {sig : Signature} (left right : State si
       id ∈ ((right.accepted.flatMap rootReceipts ++ right.held).map receiptId))
   endpoints : ∀ id ∈ rootEndpoints tree, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
 
+/-- The ordered acceptance history fixes handle lookup and the next registration
+index. Live claims are compared by nominal identity, not by list representation.
+This does not compare owner representations used by `State.prepare`. -/
+structure State.IndexedClaimsAgree {sig : Signature} (left right : State sig) : Prop where
+  accepted : left.accepted = right.accepted
+  held : ∀ id, (id ∈ left.held.map receiptId ↔ id ∈ right.held.map receiptId)
+  endpoints : ∀ id, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
+
 /-- Look up the nominal type and representation from the held receipt, not from the caller.
 The result is a prospective update; the caller chooses when to commit it. -/
 def State.prepare {sig : Signature} (state : State sig) (resource : RtId) (id : HandleObjId) :

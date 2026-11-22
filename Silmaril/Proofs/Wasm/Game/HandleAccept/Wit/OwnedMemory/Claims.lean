@@ -41,6 +41,60 @@ theorem register_observations {sig : Signature} {left right : State sig} {tree :
   rw [containsAny_eq agrees.owners, containsAny_eq agrees.endpoints]
   split <;> simp [Except.map, length]
 
+theorem indexedClaims_registration {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (tree : OwnedMemory.Tree sig) :
+    left.RegistrationChecksAgree right tree := by
+  refine ⟨?_, fun id _ => agrees.endpoints id⟩
+  intro id _
+  simp only [List.map_append, List.mem_append, agrees.accepted, agrees.held]
+
+theorem indexedClaims_spend {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (spend : Spend) :
+    (spend.apply left).IndexedClaimsAgree (spend.apply right) := by
+  cases spend with
+  | owner spent =>
+    refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
+    intro id
+    have membership (state : State sig) :
+        id ∈ ((Spend.owner spent).apply state).held.map receiptId ↔ id ∈ state.held.map receiptId ∧ id ≠ spent := by
+      simp only [Spend.apply, List.mem_map, List.mem_filter, bne_iff_ne]
+      constructor
+      · rintro ⟨receipt, ⟨member, fresh⟩, same⟩
+        exact ⟨⟨receipt, member, same⟩, same ▸ fresh⟩
+      · rintro ⟨⟨receipt, member, same⟩, fresh⟩
+        exact ⟨receipt, ⟨member, same.symm ▸ fresh⟩, same⟩
+    rw [membership, membership, agrees.held id]
+  | endpoint spent =>
+    refine ⟨agrees.accepted, agrees.held, ?_⟩
+    intro id
+    simp only [Spend.apply, List.mem_filter, bne_iff_ne, agrees.endpoints]
+
+theorem indexedClaims_register {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (tree : OwnedMemory.Tree sig) :
+    (∃ issue, left.register tree = .error issue ∧ right.register tree = .error issue) ∨
+      ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.IndexedClaimsAgree rhs := by
+  have checks := indexedClaims_registration agrees tree
+  simp only [State.register]
+  rw [containsAny_eq checks.owners, containsAny_eq checks.endpoints]
+  split
+  · refine .inr ⟨_, _, rfl, rfl, ⟨congrArg (tree :: ·) agrees.accepted, ?_, ?_⟩⟩
+    · intro id
+      simp only [List.map_append, List.mem_append, agrees.held]
+    · intro id
+      simp only [List.mem_append, agrees.endpoints]
+  · exact .inl ⟨_, rfl, rfl⟩
+
+theorem accepted_not_endpoint_conflicts {sig : Signature} {tree : OwnedMemory.Tree sig} {id : EndId}
+    (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :
+    ∃ first second spent : State sig, ({} : State sig).register tree = .ok first ∧
+      spent = (Spend.endpoint id).apply first ∧ first.accepted = spent.accepted ∧
+      first.register tree = .error .alias ∧ spent.register tree = .ok second := by
+  let first : State sig := ⟨[tree], [], [id]⟩
+  let spent := (Spend.endpoint id).apply first
+  let second : State sig := ⟨[tree, tree], [], [id]⟩
+  exact ⟨first, second, spent, by simp [State.register, unowned, one, first], rfl, rfl,
+    by simp [State.register, unowned, one, first], by simp [State.register, unowned, one, first, spent, Spend.apply, second]⟩
+
 theorem register_retains_retirement {sig : Signature} {state registered : State sig}
     {tree : OwnedMemory.Tree sig} {id : HandleObjId}
     (success : state.register tree = .ok registered) (retired : state.retiredOwner id) :

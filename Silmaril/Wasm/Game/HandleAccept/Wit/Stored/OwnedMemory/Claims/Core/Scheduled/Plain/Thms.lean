@@ -17,6 +17,25 @@ open Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon Silmaril.Wasm.Compone
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core (Contract)
 open Machine.ReturnFrame.Occurrence (Edit Prefix)
 
+/-- A reached spend removes just the specified live claim, leaving the journal and
+accepted tree index on its own side. This does not prove agreement of the
+preceding nominal prepare reads. -/
+theorem runBody_claimSpend {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    (update : Spend) (reference : CStore (core3 grow)) (state : HostState sig) (thread : Option (Option ThreadId)) :
+    runBody (claims.spend update) reference state thread = (reference, { state with writer := update.apply state.writer }, .ok ()) := rfl
+
+/-- At the actual publication read, alias, stale index and exhaustion agree;
+successful writes preserve indexed claim agreement without sharing tickets or journals. -/
+theorem runBody_publishRootAt_agrees {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    {left right : HostState sig} (agrees : left.writer.IndexedClaimsAgree right.writer) (reference : CStore (core3 grow))
+    (tree : Tree sig) (leftTicket rightTicket : Nat) (expected : Option Nat) (thread : Option (Option ThreadId)) :
+    ∃ lhs rhs verdict,
+      runBody (publishRootAt leftTicket tree expected) reference left thread = (reference, lhs, .ok verdict) ∧
+      runBody (publishRootAt rightTicket tree expected) reference right thread = (reference, rhs, .ok verdict) ∧
+      lhs.writer.IndexedClaimsAgree rhs.writer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.indexedClaims_publishRootAt
+    agrees reference tree leftTicket rightTicket expected thread
+
 /-- The non-suspending interpreter resolves the caller from its live thread and task arenas. -/
 theorem runBody_currentInst {E : CoreEngine} {Host Result : Type} (next : Option InstId → P E Host Result)
     (reference : CStore E) (host : Host) (thread : Option ThreadId) :

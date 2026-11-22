@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
 public import Silmaril.Wasm.Component.Reference.HostWrite.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 public import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
@@ -27,6 +28,40 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedule
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core (Contract checkChildren)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core.Scheduled (nodeCall)
 open Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst (NodeArgs)
+
+theorem indexedClaims_publishRootAt {grow : SingleThreaded.GrowOracle} {sig : Signature} {left right : HostState sig}
+    (agrees : left.writer.IndexedClaimsAgree right.writer) (reference : CStore (core3 grow))
+    (tree : Tree sig) (leftTicket rightTicket : Nat) (expected : Option Nat) (thread : Option (Option ThreadId)) :
+    ∃ lhs rhs verdict,
+      Plain.runBody (publishRootAt leftTicket tree expected) reference left thread = (reference, lhs, .ok verdict) ∧
+      Plain.runBody (publishRootAt rightTicket tree expected) reference right thread = (reference, rhs, .ok verdict) ∧
+      lhs.writer.IndexedClaimsAgree rhs.writer := by
+  rcases agrees.register tree with ⟨issue, denied, peerDenied⟩ | ⟨leftWriter, rightWriter, registered, peerRegistered, matched⟩
+  · refine ⟨left, right, .error (.accept (.claims issue)), ?_, ?_, agrees⟩
+    · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, denied]
+    · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, peerDenied]
+  · have handle : rightWriter.accepted.length = leftWriter.accepted.length := congrArg List.length matched.accepted.symm
+    by_cases unexpected : expected.any (· != leftWriter.accepted.length)
+    · refine ⟨left, right, .error .wrongResultType, ?_, ?_, agrees⟩
+      · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, registered, unexpected]
+      · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, peerRegistered, handle, unexpected]
+    · by_cases full : leftWriter.accepted.length ≥ 2 ^ 32
+      · refine ⟨left, right, .error (.accept (.boundary .exhaustedHandles)), ?_, ?_, agrees⟩
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, registered, unexpected,
+            ite_true, full]
+          rfl
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, peerRegistered, handle, unexpected,
+            ite_true, full]
+          rfl
+      · let lhs := ({ left with writer := leftWriter }).record (.published leftTicket leftWriter.accepted.length)
+        let rhs := ({ right with writer := rightWriter }).record (.published rightTicket rightWriter.accepted.length)
+        refine ⟨lhs, rhs, .ok leftWriter.accepted.length, ?_, ?_, matched⟩
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, hostSet, perform, Prog.lift, Plain.runBody, registered, unexpected,
+            ite_false, full, lhs]
+          rfl
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, hostSet, perform, Prog.lift, Plain.runBody, peerRegistered, handle, unexpected,
+            Bool.false_eq_true, ite_false, full, rhs]
+          rfl
 
 theorem prepend_embedder_callout {E : CoreEngine} {Host : Type}
     [∀ left right, Decidable (E.ExternSub left right)]

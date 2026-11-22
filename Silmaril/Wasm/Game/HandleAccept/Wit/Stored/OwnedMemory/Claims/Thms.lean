@@ -26,6 +26,30 @@ theorem register_observations {sig : Signature} {left right : State sig} {tree :
       (right.register tree).map (fun writer => writer.accepted.length) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.register_observations agrees length
 
+theorem State.IndexedClaimsAgree.registration {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (tree : Tree sig) : left.RegistrationChecksAgree right tree :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexedClaims_registration agrees tree
+
+theorem State.IndexedClaimsAgree.spend {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (update : Spend) :
+    (update.apply left).IndexedClaimsAgree (update.apply right) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexedClaims_spend agrees update
+
+theorem State.IndexedClaimsAgree.register {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (tree : Tree sig) :
+    (∃ issue, left.register tree = .error issue ∧ right.register tree = .error issue) ∨
+      ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.IndexedClaimsAgree rhs :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.indexedClaims_register agrees tree
+
+/-- Equal accepted indices do not imply equal registration decisions: a
+real spend releases a live endpoint without removing the observed root. -/
+theorem accepted_not_endpoint_conflicts {sig : Signature} {tree : Tree sig} {id : EndId}
+    (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :
+    ∃ first second spent : State sig, ({} : State sig).register tree = .ok first ∧
+      spent = (Spend.endpoint id).apply first ∧ first.accepted = spent.accepted ∧
+      first.register tree = .error .alias ∧ spent.register tree = .ok second :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.accepted_not_endpoint_conflicts unowned one
+
 theorem register_retains_retirement {sig : Signature} {state registered : State sig}
     {tree : Tree sig} {id : HandleObjId}
     (success : state.register tree = .ok registered) (retired : state.retiredOwner id) :

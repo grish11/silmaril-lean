@@ -666,13 +666,14 @@ theorem executeClassifiedPrefix {protectedReturn checkLabels}
     (paired_outside (left := HostFrame.replace start incoming.host) paired)
   exact ⟨peer, run, rfl, aligned, movement⟩
 
-theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+private theorem compareReachedHostReadFramed {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label}
     (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
     (step : Step profile ready (specDispatch ready base) start label finish)
     (paired : HostFrame.Related.Paired changes start incoming)
     (agrees : resume start.host = resume incoming.host) :
-    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer := by
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host = start.host ∧ peer.host = incoming.host := by
   obtain ⟨rfl, rfl⟩ := actualHostGet focus step
   obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume start.host)) start.host incoming.host
   let peer := { incoming with ctl := ⟨thread, .prog (resume start.host), peerFrames⟩ :: peerRest }
@@ -681,7 +682,8 @@ theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow)
       { incoming with ctl := ⟨thread, .prog (resume start.host), peerFrames⟩ :: peerRest }
     rw [agrees]
     exact .hostGet atPeer
-  refine ⟨peer, .cons (by simp [CoreUpdateGrows, focus]) (.hostGet focus) (.refl _), rfl, aligned, stationaryTransport ?_ ?_⟩
+  refine ⟨peer, ⟨.cons (by simp [CoreUpdateGrows, focus]) (.hostGet focus) (.refl _), rfl, aligned,
+    stationaryTransport ?_ ?_⟩, rfl, rfl⟩
   · intro place
     refine .step (.hostGet focus) ?_ (.done _ _)
     rw [transitionEdit, focus]
@@ -690,6 +692,32 @@ theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow)
     refine .step live ?_ (.done _ _)
     rw [transitionEdit, atPeer]
     cases place <;> rfl
+
+theorem compareReachedHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread resume frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (agrees : resume start.host = resume incoming.host) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer := by
+  obtain ⟨peer, compared, _, _⟩ := compareReachedHostReadFramed focus step paired agrees
+  exact ⟨peer, compared⟩
+
+theorem compareReachedAcceptedLookup {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (handle : BitVec 32) (next : Option (Stored.OwnedMemory.Tree sig) → Session grow sig (Ret (core3 grow)))
+    {thread frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (select handle >>= next), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired changes start incoming)
+    (indexed : start.host.writer.IndexedClaimsAgree incoming.host.writer) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] finish peer ∧
+      finish.host.writer.IndexedClaimsAgree peer.host.writer := by
+  let read := fun (state : HostState sig) => next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle)
+  have readFocus : start.ctl = ⟨thread, .prog (.op .hostGet read), frames⟩ :: rest := focus
+  have agrees : read start.host = read incoming.host := congrArg
+    (fun history => next (Stored.Endpoints.Core.childFromHistory history handle)) indexed.accepted
+  obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed readFocus step paired agrees
+  exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
 theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label middle trailing}

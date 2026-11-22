@@ -26,6 +26,26 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {start finish incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
 
+/-- At the reached accepted-tree read, congruence on the indexed history gives
+the canonical peer of the executed checked step without equating journals. -/
+theorem compareReachedAcceptedLookup (handle : BitVec 32)
+    (next : Option (Stored.OwnedMemory.Tree sig) → Session grow sig (Ret (core3 grow))) {thread frames rest label}
+    (focus : start.ctl = ⟨thread, .prog (select handle >>= next), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (indexed : start.host.writer.IndexedClaimsAgree incoming.host.writer) :
+    ∃ peer, ExecutedCallbackSegment profile ready base bindings older start incoming [label] [label] finish peer ∧
+      finish.host.writer.IndexedClaimsAgree peer.host.writer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.compareReachedAcceptedLookup
+    handle next focus step paired indexed
+
+/-- The actual registration probe classifies equal alias, exhaustion or next
+handle observations without requiring equal writers. -/
+theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.State sig}
+    (indexed : left.IndexedClaimsAgree right) (tree : Stored.OwnedMemory.Tree sig) :
+    componentRegistration left tree = componentRegistration right tree :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.indexedClaims_registrationProbe indexed tree
+
 /-- A synchronous readiness read under a host-independent policy needs
 no hypothesis on the writer or the existence of runnable candidates. -/
 theorem ClosedSyncReadyRead.fixed (policy : Nat → Bool) {task inst thread frames rest}
@@ -485,7 +505,8 @@ theorem cut_waitable_wait_delivery (mem : (core3 grow).MemAddr) (entry : Waitabl
       WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
-        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutWaitableWaitDelivery
     mem entry leftFocus rightFocus paired run
 
@@ -510,7 +531,8 @@ theorem cut_resumed_wait_delivery (mem : (core3 grow).MemAddr) (entry : Waitable
         Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
           (.tau :: leading) reached (some (.active 0 0)) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
-          (.tau :: leading) peer (some (.active 0 0))) :=
+          (.tau :: leading) peer (some (.active 0 0))) ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutResumedWaitDelivery
     mem entry scheduled found step run paired
 
@@ -755,7 +777,9 @@ theorem cut_component_successful_publication (callee : ComponentCall.Callee sig)
       labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix :=
+      ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
+      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.IndexedClaimsAgree incoming.host.writer →
+        reached.host.writer.IndexedClaimsAgree peer.host.writer)) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutSuccessfulPublication
     callee caller first payload children validated leftFocus rightFocus paired record resultType indirect
     leftLive rightLive leftHandle rightHandle room run
@@ -3417,7 +3441,8 @@ theorem cut_cancel_finish (subtask : SubtaskId)
       CancelFinishExit profile ready base bindings older reached peer suffix finish ∧
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
-        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) :=
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCancelFinish
     subtask leftFocus rightFocus paired run
 
@@ -3440,7 +3465,8 @@ theorem cut_resumed_cancel_finish (subtask : SubtaskId)
         Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
           (.tau :: leading) reached (some (.active 0 0)) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
-          (.tau :: leading) peer (some (.active 0 0))) :=
+          (.tau :: leading) peer (some (.active 0 0))) ∧
+      reached.host = start.host ∧ peer.host = incoming.host :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutResumedCancelFinish
     subtask scheduled found step run paired
 

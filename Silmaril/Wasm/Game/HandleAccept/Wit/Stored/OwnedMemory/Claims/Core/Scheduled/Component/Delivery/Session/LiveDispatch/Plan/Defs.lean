@@ -5048,6 +5048,7 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
         (componentRegistration peer.host.writer tree)))
       (paired : PairedComponentSite wider reached peer check canon)
       (mismatch : componentRegistration reached.host.writer tree ≠ componentRegistration peer.host.writer tree)
+      (entryDisagrees : ¬ start.host.writer.IndexedClaimsAgree incoming.host.writer)
   | refused
       (frontier : ComponentStoreFrontier (Result := Unit) wider check canon
         (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none)) reached peer suffix True)
@@ -5057,6 +5058,8 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish)
+      (writerFlow : suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.IndexedClaimsAgree incoming.host.writer →
+        reached.host.writer.IndexedClaimsAgree peer.host.writer))
 
 /-- The classification after the admitted entry reaches child preflight.
 Disagreement is on the demanded decision, not on the complete journals.

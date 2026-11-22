@@ -1616,13 +1616,14 @@ theorem cutCancelFinish (subtask : SubtaskId)
       CancelFinishExit profile ready base bindings older reached peer suffix finish ∧
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
-        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
   simp only [cancelFinishSplit] at leftFocus rightFocus
-  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, paths⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, paths⟩ :=
     cutComponentStoreBodyFramed (closed := True) _ _ _ (fun _ => cancelFinishObservationEffects subtask)
       (trivialPreserves _) trivial leftFocus rightFocus paired run
   exact ⟨leading, suffix, reached, peer, split, moved, residual,
-    cutFlatCalloutBodyExit Prod.snd frontier residual, fun live => (paths live).2⟩
+    cutFlatCalloutBodyExit Prod.snd frontier residual, fun live => (paths live).2, leftHost, rightHost⟩
 
 open ReturnFrame.Occurrence in
 theorem cutResumedCancelFinish (subtask : SubtaskId)
@@ -1641,13 +1642,14 @@ theorem cutResumedCancelFinish (subtask : SubtaskId)
         Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
           (.tau :: leading) reached (some (.active 0 0)) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
-          (.tau :: leading) peer (some (.active 0 0))) := by
+          (.tau :: leading) peer (some (.active 0 0))) ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
   obtain ⟨_, _, _, rfl, rfl, site, resumed, leftMark, rightMark⟩ :=
     cutCoreCalloutResume (bindings := bindings) (cancelFinish subtask) scheduled found step paired
-  obtain ⟨leading, suffix, reached, peer, split, body, residual, exit, retained⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, body, residual, exit, retained, leftHost, rightHost⟩ :=
     cutCancelFinish (bindings := bindings) subtask rfl rfl site run
   have joined := (CallbackPrefix.transportAppend resumed body).choose_spec.1
-  refine ⟨leading, suffix, reached, peer, by rw [split]; rfl, ?_, residual, exit, ?_⟩
+  refine ⟨leading, suffix, reached, peer, by rw [split]; rfl, ?_, residual, exit, ?_, leftHost, rightHost⟩
   · simpa only [List.singleton_append, List.map_nil, List.append_nil] using joined
   · intro live
     obtain ⟨left, right⟩ := retained live (.active 0 0)
@@ -1689,7 +1691,8 @@ theorem cutWaitableWaitDelivery (mem : (core3 grow).MemAddr) (entry : WaitableCa
       WaitableCalloutExit profile ready base bindings older reached peer suffix finish ∧
       (reached.ctl ≠ [] → ∀ place,
         Prefix profile ready (specDispatch ready base) start place leading reached place ∧
-        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
   let body : Session grow sig (AsyncRef.EventTuple × Nat) := do
     modifyStore (CStore.wsetDecWaitingSt entry.set)
     let event ← wsetGetPendingEvent entry.set
@@ -1701,11 +1704,11 @@ theorem cutWaitableWaitDelivery (mem : (core3 grow).MemAddr) (entry : WaitableCa
     (storeEffectModify _).bind fun _ => (selectWaitableEffects entry.set).bind fun event =>
       (waitableBufferEffects (Builtins.eventCx mem entry.inst) entry.ptr event).bind fun _ => .pure _
   rw [program] at leftFocus rightFocus
-  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, retained⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, retained⟩ :=
     cutComponentStoreBodyFramed (bindings := bindings) body _ _ (closed := True) (fun _ => certified)
       (trivialPreserves body) trivial leftFocus rightFocus paired run
   exact ⟨leading, suffix, reached, peer, split, moved, residual, frontier, cutWaitableBodyExit frontier residual,
-    fun live => (retained live).2⟩
+    fun live => (retained live).2, leftHost, rightHost⟩
 
 open ReturnFrame.Occurrence in
 theorem cutResumedWaitDelivery (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEntry)
@@ -1725,13 +1728,14 @@ theorem cutResumedWaitDelivery (mem : (core3 grow).MemAddr) (entry : WaitableCal
         Trail profile ready (specDispatch ready base) start (some (.saved waiter.idx 0))
           (.tau :: leading) reached (some (.active 0 0)) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming (some (.saved waiter.idx 0))
-          (.tau :: leading) peer (some (.active 0 0))) := by
+          (.tau :: leading) peer (some (.active 0 0))) ∧
+      reached.host = start.host ∧ peer.host = incoming.host := by
   obtain ⟨_, _, _, rfl, rfl, site, resumed, leftMark, rightMark⟩ :=
     cutWaitableWaitResume (bindings := bindings) mem entry scheduled found step paired
-  obtain ⟨leading, suffix, reached, peer, split, body, residual, frontier, exit, retained⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, body, residual, frontier, exit, retained, leftHost, rightHost⟩ :=
     cutWaitableWaitDelivery (bindings := bindings) mem entry rfl rfl site run
   have joined := (CallbackPrefix.transportAppend resumed body).choose_spec.1
-  refine ⟨leading, suffix, reached, peer, _, _, by rw [split]; rfl, ?_, residual, frontier, exit, ?_⟩
+  refine ⟨leading, suffix, reached, peer, _, _, by rw [split]; rfl, ?_, residual, frontier, exit, ?_, leftHost, rightHost⟩
   · simpa only [List.singleton_append, List.map_nil, List.append_nil] using joined
   · intro live
     obtain ⟨left, right⟩ := retained live (.active 0 0)
@@ -2240,31 +2244,40 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
       labels = leading ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
-      ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix := by
+      ComponentAcceptedFrontier older check canon (.node callee.tag valid children) handle reached peer suffix ∧
+      (suffix = [] ∨ reached.ctl = [] ∨ (start.host.writer.IndexedClaimsAgree incoming.host.writer →
+        reached.host.writer.IndexedClaimsAgree peer.host.writer)) := by
   rcases cutSuccessfulPayload (bindings := bindings) callee caller first payload children validated
       leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run with
     ⟨leading, suffix, reached, peer, split, _, initialTransport, residual, frontier, leftHost, rightHost⟩ | early
   · cases frontier with
     | pending _ _ _ _ site boundary =>
       rcases boundary with exhausted | impossible
-      · exact ⟨leading, suffix, reached, peer, split, initialTransport, residual, .pending site exhausted⟩
+      · exact ⟨leading, suffix, reached, peer, split, initialTransport, residual, .pending site exhausted, .inl exhausted⟩
       · exact False.elim (impossible.1 trivial)
     | trapped checked canonical site =>
-      exact ⟨leading, suffix, reached, peer, split, initialTransport, residual, .trapped checked canonical site⟩
+      exact ⟨leading, suffix, reached, peer, split, initialTransport, residual, .trapped checked canonical site, .inr (.inl checked)⟩
     | returned _ checked canonical site =>
       rcases cutComponentPublication (bindings := bindings) checked canonical site
           (leftHost ▸ leftLive) (rightHost ▸ rightLive) leftHandle rightHandle room residual with
         ⟨trailing, used, publication, pair, leftLookup, rightLookup, remaining⟩ | early
       · refine ⟨leading ++ [.tau, .tau, .tau, .tau], trailing, _, _, ?_, ?_, remaining,
-          .published rfl rfl pair leftLookup rightLookup⟩
+          .published rfl rfl pair leftLookup rightLookup, .inr (.inr ?_)⟩
         · rw [split, used, List.append_assoc]
         · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport publication).choose_spec.1
+        · intro indexed
+          change leftWriter.IndexedClaimsAgree rightWriter
+          rcases indexed.register (.node callee.tag valid children) with
+            ⟨_, denied, _⟩ | ⟨_, _, registered, peerRegistered, together⟩
+          · rw [leftLive] at denied
+            cases denied
+          · simpa only [Except.ok.inj (registered.symm.trans leftLive), Except.ok.inj (peerRegistered.symm.trans rightLive)] using together
       · obtain ⟨_, finalPeer, moved, endpoint, _, _⟩ := early
-        refine ⟨leading ++ suffix, [], finish, finalPeer, ?_, ?_, .refl _, .pending endpoint rfl⟩
+        refine ⟨leading ++ suffix, [], finish, finalPeer, ?_, ?_, .refl _, .pending endpoint rfl, .inl rfl⟩
         · simpa only [List.append_nil] using split
         · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend initialTransport moved).choose_spec.1
   · obtain ⟨_, peer, moved, endpoint, _, _⟩ := early
-    exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .pending endpoint rfl⟩
+    exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .pending endpoint rfl, .inl rfl⟩
 
 set_option maxHeartbeats 2000000 in
 private theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -4787,7 +4800,7 @@ theorem cutSuccessfulMarkedReply (callee : ComponentCall.Callee sig) (caller : C
   | ok rightWriter =>
     have rightHandle : handle = rightWriter.accepted.length := by
       simpa [rightLive, Except.map, leftHandle] using same
-    obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier⟩ :=
+    obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _⟩ :=
       cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
         leftFocus rightFocus paired record resultType indirect leftLive rightLive leftHandle rightHandle room run
     refine ⟨leading, suffix, reached, peer, split, moved, residual, frontier,
@@ -4959,6 +4972,13 @@ private theorem rejectPayloadShape (callee : ComponentCall.Callee sig) (caller :
     | some children => exact (wrong ⟨argument, payload, children, rfl, rfl⟩).elim
   · rfl
 
+theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.State sig}
+    (indexed : left.IndexedClaimsAgree right) (tree : Stored.OwnedMemory.Tree sig) :
+    componentRegistration left tree = componentRegistration right tree := by
+  rcases indexed.register tree with ⟨_, leftDenied, rightDenied⟩ | ⟨_, _, leftRegistered, rightRegistered, together⟩
+  · simp only [componentRegistration, leftDenied, rightDenied]
+  · simp only [componentRegistration, leftRegistered, rightRegistered, together.accepted]
+
 private theorem registrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
     ComponentCall.resolveTree (grow := grow) ticket caller tree =
       .op .hostGet (fun state => componentRegistrationProgram ticket caller tree (componentRegistration state.writer tree)) := by
@@ -5087,7 +5107,7 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
     · rcases rejected with ⟨exhausted, aligned⟩ | ⟨checked, canonical, aligned⟩
       · exact .pending exhausted aligned
       · exact .trapped checked canonical aligned
-  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, retained⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, retained⟩ :=
     cutObservedArguments (bindings := bindings) callee caller leftFocus rightFocus paired run
   cases frontier with
   | pending _ _ _ _ site boundary => exact ⟨leading, suffix, reached, peer, split, moved, residual,
@@ -5110,13 +5130,13 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
         · obtain ⟨handle, leftFresh, rightFresh⟩ := bothFresh
           obtain ⟨_, leftRegistered, leftHandle, room⟩ := registeredHandle _ _ leftFresh
           obtain ⟨_, rightRegistered, rightHandle, _⟩ := registeredHandle _ _ rightFresh
-          obtain ⟨more, finalSuffix, lhs, rhs, acceptanceSplit, acceptancePath, finalRun, accepted⟩ :=
+          obtain ⟨more, finalSuffix, lhs, rhs, acceptanceSplit, acceptancePath, finalRun, accepted, writerFlow⟩ :=
             cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
               left right site liveRecord guards.1 guards.2 leftRegistered rightRegistered leftHandle rightHandle room residual
           have whole : OccurrenceTransport profile ready base bindings start incoming (leading ++ more) (leading ++ more) lhs rhs := by
             simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved acceptancePath).choose_spec.1
           refine ⟨leading ++ more, finalSuffix, lhs, rhs, ?_, whole, finalRun, .accepted accepted
-            (compareComponentMarkedReply leftInstalled rightInstalled outside whole finalRun (wider := wider) ?_)⟩
+            (compareComponentMarkedReply leftInstalled rightInstalled outside whole finalRun (wider := wider) ?_) ?_⟩
           · rw [split, acceptanceSplit, List.append_assoc]
           · intro atReturn
             cases accepted with
@@ -5125,6 +5145,7 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
               rw [checked] at atReturn
               simp [PayloadPrefix.Cursor.control] at atReturn
             | published _ _ pair _ _ => exact .inr pair
+          · rwa [leftHost, rightHost] at writerFlow
         · have leftProbe : reached.ctl = check.control (ComponentCall.resolveTree leftTicket caller tree) := by
             simpa only [ComponentCall.acceptPayload, validated, tree] using left
           have rightProbe : peer.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree) := by
@@ -5158,7 +5179,8 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
                   (by simpa only [branch, componentRegistrationProgram] using rightProgram)
               | fresh handle => exact (bothFresh ⟨handle, branch, agrees.symm.trans branch⟩).elim
             · exact ⟨leading ++ [.tau], remaining, lhs, rhs, actual, whole, afterProbe,
-                .registrationMismatch leftProgram rightProgram atProbe agrees⟩
+                .registrationMismatch leftProgram rightProgram atProbe agrees (fun indexed => agrees
+                  (indexedClaims_registrationProbe (by rwa [leftHost, rightHost]) tree))⟩
     · rw [rejectPayloadShape callee caller leftTicket shaped] at left
       rw [rejectPayloadShape callee caller rightTicket shaped] at right
       exact reject split moved residual site left right
@@ -9965,7 +9987,7 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
       obtain ⟨leading, remainder, reached, peer, split, path, _, observed⟩ := body
       cases observed with
       | pending | trapped | registrationMismatch => exact .inr boundary
-      | refused _ reply | accepted _ reply => exact crossComponentBodyReply installed entrySplit moved split path reply boundary
+      | refused _ reply | accepted _ reply _ => exact crossComponentBodyReply installed entrySplit moved split path reply boundary
   · exact .inr boundary
 
 open ReturnFrame.Occurrence in
@@ -10032,7 +10054,7 @@ private theorem classifiedWaitResumeCrossing : CallbackWaitResumeCrossing profil
   intro changes start incoming next finish label labels waiter resumer afterResume frames rest core resume savedFrames mem entry
     scheduled found step tail paired
   have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.waitResume scheduled found) step tail)
-  obtain ⟨leading, suffix, reached, peer, check, canon, split, paths, actual, frontier, exit, _⟩ :=
+  obtain ⟨leading, suffix, reached, peer, check, canon, split, paths, actual, frontier, exit, _, _, _⟩ :=
     cutResumedWaitDelivery (bindings := bindings) mem entry scheduled found step tail paired
   obtain ⟨rfl, used⟩ := List.cons.inj split
   refine crossFlatCalloutExit used exit (fun _ _ => paths) (fun stop => callbackTerminalSlice paired ?_) boundary
@@ -10043,7 +10065,7 @@ private theorem classifiedCancelResumeCrossing : CallbackCancelResumeCrossing pr
   intro changes start incoming next finish label labels waiter resumer afterResume frames rest core resume savedFrames subtask
     scheduled found step tail paired
   have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.cancelResume scheduled found) step tail)
-  obtain ⟨leading, suffix, reached, peer, split, paths, actual, exit, _⟩ :=
+  obtain ⟨leading, suffix, reached, peer, split, paths, actual, exit, _, _, _⟩ :=
     cutResumedCancelFinish (bindings := bindings) subtask scheduled found step tail paired
   obtain ⟨rfl, used⟩ := List.cons.inj split
   refine crossFlatCalloutExit used exit (fun _ _ => paths) (fun stop => callbackTerminalSlice paired ?_) boundary
@@ -10110,7 +10132,7 @@ private theorem classifiedWaitCrossing : CallbackWaitableCrossing profile ready 
     rcases result with ⟨entry, choice⟩
     cases choice with
     | none =>
-      obtain ⟨body, remaining, delivered, peerDelivery, consumed, path, actual, outcome, exit, _⟩ :=
+      obtain ⟨body, remaining, delivered, peerDelivery, consumed, path, actual, outcome, exit, _, _, _⟩ :=
         cutWaitableWaitDelivery (bindings := bindings) mem entry checked canonical site residual
       have whole := (CallbackPrefix.transportAppend decision path).choose_spec.1
       have compared : OccurrenceTransport profile ready base bindings start incoming (.tau :: (leading ++ body))
@@ -10191,7 +10213,7 @@ private theorem crossReadyCancelCore {decision peerDecision : Config (core3 grow
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   cases choice with
   | none =>
-    obtain ⟨body, remaining, reached, peer, used, paths, residual, exit, stationary⟩ :=
+    obtain ⟨body, remaining, reached, peer, used, paths, residual, exit, stationary, _, _⟩ :=
       cutCancelFinish (bindings := bindings) subtask leftFocus rightFocus site actual
     have consumed : labels = (checked ++ body) ++ remaining := by rw [split, used, List.append_assoc]
     have seen : PayloadPrefix.visible (canonical ++ body) = PayloadPrefix.visible (checked ++ body) := by
