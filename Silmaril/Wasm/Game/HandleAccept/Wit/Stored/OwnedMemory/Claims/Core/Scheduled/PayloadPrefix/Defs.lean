@@ -297,6 +297,45 @@ inductive LocalSteps {E : CoreEngine} {Host : Type} (profile : ProfileKind) (rea
       (tail : LocalSteps profile ready dispatch next labels finish) :
       LocalSteps profile ready dispatch before (label :: labels) finish
 
+/-- A single silent local read with unchanged store, host, and occurrence
+locations. The proof is about this edge, not just its enclosing segment. -/
+structure SilentLocalStep {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) (before after : Config E Host) : Prop where
+  tracks : ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch before place [.tau] after place
+  store : before.store = after.store
+  host : after.host = before.host
+
+inductive SilentLocalPath {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) : Config E Host → List (Label E Host) → Config E Host → Prop where
+  | done (state : Config E Host) : SilentLocalPath profile ready dispatch state [] state
+  | read {before middle after labels} (step : SilentLocalStep profile ready dispatch before middle)
+      (tail : SilentLocalPath profile ready dispatch middle labels after) :
+      SilentLocalPath profile ready dispatch before (.tau :: labels) after
+
+/-- The compiled local operation runs under both dispatchers. Placement and
+width reads may occur on just one side; shared writes, choices and traps
+have the same actual label and edit, and leave each host unchanged. -/
+inductive PairedLocalPath {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch reference : Call E → P E Host (Ret E)) :
+    Config E Host → Config E Host → List (Label E Host) → List (Label E Host) → Config E Host → Config E Host → Prop where
+  | done {left right} (store : left.store = right.store) :
+      PairedLocalPath profile ready dispatch reference left right [] [] left right
+  | checkedRead {left middle right checked canonical after peer}
+      (read : SilentLocalStep profile ready dispatch left middle)
+      (tail : PairedLocalPath profile ready dispatch reference middle right checked canonical after peer) :
+      PairedLocalPath profile ready dispatch reference left right (.tau :: checked) canonical after peer
+  | canonicalRead {left right middle checked canonical after peer}
+      (read : SilentLocalStep profile ready reference right middle)
+      (tail : PairedLocalPath profile ready dispatch reference left middle checked canonical after peer) :
+      PairedLocalPath profile ready dispatch reference left right checked (.tau :: canonical) after peer
+  | step {left right middle peer after reached label checked canonical}
+      (store : left.store = right.store)
+      (lhs : Step profile ready dispatch left label middle) (rhs : Step profile ready reference right label peer)
+      (leftHost : middle.host = left.host) (rightHost : peer.host = right.host)
+      (edit : ReturnFrame.Occurrence.transitionEdit right label = ReturnFrame.Occurrence.transitionEdit left label)
+      (tail : PairedLocalPath profile ready dispatch reference middle peer checked canonical after reached) :
+      PairedLocalPath profile ready dispatch reference left right (label :: checked) (label :: canonical) after reached
+
 /-- A local comparison with exact reached configurations. Unlike the
 handle-only cut, it permits synchronized observations such as NaN choices. -/
 def LocalCutKeepingBetween {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
@@ -312,7 +351,7 @@ def LocalCutKeepingBetween {E : CoreEngine} {Host Result : Type} (profile : Prof
       | .ok _ => keep store ∧ ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left checked lhs ∧
           ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right canonical rhs
       | .error reason => ∃ leading, visible canonical = leading ++ [.trap reason]
-    if trackOccurrences then outcome ∧ ∀ mark,
+    if trackOccurrences then outcome ∧ PairedLocalPath profile ready dispatch reference left right checked canonical lhs rhs ∧ ∀ mark,
       ReturnFrame.Occurrence.Trail profile ready dispatch left mark checked lhs (localOccurrenceEnd result mark) ∧
       ReturnFrame.Occurrence.Trail profile ready reference right mark canonical rhs (localOccurrenceEnd result mark)
     else outcome

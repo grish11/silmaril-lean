@@ -131,6 +131,20 @@ theorem cutGuardedLeafPrefix {leftEnd rightEnd : Config (core3 grow) (HostState 
       used = labels.drop guard.length ∧ spends = if guard.length ≤ labels.length then plan.toList else [] :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutGuardedLeaf path split same run
 
+open PayloadPrefix in
+/-- Cut the compiler-derived local operation at an executed checked prefix.
+The paired reads, stores, and choices keep the writers separately framed;
+the cut preserves all active and saved occurrence locations or their actual loss. -/
+theorem cutPairedLocalPrefix {planned reference remaining : Trace grow sig}
+    {leftEnd rightEnd : Config (core3 grow) (HostState sig)}
+    (path : PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      start incoming planned reference leftEnd rightEnd)
+    (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ used peer, finish.store = peer.store ∧ visible labels = visible used ∧
+      finish.host = start.host ∧ peer.host = incoming.host ∧
+      OccurrenceTransport profile ready base bindings start incoming labels used finish peer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.pairedLocalPrefix path split run
+
 /-- Compare an executed shared host read of a recursive claim plan after its store read.
 Neither side commits the prospective dry-run spends. -/
 theorem compareReachedRecordPrepare (plan : List Object)

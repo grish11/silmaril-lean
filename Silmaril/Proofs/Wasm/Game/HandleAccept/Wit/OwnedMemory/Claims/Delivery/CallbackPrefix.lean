@@ -1655,7 +1655,7 @@ theorem locatedLocalPaths {Result : Type} {keep : CStore (core3 grow) → Prop}
       ComparedSlots profile ready base bindings start incoming observed lhs rhs offset →
       lhs.ctl = check.control (checkNext words) → rhs.ctl = canon.control (canonNext words) → visit observed lhs rhs check canon) :
     LocatedLocalPathsThen profile ready base bindings start incoming left right seen offset visit := by
-  obtain ⟨store, result, checked, canonical, lhs, rhs, matched, outcome, trails⟩ := cut
+  obtain ⟨store, result, checked, canonical, lhs, rhs, matched, outcome, _, trails⟩ := cut
   have paths : ComparedOccurrencePaths profile ready base bindings left right (PayloadPrefix.visible canonical)
       (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
       (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=
@@ -1685,7 +1685,7 @@ theorem localCutOccurrences {Result : Type} {keep : CStore (core3 grow) → Prop
       ComparedOccurrencePaths profile ready base bindings start incoming observed lhs rhs →
       lhs.ctl = check.control (checkNext words) → rhs.ctl = canon.control (canonNext words) → visit observed lhs rhs check canon) :
     LocalOccurrenceThen profile ready base bindings start incoming seen visit := by
-  obtain ⟨store, result, checked, canonical, _, _, matched, outcome, trails⟩ := cut
+  obtain ⟨store, result, checked, canonical, _, _, matched, outcome, _, trails⟩ := cut
   have paths : ComparedOccurrencePaths profile ready base bindings left right (PayloadPrefix.visible canonical)
       (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
       (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=
@@ -1713,7 +1713,7 @@ theorem localCutTransport {Result : Type} {keep : CStore (core3 grow) → Prop}
       ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
       lhs.ctl = check.control (checkNext words) → rhs.ctl = canon.control (canonNext words) → visit observed lhs rhs check canon) :
     LocalTransportThen profile ready base bindings start incoming seen visit := by
-  obtain ⟨store, result, checked, canonical, _, _, matched, outcome, trails⟩ := cut
+  obtain ⟨store, result, checked, canonical, _, _, matched, outcome, _, trails⟩ := cut
   have transported : ComparedOccurrenceTransport profile ready base bindings left right (PayloadPrefix.visible canonical)
       (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
       (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) :=

@@ -2919,6 +2919,83 @@ private theorem mapStringEnd
   | collectionRange nonempty tail => exact .collectionRange nonempty tail
   | callback tracked paired terminal notPopped => exact .callback tracked paired terminal notPopped
 
+open PayloadPrefix ReturnFrame.Occurrence in
+private theorem pairedLocalStartStore {left right leftEnd rightEnd : Config (core3 grow) (HostState sig)}
+    {checked canonical : Trace grow sig}
+    (path : PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      left right checked canonical leftEnd rightEnd) : left.store = right.store := by
+  induction path with
+  | done same | step same _ _ _ _ _ _ _ => exact same
+  | checkedRead read _ ih => exact read.store.trans ih
+  | canonicalRead read _ ih => exact ih.trans read.store.symm
+
+open PayloadPrefix ReturnFrame.Occurrence in
+theorem pairedLocalPrefix {planned reference remaining : Trace grow sig}
+    {leftEnd rightEnd : Config (core3 grow) (HostState sig)}
+    (path : PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      start incoming planned reference leftEnd rightEnd)
+    (split : planned = labels ++ remaining) (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ used peer, finish.store = peer.store ∧ visible labels = visible used ∧
+      finish.host = start.host ∧ peer.host = incoming.host ∧
+      OccurrenceTransport profile ready base bindings start incoming labels used finish peer := by
+  have stopped {left right : Config (core3 grow) (HostState sig)} (same : left.store = right.store) :
+      ∃ used peer, left.store = peer.store ∧ visible ([] : Trace grow sig) = visible used ∧
+        left.host = left.host ∧ peer.host = right.host ∧
+        OccurrenceTransport profile ready base bindings left right [] used left peer :=
+    ⟨[], right, same, rfl, rfl, rfl, CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place)⟩
+  induction path generalizing labels remaining with
+  | done same =>
+    cases run with
+    | refl => exact stopped same
+    | cons => simp at split
+  | @checkedRead left middle right checked canonical after reached read path ih =>
+    cases run with
+    | refl => exact stopped (read.store.trans (pairedLocalStartStore path))
+    | cons step run =>
+      obtain ⟨sameLabel, rest⟩ := List.cons.inj split
+      subst sameLabel
+      obtain ⟨taken, _⟩ := prefix_survives (read.tracks (.active 0 0))
+      cases taken with
+      | cons first empty =>
+        cases empty
+        cases labelledStepUnique step first
+        obtain ⟨used, peer, same, seen, leftHost, rightHost, movement⟩ := ih rest run
+        have front := CallbackPrefix.stationaryTransport (base := base) (bindings := bindings) read.tracks (fun place => .done right place)
+        exact ⟨used, peer, same, seen, leftHost.trans read.host, rightHost,
+          by simpa only [List.cons_append, List.nil_append, List.map_nil] using (CallbackPrefix.transportAppend front movement).choose_spec.1⟩
+  | @canonicalRead left right middle checked canonical after reached read path ih =>
+    cases labels with
+    | nil =>
+      cases run
+      exact stopped ((pairedLocalStartStore path).trans read.store.symm)
+    | cons label labels =>
+      obtain ⟨used, peer, same, seen, leftHost, rightHost, movement⟩ := ih split run
+      have front := CallbackPrefix.stationaryTransport (base := base) (bindings := bindings) (fun place => .done left place) read.tracks
+      exact ⟨.tau :: used, peer, same, seen, leftHost, rightHost.trans read.host,
+        by simpa only [List.cons_append, List.nil_append, List.map_nil] using (CallbackPrefix.transportAppend front movement).choose_spec.1⟩
+  | @step left right middle rawMiddle _ _ label checked canonical same leftStep rightStep leftFrame rightFrame edit path ih =>
+    cases run with
+    | refl => exact stopped same
+    | cons step run =>
+      obtain ⟨sameLabel, rest⟩ := List.cons.inj split
+      subst sameLabel
+      cases labelledStepUnique step leftStep
+      obtain ⟨used, peer, store, seen, leftHost, rightHost, move, paths, transported⟩ := ih rest run
+      refine ⟨label :: used, peer, store, ?_, leftHost.trans leftFrame, rightHost.trans rightFrame,
+        fun mark => move (mark.bind (transitionEdit left label).follow), ?_, ?_⟩
+      · change visible ([label] ++ _) = visible ([label] ++ _)
+        rw [visibleAppend, visibleAppend, seen]
+      · intro mark
+        obtain ⟨lhs, rhs⟩ := paths (mark.bind (transitionEdit left label).follow)
+        exact ⟨.step step lhs, .step rightStep (by rw [edit]; exact rhs)⟩
+      · intro older marks outside
+        have moved := outside.edit (transitionEdit left label)
+        have leftStorage := step_edit step
+        have rightStorage := step_edit rightStep
+        rw [edit] at rightStorage
+        rw [← leftStorage, ← rightStorage] at moved
+        simpa only [List.map_map, Function.comp_def] using transported older _ moved
+
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
 private theorem consumeFlatLocal {origin : CStore (core3 grow)}
     {checkNext : FlatSequenceCheckNext grow sig} {canonNext : FlatSequenceCanonNext grow sig}
@@ -2928,15 +3005,14 @@ private theorem consumeFlatLocal {origin : CStore (core3 grow)}
       (fun store => Core3.Grows origin.core store.core) start incoming check canon (fun words => checkNext (.ok words)) canonNext true)
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish := by
-  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, trails⟩ := localCut
-  have stop (ending : StringSliceEnd profile ready base bindings older
-      (fun _ => FlatVisitFocus older origin checkNext canonNext) start incoming labels finish []) :
-      FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish :=
-    ⟨[], [], labels, start, incoming, [], rfl, rfl,
-      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), frame.store, run, ending⟩
+  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, path, trails⟩ := localCut
   cases alignWorkerBody lhs run with
-  | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
-  | departure _ split shared _ branch _ _ step tail => exact stop (.localChoice split branch.2 shared step tail)
+  | inside split nonempty tail =>
+    obtain ⟨used, peer, same, seen, _, _, movement⟩ := pairedLocalPrefix path split run
+    exact ⟨labels, used, [], finish, peer, [], (List.append_nil _).symm, seen.symm, movement, same, .refl _, .localPrefix nonempty tail⟩
+  | departure planned split shared _ branch _ _ step tail =>
+    obtain ⟨used, peer, same, seen, _, _, movement⟩ := pairedLocalPrefix path planned shared
+    exact ⟨_, used, _, _, peer, [], split, seen.symm, movement, same, .cons step tail, .localChoice rfl branch.2 (.refl _) step tail⟩
   | reached split tail =>
     refine ⟨checked, canonical, _, _, _, [], split, observed.symm, CallbackPrefix.localLeafTransport trails, ?_, tail, ?_⟩
     · cases result <;> rfl
@@ -6697,16 +6773,19 @@ private theorem driveMemoryScalar {origin : CStore (core3 grow)} (destination : 
       destination.width (.data type payload) (.memory address) >>= canonNext))
     (actual : Steps profile ready (specDispatch ready base) start labels finish) :
     MemoryVisitRun profile ready base bindings older origin destination inst checkNext canonNext start incoming labels finish := by
-  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, trails⟩ :=
+  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, path, trails⟩ :=
     local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type data payload index
       (.memory address) origin start incoming (frame.store ▸ growth)
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, width]) placed
       (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
   cases alignWorkerBody lhs actual with
-  | inside _ nonempty tail => exact stationaryMemoryVisit frame.store actual (.localPrefix nonempty tail)
-  | departure _ split shared _ branch _ _ step tail =>
-    exact stationaryMemoryVisit frame.store actual (.localChoice split branch.2 shared step tail)
+  | inside split nonempty tail =>
+    obtain ⟨used, peer, same, seen, _, _, movement⟩ := pairedLocalPrefix path split actual
+    exact ⟨labels, used, [], finish, peer, [], (List.append_nil _).symm, seen, same, movement, .refl _, .boundary (.localPrefix nonempty tail)⟩
+  | departure planned split shared _ branch _ _ step tail =>
+    obtain ⟨used, peer, same, seen, _, _, movement⟩ := pairedLocalPrefix path planned shared
+    exact ⟨_, used, _, _, peer, [], split, seen, same, movement, .cons step tail, .boundary (.localChoice rfl branch.2 (.refl _) step tail)⟩
   | reached split tail =>
     refine ⟨checked, canonical, _, _, _, [], split, observed, ?_, CallbackPrefix.localLeafTransport trails, tail, ?_⟩
     · cases result <;> rfl
@@ -7380,16 +7459,19 @@ theorem driveCompiledMemory {origin : CStore (core3 grow)} {root item : Field} {
     intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
     have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width :=
       frame.store ▸ growth.memAddrType width
-    obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, occurrences⟩ :=
+    obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, localPath, occurrences⟩ :=
       memory_sum_tag_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
         (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type arms tag index address selected
         left.store left right check canon checkNext canonNext frame.store frame.thread
         (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt])
         (frame.store ▸ Core3.Grows.refl left.store.core) checkAt canonAt true
     cases alignWorkerBody lhs run with
-    | inside _ nonempty tail => exact stationaryMemoryVisit frame.store run (.localPrefix nonempty tail)
-    | departure _ split shared _ branch _ _ step tail =>
-      exact stationaryMemoryVisit frame.store run (.localChoice split branch.2 shared step tail)
+    | inside split nonempty tail =>
+      obtain ⟨used, peer, same, seen, _, _, movement⟩ := pairedLocalPrefix localPath split run
+      exact ⟨actual, used, [], finish, peer, [], (List.append_nil _).symm, seen, same, movement, .refl _, .boundary (.localPrefix nonempty tail)⟩
+    | departure planned split shared _ branch _ _ step tail =>
+      obtain ⟨used, peer, same, seen, _, _, movement⟩ := pairedLocalPrefix localPath planned shared
+      exact ⟨_, used, _, _, peer, [], split, seen, same, movement, .cons step tail, .boundary (.localChoice rfl branch.2 (.refl _) step tail)⟩
     | @reached trailing split tail =>
       let reached := localLeafEnd left left.host store check.thread check.frames check.rest
         (sumCheckedNext destination inst selected index (sumPayloadAddress destination.width arms address) checkNext) result

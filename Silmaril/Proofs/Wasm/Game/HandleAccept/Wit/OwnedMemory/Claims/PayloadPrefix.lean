@@ -251,20 +251,22 @@ private theorem closedCutOccurrencesBetween {body : P E Host Result} {keep : CSt
     have canonEnd : localLeafEnd right right.host right.store canon.thread canon.frames canon.rest canonNext (.ok value) = right := by
       cases right
       simp_all only [localLeafEnd, Cursor.control, Prog.bind_eq, Prog.pure_bind']
-    refine ⟨right.store, .ok value, [], [], by rw [checkEnd]; exact .refl _, by rw [canonEnd]; exact .refl _, rfl, ⟨kept, ?_, ?_⟩, ?_⟩
+    refine ⟨right.store, .ok value, [], [], by rw [checkEnd]; exact .refl _, by rw [canonEnd]; exact .refl _, rfl, ⟨kept, ?_, ?_⟩, ?_, ?_⟩
     · intro depth
       rw [checkEnd]
       exact .done _ (.active 0 depth)
     · intro depth
       rw [canonEnd]
       exact .done _ (.active 0 depth)
+    · rw [checkEnd, canonEnd]
+      exact .done same
     · intro mark
       rw [checkEnd, canonEnd]
       exact ⟨.done _ mark, .done _ mark⟩
   | @op operation next admitted _ ih =>
     intro left right check canon checkNext canonNext kept same thread checkAt canonAt
     have advance (label : Label E Host) (response : (Eff E Host).Resp operation)
-        (leftStore rightStore : CStore E) (kept : keep rightStore) (same : leftStore = rightStore)
+        (leftStore rightStore : CStore E) (kept : keep rightStore) (sameNext : leftStore = rightStore)
         (checked : Step profile ready dispatch left label
           { left with store := leftStore, ctl := check.control (next response >>= checkNext) })
         (canonical : Step profile ready reference right label
@@ -273,17 +275,17 @@ private theorem closedCutOccurrencesBetween {body : P E Host Result} {keep : CSt
         (checkEdit : ReturnFrame.Occurrence.transitionEdit left label = .same)
         (canonEdit : ReturnFrame.Occurrence.transitionEdit right label = .same) :
         LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext true := by
-      obtain ⟨store, result, chk, ref, runChk, runRef, labels, outcome, trails⟩ :=
+      obtain ⟨store, result, chk, ref, runChk, runRef, labels, outcome, path, trails⟩ :=
         ih response { left with store := leftStore, ctl := check.control (next response >>= checkNext) }
           { right with store := rightStore, ctl := canon.control (next response >>= canonNext) }
-          check canon checkNext canonNext kept same thread rfl rfl
+          check canon checkNext canonNext kept sameNext thread rfl rfl
       have final : ∀ (start : Config E Host) (localStore : CStore E) ctl (cursor : Cursor (E := E) Host) finish,
           localLeafEnd { start with store := localStore, ctl } start.host store cursor.thread cursor.frames cursor.rest finish result =
           localLeafEnd start start.host store cursor.thread cursor.frames cursor.rest finish result := by
         intro start localStore ctl cursor finish
         cases result <;> rfl
       rw [final] at runChk runRef
-      refine ⟨store, result, label :: chk, label :: ref, .cons checked runChk, .cons localFocus canonical runRef, ?_, ?_, ?_⟩
+      refine ⟨store, result, label :: chk, label :: ref, .cons checked runChk, .cons localFocus canonical runRef, ?_, ?_, ?_, ?_⟩
       · change visible ([label] ++ chk) = visible ([label] ++ ref)
         rw [visible_append, visible_append, labels]
       · cases result with
@@ -303,6 +305,8 @@ private theorem closedCutOccurrencesBetween {body : P E Host Result} {keep : CSt
           refine ⟨visible [label] ++ leading, ?_⟩
           change visible ([label] ++ ref) = _
           rw [visible_append, last, List.append_assoc]
+      · rw [final, final] at path
+        exact .step same checked canonical rfl rfl (canonEdit.trans checkEdit.symm) path
       · intro mark
         obtain ⟨lhs, rhs⟩ := trails mark
         rw [final] at lhs rhs
@@ -328,9 +332,13 @@ private theorem closedCutOccurrencesBetween {body : P E Host Result} {keep : CSt
         (by rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl) (by rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl)
     | trap reason =>
       refine ⟨right.store, .error reason, [.trap reason], [.trap reason], ?_,
-        .cons (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) (.trap canonAt) (.refl _), rfl, ⟨[], rfl⟩, ?_⟩
+        .cons (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) (.trap canonAt) (.refl _), rfl, ⟨[], rfl⟩, ?_, ?_⟩
       · rw [← same]
         exact .cons (.trap checkAt) (.refl _)
+      · have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
+            StepDefs.trapCfg left := by rw [← same]; rfl
+        rw [leftEnd]
+        exact .step same (.trap checkAt) (.trap canonAt) rfl rfl rfl (.done (congrArg StepDefs.lockdownSt same))
       · intro mark
         have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
             StepDefs.trapCfg left := by rw [← same]; rfl
@@ -781,7 +789,7 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
     (keep := fun store => Core3.Grows origin.core store.core)
     (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
     cx tag base (discSize arms.length)
-  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status, trails⟩ := closedCutOccurrencesBetween (profile := profile)
+  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status, path, trails⟩ := closedCutOccurrencesBetween (profile := profile)
     (ready := scheduledReady) (dispatch := scheduledDispatch) (reference := reference) localBody
     left entered check canon checked (resumed destination.width)
     growth same thread checkBody rfl
@@ -809,8 +817,11 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
     cases trackOccurrences with
     | false => cases result <;> exact observed
     | true =>
-      refine ⟨?_, ?_⟩
+      refine ⟨?_, ?_, ?_⟩
       · cases result <;> exact observed
+      · rw [final] at path
+        exact .canonicalRead ⟨fun place => .step read
+          (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl) (.done _ _), rfl, rfl⟩ path
       · intro mark
         obtain ⟨lhs, rhs⟩ := trails mark
         rw [final] at rhs
@@ -1594,8 +1605,9 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
       (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
     let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
       (destination.context inst) destination.width (.data type payload) output
-    ∃ reads, ∀ place, Prefix profile scheduledReady scheduledDispatch start place
-      (List.replicate reads .tau) { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) } place := by
+    ∃ reads, let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    (∀ place, Prefix profile scheduledReady scheduledDispatch start place (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached := by
   let cx := destination.context (grow := grow) inst
   have accepted : (Lower.checkSchema type >>= fun _ => Lower.checkOptions cx type output) = .ok () := by
     rw [schema]
@@ -1631,7 +1643,7 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
     simpa only [branch, width, reachedFit, Bool.not_true, Bool.false_eq_true, ↓reduceIte, entered, emit, cx,
       Cursor.control] using run
   cases output with
-  | flat => exact ⟨1, read⟩
+  | flat => exact ⟨1, read, .read ⟨read, rfl, rfl⟩ (.done _)⟩
   | memory address =>
     let body : Session grow sig Unit := store Limits.spec Quirks.none cx payload.val type address
     let next := body.bind fun value => finish (.ok value)
@@ -1647,7 +1659,8 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
     have bounds := checkPlacementRunAll (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
       destination inst entered area address cursor next guarded
     rw [placedHere] at bounds
-    exact ⟨2, fun place => (read place).append (bounds place)⟩
+    exact ⟨2, fun place => (read place).append (bounds place),
+      .read ⟨read, rfl, rfl⟩ (.read ⟨bounds, rfl, rfl⟩ (.done _))⟩
 
 theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
@@ -1679,7 +1692,7 @@ theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (R
   have options : Lower.checkOptions cx (.prim .string) output = .ok () := by
     cases output <;> simp [cx, RecordDestination.context, Lower.checkOptions, Lower.Output.needsMemory,
       Validation.containsPtr, realloc] <;> rfl
-  obtain ⟨reads, entered⟩ := dataEntry (profile := profile) (scheduledReady := scheduledReady)
+  obtain ⟨reads, entered, _⟩ := dataEntry (profile := profile) (scheduledReady := scheduledReady)
     (scheduledDispatch := scheduledDispatch) destination inst (.prim .string) payload index output left checkCursor checkNext
     (same ▸ width) (primitiveSchema .string) options (by simpa [Lower.fits, payload] using fit) placed checkAt
   let enteredBody := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none cx destination.width
@@ -1776,16 +1789,26 @@ private theorem prependLocalCut {left right : Config E Host} {enteredCtl : List 
     rw [final] at tail
     exact (tracked depth).append tail
 
+private theorem prependLocalReads {left middle right after peer : Config E Host} {reference : Call E → P E Host (Ret E)}
+    {leading checked canonical : List (Label E Host)}
+    (reads : SilentLocalPath profile ready dispatch left leading middle)
+    (path : PairedLocalPath profile ready dispatch reference middle right checked canonical after peer) :
+    PairedLocalPath profile ready dispatch reference left right (leading ++ checked) canonical after peer := by
+  induction reads with
+  | done => exact path
+  | read step _ ih => exact .checkedRead step (ih path)
+
 private theorem prependLocalOccurrenceCut {left right : Config E Host} {enteredCtl : List (Activation E Host)}
     {reference : Call E → P E Host (Ret E)}
     {leading : List (Label E Host)} {keep : CStore E → Prop} {check canon : Cursor (E := E) Host}
     {checkNext canonNext : Result → P E Host (Ret E)}
     (tracked : ∀ place, Prefix profile ready dispatch left place leading { left with ctl := enteredCtl } place)
+    (reads : SilentLocalPath profile ready dispatch left leading { left with ctl := enteredCtl })
     (silent : visible leading = [])
     (cut : LocalCutKeepingBetween profile ready dispatch reference keep { left with ctl := enteredCtl } right
       check canon checkNext canonNext true) (trackOccurrences : Bool) :
     LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext trackOccurrences := by
-  obtain ⟨store, result, chk, ref, runChk, runRef, seen, status, trails⟩ := cut
+  obtain ⟨store, result, chk, ref, runChk, runRef, seen, status, path, trails⟩ := cut
   have final : localLeafEnd { left with ctl := enteredCtl } left.host store check.thread check.frames check.rest checkNext result =
       localLeafEnd left left.host store check.thread check.frames check.rest checkNext result := by cases result <;> rfl
   rw [final] at runChk
@@ -1810,8 +1833,10 @@ private theorem prependLocalOccurrenceCut {left right : Config E Host} {enteredC
   cases trackOccurrences with
   | false => cases result <;> exact outcome
   | true =>
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, ?_, ?_⟩
     · cases result <;> exact outcome
+    · rw [final] at path
+      exact prependLocalReads reads path
     · intro mark
       obtain ⟨lhs, rhs⟩ := trails mark
       rw [final] at lhs
@@ -2040,9 +2065,9 @@ theorem localDataLeafFrameBetween {reference : Call (core3 grow) → Session gro
     | @primitive primitive nonString => cases primitive <;> first | contradiction | cases payload.val <;> rfl
     | enum | flags => cases payload.val <;> rfl
   intro same check canon thread checkedNext canonNext checkAt canonAt
-  obtain ⟨reads, entered⟩ := dataEntry destination inst type payload index output left check checkedNext
+  obtain ⟨reads, entered, entryPath⟩ := dataEntry destination inst type payload index output left check checkedNext
     width schema options fit placed checkAt
-  exact prependLocalOccurrenceCut entered (silent (fun _ member => List.eq_of_mem_replicate member))
+  exact prependLocalOccurrenceCut entered entryPath (silent (fun _ member => List.eq_of_mem_replicate member))
     (closedCutOccurrencesBetween (localDataProgram (growthWrites origin) destination inst type data payload output)
       _ right check canon (fun value => checkedNext (.ok value)) canonNext growth same thread rfl canonAt) trackOccurrences
 
@@ -2397,7 +2422,7 @@ theorem localMapKeyThen {reference : Call (core3 grow) → Session grow sig (Ret
   have first := localDataAt (reference := reference) (profile := profile) (scheduledReady := scheduledReady)
     (scheduledDispatch := scheduledDispatch) destination inst (.prim key.toPrimitive) keyData keyPayload 0 keyPtr origin entered
     right growth ⟨typed, keyPlaced⟩ true same check canon thread following refFollowing rfl canonAt
-  exact prependLocalOccurrenceCut guard rfl first trackOccurrences
+  exact prependLocalOccurrenceCut guard (.read ⟨guard, rfl, rfl⟩ (.done _)) rfl first trackOccurrences
 
 private theorem localMapEntry {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)

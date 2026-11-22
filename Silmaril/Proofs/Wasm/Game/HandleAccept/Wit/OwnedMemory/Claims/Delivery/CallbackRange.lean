@@ -1779,7 +1779,7 @@ private theorem liveMapEntry (destination : RecordDestination) (inst : InstId) (
   let atKey := { right with ctl := canon.control (mapKeyBody destination inst ptr mode keyField value canonNext destination.width) }
   obtain ⟨keyRead, quiet, tracks⟩ := mapPlacementOccurrences (profile := profile) (ready := ready) (base := base) (bindings := bindings)
     destination inst key element output right canon _ (growth.memAddrType width) canonAt
-  obtain ⟨store, result, lhs, rhs, checkRun, canonRun, observed, keyResult, occurrences⟩ :=
+  obtain ⟨store, result, lhs, rhs, checkRun, canonRun, observed, keyResult, _, occurrences⟩ :=
     local_map_key_then_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst key element keyData keyPayload value
       origin basePtr bytes count idx width sized aligned bounds entry idx left atKey growth frame.store
@@ -2122,7 +2122,7 @@ private theorem localFieldThen (destination : RecordDestination) (inst : InstId)
       LiveLocalFieldThen profile ready base bindings checkNext canonNext finish left right check canon)
       older origin destination inst (.data type payload) address := by
   intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
-  obtain ⟨store, result, lhsTrace, rhsTrace, lhs, rhs, observed, cut, trails⟩ :=
+  obtain ⟨store, result, lhsTrace, rhsTrace, lhs, rhs, observed, cut, _, trails⟩ :=
     local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type data payload index
       (.memory address) origin left right (frame.store ▸ growth)
@@ -2372,7 +2372,7 @@ private theorem liveSumRule (destination : RecordDestination) (inst : InstId) (t
         left right check canon) older origin destination inst (.sum type arms tag selected) address := by
   intro index checkNext canonNext left right check canon frame growth width placed checkAt canonAt finish ends
   have widthAt : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width := frame.store ▸ width
-  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, observed, cut, occurrences⟩ :=
+  obtain ⟨store, result, lhsLabels, rhsLabels, lhs, rhs, observed, cut, _, occurrences⟩ :=
     memory_sum_tag_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
       (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type arms tag index address selected
       left.store left right check canon checkNext canonNext frame.store frame.thread
