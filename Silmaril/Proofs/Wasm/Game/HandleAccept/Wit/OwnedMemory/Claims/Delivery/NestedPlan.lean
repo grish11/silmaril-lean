@@ -728,7 +728,7 @@ private theorem refusalSkipPath (dispatch : Call (core3 grow) → Session grow s
     (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
     (live : start.store.subtask? subtask = some record) :
     let queued := if record.index.isSome then start.store.setPendingSt (.subtask subtask) (.subtask subtask) else start.store
-    ComponentQuietPath profile ready dispatch cursor start (refusalSkipEdits record subtask caller (args.length - 1))
+    FramedQuietPath profile ready dispatch cursor start (refusalSkipEdits record subtask caller (args.length - 1))
       { start with
         store := LowerSt.setCallerPosSt caller (args.length - 1) (LowerSt.startSt subtask queued)
         ctl := cursor.control (ComponentCall.resolveRefused ticket caller issue) } := by
@@ -740,16 +740,16 @@ private theorem refusalSkipPath (dispatch : Call (core3 grow) → Session grow s
     rw [CStore.subtask?] at live
     cases indexed : record.index with
     | none =>
-      refine .step read (by rw [transitionEdit, focused]; rfl) ?_
-      refine .step (.get rfl) rfl ?_
+      refine FramedQuietPath.step read (by rw [transitionEdit, focused]; rfl) rfl ?_
+      refine FramedQuietPath.step (.get rfl) rfl rfl ?_
       simp [Prog.bind, live, indexed, pure, Prog.bind_assoc]
-      exact .step (.modify rfl) rfl (.step (.modify rfl) rfl (.done _))
+      exact FramedQuietPath.step (.modify rfl) rfl rfl (FramedQuietPath.step (.modify rfl) rfl rfl FramedQuietPath.done)
     | some _ =>
-      refine .step read (by rw [transitionEdit, focused]; rfl) ?_
-      refine .step (.get rfl) rfl ?_
+      refine FramedQuietPath.step read (by rw [transitionEdit, focused]; rfl) rfl ?_
+      refine FramedQuietPath.step (.get rfl) rfl rfl ?_
       simp [Prog.bind, live, indexed, pure, Prog.bind_assoc, Waitable.setPendingEvent]
-      refine .step (.modify rfl) rfl ?_
-      exact .step (.modify rfl) rfl (.step (.modify rfl) rfl (.done _))
+      refine FramedQuietPath.step (.modify rfl) rfl rfl ?_
+      exact FramedQuietPath.step (.modify rfl) rfl rfl (FramedQuietPath.step (.modify rfl) rfl rfl FramedQuietPath.done)
 
 private theorem admittedRefusalGuards (callee : ComponentCall.Callee sig) {subtask : SubtaskId}
     {cx : LiftLowerContext (core3 grow)} {args : List FlatValue} {pos : Nat}
@@ -794,9 +794,10 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
       return .cancel .none
     (∃ suffix reached peer, labels = List.replicate count .tau ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
       reached.ctl = check.control common ∧ peer.ctl = canon.control common ∧
       HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish count := by
+    FramedComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish count := by
   dsimp only
   let skipCount := if record.index.isSome then 5 else 4
   let skipped := fun (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat) =>
@@ -812,9 +813,12 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
   have edits : (refusalSkipEdits (grow := grow) record subtask caller (args.length - 1)).length = skipCount := by
     unfold refusalSkipEdits skipCount
     cases indexed : record.index <;> rfl
-  have left := leftPath.track
-  have right := rightPath.track
+  have left := leftPath.1.track
+  have right := rightPath.1.track
   rw [edits] at left right
+  have skipWriters : VisitorWriterPath profile ready base bindings start incoming (List.replicate skipCount .tau)
+      (List.replicate skipCount .tau) (skipped start check leftTicket) (skipped incoming canon rightTicket) :=
+    .framed (edits ▸ leftPath.2) (edits ▸ rightPath.2)
   have count : skipCount + 3 = (if record.index.isSome then 8 else 7) := by
     unfold skipCount
     cases record.index <;> rfl
@@ -833,22 +837,26 @@ theorem cutAdmittedRefusal (callee : ComponentCall.Callee sig) (caller : CallerI
       all_goals rw [callerRecord]; rfl
     obtain ⟨resultType, indirect⟩ := admittedRefusalGuards callee admitted
     rcases cutComponentResolveRefused (bindings := bindings) caller issue rfl rfl reachedRecord resultType indirect skipSite residual with
-      ⟨suffix, more, moved, _, paired, remaining⟩ | short
-    · refine .inl ⟨suffix, _, _, ?_, ?_, rfl, rfl, paired, remaining⟩
+      ⟨suffix, more, moved, writers, paired, remaining⟩ | short
+    · refine .inl ⟨suffix, _, _, ?_, ?_, ?_, rfl, rfl, paired, remaining⟩
       · rw [← count, split, more, ← List.append_assoc, List.replicate_add]; rfl
       · have movement := CallbackPrefix.stationaryTransport (bindings := bindings) left right
         rw [← count, List.replicate_add]
         simpa only [skipCount, List.map_nil, List.append_nil, List.replicate_succ, List.replicate_zero] using
           (CallbackPrefix.transportAppend movement moved).choose_spec.1
-    · obtain ⟨shorter, peer, moved, endpoint, _, leftProgram, rightProgram⟩ := short
-      refine .inr ⟨?_, peer, ?_, endpoint, leftProgram, rightProgram⟩
+      · rw [← count, List.replicate_add]
+        exact skipWriters.append writers
+    · obtain ⟨shorter, peer, moved, endpoint, writers, leftProgram, rightProgram⟩ := short
+      refine .inr ⟨?_, peer, ?_, endpoint, ?_, leftProgram, rightProgram⟩
       · rw [← count, split, List.length_append, List.length_replicate]
         omega
       · rw [split]
         simpa only [List.map_nil, List.append_nil] using
           (CallbackPrefix.transportAppend (CallbackPrefix.stationaryTransport left right) moved).choose_spec.1
+      · rw [split]
+        exact skipWriters.append writers
   · apply Or.inr
-    have early := compareQuietShort (bindings := bindings) leftPath rightPath paired ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run
+    have early := compareFramedQuietShort (bindings := bindings) leftPath rightPath paired ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run
       (edits.symm ▸ short)
     exact ⟨by rw [← count]; omega, early.2⟩
 
@@ -2131,12 +2139,13 @@ theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : C
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
         (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨
-    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish (if record.index.isSome then 8 else 7) := by
+    FramedComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish (if record.index.isSome then 8 else 7) := by
   rcases cutAdmittedRefusal (bindings := bindings) callee caller issue record leftFocus rightFocus callerRecord live admitted paired run with
-    ⟨tail, observed, observedPeer, split, moved, left, right, aligned, residual⟩ | short
+    ⟨tail, observed, observedPeer, split, moved, preludeWriters, left, right, aligned, residual⟩ | short
   · obtain ⟨_, indirect⟩ := admittedRefusalGuards callee admitted
     let body : Session grow sig Unit := do
       maybeOnProgress subtask
@@ -2154,11 +2163,12 @@ theorem cutAdmittedRefusalResult (callee : ComponentCall.Callee sig) (caller : C
       simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
       obtain ⟨⟨threadEq, framesEq⟩, restEq⟩ := focus
       simpa only [PayloadPrefix.Cursor.control, ← threadEq, ← framesEq, ← restEq] using normalized
-    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier, _, _⟩ :=
-      cutComponentStoreBody (bindings := bindings) (closed := True) body _ _ (fun _ => resultEffects subtask cx _ results indirect none)
+    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier, _, _, checked, canonical, _⟩ :=
+      cutComponentStoreBodyFramed (bindings := bindings) (closed := True) body _ _
+        (fun _ => resultEffects subtask cx _ results indirect none) (trivialPreserves body) trivial
         leftBody rightBody site residual
     refine .inl ⟨List.replicate (if record.index.isSome then 8 else 7) .tau ++ leading,
-      suffix, reached, peer, ?_, ?_, ?_, remaining, frontier⟩
+      suffix, reached, peer, ?_, ?_, ?_, preludeWriters.append (.framed checked canonical), remaining, frontier⟩
     · rw [split, tailSplit, List.append_assoc]
     · rw [split, tailSplit, List.length_append, List.length_append, List.length_replicate]
       split <;> omega
@@ -5226,15 +5236,16 @@ theorem cutAdmittedRefusalMarkedReply (callee : ComponentCall.Callee sig) (calle
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
         (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
       ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) := by
+    FramedComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) := by
   rcases cutAdmittedRefusalResult (bindings := bindings) callee caller issue record leftFocus rightFocus callerRecord live admitted paired run with
-    ⟨leading, suffix, reached, peer, split, shorter, moved, residual, frontier⟩ | early
-  · refine .inl ⟨leading, suffix, reached, peer, split, shorter, moved, residual, frontier,
+    ⟨leading, suffix, reached, peer, split, shorter, moved, writers, residual, frontier⟩ | early
+  · refine .inl ⟨leading, suffix, reached, peer, split, shorter, moved, writers, residual, frontier,
       compareComponentMarkedReply leftInstalled rightInstalled outside moved residual (wider := wider) ?_⟩
     intro atReturn
     cases frontier with
@@ -5865,8 +5876,8 @@ theorem cutAdmittedComponent (callee : ComponentCall.Callee sig) (caller : Calle
         | some subtaskEntry =>
           rcases cutAdmittedRefusalMarkedReply (bindings := bindings) callee caller issue subtaskEntry atLeft atRight
               record live admitted site leftMark rightMark exterior residual with
-            ⟨leading, trailing, lhs, rhs, refusalSplit, _, refusalPath, refusalRun, frontier, reply⟩ | shortRefusal
-          · exact .inr ⟨leading, trailing, lhs, rhs, refusalSplit, refusalPath, refusalRun, frontier, reply⟩
+            ⟨leading, trailing, lhs, rhs, refusalSplit, _, refusalPath, writers, refusalRun, frontier, reply⟩ | shortRefusal
+          · exact .inr ⟨leading, trailing, lhs, rhs, refusalSplit, refusalPath, writers, refusalRun, frontier, reply⟩
           · have unindexed : subtaskEntry.index = none := by
               by_contra different
               have indexed : subtaskEntry.index.isSome = true := Option.isSome_iff_ne_none.mpr different
@@ -10913,10 +10924,30 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
     · exact .inr boundary
     cases plan with
     | error issue =>
-      rcases body with _ | ⟨leading, remainder, reached, peer, split, path, _, _, reply⟩
-      · exact .inr boundary
-      · exact crossComponentBodyReply installed entrySplit moved entryWriters split path
-          (.callbackBoundary .dispatch (WriterPaths.ofTransport path)) reply boundary
+      rcases body with early | ⟨leading, remainder, reached, peer, split, path, bodyWriters, residual, frontier, reply⟩
+      · obtain ⟨_, peer, bodyPath, site, bodyWriters, checked, canonical⟩ := early
+        have throughBody := CallbackPrefix.transportAppend install (CallbackPrefix.transportAppend moved bodyPath).choose_spec.1
+        let mark := throughBody.choose (some (.active 0 0))
+        have finalPaths : OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+            start incoming (.tau :: (List.replicate 7 .tau ++ suffix)) (.tau :: (List.replicate 7 .tau ++ suffix))
+            finish peer [mark] := by
+          simpa only [mark, List.singleton_append, List.nil_append, List.map_cons, List.map_nil] using throughBody.choose_spec.1
+        apply Or.inr
+        apply callbackTerminalSlice paired
+        simpa only [entrySplit] using
+          (CallbackSliceEnd.componentEntryPrefix site checked canonical finalPaths (entryWriters.append bodyWriters))
+      · by_cases terminal : remainder = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])
+        · have throughBody := CallbackPrefix.transportAppend install (CallbackPrefix.transportAppend moved path).choose_spec.1
+          let mark := throughBody.choose (some (.active 0 0))
+          have finalPaths : OccurrenceTransport profile ready (ComponentCall.hostWithComponent bindings callees) bindings
+              start incoming (.tau :: (List.replicate 7 .tau ++ leading)) (.tau :: (List.replicate 7 .tau ++ leading))
+              reached peer [mark] := by
+            simpa only [mark, List.singleton_append, List.nil_append, List.map_cons, List.map_nil] using throughBody.choose_spec.1
+          apply Or.inr
+          apply callbackTerminalSlice paired
+          simpa only [entrySplit, split, List.cons_append, List.append_assoc] using
+            (CallbackSliceEnd.componentRefusedTerminal frontier terminal finalPaths (entryWriters.append bodyWriters) residual)
+        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply boundary
     | ok planned =>
       obtain ⟨leading, remainder, reached, peer, split, path, checkedResidual, observed⟩ := body
       cases observed with

@@ -935,9 +935,10 @@ theorem cut_component_admitted_refusal (callee : ComponentCall.Callee sig) (call
       return .cancel .none
     (∃ suffix reached peer, labels = List.replicate count .tau ++ suffix ∧
       OccurrenceTransport profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming (List.replicate count .tau) (List.replicate count .tau) reached peer ∧
       reached.ctl = check.control common ∧ peer.ctl = canon.control common ∧
       HostFrame.Related.Paired older reached peer ∧ Steps profile ready (specDispatch ready base) reached suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish count :=
+    FramedComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish count :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusal
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
 
@@ -958,10 +959,11 @@ theorem cut_component_admitted_refusal_result (callee : ComponentCall.Callee sig
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
         (fun _ => .pure (.cancel .none)) reached peer suffix True) ∨
-    ComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
+    FramedComponentEarlyPrefix profile ready base bindings older check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalResult
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
 
@@ -988,12 +990,13 @@ theorem cut_component_admitted_refusal_marked_reply (callee : ComponentCall.Call
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
       OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
       Steps profile ready (specDispatch ready base) reached suffix finish ∧
       ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
         (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
       ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
         check first second suffix finish) ∨
-    ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
+    FramedComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalMarkedReply
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired leftInstalled rightInstalled outside run
 

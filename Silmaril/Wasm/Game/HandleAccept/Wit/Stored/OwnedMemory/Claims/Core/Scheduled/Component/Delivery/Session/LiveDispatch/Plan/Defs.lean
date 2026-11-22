@@ -5341,9 +5341,10 @@ def ComponentPreflightTail (profile : ProfileKind) (ready : HostReady (HostState
   ∃ plan, leftPlan = plan ∧ rightPlan = plan ∧
     match plan with
     | .error _ =>
-      ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7 ∨
+      FramedComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish 7 ∨
       ∃ leading suffix reached peer, labels = leading ++ suffix ∧
         OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+        VisitorWriterPath profile ready base bindings start incoming leading leading reached peer ∧
         Steps profile ready (specDispatch ready base) reached suffix finish ∧
         ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
           (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
