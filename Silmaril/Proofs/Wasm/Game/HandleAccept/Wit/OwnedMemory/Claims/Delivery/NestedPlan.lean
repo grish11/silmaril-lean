@@ -3548,6 +3548,44 @@ private theorem consumeMemoryVisitReply {pointer : FlatValue} (site : PayloadRoo
       tail, reply⟩
   · exact .inl short
 
+open ReturnFrame.Occurrence PayloadPrefix in
+private theorem consumeMemoryCommonReply {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
+    {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {actual checkEntry canonLeading checkBody trailing : Trace grow sig} {budget : Nat}
+    (split : actual = checkBody ++ trailing)
+    (residual : Steps profile ready (specDispatch ready base) left trailing finish)
+    (combined : OccurrenceTransport profile ready base bindings site.start incoming (checkEntry ++ checkBody)
+      canonLeading left right [some (.active 0 0)])
+    (original : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) checkBody left (.active 0 0))
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (checkAt : left.ctl = check.control (site.reply (.ok ())))
+    (canonAt : right.ctl = canon.control (site.referenceReply ()))
+    (seen : visible (checkEntry ++ checkBody) = visible canonLeading) (bounded : actual.length ≤ budget)
+    (compare : ShorterCallbackSlices profile ready base bindings budget) :
+    MemoryVisitCommonReply profile ready base bindings older site incoming left right checkEntry checkBody canonLeading actual trailing finish := by
+  obtain ⟨checked, canonical, recorded, unchanged, paired, transport⟩ :=
+    CallbackRange.completePublicTransport site () combined original frame checkAt canonAt
+  obtain ⟨move, returned, outside⟩ := transport
+  obtain ⟨_, lead, _⟩ := combined
+  have popped := stripExactPrefix (lead none).1.steps (returned none).1.steps
+  rcases splitSilent (count := 3) popped residual with ⟨suffix, divided, tail⟩ | short
+  · have smaller : suffix.length < actual.length := by
+      simp only [split, divided, List.length_append, List.length_replicate]; omega
+    have paths : OccurrenceTransport profile ready base bindings site.start incoming ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau])
+        (canonLeading ++ [.tau]) checked canonical := ⟨move, returned, outside⟩
+    refine .inr ⟨suffix, checked, canonical, divided, smaller, tail, recorded, unchanged, ?_⟩
+    rcases classifyReachedGrowth (returned none).1.steps with certified | openUpdate
+    · have segment : ExecutedCallbackSegment profile ready base bindings older site.start incoming
+          ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) (canonLeading ++ [.tau]) checked canonical :=
+        ⟨certified, by rw [visibleAppend, visibleAppend, seen]; rfl, paired, paths⟩
+      obtain ⟨continued, reference, remaining, reached, peer, division, suffixSegment, ending⟩ :=
+        compare (Nat.lt_of_lt_of_le smaller bounded) tail paired
+      exact .inl ⟨segment, _, _, remaining, reached, peer,
+        by rw [split, divided, division]; simp only [List.append_assoc, List.replicate_succ, List.replicate_zero],
+        CallbackPrefix.appendExecutedCallbacks segment suffixSegment, ending⟩
+    · exact .inr ⟨openUpdate, paired, paths⟩
+  · exact .inl short
+
 open ReturnFrame.Occurrence in
 private def LinkedMemoryResidualBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -3556,8 +3594,9 @@ private def LinkedMemoryResidualBody (profile : ProfileKind) (ready : HostReady 
   ∃ canonEntry entered, PayloadPrefix.visible canonEntry = [] ∧
     (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place canonEntry entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
-    ∀ actual finish, Steps profile ready (specDispatch ready base) site.checked actual finish → actual.length ≤ budget →
-      MemoryVisitWithReply profile ready base bindings older site entered actual finish
+    ∀ checkEntry, site.EntryPrefix profile ready base checkEntry site.checked → PayloadPrefix.visible checkEntry = [] →
+      ∀ actual finish, Steps profile ready (specDispatch ready base) site.checked actual finish → actual.length ≤ budget →
+        MemoryVisitWithReply profile ready base bindings older site incoming entered checkEntry canonEntry actual finish
 
 open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
 private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
@@ -3575,10 +3614,10 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
   have position : placement site.destination site.checked.store (layout site.destination.width site.field.type) (flatNat pointer) = .ok () :=
     matched.type_eq.symm ▸ placed
   obtain ⟨aligned, bytes, sized, bounds⟩ := CallbackRange.placementInterval site.destination site.checked.store _ _ position
-  obtain ⟨entry, entered, quiet, installed, related, hostSame⟩ :=
-    LiveDispatch.entry_paired_tracks (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨entry, entered, quiet, installed, related, hostSame, storage⟩ :=
+    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
   obtain ⟨peer, frame, canonAt⟩ := CallbackRange.referenceFrame site (site.reference_at linked site.referenceReply) related
-  refine ⟨entry, entered, silentVisible quiet, installed, hostSame, fun actual finish run bounded => ?_⟩
+  refine ⟨entry, entered, silentVisible quiet, installed, hostSame, fun checkEntry checkTrack checkQuiet actual finish run bounded => ?_⟩
   have visit := driveCompiledMemory (origin := site.checked.store) site.destination site.inst (flatNat pointer) shape
       matched fit (CallbackRange.preflightAllocator site linked) (.self _) embedder width sized ⟨aligned, bounds⟩ compare
       0 site.reply site.referenceReply site.checked entered site.cursor peer frame (Core3.Grows.refl _) rfl canonAt actual finish run bounded
@@ -3589,12 +3628,16 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
   obtain ⟨_, equal, caller⟩ := marked.survives
   cases equal
   constructor
-  · rintro ⟨check, canon, paired, checkAt, canonAt⟩
-    obtain ⟨checked, canonical, _, _, _, recorded, unchanged, rejoined, checkPop, canonPop⟩ :=
-      LinkedCallback.MemorySequence.resume_returned_give site () paired caller checkAt canonAt
-    exact consumeMemoryVisitReply site split residual
-      (show MemoryVisitCompletion profile ready base bindings older site left right checked canonical (.ok ()) from
-        ⟨recorded, checkPop _, unchanged, rejoined, canonPop _⟩)
+  · rintro rfl ⟨check, canon, paired, checkAt, canonAt⟩
+    obtain ⟨atEntry, track, frameEntry⟩ := CallbackRange.publicEntryTransport site linked checkTrack installed storage
+    have combined : OccurrenceTransport profile ready base bindings site.start incoming
+        (checkEntry ++ checked) (entry ++ canonical) left right [some (.active 0 0)] := by
+      refine ⟨move ∘ atEntry, fun place => ?_, fun changes retained prior => ?_⟩
+      · exact ⟨(track place).1.append (paths (atEntry place)).1, (track place).2.append (paths (atEntry place)).2⟩
+      · simpa only [List.nil_append, List.map_append, List.map_cons, List.map_map, List.map_nil, active]
+          using outside changes _ (frameEntry changes retained prior)
+    refine consumeMemoryCommonReply site split residual combined caller paired checkAt canonAt ?_ bounded compare
+    rw [visibleAppend, visibleAppend, checkQuiet, silentVisible quiet, seen]
   · intro issue check checkAt
     obtain ⟨segments, frames⟩ := site.reached_caller checkAt caller
     let reply := (GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.error issue)
@@ -3623,7 +3666,7 @@ theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow 
     | @reached residual split tail =>
       obtain ⟨canonEntry, canon, silent, tracks, host, visit⟩ := body
       have bounded : residual.length ≤ labels.length := by rw [split, List.length_append]; omega
-      exact .inr ⟨canonEntry, canon, residual, split, silent, tracks, host, visit residual finish tail bounded⟩
+      exact .inr ⟨canonEntry, canon, residual, split, silent, tracks, host, visit entry entered quiet residual finish tail bounded⟩
 
 theorem actualSelectedMemoryRequest {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {field : Stored.Endpoints.RecordLower.Field} {plan label}

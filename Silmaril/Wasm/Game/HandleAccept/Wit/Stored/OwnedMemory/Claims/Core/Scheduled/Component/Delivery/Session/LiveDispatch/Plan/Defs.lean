@@ -4608,13 +4608,33 @@ def MemoryVisitPublicReply (profile : ProfileKind) (ready : HostReady (HostState
     Steps profile ready (specDispatch ready base) checked suffix finish ∧
     MemoryVisitCompletion profile ready base bindings older site left right checked canonical verdict
 
+/-- A common reply carries the complete request and its original occurrence
+paths. A reached uncertified growth step is explicit, not silently replayed. -/
+def MemoryVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming left right : Config (core3 grow) (HostState sig))
+    (checkEntry checkBody canonLeading actual trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  trailing.length < 3 ∨ ∃ suffix checked canonical,
+    trailing = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
+    Steps profile ready (specDispatch ready base) checked suffix finish ∧
+    checked.host = left.host.record ((GiveEffectRoute.memory pointer).reply site.destination site.start.host.nextTicket (.ok ())).1 ∧
+    canonical.host = right.host ∧
+    let checkFull := (checkEntry ++ checkBody) ++ [.tau, .tau, .tau]
+    let canonFull := canonLeading ++ [.tau]
+    (ExecutedCallbackSegment profile ready base bindings older site.start incoming checkFull canonFull checked canonical ∧
+      CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish) ∨
+      (ReachedNonGrowingUpdate profile ready (specDispatch ready base) site.start checkFull checked ∧
+        HostFrame.Related.Paired older checked canonical ∧
+        OccurrenceTransport profile ready base bindings site.start incoming checkFull canonFull checked canonical)
+
 /-- The reached visit retains both traces and the move used by all older
 occurrences. A reply requires the original call occurrence at the top. -/
 def MemoryVisitWithReply (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
-    (site : PayloadRoot.Site grow sig (.memory pointer)) (entered : Config (core3 grow) (HostState sig))
-    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+    (site : PayloadRoot.Site grow sig (.memory pointer)) (incoming entered : Config (core3 grow) (HostState sig))
+    (checkEntry canonEntry actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   open ReturnFrame.Occurrence in
   ∃ checked canonical trailing left right marks, ∃ (move : Option Location → Option Location),
     actual = checked ++ trailing ∧ PayloadPrefix.visible checked = PayloadPrefix.visible canonical ∧ left.store = right.store ∧
@@ -4626,10 +4646,11 @@ def MemoryVisitWithReply (profile : ProfileKind) (ready : HostReady (HostState s
     MemoryVisitEnd profile ready base bindings older site.checked.store site.destination site.inst
       site.reply site.referenceReply left right trailing finish marks ∧
     (move (some (.active 0 0)) = some (.active 0 0) →
-      ((∃ (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+      (marks = [] → (∃ (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
           LinkedCallback.ChildFrameOver older left right check canon ∧
           left.ctl = check.control (site.reply (.ok ())) ∧ right.ctl = canon.control (site.referenceReply ())) →
-        MemoryVisitPublicReply profile ready base bindings older site left right (.ok ()) actual trailing finish) ∧
+        MemoryVisitCommonReply profile ready base bindings older site incoming left right
+          checkEntry checked (canonEntry ++ canonical) actual trailing finish) ∧
       ∀ issue (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)), left.ctl = check.control (site.reply (.error issue)) →
         MemoryVisitPublicReply profile ready base bindings older site left right (.error issue) actual trailing finish)
 
@@ -4647,6 +4668,6 @@ def ActualMemoryRequestRun (profile : ProfileKind) (ready : HostReady (HostState
     ∃ canonEntry entered body, actual = checkEntry ++ body ∧ PayloadPrefix.visible canonEntry = [] ∧
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
         incoming place canonEntry entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
-      MemoryVisitWithReply profile ready base bindings older site entered body finish)
+      MemoryVisitWithReply profile ready base bindings older site incoming entered checkEntry canonEntry body finish)
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LiveDispatch

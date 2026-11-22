@@ -4314,7 +4314,7 @@ theorem linkedMemoryOccurrenceBody {pointer : FlatValue} (site : PayloadRoot.Sit
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ tracks _ ⟨paired, checkAt, canonicalAt⟩ =>
         publicOccurrenceRejoin site () tracks paired checkAt canonicalAt)
 
-private theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {incoming entered : Config (core3 grow) (HostState sig)}
     {checkEntry canonEntry : Trace grow sig}
     (checked : site.EntryPrefix profile ready base checkEntry site.checked)
@@ -4341,25 +4341,20 @@ private theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRo
     rw [pushed, storage]
     exact previous.push _ _
 
-private theorem publicSuccessTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
-    {incoming entered left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
-    {checkEntry canonEntry observed : Trace grow sig} (value : route.output.Result)
-    (entry : OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
-      [some (.active 0 0)])
-    (history : ComparedOccurrenceTransport profile ready base bindings site.checked entered observed left right)
+    {incoming left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checked canonical checkBody : Trace grow sig} (value : route.output.Result)
+    (combined : OccurrenceTransport profile ready base bindings site.start incoming checked canonical left right [some (.active 0 0)])
+    (original : Prefix profile ready (specDispatch ready base) site.checked (.active 0 0) checkBody left (.active 0 0))
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (checkAt : left.ctl = check.control (site.reply (.ok value)))
     (canonAt : right.ctl = canon.control (site.referenceReply value)) :
-    PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry value observed left right := by
-  obtain ⟨checkBody, canonBody, body, checkSeen, canonSeen, _⟩ := history
-  obtain ⟨move, combined, tracks⟩ := CallbackPrefix.transportAppend entry body
-  obtain ⟨checkMark, canonMark⟩ := tracks (some (.active 0 0))
-  refine ⟨checkBody, canonBody, move (some (.active 0 0)), checkSeen, canonSeen, combined, checkMark, canonMark, ?_⟩
-  intro atTop
-  rw [atTop] at checkMark
-  obtain ⟨_, same, original⟩ := checkMark.survives
-  cases same
+    ∃ completed rejoined,
+      completed.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
+      rejoined.host = right.host ∧ HostFrame.Related.Paired older completed rejoined ∧
+      OccurrenceTransport profile ready base bindings site.start incoming (checked ++ [.tau, .tau, .tau])
+        (canonical ++ [.tau]) completed rejoined := by
   obtain ⟨checkFrames, checkCaller⟩ := site.reached_caller checkAt original
   have paired := frame.frames
   rw [checkCaller] at paired
@@ -4371,7 +4366,6 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
   obtain ⟨canonFrames, canonCaller, tails⟩ := top paired
   rw [Cursor.control, checkCaller] at checkAt
   rw [Cursor.control, ← frame.thread, canonCaller] at canonAt
-  simp only [List.nil_append, List.map_cons, List.map_nil, atTop] at combined
   let reply := route.reply site.destination site.start.host.nextTicket (.ok value)
   have returned := CallbackPrefix.transportCoreCompletion (reply := reply) checkAt canonAt combined
   let checked := { left with
@@ -4395,6 +4389,28 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
     (⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest)
   rw [frame.store]
   exact .cons (.mk tails) frame.rest
+
+private theorem publicSuccessTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {incoming entered left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {checkEntry canonEntry observed : Trace grow sig} (value : route.output.Result)
+    (entry : OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
+      [some (.active 0 0)])
+    (history : ComparedOccurrenceTransport profile ready base bindings site.checked entered observed left right)
+    (frame : LinkedCallback.ChildFrameOver older left right check canon)
+    (checkAt : left.ctl = check.control (site.reply (.ok value)))
+    (canonAt : right.ctl = canon.control (site.referenceReply value)) :
+    PublicSuccessTransport profile ready base bindings older site incoming entered checkEntry canonEntry value observed left right := by
+  obtain ⟨checkBody, canonBody, body, checkSeen, canonSeen, _⟩ := history
+  obtain ⟨move, combined, tracks⟩ := CallbackPrefix.transportAppend entry body
+  obtain ⟨checkMark, canonMark⟩ := tracks (some (.active 0 0))
+  refine ⟨checkBody, canonBody, move (some (.active 0 0)), checkSeen, canonSeen, combined, checkMark, canonMark, ?_⟩
+  intro atTop
+  rw [atTop] at checkMark
+  obtain ⟨_, same, original⟩ := checkMark.survives
+  cases same
+  simp only [List.nil_append, List.map_cons, List.map_nil, atTop] at combined
+  exact completePublicTransport site value combined original frame checkAt canonAt
 
 theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
