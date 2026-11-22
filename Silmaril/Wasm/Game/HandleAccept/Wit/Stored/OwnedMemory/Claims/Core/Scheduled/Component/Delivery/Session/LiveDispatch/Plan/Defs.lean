@@ -4501,15 +4501,21 @@ inductive MemoryVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
       (∀ item, selected = some item → some item.type ∈ arms) →
       (∀ item, selected = some item → MemoryVisitShape item) →
       MemoryVisitShape (.sum type arms tag selected)
+  | list {element entries} : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element →
+      (∀ item ∈ entries, MemoryVisitShape item) → MemoryVisitShape (.dynamic (.list element) element entries)
 
-/-- Keep the reached canonical program on a checked-only refusal. Its first
-pending operation is the linked field at which the comparison stopped. -/
-def PendingMemoryField (destination : RecordDestination) (inst : InstId)
-    (right : Config (core3 grow) (HostState sig)) : Prop :=
-  ∃ (peer : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (item : Stored.Endpoints.RecordLower.Field)
-    (address : Nat) (next : LinkedCallback.MemorySequence.CanonNext grow sig),
-    right.ctl = peer.control (Stored.Endpoints.RecordLower.CanonicalTree.field Limits.spec Quirks.none
-      (destination.context inst) destination.width item (.memory address) >>= next)
+/-- Keep the reached canonical program on a checked-only refusal, either
+before the linked field or after the pop at an allocated collection tail. -/
+inductive PendingMemoryField (destination : RecordDestination) (inst : InstId)
+    (right : Config (core3 grow) (HostState sig)) : Prop where
+  | field (peer : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (item : Stored.Endpoints.RecordLower.Field)
+      (address : Nat) (next : LinkedCallback.MemorySequence.CanonNext grow sig)
+      (atField : right.ctl = peer.control (Stored.Endpoints.RecordLower.CanonicalTree.field Limits.spec Quirks.none
+        (destination.context inst) destination.width item (.memory address) >>= next))
+  | collection (peer : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (entries : List Stored.Endpoints.RecordLower.Field)
+      (area : ABI.Layout) (pointer address : Nat) (mode : Stored.Endpoints.RecordLower.CanonicalTree.EntryMode)
+      (next : LinkedCallback.MemorySequence.CanonNext grow sig)
+      (atTail : right.ctl = peer.control (PayloadPrefix.canonicalCollectionTail destination inst entries area (.memory address) pointer mode >>= next))
 
 /-- A visitor can advance a sibling only after a common return. In a paused
 allocator keep its current occurrence, even when that occurrence is lost. -/
@@ -4530,6 +4536,12 @@ inductive MemoryVisitEnd (profile : ProfileKind) (ready : HostReady (HostState s
   | boundary {marks} (reached : StringSliceEnd profile ready base bindings older (fun _ _ _ _ _ => False)
       left right trailing finish marks) :
       MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish marks
+  | collectionInstall (short : trailing.length < 3) :
+      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish []
+  | collectionRange {target remaining} (nonempty : remaining ≠ [])
+      (tail : Steps profile ready (specDispatch ready base) finish remaining target) :
+      MemoryVisitEnd profile ready base bindings older origin destination inst checkNext canonNext left right trailing finish
+        [some (.active 0 0)]
 
 /-- An actual checked derivation cut at a compiled visitor endpoint, with a
 canonical path to its reached peer and all-location occurrence transport. -/
