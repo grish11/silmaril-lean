@@ -1376,6 +1376,70 @@ private theorem cutPollCalloutBody (mem : (core3 grow).MemAddr) (inst : InstId) 
   exact ⟨leading, suffix, reached, peer, split, moved, residual, frontier, leftHost, rightHost, fun live => (paths live).2⟩
 
 open ReturnFrame.Occurrence in
+private theorem cutWaitCalloutDecision (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (specDispatch ready base (.hostCallout (waitableCalloutHost false mem inst) args)))
+    (rightFocus : incoming.ctl = canon.control (specDispatch ready (LiveDispatch.host bindings base)
+      (.hostCallout (waitableCalloutHost false mem inst) args)))
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer,
+      labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (fun result : WaitableCalloutEntry × Option ThreadId => waitableWaitAfterDecision mem result.1 result.2)
+        (fun result => waitableWaitAfterDecision mem result.1 result.2) reached peer suffix True ∧
+      (reached.ctl ≠ [] → ∀ place,
+        Prefix profile ready (specDispatch ready base) start place leading reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming place leading peer place) := by
+  let body : Session grow sig (WaitableCalloutEntry × Option ThreadId) := do
+    let entry ← waitableCalloutEntry false mem inst args
+    let decision ← waitableWaitDecision entry
+    pure (entry, decision)
+  let next := fun result : WaitableCalloutEntry × Option ThreadId => waitableWaitAfterDecision (sig := sig) mem result.1 result.2
+  have program : specDispatch ready base (.hostCallout (waitableCalloutHost false mem inst) args) = body >>= next := by
+    rw [waitableCalloutDispatch]
+    simp only [body, next, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+    congr 1
+    funext entry
+    exact waitableWaitSplit mem entry
+  rw [program] at leftFocus
+  rw [waitableCalloutDispatch] at rightFocus
+  rw [waitableCalloutDispatch] at program
+  rw [program] at rightFocus
+  have certified : StoreEffects body :=
+    (waitableCalloutEntryEffects false mem inst args).bind fun entry => (waitableWaitDecisionEffects entry).bind fun _ => .pure _
+  obtain ⟨leading, suffix, reached, peer, split, moved, residual, frontier, _, _, paths⟩ :=
+    cutComponentStoreBodyFramed body next next (closed := True) (fun _ => certified)
+      (trivialPreserves body) trivial leftFocus rightFocus paired run
+  exact ⟨leading, suffix, reached, peer, split, moved, residual, frontier, fun live => (paths live).2⟩
+
+open ReturnFrame.Occurrence in
+private theorem retainInstalledWaitable {left right reached peer} {leading : Trace grow sig}
+    (install : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
+    (retained : ∀ place,
+      Prefix profile ready (specDispatch ready base) left place leading reached place ∧
+      Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place leading peer place) :
+    OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer [some (.active 0 0)] := by
+  obtain ⟨shift, trails, framed⟩ := install
+  refine ⟨shift, ?_, ?_⟩
+  · intro mark
+    obtain ⟨lhs, rhs⟩ := trails mark
+    cases location : shift mark with
+    | none =>
+      rw [location] at lhs rhs
+      obtain ⟨left, right⟩ := retained (.active 0 0)
+      exact ⟨lhs.append (.absent (prefix_survives left).1), rhs.append (.absent (prefix_survives right).1)⟩
+    | some place =>
+      rw [location] at lhs rhs
+      obtain ⟨left, right⟩ := retained place
+      exact ⟨lhs.append left.toTrail, rhs.append right.toTrail⟩
+  · intro previous marks before place unmarked first second leftAt rightAt
+    obtain ⟨left, right⟩ := retained place
+    exact framed previous marks before place unmarked first second
+      ((prefix_survives left).2.symm.trans leftAt) ((prefix_survives right).2.symm.trans rightAt)
+
+open ReturnFrame.Occurrence in
 theorem cutPublicPoll (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
     {thread core resume frames rest label installed}
     (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
@@ -1401,25 +1465,35 @@ theorem cutPublicPoll (mem : (core3 grow).MemAddr) (inst : InstId) (args : List 
   obtain ⟨move, whole, _⟩ := CallbackPrefix.transportAppend install moved
   refine ⟨peerFrames, peerRest, leading, suffix, reached, peer, by rw [split]; rfl,
     ⟨move (some (.active 0 0)), whole⟩, ?_, residual, frontier, ?_⟩
-  · intro live
-    obtain ⟨shift, trails, framed⟩ := install
-    refine ⟨shift, ?_, ?_⟩
-    · intro mark
-      obtain ⟨lhs, rhs⟩ := trails mark
-      cases location : shift mark with
-      | none =>
-        rw [location] at lhs rhs
-        obtain ⟨left, right⟩ := retained live (.active 0 0)
-        exact ⟨lhs.append (.absent (prefix_survives left).1), rhs.append (.absent (prefix_survives right).1)⟩
-      | some place =>
-        rw [location] at lhs rhs
-        obtain ⟨left, right⟩ := retained live place
-        exact ⟨lhs.append left.toTrail, rhs.append right.toTrail⟩
-    · intro previous marks before place unmarked first second leftAt rightAt
-      obtain ⟨left, right⟩ := retained live place
-      exact framed previous marks before place unmarked first second
-        ((prefix_survives left).2.symm.trans leftAt) ((prefix_survives right).2.symm.trans rightAt)
+  · exact fun live => retainInstalledWaitable install (retained live)
   · exact cutWaitableBodyExit frontier residual
+
+open ReturnFrame.Occurrence in
+theorem cutPublicWaitDecision (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
+    {thread core resume frames rest label installed}
+    (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (waitableCalloutHost false mem inst) args)
+    (step : Step profile ready (specDispatch ready base) start label installed)
+    (run : Steps profile ready (specDispatch ready base) installed labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest leading suffix reached peer,
+      let caller : Seg (core3 grow) (HostState sig) := .core core resume
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: peerFrames, peerRest⟩
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      (∃ mark, OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer [mark]) ∧
+      (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+        reached peer [some (.active 0 0)]) ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (fun result : WaitableCalloutEntry × Option ThreadId => waitableWaitAfterDecision mem result.1 result.2)
+        (fun result => waitableWaitAfterDecision mem result.1 result.2) reached peer suffix True := by
+  obtain ⟨peerFrames, peerRest, rfl, rfl, installedSite, install, _, _⟩ :=
+    cutWaitableCalloutInstall (bindings := bindings) false mem inst args focused calling step paired
+  obtain ⟨leading, suffix, reached, peer, split, moved, actual, frontier, retained⟩ :=
+    cutWaitCalloutDecision (bindings := bindings) mem inst args rfl rfl installedSite run
+  obtain ⟨move, whole, _⟩ := CallbackPrefix.transportAppend install moved
+  exact ⟨peerFrames, peerRest, leading, suffix, reached, peer, by rw [split]; rfl,
+    ⟨move (some (.active 0 0)), whole⟩, fun live => retainInstalledWaitable install (retained live), actual, frontier⟩
 
 theorem cutWaitableDelivery (poll : Bool) (ws : WsetId) (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
     (checkNext canonNext : Nat → Session grow sig (Ret (core3 grow)))
@@ -1807,12 +1881,12 @@ private theorem classifyReachedGrowth {dispatch : Call (core3 grow) → Session 
 theorem cutExecutedCallback
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) (includePoll : Bool := false)
-    (includeWaitResume : Bool := false) :
+    (includeWait : Bool := false) :
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
   let protectedReturn := fun resume => ∃ rhs, older resume rhs
   have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
   cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run
-      includeComponentCalls includePoll includeWaitResume with
+      includeComponentCalls includePoll includeWait with
   | complete _ replay growing =>
     obtain ⟨_, prefixRun⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     exact .complete prefixRun
@@ -1842,12 +1916,12 @@ private def CallbackComponentCrossing (profile : ProfileKind) (ready : HostReady
     HostFrame.Related.Paired changes checked canonical →
     CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
 
-private def CallbackPollCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
+private def CallbackWaitableCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) (poll : Bool) : Prop :=
   ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
     {thread core resume frames rest mem inst args},
     checked.ctl = ⟨thread, .core core resume, frames⟩ :: rest →
-    (core3 grow).status checked.store.core core = .callout (.builtin (.waitableSetPoll mem) inst) args →
+    (core3 grow).status checked.store.core core = .callout (waitableCalloutHost poll mem inst) args →
     Step profile ready (specDispatch ready base) checked label next →
     Steps profile ready (specDispatch ready base) next trailing finish →
     HostFrame.Related.Paired changes checked canonical →
@@ -1866,14 +1940,15 @@ private def CallbackWaitResumeCrossing (profile : ProfileKind) (ready : HostRead
 
 private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile ready base bindings)
     (component : Option (PLift (CallbackComponentCrossing profile ready base bindings)))
-    (poll : Option (PLift (CallbackPollCrossing profile ready base bindings)))
+    (poll : Option (PLift (CallbackWaitableCrossing profile ready base bindings true)))
+    (wait : Option (PLift (CallbackWaitableCrossing profile ready base bindings false)))
     (waitResume : Option (PLift (CallbackWaitResumeCrossing profile ready base bindings)))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish := by
   induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels finish older with
   | ind budget ih =>
-    cases cutExecutedCallback run paired component.isSome poll.isSome waitResume.isSome with
+    cases cutExecutedCallback run paired component.isSome poll.isSome (wait.isSome || waitResume.isSome) with
     | complete segment => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
     | @boundary leading label trailing reached peer next split front kind step tail smaller =>
       have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
@@ -1937,6 +2012,10 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
         cases poll with
         | none => exact stop (.boundary (.pollInstall focus calling) step tail)
         | some rule => exact advance (rule.down focus calling step tail front.paired)
+      | waitInstall focus calling =>
+        cases wait with
+        | none => exact stop (.boundary (.waitInstall focus calling) step tail)
+        | some rule => exact advance (rule.down focus calling step tail front.paired)
       | waitResume focus found =>
         cases waitResume with
         | none => exact stop (.boundary (.waitResume focus found) step tail)
@@ -1955,7 +2034,7 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish :=
-  foldCallbackSlicesWith cross none none none run paired
+  foldCallbackSlicesWith cross none none none none run paired
 
 private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish) :
@@ -1976,7 +2055,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | allocator _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | uncertified _ _ _ paths residual => exact append (paths.choose_spec.1 none).1.steps residual
   | pollTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | waitResumeTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | waitTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {resume value}
@@ -1997,7 +2076,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | allocator install _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | uncertified install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | pollTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | waitResumeTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | waitTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem callbackTerminalSlice {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired changes start incoming)
@@ -7544,7 +7623,7 @@ private theorem crossWaitableExit {leading suffix reached peer}
     · exact .inr boundary
 
 open ReturnFrame.Occurrence in
-private theorem classifiedPollCrossing : CallbackPollCrossing profile ready base bindings := by
+private theorem classifiedPollCrossing : CallbackWaitableCrossing profile ready base bindings true := by
   intro changes start incoming installed finish label labels thread core resume frames rest mem inst args focused calling step tail paired
   have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.pollInstall focused calling) step tail)
   obtain ⟨_, _, leading, suffix, reached, peer, split, ⟨mark, paths⟩, live, actual, frontier, exit⟩ :=
@@ -7567,14 +7646,68 @@ private theorem classifiedWaitResumeCrossing : CallbackWaitResumeCrossing profil
   obtain ⟨rfl, used⟩ := List.cons.inj split
   refine crossWaitableExit used exit (fun _ _ => paths) (fun stop => callbackTerminalSlice paired ?_) boundary
   rw [used]
-  exact .waitResumeTerminal paths frontier stop actual
+  exact .waitTerminal paths frontier stop actual
+
+private theorem pairWaitableFocus {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {program}
+    (left : start.ctl = check.control program) (right : incoming.ctl = canon.control program)
+    (paired : PairedComponentSite older start incoming check canon) :
+    HostFrame.Related.Paired older start incoming := by
+  obtain ⟨frames, rest, shape, retargeted⟩ := paired.retarget
+    (thread := check.thread) (frames := check.frames) (rest := check.rest) rfl (.prog program) start.host incoming.host
+  simp only [PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at shape
+  obtain ⟨⟨thread, rfl⟩, rfl⟩ := shape
+  have leftExact : { start with ctl := check.control program } = start := by rw [← left]
+  have rightExact : { incoming with ctl := canon.control program } = incoming := by rw [← right]
+  rw [← leftExact, ← rightExact]
+  simpa only [PayloadPrefix.Cursor.control, thread] using retargeted
+
+open ReturnFrame.Occurrence in
+private theorem classifiedWaitCrossing : CallbackWaitableCrossing profile ready base bindings false := by
+  intro changes start incoming next finish label labels thread core resume frames rest mem inst args focused calling step tail paired
+  have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.waitInstall focused calling) step tail)
+  obtain ⟨peerFrames, peerRest, leading, suffix, reached, peer, split, ⟨mark, paths⟩, live, residual, frontier⟩ :=
+    cutPublicWaitDecision (bindings := bindings) mem inst args focused calling step tail paired
+  obtain ⟨rfl, used⟩ := List.cons.inj split
+  have terminal (stop : suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])) :
+      CallbackCrossingAt profile ready base bindings changes start incoming .tau labels finish := by
+    refine .inr (callbackTerminalSlice paired ?_)
+    rw [used]
+    exact .waitTerminal paths frontier stop residual
+  cases frontier with
+  | trapped checked canonical _ => exact terminal (.inr ⟨checked, canonical⟩)
+  | pending op resume checked canonical site stop => exact terminal (.inl (stop.resolve_right (fun impossible => impossible.1 trivial)))
+  | returned result checked canonical site =>
+    have original := live (by rw [checked]; exact List.cons_ne_nil _ _)
+    have decision := sharedTopTransport original (frame := .core core resume)
+      (by rw [segmentStorage, checked]; rfl) (by rw [segmentStorage, canonical]; rfl)
+    rcases result with ⟨entry, choice⟩
+    cases choice with
+    | none =>
+      obtain ⟨body, remaining, delivered, peerDelivery, consumed, path, actual, outcome, exit, _⟩ :=
+        cutWaitableWaitDelivery (bindings := bindings) mem entry checked canonical site residual
+      have whole := (CallbackPrefix.transportAppend decision path).choose_spec.1
+      have compared : OccurrenceTransport profile ready base bindings start incoming (.tau :: (leading ++ body))
+          (.tau :: (leading ++ body)) delivered peerDelivery := by
+        simpa only [List.nil_append, List.map_nil, List.cons_append] using whole
+      have useAll : labels = (leading ++ body) ++ remaining :=
+        used.trans ((congrArg (leading ++ ·) consumed).trans (List.append_assoc ..).symm)
+      refine crossWaitableExit useAll exit (fun _ _ => compared)
+        (fun stop => callbackTerminalSlice paired ?_) boundary
+      rw [useAll]
+      exact .waitTerminal compared outcome stop actual
+    | some waiter =>
+      have aligned := pairWaitableFocus checked canonical site
+      rcases classifyReachedGrowth (CallbackPrefix.transportPaths decision none).choose_spec.1.steps with growing | _
+      · exact .inl ⟨leading, .tau :: leading, suffix, reached, peer, used, ⟨growing, rfl, aligned, decision⟩, residual⟩
+      · exact .inr boundary
 
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready (ComponentCall.hostWithComponent bindings callees) bindings older start incoming labels finish :=
   foldCallbackSlicesWith (classifiedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl)
-    (some ⟨classifiedComponentCrossing⟩) (some ⟨classifiedPollCrossing⟩) (some ⟨classifiedWaitResumeCrossing⟩) run paired
+    (some ⟨classifiedComponentCrossing⟩) (some ⟨classifiedPollCrossing⟩) (some ⟨classifiedWaitCrossing⟩)
+    (some ⟨classifiedWaitResumeCrossing⟩) run paired
 
 open ReturnFrame.Occurrence in
 theorem classifyParkedWaitCallbacks {callees : List (ComponentCall.Callee sig)}

@@ -3204,8 +3204,9 @@ theorem classify_give_callbacks
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
 
 /-- One finite checked-run fold under the fixed component dispatcher. Parked
-gives, admitted component calls, public polls and reached wait resumes share
-the shorter-run induction, including inside allocator callbacks. Exhausted
+gives, admitted component calls, public polls and waits share the shorter-run
+induction, including inside allocator callbacks. A non-early wait enters the
+ordinary scheduler fold at the reached block, not at a caller reply. Exhausted
 and trapped deliveries retain their reached endpoints without rejoining. Other
 component sites remain at the exact install cut with their admission and
 body outcome. -/
@@ -3214,6 +3215,31 @@ theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     (paired : HostFrame.Related.Paired older start incoming) :
     MixedCallbackSlice profile ready bindings callees older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyMixedCallbacks run paired
+
+open ReturnFrame.Occurrence in
+/-- Follow the original Core wait install through the actual entry and
+early/non-early decision. The reached prefix may still be pending or trapped.
+A returned decision selects the next body; it is not a Core reply or a park. -/
+theorem cut_public_wait_decision (mem : (core3 grow).MemAddr) (inst : InstId) (args : List FlatValue)
+    {thread core resume frames rest label installed}
+    (focused : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (waitableCalloutHost false mem inst) args)
+    (step : Step profile ready (specDispatch ready base) start label installed)
+    (run : Steps profile ready (specDispatch ready base) installed labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    ∃ peerFrames peerRest leading suffix reached peer,
+      let caller : Seg (core3 grow) (HostState sig) := .core core resume
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, caller :: peerFrames, peerRest⟩
+      label :: labels = (.tau :: leading) ++ suffix ∧
+      (∃ mark, OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) reached peer [mark]) ∧
+      (reached.ctl ≠ [] → OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+        reached peer [some (.active 0 0)]) ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier older check canon (fun result : WaitableCalloutEntry × Option ThreadId => waitableWaitAfterDecision mem result.1 result.2)
+        (fun result => waitableWaitAfterDecision mem result.1 result.2) reached peer suffix True :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutPublicWaitDecision
+    mem inst args focused calling step run paired
 
 /-- Compare an executed wait park and its actual mixed suffix, transporting
 the original Core caller across intervening work and any reached resumption.

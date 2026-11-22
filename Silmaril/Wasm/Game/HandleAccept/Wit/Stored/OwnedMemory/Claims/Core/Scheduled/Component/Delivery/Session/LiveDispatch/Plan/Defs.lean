@@ -90,6 +90,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | pollInstall {thread core resume frames rest mem inst args}
       (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
       (calling : (core3 grow).status before.store.core core = .callout (.builtin (.waitableSetPoll mem) inst) args)
+  | waitInstall {thread core resume frames rest mem inst args}
+      (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+      (calling : (core3 grow).status before.store.core core = .callout (.builtin (.waitableSetWait mem) inst) args)
   | waitResume {waiter resumer afterResume frames rest core resume savedFrames mem entry}
       (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
       (found : before.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
@@ -571,9 +574,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | waitResumeTerminal {changes reached peer left right checked trailing finish check canon}
-      (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right)
-      (frontier : ComponentStoreFrontier changes check canon waitableFlatReply waitableFlatReply left right trailing True)
+  | waitTerminal {changes reached peer left right checked trailing finish check canon marks} {Result : Type}
+      {next : Result → Session grow sig (Ret (core3 grow))}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right marks)
+      (frontier : ComponentStoreFrontier changes check canon next next left right trailing True)
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
