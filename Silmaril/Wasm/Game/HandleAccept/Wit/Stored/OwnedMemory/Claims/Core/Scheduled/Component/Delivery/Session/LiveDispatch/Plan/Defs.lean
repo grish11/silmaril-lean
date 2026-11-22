@@ -4656,6 +4656,25 @@ inductive ComponentWorkerCut (profile : ProfileKind) (ready : HostReady (HostSta
       (smaller : trailing.length < labels.length)
       (installed : ComponentInstallOutcome profile ready bindings callees older reached peer next finish label trailing)
 
+/-- An actual finite mixed worker prefix under the fixed component dispatcher.
+The residual retains its exact first step and tail; if it is a component
+install, the live dispatch/admission classification is at that same site. -/
+def MixedCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+  ∃ checked canonical trailing reached peer,
+    labels = checked ++ trailing ∧
+    ExecutedCallbackSegment profile ready base bindings older start incoming checked canonical reached peer ∧
+    CallbackSliceEnd profile ready base bindings older reached peer trailing finish ∧
+    ((trailing = [] ∧ finish = reached) ∨
+      ∃ label rest next, trailing = label :: rest ∧
+        Step profile ready (specDispatch ready base) reached label next ∧
+        Steps profile ready (specDispatch ready base) next rest finish ∧
+        ComponentInstallOutcome profile ready bindings callees older reached peer next finish label rest)
+
 /-- Consume the actual post-pop worker run, when reached. A different resumed
 program is an explicit boundary, not a replay or a runtime refusal. -/
 def ComponentMarkedWorkerTail (profile : ProfileKind) (ready : HostReady (HostState sig))
