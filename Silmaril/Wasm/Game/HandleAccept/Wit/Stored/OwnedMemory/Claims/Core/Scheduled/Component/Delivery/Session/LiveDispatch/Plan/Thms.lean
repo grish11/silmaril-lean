@@ -302,6 +302,38 @@ theorem cut_component_admitted_refusal_result (callee : ComponentCall.Callee sig
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalResult
     callee caller issue record leftFocus rightFocus callerRecord live admitted paired run
 
+open ReturnFrame.Occurrence in
+/-- Consume the executed residual of a shared component refusal with the original
+caller occurrence marked. An exhausted reply focus or a lost mark does not
+resume the caller, and a pop at this cut does not deliver an event. -/
+theorem cut_component_admitted_refusal_marked_reply (callee : ComponentCall.Callee sig) (caller : CallerId)
+    (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} {index : Option Nat} (record : Subtask)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.acceptPlanned callee caller leftTicket (.error issue)))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.acceptPlanned callee caller rightTicket (.error issue)))
+    (callerRecord : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : start.store.subtask? subtask = some record)
+    (admitted : callee.check start.store subtask cx args pos ft (limits, results) index = .ok ())
+    (paired : PairedComponentSite wider start incoming check canon)
+    (leftInstalled : segmentAt (segmentStorage start) (.active 0 0) = some (.prog first))
+    (rightInstalled : segmentAt (segmentStorage incoming) (.active 0 0) = some (.prog second))
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (∃ leading suffix reached peer, labels = leading ++ suffix ∧ suffix.length < labels.length ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      ComponentStoreFrontier (Result := Unit) wider check canon (fun _ => .pure (.cancel .none))
+        (fun _ => .pure (.cancel .none)) reached peer suffix True ∧
+      ComponentRefusalReplyTail profile ready base bindings older start incoming reached peer leading
+        check first second suffix finish) ∨
+    ComponentEarlyPrefix profile ready base bindings wider check canon start incoming labels finish (if record.index.isSome then 8 else 7) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutAdmittedRefusalMarkedReply
+    callee caller issue record leftFocus rightFocus callerRecord live admitted paired leftInstalled rightInstalled outside run
+
 /-- Rejoin at an actually executed completion. The two live registrations must confirm
 the handle written earlier; their writers and diagnostic tickets need not agree. -/
 theorem cut_component_publication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}

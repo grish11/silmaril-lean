@@ -4455,6 +4455,23 @@ def ActualMarkedPop (profile : ProfileKind) (ready : HostReady (HostState sig))
         OccurrenceTransport profile ready base bindings leftStart rightStart leftLabels rightLabels left right [some (.active 0 0)] →
         OccurrenceTransport profile ready base bindings leftStart rightStart (leftLabels ++ [.tau]) (rightLabels ++ [.tau]) resumed peer
 
+/-- Track the caller installed at the start of an admitted component refusal.
+Resolution alone leaves the reply in focus. Only the checked residual's actual
+pop of that occurrence can consume it; a missing or displaced mark cannot. -/
+def ComponentRefusalReplyTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming reached peer : Config (core3 grow) (HostState sig)) (leading : Trace grow sig)
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (suffix : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ mark, AllocatorMark profile ready base bindings older start incoming leading leading reached peer mark ∧
+    (reached.ctl = check.control (.pure (.cancel .none)) →
+      mark ≠ some (.active 0 0) ∨ ∃ after : PayloadPrefix.Cursor (E := core3 grow) (HostState sig),
+        check = { after with frames := .prog first :: after.frames } ∧
+        ActualMarkedPop profile ready base bindings older start incoming reached peer leading leading mark
+          after first second (.cancel .none) suffix finish)
+
 /-- Compare the checked run with the entry obtained from the real public
 guards. A short run need not have taken the displayed refusal or trap. -/
 inductive RecursiveRootEntryAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
