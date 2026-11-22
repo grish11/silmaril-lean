@@ -77,6 +77,14 @@ def waitableWaitContinue (mem : (core3 grow).MemAddr) (entry : WaitableCalloutEn
   let code ← unpackEvent (Builtins.eventCx mem entry.inst) entry.ptr event
   pure (.flat [i32Flat code])
 
+/-- The continuation after the optional synchronous cancellation wait.
+Release the current sync waiter and recheck the current resolution. -/
+def cancelFinish (subtask : SubtaskId) : Session grow sig (Ret (core3 grow)) := do
+  modifyStore (CStore.setSyncWaiterSt (.subtask subtask) none)
+  if ← Builtins.subtaskResolvedNow subtask then
+    return .flat (← Builtins.subtaskCancelDeliver subtask)
+  else return .flat [i32Flat (AsyncRef.subtaskCancelResult none)]
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -96,6 +104,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | waitResume {waiter resumer afterResume frames rest core resume savedFrames mem entry}
       (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
       (found : before.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩)
+  | cancelResume {waiter resumer afterResume frames rest core resume savedFrames subtask}
+      (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
+      (found : before.cont? waiter = some ⟨some waiter, .prog (cancelFinish subtask), .core core resume :: savedFrames⟩)
   | read {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (openRead : ¬ ClosedHostRead before)
@@ -213,14 +224,6 @@ def cancelHookReturn (async : Bool) (subtask : SubtaskId) (result : Ret (core3 g
 
 def cancelAfterRequestWrite (async : Bool) (subtask : SubtaskId) (hook : CancelRef) : Session grow sig (Ret (core3 grow)) :=
   .op (.call (.onCancel hook)) (cancelHookReturn async subtask)
-
-/-- The continuation after the optional synchronous cancellation wait.
-Release the current sync waiter and recheck the current resolution. -/
-def cancelFinish (subtask : SubtaskId) : Session grow sig (Ret (core3 grow)) := do
-  modifyStore (CStore.setSyncWaiterSt (.subtask subtask) none)
-  if ← Builtins.subtaskResolvedNow subtask then
-    return .flat (← Builtins.subtaskCancelDeliver subtask)
-  else return .flat [i32Flat (AsyncRef.subtaskCancelResult none)]
 
 def cancelSyncDecision (async : Bool) (subtask : SubtaskId) : Session grow sig (Option ThreadId) := do
   let resolved ← Builtins.subtaskResolvedNow subtask
@@ -678,6 +681,12 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | cancelTerminal {changes reached peer left right checked trailing finish}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right)
+      (exit : CancelFinishExit profile ready base bindings changes left right trailing finish)
+      (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
 def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -689,11 +698,11 @@ def CallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     ExecutedCallbackSegment profile ready base bindings changes checked canonical checkLabels canonLabels reached peer ∧
     CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
 
-/-- Start with the original active Core slot at a wait block and follow it
+/-- Start with the original active Core slot at a callout block and follow it
 through the compared part of the mixed suffix, including actual resumes.
 The ending retains the unconsumed checked residual. An absent occurrence
 does not identify a later, equal saved frame as the original waiter. -/
-def ParkedWaitCallbackSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
+def ParkedCoreCalloutSlice (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (checked canonical : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
@@ -707,6 +716,8 @@ def ParkedWaitCallbackSlice (profile : ProfileKind) (ready : HostReady (HostStat
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical (some (.active 0 0))
         (.tau :: canonLabels) peer mark ∧
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+
+abbrev ParkedWaitCallbackSlice := ParkedCoreCalloutSlice (grow := grow) (sig := sig)
 
 /-- The induction hypothesis available inside a reached give, including
 callbacks with freshly extended substitutions. -/

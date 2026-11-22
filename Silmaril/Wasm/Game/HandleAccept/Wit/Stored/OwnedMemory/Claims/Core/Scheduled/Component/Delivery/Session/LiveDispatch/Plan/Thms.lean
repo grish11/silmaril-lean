@@ -3447,6 +3447,21 @@ theorem classify_parked_wait_callbacks {callees : List (ComponentCall.Callee sig
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyParkedWaitCallbacks
     mem entry leftFocus rightFocus paired run
 
+/-- Follow the original cancellation caller from its executed block through
+the mixed fold, including reached resumes and actual Core returns. -/
+theorem classify_parked_cancel_callbacks {callees : List (ComponentCall.Callee sig)}
+    (subtask : SubtaskId)
+    {thread core resume frames rest peerFrames peerRest}
+    (leftFocus : start.ctl = ⟨some thread, .prog (cancelAfterHookDecision subtask (some thread)), .core core resume :: frames⟩ :: rest)
+    (rightFocus : incoming.ctl = ⟨some thread, .prog (cancelAfterHookDecision subtask (some thread)),
+      .core core resume :: peerFrames⟩ :: peerRest)
+    (paired : PairedComponentSite older start incoming ⟨some thread, .core core resume :: frames, rest⟩
+      ⟨some thread, .core core resume :: peerFrames, peerRest⟩)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish) :
+    ParkedCoreCalloutSlice profile ready (ComponentCall.hostWithComponent bindings callees) bindings older start incoming labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyParkedCancelCallbacks
+    subtask leftFocus rightFocus paired run
+
 /-- Enter the live worker fold only on the actually executed marked pop.
 The fold consumes the extracted shorter suffix under the same dispatcher;
 a different resumed program remains a boundary after the paired pop. -/

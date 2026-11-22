@@ -284,7 +284,7 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
 
 theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     (run : Steps profile ready (specDispatch ready base) start labels finish) (includeComponentCalls : Bool := false)
-    (includePoll : Bool := false) (includeWait : Bool := false) :
+    (includePoll : Bool := false) (includeWait : Bool := false) (includeCancelResume : Bool := false) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
   classical
   induction run with
@@ -313,6 +313,12 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
           before.cont? waiter = some ⟨some waiter, .prog (waitableWaitContinue mem entry), .core core resume :: savedFrames⟩
     · obtain ⟨_, _, _, _, _, _, _, _, _, _, _, focus, saved⟩ := resumedWait
       exact stop (.waitResume focus saved)
+    by_cases resumedCancel : includeCancelResume = true ∧
+        ∃ waiter resumer afterResume frames rest core resume savedFrames subtask,
+          before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest ∧
+          before.cont? waiter = some ⟨some waiter, .prog (cancelFinish subtask), .core core resume :: savedFrames⟩
+    · obtain ⟨_, _, _, _, _, _, _, _, _, _, focus, saved⟩ := resumedCancel
+      exact stop (.cancelResume focus saved)
     by_cases closedRead : ClosedHostRead before
     · obtain ⟨thread, resume, frames, rest, focus, agrees⟩ := closedRead
       obtain ⟨rfl, rfl⟩ := actualHostGet focus step
