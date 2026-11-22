@@ -3211,8 +3211,8 @@ installation. Its executed marked pop leads to the reached readiness decision,
 or to the actual trapped or exhausted prefix of that decision.
 When the original Core caller is active at that decision, compare its live
 finish and executed reply, or follow its executed park through the mixed suffix.
-A direct give reaches the two installed dispatch programs and the fresh marked
-program continuation; the comparison after that install remains a proof cut.
+A direct give follows the actual thread and store reads to the two live callout
+bodies, with the marked program continuation; admission remains a proof cut.
 A non-early wait enters the scheduler fold before any caller reply. Exhausted
 and trapped deliveries retain their reached endpoints without rejoining. Other
 component sites remain at their exact install cut with the reached outcome. -/

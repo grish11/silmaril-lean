@@ -2511,7 +2511,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
-  | directGiveEntry _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | lookup _ install _ _ tail => exact .cons install.step tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact append (checked (.active 0 0)).steps tail
@@ -2537,7 +2537,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | refused install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
-  | directGiveEntry _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | lookup _ install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | compilerRefused _ install _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -7930,6 +7930,40 @@ private theorem admissionRefusalCallback (request : CoreGiveRequest bindings sta
     · rw [split]
       exact callbackTerminalSlice paired (.uncertified install uncertified after transport residual)
 
+open ReturnFrame.Occurrence in
+private theorem directGivePreludePath (impl : HostImpl (core3 grow) (HostState sig))
+    (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focused : start.ctl = check.control (specDispatch ready impl (.hostCallout (.embedder name kind) args))) :
+    ComponentQuietPath profile ready (specDispatch ready impl) check start [id, id]
+      { start with ctl := check.control (calloutBody Limits.spec Quirks.none ready impl start.store
+        check.thread (.embedder name kind) args) } := by
+  cases check with
+  | mk thread frames rest =>
+    refine .step (.currentThread focused) (by rw [transitionEdit, focused]; rfl) ?_
+    exact .step (.get rfl) rfl (.done _)
+
+open ReturnFrame.Occurrence in
+private theorem cutDirectGivePrelude (name : String) (kind : V1.FuncType) (args : List FlatValue)
+    {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : left.ctl = check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)))
+    (rightFocus : right.ctl = canon.control (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
+    (site : PairedComponentSite older left right check canon)
+    (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
+    (run : Steps profile ready (specDispatch ready base) left labels finish) :
+    DirectGivePreludeCut profile ready base bindings older name kind args check canon start incoming left right labels finish := by
+  have checked := directGivePreludePath (profile := profile) base name kind args check leftFocus
+  have canonical := directGivePreludePath (profile := profile) (LiveDispatch.host bindings base) name kind args canon rightFocus
+  rcases splitSilent (count := 2) (checked.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
+  · let leftBody := { left with ctl := check.control (calloutBody Limits.spec Quirks.none ready base
+        left.store check.thread (.embedder name kind) args) }
+    let rightBody := { right with ctl := canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        right.store canon.thread (.embedder name kind) args) }
+    exact .inr ⟨trailing, leftBody, rightBody, split, rfl, rfl, rfl, rfl, rfl, rfl, site,
+      retainComparedOccurrences installed (fun place => ⟨checked.track place, canonical.track place⟩), residual⟩
+  · exact .inl (compareQuietShort checked canonical site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+
 private theorem classifiedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackGiveCrossing profile ready base bindings := by
@@ -7968,8 +8002,11 @@ private theorem classifiedGiveCrossing
   · obtain ⟨name, kind, args, thread, resume, frames, rest, inst, destination, schema, focused, linked⟩ := direct
     obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, leftMark, rightMark, _⟩ :=
       cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired
-    exact callbackTerminalSlice paired (.directGiveEntry (check := ⟨thread, .prog resume :: frames, rest⟩)
-      (canon := ⟨thread, .prog resume :: peerFrames, peerRest⟩) linked rfl rfl site paths leftMark rightMark actual)
+    let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: peerFrames, peerRest⟩
+    have prelude := cutDirectGivePrelude name kind args (check := check) (canon := canon) rfl rfl site paths actual
+    exact callbackTerminalSlice paired (.directGiveEntry (check := check) (canon := canon)
+      linked rfl rfl site paths leftMark rightMark prelude actual)
 
 theorem classifyGiveCallbacks
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
