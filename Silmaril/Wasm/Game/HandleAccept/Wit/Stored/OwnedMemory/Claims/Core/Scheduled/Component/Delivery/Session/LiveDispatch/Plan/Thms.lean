@@ -3080,10 +3080,11 @@ theorem classify_give_callbacks
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
 
 /-- One finite checked-run fold under the fixed component dispatcher. Parked
-gives and admitted component calls share the shorter-run induction, including
-inside allocator callbacks. An admitted call is crossed only at its executed
-marked pop into the common resumed program. Other component sites remain at
-the exact install cut, with the reached admission and body outcome. -/
+gives, admitted component calls and returning public polls share the
+shorter-run induction, including inside allocator callbacks. Exhausted and
+trapped polls retain their reached endpoints without rejoining. Other
+component sites remain at the exact install cut with their admission and
+body outcome. -/
 theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :

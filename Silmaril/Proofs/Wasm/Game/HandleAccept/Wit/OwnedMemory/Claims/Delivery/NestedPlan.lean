@@ -1571,11 +1571,11 @@ private theorem classifyReachedGrowth {dispatch : Call (core3 grow) → Session 
 
 theorem cutExecutedCallback
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) :
+    (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) (includePoll : Bool := false) :
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
   let protectedReturn := fun resume => ∃ rhs, older resume rhs
   have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
-  cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run includeComponentCalls with
+  cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run includeComponentCalls includePoll with
   | complete _ replay growing =>
     obtain ⟨_, prefixRun⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     exact .complete prefixRun
@@ -1605,14 +1605,26 @@ private def CallbackComponentCrossing (profile : ProfileKind) (ready : HostReady
     HostFrame.Related.Paired changes checked canonical →
     CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
 
+private def CallbackPollCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
+  ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
+    {thread core resume frames rest mem inst args},
+    checked.ctl = ⟨thread, .core core resume, frames⟩ :: rest →
+    (core3 grow).status checked.store.core core = .callout (.builtin (.waitableSetPoll mem) inst) args →
+    Step profile ready (specDispatch ready base) checked label next →
+    Steps profile ready (specDispatch ready base) next trailing finish →
+    HostFrame.Related.Paired changes checked canonical →
+    CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
+
 private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile ready base bindings)
     (component : Option (PLift (CallbackComponentCrossing profile ready base bindings)))
+    (poll : Option (PLift (CallbackPollCrossing profile ready base bindings)))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish := by
   induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels finish older with
   | ind budget ih =>
-    cases cutExecutedCallback run paired component.isSome with
+    cases cutExecutedCallback run paired component.isSome poll.isSome with
     | complete segment => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
     | @boundary leading label trailing reached peer next split front kind step tail smaller =>
       have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
@@ -1672,6 +1684,10 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
         cases component with
         | none => exact stop (.boundary (.componentInstall focus) step tail)
         | some rule => exact advance (rule.down focus step tail front.paired)
+      | pollInstall focus calling =>
+        cases poll with
+        | none => exact stop (.boundary (.pollInstall focus calling) step tail)
+        | some rule => exact advance (rule.down focus calling step tail front.paired)
       | write focus =>
         obtain ⟨rfl, rfl⟩ := silentStepUnique (.hostSet focus) step
         obtain ⟨afterWrite, compared⟩ := CallbackPrefix.compareReachedHostWrite focus front.paired
@@ -1686,7 +1702,7 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish :=
-  foldCallbackSlicesWith cross none run paired
+  foldCallbackSlicesWith cross none none run paired
 
 private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish) :
@@ -1706,6 +1722,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | body _ cut _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | allocator _ cut _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | uncertified _ _ _ paths residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | pollTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {resume value}
@@ -1725,6 +1742,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | body install _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | allocator install _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | uncertified install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
+  | pollTerminal paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
 
 private theorem callbackTerminalSlice {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired changes start incoming)
@@ -4494,12 +4512,12 @@ theorem classifyLinkedComponentAdmission {callees : List (ComponentCall.Callee s
     cutAdmittedComponent callee caller rfl record liveThread liveTask context admitted aligned leftMark rightMark outside run⟩
 
 open ReturnFrame.Occurrence in
-private theorem sharedComponentInstallTransport {left right : Config (core3 grow) (HostState sig)}
-    {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
-    (installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)])
-    (checked : segmentAt (segmentStorage left) (.active 0 0) = some (.prog resume))
-    (canonical : segmentAt (segmentStorage right) (.active 0 0) = some (.prog resume)) :
-    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right := by
+private theorem sharedTopTransport {left right : Config (core3 grow) (HostState sig)} {checkedTrace canonTrace : Trace grow sig}
+    {frame : Seg (core3 grow) (HostState sig)}
+    (installed : OccurrenceTransport profile ready base bindings start incoming checkedTrace canonTrace left right [some (.active 0 0)])
+    (checked : segmentAt (segmentStorage left) (.active 0 0) = some frame)
+    (canonical : segmentAt (segmentStorage right) (.active 0 0) = some frame) :
+    OccurrenceTransport profile ready base bindings start incoming checkedTrace canonTrace left right := by
   obtain ⟨move, paths, retained⟩ := installed
   refine ⟨move, paths, ?_⟩
   intro older marks outside place off first second leftAt rightAt
@@ -4558,7 +4576,7 @@ private theorem cutComponentBadLink {callees : List (ComponentCall.Callee sig)}
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: peerFrames, peerRest⟩
   let left := { start with ctl := check.control (badComponentLinkProgram issue) }
   let right := { incoming with ctl := canon.control (badComponentLinkProgram issue) }
-  have installed := sharedComponentInstallTransport marked leftMark rightMark
+  have installed := sharedTopTransport marked leftMark rightMark
   have entry := badLinkEntryPath (start := left) (profile := profile) (ready := ready) (specDispatch ready base) issue check rfl
   have canonEntry := badLinkEntryPath (start := right) (profile := profile) (ready := ready)
     (specDispatch ready (LiveDispatch.host bindings base)) issue canon rfl
@@ -4781,7 +4799,7 @@ private theorem cutComponentDenied {callees : List (ComponentCall.Callee sig)}
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some active, .prog resume :: peerFrames, peerRest⟩
   let left := { start with ctl := check.control (ComponentCall.invoke callee caller) }
   let right := { incoming with ctl := canon.control (ComponentCall.invoke callee caller) }
-  have install := sharedComponentInstallTransport marked leftMark rightMark
+  have install := sharedTopTransport marked leftMark rightMark
   have entry := path (specDispatch ready base) left check.frames check.rest rfl rfl
   have canonEntry := path (specDispatch ready (LiveDispatch.host bindings base)) right canon.frames canon.rest paired.data.1.symm rfl
   have site (leftHost rightHost : HostState sig) : PairedComponentSite older { left with host := leftHost }
@@ -7220,7 +7238,7 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
   · obtain ⟨callee, subtask, cx, args, pos, ft, limits, results, entry, task, linked, record, liveThread, liveTask, context, admitted⟩ := admits
     obtain ⟨peerFrames, peerRest, rfl, rfl, entered, install, leftMark, rightMark, outside⟩ :=
       cutLinkedComponentInstall linked focus step paired
-    have installed := sharedComponentInstallTransport install leftMark rightMark
+    have installed := sharedTopTransport install leftMark rightMark
     rcases cutAdmittedComponent (bindings := bindings)
         (start := { start with ctl := ⟨some active, .prog (ComponentCall.invoke callee caller), .prog resume :: frames⟩ :: rest })
         (incoming := { incoming with ctl := ⟨some active, .prog (ComponentCall.invoke callee caller), .prog resume :: peerFrames⟩ :: peerRest })
@@ -7241,12 +7259,45 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
       | refused _ reply | accepted _ reply => exact crossComponentBodyReply installed entrySplit moved split path reply boundary
   · exact .inr boundary
 
+open ReturnFrame.Occurrence in
+private theorem classifiedPollCrossing : CallbackPollCrossing profile ready base bindings := by
+  intro changes start incoming installed finish label labels thread core resume frames rest mem inst args focused calling step tail paired
+  have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.pollInstall focused calling) step tail)
+  obtain ⟨_, _, leading, suffix, reached, peer, split, ⟨mark, paths⟩, live, actual, frontier, exit⟩ :=
+    cutPublicPoll (bindings := bindings) mem inst args focused calling step tail paired
+  obtain ⟨rfl, used⟩ := List.cons.inj split
+  have terminal (stop : suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])) :
+      CallbackCrossingAt profile ready base bindings changes start incoming .tau labels finish := by
+    refine .inr (callbackTerminalSlice paired ?_)
+    rw [used]
+    exact .pollTerminal paths frontier stop actual
+  cases exit with
+  | exhausted empty _ => exact terminal (.inl empty)
+  | trapped left right _ => exact terminal (.inr ⟨left, right⟩)
+  | @rejoined observation active state resume frames rest peerFrames peerRest remaining checked canonical split residual returned pop =>
+    have retained := live (by rw [checked]; exact List.cons_ne_nil _ _)
+    have unmarked := sharedTopTransport retained
+      (frame := .core state resume)
+      (by rw [segmentStorage, checked]; rfl) (by rw [segmentStorage, canonical]; rfl)
+    have whole := (CallbackPrefix.transportAppend unmarked pop).choose_spec.1
+    rcases classifyReachedGrowth (CallbackPrefix.transportPaths whole none).choose_spec.1.steps with growing | _
+    · let replied := { reached with ctl := ⟨active,
+          .core ((core3 grow).resume reached.store.core state (.values [i32Flat observation.2])) resume, frames⟩ :: rest }
+      let peerReply := { peer with ctl := ⟨active,
+          .core ((core3 grow).resume peer.store.core state (.values [i32Flat observation.2])) resume, peerFrames⟩ :: peerRest }
+      refine .inl ⟨leading ++ [.tau], .tau :: (leading ++ [.tau]), remaining, replied, peerReply, ?_, ?_, residual⟩
+      · rw [used, split, List.append_assoc]
+        rfl
+      · exact ⟨by simpa only [List.cons_append] using growing, rfl, returned,
+          by simpa only [List.cons_append, List.map_nil, List.append_nil] using whole⟩
+    · exact .inr boundary
+
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready (ComponentCall.hostWithComponent bindings callees) bindings older start incoming labels finish :=
   foldCallbackSlicesWith (classifiedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl)
-    (some ⟨classifiedComponentCrossing⟩) run paired
+    (some ⟨classifiedComponentCrossing⟩) (some ⟨classifiedPollCrossing⟩) run paired
 
 theorem classifyMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)

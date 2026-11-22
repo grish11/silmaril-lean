@@ -73,6 +73,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | give (install : GiveInstall bindings dispatch before label next)
   | componentInstall {active hostId caller resume frames rest}
       (focus : before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
+  | pollInstall {thread core resume frames rest mem inst args}
+      (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+      (calling : (core3 grow).status before.store.core core = .callout (.builtin (.waitableSetPoll mem) inst) args)
   | read {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (openRead : ¬ ClosedHostRead before)
@@ -533,6 +536,12 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (update : ReachedNonGrowingUpdate profile ready (specDispatch ready base) reached checked left)
       (paired : HostFrame.Related.Paired changes left right)
       (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  | pollTerminal {changes reached peer left right checked trailing finish mark check canon}
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked checked left right [mark])
+      (frontier : ComponentStoreFrontier changes check canon pollCalloutResult pollCalloutResult left right trailing True)
+      (terminal : trailing = [] ∨ (left.ctl = [] ∧ right.ctl = []))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
 
