@@ -4616,7 +4616,7 @@ def RejoinedAllocatorResidual (profile : ProfileKind) (ready : HostReady (HostSt
       ActualMarkedPop profile ready base bindings retained checkEntry canonEntry lhs rhs
         (checkTrace ++ leading) (canonTrace ++ leading) mark cursor first second value remaining finish
 
-/-- Flat scalar and string fields and aggregates of these fields. This is a
+/-- Flat scalar and string fields, aggregates, and selected sums. This is a
 proof domain, not a runtime check for support. -/
 inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
   | scalar (type : Stored.TypeOf) (data : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type) :
@@ -4625,6 +4625,10 @@ inductive FlatVisitShape : Stored.Endpoints.RecordLower.Field → Prop where
       (emitted : item.Emitted) : FlatVisitShape item
   | aggregate (type : Stored.TypeOf) (fields : List Stored.Endpoints.RecordLower.Field)
       (children : ∀ field ∈ fields, FlatVisitShape field) : FlatVisitShape (.aggregate type fields)
+  | sum (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf)) (tag : Nat)
+      (selected : Option Stored.Endpoints.RecordLower.Field)
+      (matched : Stored.Endpoints.RecordLower.Field.LayoutMatches (.sum type arms tag selected) type)
+      (child : ∀ field, selected = some field → FlatVisitShape field) : FlatVisitShape (.sum type arms tag selected)
 
 def FlatVisitFocus (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (origin : CStore (core3 grow))
     (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig) (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig)

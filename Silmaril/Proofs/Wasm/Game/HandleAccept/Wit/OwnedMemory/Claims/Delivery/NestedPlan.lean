@@ -567,22 +567,19 @@ private theorem mapStringEnd
   | callback tracked paired terminal notPopped => exact .callback tracked paired terminal notPopped
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
-private theorem driveFlatScalar {origin : CStore (core3 grow)} (destination : RecordDestination) (inst : InstId) (budget : Nat)
-    (type : Stored.TypeOf) (localType : LocalDataType type) (payload : Stored.Payload type)
-    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width) :
-    FlatVisitField profile ready base bindings older origin destination inst budget (.data type payload) := by
-  intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
-  have widthAt : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width := growth.memAddrType width
-  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, trails⟩ :=
-    local_data_leaf_frame_between (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-      (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst type localType payload index
-      .flat origin left right (frame.store ▸ growth)
-      (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]) rfl
-      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt
+private theorem consumeFlatLocal {origin : CStore (core3 grow)}
+    {checkNext : FlatSequenceCheckNext grow sig} {canonNext : FlatSequenceCanonNext grow sig}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older start incoming check canon)
+    (localCut : LocalCutKeepingBetween profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      (fun store => Core3.Grows origin.core store.core) start incoming check canon (fun words => checkNext (.ok words)) canonNext true)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish := by
+  obtain ⟨store, result, checked, canonical, lhs, _, observed, cut, trails⟩ := localCut
   have stop (ending : StringSliceEnd profile ready base bindings older
-      (fun _ => FlatVisitFocus older origin checkNext canonNext) left right actual finish []) :
-      FlatVisitRun profile ready base bindings older origin checkNext canonNext left right actual finish :=
-    ⟨[], [], actual, left, right, [], rfl, rfl,
+      (fun _ => FlatVisitFocus older origin checkNext canonNext) start incoming labels finish []) :
+      FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish :=
+    ⟨[], [], labels, start, incoming, [], rfl, rfl,
       CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), frame.store, run, ending⟩
   cases alignWorkerBody lhs run with
   | inside _ nonempty tail => exact stop (.localPrefix nonempty tail)
@@ -595,6 +592,18 @@ private theorem driveFlatScalar {origin : CStore (core3 grow)} (destination : Re
       | ok words =>
         exact .descriptor (pointer := 0) (cursor := check) (peer := canon) ⟨words,
           ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩, cut.1, rfl, rfl⟩
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+private theorem driveFlatScalar {origin : CStore (core3 grow)} (destination : RecordDestination) (inst : InstId) (budget : Nat)
+    (type : Stored.TypeOf) (localType : LocalDataType type) (payload : Stored.Payload type)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width) :
+    FlatVisitField profile ready base bindings older origin destination inst budget (.data type payload) := by
+  intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+  have widthAt : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width := growth.memAddrType width
+  exact consumeFlatLocal frame
+    (local_data_leaf_frame_between destination inst type localType payload index .flat origin left right (frame.store ▸ growth)
+      (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]) rfl
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt) run
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
 private theorem driveFlatSequence {origin : CStore (core3 grow)} {budget : Nat}
@@ -640,6 +649,91 @@ private theorem driveFlatSequence {origin : CStore (core3 grow)} {budget : Nat}
         by simpa using (CallbackPrefix.transportAppend movement trails).choose_spec.1, equal, actualTail, done⟩
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+private theorem driveFlatSumTail {origin : CStore (core3 grow)} (width : AddrType) (type : Stored.TypeOf)
+    (count tag : Nat) (haves : List CoreType) (words : List FlatValue)
+    {checkNext : FlatSequenceCheckNext grow sig} {canonNext : FlatSequenceCanonNext grow sig}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older start incoming check canon) (growth : Core3.Grows origin.core start.store.core)
+    (checkAt : start.ctl = check.control (flatSumTail width type count tag haves words >>= fun result => checkNext (.ok result)))
+    (canonAt : incoming.ctl = canon.control (flatSumTail width type count tag haves words >>= canonNext))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    FlatVisitRun profile ready base bindings older origin checkNext canonNext start incoming labels finish :=
+  consumeFlatLocal frame
+    (variant_tail_frame_between count ((flatten width type).drop 1) tag haves words
+      (keep := fun store => Core3.Grows origin.core store.core) start incoming (frame.store ▸ growth)
+      (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext
+      (by simpa only [flatSumTail, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using! checkAt) canonAt) run
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+private theorem driveFlatSum {origin : CStore (core3 grow)} {budget : Nat}
+    (destination : RecordDestination) (inst : InstId) {type : Stored.TypeOf} {arms : List (Option Stored.TypeOf)}
+    {tag : Nat} {selected : Option Field} (matched : Field.LayoutMatches (.sum type arms tag selected) type)
+    (child : ∀ field, selected = some field → FlatVisitField profile ready base bindings older origin destination inst budget field) :
+    FlatVisitField profile ready base bindings older origin destination inst budget (.sum type arms tag selected) := by
+  have valid : tag < arms.length := by
+    cases matched with
+    | variant found _ => exact (List.getElem?_eq_some_iff.mp found).1
+    | optionNone | optionSome | resultOk | resultError => simp
+  intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
+  cases selected with
+  | none =>
+    apply driveFlatSumTail destination.width type arms.length tag [] [] frame growth _ _ run
+    · rw [Record.Effects.field] at checkAt
+      let body : Session grow sig (List FlatValue) := flatSumTail destination.width type arms.length tag [] []
+      change left.ctl = check.control ((body.bind fun value => .pure (.ok value)).bind checkNext) at checkAt
+      rw [Prog.bind_assoc] at checkAt
+      exact checkAt
+    · simpa only [CanonicalTree.field, flatSumTail] using! canonAt
+  | some field =>
+    let haves := flatten destination.width field.type
+    let checkedNext := flatSumCheckNext destination.width type arms.length tag index haves checkNext
+    let canonicalNext := fun words => flatSumTail destination.width type arms.length tag haves words >>= canonNext
+    have checkChild : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+        (destination.context inst) destination.width field 0 .flat >>= checkedNext) := by
+      rw [checkAt, Record.Effects.field]
+      let body : Session grow sig (Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) :=
+        Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width field 0 .flat
+      let tail := flatSumTail (grow := grow) (sig := sig) destination.width type arms.length tag haves
+      change check.control ((body.bind fun verdict => match verdict with
+        | .error issue => .pure (.error (.nested index issue))
+        | .ok words => (tail words).bind fun value => .pure (.ok value)).bind checkNext) =
+          check.control (body.bind checkedNext)
+      rw [Prog.bind_assoc]
+      apply congrArg (fun next => check.control (body.bind next))
+      funext verdict
+      cases verdict with
+      | error issue => rfl
+      | ok words => rw [Prog.bind_assoc]; rfl
+    have canonChild : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+        (destination.context inst) destination.width field .flat >>= canonicalNext) := by
+      rw [canonAt, CanonicalTree.field]
+      congr 1
+      let body : Session grow sig (List FlatValue) := CanonicalTree.field Limits.spec Quirks.none
+        (destination.context inst) destination.width field .flat
+      change (lowerFlatVariantWith arms.length ((flatten destination.width type).drop 1) tag haves body).bind canonNext =
+        body.bind fun words => (flatSumTail destination.width type arms.length tag haves words).bind canonNext
+      simp only [flatSumTail, lowerFlatVariantWith, valid, ↓reduceIte, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
+      exact Prog.bind_assoc _ _ _
+    obtain ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail, ending⟩ :=
+      child field rfl 0 checkedNext canonicalNext left right check canon frame growth checkChild canonChild actual finish run bounded
+    have stop (why : StringSliceEnd profile ready base bindings older (fun _ => FlatVisitFocus older origin checkNext canonNext)
+        lhs rhs trailing finish marks) : FlatVisitRun profile ready base bindings older origin checkNext canonNext left right actual finish :=
+      ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movement, same, tail, why⟩
+    cases ending with
+    | trap left right => exact stop (.trap left right)
+    | localPrefix nonempty rest => exact stop (.localPrefix nonempty rest)
+    | localChoice divided choice shared step suffix => exact stop (.localChoice divided choice shared step suffix)
+    | installPrefix short => exact stop (.installPrefix short)
+    | callback tracked paired terminal notPopped => exact stop (.callback tracked paired terminal notPopped)
+    | @descriptor pointer cursor peer reached =>
+      obtain ⟨words, related, grew, atCheck, atCanon⟩ := reached
+      obtain ⟨left, right, residual, reached, peer, marks, divided, observed, trails, equal, actualTail, done⟩ :=
+        driveFlatSumTail destination.width type arms.length tag haves words related grew atCheck atCanon tail
+      exact ⟨checked ++ left, canonical ++ right, residual, reached, peer, marks,
+        by rw [split, divided, List.append_assoc], by rw [visibleAppend canonical right, visibleAppend checked left, seen, observed],
+        by simpa using (CallbackPrefix.transportAppend movement trails).choose_spec.1, equal, actualTail, done⟩
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
 theorem driveCompiledFlat {origin : CStore (core3 grow)} {root item : Field} {schema : Stored.TypeOf} {budget : Nat}
     (destination : RecordDestination) (inst : InstId) (shape : FlatVisitShape item)
     (rootLayout : root.LayoutMatches schema)
@@ -651,6 +745,8 @@ theorem driveCompiledFlat {origin : CStore (core3 grow)} {root item : Field} {sc
     FlatVisitField profile ready base bindings older origin destination inst budget item := by
   induction shape with
   | scalar type localType payload => exact driveFlatScalar destination inst budget type localType payload width
+  | sum type arms tag selected matched child ih =>
+    exact driveFlatSum destination inst matched (fun item active => ih item active (path.trans (active ▸ .sum (.self item))))
   | string item matched emitted =>
     intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
     obtain ⟨str, field⟩ := CallbackRange.compiledStringCommit destination inst .flat rootLayout fits allocates path
