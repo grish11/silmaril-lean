@@ -3514,6 +3514,59 @@ private theorem lowerRecordOfShape {initial reached : CStore (core3 grow)} {call
     | host => cases retained
     | sub => cases retained
 
+open AsyncRef ReturnFrame.Occurrence in
+private theorem cutObservedRefusal (caller : CallerId) (issue : Scheduled.Issue)
+    {leftTicket rightTicket : Nat} {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)}
+    {args : List FlatValue} {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (leftFocus : start.ctl = check.control (ComponentCall.resolveRefused leftTicket caller issue))
+    (rightFocus : incoming.ctl = canon.control (ComponentCall.resolveRefused rightTicket caller issue))
+    (record : ArenaField.callers.get? start.store caller = some (.lower subtask cx args pos ft limits results))
+    (resultType : ft.result = some ComponentCall.resultType) (indirect : results ≤ 1)
+    (paired : PairedComponentSite older start incoming check canon)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    ∃ leading suffix reached peer, labels = leading ++ suffix ∧
+      OccurrenceTransport profile ready base bindings start incoming leading leading reached peer ∧
+      Steps profile ready (specDispatch ready base) reached suffix finish ∧
+      (ComponentStoreFrontier (Result := Unit) older check canon (fun _ => .pure (.cancel .none))
+        (fun _ => .pure (.cancel .none)) reached peer suffix True ∨
+        (suffix = [] ∧ PairedComponentSite older reached peer check canon)) := by
+  rcases cutComponentResolveRefused (bindings := bindings) caller issue leftFocus rightFocus record resultType indirect paired run with
+    ⟨residualLabels, split, moved, aligned, residual⟩ | early
+  · let body : Session grow sig Unit := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, pos⟩)
+      Subtask.resolve subtask .returned flat
+    let tailProgram : Session grow sig (Ret (core3 grow)) := do
+      maybeOnProgress subtask
+      let flat ← lowerFlatValues Limits.spec Quirks.none cx results [.variant 1 none]
+        [ComponentCall.resultType] (some ⟨args, pos⟩)
+      Subtask.resolve subtask .returned flat
+      return .cancel .none
+    let reachedAt := fun (state : Config (core3 grow) (HostState sig))
+        (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) ticket =>
+      { state with host := state.host.record (.refused ticket issue), ctl := cursor.control tailProgram }
+    have tailEq : tailProgram = body >>= fun _ => .pure (.cancel .none) := by
+      simp only [tailProgram, body, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq]
+    change HostFrame.Related.Paired older (reachedAt start check leftTicket) (reachedAt incoming canon rightTicket) at aligned
+    have site : PairedComponentSite older (reachedAt start check leftTicket) (reachedAt incoming canon rightTicket) check canon := by
+      obtain ⟨_, _, focus, normalized⟩ := aligned.retarget rfl (.prog (.pure (.cancel .none)))
+        (start.host.record (.refused leftTicket issue)) (incoming.host.record (.refused rightTicket issue))
+      simp only [reachedAt, PayloadPrefix.Cursor.control, List.cons.injEq, Activation.mk.injEq, true_and] at focus
+      obtain ⟨⟨threadEq, framesEq⟩, restEq⟩ := focus
+      simpa only [PairedComponentSite, reachedAt, PayloadPrefix.Cursor.control, ← threadEq, ← framesEq, ← restEq] using normalized
+    change Steps profile ready (specDispatch ready base) (reachedAt start check leftTicket) residualLabels finish at residual
+    obtain ⟨leading, suffix, reached, peer, tailSplit, finishMove, remaining, frontier, _, _⟩ :=
+      cutComponentStoreBody (bindings := bindings) (closed := True) body _ _
+        (fun _ => resultEffects subtask cx _ results indirect none)
+        (congrArg check.control tailEq) (congrArg canon.control tailEq) site residual
+    refine ⟨[.tau, .tau, .tau] ++ leading, suffix, reached, peer, ?_, ?_, remaining, .inl frontier⟩
+    · rw [split, tailSplit, List.append_assoc]
+    · simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved finishMove).choose_spec.1
+  · obtain ⟨_, peer, moved, endpoint, _, _⟩ := early
+    exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .inr ⟨rfl, endpoint⟩⟩
+
 open ReturnFrame.Occurrence in
 theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : CallerId)
     {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
@@ -3544,34 +3597,62 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
       .pending (boundary.resolve_right (fun openFrontier => openFrontier.1 trivial)) site⟩
   | trapped left right site => exact ⟨leading, suffix, reached, peer, split, moved, residual, .trapped left right site⟩
   | returned values left right site =>
-    by_cases permitted : ComponentPayloadReady callee reached.host.writer peer.host.writer planned values
-    · obtain ⟨argument, payload, children, valid, registered, rfl, rfl, validated, register, room, claims, length⟩ := permitted
-      have shape := (retained (by rw [left]; simp [PayloadPrefix.Cursor.control])).1 caller
-      obtain ⟨_, liveRecord⟩ := lowerRecordOfShape original shape
-      have guards := admittedRefusalGuards callee admitted
-      have observation := Stored.OwnedMemory.Claims.register_observations claims length
-      rw [register] at observation
-      cases rightLive : peer.host.writer.register (.node callee.tag valid children) with
-      | error issue => simp [rightLive, Except.map] at observation
-      | ok rightWriter =>
-        have handle : registered.accepted.length = rightWriter.accepted.length := by
-          simpa [rightLive, Except.map] using observation
-        obtain ⟨more, finalSuffix, lhs, rhs, acceptanceSplit, acceptancePath, finalRun, accepted⟩ :=
-          cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
-            left right site liveRecord guards.1 guards.2 register rightLive rfl handle room residual
-        have whole : OccurrenceTransport profile ready base bindings start incoming (leading ++ more) (leading ++ more) lhs rhs := by
-          simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved acceptancePath).choose_spec.1
-        refine ⟨leading ++ more, finalSuffix, lhs, rhs, ?_, whole, finalRun, .accepted accepted
-          (compareComponentMarkedReply leftInstalled rightInstalled outside whole finalRun (wider := wider) ?_)⟩
-        · rw [split, acceptanceSplit, List.append_assoc]
-        · intro atReturn
-          cases accepted with
-          | pending _ exhausted => exact .inl exhausted
+    have shape := (retained (by rw [left]; simp [PayloadPrefix.Cursor.control])).1 caller
+    obtain ⟨_, liveRecord⟩ := lowerRecordOfShape original shape
+    have guards := admittedRefusalGuards callee admitted
+    by_cases invalid : ∃ argument payload children issue, values = [argument, payload] ∧ planned = some children ∧
+      Stored.OwnedMemory.checkValue (sig.payload callee.tag) payload = .error issue
+    · obtain ⟨argument, payload, children, issue, rfl, rfl, invalid⟩ := invalid
+      have leftRefused : reached.ctl = check.control (ComponentCall.resolveRefused leftTicket caller (.accept (.claims (.lift issue)))) := by
+        simpa only [ComponentCall.acceptPayload, invalid] using left
+      have rightRefused : peer.ctl = canon.control (ComponentCall.resolveRefused rightTicket caller (.accept (.claims (.lift issue)))) := by
+        simpa only [ComponentCall.acceptPayload, invalid] using right
+      obtain ⟨more, finalSuffix, lhs, rhs, refusalSplit, refusalPath, finalRun, refused⟩ :=
+        cutObservedRefusal (bindings := bindings) caller _ leftRefused rightRefused liveRecord guards.1 guards.2 site residual
+      have whole : OccurrenceTransport profile ready base bindings start incoming (leading ++ more) (leading ++ more) lhs rhs := by
+        simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved refusalPath).choose_spec.1
+      refine ⟨leading ++ more, finalSuffix, lhs, rhs, ?_, whole, finalRun, ?_⟩
+      · rw [split, refusalSplit, List.append_assoc]
+      · rcases refused with frontier | ⟨exhausted, aligned⟩
+        · refine .refused frontier (compareComponentMarkedReply leftInstalled rightInstalled outside whole finalRun (wider := wider) ?_)
+          intro atReturn
+          cases frontier with
+          | returned _ checked canonical paired =>
+            unfold PairedComponentSite at paired
+            rw [← checked, ← canonical] at paired
+            exact .inr paired
+          | pending _ _ checked _ _ _ =>
+            rw [checked] at atReturn
+            simp [PayloadPrefix.Cursor.control] at atReturn
           | trapped checked _ _ =>
             rw [checked] at atReturn
             simp [PayloadPrefix.Cursor.control] at atReturn
-          | published _ _ pair _ _ => exact .inr pair
-    · exact ⟨leading, suffix, reached, peer, split, moved, residual, .validation left right site permitted⟩
+        · exact .pending exhausted aligned
+    · by_cases permitted : ComponentPayloadReady callee reached.host.writer peer.host.writer planned values
+      · obtain ⟨argument, payload, children, valid, registered, rfl, rfl, validated, register, room, claims, length⟩ := permitted
+        have observation := Stored.OwnedMemory.Claims.register_observations claims length
+        rw [register] at observation
+        cases rightLive : peer.host.writer.register (.node callee.tag valid children) with
+        | error issue => simp [rightLive, Except.map] at observation
+        | ok rightWriter =>
+          have handle : registered.accepted.length = rightWriter.accepted.length := by
+            simpa [rightLive, Except.map] using observation
+          obtain ⟨more, finalSuffix, lhs, rhs, acceptanceSplit, acceptancePath, finalRun, accepted⟩ :=
+            cutSuccessfulPublication (bindings := bindings) callee caller argument payload children validated
+              left right site liveRecord guards.1 guards.2 register rightLive rfl handle room residual
+          have whole : OccurrenceTransport profile ready base bindings start incoming (leading ++ more) (leading ++ more) lhs rhs := by
+            simpa only [List.map_nil, List.append_nil] using (CallbackPrefix.transportAppend moved acceptancePath).choose_spec.1
+          refine ⟨leading ++ more, finalSuffix, lhs, rhs, ?_, whole, finalRun, .accepted accepted
+            (compareComponentMarkedReply leftInstalled rightInstalled outside whole finalRun (wider := wider) ?_)⟩
+          · rw [split, acceptanceSplit, List.append_assoc]
+          · intro atReturn
+            cases accepted with
+            | pending _ exhausted => exact .inl exhausted
+            | trapped checked _ _ =>
+              rw [checked] at atReturn
+              simp [PayloadPrefix.Cursor.control] at atReturn
+            | published _ _ pair _ _ => exact .inr pair
+      · exact ⟨leading, suffix, reached, peer, split, moved, residual, .validation left right site permitted⟩
 
 open ReturnFrame.Occurrence in
 theorem rejoinedAllocatorResidual {callees : List (ComponentCall.Callee sig)}

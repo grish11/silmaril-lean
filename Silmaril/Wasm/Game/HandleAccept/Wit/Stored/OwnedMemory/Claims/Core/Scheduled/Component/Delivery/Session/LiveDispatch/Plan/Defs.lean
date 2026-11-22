@@ -4501,8 +4501,9 @@ def ComponentPayloadReady (callee : ComponentCall.Callee sig)
     left.RegistrationChecksAgree right (.node callee.tag valid children) ∧ left.accepted.length = right.accepted.length
 
 /-- The finite observer may still be running, may have trapped, or may have
-entered validation. A validation boundary does not claim an executed refusal;
-it includes a genuinely unmatched reached registration observation. -/
+entered validation. A payload refusal uses the live result cursor and may
+reach the original reply without popping it. Other validation boundaries
+include unmatched reached registration observations. -/
 inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -4520,6 +4521,11 @@ inductive ComponentObservedAcceptance (profile : ProfileKind) (ready : HostReady
       (canonical : peer.ctl = canon.control (ComponentCall.acceptPayload callee caller rightTicket planned values))
       (paired : PairedComponentSite wider reached peer check canon)
       (boundary : ¬ ComponentPayloadReady callee reached.host.writer peer.host.writer planned values)
+  | refused
+      (frontier : ComponentStoreFrontier (Result := Unit) wider check canon
+        (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none)) reached peer suffix True)
+      (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading
+        check first second suffix finish)
   | accepted {tree handle}
       (frontier : ComponentAcceptedFrontier wider check canon tree handle reached peer suffix)
       (reply : ComponentMarkedReplyTail profile ready base bindings older start incoming reached peer leading

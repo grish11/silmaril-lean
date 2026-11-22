@@ -449,8 +449,9 @@ theorem cut_component_successful_marked_reply (callee : ComponentCall.Callee sig
 
 open ReturnFrame.Occurrence in
 /-- Starting at the admitted observer, consume only its executed prefix.
-Re-read the caller with the reached cursor, validate the actual observations,
-and follow the live write, publication and caller pop if the checked run reaches them.
+Re-read the caller with the reached cursor and validate the actual observations.
+Follow either the typed payload refusal or the live write and publication, and
+consume the caller pop only if the checked run executes it.
 The original installed caller is tracked across the entire composed cut. -/
 theorem cut_component_observed_acceptance (callee : ComponentCall.Callee sig) (caller : CallerId)
     {planned : Option (List (Stored.OwnedMemory.Tree sig))} {leftTicket rightTicket : Nat}
