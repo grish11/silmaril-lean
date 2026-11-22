@@ -1096,15 +1096,16 @@ theorem string_map_entry_occurrence_transport {destination : RecordDestination} 
       field value index slot checkNext canonNext seen left right check canon :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.stringMapEntryTransport leading run next
 
-/-- Derive every child lift by induction on the supported scalar/string
-list schema. The premises do not supply any equivalent child histories. -/
-theorem recursive_list_occurrence_transport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+/-- Derive every child lift by induction on the supported list and string
+map schemas, including allocating strings and live nominal guards. No child
+histories are supplied as premises. -/
+theorem recursive_allocating_occurrence_transport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
     {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
-    (family : RecursiveListTransportType type) :
+    (family : RecursiveAllocatingTransportType type) :
     LiftsFieldTransportPaths profile ready base bindings start incoming
       (liveCollectionField profile ready base bindings older destination inst type)
-      (recursiveListTransportPaths profile ready base bindings older destination inst start incoming sink type) sink :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.recursiveListTransport covers family
+      (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) sink :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails.recursiveAllocatingTransport covers family
 
 /-- Heterogeneous records and tuples select the scalar, string or nominal
 child rule from the compiled slot's declared schema. The actual bounds read,

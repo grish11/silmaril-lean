@@ -635,6 +635,60 @@ theorem mapOccurrencePaths {destination : RecordDestination} {inst : InstId} {ke
   intro _ _ _ _ _ atDescriptor published
   exact descriptorOccurrences atDescriptor published next
 
+private theorem stringMapElementsTransport {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {output : Stored.Lower.Output} {entries : List Field} {index pointer : Nat}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (lift : LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : liveMapElementsWith (LiveStringMapEntryThen profile ready base bindings older destination inst element output)
+      destination inst .string element output child checkNext canonNext finish entries index pointer left right check canon)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      finish lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    liveMapElementsPaths (stringMapEntryTransportPaths profile ready base bindings older destination inst element output start incoming paths)
+      destination inst .string element output checkNext canonNext visit entries index pointer seen left right check canon := by
+  induction entries generalizing index pointer seen left right check canon with
+  | nil => exact next seen left right check canon leading run
+  | cons item rest ih =>
+    obtain ⟨payload, value, shape, entry⟩ := run
+    refine ⟨payload, value, shape, CallbackPrefix.stringMapEntryTransport leading entry ?_⟩
+    intro ptr observed lhs rhs cursor peer history body
+    have shared := history.choose_spec.choose_spec.2.2.2
+    exact lift value 1 ptr lhs rhs cursor peer _ _ _ _ observed body history shared (sink.nested _ admitted index)
+      (fun _ _ _ _ _ retained _ tail => ih retained tail)
+
+theorem stringMapTransportPaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
+    {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
+    {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
+    {checkNext : ValueCheckNext grow sig output} {canonNext : ValueCanonNext grow sig output}
+    {finish : ValueFinish grow sig output} {visit : TrailFinish grow sig}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (lift : LiftsFieldTransportPaths profile ready base bindings start incoming child paths sink)
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LiveCollectionEntry profile ready base bindings older destination inst (.map .string element)
+      (.record (ABI.mapEntryFields .string element)) entries index output checkNext canonNext left right check canon
+      (fun pointer bytes _ => liveMapTailWith profile ready base bindings
+        (LiveStringMapEntryThen profile ready base bindings older destination inst element output)
+        destination inst .string element entries index output child checkNext canonNext finish pointer bytes))
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map .string element)
+      (.record (ABI.mapEntryFields .string element)) entries index output checkNext canonNext start incoming left right seen check canon
+      (liveMapTailPaths (stringMapEntryTransportPaths profile ready base bindings older destination inst element output start incoming paths)
+        destination inst .string element entries index output checkNext canonNext
+        (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed visit)) sink := by
+  apply collectionEntryTransport covers admitted leading run
+  intro pointer bytes observed lhs rhs cursor peer history body
+  refine stringMapElementsTransport lift history body (sink.nested _ admitted index) ?_
+  intro _ _ _ _ _ atDescriptor published
+  exact descriptorTransport atDescriptor published next
+
 private theorem fixedOccurrencePaths {destination : RecordDestination} {inst : InstId} {element : Stored.TypeOf}
     {entries : List Field} {index address : Nat} {child : FieldComparison grow sig} {paths : TrailFieldComparison grow sig}
     {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig} {finish : Finish grow sig} {visit : TrailFinish grow sig}
@@ -771,13 +825,16 @@ theorem structuralFieldOccurrences {destination : RecordDestination} {inst : Ins
     obtain ⟨items, shape, body⟩ := run
     exact ⟨items, shape, CallbackPrefix.aggregateOccurrencePathsFrom (tupleOccurrenceLift destination inst types children) leading same body admitted next⟩
 
-theorem recursiveListTransport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
+theorem recursiveAllocatingTransport {destination : RecordDestination} {inst : InstId} {type : Stored.TypeOf}
     (covers : sink.CoversOccurrences profile ready base bindings start incoming)
-    (family : RecursiveListTransportType type) :
+    (family : RecursiveAllocatingTransportType type) :
     LiftsFieldTransportPaths profile ready base bindings start incoming
       (liveCollectionField profile ready base bindings older destination inst type)
-      (recursiveListTransportPaths profile ready base bindings older destination inst start incoming sink type) sink := by
+      (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink type) sink := by
   induction family with
+  | nominal nominal =>
+    cases nominal <;> intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next <;>
+      exact CallbackPrefix.handleValueTransport leading run covers admitted (fun () => next)
   | data data =>
     cases data with
     | @primitive primitive nonstring =>
@@ -800,6 +857,11 @@ theorem recursiveListTransport {destination : RecordDestination} {inst : InstId}
     intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next
     obtain ⟨entries, shape, body⟩ := run
     exact ⟨entries, shape, listTransportPaths covers child leading body admitted
+      (fun () observed lhs rhs cursor peer paths => next observed lhs rhs cursor peer paths paths.choose_spec.choose_spec.2.2.2)⟩
+  | stringMap _ child =>
+    intro _ _ _ _ _ _ _ _ _ _ _ _ run leading _ admitted next
+    obtain ⟨entries, shape, body⟩ := run
+    exact ⟨entries, shape, stringMapTransportPaths covers child leading body admitted
       (fun () observed lhs rhs cursor peer paths => next observed lhs rhs cursor peer paths paths.choose_spec.choose_spec.2.2.2)⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails

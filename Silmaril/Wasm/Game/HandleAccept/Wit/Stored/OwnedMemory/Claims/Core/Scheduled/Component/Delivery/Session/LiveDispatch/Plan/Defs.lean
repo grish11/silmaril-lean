@@ -1351,6 +1351,22 @@ def RefusalSink.CoversOccurrences (sink : RefusalSink grow sig) (profile : Profi
     left.ctl = check.control (next issue) →
     ComparedOccurrencePaths profile ready base bindings start incoming seen left right → sink.exit next issue seen left right check
 
+/-- The nominal guard's one-sided advance has a concrete checked trail
+and an empty canonical trail. Success or a common trap uses the reached
+spent writer, not the original authority. -/
+def HandleTransportThen (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (start incoming left right : Config (core3 grow) (HostState sig)) (seen : Trace grow sig)
+    (item : Stored.Endpoints.RecordLower.Field) (index : Nat) {Result : Type}
+    (check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue Result → Session grow sig (Ret (core3 grow)))
+    (finish : TrailFinish grow sig) (sink : RefusalSink grow sig) : Prop :=
+  (∃ issue, liveLeafPlan left.store left.host.writer index item = .error issue ∧
+    let refused := { left with ctl := check.control (checkNext (.error issue)) }
+    ComparedOccurrenceTransport profile ready base bindings start incoming seen refused right ∧
+    sink.exit (fun reason => checkNext (.error reason)) issue seen refused right check) ∨
+  LocalTransportThen profile ready base bindings start incoming seen finish
+
 /-- The range branch of the actual marked return. Misalignment and bounds
 traps retain the reached prefix. A fresh reservation failure stops canonical
 before the child program, and only a successful reservation enters it. -/
@@ -1624,6 +1640,16 @@ def StringMapEntryTransport (profile : ProfileKind) (ready : HostReady (HostStat
 
 /-- Select the reached map key program before the recursive value. The
 canonical entry mode is fixed by the allocation's output, not the value. -/
+def stringMapEntryTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
+    (element : Stored.TypeOf) (output : Stored.Lower.Output) (start incoming : Config (core3 grow) (HostState sig))
+    (child : TrailFieldComparison grow sig) : MapEntryTrail grow sig :=
+  fun field value index slot checkNext canonNext finish =>
+    StringMapEntryTransport profile ready base bindings older destination inst element output start incoming
+      (fun pointer => child value 1 pointer (LinkedCallback.MemorySequence.aggregateNext index checkNext) canonNext finish)
+      field value index slot checkNext canonNext
+
 def liveMapEntryPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
@@ -2002,17 +2028,19 @@ def liveTupleTrails (profile : ProfileKind) (ready : HostReady (HostState sig))
 termination_by structural types => types
 end
 
-/-- Supported first transport subfamily: arbitrarily nested dynamic lists
-with locally emitted scalar or allocating string leaves. -/
-inductive RecursiveListTransportType : Stored.TypeOf → Prop where
-  | data {type} : PayloadPrefix.LocalDataType type → RecursiveListTransportType type
-  | string : RecursiveListTransportType (.prim .string)
-  | list {element} : RecursiveListTransportType element → RecursiveListTransportType (.list element)
+/-- Enclosing-mark transport through nested dynamic lists and string-key
+maps with scalar, allocating string or guarded nominal leaves. -/
+inductive RecursiveAllocatingTransportType : Stored.TypeOf → Prop where
+  | nominal {type} : NominalElement type → RecursiveAllocatingTransportType type
+  | data {type} : PayloadPrefix.LocalDataType type → RecursiveAllocatingTransportType type
+  | string : RecursiveAllocatingTransportType (.prim .string)
+  | list {element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.list element)
+  | stringMap {element} : RecursiveAllocatingTransportType element → RecursiveAllocatingTransportType (.map .string element)
 
 /-- Follow the compiled child at each reached list slot. In the string
 case, the measured allocator plan transports the history into the actual
 descriptor continuation. -/
-def recursiveListTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
+def recursiveAllocatingTransportPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (destination : RecordDestination) (inst : InstId)
     (start incoming : Config (core3 grow) (HostState sig)) (sink : RefusalSink grow sig) : Stored.TypeOf → TrailFieldComparison grow sig
@@ -2021,14 +2049,27 @@ def recursiveListTransportPaths (profile : ProfileKind) (ready : HostReady (Host
       LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.list element) element entries index
         (.memory address) checkNext canonNext start incoming left right before check canon
         (liveListTailPaths destination inst element entries index (.memory address)
-          (recursiveListTransportPaths profile ready base bindings older destination inst start incoming sink element) checkNext canonNext
+          (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element) checkNext canonNext
+          (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed finish)) sink
+  | .map .string element => fun item index address checkNext canonNext finish before left right check canon =>
+    let entryType : Stored.TypeOf := .record (ABI.mapEntryFields .string element)
+    let output := Stored.Lower.Output.memory address
+    ∃ entries, item = .dynamic (.map .string element) entryType entries ∧
+      LiveCollectionOccurrenceEntry profile ready base bindings older destination inst (.map .string element) entryType entries index
+        output checkNext canonNext start incoming left right before check canon
+        (liveMapTailPaths (stringMapEntryTransportPaths profile ready base bindings older destination inst element output start incoming
+          (recursiveAllocatingTransportPaths profile ready base bindings older destination inst start incoming sink element))
+          destination inst .string element entries index output checkNext canonNext
           (fun observed _ _ _ _ => LocalTransportThen profile ready base bindings start incoming observed finish)) sink
   | .prim .string => fun item _ address checkNext canonNext finish seen left right check canon =>
     ∃ str : LinkedCallback.StringField, item = str.field ∧
       StringValueOccurrencePaths profile ready base bindings older destination inst str (.memory address)
         start incoming left right check canon checkNext canonNext
         (fun _ _ _ _ _ _ => ∃ seen, LocalTransportThen profile ready base bindings start incoming seen finish) seen start incoming
-  | _ => fun _ _ _ _ _ finish seen _ _ _ _ => LocalTransportThen profile ready base bindings start incoming seen finish
+  | .prim _ | .enum _ | .flags _ => fun _ _ _ _ _ finish seen _ _ _ _ =>
+    LocalTransportThen profile ready base bindings start incoming seen finish
+  | _ => fun item index _ checkNext _ finish seen left right check _ =>
+    HandleTransportThen profile ready base bindings start incoming left right seen item index check checkNext finish sink
 termination_by structural type => type
 
 /-- The cumulative memory fold covers the same fragment as the compiled

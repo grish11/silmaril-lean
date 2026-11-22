@@ -888,15 +888,16 @@ private theorem stringInstallTrail (dispatch : Call (core3 grow) → Session gro
 
 theorem localLeafTransport {Result : Type} {store : CStore (core3 grow)}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {leftHost rightHost : HostState sig}
     {checkNext canonNext : Result → Session grow sig (Ret (core3 grow))} {result : Except TrapReason Result}
     {checked canonical : Trace grow sig}
-    (paths : let lhs := localLeafEnd left left.host store check.thread check.frames check.rest checkNext result
-      let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
+    (paths : let lhs := localLeafEnd left leftHost store check.thread check.frames check.rest checkNext result
+      let rhs := localLeafEnd right rightHost store canon.thread canon.frames canon.rest canonNext result
       ∀ mark, Trail profile ready (specDispatch ready base) left mark checked lhs (localOccurrenceEnd result mark) ∧
         Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) right mark canonical rhs (localOccurrenceEnd result mark)) :
     OccurrenceTransport profile ready base bindings left right checked canonical
-      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
-      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) := by
+      (localLeafEnd left leftHost store check.thread check.frames check.rest checkNext result)
+      (localLeafEnd right rightHost store canon.thread canon.frames canon.rest canonNext result) := by
   refine ⟨localOccurrenceEnd result, paths, ?_⟩
   intro older marks invariant place unmarked first second leftAt rightAt
   have keeps (kept : localOccurrenceEnd result (some place) = some place) : ReturnFrame.Related.Segment older first second := by
@@ -1603,6 +1604,46 @@ theorem handleValueOccurrences {item : Field} {index : Nat} {output : Stored.Low
       have reached := appendComparedOccurrences leading ⟨_, _, fun mark => ⟨_, trails mark⟩, lhsSeen, visibleLeaf rhsKind, rfl⟩
       exact .inr (.inr ⟨[], _, _, check, canon, reached, next result _ _ _ _ _ reached rfl done⟩)
 
+
+theorem handleValueTransport {item : Field} {index : Nat} {output : Stored.Lower.Output}
+    {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output} {canonNext : LinkedCallback.MemorySequence.ValueCanonNext grow sig output}
+    {finish : output.Result → LinkedCallback.MemorySequence.Finish grow sig} {visit : TrailFinish grow sig}
+    (leading : ComparedOccurrenceTransport profile ready base bindings start incoming seen left right)
+    (run : LinkedCallback.HandleFieldThenBetween profile ready (specDispatch ready base)
+      (specDispatch ready (LiveDispatch.host bindings base)) item index output left right check canon checkNext canonNext finish)
+    {sink : RefusalSink grow sig} (covers : sink.CoversOccurrences profile ready base bindings start incoming)
+    (admitted : sink.admits (fun issue => checkNext (.error issue)))
+    (next : ∀ value observed lhs rhs cursor peer,
+      ComparedOccurrenceTransport profile ready base bindings start incoming observed lhs rhs → lhs.store = rhs.store →
+      finish value lhs rhs cursor peer → visit observed lhs rhs cursor peer) :
+    HandleTransportThen profile ready base bindings start incoming left right seen item index check checkNext visit sink := by
+  unfold LinkedCallback.HandleFieldThenBetween at run
+  cases decision : liveLeafPlan left.store left.host.writer index item with
+  | error issue =>
+    rw [decision] at run
+    obtain ⟨labels, tau, retained⟩ := run
+    have silent := invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
+    have reached := appendComparedTransport (more := []) leading
+      ⟨labels, [], stationaryTransport retained (fun place => .done right place), silent, rfl,
+        leading.choose_spec.choose_spec.2.2.2⟩
+    rw [List.append_nil] at reached
+    exact .inl ⟨issue, decision, reached, covers _ admitted issue _ _ _ check rfl (comparedTransportPaths reached)⟩
+  | ok plan =>
+    rw [decision] at run
+    obtain ⟨store, result, guard, lhsLabels, rhsLabels, tau, lhsKind, rhsKind, _, _, trails, continued⟩ := run
+    have silent : PayloadPrefix.visible guard = [] :=
+      invisible (List.all_eq_true.mpr (fun label member => by rw [tau label member]))
+    have lhsSeen := (List.filter_append ..).trans (congrArg₂ List.append silent (visibleLeaf lhsKind))
+    have movement := localLeafTransport trails
+    cases result with
+    | error reason =>
+      exact .inr (.inl ⟨reason, [], _, _, appendComparedTransport leading
+        ⟨_, _, movement, lhsSeen, visibleLeaf rhsKind, rfl⟩, rfl, rfl⟩)
+    | ok result =>
+      obtain ⟨_, _, done⟩ := continued result rfl
+      have reached := appendComparedTransport (more := []) leading ⟨_, _, movement, lhsSeen, visibleLeaf rhsKind, rfl⟩
+      exact .inr (.inr ⟨[], _, _, check, canon, reached, next result _ _ _ _ _ reached rfl done⟩)
 
 private theorem handleFieldOccurrences {item : Field} {index address : Nat}
     {left right : Config (core3 grow) (HostState sig)} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
