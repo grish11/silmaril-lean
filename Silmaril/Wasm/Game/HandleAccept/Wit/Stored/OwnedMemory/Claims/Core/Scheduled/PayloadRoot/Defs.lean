@@ -132,6 +132,14 @@ def Site.PreparedEntry (site : Site grow sig route) (profile : ProfileKind) (rea
     (impl : HostImpl (core3 grow) (HostState sig)) (labels : List (Label (core3 grow) (HostState sig))) : Prop :=
   ∃ front next tail, labels = (front ++ [.tau, .tau]) ++ tail ∧ site.PrepareEntry profile ready impl front next
 
+/-- The parked caller is still present at the reached placement trap focus. -/
+structure Site.PlacementPrefix (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (impl : HostImpl (core3 grow) (HostState sig)) (count : Nat) (reason : TrapReason) : Prop where
+  tracks : site.EntryPrefix profile ready impl (List.replicate count .tau) (site.withBody (trap reason))
+  framed : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start
+    (List.replicate count .tau) (site.withBody (trap reason))
+  prepared : site.PreparedEntry profile ready impl (List.replicate count .tau)
+
 /-- The actual prefix before the first recursive field. No recursive
 comparison, allocator return or completion delivery is assumed. -/
 inductive Cut (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -148,6 +156,7 @@ inductive Cut (site : Site grow sig route) (profile : ProfileKind) (ready : Host
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) →
       site.PreparedEntry profile ready impl (List.replicate count .tau ++ [.trap reason]) →
+      site.PlacementPrefix profile ready impl count reason →
       Cut site profile ready bindings body impl
   | placed {labels} (silent : visible labels = [])
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())

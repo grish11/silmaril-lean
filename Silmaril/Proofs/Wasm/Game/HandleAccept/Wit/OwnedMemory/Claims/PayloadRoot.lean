@@ -76,29 +76,6 @@ private theorem placementWriter {dispatch : Call (core3 grow) → Session grow s
   · cases run with
     | cons step tail => cases tail; exact .next step writer (.done _)
 
-private theorem placementTrapWriter {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {start : Config (core3 grow) (HostState sig)} {reason : TrapReason} {count : Nat} (bound : count ≤ 1)
-    (run : Steps profile ready dispatch start (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)) :
-    Plain.HostFramedSteps HostState.writer profile ready dispatch start
-      (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) := by
-  have trapHost {before after : Config (core3 grow) (HostState sig)}
-      (step : Step profile ready dispatch before (.trap reason) after) : after.host = before.host := by
-    cases step <;> rfl
-  cases count with
-  | zero =>
-    cases run with
-    | cons halt tail => cases tail; exact .next halt rfl (.done _)
-  | succ count =>
-    have zero : count = 0 := by omega
-    subst count
-    cases run with
-    | cons read tail =>
-      cases tail with
-      | cons halt nil =>
-        cases nil
-        have host := trapHost halt
-        exact .next read (congrArg HostState.writer host.symm) (.next halt (congrArg HostState.writer host) (.done _))
-
 theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked bindings) (body : Prop)
     (afterFit : Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag)
       site.payload.val.value = true →
@@ -151,29 +128,43 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
         (site.destination.context site.inst) site.destination.width (sig.payload site.tag) site.field route.output >>= site.reply)
       have rootRun : site.EntryPrefix profile ready impl (front ++ [.tau, .tau, .tau]) root :=
         fun place => (entryRun place).append (started.1 (site.entryPlace place))
-      have placement := root_placement_tracks (profile := profile) (ready := ready) (dispatch := dispatch)
+      have placement := root_placement_prefix (profile := profile) (ready := ready) (dispatch := dispatch)
         site.destination site.inst (sig.payload site.tag) site.field route.output root site.cursor site.reply rfl
       change (match rootPlacement site.destination site.start.store (sig.payload site.tag) route.output with
         | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
             ∀ place, Prefix profile ready dispatch root place labels site.checked place
-        | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile ready dispatch root (some place)
-            (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked)
-            ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place)) at placement
+        | .error reason => ∃ count, PlacementFault profile ready dispatch root (site.withBody (trap reason)) count reason) at placement
       cases placed : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output with
       | error reason =>
         rw [placed] at placement
-        obtain ⟨count, bound, halted⟩ := placement
-        have frames := placementTrapWriter bound (halted (.active 0 0)).steps
-        change Plain.HostFramedSteps HostState.writer profile ready dispatch root
-          (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) at frames
-        refine .placementTrap reason (front.length + 3 + count) placed ?_ ?_ ?_
-        · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
-          exact fun place => (rootRun place).toTrail.append (halted (site.entryPlace place))
-        · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
+        obtain ⟨count, fault⟩ := placement
+        have shape : (List.replicate count (.tau : Label (core3 grow) (HostState sig))) = [] ∨
+            List.replicate count (.tau : Label (core3 grow) (HostState sig)) = [.tau] := by
+          have := fault.bounded
+          have options : count = 0 ∨ count = 1 := by omega
+          rcases options with rfl | rfl
+          · exact .inl rfl
+          · exact .inr rfl
+        have frames := placementWriter shape (fault.tracks (.active 0 0)).toTrail.steps rfl
+        have halted : Step profile ready dispatch (site.withBody (trap reason)) (.trap reason) (StepDefs.trapCfg site.checked) :=
+          fault.fault
+        have tracked : site.EntryPrefix profile ready impl (List.replicate (front.length + 3 + count) .tau)
+            (site.withBody (trap reason)) := by
+          rw [List.replicate_add, List.replicate_add, ← replicated]
+          exact fun place => (rootRun place).append (fault.tracks (site.entryPlace place))
+        have through : Plain.HostFramedSteps HostState.writer profile ready dispatch site.start
+            (List.replicate (front.length + 3 + count) .tau) (site.withBody (trap reason)) := by
+          rw [List.replicate_add, List.replicate_add, ← replicated]
           exact (entryWriter.append started.2).append frames
-        · rw [List.replicate_add, List.replicate_add, ← replicated]
+        refine .placementTrap reason (front.length + 3 + count) placed ?_ ?_ ?_ ⟨tracked, through, ?_⟩
+        · exact fun place => (tracked place).toTrail.append (.step halted (.done _ _))
+        · exact through.append (.next halted rfl (.done _))
+        · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
           simpa only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.cons_append, List.nil_append]
             using reads (.tau :: (List.replicate count .tau ++ [.trap reason]))
+        · rw [List.replicate_add, List.replicate_add, ← replicated]
+          simpa only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.cons_append, List.nil_append]
+            using reads (.tau :: List.replicate count .tau)
       | ok _ =>
         rw [placed] at placement
         obtain ⟨labels, shape, placementSilent, placedRun⟩ := placement

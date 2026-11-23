@@ -1315,7 +1315,8 @@ theorem root_placement_prefix (destination : RecordDestination) (inst : InstId) 
     match rootPlacement destination start.store type output with
     | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
         ∀ place, Prefix profile ready dispatch start place labels { start with ctl := child } place
-    | .error reason => ∃ count beforeTrap, PlacementFault profile ready dispatch start beforeTrap count reason :=
+    | .error reason => ∃ count, PlacementFault profile ready dispatch start
+        { start with ctl := cursor.control (trap reason) } count reason :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementPrefix destination inst type
     field output start cursor finish focused
 

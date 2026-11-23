@@ -245,7 +245,7 @@ theorem parkedMemoryThen {pointer : FlatValue} (call : PayloadRoot.Site grow sig
   refine ⟨depth, ?_⟩
   cases cut with
   | refused issue silent run framed read => exact .refused issue silent run framed read
-  | placementTrap reason count verdict run framed read => exact .placementTrap reason count verdict run framed read
+  | placementTrap reason count verdict run framed read beforeTrap => exact .placementTrap reason count verdict run framed read beforeTrap
   | placed silent verdict prepared run body framed read =>
     refine .placed silent verdict prepared run (listTreeTracks depth call.field 0 (flatNat pointer) _ _ _ _ _ _
       (.refl _ _) body ?_) framed read
@@ -264,7 +264,7 @@ theorem parkedFlatThen {schema : TypeOf} (call : PayloadRoot.Site grow sig (.fla
   refine ⟨flatDepth, entryDepth, ?_⟩
   cases cut with
   | refused issue silent run framed read => exact .refused issue silent run framed read
-  | placementTrap reason count verdict run framed read => exact .placementTrap reason count verdict run framed read
+  | placementTrap reason count verdict run framed read beforeTrap => exact .placementTrap reason count verdict run framed read beforeTrap
   | placed silent verdict prepared run body framed read =>
     refine .placed silent verdict prepared run (flatTreeTracks flatDepth entryDepth call.field 0 _ _ _ _ _ _
       (.refl _ _) body ?_) framed read

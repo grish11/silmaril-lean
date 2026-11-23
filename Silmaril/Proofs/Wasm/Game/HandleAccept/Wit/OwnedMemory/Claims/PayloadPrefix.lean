@@ -1402,7 +1402,8 @@ private theorem checkPlacementRunBounded {placementDispatch : Call (core3 grow) 
     match placement destination start.store area ptr with
     | .ok () => ∀ place, Prefix profile ready placementDispatch start place [.tau]
         { start with ctl := cursor.control finish } place
-    | .error reason => ∃ count beforeTrap, PlacementFault profile ready placementDispatch start beforeTrap count reason := by
+    | .error reason => ∃ count, PlacementFault profile ready placementDispatch start
+        { start with ctl := cursor.control (trap reason) } count reason := by
   by_cases aligned : ptr % area.alignment.bytes = 0
   · let sizeCheck := fun (store : CStore (core3 grow)) =>
       (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>=
@@ -1413,9 +1414,10 @@ private theorem checkPlacementRunBounded {placementDispatch : Call (core3 grow) 
       exact boundsAt
     have trapped {reason : TrapReason} (atTrap : sizeCheck start.store = trap reason) :
         PlacementFault profile ready placementDispatch start
-          { start with ctl := cursor.control (sizeCheck start.store) } 1 reason :=
-      ⟨Nat.le_refl _, rfl, rfl, fun place => Prefix.read_at place getAt,
-        .trap (congrArg cursor.control atTrap)⟩
+          { start with ctl := cursor.control (trap reason) } 1 reason := by
+      refine ⟨Nat.le_refl _, rfl, rfl, fun place => ?_, .trap rfl⟩
+      rw [← atTrap]
+      exact Prefix.read_at place getAt
     cases sized : (core3 grow).memSize? start.store.core destination.memory with
     | none =>
       have trapAt : sizeCheck start.store = trap (.internal "dangling memory address") := by
@@ -1424,7 +1426,7 @@ private theorem checkPlacementRunBounded {placementDispatch : Call (core3 grow) 
         funext answer
         exact nomatch answer
       simp [placement, aligned, sized]
-      exact ⟨1, _, trapped trapAt⟩
+      exact ⟨1, trapped trapAt⟩
     | some size =>
       by_cases fits : ptr + area.size ≤ size
       · have done : sizeCheck start.store = finish := by
@@ -1439,10 +1441,18 @@ private theorem checkPlacementRunBounded {placementDispatch : Call (core3 grow) 
           funext answer
           exact nomatch answer
         simp [placement, aligned, sized, Nat.lt_of_not_ge fits]
-        exact ⟨1, _, trapped trapAt⟩
+        exact ⟨1, trapped trapAt⟩
   · simp [checkAligned, trapIf, aligned, trap, Prog.bind_eq, Prog.bind] at focused
     simp [placement, aligned]
-    exact ⟨0, start, Nat.zero_le _, rfl, rfl, fun place => .done _ place, .trap focused⟩
+    have trapAt : start.ctl = cursor.control (trap .unalignedPointer) := by
+      rw [focused]
+      congr 2
+      funext answer
+      exact nomatch answer
+    refine ⟨0, Nat.zero_le _, rfl, rfl, fun place => ?_, .trap rfl⟩
+    rw [← trapAt]
+    cases start
+    exact .done _ place
 
 theorem placementFaultTrail {E : CoreEngine} {World : Type} {faultReady : HostReady World}
     {faultDispatch : Call E → P E World (Ret E)} {start beforeTrap : Config E World} {count reason}
@@ -1473,7 +1483,7 @@ theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3
     exact bounded
   | error reason =>
     rw [verdict] at bounded
-    obtain ⟨count, _, fault⟩ := bounded
+    obtain ⟨count, fault⟩ := bounded
     exact ⟨count, placementFaultTrail fault⟩
 
 theorem checkPlacementRun {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
@@ -3197,7 +3207,8 @@ theorem rootPlacementPrefix (destination : RecordDestination) (inst : InstId) (t
     match rootPlacement destination start.store type output with
     | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
         ∀ place, Prefix profile scheduledReady scheduledDispatch start place labels { start with ctl := child } place
-    | .error reason => ∃ count beforeTrap, PlacementFault profile scheduledReady scheduledDispatch start beforeTrap count reason := by
+    | .error reason => ∃ count, PlacementFault profile scheduledReady scheduledDispatch start
+        { start with ctl := cursor.control (trap reason) } count reason := by
   cases output with
   | flat =>
     refine ⟨[], .inl rfl, rfl, ?_⟩
@@ -3245,7 +3256,7 @@ theorem rootPlacementTracks (destination : RecordDestination) (inst : InstId) (t
   | ok result => cases result; rw [placement] at steps; exact steps
   | error reason =>
     rw [placement] at steps
-    obtain ⟨count, _, fault⟩ := steps
+    obtain ⟨count, fault⟩ := steps
     exact ⟨count, fault.bounded, placementFaultTrail fault⟩
 
 theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameStore : left.store = right.store)

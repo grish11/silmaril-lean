@@ -3888,7 +3888,7 @@ theorem rootAdmission {route} {site : PayloadRoot.Site grow sig route} {body : P
     have seen : PayloadPrefix.visible (labels ++ [.tau, .tau, .tau]) = [] := by rw [visibleAppend, silent]; rfl
     let stop := RootStop.refused issue seen (.giveRefused site linked issue silent run.steps)
     exact .stopped stop (.rootStop site linked stop)
-  | placementTrap reason count verdict run _ _ =>
+  | placementTrap reason count verdict run _ _ _ =>
     let stop := RootStop.placementTrap reason count (.givePlacementTrap site linked reason count verdict run.steps)
     exact .stopped stop (.rootStop site linked stop)
   | placed silent verdict prepared run compared _ _ =>
@@ -4498,7 +4498,7 @@ private theorem classifyRecursiveRoot {route : GiveEffectRoute} (site : PayloadR
     pendingRecursiveRoot site linked paired selected
   cases cut with
   | refused _ silent run _ _ => exact .refused silent (rootRefusalTrails site run) pending
-  | placementTrap _ _ verdict run _ _ => exact .placementTrap verdict run pending
+  | placementTrap _ _ verdict run _ _ _ => exact .placementTrap verdict run pending
   | placed silent verdict prepared run body _ _ => exact .placed silent verdict prepared run pending body
 
 theorem reachedRecursiveGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
@@ -8662,7 +8662,7 @@ theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow 
     PayloadRoot.Cut site profile ready bindings (ActualMemoryRequestRun profile ready base bindings older site incoming labels finish) base := by
   cases linkedMemoryResidualBody site linked shape paired selected embedder compare with
   | refused issue quiet entered framed read => exact .refused issue quiet entered framed read
-  | placementTrap reason count verdict entered framed read => exact .placementTrap reason count verdict entered framed read
+  | placementTrap reason count verdict entered framed read beforeTrap => exact .placementTrap reason count verdict entered framed read beforeTrap
   | @placed entry quiet verdict prepared entered body framed read =>
     refine .placed quiet verdict prepared entered ⟨entry, entered, quiet, ?_⟩ framed read
     cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
@@ -8828,28 +8828,32 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
       selected.trans (congrArg some root)
     cases cut with
     | refused issue quiet entered framed read => exact rootRefusedCallback site linked install quiet entered framed read run paired chosen
-    | placementTrap reason count verdict entered _ read =>
+    | placementTrap reason count verdict entered _ read beforeTrap =>
       have quiet : PayloadPrefix.visible (List.replicate count .tau ++ ([.trap reason] : Trace grow sig)) = [.trap reason] := by
         rw [visibleAppend, visibleTaus]
         rfl
+      obtain ⟨_, peer, canonQuiet, canonical, pending, host, storage, framed⟩ := LiveDispatch.entry_paired_framed_storage
+        (profile := profile) (ready := ready) (base := base) site linked paired chosen
+      have quietPrefix : PayloadPrefix.visible (List.replicate count .tau : Trace grow sig) = [] := visibleTaus count
+      have body {trailing : Trace grow sig}
+          (remaining : Steps profile ready (specDispatch ready base) (site.withBody (trap reason)) trailing finish) :
+          GiveBodyCut profile ready base bindings site.start incoming (site.withBody (trap reason)) peer
+            (List.replicate count .tau) _ trailing finish [some (.active 0 0)] :=
+        parkedEntryCut site linked beforeTrap.tracks canonical storage (quietPrefix.trans (silentVisible canonQuiet).symm)
+          pending.data.1 (parkedAdmissionWriters site beforeTrap.prepared beforeTrap.framed framed pending.data.1) remaining
       cases alignLocalBody (entered (.active 0 0)).steps run (noBranchOfVisible quiet (by simp [workerBranchLabel])) with
-      | inside _ nonempty tail => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen
+      | inside _ nonempty tail =>
+        cases alignLocalBody beforeTrap.tracks.steps run (noBranchOfVisible quietPrefix (by simp)) with
+        | inside _ _ _ => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen
+        | reached split remaining =>
+          exact split.symm ▸ callbackTerminalSlice paired (.body (marks := []) install (body remaining) (.localPrefix nonempty tail))
       | reached split tail =>
-        obtain ⟨_, _, canonQuiet, canonical, pending, host, storage, framed⟩ := LiveDispatch.entry_paired_framed_storage
-          (profile := profile) (ready := ready) (base := base) site linked paired chosen
         rw [split]
-        refine callbackTerminalSlice paired (.placementTrap site install verdict entered canonical (silentVisible canonQuiet) pending host tail ?_)
-        obtain ⟨front, next, localTail, divided, entry⟩ := read
-        obtain ⟨get, read⟩ := parkedPrepareSteps site entry
-        have checked : site.EntryPrefix profile ready base (front ++ [.tau, .tau]) (site.prepared next) := by
-          intro place
-          exact (entry.entry place).append ((get (site.entryPlace place)).append (read (site.entryPlace place)))
-        have remaining := stripExactPrefix checked.steps (by
-          simpa only [divided, List.append_assoc] using append (entered (.active 0 0)).steps tail)
-        refine ⟨_, localTail ++ _, _, by rw [divided, List.append_assoc], parkedEntryCut site linked checked canonical storage ?_
-          pending.data.1 (parkedPrepareWriter site entry (WriterPaths.ofHostFrames framed) pending.data.1) remaining⟩
-        rw [visibleAppend, entry.quiet, silentVisible canonQuiet]
-        rfl
+        have steps := append (entered (.active 0 0)).steps tail
+        have remaining := stripExactPrefix (trailing := .trap reason :: _) beforeTrap.tracks.steps
+          (by simpa only [List.append_assoc, List.cons_append, List.nil_append] using steps)
+        exact callbackTerminalSlice paired (.placementTrap site install verdict entered canonical (silentVisible canonQuiet)
+          pending host tail ⟨_, _, _, List.append_assoc .., body remaining⟩)
     | placed _ _ _ _ body _ _ =>
       obtain ⟨_, _, _, _, compare⟩ := body
       exact compare install
@@ -8982,7 +8986,7 @@ private theorem actualSelectedFlatCallback {schema : Stored.TypeOf} {request : C
       (fun fits _ _ => fits) base embedder
     cases cut with
     | refused issue quiet entered framed read => exact rootRefusedCallback site linked install quiet entered framed read run paired chosen
-    | placementTrap _ _ verdict _ _ _ => cases verdict
+    | placementTrap _ _ verdict _ _ _ _ => cases verdict
     | @placed entry quiet verdict prepared entered fits framed read =>
       cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
       | inside _ nonempty tail => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen
@@ -9464,8 +9468,8 @@ private theorem directPlacementPaths (request : GiveSelector bindings) (ticket :
     match request.selectedPlacement selected start.store with
     | .ok () => ∃ used, (used = [] ∨ used = [.tau]) ∧ PayloadPrefix.visible used = [] ∧
         ∀ place, Prefix profile ready (specDispatch ready base) start place used child place
-    | .error reason => ∃ count beforeTrap, PayloadPrefix.PlacementFault profile ready (specDispatch ready base)
-        start beforeTrap count reason := by
+    | .error reason => ∃ count, PayloadPrefix.PlacementFault profile ready (specDispatch ready base)
+        start { start with ctl := cursor.control (trap reason) } count reason := by
   rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
   cases schema with
   | none =>
@@ -9518,7 +9522,8 @@ private theorem cutDirectGivePlacement (request : GiveSelector bindings) (ticket
       exact takeSingleStationaryPrefix (split ▸ bounded) run (split ▸ track mark)
   | error reason =>
     rw [placed] at paths
-    obtain ⟨count, beforeTrap, fault⟩ := paths
+    obtain ⟨count, fault⟩ := paths
+    let beforeTrap := { start with ctl := cursor.control (trap reason) }
     have readRun := (fault.tracks (.active 0 0)).toTrail.steps
     have trapped := append readRun (Steps.cons fault.fault (.refl _))
     have readWriter : WriterPath profile ready (specDispatch ready base) start (List.replicate count .tau) beforeTrap [] := by

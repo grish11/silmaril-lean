@@ -4176,7 +4176,7 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
     family collection schema paired selected embedder
   cases cut with
   | refused issue quiet run framed read => exact .refused issue quiet run framed read
-  | placementTrap reason count verdict run framed read => exact .placementTrap reason count verdict run framed read
+  | placementTrap reason count verdict run framed read beforeTrap => exact .placementTrap reason count verdict run framed read beforeTrap
   | placed silent verdict prepared path body framed read =>
     refine .placed silent verdict prepared path ?_ framed read
     cases family with
@@ -4821,7 +4821,7 @@ theorem linkedCollectionReturnFailures {route : GiveEffectRoute} (site : Payload
     family collection schema paired selected embedder
   cases cut with
   | refused issue quiet run framed read => exact .refused issue quiet run framed read
-  | placementTrap reason count verdict run framed read => exact .placementTrap reason count verdict run framed read
+  | placementTrap reason count verdict run framed read beforeTrap => exact .placementTrap reason count verdict run framed read beforeTrap
   | placed quiet verdict prepared path body framed read =>
     refine .placed quiet verdict prepared path ?_ framed read
     cases type <;> first | exact liftLinkedCollectionFailures site linked prepared body | contradiction

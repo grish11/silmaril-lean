@@ -211,9 +211,9 @@ theorem parked {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory 
     PublicOutcome call element entries following next profile ready bindings := by
   let site := publicSite call element entries following
   rcases call.parked (profile := profile) (ready := ready) linked with
-    ⟨issue, silent, stopped, framed, read⟩ | ⟨reason, count, placed, halted, framed, read⟩ | ⟨silent, placed, prepared, run, _, framed, read⟩
+    ⟨issue, silent, stopped, framed, read⟩ | ⟨reason, count, placed, halted, framed, read, beforeTrap⟩ | ⟨silent, placed, prepared, run, _, framed, read⟩
   · exact .refused issue silent stopped framed read
-  · exact .placementTrap reason count placed halted framed read
+  · exact .placementTrap reason count placed halted framed read beforeTrap
   · obtain ⟨plan, compiled⟩ := linked.compiled
     have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
     rw [field] at matched
@@ -341,9 +341,9 @@ theorem parkedFlat {schema : TypeOf} (call : PayloadRoot.Site grow sig (.flat sc
     PublicFlatOutcome call element entries following next profile ready bindings := by
   let site := publicFlatSite call element entries following
   rcases call.parked (profile := profile) (ready := ready) linked with
-    ⟨issue, silent, stopped, framed, read⟩ | ⟨reason, count, placed, halted, framed, read⟩ | ⟨silent, placed, prepared, run, _, framed, read⟩
+    ⟨issue, silent, stopped, framed, read⟩ | ⟨reason, count, placed, halted, framed, read, beforeTrap⟩ | ⟨silent, placed, prepared, run, _, framed, read⟩
   · exact .refused issue silent stopped framed read
-  · exact .placementTrap reason count placed halted framed read
+  · exact .placementTrap reason count placed halted framed read beforeTrap
   · obtain ⟨plan, compiled⟩ := linked.compiled
     have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
     rw [field] at matched
