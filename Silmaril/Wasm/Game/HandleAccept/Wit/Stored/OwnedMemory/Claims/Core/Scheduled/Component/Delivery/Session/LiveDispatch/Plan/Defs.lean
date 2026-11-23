@@ -2268,20 +2268,22 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- A nested destructor has allocated the task for the reached request.
-  The scheduler must still install and run its worker under the enclosing
-  parents and the two independent return programs. -/
-  | sharedDropNestedStart {changes reached peer trailing finish body impl task leftTicket rightTicket}
+  /-- The actual nested worker is running above two separate source parent
+  programs and the enclosing dormant parents. Its body remains pending. -/
+  | sharedDropNestedResumed {changes reached peer trailing finish body impl task leftTicket rightTicket worker beforeLeft beforeRight}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {request : InstId × DtorRequest (core3 grow)}
       (parents : DestructorParentChain changes body check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (implementation : request.2.impl = some impl)
+      (tickets : leftTicket ≠ rightTicket)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (sharedDestructorStart leftTicket (some (sharedDestructorThread task request.2.dtor))))
-      (canonical : peer.ctl = canon.control (sharedDestructorStart rightTicket (some (sharedDestructorThread task request.2.dtor))))
+      (checked : SharedDestructorResumed profile ready (specDispatch ready base) (sharedDestructorThread task request.2.dtor)
+        leftTicket worker beforeLeft reached check)
+      (canonical : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        (sharedDestructorThread task request.2.dtor) rightTicket worker beforeRight peer canon)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The source switch reached its actual scheduler instruction after the

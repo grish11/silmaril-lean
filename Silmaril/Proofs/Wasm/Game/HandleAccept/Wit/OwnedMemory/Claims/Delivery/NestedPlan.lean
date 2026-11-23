@@ -2848,7 +2848,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
-  | sharedDropNestedStart _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2909,7 +2909,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
-  | sharedDropNestedStart _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
@@ -17656,6 +17656,114 @@ private theorem finishDestructorEndpointGive {limit : Nat} {body : ThreadBody (c
         endpoint.transfer (sharedEndpointTransferEffects endpoint) parents thread segments stores rfl rfl tail scheduler within compare
     · exact finishDestructorFramedCut leftQuiet rightQuiet run (by simp only [List.length_cons, List.length_nil] at short ⊢; omega)
 
+open ReturnFrame.Occurrence in
+private theorem finishNestedDestructorStart {limit : Nat} {parentBody : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {request : InstId × DtorRequest (core3 grow)} {impl task leftTicket rightTicket}
+    (parents : DestructorParentChain older parentBody check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (implementation : request.2.impl = some impl)
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = check.control (sharedDestructorStart leftTicket (some (sharedDestructorThread task request.2.dtor))))
+    (rightAt : incoming.ctl = canon.control (sharedDestructorStart rightTicket (some (sharedDestructorThread task request.2.dtor))))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  let body := sharedDestructorThread task request.2.dtor
+  let allocated := ArenaField.threads.alloc start.store { task := body.task }
+  let worker := allocated.2
+  let saved := StepDefs.threadAct (specDispatch ready base) worker body
+  have savedAgreement : StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) worker body = saved := by
+    change Activation.ofProg (some worker) (specDispatch ready (LiveDispatch.host bindings base) (.threadBody body)) =
+      Activation.ofProg (some worker) (specDispatch ready base (.threadBody body))
+    rw [← LiveDispatch.unchanged_dispatch (ready := ready) (base := base) (bindings := bindings)
+      (call := .threadBody body) trivial]
+  let left := { start.setCont worker (some saved) with
+    store := allocated.1, ctl := check.control (sharedDestructorAfterInstall body leftTicket worker) }
+  let right := { incoming.setCont worker (some saved) with
+    store := allocated.1, ctl := canon.control (sharedDestructorAfterInstall body rightTicket worker) }
+  have leftAlloc : Step profile ready (specDispatch ready base) start .tau left := .newThread leftAt rfl
+  have rawAllocated : ArenaField.threads.alloc incoming.store { task := body.task } = (allocated.1, worker) := by rw [← stores]
+  have rightAlloc : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right := by
+    have raw := Step.newThread (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+      rightAt rawAllocated
+    rw [savedAgreement] at raw
+    exact raw
+  rcases splitSilent (count := 1) (.cons leftAlloc (.refl _)) run with ⟨afterAlloc, usedAlloc, restRun⟩ | short
+  · rw [usedAlloc]
+    have installed := sharedSchedulerTransport (bindings := bindings) (edit := .write worker.idx []) leftAlloc rightAlloc
+      (by rw [transitionEdit, leftAt]; rfl)
+      (by rw [transitionEdit, rightAt]; change (Edit.write (ArenaField.threads.alloc incoming.store { task := body.task }).2.idx [] :
+        Edit (core3 grow) (HostState sig)) = .write worker.idx []; rw [rawAllocated])
+    have afterInstall (before : DestructorSchedulerAlignment older start incoming) : DestructorSchedulerAlignment older left right :=
+      ⟨relatedSetSlot .none before.1 worker.idx (.some (.mk .nil)), before.2⟩
+    refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) afterInstall ?_
+    let leftResume := { left with
+      store := destructorResumeStore worker left.store, ctl := check.control (.op (.resumeThread worker) (fun _ => sharedDestructorAfterResume body leftTicket)) }
+    let rightResume := { right with
+      store := destructorResumeStore worker right.store, ctl := canon.control (.op (.resumeThread worker) (fun _ => sharedDestructorAfterResume body rightTicket)) }
+    have beforeResume := sharedDestructorResumePath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (start := left) body leftTicket worker check rfl
+    have rawBeforeResume := sharedDestructorResumePath (profile := profile) (ready := ready)
+      (dispatch := specDispatch ready (LiveDispatch.host bindings base)) (start := right) body rightTicket worker canon rfl
+    obtain ⟨used, remaining, reached, peer, split, paths, writers, residual, ending⟩ :=
+      cutSharedQuietWorker beforeResume rawBeforeResume restRun
+    rw [split]
+    rcases ending with empty | ⟨rfl, rfl⟩
+    · subst remaining
+      cases residual
+      exact .comparedPrefix paths writers .exhausted
+    · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+      have leftFound : leftResume.cont? worker = some saved := Config.cont?_setCont_self start worker (some saved)
+      have rightFound : rightResume.cont? worker = some saved := Config.cont?_setCont_self incoming worker (some saved)
+      let lhs := { leftResume.setCont worker none with
+        store := StepDefs.threadStatusSt worker .running leftResume.store, ctl := saved :: check.control (sharedDestructorAfterResume body leftTicket) }
+      let rhs := { rightResume.setCont worker none with
+        store := StepDefs.threadStatusSt worker .running rightResume.store, ctl := saved :: canon.control (sharedDestructorAfterResume body rightTicket) }
+      have leftStep : Step profile ready (specDispatch ready base) leftResume .tau lhs :=
+        .resumeThread (th := check.thread) (k := fun _ => sharedDestructorAfterResume body leftTicket)
+          (segs := check.frames) (rest := check.rest) rfl leftFound
+      have rawStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightResume .tau rhs :=
+        .resumeThread (th := canon.thread) (k := fun _ => sharedDestructorAfterResume body rightTicket)
+          (segs := canon.frames) (rest := canon.rest) rfl rightFound
+      rcases splitSilent (count := 1) (.cons leftStep (.refl _)) residual with ⟨suffix, usedResume, tail⟩ | short
+      · rw [usedResume]
+        have moved := sharedSchedulerTransport (bindings := bindings) (edit := .resume worker.idx) leftStep rawStep rfl rfl
+        have afterResume (before : DestructorSchedulerAlignment older leftResume rightResume) :
+            DestructorSchedulerAlignment older lhs rhs :=
+          ⟨relatedSetSlot .none before.1 worker.idx .none, before.2⟩
+        refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) afterResume ?_
+        have aligned : DestructorSchedulerAlignment older lhs rhs := afterResume (afterInstall scheduler)
+        by_cases tickets : leftTicket = rightTicket
+        · have parent : ReturnFrame.Related.Active older
+              ⟨check.thread, .prog (sharedDestructorAfterResume body leftTicket), check.frames⟩
+              ⟨canon.thread, .prog (sharedDestructorAfterResume body rightTicket), canon.frames⟩ := by
+            rw [← thread, ← tickets]
+            exact .mk segments
+          have target : ReturnFrame.Related.Active older saved saved := .mk .nil
+          have within : suffix.length ≤ limit := by
+            rw [usedAlloc, split, usedResume] at bounded
+            simp only [List.length_append, List.length_replicate] at bounded
+            omega
+          exact finishDestructorSwitchTarget parents target (.cons parent .nil) rfl aligned rfl rfl tail within compare
+        · have checkedResume : SharedDestructorResumed profile ready (specDispatch ready base)
+              body leftTicket worker leftResume lhs check := ⟨rfl, leftFound, leftStep, rfl⟩
+          have canonicalResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
+              body rightTicket worker rightResume rhs canon :=
+            ⟨rfl, savedAgreement.symm ▸ rightFound, rawStep, by simp only [rhs, savedAgreement]⟩
+          exact .sharedDropNestedResumed (request := request) (task := task) parents thread segments implementation tickets rfl aligned checkedResume canonicalResume tail
+      · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
+        have stopped := stepsAtEmpty (empty ▸ residual)
+        rw [empty, stopped]
+        exact .exhausted
+  · have empty : labels = [] := List.length_eq_zero_iff.mp (by omega)
+    have stopped := stepsAtEmpty (empty ▸ run)
+    rw [empty, stopped]
+    exact .exhausted
+
 private theorem finishDestructorDropSetup {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
     (result : InstId × DtorRequest (core3 grow))
@@ -17689,8 +17797,9 @@ private theorem finishDestructorDropSetup {limit : Nat} {body : ThreadBody (core
       (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores
       (by simpa [sharedDestructorTask, sharedDestructorTaskDescription, bind, Prog.bind_assoc] using checked)
       (by simpa [sharedDestructorTask, sharedDestructorTaskDescription, bind, Prog.bind_assoc] using canonical) run
-      (fun task _ _ same atLeft atRight aligned tail =>
-        .sharedDropNestedStart parents thread segments implementation same (aligned scheduler) atLeft atRight tail)
+      (fun task shorter _ same atLeft atRight aligned tail =>
+        finishNestedDestructorStart (request := result) (task := task) (check := check) (canon := canon)
+          parents thread segments implementation same atLeft atRight tail (aligned scheduler) (shorter.trans bounded) compare)
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem finishDestructorOwnerDrop {limit : Nat} {body : ThreadBody (core3 grow)}
