@@ -49,7 +49,8 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored (Signature)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 open LiveDispatch ComponentCall.Delivery.FiniteSession
-open CallbackRange (progOpEq labelledStepUnique parkedPrepareRead parkedPrepareSteps parkedPrepareWriter parkedAdmissionWriters)
+open CallbackRange (progOpEq labelledStepUnique silentStepUnique inspectReplyStep checkedCoreReplyPrefix
+  parkedPrepareRead parkedPrepareSteps parkedPrepareWriter parkedAdmissionWriters)
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : ProfileKind} {ready : HostReady (HostState sig)}
   {bindings : List (Binding sig)} {base : HostImpl (core3 grow) (HostState sig)}
@@ -63,22 +64,6 @@ private theorem append {dispatch : Call (core3 grow) → Session grow sig (Ret (
   induction front with
   | refl => exact back
   | cons step _ ih => exact .cons step (ih back)
-
-set_option maxHeartbeats 1000000 in
-private theorem silentStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {before left right : Config (core3 grow) (HostState sig)} {label}
-    (quiet : Step profile ready dispatch before .tau left) (actual : Step profile ready dispatch before label right) :
-    label = .tau ∧ left = right := by
-  cases quiet <;> cases actual
-  all_goals try (cases (show Fault before _ from by assumption))
-  all_goals simp_all [StepDefs.HostReadyCfg]
-  all_goals
-    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
-      from by assumption)
-    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
-    obtain ⟨operation, continuation⟩ := progOpEq programs
-    simp_all
-  all_goals (injection operation; subst_vars; simp_all)
 
 private theorem splitSilent {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {before replied finish : Config (core3 grow) (HostState sig)} {count : Nat} {labels : Trace grow sig}
@@ -4990,7 +4975,7 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
   refine ⟨checkBody, canonBody, mark, checkSeen, canonSeen, ⟨moveBody, through, outsideBody⟩,
     alignWorkerBody (through none).1.steps run, ?_⟩
   intro tail split actualTail active
-  obtain ⟨checked, canonical, _, _, paired, returned, replyWriters⟩ := complete active
+  obtain ⟨checked, canonical, _, _, paired, returned, replyWriters, shortPrefix⟩ := complete active
   obtain ⟨move, tracks, outside⟩ := returned
   let dispatch := specDispatch ready (ComponentCall.hostWithComponent (grow := grow) bindings callees)
   have reply : Steps profile ready dispatch left (List.replicate 3 .tau) checked :=
@@ -5012,7 +4997,7 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
     · intro retained enclosingLeft enclosingRight leftTrace rightTrace cursor tracked
       obtain ⟨reached, marked⟩ := carryAllocatorTransport tracked ⟨move, tracks, outside⟩
       exact ⟨reached, marked, classifyWithOccurrence suffixRun paired marked.outside⟩
-  · exact .inl short
+  · exact .inl (shortPrefix actualTail short)
 
 open ReturnFrame.Occurrence in
 theorem alignPublicGiveWorker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
@@ -8357,44 +8342,6 @@ private theorem giveBodyAtEntryFrontier {left right : Config (core3 grow) (HostS
     GiveBodyCut profile ready base bindings start incoming left right checked canonical trailing finish marks :=
   ⟨seen, store, paths, run, writers⟩
 
-private theorem inspectReplyStep {before : Config (core3 grow) (HostState sig)} {actual : Trace grow sig}
-    (run : Steps profile ready (specDispatch ready base) before actual finish) :
-    (actual = [] ∧ finish = before) ∨ ∃ label rest next, actual = label :: rest ∧
-      Step profile ready (specDispatch ready base) before label next ∧
-      Steps profile ready (specDispatch ready base) next rest finish := by
-  cases run with
-  | refl => exact .inl ⟨rfl, rfl⟩
-  | cons first tail => exact .inr ⟨_, _, _, rfl, first, tail⟩
-
-open ReturnFrame.Occurrence in
-private theorem checkedCoreReplyPrefix (reply : Event × List FlatValue)
-    {thread core resume segments rest}
-    (focus : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)), .core core resume :: segments⟩ :: rest)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) (short : labels.length < 3) :
-    CheckedCoreReplyPrefix profile ready (specDispatch ready base) start labels finish := by
-  let cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .core core resume :: segments, rest⟩
-  let recorded := start.host.record reply.1
-  let read := { start with ctl := cursor.control (hostSet recorded >>= fun _ => pure (.flat reply.2)) }
-  let written := { start with
-    host := recorded
-    ctl := cursor.control (.pure (.flat reply.2)) }
-  have get : Step profile ready (specDispatch ready base) start .tau read := .hostGet focus
-  have set : Step profile ready (specDispatch ready base) read .tau written :=
-    .hostSet (m := read) (s := recorded) (k := fun _ => .pure (.flat reply.2)) rfl
-  have getEdit : transitionEdit start .tau = .same := by rw [transitionEdit, focus]; rfl
-  rcases inspectReplyStep run with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, first, tail⟩
-  · exact ⟨short, rfl, rfl, .done _, fun place => .done _ place⟩
-  · obtain ⟨rfl, rfl⟩ := silentStepUnique get first
-    rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, second, rest⟩
-    · exact ⟨short, rfl, rfl, .same get rfl (.done _),
-        fun place => .step get (by rw [getEdit]; rfl) (.done _ place)⟩
-    · obtain ⟨rfl, rfl⟩ := silentStepUnique set second
-      rcases inspectReplyStep rest with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, _, _⟩
-      · exact ⟨short, rfl, rfl, .same get rfl (.same set rfl (.done _)),
-          fun place => .step get (by rw [getEdit]; rfl) (.step set rfl (.done _ place))⟩
-      · simp only [List.length_cons] at short
-        omega
-
 open ReturnFrame.Occurrence PayloadPrefix in
 private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route) (value : route.output.Result)
     {left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
@@ -8411,7 +8358,7 @@ private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : Payload
     (seen : visible (checkEntry ++ checkBody) = visible canonLeading) (bounded : actual.length ≤ budget)
     (compare : ShorterCallbackSlices profile ready base bindings budget) :
     GiveVisitCommonReply profile ready base bindings older site value incoming left right checkEntry checkBody canonLeading actual trailing finish := by
-  obtain ⟨checked, canonical, recorded, unchanged, paired, transport, completion⟩ :=
+  obtain ⟨checked, canonical, recorded, unchanged, paired, transport, completion, shortPrefix⟩ :=
     CallbackRange.completePublicTransport site value combined original frame checkAt canonAt
   obtain ⟨move, returned, outside⟩ := transport
   obtain ⟨_, lead, _⟩ := combined
@@ -8432,12 +8379,7 @@ private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : Payload
         by rw [split, divided, division]; simp only [List.append_assoc, List.replicate_succ, List.replicate_zero],
         CallbackPrefix.appendExecutedCallbacks segment suffixSegment, ending⟩
     · exact .inr ⟨openUpdate, paired, paths, writers.append completion⟩
-  · obtain ⟨segments, frames⟩ := site.reached_caller checkAt original
-    let reply := route.reply site.destination site.start.host.nextTicket (.ok value)
-    have focus : left.ctl = ⟨check.thread, .prog (do return .flat (← writeCompletion reply)),
-        .core site.core site.resume :: segments⟩ :: check.rest := by
-      simpa only [Cursor.control, PayloadRoot.Site.reply, frames, reply] using checkAt
-    exact .inl (checkedCoreReplyPrefix reply focus residual short)
+  · exact .inl (shortPrefix residual short)
 
 open PayloadPrefix ReturnFrame.Occurrence in
 private theorem parkedEntryCut {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

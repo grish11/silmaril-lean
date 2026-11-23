@@ -4426,7 +4426,9 @@ def PublicSuccessTransport (profile : ProfileKind) (ready : HostReady (HostState
       canonical.host = right.host ∧ HostFrame.Related.Paired older checked canonical ∧
       OccurrenceTransport profile ready base bindings site.start incoming
         ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical ∧
-      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau] checked canonical)
+      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau] checked canonical ∧
+      (∀ {tail stopped}, Steps profile ready (specDispatch ready base) left tail stopped → tail.length < 3 →
+        CheckedCoreReplyPrefix profile ready (specDispatch ready base) left tail stopped))
 
 /-- The terminal observation is inside the recursive visitor, so it is
 applied only at a reached success, not at a trap, refusal or suspension. -/
@@ -5877,7 +5879,7 @@ def PublicTransportWorkerAlignment (profile : ProfileKind) (ready : HostReady (H
     WorkerBodyAlignment profile ready dispatch site.start left (checkEntry ++ checkBody) actual finish ∧
     ∀ tail, actual = (checkEntry ++ checkBody) ++ tail → Steps profile ready dispatch left tail finish →
       mark = some (.active 0 0) →
-      tail.length < 3 ∨ ∃ suffix checked canonical,
+      CheckedCoreReplyPrefix profile ready dispatch left tail finish ∨ ∃ suffix checked canonical,
         tail = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
         Steps profile ready dispatch checked suffix finish ∧ HostFrame.Related.Paired older checked canonical ∧
         OccurrenceTransport profile ready base bindings site.start incoming

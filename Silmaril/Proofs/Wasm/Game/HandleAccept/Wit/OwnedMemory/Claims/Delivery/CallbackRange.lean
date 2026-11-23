@@ -4561,6 +4561,68 @@ theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site 
   simp only [segmentStorage, PayloadRoot.Site.checked, PayloadRoot.Site.withBody, PayloadRoot.Site.cursor,
     Cursor.control, linked.parked, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
 
+theorem progOpEq {S : Sig} {Result : Type} {first second : S.Op}
+    {left : S.Resp first → Prog S Result} {right : S.Resp second → Prog S Result} :
+    Prog.op first left = Prog.op second right → first = second ∧ HEq left right := by
+  intro same
+  injection same with operation continuation
+  exact ⟨operation, continuation⟩
+
+set_option maxHeartbeats 1000000 in
+theorem silentStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before left right : Config (core3 grow) (HostState sig)} {label}
+    (quiet : Step profile ready dispatch before .tau left) (actual : Step profile ready dispatch before label right) :
+    label = .tau ∧ left = right := by
+  cases quiet <;> cases actual
+  all_goals try (cases (show Fault before _ from by assumption))
+  all_goals simp_all [StepDefs.HostReadyCfg]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    obtain ⟨operation, continuation⟩ := progOpEq programs
+    simp_all
+  all_goals (injection operation; subst_vars; simp_all)
+
+theorem inspectReplyStep {before finish : Config (core3 grow) (HostState sig)} {actual : Trace grow sig}
+    (run : Steps profile ready (specDispatch ready base) before actual finish) :
+    (actual = [] ∧ finish = before) ∨ ∃ label rest next, actual = label :: rest ∧
+      Step profile ready (specDispatch ready base) before label next ∧
+      Steps profile ready (specDispatch ready base) next rest finish := by
+  cases run with
+  | refl => exact .inl ⟨rfl, rfl⟩
+  | cons first tail => exact .inr ⟨_, _, _, rfl, first, tail⟩
+
+open ReturnFrame.Occurrence in
+theorem checkedCoreReplyPrefix (reply : Event × List FlatValue)
+    {start finish : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
+    {thread core resume segments rest}
+    (focus : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)), .core core resume :: segments⟩ :: rest)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (short : labels.length < 3) :
+    CheckedCoreReplyPrefix profile ready (specDispatch ready base) start labels finish := by
+  let cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .core core resume :: segments, rest⟩
+  let recorded := start.host.record reply.1
+  let read := { start with ctl := cursor.control (hostSet recorded >>= fun _ => pure (.flat reply.2)) }
+  let written := { start with
+    host := recorded
+    ctl := cursor.control (.pure (.flat reply.2)) }
+  have get : Step profile ready (specDispatch ready base) start .tau read := .hostGet focus
+  have set : Step profile ready (specDispatch ready base) read .tau written :=
+    .hostSet (m := read) (s := recorded) (k := fun _ => .pure (.flat reply.2)) rfl
+  have getEdit : transitionEdit start .tau = .same := by rw [transitionEdit, focus]; rfl
+  rcases inspectReplyStep run with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, first, tail⟩
+  · exact ⟨short, rfl, rfl, .done _, fun place => .done _ place⟩
+  · obtain ⟨rfl, rfl⟩ := silentStepUnique get first
+    rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, second, rest⟩
+    · exact ⟨short, rfl, rfl, .same get rfl (.done _),
+        fun place => .step get (by rw [getEdit]; rfl) (.done _ place)⟩
+    · obtain ⟨rfl, rfl⟩ := silentStepUnique set second
+      rcases inspectReplyStep rest with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, _, _⟩
+      · exact ⟨short, rfl, rfl, .same get rfl (.same set rfl (.done _)),
+          fun place => .step get (by rw [getEdit]; rfl) (.step set rfl (.done _ place))⟩
+      · simp only [List.length_cons] at short
+        omega
+
 theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {incoming left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
@@ -4575,7 +4637,9 @@ theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Si
       rejoined.host = right.host ∧ HostFrame.Related.Paired older completed rejoined ∧
       OccurrenceTransport profile ready base bindings site.start incoming (checked ++ [.tau, .tau, .tau])
         (canonical ++ [.tau]) completed rejoined ∧
-      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau] completed rejoined := by
+      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau] completed rejoined ∧
+      (∀ {tail stopped}, Steps profile ready (specDispatch ready base) left tail stopped → tail.length < 3 →
+        CheckedCoreReplyPrefix profile ready (specDispatch ready base) left tail stopped) := by
   obtain ⟨checkFrames, checkCaller⟩ := site.reached_caller checkAt original
   have paired := frame.frames
   rw [checkCaller] at paired
@@ -4594,7 +4658,8 @@ theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Si
     ctl := ⟨check.thread, .core ((core3 grow).resume left.store.core site.core (.values reply.2)) site.resume, checkFrames⟩ :: check.rest }
   let canonical := { right with
     ctl := ⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest }
-  refine ⟨checked, canonical, rfl, rfl, ?_, returned, .framed ?_ ?_⟩
+  refine ⟨checked, canonical, rfl, rfl, ?_, returned, .framed ?_ ?_,
+    fun run short => checkedCoreReplyPrefix reply checkAt run short⟩
   rotate_left
   · exact .same (.hostGet checkAt) rfl (.same (.hostSet rfl) rfl (.same (.popCore rfl) rfl (.done _)))
   · exact .same (.popCore canonAt) rfl (.done _)
@@ -4613,13 +4678,6 @@ theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Si
     (⟨check.thread, .core ((core3 grow).resume right.store.core site.core (.values reply.2)) site.resume, canonFrames⟩ :: canon.rest)
   rw [frame.store]
   exact .cons (.mk tails) frame.rest
-
-theorem progOpEq {S : Sig} {Result : Type} {first second : S.Op}
-    {left : S.Resp first → Prog S Result} {right : S.Resp second → Prog S Result} :
-    Prog.op first left = Prog.op second right → first = second ∧ HEq left right := by
-  intro same
-  injection same with operation continuation
-  exact ⟨operation, continuation⟩
 
 set_option maxHeartbeats 2000000 in
 theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
