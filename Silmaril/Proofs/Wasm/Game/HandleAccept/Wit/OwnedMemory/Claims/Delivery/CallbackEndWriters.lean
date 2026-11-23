@@ -121,7 +121,6 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact stop residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedSourceRecordAllocatorAdmitted _ _ _ _ _ _ residual => exact stop residual
   | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorRegistered _ _ _ _ _ _ _ _ ih => exact ih

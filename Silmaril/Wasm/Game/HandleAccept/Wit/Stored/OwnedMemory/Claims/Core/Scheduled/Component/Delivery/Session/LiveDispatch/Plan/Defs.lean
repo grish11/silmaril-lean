@@ -2474,24 +2474,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The registered allocator worker is at its actual onStart program
-  above the recursive source parents, including both allocation returns. -/
-  | sharedSourceRecordAllocatorAdmitted {changes reached peer trailing finish callee task caller worker}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
-      {request : ABI.ReallocRequest} {width : AddrType}
-      (parents : SourceParentStack changes (check.control (sharedRecordAllocatorAfterResume cx task caller))
-        (canon.control (sharedRecordAllocatorAfterResume cx task caller)))
-      (source : SharedRecordAllocatorSource cx request width task caller reached.store)
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = (PayloadPrefix.Cursor.mk (some worker) []
-        (check.control (sharedRecordAllocatorAfterResume cx task caller))).control
-        (sharedDestructorAfterAdmission task (some callee) true))
-      (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) []
-        (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control
-        (sharedDestructorAfterAdmission task (some callee) true))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The compiler's actual allocation instruction entered the canonical
   realloc body and parked its source-specific return segments. -/
   | sharedDropRecordAllocatorBody {changes left right reached peer trailing finish}
@@ -2557,10 +2539,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Both original onStart frames popped after reading the source allocator
   arguments. The actual Core argument lowering remains in the two workers. -/
-  | sharedDropRecordAllocatorArguments {changes reached peer trailing finish body callee task caller worker}
+  | sharedDropRecordAllocatorArguments {changes reached peer trailing finish callee task caller worker}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {request : ABI.ReallocRequest} {width : AddrType} {entry : Task (core3 grow)}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2584,11 +2566,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The allocator's installed reentrant import passed the actual admission reads. -/
-  | sharedDropRecordAllocatorCoreCallout {changes reached peer trailing finish body task caller worker host args}
+  | sharedDropRecordAllocatorCoreCallout {changes reached peer trailing finish task caller worker host args}
       {core : (core3 grow).Thread (CanonHost (core3 grow))} {entry : Task (core3 grow)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {request : ABI.ReallocRequest} {width : AddrType}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2607,11 +2589,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Both allocator Core activations returned the actual words to the
   canonical result lift. The original allocation return remains parked. -/
-  | sharedDropRecordAllocatorCoreReturned {changes reached peer trailing finish body task caller worker words}
+  | sharedDropRecordAllocatorCoreReturned {changes reached peer trailing finish task caller worker words}
       {entry : Task (core3 grow)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {request : ABI.ReallocRequest} {width : AddrType}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2626,10 +2608,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   /-- Both allocator workers completed their actual onResolve pop. Their
   reached caller records hold the lifted result, and the task still has its
   original completion program before the resolved-state write. -/
-  | sharedDropRecordAllocatorResolved {changes reached peer trailing finish body task caller worker value}
+  | sharedDropRecordAllocatorResolved {changes reached peer trailing finish task caller worker value}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {request : ABI.ReallocRequest} {width : AddrType}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2646,10 +2628,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The allocator worker's actual exit exposed the two original parents.
   Their shared task has resolved and its caller retains the lifted pointer. -/
-  | sharedDropRecordAllocatorWorkerExited {changes reached peer trailing finish body task caller value}
+  | sharedDropRecordAllocatorWorkerExited {changes reached peer trailing finish task caller value}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {request : ABI.ReallocRequest} {width : AddrType}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2661,10 +2643,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual synchronous loop popped after reading the resolved source
   task. The allocator return remains underneath the loop occurrence. -/
-  | sharedDropRecordAllocatorLoopPopped {changes left right reached peer trailing finish body task caller value}
+  | sharedDropRecordAllocatorLoopPopped {changes left right reached peer trailing finish task caller value}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {request : ABI.ReallocRequest} {width : AddrType}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2679,9 +2661,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual caller-result lookup reached a pointer return. The
   allocator return segment is still parked at this finite cut. -/
-  | sharedDropRecordAllocatorReturning {changes reached peer trailing finish body caller args kind n}
+  | sharedDropRecordAllocatorReturning {changes reached peer trailing finish caller args kind n}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
@@ -2692,11 +2674,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Both source allocator return occurrences popped, exposing the compiled
   visitor resumes with the pointer read from the original allocator caller. -/
-  | sharedDropRecordAllocatorPopped {changes left right reached peer trailing finish body pointer}
+  | sharedDropRecordAllocatorPopped {changes left right reached peer trailing finish pointer}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {cx : LiftLowerContext (core3 grow)} {site : SharedRecordAllocation}
       {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checkedFocus : left.ctl = { check with frames := .prog (site.resume cx leftNext) :: check.frames }.control (.pure (.nat pointer)))
