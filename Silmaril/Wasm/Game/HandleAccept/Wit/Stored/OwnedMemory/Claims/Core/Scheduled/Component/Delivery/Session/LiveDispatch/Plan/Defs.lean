@@ -1978,7 +1978,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         resumed canonical trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ checked ++ trailing) finish
   /-- The original shared allocator occurrence popped in both actual runs.
-  The reached continuations start the range validation and the next prepare. -/
+  The reached continuations use the actual result and store for range validation. -/
   | sharedRecordAllocatorPop {changes reached peer left right beforeLeft beforeRight afterLeft afterRight
         leading checked canonical trailing finish marks}
       {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)} {value}
@@ -1993,8 +1993,19 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         ((leading ++ canonical) ++ [.tau]) afterLeft afterRight marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer ((leading ++ checked) ++ [.tau])
         ((leading ++ canonical) ++ [.tau]) afterLeft afterRight)
-      (residual : Steps profile ready (specDispatch ready base) afterLeft trailing finish) :
+      (ending : CallbackSliceEnd profile ready base bindings changes afterLeft afterRight trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (((leading ++ checked) ++ [.tau]) ++ trailing) finish
+  /-- Internal proof frontier at the shared collection's original post-range prepare. -/
+  | sharedRecordAfterRange {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {cx width element entries index dest ptr}
+      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (checked : left.ctl = check.control (sharedRecordAllocated cx width element entries index dest ptr >>= checkedNext))
+      (canonical : right.ctl = canon.control (sharedRecordAllocated cx width element entries index dest ptr >>= canonicalNext))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | sharedRecordPrepareMismatch {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {beforeLeft beforeRight plan}
