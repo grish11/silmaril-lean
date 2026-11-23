@@ -3656,10 +3656,40 @@ theorem classify_mixed_callback_terminal_discrepancies {callees : List (Componen
         VisitorWriterPath profile ready base bindings start incoming (checked ++ localChecked) (canonical ++ localRaw) reached peer ∧
         WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ localChecked) (canonical ++ localRaw)
           reached peer ∧
-        Steps profile ready (specDispatch ready base) reached residual finish := by
+        CheckedTerminalWriterTail profile ready (specDispatch ready base) reached residual finish := by
   obtain ⟨checked, canonical, trailing, left, right, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
   exact ⟨checked, canonical, trailing, left, right, split, segment, ending,
     Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.extend segment ending initial⟩
+
+open ReturnFrame.Occurrence in
+/-- Carry the mixed writer comparison across a certified checked-only final
+pop or placement trap. The raw path ends at its own pending configuration.
+The checked occurrence follows the actual edit, including any loss. -/
+theorem classify_mixed_callback_after_terminal_discrepancies {callees : List (ComponentCall.Callee sig)}
+    {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+    ∃ checked canonical taken residual before reached peer marks, labels = (checked ++ taken) ++ residual ∧
+      OccurrenceTransport profile ready base bindings start incoming checked canonical before peer marks ∧
+      ((taken = [] ∧ reached = before) ∨ ∃ label, taken = [label] ∧
+        Step profile ready (specDispatch ready base) before label reached ∧
+        (transitionEdit before label = .pop ∨ transitionEdit before label = .clear)) ∧
+      (∀ cursor, ∃ checkedMark rawMark,
+        Trail profile ready (specDispatch ready base) start cursor (checked ++ taken) reached checkedMark ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonical peer rawMark ∧
+        ((taken = [] ∧ checkedMark = rawMark) ∨
+          ∃ label, taken = [label] ∧ checkedMark = rawMark.bind (transitionEdit before label).follow)) ∧
+      VisitorWriterPath profile ready base bindings start incoming (checked ++ taken) canonical reached peer ∧
+      WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ taken) canonical reached peer ∧
+      Steps profile ready (specDispatch ready base) reached residual finish := by
+  obtain ⟨checked, canonical, _, _, _, split, _, _, localChecked, localRaw, _, before, peer, marks,
+    divided, paths, writers, _, tail⟩ := classify_mixed_callback_terminal_discrepancies run paired initial
+  obtain ⟨taken, residual, reached, last, advanced, tracks, finalWriters, discrepancies, finalRun⟩ :=
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.complete paths writers tail initial
+  exact ⟨checked ++ localChecked, canonical ++ localRaw, taken, residual, before, reached, peer, marks,
+    by rw [split, divided, last]; simp only [List.append_assoc], paths, advanced, tracks, finalWriters, discrepancies, finalRun⟩
 
 open ReturnFrame.Occurrence in
 /-- Extend the mixed worker comparison through the reached, certified endpoint
@@ -3682,8 +3712,11 @@ theorem classify_mixed_callback_endpoint_discrepancies {callees : List (Componen
   obtain ⟨checked, canonical, _, _, _, split, _, _, localChecked, localRaw, residual, reached, peer, marks,
     divided, paths, writers, discrepancies, tail⟩ :=
     classify_mixed_callback_terminal_discrepancies run paired initial
-  exact ⟨checked ++ localChecked, canonical ++ localRaw, residual, reached, peer, marks,
-    by rw [split, divided, List.append_assoc], paths, writers, discrepancies, tail⟩
+  refine ⟨checked ++ localChecked, canonical ++ localRaw, residual, reached, peer, marks,
+    by rw [split, divided, List.append_assoc], paths, writers, discrepancies, ?_⟩
+  cases tail with
+  | residual run => exact run
+  | executed step _ _ run => exact .cons step run
 
 open ReturnFrame.Occurrence in
 /-- Follow the original Core wait install through the actual entry and

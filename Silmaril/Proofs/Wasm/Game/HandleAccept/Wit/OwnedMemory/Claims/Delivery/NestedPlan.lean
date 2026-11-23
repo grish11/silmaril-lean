@@ -10927,7 +10927,7 @@ private theorem compilerRefusedCallback {route : GiveEffectRoute} {request : Cor
           | saved slot segment => rfl
         exact (checked place).toTrail.append
           (popped ▸ Plain.give_completion_trail (start := stopped) reply pushed rfl)
-      obtain ⟨written, framed, pop⟩ := Plain.give_completion_write (profile := profile) (ready := ready)
+      obtain ⟨written, framed, pop, edit⟩ := Plain.give_completion_write (profile := profile) (ready := ready)
         (dispatch := specDispatch ready base) (start := stopped) reply rfl
       let wrote := { stopped with
         host := stopped.host.record reply.1
@@ -10936,7 +10936,8 @@ private theorem compilerRefusedCallback {route : GiveEffectRoute} {request : Cor
       rw [List.append_nil] at moved
       rw [total]
       refine callbackTerminalSlice paired (.compilerRefused selection install refused completed canonical (silentVisible canonQuiet) pending host tail ?_)
-      refine ⟨front ++ [.tau, .tau], .tau :: suffix, wrote, ?_, ⟨?_, shared, moved, .cons pop tail, ?_⟩⟩
+      refine ⟨front ++ [.tau, .tau], .tau :: suffix, wrote, ?_,
+        ⟨?_, shared, moved, .cons pop tail, ?_⟩, .executed pop (.inl edit) rfl tail⟩
       · rw [List.replicate_add, ← replicated]
         simp only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.cons_append, List.nil_append]
       · rw [visibleAppend, observed, show PayloadPrefix.visible ([.tau, .tau] : Trace grow sig) = [] from rfl, List.append_nil]
@@ -11032,8 +11033,10 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
         have steps := append (entered (.active 0 0)).steps tail
         have remaining := stripExactPrefix (trailing := .trap reason :: _) beforeTrap.tracks.steps
           (by simpa only [List.append_assoc, List.cons_append, List.nil_append] using steps)
+        have fault : Step profile ready (specDispatch ready base) (site.withBody (trap reason)) (.trap reason)
+            (StepDefs.trapCfg site.checked) := .trap rfl
         exact callbackTerminalSlice paired (.placementTrap site install verdict entered canonical (silentVisible canonQuiet)
-          pending host tail ⟨_, _, _, List.append_assoc .., body remaining⟩)
+          pending host tail ⟨_, _, _, List.append_assoc .., body remaining, .executed fault (.inr rfl) rfl tail⟩)
     | placed _ _ _ _ body _ _ =>
       obtain ⟨_, _, _, _, compare⟩ := body
       exact compare install

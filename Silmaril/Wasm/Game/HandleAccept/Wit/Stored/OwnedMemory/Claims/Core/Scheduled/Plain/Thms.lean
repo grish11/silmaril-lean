@@ -708,7 +708,7 @@ theorem give_completion_write {sig : Signature} {grow : SingleThreaded.GrowOracl
     HostFramedSteps HostState.writer profile ready dispatch start [.tau, .tau] written ∧
     Machine.Step profile ready dispatch written .tau
       { written with ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
-        continuation, segments⟩ :: rest } :=
+        continuation, segments⟩ :: rest } ∧ transitionEdit written .tau = .pop :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.giveCompletionWrite reply reached
 
 open Machine.ReturnFrame.Occurrence in

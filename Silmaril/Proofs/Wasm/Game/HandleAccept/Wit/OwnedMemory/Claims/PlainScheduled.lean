@@ -1530,8 +1530,8 @@ theorem giveCompletionWrite {sig : Signature} {grow : SingleThreaded.GrowOracle}
     Plain.HostFramedSteps HostState.writer profile ready dispatch start [.tau, .tau] written ∧
     Step profile ready dispatch written .tau
       { written with ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
-        continuation, segments⟩ :: rest } := by
-  refine ⟨fun place => ?_, .next (.hostGet reached) rfl (.next (.hostSet rfl) rfl (.done _)), .popCore rfl⟩
+        continuation, segments⟩ :: rest } ∧ transitionEdit written .tau = .pop := by
+  refine ⟨fun place => ?_, .next (.hostGet reached) rfl (.next (.hostSet rfl) rfl (.done _)), .popCore rfl, rfl⟩
   exact .step (.hostGet reached) (by rw [transitionEdit, reached]; rfl) (.step (.hostSet rfl) rfl (.done _ _))
 
 open Machine Machine.ReturnFrame.Occurrence in

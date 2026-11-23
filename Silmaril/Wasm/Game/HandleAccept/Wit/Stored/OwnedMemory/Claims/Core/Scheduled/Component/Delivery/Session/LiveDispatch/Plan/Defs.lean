@@ -817,6 +817,20 @@ inductive ExecutedCallbackCut (profile : ProfileKind) (ready : HostReady (HostSt
       (tail : Steps profile ready (specDispatch ready base) next trailing finish)
       (smaller : trailing.length < actual.length)
 
+/-- The remaining checked execution, with a source-certified terminal
+pop or lockdown step when the raw program is still pending. -/
+inductive CheckedTerminalWriterTail (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start : Config (core3 grow) (HostState sig)) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
+  | residual {labels finish} (run : Steps profile ready dispatch start labels finish) :
+      CheckedTerminalWriterTail profile ready dispatch start labels finish
+  | executed {label next labels finish} (step : Step profile ready dispatch start label next)
+      (edit : ReturnFrame.Occurrence.transitionEdit start label = .pop ∨
+        ReturnFrame.Occurrence.transitionEdit start label = .clear)
+      (writer : next.host.writer = start.host.writer)
+      (run : Steps profile ready dispatch next labels finish) :
+      CheckedTerminalWriterTail profile ready dispatch start (label :: labels) finish
+
 /-- A typed give reply executed only on the checked side. The canonical
 trace ends at the reached pending configuration, not at a matching pop. -/
 def CheckedOnlyGiveReply (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -837,7 +851,7 @@ def CheckedOnlyGiveReply (profile : ProfileKind) (ready : HostReady (HostState s
     (∃ written,
       (∀ place, Prefix profile ready (specDispatch ready base) left place [.tau, .tau] written place) ∧
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) left [.tau, .tau] written ∧
-      Step profile ready (specDispatch ready base) written .tau checked) ∧
+      Step profile ready (specDispatch ready base) written .tau checked ∧ transitionEdit written .tau = .pop) ∧
     ∀ cursor : Option Location, ∃ checkedMark canonMark,
       Trail profile ready (specDispatch ready base) start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark
@@ -1231,7 +1245,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (host : entered.host = peer.host)
       (residual : Steps profile ready (specDispatch ready base) (selection.compilerRefused issue) trailing finish)
       (writerCut : ∃ used rest left, List.replicate count .tau ++ trailing = used ++ rest ∧
-        GiveBodyCut profile ready base bindings reached peer left entered used canonLabels rest finish [some (.active 0 0)]) :
+        GiveBodyCut profile ready base bindings reached peer left entered used canonLabels rest finish [some (.active 0 0)] ∧
+        CheckedTerminalWriterTail profile ready (specDispatch ready base) left rest finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (List.replicate count .tau ++ trailing) finish
   | placementTrap {changes peer label next count canonLabels entered reason trailing finish route}
       (site : PayloadRoot.Site grow sig route)
@@ -1246,7 +1261,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (host : entered.host = peer.host)
       (residual : Steps profile ready (specDispatch ready base) (StepDefs.trapCfg site.checked) trailing finish)
       (writerCut : ∃ used rest left, (List.replicate count .tau ++ [.trap reason]) ++ trailing = used ++ rest ∧
-        GiveBodyCut profile ready base bindings site.start peer left entered used canonLabels rest finish [some (.active 0 0)]) :
+        GiveBodyCut profile ready base bindings site.start peer left entered used canonLabels rest finish [some (.active 0 0)] ∧
+        CheckedTerminalWriterTail profile ready (specDispatch ready base) left rest finish) :
       CallbackSliceEnd profile ready base bindings changes site.start peer ((List.replicate count .tau ++ [.trap reason]) ++ trailing) finish
   | body {changes reached peer label next left right checked canonical trailing finish marks caller}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)

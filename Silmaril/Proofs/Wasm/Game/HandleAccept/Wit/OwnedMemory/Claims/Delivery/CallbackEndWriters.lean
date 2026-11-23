@@ -4,6 +4,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 
 public section
 
@@ -37,18 +38,19 @@ private def PrefixCut (profile : ProfileKind) (ready : HostReady (HostState sig)
   ∃ checked canonical trailing left right marks, actual = checked ++ trailing ∧
     OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
     VisitorWriterPath profile ready base bindings start incoming checked canonical left right ∧
-    Steps profile ready (specDispatch ready base) left trailing finish
+    CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish
 
 private theorem stop (run : Steps profile ready (specDispatch ready base) start actual finish) :
     PrefixCut profile ready base bindings start incoming actual finish :=
   ⟨[], [], actual, start, incoming, [], rfl,
-    CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), WriterPaths.empty, run⟩
+    CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), WriterPaths.empty, .residual run⟩
 
 private theorem terminal (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)
     (writers : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (ending : CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish := .residual run) :
     PrefixCut profile ready base bindings start incoming (checked ++ trailing) finish :=
-  ⟨checked, canonical, trailing, left, right, marks, rfl, paths, writers, run⟩
+  ⟨checked, canonical, trailing, left, right, marks, rfl, paths, writers, ending⟩
 
 private theorem follow (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)
     (writers : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
@@ -73,11 +75,11 @@ private theorem directReply {caller resume reply}
     simpa only [List.append_nil] using terminal
       (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
       (.framed writers (.done incoming)) (.refl _)
-  | popped written writers remaining _ _ =>
-    -- The checked pop belongs to the residual because the raw occurrence is still pending.
+  | popped written writers remaining _ residual =>
     exact terminal (checked := [.tau, .tau])
       (CallbackPrefix.stationaryTransport written (fun place => .done incoming place))
       (.framed writers (.done incoming)) remaining
+      (.executed (.popProg rfl) (.inl rfl) rfl residual)
 
 private theorem directPreparation {caller resume request ticket selected field}
     (cut : DirectGivePreparationCut profile ready base bindings start incoming caller resume request ticket selected field actual finish) :
@@ -108,6 +110,7 @@ private theorem directPreparation {caller resume request ticket selected field}
             rw [List.append_assoc]
             exact terminal (CallbackPrefix.stationaryTransport beforeTrap.tracks (fun place => .done incoming place))
               (.framed writers (.done incoming)) (.cons beforeTrap.fault tail)
+              (.executed beforeTrap.fault (.inr rfl) (congrArg HostState.writer beforeTrap.host.symm) tail)
           | reached _ _ _ tracks writers _ tail =>
             exact terminal (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
               (.framed writers (.done incoming)) tail
@@ -128,11 +131,12 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | componentRegistrationMismatch _ _ paths writers _ tail => exact terminal paths writers tail
   | componentAcceptedTerminal _ _ paths writers _ tail => exact terminal paths writers tail
   | refused _ _ paths writers reply =>
-    obtain ⟨_, _, rfl, _, _, tail, _, _, _, ⟨_, written, framed, pop⟩, _⟩ := reply
+    obtain ⟨_, _, rfl, _, _, tail, _, _, complete, ⟨_, written, framed, pop, edit⟩, _⟩ := reply
     apply follow paths writers
     exact terminal (checked := [.tau, .tau])
       (CallbackPrefix.stationaryTransport written (fun place => .done _ place))
       (.framed (WriterPaths.ofHostFrames framed) (.done _)) (.cons pop tail)
+      (.executed pop (.inl edit) (complete.project_eq.trans framed.project_eq.symm) tail)
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)
   | admissionTrap _ _ _ checked _ tail => exact stop (appendSteps checked tail)
   | directGiveTrap body _ _ _ => exact terminal body.paths body.writers body.residual
@@ -143,11 +147,11 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     · exact directPreparation preparation
     · exact directReply reply
   | compilerRefused _ _ _ _ _ _ _ _ _ reached =>
-    obtain ⟨_, _, _, split, body⟩ := reached
-    exact split.symm ▸ terminal body.paths body.writers body.residual
+    obtain ⟨_, _, _, split, body, ending⟩ := reached
+    exact split.symm ▸ terminal body.paths body.writers body.residual ending
   | placementTrap _ _ _ _ _ _ _ _ _ reached =>
-    obtain ⟨_, _, _, split, body⟩ := reached
-    exact split.symm ▸ terminal body.paths body.writers body.residual
+    obtain ⟨_, _, _, split, body, ending⟩ := reached
+    exact split.symm ▸ terminal body.paths body.writers body.residual ending
   | body _ body ending =>
     cases ending with
     | coreReplyPrefix _ reached =>
@@ -175,11 +179,45 @@ theorem extend {pending : Stored.OwnedMemory.Claims.Spend → Prop}
       OccurrenceTransport profile ready base bindings start incoming (checked ++ compared) (canonical ++ raw) reached peer marks ∧
       VisitorWriterPath profile ready base bindings start incoming (checked ++ compared) (canonical ++ raw) reached peer ∧
       WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ compared) (canonical ++ raw) reached peer ∧
-      Steps profile ready (specDispatch ready base) reached residual finish := by
+      CheckedTerminalWriterTail profile ready (specDispatch ready base) reached residual finish := by
   obtain ⟨compared, raw, residual, reached, peer, _, split, endingPaths, endingWriters, tail⟩ := cut ending
   obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend segment.occurrences endingPaths
   have writers := segment.writers.append endingWriters
   exact ⟨compared, raw, residual, reached, peer, _, split, paths, writers,
     WriterPaths.discrepancyCut writers initial, tail⟩
+
+theorem complete {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)
+    (writers : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
+    (tail : CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish)
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    ∃ taken residual reached, trailing = taken ++ residual ∧
+      ((taken = [] ∧ reached = left) ∨ ∃ label, taken = [label] ∧
+        Step profile ready (specDispatch ready base) left label reached ∧
+        (transitionEdit left label = .pop ∨ transitionEdit left label = .clear)) ∧
+      (∀ cursor, ∃ checkedMark rawMark,
+        Trail profile ready (specDispatch ready base) start cursor (checked ++ taken) reached checkedMark ∧
+        Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonical right rawMark ∧
+        ((taken = [] ∧ checkedMark = rawMark) ∨
+          ∃ label, taken = [label] ∧ checkedMark = rawMark.bind (transitionEdit left label).follow)) ∧
+      VisitorWriterPath profile ready base bindings start incoming (checked ++ taken) canonical reached right ∧
+      WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ taken) canonical reached right ∧
+      Steps profile ready (specDispatch ready base) reached residual finish := by
+  obtain ⟨move, tracks, _⟩ := paths
+  cases tail with
+  | residual run =>
+    refine ⟨[], _, left, rfl, .inl ⟨rfl, rfl⟩, ?_, ?_, ?_, run⟩
+    · intro cursor
+      obtain ⟨lhs, rhs⟩ := tracks cursor
+      exact ⟨_, _, by simpa only [List.append_nil] using lhs, rhs, .inl ⟨rfl, rfl⟩⟩
+    · simpa only [List.append_nil] using writers
+    · simpa only [List.append_nil] using WriterPaths.discrepancyCut writers initial
+  | executed step edit writer run =>
+    have path := writers.append (.framed (.same step writer (.done _)) (.done right))
+    rw [List.append_nil] at path
+    refine ⟨[_], _, _, rfl, .inr ⟨_, rfl, step, edit⟩, ?_, path, WriterPaths.discrepancyCut path initial, run⟩
+    intro cursor
+    obtain ⟨lhs, rhs⟩ := tracks cursor
+    exact ⟨_, _, lhs.append (.step step (.done _ _)), rhs, .inr ⟨_, rfl, rfl⟩⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters
