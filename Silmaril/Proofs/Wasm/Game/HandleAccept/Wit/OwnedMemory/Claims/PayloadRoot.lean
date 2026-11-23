@@ -85,7 +85,7 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
     Cut site profile ready bindings body impl := by
   let dispatch := specDispatch ready impl
   obtain ⟨plan, compiled⟩ := linked.compiled
-  obtain ⟨front, allTau, entry, entryWriter⟩ := route.parked_framed_tracks bindings site.name site.functionType site.handle site.inst site.destination
+  obtain ⟨front, allTau, count, entry, entryWriter⟩ := route.parked_framed_tracks bindings site.name site.functionType site.handle site.inst site.destination
     site.tree site.start site.thread profile ready linked.parked linked.calling linked.linked linked.caller linked.mayLeave
     linked.destination linked.selected linked.admitted impl embedder
   have onlyTau : ∀ label ∈ front, label = .tau := by
@@ -104,7 +104,7 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
   obtain ⟨_, _, _, ⟨next, focus, width⟩, started⟩ := site.destination.compiled_payload_effects (profile := profile) (ready := ready)
     (dispatch := dispatch) entered site.inst site.tag site.payload route.output site.field plan site.reply compiled
     linked.destination rfl
-  have prepare : site.PrepareEntry profile ready impl front next := ⟨entryRun, entryWriter, silent, focus, width⟩
+  have prepare : site.PrepareEntry profile ready impl front next := ⟨entryRun, entryWriter, silent, focus, width, count⟩
   have reads (tail : List (Label (core3 grow) (HostState sig))) :
       site.PreparedEntry profile ready impl ((front ++ [.tau, .tau]) ++ tail) := ⟨front, next, tail, rfl, prepare⟩
   cases prepared : Record.prepare entered.store entered.host.writer site.field.objects with

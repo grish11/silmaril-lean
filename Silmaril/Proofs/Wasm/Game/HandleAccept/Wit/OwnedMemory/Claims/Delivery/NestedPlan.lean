@@ -2702,7 +2702,6 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | refused _ _ _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _, _, _⟩ := reply
     exact append front (append completed tail)
-  | entryPrefix _ run _ _ => exact run
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -2739,7 +2738,6 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
-  | entryPrefix install _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -10628,10 +10626,10 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
           Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle))) ∨
       ∃ issue, Plain.runBody request.selectionProgram start.store start.host (some request.thread) =
           (start.store, start.host, .ok (.error issue)) ∧
-        ∀ handle, request.lookupDemand = some handle →
+        (∀ handle, request.lookupDemand = some handle →
           Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
-            Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle)
-    (compare : ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
+            Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted handle) ∧
+        ShorterCallbackSlices profile ready base bindings (label :: labels).length) :
     CallbackSlice profile ready base bindings older start incoming (label :: labels) finish := by
   obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, _, _⟩ := cutSharedCalloutInstall
     (.embedder request.name request.kind) request.args request.focused request.calling install.step paired
@@ -10644,7 +10642,7 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
   rcases prelude with early |
       ⟨_, left, right, entered, leftHost, rightHost, leftStore, _, leftAt, rightAt, bodySite, bodyPaths, bodyWriters, bodyRun, _⟩
   · exact cutShortGivePrelude request.name request.kind request.args rfl rfl paths installWriters paired early actual
-  · rcases boundary with two | ⟨issue, refused, reads⟩
+  · rcases boundary with two | ⟨issue, refused, reads, compare⟩
     swap
     · have refusal : Plain.runBody request.selector.program left.store left.host (some request.thread) =
           (left.store, left.host, .ok (.error issue)) := by
@@ -10727,6 +10725,22 @@ private theorem cutCoreGiveSelectorBoundary (request : CoreGiveRequest bindings 
         · right
           simpa only [leftHost, rightHost] using different
 
+private theorem shortParkedGive (request : CoreGiveRequest bindings start) {handle label next}
+    (demand : request.lookupDemand = some handle)
+    (install : GiveInstall bindings (specDispatch ready base) start label next)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (short : labels.length < 11)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    CallbackSlice profile ready base bindings older start incoming labels finish := by
+  have silent : label = .tau := by cases install <;> rfl
+  subst label
+  cases run with
+  | refl => exact callbackTerminalSlice paired .exhausted
+  | cons first tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique install.step first
+    exact cutCoreGiveSelectorBoundary request install tail paired embedder
+      (.inl (.inr ⟨handle, demand, .inl (by simp only [List.length_cons] at short; omega)⟩))
+
 open PayloadPrefix ReturnFrame.Occurrence in
 private theorem parkedAdmissionInterior {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {label nextCfg planned waiting wanted}
@@ -10735,11 +10749,28 @@ private theorem parkedAdmissionInterior {route : GiveEffectRoute} (site : Payloa
     (run : Steps profile ready (specDispatch ready base) site.start labels finish)
     (nonempty : waiting ≠ []) (pending : Steps profile ready (specDispatch ready base) finish waiting wanted)
     (paired : HostFrame.Related.Paired older site.start incoming)
-    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree) :
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackSlice profile ready base bindings older site.start incoming labels finish := by
   obtain ⟨front, next, _, _, entry⟩ := prepared
   cases alignLocalBody entry.entry.steps run (noBranchOfVisible entry.quiet (by simp)) with
-  | inside _ later tail => exact callbackTerminalSlice paired (.entryPrefix install run later tail)
+  | @inside remaining divided later _ =>
+    have length : labels.length < 11 := by
+      have count := congrArg List.length divided
+      have positive : 0 < remaining.length := List.length_pos_iff.mpr later
+      simp only [entry.length, List.length_append] at count
+      omega
+    let schema := match route with | .memory _ => none | .flat type => some type
+    have resolved : resolveBinding bindings site.name site.functionType = .ok ⟨site.name, site.inst,
+        schema.elim (.givePayload site.destination) (.giveFlat site.destination)⟩ := by
+      cases route <;> exact linked.linked
+    let request : CoreGiveRequest bindings site.start :=
+      ⟨site.name, site.functionType, route.args site.handle, site.inst, site.destination, schema, site.thread,
+        site.core, site.resume, site.frames, site.rest, linked.parked, linked.calling, resolved⟩
+    have selection : request.Selected route :=
+      ⟨site.handle, site.tree, rfl, linked.linked, linked.caller, linked.mayLeave,
+        linked.destination, linked.selected, linked.admitted⟩
+    exact shortParkedGive request selection.lookup_demand install run length paired embedder
   | reached split residual =>
     obtain ⟨raw, peer, quiet, canonical, related, _, storage, writer⟩ :=
       LiveDispatch.entry_paired_framed_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
@@ -10810,7 +10841,7 @@ theorem actualMemoryRequest {pointer : FlatValue} (site : PayloadRoot.Site grow 
     cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
     | inside split nonempty tail =>
       exact ⟨.inl ⟨_, split, nonempty, tail⟩,
-        fun install => parkedAdmissionInterior site linked install read run nonempty tail paired selected⟩
+        fun install => parkedAdmissionInterior site linked install read run nonempty tail paired selected embedder⟩
     | @reached residual split tail =>
       obtain ⟨canonEntry, canon, silent, tracks, host, visit⟩ := body
       have bounded : residual.length ≤ labels.length := by rw [split, List.length_append]; omega
@@ -10858,9 +10889,15 @@ private theorem compilerRefusedCallback {route : GiveEffectRoute} {request : Cor
     ctl := ⟨request.thread, .prog (do return .flat (← writeCompletion reply)),
       .core request.core request.next :: request.frames⟩ :: request.rest }
   let caller := Seg.core request.core request.next
-  obtain ⟨front, quiet, checked, framed⟩ := selection.compiler_refusal_entry (profile := profile) (ready := ready) refused base embedder
+  obtain ⟨front, quiet, count, checked, framed⟩ := selection.compiler_refusal_entry (profile := profile) (ready := ready) refused base embedder
   cases alignLocalBody (checked (.active 0 0)).toTrail.steps run (noBranchOfVisible (silentVisible quiet) (by simp)) with
-  | inside _ nonempty tail => exact callbackTerminalSlice paired (.entryPrefix install run nonempty tail)
+  | @inside remaining divided nonempty _ =>
+    have length : labels.length < 11 := by
+      have lengths := congrArg List.length divided
+      have positive : 0 < remaining.length := List.length_pos_iff.mpr nonempty
+      simp only [count, List.length_append] at lengths
+      omega
+    exact shortParkedGive request selection.lookup_demand install run length paired embedder
   | reached split remaining =>
     obtain ⟨_, entered, canonQuiet, canonical, host, pending, storage, canonFramed⟩ := selection.paired_canonical_pending_framed
       (profile := profile) (ready := ready) (base := base) paired reads
@@ -10920,7 +10957,8 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
     (prepare : site.PreparedEntry profile ready base checkLeading)
     (run : Steps profile ready (specDispatch ready base) site.start labels finish)
     (paired : HostFrame.Related.Paired older site.start incoming)
-    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree) :
+    (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackSlice profile ready base bindings older site.start incoming labels finish := by
   let reply := route.reply site.destination site.start.host.nextTicket (.error issue)
   let stopped := site.withBody (site.reply (.error issue))
@@ -10928,7 +10966,7 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
     (start := stopped) reply rfl
   have frontRun := (checked (.active 0 0)).toTrail.steps
   cases alignLocalBody frontRun run (noBranchOfVisible quiet (by simp)) with
-  | inside _ nonempty tail => exact parkedAdmissionInterior site linked install prepare run nonempty tail paired selected
+  | inside _ nonempty tail => exact parkedAdmissionInterior site linked install prepare run nonempty tail paired selected embedder
   | reached split residual =>
     obtain ⟨_, entered, canonQuiet, canonical, related, _, storage, canonFramed⟩ := LiveDispatch.entry_paired_framed_storage
       (profile := profile) (ready := ready) (base := base) site linked paired selected
@@ -10969,7 +11007,7 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
     have chosen : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted site.handle = some site.tree :=
       selected.trans (congrArg some root)
     cases cut with
-    | refused issue quiet entered framed read => exact rootRefusedCallback site linked install quiet entered framed read run paired chosen
+    | refused issue quiet entered framed read => exact rootRefusedCallback site linked install quiet entered framed read run paired chosen embedder
     | placementTrap reason count verdict entered _ read beforeTrap =>
       have quiet : PayloadPrefix.visible (List.replicate count .tau ++ ([.trap reason] : Trace grow sig)) = [.trap reason] := by
         rw [visibleAppend, visibleTaus]
@@ -10986,7 +11024,7 @@ theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRe
       cases alignLocalBody (entered (.active 0 0)).steps run (noBranchOfVisible quiet (by simp [workerBranchLabel])) with
       | inside _ nonempty tail =>
         cases alignLocalBody beforeTrap.tracks.steps run (noBranchOfVisible quietPrefix (by simp)) with
-        | inside _ _ _ => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen
+        | inside _ _ _ => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen embedder
         | reached split remaining =>
           exact split.symm ▸ callbackTerminalSlice paired (.body (marks := []) install (body remaining) (.localPrefix nonempty tail))
       | reached split tail =>
@@ -11127,11 +11165,11 @@ private theorem actualSelectedFlatCallback {schema : Stored.TypeOf} {request : C
       (Stored.Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag) site.payload.val.value = true)
       (fun fits _ _ => fits) base embedder
     cases cut with
-    | refused issue quiet entered framed read => exact rootRefusedCallback site linked install quiet entered framed read run paired chosen
+    | refused issue quiet entered framed read => exact rootRefusedCallback site linked install quiet entered framed read run paired chosen embedder
     | placementTrap _ _ verdict _ _ _ _ => cases verdict
     | @placed entry quiet verdict prepared entered fits framed read =>
       cases alignLocalBody (entered (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
-      | inside _ nonempty tail => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen
+      | inside _ nonempty tail => exact parkedAdmissionInterior site linked install read run nonempty tail paired chosen embedder
       | @reached remaining split tail =>
         have bounded : remaining.length ≤ (label :: labels).length := by rw [split, List.length_append]; omega
         exact split ▸ driveFlatGiveBody site linked (siteVisitShapes linked).1 paired chosen embedder fits install entered framed read quiet tail bounded compare
@@ -11145,14 +11183,14 @@ private theorem classifiedGiveCrossing
   · apply Or.inr
     by_cases early : ∃ handle, request.lookupDemand = some handle ∧ trailing.length < 10
     · obtain ⟨handle, demand, short⟩ := early
-      exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inl (.inr ⟨handle, demand, .inl short⟩)) compare
+      exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inl (.inr ⟨handle, demand, .inl short⟩))
     by_cases reads : ∀ handle, request.lookupDemand = some handle →
         Stored.Endpoints.Core.childFromHistory checked.host.writer.accepted handle =
           Stored.Endpoints.Core.childFromHistory canonical.host.writer.accepted handle
     · rcases request.selector_result with ⟨reason, trap⟩ | ⟨verdict, evaluated⟩
-      · exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inl (.inl ⟨reason, trap⟩)) compare
+      · exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inl (.inl ⟨reason, trap⟩))
       · cases verdict with
-        | error issue => exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inr ⟨issue, evaluated, reads⟩) compare
+        | error issue => exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inr ⟨issue, evaluated, reads, compare⟩)
         | ok result =>
           obtain ⟨route, ⟨selection⟩⟩ := request.selected_of_return evaluated
           have selected := (reads selection.handle selection.lookup_demand).symm.trans selection.selected
@@ -11163,7 +11201,7 @@ private theorem classifiedGiveCrossing
             exact actualSelectedMemoryCallback selection install actual paired selected embedder compare
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
-      exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inl (.inr ⟨handle, demand, .inr different⟩)) compare
+      exact cutCoreGiveSelectorBoundary request install actual paired embedder (.inl (.inr ⟨handle, demand, .inr different⟩))
   · obtain ⟨name, kind, args, thread, resume, frames, rest, inst, destination, schema, focused, linked⟩ := direct
     obtain ⟨peerFrames, peerRest, rfl, rfl, site, paths, _, _, _⟩ :=
       cutProgramCallInstall (bindings := bindings) (.prog (.pure (.cancel .none))) focused install.step paired

@@ -112,7 +112,7 @@ theorem runBody_thread_tracks_framed {E : CoreEngine} {Host Result Observed : Ty
       let reached := { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest }
       (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place labels reached place) ∧
       HostFramedSteps project profile ready dispatch start labels reached := by
-  obtain ⟨labels, silent, tracks, frames⟩ :=
+  obtain ⟨labels, silent, _, tracks, frames⟩ :=
     Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.body_tracks_framed_at
       body start updated host result finish thread segs rest profile ready dispatch focused (some thread) (.inr rfl) success
   exact ⟨labels, silent, tracks, frames _ project framed⟩
@@ -617,7 +617,7 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (selected : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
       let reached := { start with
         host := start.host.enter name type [.int .i32 handle, pointer]
         ctl := ⟨thread, .prog (do
@@ -650,7 +650,7 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (schema : rootHasSchema tree payload = true)
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
       let reached := { start with
         host := start.host.enter name type [.int .i32 handle]
         ctl := ⟨thread, .prog (do

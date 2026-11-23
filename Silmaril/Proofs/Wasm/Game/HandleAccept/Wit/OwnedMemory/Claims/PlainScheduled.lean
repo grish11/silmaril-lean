@@ -106,7 +106,7 @@ theorem body_tracks_framed_at {E : CoreEngine} {Host Result : Type} (body : P E 
     (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
     (activation : Option (Option ThreadId)) (matchesThread : activation = none ∨ activation = some thread)
     (success : Plain.runBody body start.store start.host activation = (updated, host, .ok result)) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = Plain.bodyLength body start.store start.host activation ∧
       (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place labels
         { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } place) ∧
       ∀ (Observed : Type) (project : Host → Observed), Plain.FramesHost project body start.store start.host activation →
@@ -122,33 +122,33 @@ theorem body_tracks_framed_at {E : CoreEngine} {Host Result : Type} (body : P E 
       congr
       exact focused.symm
     rw [frame]
-    exact ⟨[], rfl, fun _ => .done _ _, fun _ _ _ => .done _⟩
+    exact ⟨[], rfl, rfl, fun _ => .done _ _, fun _ _ _ => .done _⟩
   | op op next ih =>
     cases op <;> try simp only [Plain.runBody] at success
     case get =>
-      obtain ⟨labels, silent, tail, frames⟩ := ih start.store
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih start.store
         { start with ctl := ⟨thread, .prog (next start.store >>= finish), segs⟩ :: rest } rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.get focused)
+      exact ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.get focused)
         (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth),
         fun observed project frame => .next (.get focused) rfl (frames observed project frame)⟩
     case modify update =>
-      obtain ⟨labels, silent, tail, frames⟩ := ih ()
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih ()
         { start with store := update start.store, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
         rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.modify focused)
+      exact ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.modify focused)
         (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth),
         fun observed project frame => .next (.modify focused) rfl (frames observed project frame)⟩
     case hostGet =>
-      obtain ⟨labels, silent, tail, frames⟩ := ih start.host
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih start.host
         { start with ctl := ⟨thread, .prog (next start.host >>= finish), segs⟩ :: rest } rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.hostGet focused)
+      exact ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.hostGet focused)
         (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth),
         fun observed project frame => .next (.hostGet focused) rfl (frames observed project frame)⟩
     case hostSet newHost =>
-      obtain ⟨labels, silent, tail, frames⟩ := ih ()
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih ()
         { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
         rfl success
-      refine ⟨.tau :: labels, silent, fun depth => .step (.hostSet focused)
+      refine ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.hostSet focused)
         (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth), ?_⟩
       intro observed project frame
       simp only [Plain.FramesHost] at frame
@@ -158,10 +158,10 @@ theorem body_tracks_framed_at {E : CoreEngine} {Host Result : Type} (body : P E 
       · rw [missing] at success
         cases success
       · rw [known] at success
-        obtain ⟨labels, silent, tail, frames⟩ := ih thread
+        obtain ⟨labels, silent, count, tail, frames⟩ := ih thread
           { start with ctl := ⟨thread, .prog (next thread >>= finish), segs⟩ :: rest } rfl
           (by simpa only [Plain.runBody, known] using success)
-        refine ⟨.tau :: labels, silent, fun depth => .step (.currentThread focused)
+        refine ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, known, count], fun depth => .step (.currentThread focused)
           (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth), ?_⟩
         intro observed project frame
         exact .next (.currentThread focused) rfl (frames observed project (by simpa only [Plain.FramesHost, known] using frame))
@@ -178,7 +178,7 @@ theorem body_tracks_at {E : CoreEngine} {Host Result : Type} (body : P E Host Re
     ∃ labels, labels.all (· matches .tau) = true ∧
       ∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place labels
         { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } place := by
-  obtain ⟨labels, silent, tracks, _⟩ := body_tracks_framed_at body start updated host result finish thread segs rest
+  obtain ⟨labels, silent, _, tracks, _⟩ := body_tracks_framed_at body start updated host result finish thread segs rest
     profile ready dispatch focused activation matchesThread success
   exact ⟨labels, silent, tracks⟩
 
@@ -1183,6 +1183,39 @@ private def admitGive {E : CoreEngine} {Host Result : Type} (inst : InstId)
     return .error .wrongContext
   selection
 
+private theorem admittedLength {E : CoreEngine} {Host Result : Type}
+    (inst : InstId) (selection : P E Host (Except Claims.Core.Scheduled.Issue Result))
+    (store : CStore E) (state : Host) (thread : Option ThreadId)
+    (caller : Plain.callerInstance store thread = .ok (some inst))
+    (mayLeave : (store.inst? inst).any (·.mayLeave) = true) :
+    Plain.bodyLength (admitGive inst selection) store state (some thread) =
+      Plain.bodyLength selection store state (some thread) + 4 := by
+  cases thread with
+  | none => simp [Plain.callerInstance] at caller
+  | some worker =>
+    cases active : ArenaField.threads.get? store worker with
+    | none => simp [Plain.callerInstance, active] at caller
+    | some running =>
+      cases task : ArenaField.tasks.get? store running.task with
+      | none => simp [Plain.callerInstance, active, task] at caller
+      | some owner =>
+        have same : owner.inst = inst := by simpa [Plain.callerInstance, active, task, pure, Except.pure] using caller
+        simp [admitGive, currentInst?, currentTask?, getThread, getTask, getObj, currentThread, getStore, perform,
+          Prog.lift, Prog.bind_assoc, Prog.bind, bind, Plain.bodyLength, active, task, same, mayLeave,
+          Nat.add_assoc]
+
+private theorem lengthReadStore {E : CoreEngine} {Host Result : Type}
+    (next : CStore E → P E Host Result) (store : CStore E) (state : Host) (thread : Option ThreadId) :
+    Plain.bodyLength (getStore.bind next) store state (some thread) =
+      Plain.bodyLength (next store) store state (some thread) + 1 := rfl
+
+private theorem lengthReadSelection {grow : SingleThreaded.GrowOracle} {sig : Signature} {Result : Type}
+    (handle : BitVec IntType.i32.width) (next : Option (Tree sig) → Session grow sig Result)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId) :
+    Plain.bodyLength ((select handle).bind next) store state (some thread) =
+      Plain.bodyLength (next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle))
+        store state (some thread) + 1 := rfl
+
 private theorem framesReadStore {grow : SingleThreaded.GrowOracle} {sig : Signature} {Result : Type}
     (next : CStore (core3 grow) → Session grow sig Result)
     (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId) :
@@ -1234,8 +1267,9 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
     (checked : let entered := start.host.enter name type args
       Plain.runBody selection start.store entered (some thread) = (start.store, entered, .ok (.ok selected)))
     (selectionFrame : Plain.FramesHost HostState.writer selection start.store (start.host.enter name type args) (some thread))
+    (selectionLength : Plain.bodyLength selection start.store (start.host.enter name type args) (some thread) = 2)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
       let reached := { start with host := start.host.enter name type args
                                   ctl := ⟨thread, .prog (next (.ok selected) >>= fun words => pure (.flat words)),
                                     .core core continuation :: segments⟩ :: rest }
@@ -1263,7 +1297,7 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
           Plain.FramesHost HostState.writer (rest start.store) start.store entered (some thread) := rfl
     simp only [storeFrame, bne_self_eq_false, mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
     exact selectionFrame
-  obtain ⟨labels, silent, tracks, frames⟩ := body_tracks_framed_at admission active start.store entered (.ok selected) finish
+  obtain ⟨labels, silent, count, tracks, frames⟩ := body_tracks_framed_at admission active start.store entered (.ok selected) finish
     thread saved rest profile ready (specDispatch ready impl) rfl (some thread) (.inr rfl) evaluated
   have unpack : (route start.host.nextTicket bindings name type args >>= fun words => pure (.flat words)) =
       (admission >>= finish) := by rw [routed]; exact Prog.bind_assoc _ _ _
@@ -1287,12 +1321,15 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
         fun words => pure (.flat words)), saved⟩ :: rest } place labels _ place
     rw [unpack]
     exact tracks place
-  refine ⟨.tau :: .tau :: .tau :: .tau :: .tau :: labels, ?_, ?_, ?_⟩
+  refine ⟨.tau :: .tau :: .tau :: .tau :: .tau :: labels, ?_, ?_, ?_, ?_⟩
   · change labels.all (· matches .tau) = true
     apply List.all_eq_true.mpr
     intro label member
     have tau := List.all_eq_true.mp silent label member
     cases label <;> first | rfl | contradiction
+  · simp only [List.length_cons, count]
+    change Plain.bodyLength (admitGive inst selection) start.store entered (some thread) + 5 = 11
+    rw [admittedLength inst selection start.store entered thread caller mayLeave, selectionLength]
   · intro place
     let shifted := ((Edit.push (.core core continuation)).follow place).getD place
     refine .step (middle := shifted) (.coreCallout parked calling) ?_
@@ -1336,7 +1373,7 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (destinationChecked : destination.check start.store = .ok ())
     (selected : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
       let reached := { start with
         host := start.host.enter name type [.int .i32 handle, pointer]
         ctl := ⟨thread, .prog (do
@@ -1386,9 +1423,17 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
       bne_self_eq_false, Bool.false_eq_true, ite_false, read_store, destinationChecked, read_selection]
     rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
     rfl
+  have selectionLength : Plain.bodyLength selection start.store
+      (start.host.enter name type [.int .i32 handle, pointer]) (some thread) = 2 := by
+    let entered := start.host.enter name type [.int .i32 handle, pointer]
+    change Plain.bodyLength selection start.store entered (some thread) = 2
+    simp only [selection, selectMemoryDestination, Execution.Runtime.Value.int, Prog.bind_eq, word,
+      bne_self_eq_false, Bool.false_eq_true, ite_false, lengthReadStore, destinationChecked, lengthReadSelection]
+    rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
+    rfl
   have actual := parked_give_prefix bindings name type _ start thread inst profile ready selection
     (tree, flatNat pointer) next parked calling caller mayLeave routed checked
-    (framesMemorySelection destination pointer handle start.store _ thread word destinationChecked) impl embedder
+    (framesMemorySelection destination pointer handle start.store _ thread word destinationChecked) selectionLength impl embedder
   simp only [next, Prog.bind_eq, Prog.bind_assoc] at actual ⊢
   exact actual
 
@@ -1407,7 +1452,7 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (selected : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
     (schema : rootHasSchema tree payload = true)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
       let reached := { start with
         host := start.host.enter name type [.int .i32 handle]
         ctl := ⟨thread, .prog (do
@@ -1456,9 +1501,18 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
     simp [schema]
     rfl
+  have selectionLength : Plain.bodyLength selection start.store
+      (start.host.enter name type [.int .i32 handle]) (some thread) = 2 := by
+    let entered := start.host.enter name type [.int .i32 handle]
+    change Plain.bodyLength selection start.store entered (some thread) = 2
+    simp only [selection, selectFlatDestination, Execution.Runtime.Value.int, Prog.bind_eq,
+      lengthReadStore, destinationChecked, lengthReadSelection]
+    rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
+    simp only [schema, Bool.not_true, Bool.false_eq_true, ite_false]
+    rfl
   have actual := parked_give_prefix bindings name type _ start thread inst profile ready selection
     tree next parked calling caller mayLeave routed checked
-    (framesFlatSelection destination payload handle start.store _ thread destinationChecked) impl embedder
+    (framesFlatSelection destination payload handle start.store _ thread destinationChecked) selectionLength impl embedder
   simp only [next, reply, Prog.bind_eq, Prog.bind_assoc] at actual ⊢
   exact actual
 

@@ -658,13 +658,13 @@ theorem compilerRefusalEntry {request : CoreGiveRequest bindings start} (selecti
       host := start.host.enter request.name request.kind (route.args selection.handle)
       ctl := ⟨request.thread, .prog (do return .flat (← writeCompletion reply)),
         .core request.core request.next :: request.frames⟩ :: request.rest }
-    ∃ front, front.all (· matches .tau) = true ∧
+    ∃ front, front.all (· matches .tau) = true ∧ front.length = 11 ∧
       (∀ place, Prefix profile ready (specDispatch ready impl) start place front entered
         (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start front entered := by
   have calling := request.calling
   rw [selection.args] at calling
-  obtain ⟨front, silent, entry, framed⟩ := GiveEffectRoute.parked_framed_tracks bindings request.name request.kind selection.handle route request.inst
+  obtain ⟨front, silent, count, entry, framed⟩ := GiveEffectRoute.parked_framed_tracks bindings request.name request.kind selection.handle route request.inst
     request.destination selection.tree start request.thread profile ready request.focused calling selection.linked
     selection.caller selection.mayLeave selection.destination selection.selected selection.admitted impl embedder
   have replyOnly : route.run (grow := grow) request.destination request.inst selection.tree start.host.nextTicket =
@@ -676,7 +676,7 @@ theorem compilerRefusalEntry {request : CoreGiveRequest bindings start} (selecti
       simp only [GiveEffectRoute.run, Stored.OwnedMemory.Claims.Record.Effects.lowerTree,
         Stored.Endpoints.RecordLower.Internal.lowerWithPlan, refused, Prog.pure_eq, Prog.bind_eq, Prog.pure_bind']
   rw [replyOnly] at entry framed
-  refine ⟨front, ?_, entry, framed⟩
+  refine ⟨front, ?_, count, entry, framed⟩
   apply List.all_eq_true.mpr
   intro label member
   have tau := List.all_eq_true.mp silent label member
@@ -688,7 +688,7 @@ theorem compilerRefusalTracks {request : CoreGiveRequest bindings start} (select
     (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
     ∃ count, ∀ place, Trail profile ready (specDispatch ready impl) start (some place) (List.replicate count .tau)
       (selection.compilerRefused issue) (some place) := by
-  obtain ⟨front, silent, entry, _⟩ := compilerRefusalEntry (profile := profile) (ready := ready) selection refused impl embedder
+  obtain ⟨front, silent, _, entry, _⟩ := compilerRefusalEntry (profile := profile) (ready := ready) selection refused impl embedder
   have replicated : front = List.replicate front.length .tau := List.eq_replicate_length.mpr (fun label member => by
     have tau := List.all_eq_true.mp silent label member
     cases label <;> first | rfl | contradiction)

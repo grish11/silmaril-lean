@@ -133,7 +133,6 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     exact terminal (checked := [.tau, .tau])
       (CallbackPrefix.stationaryTransport written (fun place => .done _ place))
       (.framed (WriterPaths.ofHostFrames framed) (.done _)) (.cons pop tail)
-  | entryPrefix _ run _ _ => exact stop run
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)
   | admissionTrap _ _ _ checked _ tail => exact stop (appendSteps checked tail)
   | directGiveTrap body _ _ _ => exact terminal body.paths body.writers body.residual

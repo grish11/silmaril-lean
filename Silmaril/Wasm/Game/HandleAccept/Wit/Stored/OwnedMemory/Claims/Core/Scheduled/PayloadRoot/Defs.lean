@@ -128,6 +128,7 @@ structure Site.PrepareEntry (site : Site grow sig route) (profile : ProfileKind)
   getFocus : site.entered.ctl = site.cursor.control (.op .get (fun store => .op .hostGet fun current =>
     next (Record.prepare store current.writer site.field.objects)))
   widthFocus : ∃ proceed, next (.ok ()) = .op .get proceed
+  length : front.length = 11
 
 def Site.PreparedEntry (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
     (impl : HostImpl (core3 grow) (HostState sig)) (labels : List (Label (core3 grow) (HostState sig))) : Prop :=

@@ -52,6 +52,25 @@ def runBody {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     | .emit _ => (reference, host, .error .hostEffect)
 termination_by structural body
 
+/-- Count the local instructions up to the returned value or first effect
+that the plain interpreter cannot run. -/
+def bodyLength {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+    (reference : CStore E) (host : Host) (activation : Option (Option ThreadId)) : Nat :=
+  match body with
+  | .pure _ => 0
+  | .op op next =>
+    match op with
+    | .get => bodyLength (next reference) reference host activation + 1
+    | .modify update => bodyLength (next ()) (update reference) host activation + 1
+    | .hostGet => bodyLength (next host) reference host activation + 1
+    | .hostSet updated => bodyLength (next ()) reference updated activation + 1
+    | .currentThread =>
+      match activation with
+      | some thread => bodyLength (next thread) reference host activation + 1
+      | none => 0
+    | _ => 0
+termination_by structural body
+
 /-- Check a host-field frame along the reached local interpreter branch,
 including each assignment. The check does not run the consumer of the result. -/
 def FramesHost {E : CoreEngine} {Host Result Observed : Type} (project : Host → Observed)

@@ -364,7 +364,7 @@ theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal_entry {request : 
       host := start.host.enter request.name request.kind (route.args selection.handle)
       ctl := ⟨request.thread, .prog (do return .flat (← writeCompletion reply)),
         .core request.core request.next :: request.frames⟩ :: request.rest }
-    ∃ front, front.all (· matches .tau) = true ∧
+    ∃ front, front.all (· matches .tau) = true ∧ front.length = 11 ∧
       (∀ place, Prefix profile ready (specDispatch ready impl) start place front entered
         (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start front entered :=

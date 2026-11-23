@@ -1155,11 +1155,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue reached peer left right
         checkLeading canonLeading trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checkLeading ++ trailing) finish
-  | entryPrefix {changes reached peer label next actual finish entry remaining}
-      (install : GiveInstall bindings (specDispatch ready base) reached label next)
-      (run : Steps profile ready (specDispatch ready base) reached actual finish) (nonempty : remaining ≠ [])
-      (rest : Steps profile ready (specDispatch ready base) finish remaining entry) :
-      CallbackSliceEnd profile ready base bindings changes reached peer actual finish
   | directGiveEntry {changes reached peer left right name kind args inst destination schema resume check canon trailing finish}
       (linked : resolveBinding bindings name kind =
         .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)

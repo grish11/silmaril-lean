@@ -26,7 +26,9 @@ open ReturnFrame.Occurrence (Prefix)
 open Machine.ReturnFrame.Occurrence in
 /-- Public give entry pushes the actual Core callout continuation. Every
 older location, including saved locations, follows that edit and is
-otherwise unchanged by the entry and selector steps. -/
+otherwise unchanged. The eleven instructions include the push, two dispatch
+reads, two journal instructions, four admission instructions, and the
+destination and accepted-root reads. -/
 theorem GiveEffectRoute.parked_framed_tracks {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
     (route : GiveEffectRoute) (inst : InstId) (destination : RecordDestination) (tree : OwnedMemory.Tree sig)
@@ -42,7 +44,7 @@ theorem GiveEffectRoute.parked_framed_tracks {sig : Signature} {grow : SingleThr
     (admitted : route.admits destination tree)
     (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
       let reached := { start with
         host := start.host.enter name type (route.args handle)
         ctl := ⟨thread, .prog (route.run destination inst tree start.host.nextTicket), .core core continuation :: segments⟩ :: rest }
@@ -75,7 +77,7 @@ theorem GiveEffectRoute.parked_tracks {sig : Signature} {grow : SingleThreaded.G
                      ctl := ⟨thread, .prog (route.run destination inst tree start.host.nextTicket),
                        .core core continuation :: segments⟩ :: rest }
         (((Edit.push (.core core continuation)).follow place).getD place) := by
-  obtain ⟨labels, silent, tracks, _⟩ := route.parked_framed_tracks bindings name type handle inst destination tree start thread
+  obtain ⟨labels, silent, _, tracks, _⟩ := route.parked_framed_tracks bindings name type handle inst destination tree start thread
     profile ready parked calling linked caller mayLeave destinationChecked selected admitted impl embedder
   exact ⟨labels, silent, tracks⟩
 
