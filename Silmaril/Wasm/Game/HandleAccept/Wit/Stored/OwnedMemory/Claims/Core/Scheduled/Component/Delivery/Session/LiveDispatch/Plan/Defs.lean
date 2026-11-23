@@ -414,11 +414,17 @@ def sharedRecordEmit (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
       (Record.authority recordClaims Limits.spec cx) width type fields (.memory ptr)) >>= sharedRecordReport ticket
 
 open Stored.OwnedMemory.Claims Stored.Endpoints in
+/-- The shared visitor at the exact cursor and field index reached after earlier siblings. -/
+def sharedRecordMemory (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (fields : List RecordLower.Field) (cursor index ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  RecordLower.Internal.runMemory Limits.spec Quirks.none cx
+    (Record.authority recordClaims Limits.spec cx) width fields cursor index >>= sharedRecordReport ticket
+
+open Stored.Endpoints in
 def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List RecordLower.Field) (ptr ticket : Nat) :
     Option AddrType → Session grow sig (Ret (core3 grow))
   | none => sharedRecordReport ticket (.error (.preflight (.abi .allocationPrecondition)))
-  | some width => RecordLower.Internal.runMemory Limits.spec Quirks.none cx
-      (Record.authority recordClaims Limits.spec cx) width fields ptr 0 >>= sharedRecordReport ticket
+  | some width => sharedRecordMemory cx width fields ptr 0 ticket
 
 def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
   site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
@@ -1726,9 +1732,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | sharedRecordVisitor {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx fields width ptr leftTicket rightTicket}
-      (checked : left.ctl = check.control (sharedRecordVisit cx fields ptr leftTicket (some width)))
-      (canonical : right.ctl = canon.control (sharedRecordVisit cx fields ptr rightTicket (some width)))
+      {cx fields width cursor index leftTicket rightTicket}
+      (checked : left.ctl = check.control (sharedRecordMemory cx width fields cursor index leftTicket))
+      (canonical : right.ctl = canon.control (sharedRecordMemory cx width fields cursor index rightTicket))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
