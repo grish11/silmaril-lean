@@ -21758,9 +21758,42 @@ private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item :
     cases item <;> first | exact ⟨matched, emitted⟩ | cases matched
   | @sum type arms tag selected layoutAt member children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run refused returned
-    exact .sourceOverlayField destination inst (.sum type arms tag selected) index (.memory address) checkNext canonNext parents thread segments
-      ⟨layoutAt, member⟩ stores scheduler (growth.memAddrType width)
-      (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run
+    let slot := sumPayloadAddress destination.width arms address
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag address (discSize arms.length)
+    let leftNext := sumCheckedNext destination inst selected index slot checkNext
+    let rightNext := sumCanonicalNext destination inst selected slot canonNext
+    let entered := { right with ctl := canon.control (body >>= rightNext) }
+    have liveWidth : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width :=
+      stores ▸ growth.memAddrType width
+    obtain ⟨checkedAt, read, ops⟩ := memory_sum_tag_entry (profile := profile) (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+      destination inst type arms tag index address selected left.store left right check canon checkNext canonNext
+      (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, liveWidth]) checked canonical
+    rw [← List.nil_append actual]
+    refine .comparedPrefix (CallbackPrefix.stationaryTransport (fun place => .done left place) read.tracks)
+      (.framed (.done left) (WriterPaths.frameRead read)) ?_
+    refine crossSharedWorkerBodyWith (incoming := entered) thread body leftNext rightNext
+      (sourceLocalProgramEffects ops) (Core3.Grows.refl _) stores checkedAt rfl run ?_
+    intro value reached peer remaining shorter grew equal atLeft atRight keep residual
+    cases value
+    cases selected with
+    | none => exact returned () grew equal (keep scheduler) atLeft atRight residual shorter
+    | some child =>
+      have aligned := placed.1
+      have bounds := placed.2
+      change address % (layout destination.width type).alignment.bytes = 0 at aligned
+      change address + (layout destination.width type).size ≤ bytes at bounds
+      rw [layoutAt destination.width] at aligned bounds
+      have listed : some (layout destination.width child.type) ∈ arms.map (layoutOption destination.width) :=
+        List.mem_map.mpr ⟨some child.type, member child rfl, by rw [layoutOption]⟩
+      obtain ⟨modulo, within⟩ := variantLayout_payload_fits _ address (layout destination.width child.type)
+        (Nat.dvd_of_mod_eq_zero aligned) listed
+      rw [List.length_map] at modulo within
+      have childFits : SlotFits destination.width bytes child slot := ⟨modulo, within.trans bounds⟩
+      exact ih child rfl slot childFits 0 (aggregateNext index checkNext) canonNext equal (keep scheduler)
+        (growth.trans grew) atLeft atRight residual
+        (fun issue {_ _ _} focus tail => refused (.nested index issue) focus tail)
+        (fun result {_ _ _} grown same aligned lhs rhs tail bounded =>
+          returned result (grew.trans grown) same aligned lhs rhs tail (bounded.trans shorter))
   | @list element entries matching children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run refused returned
     exact .sourceOverlayField destination inst (.dynamic (.list element) element entries) index (.memory address) checkNext canonNext parents

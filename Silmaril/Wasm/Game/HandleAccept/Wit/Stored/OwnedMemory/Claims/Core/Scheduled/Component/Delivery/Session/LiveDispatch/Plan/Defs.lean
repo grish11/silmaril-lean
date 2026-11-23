@@ -2964,7 +2964,7 @@ induction. Its trails still identify the removed original occurrences. -/
         (some (.active 0 0)) [label] next none)
       (residual : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
-  /-- The compiler visitor reached a sum tag or an allocating child under the
+  /-- The compiler visitor reached an allocating child under the
   original recursive parents. The next visitor proof starts at the two actual
   programs, with the current placement and checked residual. -/
   | sourceOverlayField {changes reached peer trailing finish}
@@ -2977,9 +2977,6 @@ induction. Its trails still identify the removed original occurrences. -/
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (pending : match item with
-        | .sum type arms _ selected =>
-          (∀ width, ABI.layout width type = ABI.variantLayout (arms.map (ABI.layoutOption width))) ∧
-          ∀ child, selected = some child → some child.type ∈ arms
         | .dynamic _ element entries => Stored.Endpoints.RecordLower.Field.EntriesMatch entries element
         | other => other.LayoutMatches (.prim .string) ∧ other.Emitted)
       (stores : reached.store = peer.store)

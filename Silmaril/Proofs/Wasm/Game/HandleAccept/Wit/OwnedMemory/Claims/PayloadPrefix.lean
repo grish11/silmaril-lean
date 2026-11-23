@@ -737,26 +737,24 @@ theorem memorySum (destination : RecordDestination) (inst : InstId) (type : Type
       (fun address => mapIssue (child active address rfl) (.nested index))
     simpa only [Lower.Output.Result, head, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using composed
 
-theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+private theorem memorySumTagFoci {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
-    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig))
     (check canon : Cursor (E := core3 grow) (HostState sig))
     (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (canonNext : Unit → Session grow sig (Ret (core3 grow)))
-    (same : left.store = right.store) (thread : check.thread = canon.thread)
     (width : ptrTypeIn right.store (destination.context inst) = destination.width)
-    (growth : Core3.Grows origin.core right.store.core)
     (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
-      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext))
-    (trackOccurrences : Bool := false) :
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
     let address := sumPayloadAddress destination.width arms base
-    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference
-      (fun store => Core3.Grows origin.core store.core) left right check canon
-      (sumCheckedNext destination inst selected index address checkNext)
-      (sumCanonicalNext destination inst selected address canonNext) trackOccurrences := by
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag base (discSize arms.length)
+    let entered := { right with ctl := canon.control (body >>= sumCanonicalNext destination inst selected address canonNext) }
+    left.ctl = check.control (body >>= sumCheckedNext destination inst selected index address checkNext) ∧
+    Step profile scheduledReady reference right .tau entered ∧
+    ReturnFrame.Occurrence.transitionEdit right .tau = .same ∧ LocalFocus right := by
   intro address
   let cx := destination.context (grow := grow) inst
   let body : Session grow sig Unit := storeInt cx tag base (discSize arms.length)
@@ -798,6 +796,65 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
   have read : Step profile scheduledReady reference right .tau entered := by
     simpa only [entered, Cursor.control, show ptrTypeIn right.store cx = destination.width from width] using
       (Step.get (prof := profile) (hr := scheduledReady) (dispatch := reference) focus)
+  exact ⟨checkBody, read, by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl,
+    by simp only [LocalFocus, focus, Cursor.control]⟩
+
+theorem memorySumTagEntry {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+    let address := sumPayloadAddress destination.width arms base
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag base (discSize arms.length)
+    let entered := { right with ctl := canon.control (body >>= sumCanonicalNext destination inst selected address canonNext) }
+    left.ctl = check.control (body >>= sumCheckedNext destination inst selected index address checkNext) ∧
+    SilentLocalStep profile scheduledReady reference right entered ∧
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) body := by
+  dsimp only
+  obtain ⟨checked, read, edit, _⟩ := memorySumTagFoci (profile := profile) (scheduledReady := scheduledReady)
+    (reference := reference) destination inst type arms tag index base selected left right check canon
+    checkNext canonNext width checkAt canonAt
+  exact ⟨checked, ⟨fun place => .step read (by rw [edit]; rfl) (.done _ _), rfl, rfl⟩,
+    closedLocalProgram (closedIntKeeping (profile := profile) (keep := fun store => Core3.Grows origin.core store.core)
+      (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
+      (destination.context inst) tag base (discSize arms.length))⟩
+
+theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (growth : Core3.Grows origin.core right.store.core)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext))
+    (trackOccurrences : Bool := false) :
+    let address := sumPayloadAddress destination.width arms base
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right check canon
+      (sumCheckedNext destination inst selected index address checkNext)
+      (sumCanonicalNext destination inst selected address canonNext) trackOccurrences := by
+  intro address
+  let cx := destination.context (grow := grow) inst
+  let body : Session grow sig Unit := storeInt cx tag base (discSize arms.length)
+  let checked := sumCheckedNext destination inst selected index address checkNext
+  let resumed := fun reached => sumCanonicalNext destination inst selected (sumPayloadAddress reached arms base) canonNext
+  let entered := { right with ctl := canon.control (body.bind (resumed destination.width)) }
+  obtain ⟨checkBody, read, edit, localFocus⟩ := memorySumTagFoci
+    (profile := profile) (scheduledReady := scheduledReady) (reference := reference)
+    destination inst type arms tag index base selected left right check canon checkNext canonNext width checkAt canonAt
   have localBody := closedIntKeeping (profile := profile) (Host := HostState sig)
     (keep := fun store => Core3.Grows origin.core store.core)
     (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
@@ -810,7 +867,7 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
       localLeafEnd right right.host store canon.thread canon.frames canon.rest (resumed destination.width) result := by cases result <;> rfl
   rw [final] at runRef
   refine ⟨store, result, chk, .tau :: ref, runChk, .cons ?_ read runRef, labels, ?_⟩
-  · simp only [LocalFocus, focus, Cursor.control]
+  · exact localFocus
   · have observed : match result with
         | .ok value => Core3.Grows origin.core store.core ∧
             RetainsActiveSlots profile scheduledReady scheduledDispatch left chk
@@ -826,7 +883,7 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
         intro depth
         have tracked := canonTrack depth
         rw [final] at tracked
-        exact .step read (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl) tracked
+        exact .step read (by rw [edit]; rfl) tracked
     cases trackOccurrences with
     | false => cases result <;> exact observed
     | true =>
@@ -834,11 +891,11 @@ theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig 
       · cases result <;> exact observed
       · rw [final] at path
         exact .canonicalRead ⟨fun place => .step read
-          (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl) (.done _ _), rfl, rfl⟩ path
+          (by rw [edit]; rfl) (.done _ _), rfl, rfl⟩ path
       · intro mark
         obtain ⟨lhs, rhs⟩ := trails mark
         rw [final] at rhs
-        exact ⟨lhs, .step read (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; cases mark <;> exact rhs)⟩
+        exact ⟨lhs, .step read (by rw [edit]; cases mark <;> exact rhs)⟩
 
 theorem memoryHandleLeaf (destination : RecordDestination) (inst : InstId) (field : Field) (index ptr : Nat)
     (fragment : CanonicalHandle field) :

@@ -231,6 +231,30 @@ theorem memory_sum_tag (destination : RecordDestination) (inst : InstId) (type :
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagBetween (reference := dispatch)
     destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
 
+/-- The reached raw width read exposes the same tag-write body as the
+checked sum. The two continuations each retain the compiler-selected child. -/
+theorem memory_sum_tag_entry {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+    let address := sumPayloadAddress destination.width arms base
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag base (discSize arms.length)
+    let entered := { right with ctl := canon.control (body >>= sumCanonicalNext destination inst selected address canonNext) }
+    left.ctl = check.control (body >>= sumCheckedNext destination inst selected index address checkNext) ∧
+    SilentLocalStep profile ready dispatch right entered ∧
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) body :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagEntry
+    destination inst type arms tag index base selected origin left right check canon checkNext canonNext width checkAt canonAt
+
 theorem memory_sum_tag_between {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
