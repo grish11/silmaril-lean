@@ -26,6 +26,7 @@ import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
 import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 import Silmaril.Wasm.Component.Reference.Canon.Lower.Thms
+import Silmaril.Wasm.Component.Reference.Canon.Builtins.ErrorContext.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Thms
 import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
@@ -21057,11 +21058,58 @@ private theorem sourceDropEndEffects (kind : AsyncRef.EndKind) (type : Option (W
   exact .op (fun store => records store _ (sourceDropEndRecords identity store).1 (sourceDropEndRecords identity store).2)
     fun _ => .pure []
 
+private theorem storeEffectLoadStringRange (cx : LiftLowerContext (core3 grow)) (ptr units : Nat) :
+    StoreEffects (loadStringFromRange Limits.spec Quirks.none cx ptr units : Session grow sig Value.StrVal) := by
+  have read (length : Nat) : StoreEffects (readMem cx ptr length : Session grow sig ByteArray) := by
+    unfold readMem memAddr
+    exact (storeEffectOrTrap _ _).bind fun mem => storeEffectGet.bind fun store =>
+      storeEffectOrTrap .outOfBounds ((core3 grow).memRead? store.core mem ptr length)
+  unfold loadStringFromRange
+  refine (storeEffectPtrType cx).bind fun width => ?_
+  let range := ABI.loadRange cx.opts.encoding width units
+  refine (storeEffectTrapIf (decide (range.byteLength > Limits.spec.maxStringBytes)) .stringTooLong).bind fun _ =>
+    (storeEffectTrapIf (decide (ptr ≠ ABI.alignTo ptr range.alignment)) .unalignedPointer).bind fun _ =>
+    (storeEffectBounds cx ptr range.byteLength).bind fun _ => (read range.byteLength).bind fun bytes => ?_
+  split
+  · exact storeEffectTrap _
+  · exact .pure _
+
+private theorem sourceErrorContextNewEffects (opts : CanonOpts (core3 grow)) (ptr units : Nat)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.errorContextNew Limits.spec Quirks.none opts ptr units :
+      Session grow sig (List FlatValue)) := by
+  have closed : StoreEffects (Builtins.errorContextNew Limits.spec Quirks.none opts ptr units :
+      Session grow sig (List FlatValue)) := by
+    have message (inst : InstId) (keep : Bool) : StoreEffects (if keep then do
+        let input ← loadStringFromRange Limits.spec Quirks.none { opts, inst } ptr units
+        choose (.errCtxMessage input)
+      else pure ErrorContext.empty.message : Session grow sig Value.StrVal) := by
+      cases keep
+      · exact .pure _
+      · exact (storeEffectLoadStringRange { opts, inst } ptr units).bind fun text => .op rfl fun output => .pure output
+    have allocate (entry : ErrorContext) : StoreEffects (allocObj ArenaField.errCtxs entry : Session grow sig ErrCtxId) := by
+      unfold allocObj
+      exact storeEffectGet.bind fun _ => (storeEffectModify _).bind fun _ => .pure _
+    unfold Builtins.errorContextNew getInst
+    exact storeEffectCurrentInst.bind fun inst => (storeEffectGetObject ArenaField.insts inst).bind fun record =>
+      (storeEffectTrapIf (!record.mayLeave) .cannotLeave).bind fun _ =>
+      (show StoreEffects (choose .errCtxKeep : Session grow sig Bool) from .op rfl fun keep => .pure keep).bind fun keep =>
+      (message inst keep).bind fun text => (allocate ⟨text⟩).bind fun identity =>
+      (sharedHandleInsertEffects inst (.errCtx identity)).bind fun index => .pure [i32Flat index]
+  refine liftDestructorStoreEffects closed ?_
+  have predicates : Op.PreservesInvW invariant (fun (_ : HostState sig) => True) = storePreserves invariant := by
+    funext operation
+    cases operation <;> rfl
+  rw [← predicates]
+  exact Builtins.P.Inv.errorContextNew Limits.spec Quirks.none opts ptr units
+    (fun _ store => records store _ rfl rfl) (fun _ _ store => records store _ rfl rfl)
+
+
 private def sourceLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .threadIndex _ | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
   | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin (.resourceRep ..) _
   | .builtin (.resourceNew ..) _ | .builtin .waitableSetNew _ | .builtin .waitableSetDrop _
-  | .builtin .waitableJoin _ | .builtin .subtaskDrop _ | .builtin .errorContextDrop _
+  | .builtin .waitableJoin _ | .builtin .subtaskDrop _ | .builtin .errorContextDrop _ | .builtin (.errorContextNew ..) _
   | .builtin (.waitableSetPoll ..) _ | .builtin .threadResumeLater _ | .builtin (.threadNewIndirect ..) _
   | .builtin (.streamNew ..) _ | .builtin (.futureNew ..) _
   | .builtin (.streamDropReadable ..) _ | .builtin (.streamDropWritable ..) _
@@ -21143,6 +21191,13 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
       rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
       · exact trapOnly _
       · exact sourceSubtaskDropEffects (flatNat word) records
+      · exact trapOnly _
+    | errorContextNew opts =>
+      refine ⟨withArgs2 args (Builtins.errorContextNew Limits.spec Quirks.none opts), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨ptr, _ | ⟨units, _ | ⟨extra, tail⟩⟩⟩
+      · exact trapOnly _
+      · exact trapOnly _
+      · exact sourceErrorContextNewEffects opts (flatNat ptr) (flatNat units) records
       · exact trapOnly _
     | errorContextDrop =>
       refine ⟨withArgs1 args Builtins.errorContextDrop, ?_, fun _ _ _ _ => rfl⟩
