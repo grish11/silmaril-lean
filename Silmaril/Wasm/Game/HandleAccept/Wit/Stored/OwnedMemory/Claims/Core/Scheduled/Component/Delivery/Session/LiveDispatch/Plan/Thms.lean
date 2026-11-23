@@ -3608,8 +3608,9 @@ When the original Core caller is active at that decision, compare its live
 finish and executed reply, or follow its executed park through the mixed suffix.
 A direct give follows the actual thread and store reads to the two live callout
 bodies, with the marked program continuation; admission remains a proof cut.
-A non-early wait enters the scheduler fold before any caller reply. Exhausted
-and trapped deliveries retain their reached endpoints without rejoining. Other
+A non-early wait with an active caller follows the reached park instruction.
+The scheduler fold continues from the actual parked configuration. An exhausted
+decision or trapped delivery retains its own reached endpoint. Other
 component sites remain at their exact install cut with the reached outcome. -/
 theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)

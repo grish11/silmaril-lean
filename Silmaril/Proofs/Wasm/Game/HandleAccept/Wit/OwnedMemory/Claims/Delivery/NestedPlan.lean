@@ -11723,13 +11723,33 @@ private theorem classifiedWaitCrossing : CallbackWaitableCrossing profile ready 
       rw [useAll]
       exact .waitTerminal compared writers outcome stop actual
     | some waiter =>
-      have aligned := pairComponentFocus checked canonical site
-      rcases classifyReachedGrowth (CallbackPrefix.transportPaths decision none).choose_spec.1.steps with growing | nonGrowing
-      · exact .inl ⟨leading, .tau :: leading, suffix, reached, peer, used,
-          ⟨growing, rfl, aligned, decision, decisionWriters⟩, residual⟩
-      · refine .inr (callbackTerminalSlice paired ?_)
-        rw [used]
-        exact .nonGrowing nonGrowing aligned decision decisionWriters residual
+      cases thread with
+      | none =>
+        have aligned := pairComponentFocus checked canonical site
+        rcases classifyReachedGrowth (CallbackPrefix.transportPaths decision none).choose_spec.1.steps with growing | nonGrowing
+        · exact .inl ⟨leading, .tau :: leading, suffix, reached, peer, used,
+            ⟨growing, rfl, aligned, decision, decisionWriters⟩, residual⟩
+        · refine .inr (callbackTerminalSlice paired ?_)
+          rw [used]
+          exact .nonGrowing nonGrowing aligned decision decisionWriters residual
+      | some active =>
+        rcases cutWaitableWaitPark (bindings := bindings) (thread := active) mem entry checked canonical site residual
+          with empty | ⟨remaining, parked, parkedRun, aligned, path, _, _⟩
+        · exact terminal (.inl empty.1)
+        have split : labels = (leading ++ [.tau]) ++ remaining := by
+          rw [used, parked, List.append_assoc, List.singleton_append]
+          rfl
+        have whole := (CallbackPrefix.transportAppend decision path).choose_spec.1
+        have writers := decisionWriters.append (frameCalloutStep path rfl rfl)
+        rcases classifyReachedGrowth (CallbackPrefix.transportPaths whole none).choose_spec.1.steps with growing | nonGrowing
+        · have compared := ExecutedCallbackSegment.mk growing rfl aligned whole writers
+          exact .inl ⟨leading ++ [.tau], .tau :: (leading ++ [.tau]), remaining, _, _, split,
+            by simpa only [List.cons_append] using compared, parkedRun⟩
+        · refine .inr (callbackTerminalSlice paired ?_)
+          rw [split, ← List.cons_append]
+          exact .nonGrowing (by simpa only [List.cons_append] using nonGrowing) aligned
+            (by simpa only [List.cons_append, List.nil_append, List.map_nil] using whole)
+            (by simpa only [List.cons_append] using writers) parkedRun
 
 open ReturnFrame.Occurrence in
 private theorem classifyCancelHookWith (async : Bool) (subtask : SubtaskId) (hook : CancelRef)
