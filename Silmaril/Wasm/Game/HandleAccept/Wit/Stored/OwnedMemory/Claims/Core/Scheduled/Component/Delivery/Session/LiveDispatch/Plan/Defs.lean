@@ -1977,6 +1977,24 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second)
         resumed canonical trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ checked ++ trailing) finish
+  /-- The original shared allocator occurrence popped in both actual runs.
+  The reached continuations start the range validation and the next prepare. -/
+  | sharedRecordAllocatorPop {changes reached peer left right beforeLeft beforeRight afterLeft afterRight
+        leading checked canonical trailing finish marks}
+      {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)} {value}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (marked : AllocatorMark profile ready base bindings changes left right checked canonical beforeLeft beforeRight
+        (some (.active 0 0)))
+      (checkedAt : beforeLeft.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+      (canonicalAt : beforeRight.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure value))
+      (checkedPop : Step profile ready (specDispatch ready base) beforeLeft .tau afterLeft)
+      (canonicalPop : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) beforeRight .tau afterRight)
+      (paths : OccurrenceTransport profile ready base bindings reached peer ((leading ++ checked) ++ [.tau])
+        ((leading ++ canonical) ++ [.tau]) afterLeft afterRight marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer ((leading ++ checked) ++ [.tau])
+        ((leading ++ canonical) ++ [.tau]) afterLeft afterRight)
+      (residual : Steps profile ready (specDispatch ready base) afterLeft trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (((leading ++ checked) ++ [.tau]) ++ trailing) finish
   | sharedRecordPrepareMismatch {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {beforeLeft beforeRight plan}

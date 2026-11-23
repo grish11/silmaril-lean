@@ -125,6 +125,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | sharedRecordVisitor _ _ paths writers residual => exact terminal paths writers residual
   | sharedRecordAllocator paths writers _ compared _ ih =>
     simpa only [List.append_assoc] using follow paths writers (follow compared.occurrences compared.writers ih)
+  | sharedRecordAllocatorPop _ _ _ _ _ paths writers residual => exact terminal paths writers residual
   | sharedRecordPrepareMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedRecordOwnerMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedRecordEndpointMismatch _ paths writers residual => exact terminal paths writers residual

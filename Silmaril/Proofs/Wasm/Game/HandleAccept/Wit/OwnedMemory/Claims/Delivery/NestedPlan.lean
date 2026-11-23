@@ -2778,6 +2778,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordAllocator paths _ _ compared _ ih =>
     simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
+  | sharedRecordAllocatorPop _ _ _ _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2828,6 +2829,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedRecordAllocator paths _ _ compared ending =>
     simpa only [List.append_assoc] using
       append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
+  | sharedRecordAllocatorPop _ _ _ _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14666,7 +14668,7 @@ private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (Ho
       simpa only [segmentStorage, HostFrame.replace, leftFocus, rightFocus, PayloadPrefix.Cursor.control, List.map_cons] using
         paired_outside (left := HostFrame.replace
           { left with ctl := (PayloadPrefix.Cursor.mk thread frames rest).control (.pure (.cancel .none)) } right.host) site
-    obtain ⟨_, enteredPaths, _⟩ := CallbackPrefix.transportAppend paths installedPaths
+    obtain ⟨moveAfterInstall, enteredPaths, installedTracks⟩ := CallbackPrefix.transportAppend paths installedPaths
     have enteredWriters := writers.append (.framed (WriterPaths.frameSingle (.cons leftInstall (.refl _)) rfl)
       (WriterPaths.frameSingle (.cons rightInstall (.refl _)) rfl))
     have shorter : tail.length < (.tau :: labels).length := by
@@ -14682,10 +14684,56 @@ private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (Ho
         resumed canonical (move top) := by
       refine ⟨outsideMarks_singleton.mp (outside older [top] (outsideMarks_singleton.mpr installedMark)),
         (tracks top).1, (tracks top).2, fun place => ⟨_, tracks place⟩⟩
-    exact .inr (callbackTerminalSlice paired (by
-      rw [split, divided]
-      simpa only [List.cons_append, List.append_assoc, List.singleton_append, List.nil_append] using
-        (CallbackSliceEnd.sharedRecordAllocator enteredPaths enteredWriters marked segment ending)))
+    have stop : CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish :=
+      .inr (callbackTerminalSlice paired (by
+        rw [split, divided]
+        simpa only [List.cons_append, List.append_assoc, List.singleton_append, List.nil_append] using
+          (CallbackSliceEnd.sharedRecordAllocator enteredPaths enteredWriters marked segment ending)))
+    by_cases returns : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (value : Ret (core3 grow)),
+      resumed.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure value)
+    · obtain ⟨cursor, value, returning⟩ := returns
+      have residual := returningCallbackEndSteps ending returning
+      have installedPeer : segmentAt (segmentStorage rightEntered) (.active 0 0) = some (.prog second) := rfl
+      by_cases active : move top = some (.active 0 0)
+      · cases residual with
+        | refl => exact stop
+        | @cons _ _ _ label suffix actual tail =>
+          obtain ⟨peerCursor, _, leftPop, rightPop, _, _, _, rawAt⟩ :=
+            CallbackPrefix.pop (active ▸ marked) segment.paired returning installedPeer
+          obtain ⟨rfl, rfl⟩ := silentStepUnique leftPop actual
+          let entered : Trace grow sig := (.tau :: leading) ++ [.tau]
+          let outer : Option Location := some (.active 0 1)
+          have shiftedCaller : moveAfterInstall (some (.active 0 0)) = outer := by
+            have moved := (installedTracks (some (.active 0 0))).1
+            generalize reached : moveAfterInstall (some (.active 0 0)) = position at moved ⊢
+            cases moved with
+            | step taken tail =>
+              cases tail
+              rw [checkEdit]
+              rfl
+          have transported : OccurrenceTransport profile ready base bindings start incoming
+              (entered ++ checked) (entered ++ canonLabels) resumed canonical [some (.active 0 0), move outer] := by
+            have beginning : OccurrenceTransport profile ready base bindings start incoming entered entered
+                leftEntered rightEntered [top, outer] := by
+              simpa only [entered, top, List.cons_append, List.map_cons, List.map_nil, List.singleton_append, List.nil_append,
+                shiftedCaller] using enteredPaths
+            obtain ⟨enter, prior, keep⟩ := beginning
+            refine ⟨move ∘ enter, fun place => ⟨(prior place).1.append (tracks (enter place)).1,
+              (prior place).2.append (tracks (enter place)).2⟩, ?_⟩
+            intro older marks before
+            simpa only [List.map_append, List.map_cons, List.map_map, List.map_nil, List.nil_append, active] using
+              outside older _ (keep older marks before)
+          have popped := CallbackPrefix.transportAllocatorPop returning rawAt transported
+          have traced := enteredWriters.append segment.writers
+          have completed := traced.append (.framed (WriterPaths.frameSingle (.cons leftPop (.refl _)) rfl)
+            (WriterPaths.frameSingle (.cons rightPop (.refl _)) rfl))
+          exact .inr (callbackTerminalSlice paired (by
+            rw [split, divided]
+            simpa only [entered, List.cons_append, List.append_assoc, List.singleton_append, List.nil_append] using
+              (CallbackSliceEnd.sharedRecordAllocatorPop (active ▸ marked) returning rawAt leftPop rightPop popped completed tail)))
+      · exact stop
+    · exact stop
+
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
