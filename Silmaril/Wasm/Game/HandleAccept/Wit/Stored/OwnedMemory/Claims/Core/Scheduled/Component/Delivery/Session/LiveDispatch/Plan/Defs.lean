@@ -97,29 +97,28 @@ def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostStat
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] ∧
     (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update)
 
-/-- The reached assignment instruction, including the exact prefix to its
-focus and the executed write. -/
-def ReachedHostAssignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+/-- The executed host assignment and its exact pre-write and post-write
+configurations. Any earlier read is carried by its own writer path. -/
+structure ReachedHostAssignment (profile : ProfileKind) (ready : HostReady (HostState sig))
     (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
-    (start : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
-    (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  ∃ leading before thread frames rest target next,
-    labels = leading ++ [.tau] ∧
-    Steps profile ready dispatch start leading before ∧
+    (before after : Config (core3 grow) (HostState sig)) : Prop where
+  focus : ∃ thread frames rest target next,
     before.ctl = ⟨thread, .prog (.op (.hostSet target) next), frames⟩ :: rest ∧
-    finish = { before with host := target, ctl := ⟨thread, .prog (next ()), frames⟩ :: rest } ∧
-    Step profile ready dispatch before .tau finish
+    after = { before with host := target, ctl := ⟨thread, .prog (next ()), frames⟩ :: rest }
+  step : Step profile ready dispatch before .tau after
 
 /-- Exact compared segments whose writer provenance still needs a proof.
-The assignment case identifies the actual instruction on each path. -/
+The assignment case starts at the actual writes and records a change
+on at least one side. -/
 inductive CallbackWriterBoundary (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
     Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
     Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop where
-  | assignment {start incoming checked canonical left right}
-      (lhs : ReachedHostAssignment profile ready (specDispatch ready base) start checked left)
-      (rhs : ReachedHostAssignment profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right) :
-      CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right
+  | assignment {start incoming left right}
+      (lhs : ReachedHostAssignment profile ready (specDispatch ready base) start left)
+      (rhs : ReachedHostAssignment profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming right)
+      (changed : left.host.writer ≠ start.host.writer ∨ right.host.writer ≠ incoming.host.writer) :
+      CallbackWriterBoundary profile ready base bindings start incoming [.tau] [.tau] left right
   | giveEntry {start incoming checked canonical left right} :
       CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right
 

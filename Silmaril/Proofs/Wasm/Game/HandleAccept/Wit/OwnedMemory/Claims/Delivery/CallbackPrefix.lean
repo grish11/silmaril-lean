@@ -897,13 +897,22 @@ theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 gro
     cases place <;> rfl
 
 private theorem reachedAssignment {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {before : Config (core3 grow) (HostState sig)} {leading : Trace grow sig}
-    {thread target next frames rest}
-    (front : Steps profile ready dispatch start leading before)
+    {before : Config (core3 grow) (HostState sig)} {thread target next frames rest}
     (focus : before.ctl = ⟨thread, .prog (.op (.hostSet target) next), frames⟩ :: rest) :
-    ReachedHostAssignment profile ready dispatch start (leading ++ [.tau])
+    ReachedHostAssignment profile ready dispatch before
       { before with host := target, ctl := ⟨thread, .prog (next ()), frames⟩ :: rest } :=
-  ⟨leading, before, thread, frames, rest, target, next, rfl, front, focus, rfl, .hostSet focus⟩
+  ⟨⟨thread, frames, rest, target, next, focus, rfl⟩, .hostSet focus⟩
+
+private theorem assignmentWriters {left right : Config (core3 grow) (HostState sig)}
+    (lhs : ReachedHostAssignment profile ready (specDispatch ready base) start left)
+    (rhs : ReachedHostAssignment profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming right) :
+    VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right := by
+  classical
+  by_cases changed : left.host.writer ≠ start.host.writer ∨ right.host.writer ≠ incoming.host.writer
+  · exact .callbackBoundary (.assignment lhs rhs changed)
+      (WriterPaths.ofRuns (.cons lhs.step (.refl _)) (.cons rhs.step (.refl _)))
+  · obtain ⟨left, right⟩ := not_or.mp changed
+    exact .framed (.same lhs.step (not_not.mp left) (.done _)) (.same rhs.step (not_not.mp right) (.done _))
 
 theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread value resume frames rest}
@@ -912,8 +921,8 @@ theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau] [.tau]
       { start with host := value, ctl := ⟨thread, .prog (resume ()), frames⟩ :: rest } peer := by
   obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume ())) value value
-  refine ⟨_, executedAtWriterBoundary (.assignment (reachedAssignment (.refl _) focus) (reachedAssignment (.refl _) atPeer))
-    (.cons (by simp [CoreUpdateGrows, focus]) (.hostSet focus) (.refl _)) rfl aligned (stationaryTransport ?_ ?_)⟩
+  refine ⟨_, ⟨.cons (by simp [CoreUpdateGrows, focus]) (.hostSet focus) (.refl _), rfl, aligned,
+    stationaryTransport ?_ ?_, assignmentWriters (reachedAssignment focus) (reachedAssignment atPeer)⟩⟩
   · intro place
     refine .step (.hostSet focus) ?_ (.done _ _)
     rw [transitionEdit, focus]
@@ -932,18 +941,23 @@ private theorem compareReachedHostUpdate {changes : ReturnFrame.Substitutions (c
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau, .tau] [.tau, .tau]
       { start with host := left, ctl := ⟨thread, .prog next, frames⟩ :: rest } peer ∧ peer.host = right := by
   obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog next) left right
-  have leftRead : Step profile ready (specDispatch ready base) start .tau
-      { start with ctl := ⟨thread, .prog (.op (.hostSet left) (fun _ => next)), frames⟩ :: rest } := by
+  let checkedWrite := { start with ctl := ⟨thread, .prog (.op (.hostSet left) (fun _ => next)), frames⟩ :: rest }
+  let canonicalWrite := { incoming with ctl := ⟨thread, .prog (.op (.hostSet right) (fun _ => next)), peerFrames⟩ :: peerRest }
+  have leftRead : Step profile ready (specDispatch ready base) start .tau checkedWrite := by
+    dsimp only [checkedWrite]
     rw [← checked]
     exact .hostGet focus
-  have rightRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
-      { incoming with ctl := ⟨thread, .prog (.op (.hostSet right) (fun _ => next)), peerFrames⟩ :: peerRest } := by
+  have rightRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau canonicalWrite := by
+    dsimp only [canonicalWrite]
     rw [← canonical]
     exact .hostGet atPeer
-  refine ⟨_, executedAtWriterBoundary
-    (.assignment (reachedAssignment (.cons leftRead (.refl _)) rfl) (reachedAssignment (.cons rightRead (.refl _)) rfl))
-    (.cons (by simp [CoreUpdateGrows, focus]) leftRead
-    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _))) rfl aligned (stationaryTransport ?_ ?_), rfl⟩
+  have reads : VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] _ _ :=
+    .framed (.same leftRead rfl (.done _)) (.same rightRead rfl (.done _))
+  refine ⟨_, ⟨.cons (by simp [CoreUpdateGrows, focus]) leftRead
+    (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _)), rfl, aligned, stationaryTransport ?_ ?_,
+    reads.append (assignmentWriters
+      (reachedAssignment (before := checkedWrite) (next := fun _ => next) rfl)
+      (reachedAssignment (before := canonicalWrite) (next := fun _ => next) rfl))⟩, rfl⟩
   · intro place
     refine .step (middle := place) leftRead ?_ (.step (.hostSet rfl) ?_ (.done _ _))
     · rw [transitionEdit, focus]
