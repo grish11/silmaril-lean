@@ -561,6 +561,25 @@ def SharedRecordAllocation.call (site : SharedRecordAllocation) (cx : LiftLowerC
   let request := site.request
   .reallocate cx request.oldPtr request.oldSize request.alignment request.newSize
 
+/-- Finish the canonical allocator after the original synchronous lift returns. -/
+def sharedRecordAllocatorResult (cx : LiftLowerContext (core3 grow)) (caller : CallerId) :
+    Session grow sig (Ret (core3 grow)) := do
+  modifyStore LiftSt.decNestingSt
+  modifyInst cx.inst (LiftSt.setMayLeave true)
+  match ← getObj ArenaField.callers caller with
+  | .sub (.realloc _ (some (.int _ n))) => return .nat n.toNat
+  | _ => internal "reallocate: realloc did not resolve with a pointer"
+
+/-- The allocator parent parked by the actual synchronous lift worker resume. -/
+def sharedRecordAllocatorAfterResume (cx : LiftLowerContext (core3 grow)) (task : TaskId) (caller : CallerId) :
+    Session grow sig (Ret (core3 grow)) := do
+  callUnit (.loop (.syncLiftLoop task))
+  sharedRecordAllocatorResult cx caller
+
+def sharedRecordAllocatorAfterThread (cx : LiftLowerContext (core3 grow)) (task : TaskId) (caller : CallerId)
+    (worker : ThreadId) : Session grow sig (Ret (core3 grow)) :=
+  Thread.resume worker >>= fun _ => sharedRecordAllocatorAfterResume cx task caller
+
 open Stored.Endpoints in
 def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
@@ -2347,7 +2366,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (compiled : site.compiled cx)
-      (allocator : ∃ f, cx.opts.realloc = some f)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : left.ctl = check.control (.op (.call (site.call cx)) (site.resume cx leftNext)))
@@ -2359,6 +2377,26 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonicalBody : peer.ctl = (PayloadPrefix.Cursor.mk canon.thread
           (.prog (site.resume cx rightNext) :: canon.frames) canon.rest).control
         (specDispatch ready (LiveDispatch.host bindings base) (site.call cx)))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual allocator worker resumed. Its parent keeps the exact
+  synchronous loop, caller lookup and original allocator return segment. -/
+  | sharedDropRecordAllocatorResumed {changes left right reached peer trailing finish body callee task caller worker}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (workerSource : left.cont? worker =
+        some (StepDefs.threadAct (specDispatch ready base) worker (.liftImplicit task callee)))
+      (peerSource : right.cont? worker =
+        some (StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) worker (.liftImplicit task callee)))
+      (checkedResume : Step profile ready (specDispatch ready base) left .tau reached)
+      (canonicalResume : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer)
+      (checkedAt : reached.ctl = StepDefs.threadAct (specDispatch ready base) worker (.liftImplicit task callee) ::
+        check.control (sharedRecordAllocatorAfterResume cx task caller))
+      (canonicalAt : peer.ctl = StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) worker (.liftImplicit task callee) ::
+        canon.control (sharedRecordAllocatorAfterResume cx task caller))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent

@@ -2848,7 +2848,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -2910,7 +2911,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
+  | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -13607,19 +13609,19 @@ private def destructorResumeEdits (thread : ThreadId) (store : CStore (core3 gro
   if store.threadIs Thread.waiting thread then [id, CStore.stopWaitingSt thread] else [id]
 
 open ReturnFrame.Occurrence in
-private theorem sharedDestructorResumePath {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    (body : ThreadBody (core3 grow)) (ticket : Nat) (thread : ThreadId)
-    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (focus : start.ctl = cursor.control (sharedDestructorAfterInstall body ticket thread)) :
+private theorem sharedThreadResumePath {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (thread : ThreadId) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (after : Session grow sig (Ret (core3 grow)))
+    (focus : start.ctl = cursor.control ((Thread.resume thread >>= fun _ => after))) :
     FramedQuietPath profile ready dispatch cursor start (destructorResumeEdits thread start.store)
       { start with store := destructorResumeStore thread start.store
-                   ctl := cursor.control (.op (.resumeThread thread) (fun _ => sharedDestructorAfterResume body ticket)) } := by
+                   ctl := cursor.control (.op (.resumeThread thread) (fun _ => after)) } := by
   let next : Session grow sig (Ret (core3 grow)) :=
-    .op (.resumeThread thread) (fun _ => sharedDestructorAfterResume body ticket)
+    .op (.resumeThread thread) (fun _ => after)
   let wait (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
     (if store.threadIs Thread.waiting thread then Thread.stopWaiting thread else pure ()) >>= fun _ => next
-  have source : sharedDestructorAfterInstall (sig := sig) body ticket thread = .op .get wait := by
-    simp [sharedDestructorAfterInstall, Thread.resume, getStore, perform, Prog.lift, bind, Prog.bind, resumeThread, next, wait]
+  have source : (Thread.resume thread >>= fun _ => after) = .op .get wait := by
+    simp [Thread.resume, getStore, perform, Prog.lift, bind, Prog.bind, resumeThread, next, wait]
     congr 1
     funext store
     let stop : Session grow sig Unit :=
@@ -13627,7 +13629,7 @@ private theorem sharedDestructorResumePath {dispatch : Call (core3 grow) → Ses
         Thread.stopWaiting thread
       else pure ()
     exact Prog.bind_assoc stop (fun _ => Prog.op (.resumeThread thread) Prog.pure)
-      (fun _ => sharedDestructorAfterResume body ticket)
+      (fun _ => after)
   have read : Step profile ready dispatch start .tau { start with ctl := cursor.control (wait start.store) } :=
     .get (th := cursor.thread) (segs := cursor.frames) (rest := cursor.rest) (k := wait) (source ▸ focus)
   have readEdit : transitionEdit start .tau = .same := by rw [transitionEdit, focus, source]; rfl
@@ -13645,6 +13647,15 @@ private theorem sharedDestructorResumePath {dispatch : Call (core3 grow) → Ses
     exact .step read readEdit rfl
       (.step (.modify (th := cursor.thread) (segs := cursor.frames) (rest := cursor.rest) (k := fun _ => next) rfl)
         rfl rfl .done)
+
+open ReturnFrame.Occurrence in
+private theorem sharedDestructorResumePath {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (body : ThreadBody (core3 grow)) (ticket : Nat) (thread : ThreadId)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (focus : start.ctl = cursor.control (sharedDestructorAfterInstall body ticket thread)) :
+    FramedQuietPath profile ready dispatch cursor start (destructorResumeEdits thread start.store)
+      { start with store := destructorResumeStore thread start.store
+                   ctl := cursor.control (.op (.resumeThread thread) (fun _ => sharedDestructorAfterResume body ticket)) } := sharedThreadResumePath thread cursor (sharedDestructorAfterResume body ticket) focus
 
 private theorem relatedSetSlot {α : Type} {relation : Option α → Option α → Prop}
     (empty : relation none none) {lhs rhs : List (Option α)} (paired : List.Forall₂ relation lhs rhs)
@@ -18162,6 +18173,130 @@ private theorem crossDestructorRecordPrepare {limit : Nat}
           (.sharedRecordPrepare mismatch (.same leftProbe rfl (.done _)) (.same rightProbe rfl (.done _))) residual)
   · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
 
+private def sharedRecordAllocatorSetup (cx : LiftLowerContext (core3 grow)) (request : ABI.ReallocRequest) :
+    Session grow sig ((core3 grow).FuncAddr × TaskId × CallerId) := do
+  let width ← ptrType cx
+  let callee ← orTrap (.internal "reallocate: realloc option missing") cx.opts.realloc
+  let kind := ptrIntKind width
+  let args : List Value.Val :=
+    [.int kind request.oldPtr, .int kind request.oldSize, .int kind request.alignment, .int kind request.newSize]
+  let caller ← allocObj ArenaField.callers (Caller.sub (.realloc args none) : Caller (core3 grow))
+  let thread ← currentThread
+  trapIf (!(← getInst cx.inst).mayLeave) .cannotLeave
+  modifyInst cx.inst (LiftSt.setMayLeave false thread)
+  modifyStore LiftSt.incNestingSt
+  let task ← allocObj ArenaField.tasks ({ ft := reallocType width, opts := {}, inst := cx.inst, caller } : Task (core3 grow))
+  return (callee, task, caller)
+
+private theorem sharedRecordAllocatorSetupEffects (cx : LiftLowerContext (core3 grow)) (request : ABI.ReallocRequest) :
+    StoreEffects (sharedRecordAllocatorSetup cx request : Session grow sig _) := by
+  have readThread : StoreEffects (currentThread : Session grow sig (Option ThreadId)) := .op rfl fun thread => .pure thread
+  unfold sharedRecordAllocatorSetup
+  refine (storeEffectPtrType cx).bind fun width => (storeEffectOrTrap _ _).bind fun _ => ?_
+  refine (storeEffectArenaAlloc ArenaField.callers _).bind fun caller => readThread.bind fun thread => ?_
+  refine (storeEffectGetObject ArenaField.insts cx.inst).bind fun inst => (storeEffectTrapIf (!inst.mayLeave) .cannotLeave).bind fun _ => ?_
+  refine (storeEffectModify _).bind fun _ => (storeEffectModify _).bind fun _ => ?_
+  exact (storeEffectArenaAlloc ArenaField.tasks _).bind fun task => .pure _
+
+private theorem sharedRecordAllocatorSetupCode (cx : LiftLowerContext (core3 grow)) (request : ABI.ReallocRequest) :
+    (reallocProg Limits.spec Quirks.none cx request.oldPtr request.oldSize request.alignment request.newSize :
+      Session grow sig (Ret (core3 grow))) =
+    (sharedRecordAllocatorSetup cx request >>= fun (callee, task, caller) =>
+      .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)) := by
+  have entered (callee : (core3 grow).FuncAddr) (task : TaskId) (caller : CallerId) :
+      ((newThread (.liftImplicit task callee) : Session grow sig ThreadId) >>= fun worker => do
+        Thread.resume worker
+        callUnit (.loop (.syncLiftLoop task))
+        pure (Ret.cancel (.task task) : Ret (core3 grow))) >>= (fun _ => sharedRecordAllocatorResult cx caller) =
+      .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller) := by
+    simp only [Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+    rfl
+  simp [reallocProg, sharedRecordAllocatorSetup, canonLift, reallocType, Prog.bind_assoc,
+    sharedRecordAllocatorResult, ← entered]
+  iterate 15 (congr 1; funext)
+  rename_i record
+  cases record <;> try rfl
+  rename_i sub
+  cases sub <;> try rfl
+  rename_i result
+  cases result with
+  | none => rfl
+  | some value => cases value <;> rfl
+
+
+open ReturnFrame.Occurrence in
+private theorem crossDestructorRecordAllocatorWorker {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : DestructorParentChain older body check.rest canon.rest) (thread : check.thread = canon.thread)
+    (cx : LiftLowerContext (core3 grow)) (callee : (core3 grow).FuncAddr) (task : TaskId) (caller : CallerId)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (.op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)))
+    (canonical : incoming.ctl = canon.control (.op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let source : ThreadBody (core3 grow) := .liftImplicit task callee
+  let allocated := ArenaField.threads.alloc start.store { task := task }
+  let worker := allocated.2
+  let saved := StepDefs.threadAct (specDispatch ready base) worker source
+  let afterThread := sharedRecordAllocatorAfterThread (sig := sig) cx task caller
+  let parent := sharedRecordAllocatorAfterResume (sig := sig) cx task caller
+  let left := { start.setCont worker (some saved) with store := allocated.1, ctl := check.control (afterThread worker) }
+  let right := { incoming.setCont worker (some saved) with store := allocated.1, ctl := canon.control (afterThread worker) }
+  have install : Step profile ready (specDispatch ready base) start .tau left := .newThread checked rfl
+  have peerInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+    .newThread canonical (by rw [← stores]; rfl)
+  rcases splitSilent (count := 1) (.cons install (.refl _)) run with ⟨afterInstall, used, residual⟩ | short
+  · rw [used]
+    have installed := sharedSchedulerTransport (bindings := bindings) (edit := .write worker.idx []) install peerInstall
+      (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical, ← stores]; rfl)
+    have savedAlignment (aligned : DestructorSchedulerAlignment older start incoming) :
+        DestructorSchedulerAlignment older left right :=
+      ⟨relatedSetSlot .none aligned.1 worker.idx (.some (.mk .nil)), aligned.2⟩
+    refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) savedAlignment ?_
+    let leftResume := { left with
+      store := destructorResumeStore worker left.store, ctl := check.control (.op (.resumeThread worker) (fun _ => parent)) }
+    let rightResume := { right with
+      store := destructorResumeStore worker right.store, ctl := canon.control (.op (.resumeThread worker) (fun _ => parent)) }
+    have beforeResume := sharedThreadResumePath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (start := left) worker check parent rfl
+    have peerBeforeResume := sharedThreadResumePath (profile := profile) (ready := ready)
+      (dispatch := specDispatch ready (LiveDispatch.host bindings base)) (start := right) worker canon parent rfl
+    obtain ⟨leading, remaining, reached, peer, split, paths, writers, tail, ending⟩ :=
+      cutSharedQuietWorker beforeResume peerBeforeResume residual
+    rw [split]
+    rcases ending with empty | ⟨rfl, rfl⟩
+    · subst remaining
+      cases tail
+      exact .comparedPrefix paths writers .exhausted
+    · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+      have leftFound : leftResume.cont? worker = some saved := Config.cont?_setCont_self start worker (some saved)
+      have rightFound : rightResume.cont? worker = some saved := Config.cont?_setCont_self incoming worker (some saved)
+      let active := { leftResume.setCont worker none with
+        store := StepDefs.threadStatusSt worker .running leftResume.store, ctl := saved :: check.control parent }
+      let peerActive := { rightResume.setCont worker none with
+        store := StepDefs.threadStatusSt worker .running rightResume.store, ctl := saved :: canon.control parent }
+      have resume : Step profile ready (specDispatch ready base) leftResume .tau active :=
+        .resumeThread (th := check.thread) (k := fun _ => parent) (segs := check.frames) (rest := check.rest) rfl leftFound
+      have peerResume : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightResume .tau peerActive :=
+        .resumeThread (th := canon.thread) (k := fun _ => parent) (segs := canon.frames) (rest := canon.rest) rfl rightFound
+      rcases splitSilent (count := 1) (.cons resume (.refl _)) tail with ⟨suffix, usedResume, actual⟩ | short
+      · rw [usedResume]
+        have moved := sharedSchedulerTransport (bindings := bindings) (edit := .resume worker.idx) resume peerResume rfl rfl
+        have activeAlignment (aligned : DestructorSchedulerAlignment older leftResume rightResume) :
+            DestructorSchedulerAlignment older active peerActive := ⟨relatedSetSlot .none aligned.1 worker.idx .none, aligned.2⟩
+        exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) activeAlignment
+          (.sharedDropRecordAllocatorResumed parents thread rfl (activeAlignment (savedAlignment scheduler))
+            leftFound rightFound resume peerResume rfl rfl actual)
+      · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
+        have stopped := stepsAtEmpty (empty ▸ tail)
+        rw [empty, stopped]
+        exact .exhausted
+  · have empty : labels = [] := List.length_eq_zero_iff.mp (by omega)
+    have stopped := stepsAtEmpty (empty ▸ run)
+    rw [empty, stopped]
+    exact .exhausted
+
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem crossDestructorRecordAllocator {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -18193,25 +18328,21 @@ private theorem crossDestructorRecordAllocator {limit : Nat} {body : ThreadBody 
       (show transitionEdit left .tau = .push (.prog first) by rw [transitionEdit, checked]; rfl)
       (show transitionEdit right .tau = .push (.prog second) by rw [transitionEdit, canonical]; rfl)
     refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned) ?_
-    by_cases missing : cx.opts.realloc = none
-    · let reason : TrapReason := .internal "reallocate: realloc option missing"
-      have code : program = (ptrType cx >>= fun _ => trap reason) := by
-        change reallocProg Limits.spec Quirks.none cx site.request.oldPtr site.request.oldSize site.request.alignment site.request.newSize = _
-        unfold reallocProg
-        simp only [missing, orTrap]
-        apply congrArg (fun next => (ptrType cx : Session grow sig AddrType) >>= next)
-        funext pointerWidth
-        change (internal "reallocate: realloc option missing" : Session grow sig (core3 grow).FuncAddr).bind _ =
-          internal "reallocate: realloc option missing"
-        rw [internalBind]
-      exact crossSharedWorkerBodyWith (check := checkEntered) (canon := canonEntered) thread
-        (ptrType cx) (fun _ => trap reason) (fun _ => trap reason)
-        (liftDestructorStoreEffects (storeEffectPtrType cx) (trivialPreserves _))
-        trivial stores (congrArg checkEntered.control code) (congrArg canonEntered.control code) residual
-        (fun _ _ _ _ leftAt rightAt _ tail => compareSharedDestructorTrap reason leftAt rightAt tail)
-    · exact .sharedDropRecordAllocatorBody (check := check) (canon := canon) (site := site)
-        parents thread segments compiled (Option.ne_none_iff_exists'.mp missing) stores scheduler checked canonical
-        install peerInstall rfl rfl residual
+    refine .sharedDropRecordAllocatorBody (check := check) (canon := canon) (site := site)
+      parents thread segments compiled stores scheduler checked canonical install peerInstall rfl rfl ?_
+    have code : program = (sharedRecordAllocatorSetup cx site.request >>= fun (callee, task, caller) =>
+        .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)) :=
+      sharedRecordAllocatorSetupCode cx site.request
+    let setup := sharedRecordAllocatorSetup (sig := sig) cx site.request
+    let worker : (core3 grow).FuncAddr × TaskId × CallerId → Session grow sig (Ret (core3 grow)) :=
+      fun (callee, task, caller) => .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)
+    refine crossSharedWorkerBodyWith (check := checkEntered) (canon := canonEntered) thread setup worker worker
+      (liftDestructorStoreEffects (sharedRecordAllocatorSetupEffects cx site.request) (trivialPreserves _)) trivial stores
+      (congrArg checkEntered.control code) (congrArg canonEntered.control code) residual ?_
+    intro left right remaining source _ _ same leftAt rightAt aligned tail
+    obtain ⟨callee, task, caller⟩ := source
+    exact crossDestructorRecordAllocatorWorker (check := checkEntered) (canon := canonEntered)
+      parents thread cx callee task caller same leftAt rightAt (aligned scheduler) tail
 
 open Stored.Endpoints in
 private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
