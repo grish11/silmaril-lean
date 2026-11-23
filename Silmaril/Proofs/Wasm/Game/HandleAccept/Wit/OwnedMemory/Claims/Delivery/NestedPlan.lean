@@ -2893,6 +2893,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     exact append front (append completed tail)
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | sourceOverlayGiveSelected _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
@@ -2968,6 +2969,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | refused install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
+  | sourceOverlayGiveSelected _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -10819,7 +10821,8 @@ private theorem cutGiveDemandedRead (request : GiveSelector bindings) (worker : 
   rw [used]
   refine callbackTerminalSlice paired (.giveLookupMismatch (beforeLeft := beforeLeft) (beforeRight := beforeRight)
     (canonical := [.tau, .tau, .tau] ++ List.replicate 6 .tau)
-    (check := check) (canon := canon) (checkNext := checkNext) (canonNext := canonNext) request
+    (check := check) (canon := canon) (checkNext := checkNext) (canonNext := canonNext)
+    (marks := [some (.active 0 0)]) request
     ?_ rfl rfl checkRead canonRead demand (boundary.resolve_left short))
   exact giveBodyAtEntryFrontier rfl sameStore moved tail (entryWriters.append (.framed checkPath.2 canonPath.2))
 
@@ -21171,6 +21174,172 @@ private theorem finishDeniedSourceImport {limit : Nat}
         omega
       exact resume words stores scheduler leftReply rawReply tail shorter
 
+open ReturnFrame.Occurrence in
+private theorem crossSourceCheckedJournal
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {target : Config (core3 grow) (HostState sig)}
+    (path : FramedQuietPath profile ready (specDispatch ready base) check start [id, id] target)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (next : ∀ {remaining : Trace grow sig},
+      Steps profile ready (specDispatch ready base) target remaining finish → remaining.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older target incoming remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  rcases splitSilent (count := 2) (path.1.track (.active 0 0)).toTrail.steps run with ⟨remaining, split, residual⟩ | short
+  · rw [split]
+    exact .comparedPrefix
+      (CallbackPrefix.stationaryTransport path.1.track (fun place => .done incoming place))
+      (.framed path.2 (.done incoming))
+      (next residual (destructorSuffixBound split (Nat.le_refl _)))
+  · obtain ⟨_, tracks⟩ := quietCheckedShort path.1 run short
+    rw [← List.append_nil labels]
+    exact .comparedPrefix
+      (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+      (.framed (takeQuietWriterPath path.2 run (Nat.le_of_lt short)) (.done incoming)) .exhausted
+
+private theorem finishSourceOverlayVerdict {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (request : GiveSelector bindings)
+    (ticket : Nat) (verdict : Except Scheduled.Issue (SelectionValue sig request.schema))
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (evaluation : Plain.runBody request.program start.store start.host (some check.thread) =
+      (start.store, start.host, .ok verdict))
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (request.checkedContinuation start.store check.thread (ticket, verdict)))
+    (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread verdict))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases verdict with
+  | ok selected =>
+    cases run with
+    | refl => exact .exhausted
+    | cons step tail =>
+      exact .sourceOverlayGiveSelected request selected parents thread segments (request.admitted start check.thread evaluation)
+        stores scheduler checked canonical (.cons step tail)
+  | error issue =>
+    let reply := giveAdmissionReply ticket request.destination request.schema issue
+    have checkedReply := (selectorRefusalReplies request start.store check.thread ticket issue).1
+    have rawReply := (selectorRefusalReplies request incoming.store canon.thread ticket issue).2
+    have journal := checkedCompletionPath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      reply (checked.trans (congrArg check.control checkedReply))
+    exact crossSourceCheckedJournal journal run (fun residual shorter =>
+      resume reply.2 stores scheduler rfl (canonical.trans (congrArg canon.control rawReply)) residual (shorter.trans within))
+
+open ReturnFrame.Occurrence in
+private theorem finishSourceOverlayGive {limit : Nat}
+    {worker frame frames peerFrames rest peerRest}
+    (request : GiveSelector bindings)
+    (parents : SourceParentStack older rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder request.name request.kind) request.args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        incoming.store (some worker) (.embedder request.name request.kind) request.args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older
+      ⟨some worker, frame :: frames, rest⟩ ⟨some worker, frame :: peerFrames, peerRest⟩ limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: peerFrames, peerRest⟩
+  let checkedNext (verdict : Except Scheduled.Issue (SelectionValue sig request.schema)) :=
+    request.checkedContinuation start.store check.thread (start.host.nextTicket, verdict)
+  let canonicalNext := request.canonicalContinuation incoming.store canon.thread
+  let entered := { start with
+    host := start.host.enter request.name request.kind request.args
+    ctl := check.control (request.program >>= checkedNext) }
+  have journal : FramedQuietPath profile ready (specDispatch ready base) check start [id, id] entered :=
+    checkedSelectorJournalPath request check
+      (checked.trans (congrArg check.control (request.body_split (ready := ready) (base := base) start.store check.thread base embedder).1))
+  have rawAt : incoming.ctl = canon.control (request.program >>= canonicalNext) :=
+    canonical.trans (congrArg canon.control (request.body_split (ready := ready) (base := base) incoming.store canon.thread base embedder).2)
+  refine crossSourceCheckedJournal journal run ?_
+  intro afterJournal residual journalBound
+  have underLimit := journalBound.trans within
+  generalize scan : scanSelector start.store check.thread request.program = scanned
+  obtain ⟨count, pending⟩ := scanned
+  have certified := selectorScanFrontier request start.store check.thread
+  rw [scan] at certified
+  have canonicalScan : scanSelector incoming.store canon.thread request.program = (count, pending) := stores ▸ scan
+  let left := { entered with ctl := check.control (pending >>= checkedNext) }
+  let right := { incoming with ctl := canon.control (pending >>= canonicalNext) }
+  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check entered (List.replicate count id) left := by
+    have path := scanSelectorPath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      (start := entered) check request.program checkedNext rfl
+    rw [show scanSelector entered.store check.thread request.program = (count, pending) from scan] at path
+    exact path
+  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon
+      incoming (List.replicate count id) right := by
+    have path := scanSelectorPath (profile := profile) (ready := ready)
+      (dispatch := specDispatch ready (LiveDispatch.host bindings base)) canon request.program canonicalNext rawAt
+    rw [canonicalScan] at path
+    exact path
+  obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ :=
+    cutSharedQuietWorker leftPath rightPath residual
+  rw [split]
+  rcases ending with empty | ⟨rfl, rfl⟩
+  · subst remaining
+    cases tail
+    exact .comparedPrefix paths writers .exhausted
+  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+    have bounded := destructorSuffixBound split underLimit
+    have evaluated := scanSelectorEval start.store check.thread entered.host request.program
+    rw [scan] at evaluated
+    cases certified with
+    | trapped reason =>
+      have bindTrap (next : Except Scheduled.Issue (SelectionValue sig request.schema) → Session grow sig (Ret (core3 grow))) :
+          (trap reason >>= next) = trap reason := by
+        simp only [trap, Prog.bind_eq, Prog.bind]
+        congr 1
+        funext impossible
+        cases impossible
+      have atLeft : left.ctl = check.control (trap reason) := congrArg check.control (bindTrap checkedNext)
+      have atRight : right.ctl = canon.control (trap reason) := congrArg canon.control (bindTrap canonicalNext)
+      exact compareSharedDestructorTrap reason atLeft atRight tail
+    | verdict result =>
+      exact finishSourceOverlayVerdict (check := check) (canon := canon) request
+        start.host.nextTicket result parents rfl (.cons (.same _) segments)
+        evaluated.symm stores rfl rfl scheduler tail bounded resume
+    | lookup handle decode demand =>
+      let checkedFollow := fun found => checkedNext (decode found)
+      let canonicalFollow := fun found => canonicalNext (decode found)
+      have leftAt : left.ctl = check.control (select handle >>= checkedFollow) := by
+        change check.control (((select handle).bind fun found => .pure (decode found)).bind checkedNext) = _
+        rw [Prog.bind_assoc]
+        rfl
+      have rightAt : right.ctl = canon.control (select handle >>= canonicalFollow) := by
+        change canon.control (((select handle).bind fun found => .pure (decode found)).bind canonicalNext) = _
+        rw [Prog.bind_assoc]
+        rfl
+      obtain ⟨read, readPath⟩ := selectorReadStep (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+        check handle checkedFollow leftAt
+      obtain ⟨peerRead, peerPath⟩ := selectorReadStep (profile := profile) (ready := ready)
+        (dispatch := specDispatch ready (LiveDispatch.host bindings base)) canon handle canonicalFollow rightAt
+      rcases inspectReplyStep tail with ⟨rfl, stopped⟩ | ⟨_, _, _, rfl, actual, tail⟩
+      · exact stopped ▸ .exhausted
+      ·
+        obtain ⟨rfl, rfl⟩ := silentStepUnique read actual
+        have moved := CallbackPrefix.stationaryTransport (bindings := bindings) readPath.1.track peerPath.1.track
+        let lhs := Stored.Endpoints.Core.childFromHistory left.host.writer.accepted handle
+        let rhs := Stored.Endpoints.Core.childFromHistory right.host.writer.accepted handle
+        by_cases agrees : lhs = rhs
+        · refine .destructorPrefix moved (.framed readPath.2 peerPath.2) (fun aligned => aligned) ?_
+          exact finishSourceOverlayVerdict (check := check) (canon := canon) request
+            start.host.nextTicket (decode lhs) parents rfl (.cons (.same _) segments)
+            evaluated.symm stores rfl (congrArg (fun result => canon.control (canonicalFollow result)) agrees.symm)
+            scheduler tail (Nat.le_of_succ_le bounded) resume
+        · let checkedRead := { left with ctl := check.control (checkedFollow lhs) }
+          let canonicalRead := { right with ctl := canon.control (canonicalFollow rhs) }
+          exact .giveLookupMismatch (beforeLeft := left) (beforeRight := right)
+            (left := checkedRead) (right := canonicalRead) (checked := [.tau]) (canonical := [.tau])
+            (check := check) (canon := canon) (marks := []) request
+            ⟨rfl, stores, moved, tail, .framed readPath.2 peerPath.2⟩ leftAt rightAt read peerRead demand agrees
+
 private abbrev SourceOwnerDropAt
     (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
     (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -21439,14 +21608,24 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
                       exact finishDeniedSourceImport embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked)
                         (fun permitted => context ⟨lhs ▸ permitted.1, lhs ▸ permitted.2⟩)
                         (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
-                  · cases binding : resolveBinding bindings name kind with
-                    | ok _ => exact otherwise
-                    | error issue =>
+                  · by_cases overlay : ∃ (inst : InstId) (destination : RecordDestination) (schema : Option Stored.TypeOf),
+                        resolveBinding bindings name kind =
+                        .ok ⟨name, inst, schema.elim (.givePayload destination) (.giveFlat destination)⟩
+                    · obtain ⟨inst, destination, schema, linked⟩ := overlay
+                      let request : GiveSelector bindings := ⟨name, kind, args, inst, destination, schema, linked⟩
                       refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
                       refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
                       intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
-                      exact finishDestructorBindingTrap (check := check) (canon := canon)
-                        (congrFun (congrFun (congrFun embedder name) kind) args) binding leftAt rightAt run
+                      exact finishSourceOverlayGive request (.prefixed resumers parents) segments embedder
+                        (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
+                    · cases binding : resolveBinding bindings name kind with
+                      | ok _ => exact otherwise
+                      | error issue =>
+                        refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                        refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                        intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                        exact finishDestructorBindingTrap (check := check) (canon := canon)
+                          (congrFun (congrFun (congrFun embedder name) kind) args) binding leftAt rightAt run
               · exact otherwise
           | _ => exact otherwise
         cases actual with
@@ -22056,12 +22235,19 @@ private theorem compareAdmittedSourceLinkedWith {limit cap : Nat}
         · exact finishDeniedSourceImport (frames := []) (peerFrames := [])
             embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked) context
             stores checked canonical run scheduler within resume
-      · cases binding : resolveBinding bindings name kind with
-        | ok _ => exact frontier
-        | error issue =>
-          exact finishDestructorBindingTrap
-            (check := ⟨some worker, [frame], rest⟩) (canon := ⟨some worker, [frame], peerRest⟩)
-            (congrFun (congrFun (congrFun embedder name) kind) args) binding checked canonical run
+      · by_cases overlay : ∃ (inst : InstId) (destination : RecordDestination) (schema : Option Stored.TypeOf),
+            resolveBinding bindings name kind =
+            .ok ⟨name, inst, schema.elim (.givePayload destination) (.giveFlat destination)⟩
+        · obtain ⟨inst, destination, schema, linked⟩ := overlay
+          let request : GiveSelector bindings := ⟨name, kind, args, inst, destination, schema, linked⟩
+          exact finishSourceOverlayGive (frames := []) (peerFrames := []) request parents .nil embedder
+            stores checked canonical run scheduler within resume
+        · cases binding : resolveBinding bindings name kind with
+          | ok _ => exact frontier
+          | error issue =>
+            exact finishDestructorBindingTrap
+              (check := ⟨some worker, [frame], rest⟩) (canon := ⟨some worker, [frame], peerRest⟩)
+              (congrFun (congrFun (congrFun embedder name) kind) args) binding checked canonical run
   · exact frontier
 
 private theorem narrowSourceSwitch {lower upper : Nat}

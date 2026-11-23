@@ -2941,10 +2941,10 @@ induction. Its trails still identify the removed original occurrences. -/
       (trapped : PayloadPrefix.visible checked = [.trap reason])
       (checkedLocked : left.ctl = []) (canonicalLocked : right.ctl = []) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | giveLookupMismatch {changes reached peer beforeLeft beforeRight left right checked canonical trailing finish handle}
+  | giveLookupMismatch {changes reached peer beforeLeft beforeRight left right checked canonical trailing finish handle marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {checkNext canonNext}
       (request : GiveSelector bindings)
-      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [some (.active 0 0)])
+      (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish marks)
       (checkedFocus : beforeLeft.ctl = check.control (select handle >>= checkNext))
       (canonicalFocus : beforeRight.ctl = canon.control (select handle >>= canonNext))
       (checkedRead : Step profile ready (specDispatch ready base) beforeLeft .tau left)
@@ -2953,6 +2953,21 @@ induction. Its trails still identify the removed original occurrences. -/
       (different : Stored.Endpoints.Core.childFromHistory beforeLeft.host.writer.accepted handle ≠
         Stored.Endpoints.Core.childFromHistory beforeRight.host.writer.accepted handle) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
+  /-- Both actual raw-overlay selectors admitted the reached source.
+  Their own lowering programs and the original caller frames are still pending. -/
+  | sourceOverlayGiveSelected {changes reached peer trailing finish ticket}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
+      (parents : SourceParentStack changes check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (admission : request.Admitted reached check.thread selected)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (request.checkedContinuation reached.store check.thread (ticket, .ok selected)))
+      (canonical : peer.ctl = canon.control (request.canonicalContinuation peer.store canon.thread (.ok selected)))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
