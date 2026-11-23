@@ -981,7 +981,7 @@ inductive GiveBodyStop (profile : ProfileKind) (ready : HostReady (HostState sig
       (choice : workerBranchLabel taken) (shared : Steps profile ready (specDispatch ready base) left leading middle)
       (step : Step profile ready (specDispatch ready base) middle taken next)
       (tail : Steps profile ready (specDispatch ready base) next suffix finish)
-  | allocatorInstall {count : Nat} (short : trailing.length < count)
+  | allocatorInstall (exhausted : trailing = [])
   | coreReplyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue)
       (reached : CheckedCoreReplyPrefix profile ready (specDispatch ready base) left trailing finish)
   | callerNotTop (refusal : Option Stored.Endpoints.RecordLower.Issue) (missing : caller ≠ some (.active 0 0))
@@ -1580,9 +1580,9 @@ inductive StringSliceEnd (profile : ProfileKind) (ready : HostReady (HostState s
       (step : Step profile ready (specDispatch ready base) middle taken next)
       (tail : Steps profile ready (specDispatch ready base) next suffix finish) :
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
-  | installPrefix (short : trailing.length < 1) :
+  | installPrefix (exhausted : trailing = []) :
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
-  | collectionInstall (short : trailing.length < 3) :
+  | collectionInstall (exhausted : trailing = []) :
       StringSliceEnd profile ready base bindings older describe checked canonical trailing finish []
   | collectionRange {reached remaining marks} (nonempty : remaining ≠ [])
       (localTail : Steps profile ready (specDispatch ready base) finish remaining reached) :
@@ -6119,7 +6119,7 @@ inductive ValueVisitEnd (profile : ProfileKind) (ready : HostReady (HostState si
   | boundary {marks} (reached : StringSliceEnd profile ready base bindings older (fun _ _ _ _ _ => False)
       left right trailing finish marks) :
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish marks
-  | collectionInstall (short : trailing.length < 3) :
+  | collectionInstall (exhausted : trailing = []) :
       ValueVisitEnd profile ready base bindings older origin valueType pending checkNext canonNext left right trailing finish []
   | collectionRange {target remaining marks} (nonempty : remaining ≠ [])
       (tail : Steps profile ready (specDispatch ready base) finish remaining target) :

@@ -3022,8 +3022,9 @@ private theorem driveStringSlice {cx : LiftLowerContext (core3 grow)}
           rcases sliceInstalledCallback visit.1 (by decide) remainder
             (fun smaller run pair => compare (Nat.lt_of_lt_of_le smaller boundedLocal) run pair) with
             beforeInstall | ⟨checkCall, canonCall, trailing, reached, reference, installSplit, input, boundary⟩
-          · exact ⟨localLabels, localLabels, remaining, _, _, [], split, rfl, localTrail, rfl, remainder,
-              .framed lhsEffects rhsEffects, .installPrefix beforeInstall⟩
+          · have exhausted : remaining = [] := List.length_eq_zero_iff.mp (by omega)
+            exact ⟨localLabels, localLabels, remaining, _, _, [], split, rfl, localTrail, rfl, remainder,
+              .framed lhsEffects rhsEffects, .installPrefix exhausted⟩
           obtain ⟨checkProof, canonProof, referenceProof, mark, _, _, checkSeen, canonSeen, paired, _,
             tracked, movement, index, returns⟩ := visit.2 input
           change (checkCall, canonCall, reference) = (checkProof, canonProof, referenceProof) at index
@@ -3184,8 +3185,8 @@ private theorem driveStringCommitWithWriters {destination : RecordDestination} {
   cases ending with
   | localPrefix nonempty tail => exact stop (.localPrefix nonempty tail)
   | localChoice split choice shared step tail => exact stop (.localChoice split choice shared step tail)
-  | installPrefix short => exact stop (.installPrefix short)
-  | collectionInstall short => exact stop (.collectionInstall short)
+  | installPrefix exhausted => exact stop (.installPrefix exhausted)
+  | collectionInstall exhausted => exact stop (.collectionInstall exhausted)
   | collectionRange nonempty tail => exact stop (.collectionRange nonempty tail)
   | callback mark paired ending noPop => exact stop (.callback mark paired ending noPop)
   | trap checked canonical => exact stop (.trap checked canonical)
@@ -3240,8 +3241,8 @@ private theorem mapStringEnd
   | trap left right => exact .trap left right
   | localPrefix nonempty tail => exact .localPrefix nonempty tail
   | localChoice split choice shared step tail => exact .localChoice split choice shared step tail
-  | installPrefix short => exact .installPrefix short
-  | collectionInstall short => exact .collectionInstall short
+  | installPrefix exhausted => exact .installPrefix exhausted
+  | collectionInstall exhausted => exact .collectionInstall exhausted
   | collectionRange nonempty tail => exact .collectionRange nonempty tail
   | callback tracked paired terminal notPopped => exact .callback tracked paired terminal notPopped
 
@@ -3607,8 +3608,8 @@ private theorem driveFlatSequence {origin : CStore (core3 grow)} {budget : Nat}
     | trap left right => exact stop (.trap left right)
     | localPrefix nonempty rest => exact stop (.localPrefix nonempty rest)
     | localChoice divided choice shared step suffix => exact stop (.localChoice divided choice shared step suffix)
-    | installPrefix short => exact stop (.installPrefix short)
-    | collectionInstall short => exact stop (.collectionInstall short)
+    | installPrefix exhausted => exact stop (.installPrefix exhausted)
+    | collectionInstall exhausted => exact stop (.collectionInstall exhausted)
     | collectionRange nonempty tail => exact stop (.collectionRange nonempty tail)
     | callback tracked paired terminal notPopped => exact stop (.callback tracked paired terminal notPopped)
     | @descriptor pointer cursor peer reached =>
@@ -3698,8 +3699,8 @@ private theorem driveFlatSum {origin : CStore (core3 grow)} {budget : Nat}
     | trap left right => exact stop (.trap left right)
     | localPrefix nonempty rest => exact stop (.localPrefix nonempty rest)
     | localChoice divided choice shared step suffix => exact stop (.localChoice divided choice shared step suffix)
-    | installPrefix short => exact stop (.installPrefix short)
-    | collectionInstall short => exact stop (.collectionInstall short)
+    | installPrefix exhausted => exact stop (.installPrefix exhausted)
+    | collectionInstall exhausted => exact stop (.collectionInstall exhausted)
     | collectionRange nonempty tail => exact stop (.collectionRange nonempty tail)
     | callback tracked paired terminal notPopped => exact stop (.callback tracked paired terminal notPopped)
     | @descriptor pointer cursor peer reached =>
@@ -6936,8 +6937,8 @@ private theorem driveStringElements (destination : RecordDestination) (inst : In
     | trap lhs rhs => exact keep (.trap lhs rhs)
     | localPrefix nonempty residual => exact keep (.localPrefix nonempty residual)
     | localChoice split branch shared step residual => exact keep (.localChoice split branch shared step residual)
-    | installPrefix short => exact keep (.installPrefix short)
-    | collectionInstall short => exact keep (.collectionInstall short)
+    | installPrefix exhausted => exact keep (.installPrefix exhausted)
+    | collectionInstall exhausted => exact keep (.collectionInstall exhausted)
     | collectionRange nonempty tail => exact keep (.collectionRange nonempty tail)
     | callback tracked paired boundary noPop => exact keep (.callback tracked paired boundary noPop)
     | descriptor returned =>
@@ -7007,8 +7008,8 @@ theorem driveStringListBody (destination : RecordDestination) (inst : InstId) (e
   | trap lhs rhs => exact keep (.trap lhs rhs)
   | localPrefix nonempty residual => exact keep (.localPrefix nonempty residual)
   | localChoice split branch shared step residual => exact keep (.localChoice split branch shared step residual)
-  | installPrefix short => exact keep (.installPrefix short)
-  | collectionInstall short => exact keep (.collectionInstall short)
+  | installPrefix exhausted => exact keep (.installPrefix exhausted)
+  | collectionInstall exhausted => exact keep (.collectionInstall exhausted)
   | collectionRange nonempty tail => exact keep (.collectionRange nonempty tail)
   | callback tracked paired boundary noPop => exact keep (.callback tracked paired boundary noPop)
   | descriptor returned =>
@@ -7206,8 +7207,8 @@ theorem driveStringListAfterRange (destination : RecordDestination) (inst : Inst
       | trap lhs rhs => exact .trap lhs rhs
       | localPrefix nonempty residual => exact .localPrefix nonempty residual
       | localChoice split branch shared step residual => exact .localChoice split branch shared step residual
-      | installPrefix short => exact .installPrefix short
-      | collectionInstall short => exact .collectionInstall short
+      | installPrefix exhausted => exact .installPrefix exhausted
+      | collectionInstall exhausted => exact .collectionInstall exhausted
       | collectionRange nonempty tail => exact .collectionRange nonempty tail
       | callback tracked paired boundary noPop => exact .callback tracked paired boundary noPop
       | descriptor returned =>
@@ -7375,8 +7376,8 @@ private theorem driveMemoryString {origin : CStore (core3 grow)} (destination : 
   | trap left right => exact .boundary (.trap left right)
   | localPrefix nonempty tail => exact .boundary (.localPrefix nonempty tail)
   | localChoice split choice shared step tail => exact .boundary (.localChoice split choice shared step tail)
-  | installPrefix short => exact .boundary (.installPrefix short)
-  | collectionInstall short => exact .collectionInstall short
+  | installPrefix exhausted => exact .boundary (.installPrefix exhausted)
+  | collectionInstall exhausted => exact .collectionInstall exhausted
   | collectionRange nonempty tail => exact .collectionRange nonempty tail
   | callback tracked paired ending noPop => exact .boundary (.callback tracked paired ending noPop)
   | descriptor returned =>
@@ -7435,8 +7436,8 @@ private theorem driveMemorySequence {origin : CStore (core3 grow)} (mode : Track
         exact ⟨checked, canonical, trailing, lhs, rhs, [], split, observed, same, movement, tail, writer, .refused issue check atRefusal pending⟩
       | boundary stopped =>
         exact ⟨checked, canonical, trailing, lhs, rhs, _, split, observed, same, movement, tail, writer, .boundary stopped⟩
-      | collectionInstall short =>
-        exact ⟨checked, canonical, trailing, lhs, rhs, [], split, observed, same, movement, tail, writer, .collectionInstall short⟩
+      | collectionInstall exhausted =>
+        exact ⟨checked, canonical, trailing, lhs, rhs, [], split, observed, same, movement, tail, writer, .collectionInstall exhausted⟩
       | collectionRange nonempty remainder =>
         exact ⟨checked, canonical, trailing, lhs, rhs, _, split, observed, same, movement, tail, writer, .collectionRange nonempty remainder⟩
       | returned check canon related grew checkedAt canonicalAt =>
@@ -7463,7 +7464,7 @@ private theorem wrapMemoryVisit {origin : CStore (core3 grow)} {destination : Re
   | returned check canon frame growth checked canonical => exact .returned check canon frame growth checked canonical
   | refused issue check checked pending => exact .refused (.nested index issue) check checked pending
   | boundary stopped => exact .boundary stopped
-  | collectionInstall short => exact .collectionInstall short
+  | collectionInstall exhausted => exact .collectionInstall exhausted
   | collectionRange nonempty remainder => exact .collectionRange nonempty remainder
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
@@ -7610,8 +7611,8 @@ private theorem driveCollectionPublish {origin visited : CStore (core3 grow)}
     exact ⟨checked, canonical, trailing, lhs, rhs, [], split, seen, movementStore, movement, tail, writer,
       .refused (.nested index issue) check checkedAt (atChild _ pending)⟩
   | boundary stopped => exact ⟨checked, canonical, trailing, lhs, rhs, marks, split, seen, movementStore, movement, tail, writer, .boundary stopped⟩
-  | collectionInstall short =>
-    exact ⟨checked, canonical, trailing, lhs, rhs, [], split, seen, movementStore, movement, tail, writer, .collectionInstall short⟩
+  | collectionInstall exhausted =>
+    exact ⟨checked, canonical, trailing, lhs, rhs, [], split, seen, movementStore, movement, tail, writer, .collectionInstall exhausted⟩
   | collectionRange nonempty residual =>
     exact ⟨checked, canonical, trailing, lhs, rhs, _, split, seen, movementStore, movement, tail, writer, .collectionRange nonempty residual⟩
   | returned check canon paired grew checkedAt canonicalAt =>
@@ -7764,8 +7765,8 @@ private theorem driveMemoryMapEntries {origin : CStore (core3 grow)} {budget byt
           | refused issue check checkedAt pending =>
             exact ⟨checked, canonical, residual, lhs, rhs, [], split, seen, same, movement, tail, writer, .refused issue check checkedAt pending⟩
           | boundary stopped => exact ⟨checked, canonical, residual, lhs, rhs, marks, split, seen, same, movement, tail, writer, .boundary stopped⟩
-          | collectionInstall short =>
-            exact ⟨checked, canonical, residual, lhs, rhs, [], split, seen, same, movement, tail, writer, .collectionInstall short⟩
+          | collectionInstall exhausted =>
+            exact ⟨checked, canonical, residual, lhs, rhs, [], split, seen, same, movement, tail, writer, .collectionInstall exhausted⟩
           | collectionRange nonempty suffix =>
             exact ⟨checked, canonical, residual, lhs, rhs, _, split, seen, same, movement, tail, writer, .collectionRange nonempty suffix⟩
           | returned check canon frame grew checkedAt canonicalAt =>
@@ -7898,7 +7899,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
         obtain ⟨stores, quiet, tracks, writer⟩ := prefixReadWriters prepReads (List.append_nil _).symm prepRun
         exact ⟨[.tau, .tau], [], [], finish, incoming, [], split, quiet, stores.trans frame.store,
           CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place), .refl _, .prepare prepSite writer (.done _),
-          .collectionInstall (Nat.zero_lt_succ _)⟩
+          .collectionInstall rfl⟩
     let leftTrace : Trace grow sig := [.tau, .tau, .tau] ++ checked
     let rightTrace : Trace grow sig := [.tau, .tau] ++ canonical
     have observed : visible leftTrace = visible rightTrace := seen.symm
@@ -8187,7 +8188,7 @@ theorem driveCompiledFlat {origin : CStore (core3 grow)} {root item : Field} {sc
       exact .descriptor (pointer := 0) (.returned words paired grew checkedAt canonicalAt)
     | refused issue cursor atRefusal _ => exact .descriptor (pointer := 0) (peer := cursor) (.refused issue atRefusal)
     | boundary reached => exact mapStringEnd (fun _ _ _ impossible => impossible.elim) reached
-    | collectionInstall short => exact .collectionInstall short
+    | collectionInstall exhausted => exact .collectionInstall exhausted
     | collectionRange nonempty remainder => exact .collectionRange nonempty remainder
   | aggregate type fields children ih =>
     intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
@@ -8671,13 +8672,13 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     | trap left right => exact stop (.trap left right)
     | localPrefix nonempty tail => exact stop (.localPrefix nonempty tail)
     | localChoice split choice shared step tail => exact stop (.localChoice split choice shared step tail)
-    | installPrefix short => exact stop (.allocatorInstall short)
-    | collectionInstall short => exact stop (.allocatorInstall short)
+    | installPrefix exhausted => exact stop (.allocatorInstall exhausted)
+    | collectionInstall exhausted => exact stop (.allocatorInstall exhausted)
     | collectionRange nonempty tail => exact stop (.localPrefix nonempty tail)
     | callback tracked aligned ending notPopped =>
       rw [total]
       exact callbackTerminalSlice paired (.allocator install cut tracked aligned ending notPopped)
-  | collectionInstall short => exact stop (.allocatorInstall short)
+  | collectionInstall exhausted => exact stop (.allocatorInstall exhausted)
   | collectionRange nonempty tail => exact stop (.localPrefix nonempty tail)
 
 open ReturnFrame.Occurrence in
@@ -9534,7 +9535,7 @@ private theorem crossPlacedDirectGive (request : GiveSelector bindings) (ticket 
       exact fun _ cut => .body install cut (.localPrefix nonempty tail)
     | localChoice split choice shared step tail =>
       exact fun _ cut => .body install cut (.localChoice split choice shared step tail)
-    | installPrefix short | collectionInstall short => exact fun _ cut => .body install cut (.allocatorInstall short)
+    | installPrefix exhausted | collectionInstall exhausted => exact fun _ cut => .body install cut (.allocatorInstall exhausted)
     | callback tracked paired ending notPopped => exact fun _ cut => .allocator install cut tracked paired ending notPopped
   unfold DirectGiveVisitRun at visit
   cases route : request.schema with
@@ -9549,9 +9550,9 @@ private theorem crossPlacedDirectGive (request : GiveSelector bindings) (ticket 
       exact stopRefusedDirectField issue (completion ticket (.error (.lowerPayload issue))) (usedAll division)
         install paths entryWriters walk writers checkedAt (visibleAll seen.symm) store startPair checked residual
     | boundary ending => exact stopString division seen.symm walk writers store residual ending (fun impossible => impossible)
-    | collectionInstall short =>
+    | collectionInstall exhausted =>
       exact stopDirectGiveBody (usedAll division) paths entryWriters walk writers (visibleAll seen.symm) store startPair residual
-        (fun _ cut => .body install cut (.allocatorInstall short))
+        (fun _ cut => .body install cut (.allocatorInstall exhausted))
     | collectionRange nonempty tail =>
       exact stopDirectGiveBody (usedAll division) paths entryWriters walk writers (visibleAll seen.symm) store startPair residual
         (fun _ cut => .body install cut (.localPrefix nonempty tail))
@@ -9581,9 +9582,9 @@ private theorem crossPlacedDirectGive (request : GiveSelector bindings) (ticket 
     | localChoice split choice shared step tail =>
       exact stopDirectGiveBody (usedAll division) paths entryWriters walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .body install cut (.localChoice split choice shared step tail))
-    | installPrefix short | collectionInstall short =>
+    | installPrefix exhausted | collectionInstall exhausted =>
       exact stopDirectGiveBody (usedAll division) paths entryWriters walk writers (visibleAll seen) store startPair residual
-        (fun _ cut => .body install cut (.allocatorInstall short))
+        (fun _ cut => .body install cut (.allocatorInstall exhausted))
     | callback tracked paired ending notPopped =>
       exact stopDirectGiveBody (usedAll division) paths entryWriters walk writers (visibleAll seen) store startPair residual
         (fun _ cut => .allocator install cut tracked paired ending notPopped)
@@ -11165,8 +11166,8 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
   | trap lhs rhs => exact stop (.trap lhs rhs)
   | localPrefix nonempty tail => exact stop (.localPrefix nonempty tail)
   | localChoice divided choice shared step tail => exact stop (.localChoice divided choice shared step tail)
-  | installPrefix short => exact stop (.allocatorInstall short)
-  | collectionInstall short => exact stop (.allocatorInstall short)
+  | installPrefix exhausted => exact stop (.allocatorInstall exhausted)
+  | collectionInstall exhausted => exact stop (.allocatorInstall exhausted)
   | collectionRange nonempty tail => exact stop (.localPrefix nonempty tail)
   | callback tracked aligned ending notPopped =>
     rw [total]
