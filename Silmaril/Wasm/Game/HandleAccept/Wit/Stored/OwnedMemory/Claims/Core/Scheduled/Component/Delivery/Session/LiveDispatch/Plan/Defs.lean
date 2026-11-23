@@ -227,6 +227,33 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (tail : VisitorWriterPath profile ready base bindings left right leftTail rightTail finish peer) :
       VisitorWriterPath profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail) finish peer
 
+open Stored.OwnedMemory.Claims in
+/-- Ordered classified writer effects before a conflict or open assignment.
+The spend list is built from executed compiled guard commits. A publication
+keeps the registration evidence and contributes no spend. -/
+inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
+    Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+    Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+    List Spend → Prop where
+  | framed {start incoming checked canonical left right}
+      (lhs : WriterPath profile ready (specDispatch ready base) start checked left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right []
+  | spend {start incoming checked canonical left right change update}
+      (source : CompiledLeafSource start (some update))
+      (commit : ReachedLeafSpend profile ready (specDispatch ready base) start checked left change update)
+      (raw : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right [update]
+  | publication {start incoming labels left right tree}
+      (paths : PairedPublicationWriterPrefix profile ready base bindings tree start incoming labels left right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming labels labels left right []
+  | append {start incoming checked canonical left right leftTail rightTail finish peer first second}
+      (front : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right first)
+      (tail : ClassifiedWriterPrefix profile ready base bindings left right leftTail rightTail finish peer second) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail)
+        finish peer (first ++ second)
+
 open Stored.OwnedMemory.Claims.Record in
 /-- Interpret the reached writer sites up to the first conflicting read
 or missing source classification. The remaining paths are retained, not replayed. -/
@@ -235,11 +262,13 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
     (start incoming : Config (core3 grow) (HostState sig)) (pending : Stored.OwnedMemory.Claims.Spend → Prop) :
     Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop where
   | complete {checked canonical left right} (spends : List Stored.OwnedMemory.Claims.Spend)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right spends)
       (related : left.host.writer.ClaimDiscrepancies right.host.writer (fun probe => pending probe ∨ probe ∈ spends)) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical left right
   | prepareConflict {checked canonical left right atLeft atRight reader leading rawLeading readLeft readRight tailChecked tailCanonical plan probe}
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical atLeft atRight spends)
       (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
       (site : ExecutedPrepareRead profile ready base atLeft reader readLeft readRight leading plan)
       (lhs : WriterPath profile ready (specDispatch ready base) atLeft (leading ++ [.tau]) readLeft [])
@@ -254,6 +283,7 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       check canon leftTicket rightTicket caller tree}
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical atLeft atRight spends)
       (site : RegistrationProbeMismatch atLeft atRight readLeft readRight check canon leftTicket rightTicket caller tree)
       (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] readLeft [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] readRight [])
@@ -265,6 +295,7 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
   | boundary {checked canonical left right atLeft atRight siteChecked siteCanonical siteLeft siteRight tailChecked tailCanonical}
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical atLeft atRight spends)
       (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun probe => pending probe ∨ probe ∈ spends))
       (site : CallbackWriterBoundary profile ready base bindings atLeft atRight siteChecked siteCanonical siteLeft siteRight)
       (actual : PairedWriterPaths profile ready base bindings atLeft atRight siteChecked siteCanonical siteLeft siteRight)

@@ -227,17 +227,21 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
     WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical left right := by
+  have noSteps {lhs rhs : Config (core3 grow) (HostState sig)} :
+      ClassifiedWriterPrefix profile ready base bindings lhs rhs [] [] lhs rhs [] := .framed (.done _) (.done _)
   induction path generalizing pending with
   | framed checked canonical =>
-    exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
+    exact .complete [] (.framed checked canonical)
+      (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
   | @prepare start incoming reader leading rawLeading readLeft readRight plan site lhs rhs =>
     by_cases same : prepare reader.store reader.host.writer plan = prepare reader.store readRight.host.writer plan
-    · exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies lhs rhs initial)
+    · exact .complete [] (.framed lhs rhs)
+        (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies lhs rhs initial)
     · have rawWriter : readRight.host.writer = incoming.host.writer := spend rhs (updates := []) .nil
       have live : reader.host.writer.ClaimDiscrepancies readRight.host.writer pending := by rwa [site.writer, rawWriter]
       obtain ⟨probe, demanded, conflict⟩ := prepare_conflict reader.store plan live same
       simpa only [List.nil_append, List.append_nil] using
-        (WriterDiscrepancyCut.prepareConflict [] (empty (start := start) (incoming := incoming))
+        (WriterDiscrepancyCut.prepareConflict [] (empty (start := start) (incoming := incoming)) noSteps
           (by simpa only [List.not_mem_nil, or_false] using initial) site lhs rhs (.inl demanded) same conflict empty)
   | @registrationMismatch start incoming readLeft readRight check canon leftTicket rightTicket caller tree site lhs rhs =>
     have live (demand : Spend) : (pending demand ∨ demand ∈ []) = pending demand := by simp
@@ -246,49 +250,54 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
       related.registrationConflict (fun checks => site.different
         (registrationProbe_observations checks (congrArg List.length related.accepted)))
     simpa only [List.nil_append, List.append_nil] using
-      (WriterDiscrepancyCut.registrationConflict [] (empty (start := start) (incoming := incoming)) site lhs rhs
+      (WriterDiscrepancyCut.registrationConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
         (by simpa only [live] using related) (by simpa only [live] using conflict) empty)
   | guarded paths =>
-    obtain ⟨_, changes, checked, canonical, empty | ⟨change, update, single, _, nominal⟩⟩ := paths
+    obtain ⟨source, changes, checked, canonical, empty | ⟨change, update, single, selected, nominal⟩⟩ := paths
     · subst changes
-      exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
+      exact .complete [] (.framed checked canonical)
+        (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
     · subst changes
       obtain ⟨lhs, rhs⟩ := checkedSpends checked canonical (.cons nominal.live .nil)
-      refine .complete [update] ?_
+      refine .complete [update] (.spend (selected ▸ source) nominal canonical) ?_
       rw [lhs, rhs]
       simpa only [List.foldl_cons, List.foldl_nil, List.mem_singleton] using initial.spendLeft update
   | publication paths =>
-    exact .complete [] (by simpa only [List.not_mem_nil, or_false] using publicationDiscrepancies paths initial)
+    exact .complete [] (.publication paths)
+      (by simpa only [List.not_mem_nil, or_false] using publicationDiscrepancies paths initial)
   | callbackBoundary boundary paths =>
     simpa only [List.nil_append, List.append_nil] using
-      (WriterDiscrepancyCut.boundary [] empty (by simpa only [List.not_mem_nil, or_false] using initial)
+      (WriterDiscrepancyCut.boundary [] empty noSteps (by simpa only [List.not_mem_nil, or_false] using initial)
         boundary paths empty)
   | append front tail first later =>
     cases first initial with
-    | complete spends reached =>
+    | complete spends certified reached =>
       cases later reached with
-      | complete more related =>
-        exact .complete (spends ++ more) (by simpa only [List.mem_append, or_assoc] using related)
-      | boundary more leading related site actual trailing =>
+      | complete more nextCertified related =>
+        exact .complete (spends ++ more) (certified.append nextCertified) (by simpa only [List.mem_append, or_assoc] using related)
+      | boundary more leading nextCertified related site actual trailing =>
         simpa only [List.append_assoc] using (WriterDiscrepancyCut.boundary (spends ++ more) (front.append leading)
+          (certified.append nextCertified)
           (by simpa only [List.mem_append, or_assoc] using related) site actual trailing)
-      | prepareConflict more leading related site lhs rhs live unequal conflict trailing =>
+      | prepareConflict more leading nextCertified related site lhs rhs live unequal conflict trailing =>
         simpa only [List.append_assoc] using (WriterDiscrepancyCut.prepareConflict (spends ++ more) (front.append leading)
+          (certified.append nextCertified)
           (by simpa only [List.mem_append, or_assoc] using related) site lhs rhs
           (by simpa only [List.mem_append, or_assoc] using live) unequal conflict trailing)
-      | registrationConflict more leading site lhs rhs related conflict trailing =>
+      | registrationConflict more leading nextCertified site lhs rhs related conflict trailing =>
         simpa only [List.append_assoc] using (WriterDiscrepancyCut.registrationConflict (spends ++ more) (front.append leading)
+          (certified.append nextCertified)
           site lhs rhs (by simpa only [List.mem_append, or_assoc] using related)
           (by simpa only [RegistrationConflict, List.mem_append, or_assoc] using conflict) trailing)
-    | boundary spends leading related site actual trailing =>
+    | boundary spends leading certified related site actual trailing =>
       simpa only [List.append_assoc] using
-        (WriterDiscrepancyCut.boundary spends leading related site actual (trailing.append tail))
-    | prepareConflict spends leading related site lhs rhs live unequal conflict trailing =>
+        (WriterDiscrepancyCut.boundary spends leading certified related site actual (trailing.append tail))
+    | prepareConflict spends leading certified related site lhs rhs live unequal conflict trailing =>
       simpa only [List.append_assoc] using
-        (WriterDiscrepancyCut.prepareConflict spends leading related site lhs rhs live unequal conflict (trailing.append tail))
-    | registrationConflict spends leading site lhs rhs related conflict trailing =>
+        (WriterDiscrepancyCut.prepareConflict spends leading certified related site lhs rhs live unequal conflict (trailing.append tail))
+    | registrationConflict spends leading certified site lhs rhs related conflict trailing =>
       simpa only [List.append_assoc] using
-        (WriterDiscrepancyCut.registrationConflict spends leading site lhs rhs related conflict (trailing.append tail))
+        (WriterDiscrepancyCut.registrationConflict spends leading certified site lhs rhs related conflict (trailing.append tail))
 
 theorem registration {change : WriterChange sig} {tree : Stored.OwnedMemory.Tree sig}
     (path : WriterPath profile ready dispatch start labels finish [change])
