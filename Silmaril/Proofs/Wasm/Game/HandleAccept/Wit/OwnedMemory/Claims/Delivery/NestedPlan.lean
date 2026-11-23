@@ -14608,16 +14608,40 @@ private theorem sharedDestructorExitEffects (task : TaskId) :
     exact storeEffectModify _
   · exact .pure _
 
+private def destructorWorkerOp (invariant : CStore (core3 grow) → Prop) :
+    (Eff (core3 grow) (HostState sig)).Op → Prop
+  | .newThread body =>
+    match body with
+    | .newIndirect task _ _ => ∀ store, invariant store →
+        invariant (ArenaField.threads.alloc store { task := task }).1
+    | _ => False
+  | operation => componentStoreOp operation = true ∧ storePreserves invariant operation
+
+private abbrev DestructorWorkerEffects {Result : Type} (invariant : CStore (core3 grow) → Prop) (body : Session grow sig Result) :=
+  Prog.Every (destructorWorkerOp invariant) body
+
+private theorem liftDestructorStoreEffects {Result : Type} {invariant : CStore (core3 grow) → Prop}
+    {body : Session grow sig Result} (effects : StoreEffects body)
+    (preserves : Prog.Every (storePreserves invariant) body) :
+    DestructorWorkerEffects invariant body := by
+  induction effects with
+  | pure value => exact .pure value
+  | @op operation next allowed _ ih =>
+    cases preserves with
+    | op kept following =>
+      refine .op ?_ (fun response => ih response (following response))
+      cases operation <;> try exact ⟨allowed, kept⟩
+      contradiction
+
 open ReturnFrame.Occurrence in
 /-- The active worker executes store-local operations above two distinct
 dormant programs. The relation compares the actual top and stores without
 requiring equality of the dormant programs. -/
 private theorem crossSharedWorkerBody {Result : Type} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread)
-    (body : Session grow sig Result) (effects : StoreEffects body)
-    (complete : Result → Session grow sig (Ret (core3 grow)))
+    (body : Session grow sig Result) (complete : Result → Session grow sig (Ret (core3 grow)))
     {invariant : CStore (core3 grow) → Prop}
-    (preserves : Prog.Every (storePreserves invariant) body) (initial : invariant start.store)
+    (effects : DestructorWorkerEffects invariant body) (initial : invariant start.store)
     (stores : start.store = incoming.store)
     (leftAt : start.ctl = check.control (body >>= complete)) (rightAt : incoming.ctl = canon.control (body >>= complete))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
@@ -14636,8 +14660,6 @@ private theorem crossSharedWorkerBody {Result : Type} {check canon : PayloadPref
     | op action next =>
       obtain ⟨permitted, continuing⟩ := (show _ ∧ _ from by cases effects with
         | op allowed follow => exact ⟨allowed, follow⟩)
-      obtain ⟨preserve, preserveNext⟩ := (show _ ∧ _ from by cases preserves with
-        | op allowed follow => exact ⟨allowed, follow⟩)
       cases run with
       | cons actual tail =>
         have consume (response : (Eff (core3 grow) (HostState sig)).Resp action)
@@ -14652,7 +14674,7 @@ private theorem crossSharedWorkerBody {Result : Type} {check canon : PayloadPref
             CallbackSliceEnd profile ready base bindings older start incoming (observed :: suffix) finish := by
           have path := sharedSchedulerTransport (bindings := bindings) lhs rhs leftEdit rightEdit
           exact .destructorPrefix path (frameCalloutStep path rfl rfl) (fun scheduler => scheduler)
-            (ih (next response) (continuing response) (preserveNext response) keeps rfl rfl rfl actualTail
+            (ih (next response) (continuing response) keeps rfl rfl rfl actualTail
               (fun value shorter => returned value (Nat.le_trans shorter (Nat.le_succ _))))
         have silent (response : (Eff (core3 grow) (HostState sig)).Resp action)
             (updated : CStore (core3 grow)) (keeps : invariant updated)
@@ -14670,7 +14692,7 @@ private theorem crossSharedWorkerBody {Result : Type} {check canon : PayloadPref
             (by rw [stores]; exact .get rightAt)
             (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
         | modify update =>
-          exact silent () (update start.store) (preserve _ initial) (.modify leftAt)
+          exact silent () (update start.store) (permitted.2 _ initial) (.modify leftAt)
             (by rw [stores]; exact .modify rightAt)
             (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
         | currentThread =>
@@ -14681,12 +14703,35 @@ private theorem crossSharedWorkerBody {Result : Type} {check canon : PayloadPref
           obtain ⟨answer, rfl, rfl, allowed⟩ := componentChoiceActual leftAt actual
           exact consume answer start.store initial (.choose answer leftAt allowed)
             (by rw [stores]; exact .choose answer rightAt allowed) rfl rfl tail
+        | newThread threadBody =>
+          cases threadBody with
+          | newIndirect task function argument =>
+            let source : ThreadBody (core3 grow) := .newIndirect task function argument
+            let allocation := ArenaField.threads.alloc start.store { task := task }
+            let saved := StepDefs.threadAct (specDispatch ready base) allocation.2 source
+            let checked := { start.setCont allocation.2 (some saved) with
+              store := allocation.1, ctl := check.control (next allocation.2 >>= complete) }
+            let canonical := { incoming.setCont allocation.2 (some saved) with
+              store := allocation.1, ctl := canon.control (next allocation.2 >>= complete) }
+            have leftStep : Step profile ready (specDispatch ready base) start .tau checked :=
+              .newThread leftAt rfl
+            have rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau canonical :=
+              .newThread rightAt (by rw [← stores]; rfl)
+            obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep actual
+            have moved := sharedSchedulerTransport (bindings := bindings) (edit := .write allocation.2.idx [])
+              leftStep rightStep (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt, ← stores]; rfl)
+            refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) ?_ ?_
+            · intro scheduler
+              exact ⟨relatedSetSlot .none scheduler.1 allocation.2.idx (.some (.mk .nil)), scheduler.2⟩
+            · exact ih (next allocation.2) (continuing allocation.2) (permitted _ initial) rfl rfl rfl tail
+                (fun value shorter => returned value (Nat.le_trans shorter (Nat.le_succ _)))
+          | _ => exact False.elim permitted
         | trap reason =>
           obtain ⟨rfl, rfl⟩ := componentTrapUnique leftAt actual
           have path := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base) (bindings := bindings)
             (edit := .clear) (.trap leftAt) (.trap rightAt) rfl rfl
           exact .coreAcceptTerminal path (frameCalloutStep path rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
-        | _ => contradiction
+        | _ => exact (Bool.noConfusion permitted.1)
 
 private theorem crossSharedWorkerStore {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread)
@@ -14701,7 +14746,7 @@ private theorem crossSharedWorkerStore {check canon : PayloadPrefix.Cursor (E :=
       Steps profile ready (specDispatch ready base) left remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  crossSharedWorkerBody (check := check) (canon := canon) threads body effects Prog.pure preserves initial stores
+  crossSharedWorkerBody (check := check) (canon := canon) threads body Prog.pure (liftDestructorStoreEffects effects preserves) initial stores
     (by simpa only [Prog.bind_eq, Prog.bind_pure] using leftAt)
     (by simpa only [Prog.bind_eq, Prog.bind_pure] using rightAt) run (fun reply _ => returned reply)
 
@@ -15432,6 +15477,59 @@ private theorem storeEffectWithArgs2 {Result : Type} (args : List FlatValue) (bo
   · exact effects _ _
   · exact storeEffectTrap _
 
+private theorem sharedDestructorThreadResumeLater (index : Nat) :
+    StoreEffects (Builtins.threadResumeLater index : Session grow sig (List FlatValue)) := by
+  have lookup (inst : InstId) : StoreEffects (threadsGet inst index : Session grow sig ThreadId) := by
+    unfold threadsGet getInst
+    exact (storeEffectGetObject ArenaField.insts inst).bind fun _ => storeEffectOrTrap _ _
+  have suspended (thread : ThreadId) : StoreEffects (Builtins.trapUnlessSuspended thread : Session grow sig Unit) := by
+    unfold Builtins.trapUnlessSuspended
+    exact storeEffectGet.bind fun _ => storeEffectTrapIf _ _
+  unfold Builtins.threadResumeLater Runtime.Thread.resumeLater Runtime.Thread.startWaiting getInst
+  exact storeEffectCurrentInst.bind fun inst =>
+    (storeEffectGetObject ArenaField.insts inst).bind fun record =>
+    (storeEffectTrapIf (!record.mayLeave) .cannotLeave).bind fun _ =>
+    (lookup inst).bind fun thread => (suspended thread).bind fun _ => (storeEffectModify _).bind fun _ => .pure []
+
+private theorem storeEffectCurrentTask : StoreEffects (currentTask : Session grow sig TaskId) := by
+  have current : StoreEffects (currentTask? : Session grow sig (Option TaskId)) := by
+    unfold currentTask? getThread
+    refine (show StoreEffects (currentThread : Session grow sig (Option ThreadId)) from
+      .op rfl fun thread => .pure thread).bind fun thread => ?_
+    cases thread with
+    | none => exact .pure none
+    | some thread => exact (storeEffectGetObject ArenaField.threads thread).bind fun record => .pure (some record.task)
+  unfold currentTask
+  refine current.bind fun task => ?_
+  cases task
+  · exact storeEffectTrap _
+  · exact .pure _
+
+private theorem sharedDestructorThreadNewIndirect (table : (core3 grow).TableAddr) (type : V1.FuncType)
+    (index : Nat) (arg : FlatValue) :
+    DestructorWorkerEffects (fun _ => True) (Builtins.threadNewIndirect table type index arg : Session grow sig (List FlatValue)) := by
+  have closed {Result : Type} {body : Session grow sig Result} (effects : StoreEffects body) :
+      DestructorWorkerEffects (fun _ => True) body := liftDestructorStoreEffects effects (trivialPreserves body)
+  have register (task : TaskId) (thread : ThreadId) : StoreEffects (Task.registerThread task thread : Session grow sig Nat) := by
+    unfold Task.registerThread getTask getInst
+    refine (storeEffectGetObject ArenaField.tasks task).bind fun record =>
+      (storeEffectGetObject ArenaField.insts record.inst).bind fun inst => ?_
+    split
+    · exact storeEffectTrap _
+    · exact (storeEffectModify _).bind fun _ => .pure _
+  unfold Builtins.threadNewIndirect getTask getInst
+  exact (closed storeEffectCurrentTask).bind fun task =>
+    (closed (storeEffectGetObject ArenaField.tasks task)).bind fun entry =>
+    (closed (storeEffectGetObject ArenaField.insts entry.inst)).bind fun inst =>
+    (closed (storeEffectTrapIf (!inst.mayLeave) .cannotLeave)).bind fun _ =>
+    (closed storeEffectGet).bind fun store =>
+    (closed (storeEffectOrTrap .threadNewIndirectNull (((core3 grow).tableFunc? store.core table index).join))).bind fun function =>
+    (closed (storeEffectTrapIf ((core3 grow).funcType? store.core function != some ((core3 grow).ofFlatType type))
+      .threadNewIndirectType)).bind fun _ =>
+    (show DestructorWorkerEffects (fun _ => True) (newThread (.newIndirect task function arg) : Session grow sig ThreadId) from
+      .op (fun _ _ => trivial) fun thread => .pure thread).bind fun thread =>
+    (closed (register task thread)).bind fun index => .pure [i32Flat index]
+
 private def sharedDestructorLocalImport : CanonHost (core3 grow) → Bool
   | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
   | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin .threadIndex _
@@ -15440,21 +15538,25 @@ private def sharedDestructorLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .subtaskDrop _ | .builtin .errorContextDrop _ | .builtin (.waitableSetPoll ..) _
   | .builtin (.streamNew ..) _ | .builtin (.futureNew ..) _
   | .builtin (.streamDropReadable ..) _ | .builtin (.streamDropWritable ..) _
-  | .builtin (.futureDropReadable ..) _ | .builtin (.futureDropWritable ..) _ => true
+  | .builtin (.futureDropReadable ..) _ | .builtin (.futureDropWritable ..) _
+  | .builtin .threadResumeLater _ | .builtin (.threadNewIndirect ..) _ => true
   | _ => false
 
 private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (args : List FlatValue)
     (selected : sharedDestructorLocalImport host = true) :
-    ∃ body : Session grow sig (List FlatValue), StoreEffects body ∧
+    ∃ body : Session grow sig (List FlatValue), DestructorWorkerEffects (fun _ => True) body ∧
       ∀ (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
         (store : CStore (core3 grow)) (thread : Option ThreadId),
         calloutBody Limits.spec Quirks.none ready impl store thread host args =
           (body >>= fun words => .pure (.flat words)) := by
+  have closed {Result : Type} {body : Session grow sig Result} (effects : StoreEffects body) :
+      DestructorWorkerEffects (fun _ => True) body := liftDestructorStoreEffects effects (trivialPreserves body)
   cases host with
   | builtin builtin inst =>
     cases builtin with
     | contextGet width index =>
       refine ⟨withArgs0 args (Builtins.contextGet width index), ?_, fun _ _ _ _ => rfl⟩
+      apply closed
       cases args with
       | nil =>
         unfold withArgs0 Builtins.contextGet getThread
@@ -15464,6 +15566,7 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
       | cons => exact storeEffectTrap _
     | contextSet width index =>
       refine ⟨withArgs1 args (Builtins.contextSet width index), ?_, fun _ _ _ _ => rfl⟩
+      apply closed
       rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
       · exact storeEffectTrap _
       · unfold withArgs1 Builtins.contextSet getThread
@@ -15474,6 +15577,7 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
       · exact storeEffectTrap _
     | backpressureInc =>
       refine ⟨withArgs0 args Builtins.backpressureInc, ?_, fun _ _ _ _ => rfl⟩
+      apply closed
       cases args with
       | nil =>
         unfold withArgs0 Builtins.backpressureInc getInst modifyInst modifyObj
@@ -15484,6 +15588,7 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
       | cons => exact storeEffectTrap _
     | backpressureDec =>
       refine ⟨withArgs0 args Builtins.backpressureDec, ?_, fun _ _ _ _ => rfl⟩
+      apply closed
       cases args with
       | nil =>
         unfold withArgs0 Builtins.backpressureDec getInst modifyInst modifyObj
@@ -15494,6 +15599,7 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
       | cons => exact storeEffectTrap _
     | threadIndex =>
       refine ⟨withArgs0 args Builtins.threadIndex, ?_, fun _ _ _ _ => rfl⟩
+      apply closed
       cases args with
       | nil =>
         have entered : StoreEffects (Builtins.enterThreadBuiltin : Session grow sig (ThreadId × Runtime.Thread × Task (core3 grow))) := by
@@ -15507,33 +15613,43 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
         exact entered.bind fun (_, record, _) => (storeEffectOrTrap _ record.index).bind fun _ => .pure _
       | cons => exact storeEffectTrap _
     | resourceNew resource width =>
-      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorResourceNew resource), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorResourceNew resource)), fun _ _ _ _ => rfl⟩
     | resourceRep resource width =>
-      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorBuiltinResourceRep resource), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorBuiltinResourceRep resource)), fun _ _ _ _ => rfl⟩
     | waitableSetNew =>
-      exact ⟨_, storeEffectWithArgs0 args sharedDestructorWaitableSetNew, fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs0 args sharedDestructorWaitableSetNew), fun _ _ _ _ => rfl⟩
     | waitableSetDrop =>
-      exact ⟨_, storeEffectWithArgs1 args _ sharedDestructorWaitableSetDrop, fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ sharedDestructorWaitableSetDrop), fun _ _ _ _ => rfl⟩
     | waitableJoin =>
-      exact ⟨_, storeEffectWithArgs2 args _ sharedDestructorWaitableJoin, fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs2 args _ sharedDestructorWaitableJoin), fun _ _ _ _ => rfl⟩
     | subtaskDrop =>
-      exact ⟨_, storeEffectWithArgs1 args _ sharedDestructorSubtaskDrop, fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ sharedDestructorSubtaskDrop), fun _ _ _ _ => rfl⟩
     | errorContextDrop =>
-      exact ⟨_, storeEffectWithArgs1 args _ sharedDestructorErrorContextDrop, fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ sharedDestructorErrorContextDrop), fun _ _ _ _ => rfl⟩
     | waitableSetPoll memory =>
-      exact ⟨_, storeEffectWithArgs2 args _ (sharedDestructorWaitablePoll memory), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs2 args _ (sharedDestructorWaitablePoll memory)), fun _ _ _ _ => rfl⟩
     | streamNew type =>
-      exact ⟨_, storeEffectWithArgs0 args (sharedDestructorNewEnds .readableStream type), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs0 args (sharedDestructorNewEnds .readableStream type)), fun _ _ _ _ => rfl⟩
     | futureNew type =>
-      exact ⟨_, storeEffectWithArgs0 args (sharedDestructorNewEnds .readableFuture type), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs0 args (sharedDestructorNewEnds .readableFuture type)), fun _ _ _ _ => rfl⟩
     | streamDropReadable type =>
-      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .readableStream type), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorDropEnd .readableStream type)), fun _ _ _ _ => rfl⟩
     | streamDropWritable type =>
-      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .writableStream type), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorDropEnd .writableStream type)), fun _ _ _ _ => rfl⟩
     | futureDropReadable type =>
-      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .readableFuture type), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorDropEnd .readableFuture type)), fun _ _ _ _ => rfl⟩
     | futureDropWritable type =>
-      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .writableFuture type), fun _ _ _ _ => rfl⟩
+      exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorDropEnd .writableFuture type)), fun _ _ _ _ => rfl⟩
+    | threadResumeLater =>
+      exact ⟨_, closed (storeEffectWithArgs1 args _ sharedDestructorThreadResumeLater), fun _ _ _ _ => rfl⟩
+    | threadNewIndirect table type =>
+      refine ⟨builtinProg Limits.spec Quirks.none (fun _ _ => false) (.threadNewIndirect table type) args,
+        ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨first, _ | ⟨second, _ | ⟨extra, tail⟩⟩⟩
+      · exact closed (storeEffectTrap _)
+      · exact closed (storeEffectTrap _)
+      · exact sharedDestructorThreadNewIndirect _ _ _ _
+      · exact closed (storeEffectTrap _)
     | _ => contradiction
   | _ => contradiction
 
@@ -15595,8 +15711,8 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
           have checkBody := checkAt.trans (congrArg check.control (compiled ready base start.store thread))
           have canonBody := canonAt.trans (congrArg canon.control
             (compiled ready (LiveDispatch.host bindings base) incoming.store thread))
-          refine crossSharedWorkerBody (check := check) (canon := canon) rfl body effects (fun words => .pure (.flat words))
-            (trivialPreserves body) trivial stores checkBody canonBody residual ?_
+          refine crossSharedWorkerBody (check := check) (canon := canon) rfl body (fun words => .pure (.flat words)) effects
+            trivial stores checkBody canonBody residual ?_
           intro l r restLabels words bounded _ same lAt rAt actual
           let k := sharedDestructorCoreResult (sig := sig) task tk
           let checked := { l with ctl := ⟨thread, .core ((core3 grow).resume l.store.core core (.values words)) k, frames⟩ :: rest }
