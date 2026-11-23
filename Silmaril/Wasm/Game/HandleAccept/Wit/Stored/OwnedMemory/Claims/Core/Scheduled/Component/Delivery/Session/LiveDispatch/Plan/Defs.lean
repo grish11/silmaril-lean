@@ -415,17 +415,19 @@ def sharedRecordEmit (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
 
 open Stored.OwnedMemory.Claims Stored.Endpoints in
 /-- The shared visitor at the exact cursor and field index reached after earlier siblings. -/
-def sharedRecordMemory (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+def sharedRecordMemory (mode : LinkedCallback.MemorySequence.Track) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (fields : List RecordLower.Field) (cursor index : Nat)
     (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) : Session grow sig (Ret (core3 grow)) :=
-  RecordLower.Internal.runMemory Limits.spec Quirks.none cx
-    (Record.authority recordClaims Limits.spec cx) width fields cursor index >>= next
+  let authority := Record.authority recordClaims Limits.spec cx
+  (match mode with
+    | .fields | .placedFields => RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority width fields cursor index
+    | .elements stride => RecordLower.Internal.runElements Limits.spec Quirks.none cx authority width fields stride cursor index) >>= next
 
 open Stored.Endpoints in
 def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List RecordLower.Field) (ptr ticket : Nat) :
     Option AddrType → Session grow sig (Ret (core3 grow))
   | none => sharedRecordReport ticket (.error (.preflight (.abi .allocationPrecondition)))
-  | some width => sharedRecordMemory cx width fields ptr 0 (sharedRecordReport ticket)
+  | some width => sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport ticket)
 
 open Stored.Endpoints in
 def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
@@ -1932,10 +1934,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | sharedRecordVisitor {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx fields width cursor index}
+      {mode cx fields width cursor index}
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : left.ctl = check.control (sharedRecordMemory cx width fields cursor index checkedNext))
-      (canonical : right.ctl = canon.control (sharedRecordMemory cx width fields cursor index canonicalNext))
+      (checked : left.ctl = check.control (sharedRecordMemory mode cx width fields cursor index checkedNext))
+      (canonical : right.ctl = canon.control (sharedRecordMemory mode cx width fields cursor index canonicalNext))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
