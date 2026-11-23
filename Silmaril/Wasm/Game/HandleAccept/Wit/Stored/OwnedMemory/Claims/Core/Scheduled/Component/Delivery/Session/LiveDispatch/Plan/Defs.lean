@@ -2246,6 +2246,19 @@ inductive DestructorParentChain (changes : ReturnFrame.Substitutions (core3 grow
         ((PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
         ((PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
 
+/-- Frames beneath a selected synchronous worker. Common loop tail calls
+can add frames above the two source returns. -/
+inductive SourceLiftLoopFrames (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)) :
+    List (Seg (core3 grow) (HostState sig)) → List (Seg (core3 grow) (HostState sig)) → Prop where
+  | paired {left right} (frames : List.Forall₂ (ReturnFrame.Related.Segment changes) left right) :
+      SourceLiftLoopFrames changes left right
+  | common {left right} (resume : ReturnFrame.Continuation (core3 grow) (HostState sig))
+      (below : SourceLiftLoopFrames changes left right) :
+      SourceLiftLoopFrames changes (.prog resume :: left) (.prog resume :: right)
+  | destructor {left right} (leftTicket rightTicket : Nat) (below : SourceLiftLoopFrames changes left right) :
+      SourceLiftLoopFrames changes (.prog (sharedDestructorParentReply leftTicket) :: left)
+        (.prog (sharedDestructorParentReply rightTicket) :: right)
+
 open Stored.Endpoints in
 /-- Source-indexed dormant controls. Each layer keeps its own continuation
 and encloses further source layers or ordinary paired activations. Lookup
@@ -2274,6 +2287,13 @@ inductive SourceParentStack (changes : ReturnFrame.Substitutions (core3 grow) (H
           (sharedRecordAllocatorAfterResume cx task caller))
         ({ canon with frames := .prog (site.resume cx rightNext) :: canon.frames }.control
           (sharedRecordAllocatorAfterResume cx task caller))
+
+  | syncLift {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (task : TaskId) (thread : check.thread = canon.thread)
+      (frames : SourceLiftLoopFrames changes check.frames canon.frames)
+      (below : SourceParentStack changes check.rest canon.rest) :
+      SourceParentStack changes (check.control (callRet (.loop (.syncLiftLoop task))))
+        (canon.control (callRet (.loop (.syncLiftLoop task))))
 
 /-- Data shared by the two schedulers independently of the active worker
 and its ticket-specific dormant parents. -/
