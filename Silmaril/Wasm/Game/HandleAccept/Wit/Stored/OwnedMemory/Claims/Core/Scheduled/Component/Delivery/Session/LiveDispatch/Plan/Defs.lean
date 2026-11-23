@@ -793,6 +793,13 @@ def sharedDestructorFinish (task : TaskId) (values : List Value.Val) : Session g
   Task.exitImplicitThread task
   return .unit
 
+def sharedDestructorResolveReply (task : TaskId) : ReturnFrame.Continuation (core3 grow) (HostState sig)
+  | .unit => do
+    modifyStore (CStore.setTaskState task .resolved)
+    Task.exitImplicitThread task
+    return .unit
+  | _ => internal "late-bound call: expected Ret.unit"
+
 def sharedDestructorCoreResult (task : TaskId) (tk : Task (core3 grow)) (flat : List FlatValue) :
     Session grow sig (Ret (core3 grow)) := do
   let cx : LiftLowerContext (core3 grow) := { opts := tk.opts, inst := tk.inst, scope := .task task }
@@ -2074,14 +2081,19 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
 /-- The source destructor has reached a Core callout or its canonical
-task completion program. These are internal proof cuts. -/
+resolution call. These are internal proof cuts. -/
 inductive SharedDestructorWorkerStage (task : TaskId) (record : Task (core3 grow))
     (store : CStore (core3 grow)) : Focus (core3 grow) (HostState sig) → Prop where
   | callout {core host args}
       (status : (core3 grow).status store.core core = .callout host args) :
       SharedDestructorWorkerStage task record store (.core core (sharedDestructorCoreResult task record))
-  | completion :
-      SharedDestructorWorkerStage task record store (.prog (sharedDestructorFinish task []))
+  | resolve {reached : Task (core3 grow)}
+      (found : ArenaField.tasks.get? store task = some reached)
+      (pending : reached.state ≠ .resolved) (borrows : ¬ reached.numBorrows > 0) :
+      SharedDestructorWorkerStage task record store
+        (.prog (.op (.call (.onResolve reached.caller (some []))) (sharedDestructorResolveReply task)))
+  | exitImplicit :
+      SharedDestructorWorkerStage task record store (.prog (sharedDestructorResolveReply task .unit))
 
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
