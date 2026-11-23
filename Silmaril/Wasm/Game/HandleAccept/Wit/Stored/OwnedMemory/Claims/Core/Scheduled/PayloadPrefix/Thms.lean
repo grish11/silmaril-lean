@@ -142,6 +142,15 @@ theorem flat_fields_prepend (destination : RecordDestination) (inst : InstId) (i
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.flatFieldsPrepend
     destination inst items fragment index words
 
+/-- The compiled variant tail contains only local operations. Its allowed
+responses are determined at the reached choice steps. -/
+theorem variant_tail_local_ops {E : CoreEngine} {Host : Type} {profile : ProfileKind}
+    (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} :
+    Prog.Every (LocalProgramOp keep) (lowerFlatVariantWith count wanted tag haves (pure words) : P E Host (List FlatValue)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.variantTailLocalOps
+    (profile := profile) count wanted tag haves words
+
 /-- Coercion of already returned sum words is local and preserves a
 reached-store predicate on common success. Its trap or choices remain visible. -/
 theorem variant_tail_frame_between {E : CoreEngine} {Host : Type} {profile : ProfileKind}
@@ -513,10 +522,7 @@ theorem local_data_entry {ready : HostReady (HostState sig)}
     let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
       (destination.context inst) destination.width (.data type payload) output
     let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
-    Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) => match operation with
-      | .choose _ => True
-      | .modify update => ∀ store, Core3.Grows origin.core store.core → Core3.Grows origin.core (update store).core
-      | other => LocalStoreOp other) program ∧
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) program ∧
     (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch start place
       (List.replicate reads .tau) reached place) ∧
       SilentLocalPath profile ready dispatch start (List.replicate reads .tau) reached) :=

@@ -147,6 +147,14 @@ private def ClosedOp (profile : ProfileKind) (keep : CStore E → Prop := fun _ 
   | .get | .currentThread | .trap _ => True
   | _ => False
 
+private theorem closedLocalProgram {body : P E Host Result} {keep : CStore E → Prop}
+    (closed : Prog.Every (ClosedOp profile keep) body) : Prog.Every (LocalProgramOp keep) body := by
+  induction closed with
+  | pure value => exact .pure value
+  | @op operation _ _ _ ih =>
+    refine .op ?_ ih
+    cases operation <;> trivial
+
 theorem forgetKeeping {left right : Config E Host} {keep : CStore E → Prop}
     {checkCursor canonCursor : Cursor (E := E) Host}
     {checkNext : Except RecordLower.Issue Result → P E Host (Ret E)} {canonNext : Result → P E Host (Ret E)}
@@ -453,6 +461,11 @@ private theorem variantTailClosed (count : Nat) (wanted : List CoreType) (tag : 
   split
   · exact (coerceWords profile haves wanted words).bind (fun _ => .pure _)
   · exact .op trivial (fun impossible => nomatch impossible)
+
+theorem variantTailLocalOps {profile : ProfileKind} (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} :
+    Prog.Every (LocalProgramOp keep) (lowerFlatVariantWith count wanted tag haves (pure words) : P E Host (List FlatValue)) :=
+  closedLocalProgram (variantTailClosed (profile := profile) count wanted tag haves words)
 
 private theorem variantTail (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
     (words : List FlatValue) :
@@ -2146,30 +2159,13 @@ theorem localDataEntry
     let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
       (destination.context inst) destination.width (.data type payload) output
     let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
-    Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) => match operation with
-      | .choose _ => True
-      | .modify update => ∀ store, Core3.Grows origin.core store.core → Core3.Grows origin.core (update store).core
-      | other => LocalStoreOp other) program ∧
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) program ∧
     (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start place
       (List.replicate reads .tau) reached place) ∧
       SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached) := by
   dsimp only
   refine ⟨?_, dataEntryOfType destination inst type data payload index output start cursor finish width placed focused⟩
-  let keep (store : CStore (core3 grow)) := Core3.Grows origin.core store.core
-  have localProgram := localDataProgram (profile := profile) (sig := sig) (growthWrites origin) destination inst type data payload output
-  have localEffects {body : Session grow sig output.Result}
-      (closed : Prog.Every (ClosedOp profile keep) body) :
-      Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) =>
-        match operation with
-        | .choose _ => True
-        | .modify update => ∀ store, keep store → keep (update store)
-        | other => LocalStoreOp other) body := by
-    induction closed with
-    | pure value => exact .pure value
-    | @op operation _ _ _ ih =>
-      refine .op ?_ ih
-      cases operation <;> trivial
-  exact localEffects localProgram
+  exact closedLocalProgram (localDataProgram (profile := profile) (growthWrites origin) destination inst type data payload output)
 
 theorem localDataLeafFrameBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)

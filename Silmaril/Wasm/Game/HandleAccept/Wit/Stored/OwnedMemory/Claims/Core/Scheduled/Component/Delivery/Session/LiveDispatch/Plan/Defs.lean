@@ -2984,7 +2984,7 @@ induction. Its trails still identify the removed original occurrences. -/
       (canonical : peer.ctl = canon.control (request.canonicalContinuation peer.store canon.thread (.ok selected)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The flat sequence reached a sum, string or collection child. Both
+  /-- The flat sequence reached a string or collection child. Both
   compiled programs are focused at that field under the original parents.
   This is a proof boundary for the next visitor rule. -/
   | sourceOverlayFlatField {changes reached peer trailing finish}
@@ -2996,7 +2996,6 @@ induction. Its trails still identify the removed original occurrences. -/
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (pending : match item with
-        | .sum type arms tag selected => (Stored.Endpoints.RecordLower.Field.sum type arms tag selected).LayoutMatches type
         | .dynamic _ element entries => Stored.Endpoints.RecordLower.Field.EntriesMatch entries element
         | other => other.LayoutMatches (.prim .string) ∧ other.Emitted)
       (stores : reached.store = peer.store)

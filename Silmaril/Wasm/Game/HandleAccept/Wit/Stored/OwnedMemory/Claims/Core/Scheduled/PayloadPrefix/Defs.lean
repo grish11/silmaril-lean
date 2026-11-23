@@ -303,6 +303,13 @@ def LocalFocus {E : CoreEngine} {Host : Type} (cfg : Config E Host) : Prop :=
   | ⟨_, .prog (.pure _), .core .. :: _⟩ :: _ => True
   | _ => False
 
+/-- Local programs can replay the response at an actual choice. Their store
+writes must preserve the invariant supplied by the current visitor. -/
+def LocalProgramOp {E : CoreEngine} {Host : Type} (keep : CStore E → Prop) : Op E Host → Prop
+  | .choose _ => True
+  | .modify update => ∀ store, keep store → keep (update store)
+  | other => LocalStoreOp other
+
 /-- Actual scheduler steps confined to local foci. The endpoint can be an
 open callback or a new callout; it need not be local until another step runs. -/
 inductive LocalSteps {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
