@@ -14835,6 +14835,90 @@ private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (Ho
     · exact stop
 
 
+open Stored.Endpoints in
+private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
+    (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) :=
+  let type : Stored.TypeOf := .prim .string
+  let refuse := fun issue => .error (.field index (.beforeAllocation (.abi issue)))
+  match Stored.Lower.checkSchema type >>= fun _ => Stored.Lower.checkOptions cx type (.memory ptr) with
+  | .error issue => pure (refuse issue)
+  | .ok () => do
+    let width ← ptrType cx
+    if !Stored.Lower.fits Quirks.none cx.opts.encoding width type text.val then
+      return refuse .allocationPrecondition
+    let area := ABI.layout width type
+    checkAligned ptr area.alignment.bytes
+    checkInBounds cx ptr area.size
+    return .ok ()
+
+open Stored.Endpoints in
+private def sharedRecordStringEmit (cx : LiftLowerContext (core3 grow))
+    (text : Stored.Payload (.prim .string)) (ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  | .error issue => next (.error issue)
+  | .ok () => Canon.store Limits.spec Quirks.none cx text.val (.prim .string) ptr >>= fun _ => next (.ok ())
+
+open Stored.Endpoints in
+private theorem sharedRecordStringPlacementEffects (cx : LiftLowerContext (core3 grow))
+    (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
+    StoreEffects (sharedRecordStringPlacement cx text index ptr : Session grow sig (Except RecordLower.Issue Unit)) := by
+  unfold sharedRecordStringPlacement
+  dsimp only
+  split
+  · exact .pure _
+  · refine (storeEffectPtrType cx).bind fun width => ?_
+    split
+    · exact .pure _
+    · exact (storeEffectTrapIf _ _).bind fun _ =>
+        (storeEffectBounds cx ptr (ABI.layout width (.prim .string)).size).bind fun _ => .pure _
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordStringCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (text : Stored.Payload (.prim .string)) (index ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.data (.prim .string) text) index (.memory ptr) >>= next) =
+    (sharedRecordStringPlacement cx text index ptr >>= sharedRecordStringEmit cx text ptr next) := by
+  let type : Stored.TypeOf := .prim .string
+  let initialWidth : Session grow sig AddrType := ptrType cx
+  let fits (width : AddrType) := Stored.Lower.fits Quirks.none cx.opts.encoding width type text.val
+  let issue := RecordLower.Issue.field index ∘ ListLower.Issue.beforeAllocation ∘ Stored.Endpoints.Lower.Issue.abi
+  let lower (width : AddrType) : Session grow sig (Except Stored.Lower.Issue Unit) :=
+    if !fits width then pure (.error .allocationPrecondition)
+    else do return .ok (← Stored.Lower.emit Limits.spec Quirks.none cx width type text (.memory ptr))
+  let place (width : AddrType) : Session grow sig (Except RecordLower.Issue Unit) :=
+    if !fits width then pure (.error (issue .allocationPrecondition))
+    else do
+      let area := ABI.layout width type
+      checkAligned ptr area.alignment.bytes
+      checkInBounds cx ptr area.size
+      return .ok ()
+  let packed (result : Except Stored.Lower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    .pure (result.mapError issue)
+  let emit := sharedRecordStringEmit cx text ptr next
+  simp only [RecordLower.Internal.runField, Stored.Lower.lower, sharedRecordStringPlacement]
+  cases (Stored.Lower.checkSchema type >>= fun _ => Stored.Lower.checkOptions cx type (.memory ptr)) with
+  | error rejected => rfl
+  | ok accepted =>
+    cases accepted
+    change ((initialWidth.bind lower).bind packed).bind next = (initialWidth.bind place).bind emit
+    simp only [Prog.bind_assoc]
+    refine congrArg initialWidth.bind (funext fun actualWidth => ?_)
+    cases ready : fits actualWidth with
+    | false => simp [lower, place, ready, packed, emit]; rfl
+    | true =>
+      simp [lower, place, ready, Stored.Lower.emit, Prog.bind_assoc, packed, emit, sharedRecordStringEmit]
+      let area := ABI.layout actualWidth type
+      let aligned : Session grow sig Unit := checkAligned ptr area.alignment.bytes
+      let bounded : Session grow sig Unit := checkInBounds cx ptr area.size
+      let storeText : Session grow sig Unit := Canon.store Limits.spec Quirks.none cx text.val type ptr
+      change (((aligned.bind fun _ => bounded.bind fun _ => storeText).bind
+        fun value => .pure (.ok value : Except Stored.Lower.Issue Unit)).bind (fun result => next (result.mapError issue))) =
+        aligned.bind (fun _ => bounded.bind (fun _ => storeText.bind (fun _ => next (.ok ()))))
+      simp only [Prog.bind_assoc, Prog.pure_bind', Except.mapError]
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -15389,10 +15473,25 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           | none => exact (localField .sumNone).elim
           | some child => exact (sumField ⟨_, _, _, child, rfl⟩).elim
       obtain ⟨text, rfl⟩ := stringField
-      rw [sharedRecordMemoryCons] at leftFocus rightFocus
-      exact .inr (callbackTerminalSlice paired (by
-        rw [split, ← List.cons_append]
-        exact .sharedRecordString leftFocus rightFocus paths writers run))
+      rw [sharedRecordMemoryCons, sharedRecordStringCode] at leftFocus rightFocus
+      let nextCheck := sharedRecordStringEmit cx text ptr checkNext
+      let nextCanon := sharedRecordStringEmit cx text ptr canonNext
+      have finishPlacement : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+          check canon nextCheck nextCanon := by
+        intro left right leading trailing result split paths writers frame checked canonical residual
+        cases result with
+        | error issue => exact finishField (.error issue) split paths writers frame checked canonical residual
+        | ok placed =>
+          cases placed
+          by_cases empty : trailing = []
+          · exact .inr (callbackTerminalSlice paired (by
+              rw [split, ← List.cons_append]
+              exact .coreAcceptTerminal paths writers residual (.inl empty)))
+          · exact .inr (callbackTerminalSlice paired (by
+              rw [split, ← List.cons_append]
+              exact .sharedRecordString checked canonical paths writers residual))
+      exact advance _ (sharedRecordStringPlacementEffects cx text index ptr) nextCheck nextCanon finishPlacement
+        split paths writers site leftFocus rightFocus run
 
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem crossSharedRecordEmit {left right : Config (core3 grow) (HostState sig)}
