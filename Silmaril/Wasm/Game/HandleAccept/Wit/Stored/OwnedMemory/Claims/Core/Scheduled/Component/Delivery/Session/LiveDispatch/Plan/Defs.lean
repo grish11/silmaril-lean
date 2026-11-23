@@ -2268,22 +2268,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- Both actual nominal probes selected the same permit. The subsequent
-  spend and store effects are still pending. -/
-  | sharedDropGiveGuarded {changes reached peer trailing finish body name kind inst position leftTicket rightTicket}
-      {tree : Stored.OwnedMemory.Tree sig}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {action : SharedGiveAction}
-      {claim : SharedGiveClaim} {permit : claim.Permit}
+  /-- A nested destructor has allocated the task for the reached request.
+  The scheduler must still install and run its worker under the enclosing
+  parents and the two independent return programs. -/
+  | sharedDropNestedStart {changes reached peer trailing finish body impl task leftTicket rightTicket}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {request : InstId × DtorRequest (core3 grow)}
       (parents : DestructorParentChain changes body check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
-      (source : action.claimAt tree position = some claim)
+      (implementation : request.2.impl = some impl)
       (stores : reached.store = peer.store)
-      (checkedRead : claim.observe reached.host.writer = .ok permit)
-      (canonicalRead : claim.observe peer.host.writer = .ok permit)
-      (checked : reached.ctl = check.control (claim.afterRead inst leftTicket (.ok permit)))
-      (canonical : peer.ctl = canon.control (claim.afterRead inst rightTicket (.ok permit)))
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (sharedDestructorStart leftTicket (some (sharedDestructorThread task request.2.dtor))))
+      (canonical : peer.ctl = canon.control (sharedDestructorStart rightTicket (some (sharedDestructorThread task request.2.dtor))))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The source switch reached its actual scheduler instruction after the
