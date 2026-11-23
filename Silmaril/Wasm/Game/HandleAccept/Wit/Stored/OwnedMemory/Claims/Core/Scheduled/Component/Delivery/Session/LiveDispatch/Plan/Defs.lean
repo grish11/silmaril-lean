@@ -1686,8 +1686,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         body rightTicket thread beforeRight right canon)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (tickets : leftTicket ≠ rightTicket)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedDropCompared {changes reached peer left right workerLeft workerRight entered checked canonical trailing finish marks}
+      {beforeLeft beforeRight : Config (core3 grow) (HostState sig)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread ticket}
+      (resumed : SharedDestructorResumed profile ready (specDispatch ready base) body ticket thread beforeLeft workerLeft check)
+      (peerResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        body ticket thread beforeRight workerRight canon)
+      (paths : OccurrenceTransport profile ready base bindings reached peer entered entered workerLeft workerRight marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer entered entered workerLeft workerRight)
+      (compared : ExecutedCallbackSegment profile ready base bindings changes workerLeft workerRight checked canonical left right)
+      (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (entered ++ (checked ++ trailing)) finish
   | sharedGiveProbeMismatch {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {name kind inst leftTicket rightTicket position claim beforeLeft beforeRight}

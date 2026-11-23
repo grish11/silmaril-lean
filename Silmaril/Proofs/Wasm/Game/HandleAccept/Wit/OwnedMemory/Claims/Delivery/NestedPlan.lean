@@ -2556,6 +2556,7 @@ private def CallbackSharedGiveCrossing (profile : ProfileKind) (ready : HostRead
     Step profile ready (specDispatch ready base) checked label next →
     Steps profile ready (specDispatch ready base) next trailing finish →
     HostFrame.Related.Paired changes checked canonical →
+    ShorterCallbackSlices profile ready base bindings (label :: trailing).length →
     CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
 
 private def CallbackComponentCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2720,7 +2721,7 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
       | sharedGiveInstall call linked =>
         cases shared with
         | none => exact stop (.boundary (.sharedGiveInstall call linked) step tail)
-        | some rule => exact advance (rule.down call linked step tail front.paired)
+        | some rule => exact advance (rule.down call linked step tail front.paired available)
       | componentInstall focus =>
         cases component with
         | none => exact stop (.boundary (.componentInstall focus) step tail)
@@ -2770,7 +2771,9 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedDropWorker _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropWorker _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropCompared _ _ paths _ compared _ ih =>
+    exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelected _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2812,7 +2815,9 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedDropWorker _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropWorker _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropCompared _ _ paths _ compared ending =>
+    exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelected _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -13456,6 +13461,14 @@ private theorem pairedSetContinuation {left right : Config (core3 grow) (HostSta
   cases paired with
   | mk active saved => exact .mk active (relatedSetSlot .none saved thread.idx slot)
 
+private theorem pairedPushActivation {left right : Config (core3 grow) (HostState sig)}
+    (paired : ReturnFrame.Related.Paired older left right)
+    {first second : Activation (core3 grow) (HostState sig)}
+    (worker : ReturnFrame.Related.Active older first second) :
+    ReturnFrame.Related.Paired older { left with ctl := first :: left.ctl } { right with ctl := second :: right.ctl } := by
+  cases paired with
+  | mk control saved => exact .mk (.cons worker control) saved
+
 open ReturnFrame.Occurrence in
 private theorem sharedSchedulerTransport {left right : Config (core3 grow) (HostState sig)}
     (checked : Step profile ready (specDispatch ready base) start .tau left)
@@ -13484,7 +13497,8 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
       (sharedDestructorStart leftTicket (some body)))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
       (sharedDestructorStart rightTicket (some body)))
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
@@ -13578,10 +13592,40 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
             body leftTicket worker resumeLeft activeLeft check := ⟨rfl, leftSavedAt, resumeStep, rfl⟩
         have peerCertificate : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
             body rightTicket worker resumeRight activeRight canon := ⟨rfl, rightSavedAt, peerResume, rfl⟩
-        exact .inr (callbackTerminalSlice paired (by
-          rw [allUsed]
-          exact .sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate
-            (by simpa only [List.append_assoc] using through) (by simpa only [List.append_assoc] using traced) residual))
+        classical
+        by_cases tickets : leftTicket = rightTicket
+        · have parentPair : HostFrame.Related.Paired older
+              { resumeLeft with ctl := check.control (sharedDestructorAfterResume body leftTicket) }
+              { resumeRight with ctl := canon.control (sharedDestructorAfterResume body rightTicket) } := by
+            rw [← tickets]
+            have parent := pairComponentFocus
+              (start := { leftInstalled with ctl := check.control (sharedDestructorAfterResume body leftTicket) })
+              (incoming := { rightInstalled with ctl := canon.control (sharedDestructorAfterResume body leftTicket) })
+              rfl rfl frame
+            exact parent.set_store (destructorResumeStore worker leftInstalled.store)
+          have workersPaired : HostFrame.Related.Paired older activeLeft activeRight := by
+            have cleared := pairedSetContinuation parentPair worker (.none (changes := older))
+            have running := ReturnFrame.Related.Paired.set_store cleared
+              (StepDefs.threadStatusSt worker .running resumeLeft.store)
+            have workerPair : ReturnFrame.Related.Active older leftSaved rightSaved := by
+              rw [← savedAgreement]
+              exact .mk .nil
+            exact pairedPushActivation running workerPair
+          have shorter : remaining.length < (.tau :: labels).length := by
+            rw [allUsed, List.length_append]
+            simp only [List.length_append, List.length_cons, List.length_nil]
+            omega
+          obtain ⟨_, _, _, _, _, sliced, compared, ending⟩ := compare shorter residual workersPaired
+          exact .inr (callbackTerminalSlice paired (by
+            rw [allUsed, sliced]
+            exact .sharedDropCompared activeCertificate (tickets.symm ▸ peerCertificate)
+              (by simpa only [List.append_assoc] using through) (by simpa only [List.append_assoc] using traced)
+              compared ending))
+        · exact .inr (callbackTerminalSlice paired (by
+            rw [allUsed]
+            exact .sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate
+              (by simpa only [List.append_assoc] using through) (by simpa only [List.append_assoc] using traced)
+              tickets residual))
       · have empty : afterReady = [] := List.length_eq_zero_iff.mp (by omega)
         have stopped : finish = resumeLeft := by
           have atEnd : Steps profile ready (specDispatch ready base) resumeLeft [] finish := empty ▸ resumeRun
@@ -13618,7 +13662,8 @@ private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow)
       (SharedOwnerDrop.afterSpend leftTicket result))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
       (SharedOwnerDrop.afterSpend rightTicket result))
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
@@ -13658,7 +13703,7 @@ private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow)
         paired allPaths traced frame checked raw residual
     | some body =>
       exact crossSharedDestructorWorker (leftTicket := leftTicket) (rightTicket := rightTicket) body usedAll
-        paired allPaths traced frame checked raw residual
+        paired allPaths traced frame checked raw residual compare
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem crossSharedDropSpend {left right checked raw : Config (core3 grow) (HostState sig)}
@@ -13683,7 +13728,8 @@ private theorem crossSharedDropSpend {left right checked raw : Config (core3 gro
         (drop.prepare rep >>= drop.spend rightTicket) })
     (guard : Step profile ready (specDispatch ready base) left .tau checked)
     (peerGuard : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau raw)
-    (run : Steps profile ready (specDispatch ready base) checked remaining finish) :
+    (run : Steps profile ready (specDispatch ready base) checked remaining finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
@@ -13780,7 +13826,7 @@ private theorem crossSharedDropSpend {left right checked raw : Config (core3 gro
         exact crossSharedDropDestructorSetup (leftTicket := leftTicket) (rightTicket := rightTicket) result whole paired moved traced
           (by
             unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at atSite ⊢
-            exact pairQuietHost atSite _) rfl rfl continuation
+            exact pairQuietHost atSite _) rfl rfl continuation compare
       · have empty : thenLabels = [] := List.length_eq_zero_iff.mp (by omega)
         have stopped : finish = leftWrite := by
           have atEnd : Steps profile ready (specDispatch ready base) leftWrite [] finish := empty ▸ afterRead
@@ -13809,7 +13855,8 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
     (site : PairedComponentSite older left right ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩)
     (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control (claim.probe inst leftTicket))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control (claim.probe inst rightTicket))
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
@@ -13902,7 +13949,7 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
             (by change { right with ctl := canon.control (drop.claim.afterRead inst rightTicket rhs) } = _
                 rw [← agrees, outcome]
                 exact congrArg (fun program => { right with ctl := canon.control program })
-                  (sharedOwnerDropCode drop permit rightTicket)) first other residual
+                  (sharedOwnerDropCode drop permit rightTicket)) first other residual compare
     · have difference : SharedGiveProbeMismatch claim inst leftTicket rightTicket left right checked raw check canon :=
         ⟨leftFocus, rightFocus, rfl, rfl, agrees⟩
       have extended : VisitorWriterPath profile ready base bindings start incoming
@@ -13927,10 +13974,11 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
     PairedComponentSite older checked raw check canon →
     OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
     Steps profile ready (specDispatch ready base) checked labels finish →
+    ShorterCallbackSlices profile ready base bindings (.tau :: labels).length →
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
   dsimp only
-  intro site installed run
+  intro site installed run compare
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: frames, rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: peerFrames, peerRest⟩
   let checked := installedAccept ready base start check name kind args
@@ -14049,7 +14097,7 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
               rw [sharedClaimProgram action inst _ position tree source] at leftFound rightFound
               exact crossSharedClaim linked source split paired paths writers (by
                 unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
-                exact pairQuietHost site _) leftFound rightFound residual
+                exact pairQuietHost site _) leftFound rightFound residual compare
       · have mismatch : SharedGiveHistoryMismatch action inst start.host.nextTicket incoming.host.nextTicket position handle
             leftBefore rightBefore left right check canon :=
           ⟨rfl, rfl, rfl, rfl, agrees⟩
@@ -14104,29 +14152,30 @@ private theorem crossInstalledSharedGive {thread frames rest peerFrames peerRest
     PairedComponentSite older checked raw check canon →
     OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
     Steps profile ready (specDispatch ready base) checked labels finish →
+    ShorterCallbackSlices profile ready base bindings (.tau :: labels).length →
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
   dsimp only
-  intro site installed run
+  intro site installed run compare
   by_cases admitted : Plain.callerInstance start.store thread = .ok (some inst) ∧
       (start.store.inst? inst).any (·.mayLeave) = true
   · cases thread with
     | none => simp [Plain.callerInstance] at admitted
-    | some worker => exact crossAdmittedSharedGive embedder linked admitted.1 admitted.2 paired site installed run
+    | some worker => exact crossAdmittedSharedGive embedder linked admitted.1 admitted.2 paired site installed run compare
   · exact crossDeniedScheduledBody embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked) admitted paired site installed run
 
 private theorem classifiedSharedGiveCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackSharedGiveCrossing profile ready base bindings := by
-  intro _ _ _ _ _ _ _ _ _ _ _ _ call linked step run paired
+  intro _ _ _ _ _ _ _ _ _ _ _ _ call linked step run paired compare
   cases call with
   | core focus calling =>
     obtain ⟨_, _, rfl, rfl, site, installed, _, _⟩ := cutSharedCalloutInstall _ _ focus calling step paired
-    exact crossInstalledSharedGive embedder linked paired site installed run
+    exact crossInstalledSharedGive embedder linked paired site installed run compare
   | program focus =>
     obtain ⟨_, _, rfl, rfl, site, installed, _, _, _⟩ :=
       cutProgramCallInstall (.prog (.pure (.cancel .none))) focus step paired
-    exact crossInstalledSharedGive embedder linked paired site installed run
+    exact crossInstalledSharedGive embedder linked paired site installed run compare
 
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
