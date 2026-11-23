@@ -3636,6 +3636,32 @@ theorem classify_mixed_callback_discrepancies {callees : List (ComponentCall.Cal
     Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.discrepancyCut segment.writers initial, ending⟩
 
 open ReturnFrame.Occurrence in
+/-- Preserve the mixed callback's terminal case when extending its writer
+path. The checked execution is split at that case and again at the precise
+point reached by the writer path. The indexed terminal case retains any
+genuine observation there, while the discrepancy cut identifies reached
+reads and sites that still lack a writer certificate. -/
+theorem classify_mixed_callback_terminal_discrepancies {callees : List (ComponentCall.Callee sig)}
+    {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    let base := ComponentCall.hostWithComponent (grow := grow) bindings callees
+    ∃ checked canonical trailing left right, labels = checked ++ trailing ∧
+      ExecutedCallbackSegment profile ready base bindings older start incoming checked canonical left right ∧
+      CallbackSliceEnd profile ready base bindings older left right trailing finish ∧
+      ∃ localChecked localRaw residual reached peer marks, trailing = localChecked ++ residual ∧
+        OccurrenceTransport profile ready base bindings start incoming (checked ++ localChecked) (canonical ++ localRaw)
+          reached peer marks ∧
+        VisitorWriterPath profile ready base bindings start incoming (checked ++ localChecked) (canonical ++ localRaw) reached peer ∧
+        WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ localChecked) (canonical ++ localRaw)
+          reached peer ∧
+        Steps profile ready (specDispatch ready base) reached residual finish := by
+  obtain ⟨checked, canonical, trailing, left, right, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
+  exact ⟨checked, canonical, trailing, left, right, split, segment, ending,
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.extend segment ending initial⟩
+
+open ReturnFrame.Occurrence in
 /-- Extend the mixed worker comparison through the reached, certified endpoint
 segments. The two traces retain their own journals and all occurrence moves.
 An asymmetric reply or a site missing a paired certificate leaves an actual
@@ -3653,8 +3679,11 @@ theorem classify_mixed_callback_endpoint_discrepancies {callees : List (Componen
       VisitorWriterPath profile ready base bindings start incoming checked canonical reached peer ∧
       WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical reached peer ∧
       Steps profile ready (specDispatch ready base) reached trailing finish := by
-  obtain ⟨_, _, _, _, _, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
-  exact Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.extend split segment ending initial
+  obtain ⟨checked, canonical, _, _, _, split, _, _, localChecked, localRaw, residual, reached, peer, marks,
+    divided, paths, writers, discrepancies, tail⟩ :=
+    classify_mixed_callback_terminal_discrepancies run paired initial
+  exact ⟨checked ++ localChecked, canonical ++ localRaw, residual, reached, peer, marks,
+    by rw [split, divided, List.append_assoc], paths, writers, discrepancies, tail⟩
 
 open ReturnFrame.Occurrence in
 /-- Follow the original Core wait install through the actual entry and

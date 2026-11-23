@@ -168,18 +168,18 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | cancelParked paths writers _ _ ih => exact follow paths writers ih
 
 theorem extend {pending : Stored.OwnedMemory.Claims.Spend → Prop}
-    (split : actual = checked ++ trailing)
     (segment : ExecutedCallbackSegment profile ready base bindings older start incoming checked canonical left right)
     (ending : CallbackSliceEnd profile ready base bindings older left right trailing finish)
     (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
-    ∃ compared raw residual reached peer marks, actual = compared ++ residual ∧
-      OccurrenceTransport profile ready base bindings start incoming compared raw reached peer marks ∧
-      VisitorWriterPath profile ready base bindings start incoming compared raw reached peer ∧
-      WriterDiscrepancyCut profile ready base bindings start incoming pending compared raw reached peer ∧
+    ∃ compared raw residual reached peer marks, trailing = compared ++ residual ∧
+      OccurrenceTransport profile ready base bindings start incoming (checked ++ compared) (canonical ++ raw) reached peer marks ∧
+      VisitorWriterPath profile ready base bindings start incoming (checked ++ compared) (canonical ++ raw) reached peer ∧
+      WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ compared) (canonical ++ raw) reached peer ∧
       Steps profile ready (specDispatch ready base) reached residual finish := by
-  obtain ⟨compared, raw, residual, reached, peer, marks, eq, paths, writers, tail⟩ :=
-    follow segment.occurrences segment.writers (cut ending)
-  exact ⟨compared, raw, residual, reached, peer, marks, split.trans eq, paths, writers,
+  obtain ⟨compared, raw, residual, reached, peer, _, split, endingPaths, endingWriters, tail⟩ := cut ending
+  obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend segment.occurrences endingPaths
+  have writers := segment.writers.append endingWriters
+  exact ⟨compared, raw, residual, reached, peer, _, split, paths, writers,
     WriterPaths.discrepancyCut writers initial, tail⟩
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters
