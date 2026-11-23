@@ -14128,6 +14128,91 @@ private theorem sharedRecordScalarEffects (cx : LiftLowerContext (core3 grow)) (
       exact (align.bind fun _ => (storeEffectBounds cx ptr (ABI.layout actualWidth type).size).bind fun _ =>
         storeEffectLocalData cx type localType payload ptr).bind fun _ => .pure _
 
+section
+open Stored.Endpoints
+
+mutual
+private inductive SharedRecordLocalField : RecordLower.Field → Prop where
+  | data {type : Stored.TypeOf} {payload : Stored.Payload type} :
+      PayloadPrefix.LocalDataType type → SharedRecordLocalField (.data type payload)
+  | aggregate {type fields} : SharedRecordLocalFields fields → SharedRecordLocalField (.aggregate type fields)
+  | fixed {element length entries} : SharedRecordLocalFields entries → SharedRecordLocalField (.fixed element length entries)
+  | sumNone {type arms tag} : SharedRecordLocalField (.sum type arms tag none)
+  | sumSome {type arms tag field} :
+      SharedRecordLocalField field → SharedRecordLocalField (.sum type arms tag (some field))
+
+private inductive SharedRecordLocalFields : List RecordLower.Field → Prop where
+  | nil : SharedRecordLocalFields []
+  | cons {field fields} : SharedRecordLocalField field → SharedRecordLocalFields fields →
+      SharedRecordLocalFields (field :: fields)
+end
+
+open Stored.Endpoints in
+private theorem sharedRecordVariantHeadEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (arms : List (Option Stored.TypeOf)) (tag ptr : Nat) :
+    StoreEffects (storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr :
+      Session grow sig Nat) :=
+  (storeEffectWrite cx ptr _).bind fun _ => .pure _
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordLocalFieldEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    {field : RecordLower.Field} (localField : SharedRecordLocalField field) (index ptr : Nat) :
+    StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width field index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) := by
+  revert index ptr
+  let authority : RecordLower.Authority (core3 grow) (HostState sig) := Record.authority recordClaims Limits.spec cx
+  refine SharedRecordLocalField.rec
+    (motive_1 := fun field _ => ∀ index ptr,
+      StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx authority
+        width field index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)))
+    (motive_2 := fun fields _ =>
+      (∀ cursor index, StoreEffects (RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority
+        width fields cursor index : Session grow sig (Except RecordLower.Issue Unit))) ∧
+      (∀ stride ptr index, StoreEffects (RecordLower.Internal.runElements Limits.spec Quirks.none cx authority
+        width fields stride ptr index : Session grow sig (Except RecordLower.Issue Unit))))
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ localField
+  · intro type payload localType index ptr
+    exact sharedRecordScalarEffects cx width type localType payload index ptr
+  · intro type fields _ ih index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (storeEffectBounds cx ptr (ABI.layout width type).size).bind fun _ =>
+      (ih.1 ptr 0).bind fun _ => .pure _
+  · intro element length fields _ ih index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (ih.2 (ABI.layout width element).size ptr 0).bind fun _ => .pure _
+  · intro type arms tag index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (sharedRecordVariantHeadEffects cx width arms tag ptr).bind fun _ => .pure _
+  · intro type arms tag field _ ih index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (sharedRecordVariantHeadEffects cx width arms tag ptr).bind fun address =>
+      (ih 0 address).bind fun _ => .pure _
+  · exact ⟨fun _ _ => .pure _, fun _ _ _ => .pure _⟩
+  · intro field fields _ _ head tail
+    constructor
+    · intro cursor index
+      rw [RecordLower.Internal.runMemory.eq_2]
+      let area := ABI.layout width field.type
+      let ptr := ABI.alignTo cursor area.alignment
+      refine (head index ptr).bind ?_
+      intro result
+      cases result with
+      | error issue => exact .pure (Except.error issue)
+      | ok unitResult =>
+        cases unitResult
+        exact tail.1 (ptr + area.size) (index + 1)
+    · intro stride ptr index
+      rw [RecordLower.Internal.runElements.eq_2]
+      refine (head index ptr).bind ?_
+      intro result
+      cases result with
+      | error issue => exact .pure (Except.error issue)
+      | ok unitResult =>
+        cases unitResult
+        exact tail.2 stride (ptr + stride) (index + 1)
+
+end
+
 open Stored.Endpoints in
 private def sharedRecordAfterField (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (fields : List RecordLower.Field) (cursor index ticket : Nat) :
@@ -14336,13 +14421,11 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         | ok result =>
           cases result
           exact ih (ptr + area.size) (index + 1) consumed allPaths traced frame checked canonical residual
-    by_cases scalar : ∃ (type : Stored.TypeOf) (payload : Stored.Payload type),
-        field = .data type payload ∧ PayloadPrefix.LocalDataType type
-    · obtain ⟨type, payload, rfl, localType⟩ := scalar
-      have checked := leftFocus
+    by_cases localField : SharedRecordLocalField field
+    · have checked := leftFocus
       have raw := rightFocus
       rw [sharedRecordMemoryCons] at checked raw
-      exact advance _ (sharedRecordScalarEffects cx width type localType payload index ptr)
+      exact advance _ (sharedRecordLocalFieldEffects cx width localField index ptr)
         split paths writers site checked raw run
     by_cases contextField : ∃ identity, field = .context identity
     · obtain ⟨identity, rfl⟩ := contextField
