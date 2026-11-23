@@ -2848,6 +2848,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | sharedSourceRecordFields _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorRegistered _ _ _ _ _ _ _ _ ih => exact ih
@@ -2922,6 +2923,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
+  | sharedSourceRecordFields _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorRegistered _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
@@ -17463,16 +17465,470 @@ private theorem finishAdmittedSourceSharedSelector {limit : Nat}
             (fun place => ⟨place, .done _ _, .step rightRead (by cases place <;> exact .done _ _)⟩)
             readPaths (frameCalloutStep readPaths rfl rfl) residual
 
-private def sourceGiveTransfer : SharedGiveAction → Bool
-  | .giveOwner _ | .endpoint _ _ => true
+private abbrev DestructorRecordAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig))
+    (leftProgram rightProgram : Session grow sig (Ret (core3 grow))) :=
+  ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+    left.store = right.store →
+    left.ctl = check.control leftProgram → right.ctl = canon.control rightProgram →
+    DestructorSchedulerAlignment older left right →
+    Steps profile ready (specDispatch ready base) left remaining finish →
+    remaining.length ≤ limit →
+    CallbackSliceEnd profile ready base bindings older left right remaining finish
+
+private def sharedRecordPlace (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (ptr : Nat) :
+    Session grow sig (Option AddrType) := do
+  let width ← ptrType cx
+  if !Stored.Lower.fits Quirks.none cx.opts.encoding width type value then return none
+  let area := ABI.layout width type
+  checkAligned ptr area.alignment.bytes
+  checkInBounds cx ptr area.size
+  return some width
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordPlacementCode (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val)
+    (fields : List RecordLower.Field) (ptr ticket : Nat) :
+    (sharedRecordEmit cx type value fields ptr ticket : Session grow sig (Ret (core3 grow))) =
+      sharedRecordPlace cx type value ptr >>= sharedRecordVisit cx fields ptr ticket := by
+  simp [sharedRecordEmit, sharedRecordPlace, ptrType, gets, getStore, perform, Prog.lift,
+    bind, Prog.bind]
+  congr 1
+  funext store
+  let width := ptrTypeIn (show CStore (core3 grow) from store) cx
+  cases Stored.Lower.fits Quirks.none cx.opts.encoding width type value with
+  | false => rfl
+  | true =>
+    let aligned : Session grow sig Unit := checkAligned ptr (ABI.layout width type).alignment.bytes
+    let bounded : Session grow sig Unit := checkInBounds cx ptr (ABI.layout width type).size
+    let visit : Session grow sig (Except RecordLower.Issue Unit) :=
+      RecordLower.Internal.runMemory Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+        width fields ptr 0
+    have joined := Prog.bind_assoc aligned (fun _ => bounded.bind (fun _ => visit)) (sharedRecordReport ticket)
+    have inner := Prog.bind_assoc bounded (fun _ => visit) (sharedRecordReport ticket)
+    have onLeft := joined.trans (congrArg (fun next => aligned.bind (fun _ => next)) inner)
+    let returnWidth : Session grow sig (Option AddrType) := .pure (some width)
+    let visitAfter := sharedRecordVisit (sig := sig) cx fields ptr ticket
+    have joined := Prog.bind_assoc aligned (fun _ => bounded.bind (fun _ => returnWidth)) visitAfter
+    have inner := Prog.bind_assoc bounded (fun _ => returnWidth) visitAfter
+    have onRight := joined.trans (congrArg (fun next => aligned.bind (fun _ => next)) inner)
+    exact onLeft.trans onRight.symm
+
+open Stored.Endpoints in
+private theorem sharedRecordPlaceEffects (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
+    (value : Value.Val) (ptr : Nat) :
+    StoreEffects (sharedRecordPlace cx type value ptr : Session grow sig (Option AddrType)) := by
+  apply (storeEffectPtrType cx).bind
+  intro width
+  by_cases fits : Stored.Lower.fits Quirks.none cx.opts.encoding width type value
+  · have aligned : StoreEffects (checkAligned ptr (ABI.layout width type).alignment.bytes : Session grow sig Unit) :=
+      storeEffectTrapIf _ _
+    simp only [fits, Bool.not_true, Bool.false_eq_true, ite_false]
+    exact aligned.bind (fun _ => (storeEffectBounds cx ptr (ABI.layout width type).size).bind fun _ => .pure (some width))
+  · have refused : Stored.Lower.fits Quirks.none cx.opts.encoding width type value = false := Bool.eq_false_iff.mpr fits
+    simp only [refused, Bool.not_false, ite_true]
+    exact .pure none
+
+private theorem storeEffectEncodeFloat (type : FloatType) (bits : BitVec type.width) :
+    StoreEffects (encodeFloat type bits : Session grow sig (BitVec (ABI.floatIntType type).width)) := by
+  have lowered : StoreEffects (lowerFloat type bits : Session grow sig (BitVec type.width)) := by
+    unfold lowerFloat
+    split
+    · exact .op rfl fun result => .pure result
+    · exact .pure bits
+  exact lowered.bind fun _ => .pure _
+
+private theorem storeEffectPrimitive (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
+    (value : Value.Val) (primitive : WIT.Primitive) (nonString : primitive ≠ .string) :
+    StoreEffects (Canon.store Limits.spec Quirks.none cx value (.prim primitive) ptr : Session grow sig Unit) := by
+  rw [Canon.store.eq_def]
+  change StoreEffects (storePrim Limits.spec Quirks.none cx primitive value ptr : Session grow sig Unit)
+  unfold storePrim
+  split
+  · exact storeEffectWrite _ _ _
+  · exact (storeEffectEncodeFloat .f32 _).bind fun _ => storeEffectWrite _ _ _
+  · exact (storeEffectEncodeFloat .f64 _).bind fun _ => storeEffectWrite _ _ _
+  · exact storeEffectWrite _ _ _
+  · contradiction
+  · split
+    · exact storeEffectWrite _ _ _
+    · exact storeEffectTrap _
+  · exact storeEffectTrap _
+
+private theorem storeEffectLocalData (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
+    (localType : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type) (ptr : Nat) :
+    StoreEffects (Canon.store Limits.spec Quirks.none cx payload.val type ptr : Session grow sig Unit) := by
+  cases localType with
+  | primitive nonString => exact storeEffectPrimitive cx ptr _ _ nonString
+  | @enum names _ =>
+    obtain ⟨value, typed⟩ := payload
+    cases typed with
+    | enum expanded =>
+      cases expanded with
+      | @variant tag _ _ _ =>
+        rw [Canon.store.eq_def]
+        change StoreEffects ((if tag < names.length then do
+          let _ ← storeVariantHead cx names.length .one tag ptr
+          pure ()
+        else storeMismatch) : Session grow sig Unit)
+        split
+        · exact ((storeEffectWrite cx ptr _).bind fun _ => .pure _).bind fun _ => .pure ()
+        · exact storeEffectTrap _
+  | flags valid =>
+    obtain ⟨value, typed⟩ := payload
+    cases typed
+    rw [Canon.store.eq_def]
+    exact storeEffectWrite _ _ _
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordScalarEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type : Stored.TypeOf) (localType : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type)
+    (index ptr : Nat) :
+    StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.data type payload) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) := by
+  simp only [RecordLower.Internal.runField, Stored.Lower.lower]
+  split
+  · exact .pure _
+  · refine ((storeEffectPtrType cx).bind fun actualWidth => ?_).bind fun _ => .pure _
+    split
+    · exact .pure _
+    · have align : StoreEffects (checkAligned ptr (ABI.layout actualWidth type).alignment.bytes : Session grow sig Unit) :=
+        storeEffectTrapIf _ _
+      exact (align.bind fun _ => (storeEffectBounds cx ptr (ABI.layout actualWidth type).size).bind fun _ =>
+        storeEffectLocalData cx type localType payload ptr).bind fun _ => .pure _
+
+section
+open Stored.Endpoints
+
+mutual
+private inductive SharedRecordLocalField : RecordLower.Field → Prop where
+  | data {type : Stored.TypeOf} {payload : Stored.Payload type} :
+      PayloadPrefix.LocalDataType type → SharedRecordLocalField (.data type payload)
+  | aggregate {type fields} : SharedRecordLocalFields fields → SharedRecordLocalField (.aggregate type fields)
+  | fixed {element length entries} : SharedRecordLocalFields entries → SharedRecordLocalField (.fixed element length entries)
+  | sumNone {type arms tag} : SharedRecordLocalField (.sum type arms tag none)
+  | sumSome {type arms tag field} :
+      SharedRecordLocalField field → SharedRecordLocalField (.sum type arms tag (some field))
+
+private inductive SharedRecordLocalFields : List RecordLower.Field → Prop where
+  | nil : SharedRecordLocalFields []
+  | cons {field fields} : SharedRecordLocalField field → SharedRecordLocalFields fields →
+      SharedRecordLocalFields (field :: fields)
+end
+
+open Stored.Endpoints in
+private theorem sharedRecordVariantHeadEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (arms : List (Option Stored.TypeOf)) (tag ptr : Nat) :
+    StoreEffects (storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr :
+      Session grow sig Nat) :=
+  (storeEffectWrite cx ptr _).bind fun _ => .pure _
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordLocalFieldEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    {field : RecordLower.Field} (localField : SharedRecordLocalField field) (index ptr : Nat) :
+    StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width field index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) := by
+  revert index ptr
+  let authority : RecordLower.Authority (core3 grow) (HostState sig) := Record.authority recordClaims Limits.spec cx
+  refine SharedRecordLocalField.rec
+    (motive_1 := fun field _ => ∀ index ptr,
+      StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx authority
+        width field index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)))
+    (motive_2 := fun fields _ =>
+      (∀ cursor index, StoreEffects (RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority
+        width fields cursor index : Session grow sig (Except RecordLower.Issue Unit))) ∧
+      (∀ stride ptr index, StoreEffects (RecordLower.Internal.runElements Limits.spec Quirks.none cx authority
+        width fields stride ptr index : Session grow sig (Except RecordLower.Issue Unit))))
+    ?_ ?_ ?_ ?_ ?_ ?_ ?_ localField
+  · intro type payload localType index ptr
+    exact sharedRecordScalarEffects cx width type localType payload index ptr
+  · intro type fields _ ih index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (storeEffectBounds cx ptr (ABI.layout width type).size).bind fun _ =>
+      (ih.1 ptr 0).bind fun _ => .pure _
+  · intro element length fields _ ih index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (ih.2 (ABI.layout width element).size ptr 0).bind fun _ => .pure _
+  · intro type arms tag index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (sharedRecordVariantHeadEffects cx width arms tag ptr).bind fun _ => .pure _
+  · intro type arms tag field _ ih index ptr
+    simp only [RecordLower.Internal.runField]
+    exact (sharedRecordVariantHeadEffects cx width arms tag ptr).bind fun address =>
+      (ih 0 address).bind fun _ => .pure _
+  · exact ⟨fun _ _ => .pure _, fun _ _ _ => .pure _⟩
+  · intro field fields _ _ head tail
+    constructor
+    · intro cursor index
+      rw [RecordLower.Internal.runMemory.eq_2]
+      let area := ABI.layout width field.type
+      let ptr := ABI.alignTo cursor area.alignment
+      refine (head index ptr).bind ?_
+      intro result
+      cases result with
+      | error issue => exact .pure (Except.error issue)
+      | ok unitResult =>
+        cases unitResult
+        exact tail.1 (ptr + area.size) (index + 1)
+    · intro stride ptr index
+      rw [RecordLower.Internal.runElements.eq_2]
+      refine (head index ptr).bind ?_
+      intro result
+      cases result with
+      | error issue => exact .pure (Except.error issue)
+      | ok unitResult =>
+        cases unitResult
+        exact tail.2 stride (ptr + stride) (index + 1)
+
+end
+
+open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
+private theorem sharedRecordMemoryCons (mode : Track) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (field : RecordLower.Field) (fields : List RecordLower.Field) (cursor index : Nat)
+    (reply : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    let slot := mode.slot width field cursor
+    sharedRecordMemory mode cx width (field :: fields) cursor index reply =
+      RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+        width field index (.memory slot.1) >>= sharedRecordAfterField mode cx width fields slot.2 (index + 1) reply := by
+  dsimp only
+  let slot := mode.slot width field cursor
+  let visit : Session grow sig (Except RecordLower.Issue Unit) :=
+    RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width field index (.memory slot.1)
+  let next (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    match result with
+    | .error issue => pure (.error issue)
+    | .ok () =>
+      let authority := Record.authority recordClaims Limits.spec cx
+      match mode with
+      | .fields | .placedFields => RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority width fields slot.2 (index + 1)
+      | .elements stride =>
+        RecordLower.Internal.runElements Limits.spec Quirks.none cx authority width fields stride slot.2 (index + 1)
+  let after := sharedRecordAfterField mode cx width fields slot.2 (index + 1) reply
+  have source : sharedRecordMemory mode cx width (field :: fields) cursor index reply = (visit.bind next).bind reply := by
+    unfold sharedRecordMemory
+    cases mode <;> dsimp only <;>
+      first | rw [RecordLower.Internal.runMemory.eq_def] | rw [RecordLower.Internal.runElements.eq_def]
+    all_goals
+      simp only [Prog.bind_eq]
+      congr 1
+      dsimp [visit, next, slot, Track.slot]
+      congr 1
+      funext result
+      cases result with
+      | error issue => rfl
+      | ok result => cases result; rfl
+  refine source.trans ((Prog.bind_assoc visit next reply).trans (congrArg visit.bind ?_))
+  funext result
+  cases result with
+  | error issue => rfl
+  | ok result => cases result; rfl
+
+open Stored.Endpoints in
+private theorem finishSourceRecordPlacement {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {ptr leftTicket rightTicket : Nat}
+    (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (fields : List RecordLower.Field)
+    (thread : check.thread = canon.thread)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket))
+    (canonical : incoming.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish)
+    (visit : ∀ (width : AddrType),
+      DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport leftTicket))
+        (sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport rightTicket))) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  rw [sharedRecordPlacementCode] at checked canonical
+  refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread (sharedRecordPlace cx type value ptr)
+    (sharedRecordVisit cx fields ptr leftTicket) (sharedRecordVisit cx fields ptr rightTicket)
+    (liftDestructorStoreEffects (sharedRecordPlaceEffects cx type value ptr) (trivialPreserves _))
+    trivial stores checked canonical run ?_
+  intro left right remaining width shorter _ same leftAt rightAt align residual
+  cases width with
+  | none =>
+    exact finishSourceScheduledReply (check := check) (canon := canon) (leftTicket := leftTicket) (rightTicket := rightTicket)
+      same (.error (.lowerRecord (.preflight (.abi .allocationPrecondition))))
+      leftAt rightAt (align scheduler) residual (shorter.trans bounded) resume
+  | some width =>
+    exact visit width same leftAt rightAt (align scheduler) residual (shorter.trans bounded)
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem finishSourceSharedRecord {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {name kind inst ptr leftTicket rightTicket} {tree : Stored.OwnedMemory.Tree sig}
+    (destination : RecordDestination)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, .giveRecord destination⟩)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control ((SharedGiveAction.record destination).afterLookup inst leftTicket ptr (some tree)))
+    (canonical : incoming.ctl = canon.control ((SharedGiveAction.record destination).afterLookup inst rightTicket ptr (some tree)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish)
+    (visit : ∀ (cx : LiftLowerContext (core3 grow)) (width : AddrType) (fields : List RecordLower.Field),
+      (∀ field ∈ fields, RecordLower.Field.Emitted field) →
+      DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport leftTicket))
+        (sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport rightTicket))) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  cases tree with
+  | atom impossible => exact impossible.elim
+  | tag payload count children =>
+    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst leftTicket ptr payload count children] at checked
+    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst rightTicket ptr payload count children] at canonical
+    let cx := destination.context (grow := grow) inst
+    let type := sig.payload payload.1
+    let value := payload.2.val.value
+    cases compiled : Record.preflight cx type payload.2 (.memory ptr) with
+    | error issue =>
+      have refused : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
+          (.memory ptr) = .error issue := compiled
+      rw [refused] at checked canonical
+      exact finishSourceScheduledReply stores (.error (.lowerRecord issue))
+        checked canonical scheduler run bounded resume
+    | ok result =>
+      obtain ⟨fields, objects⟩ := result
+      have compiledAt : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
+          (.memory ptr) = .ok (fields, objects) := compiled
+      rw [compiledAt] at checked canonical
+      have emitted := RecordLower.compileRecord_emitted cx type value payload.2.val.owners (.memory ptr)
+        fields objects (by
+          simp only [Record.preflight, bind, Except.bind, Except.mapError] at compiled
+          split at compiled <;> first | contradiction | exact compiled)
+      let plan := RecordLower.Field.listObjects fields
+      let checkedNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr leftTicket
+      let canonicalNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr rightTicket
+      let leftRead := { start with ctl := check.control (.op .hostGet
+        (fun state => checkedNext (Record.prepare start.store state.writer plan))) }
+      let rightRead := { incoming with ctl := canon.control (.op .hostGet
+        (fun state => canonicalNext (Record.prepare incoming.store state.writer plan))) }
+      have leftGet : Step profile ready (specDispatch ready base) start .tau leftRead := .get checked
+      have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rightRead :=
+        .get canonical
+      cases run with
+      | refl => exact .exhausted
+      | @cons _ _ _ _ trailing first tail =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet first
+        have got := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet
+          (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
+        refine .destructorPrefix got (frameCalloutStep got rfl rfl) (fun aligned => aligned) ?_
+        let lhs := Record.prepare start.store start.host.writer plan
+        let rhs := Record.prepare incoming.store incoming.host.writer plan
+        let left := { leftRead with ctl := check.control (checkedNext lhs) }
+        let right := { rightRead with ctl := canon.control (canonicalNext rhs) }
+        have lread : Step profile ready (specDispatch ready base) leftRead .tau left :=
+          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+            (k := fun state => checkedNext (Record.prepare start.store state.writer plan)) rfl
+        have rread : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau right :=
+          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+            (k := fun state => canonicalNext (Record.prepare incoming.store state.writer plan)) rfl
+        rcases splitSilent (count := 1) (.cons lread (.refl _)) tail with ⟨suffix, used, residual⟩ | short
+        · rw [used]
+          rw [used] at bounded
+          have reads := sharedSchedulerTransport (bindings := bindings) (edit := .same) lread rread rfl rfl
+          by_cases agrees : lhs = rhs
+          · refine .destructorPrefix reads (frameCalloutStep reads rfl rfl) (fun aligned => aligned) ?_
+            cases outcome : lhs with
+            | error issue =>
+              refine finishSourceScheduledReply (check := check) (canon := canon) (start := left) (incoming := right)
+                (leftTicket := leftTicket) (rightTicket := rightTicket) stores (.error (.lowerRecord issue)) ?_ ?_ scheduler residual ?_ resume
+              · change check.control (checkedNext lhs) = _
+                rw [outcome]
+                rfl
+              · change canon.control (canonicalNext rhs) = _
+                rw [← agrees, outcome]
+                rfl
+              · simp only [List.length_cons, List.length_append, List.length_replicate] at bounded
+                omega
+            | ok permit =>
+              cases permit
+              have within : suffix.length ≤ limit := by
+                simp only [List.length_cons, List.length_append, List.length_replicate] at bounded
+                omega
+              have checkedPlaced : left.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket) := by
+                change check.control (checkedNext lhs) = _
+                rw [outcome]
+                rfl
+              have canonicalPlaced : right.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket) := by
+                change canon.control (canonicalNext rhs) = _
+                rw [← agrees, outcome]
+                rfl
+              exact .sharedDropRecordPrepared parents thread segments linked compiledAt emitted stores outcome
+                (agrees.symm.trans outcome) checkedPlaced canonicalPlaced
+                (finishSourceRecordPlacement cx type value fields thread stores
+                  checkedPlaced canonicalPlaced residual scheduler within resume (fun width => visit cx width fields emitted))
+          · have mismatch : SharedRecordPrepareMismatch leftRead rightRead left right plan check canon :=
+              ⟨checkedNext, canonicalNext, stores, rfl, rfl, rfl, rfl, agrees⟩
+            exact .sharedRecordPrepareMismatch mismatch reads
+              (.sharedRecordPrepare mismatch (.same lread rfl (.done _)) (.same rread rfl (.done _))) residual
+        · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
+          have stopped := stepsAtEmpty (empty ▸ tail)
+          rw [empty, stopped]
+          exact .exhausted
+
+open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
+private theorem finishSourceLocalRecordFields {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (fields : List RecordLower.Field) (cursor index : Nat)
+    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket))
+      (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)) := by
+  classical
+  induction fields generalizing cursor index with
+  | nil =>
+    intro left right remaining same checked canonical scheduler run bounded
+    exact finishSourceScheduledReply same (.ok 0) checked canonical scheduler run bounded resume
+  | cons field fields ih =>
+    intro left right remaining same checked canonical scheduler run bounded
+    by_cases localField : SharedRecordLocalField field
+    · let slot := Track.slot .fields width field cursor
+      let visit : Session grow sig (Except RecordLower.Issue Unit) :=
+        RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+          width field index (.memory slot.1)
+      let next (ticket : Nat) := sharedRecordAfterField (sig := sig)
+        .fields cx width fields slot.2 (index + 1) (sharedRecordReport ticket)
+      rw [sharedRecordMemoryCons] at checked canonical
+      refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread visit (next leftTicket) (next rightTicket)
+        (liftDestructorStoreEffects (sharedRecordLocalFieldEffects cx width localField index slot.1) (trivialPreserves _))
+        trivial same checked canonical run ?_
+      intro reached peer suffix result shorter _ stores lhs rhs aligned residual
+      cases result with
+      | error issue =>
+        exact finishSourceScheduledReply stores (.error (.lowerRecord issue)) lhs rhs
+          (aligned scheduler) residual (shorter.trans bounded) resume
+      | ok done =>
+        cases done
+        exact ih slot.2 (index + 1) (fun item member => emitted item (List.mem_cons_of_mem field member))
+          stores lhs rhs (aligned scheduler) residual (shorter.trans bounded)
+    · cases run with
+      | refl => exact .exhausted
+      | cons first tail =>
+        exact .sharedSourceRecordFields parents thread segments emitted same scheduler checked canonical (.cons first tail)
+
+private def sourceGiveWithReply : SharedGiveAction → Bool
+  | .giveOwner _ | .endpoint _ _ | .record _ => true
   | _ => false
 
 open Stored.OwnedMemory.Claims in
-private theorem finishSourceSelectedTransfer {limit : Nat}
+private theorem finishSourceSelectedGive {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {name kind inst position leftTicket rightTicket} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
-    (transfer : sourceGiveTransfer action = true)
+    (transfer : sourceGiveWithReply action = true)
+    (parents : SourceParentStack older check.rest canon.rest)
     (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
     (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
     (present : ¬ missingSharedPosition action tree position)
     (stores : start.store = incoming.store)
@@ -17507,12 +17963,18 @@ private theorem finishSourceSelectedTransfer {limit : Nat}
       cases permit
       exact finishSourceEndpointGive ⟨channel, element, identity, inst⟩ thread stores
         checked canonical leftLive rightLive visited scheduler bounded resume
-  | _ => contradiction
+  | record destination =>
+    exact finishSourceSharedRecord destination parents thread segments linked stores checked canonical run scheduler bounded resume
+      (fun cx width fields emitted => finishSourceLocalRecordFields leftTicket rightTicket cx width fields position 0
+        emitted parents thread segments resume)
+  | dropOwner _ => contradiction
 
-private theorem finishAdmittedSourceSharedTransfer {limit : Nat}
+private theorem finishAdmittedSourceSharedGive {limit : Nat}
     {worker frames peerFrames rest peerRest name kind args inst} {action : SharedGiveAction}
     {frame : Seg (core3 grow) (HostState sig)}
-    (transfer : sourceGiveTransfer action = true)
+    (transfer : sourceGiveWithReply action = true)
+    (parents : SourceParentStack older rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
     (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
@@ -17530,9 +17992,9 @@ private theorem finishAdmittedSourceSharedTransfer {limit : Nat}
     CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
   finishAdmittedSourceSharedSelector embedder linked caller mayLeave stores checked canonical run scheduler bounded resume
     (fun _ _ {_ _ _} missing same leftAt rightAt residual aligned within =>
-      finishSourceSelectedTransfer (check := ⟨some worker, frame :: frames, rest⟩)
-        (canon := ⟨some worker, frame :: peerFrames, peerRest⟩) transfer rfl linked missing same
-        leftAt rightAt residual aligned within resume)
+      finishSourceSelectedGive (check := ⟨some worker, frame :: frames, rest⟩)
+        (canon := ⟨some worker, frame :: peerFrames, peerRest⟩) transfer parents rfl (.cons (.same _) segments)
+        linked missing same leftAt rightAt residual aligned within resume)
 
 private theorem crossSelectedEmbedderAdmission {limit : Nat}
     {worker frames peerFrames rest peerRest name kind args}
@@ -17667,7 +18129,7 @@ private theorem finishSourceSwitchTarget {limit : Nat}
                     exact finishAdmittedSourceLegacy embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
                       (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
                   · exact otherwise
-                · by_cases shared : ∃ inst action, sourceGiveTransfer action = true ∧
+                · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
                       resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
                   · obtain ⟨inst, action, transfer, linked⟩ := shared
                     by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
@@ -17675,7 +18137,7 @@ private theorem finishSourceSwitchTarget {limit : Nat}
                     · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
                       refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
                       intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
-                      exact finishAdmittedSourceSharedTransfer transfer embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
+                      exact finishAdmittedSourceSharedGive transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
                         (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
                     · exact otherwise
                   · exact otherwise
@@ -18460,12 +18922,12 @@ private theorem compareAdmittedSourceLinked {limit : Nat}
           stores checked canonical run scheduler within
           (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
       · exact frontier
-    · by_cases shared : ∃ inst action, sourceGiveTransfer action = true ∧
+    · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
           resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
       · obtain ⟨inst, action, transfer, linked⟩ := shared
         by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
             (start.store.inst? inst).any (·.mayLeave) = true
-        · exact finishAdmittedSourceSharedTransfer (frames := []) (peerFrames := []) transfer embedder linked context.1 context.2
+        · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := []) transfer parents .nil embedder linked context.1 context.2
             stores checked canonical run scheduler within
             (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
         · exact frontier
@@ -18553,253 +19015,6 @@ private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody 
   finishSourceScheduledReply stores result checked canonical scheduler run bounded
     (finishDestructorCoreReply parents thread segments compare)
 
-private def sharedRecordPlace (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (ptr : Nat) :
-    Session grow sig (Option AddrType) := do
-  let width ← ptrType cx
-  if !Stored.Lower.fits Quirks.none cx.opts.encoding width type value then return none
-  let area := ABI.layout width type
-  checkAligned ptr area.alignment.bytes
-  checkInBounds cx ptr area.size
-  return some width
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordPlacementCode (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val)
-    (fields : List RecordLower.Field) (ptr ticket : Nat) :
-    (sharedRecordEmit cx type value fields ptr ticket : Session grow sig (Ret (core3 grow))) =
-      sharedRecordPlace cx type value ptr >>= sharedRecordVisit cx fields ptr ticket := by
-  simp [sharedRecordEmit, sharedRecordPlace, ptrType, gets, getStore, perform, Prog.lift,
-    bind, Prog.bind]
-  congr 1
-  funext store
-  let width := ptrTypeIn (show CStore (core3 grow) from store) cx
-  cases Stored.Lower.fits Quirks.none cx.opts.encoding width type value with
-  | false => rfl
-  | true =>
-    let aligned : Session grow sig Unit := checkAligned ptr (ABI.layout width type).alignment.bytes
-    let bounded : Session grow sig Unit := checkInBounds cx ptr (ABI.layout width type).size
-    let visit : Session grow sig (Except RecordLower.Issue Unit) :=
-      RecordLower.Internal.runMemory Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-        width fields ptr 0
-    have joined := Prog.bind_assoc aligned (fun _ => bounded.bind (fun _ => visit)) (sharedRecordReport ticket)
-    have inner := Prog.bind_assoc bounded (fun _ => visit) (sharedRecordReport ticket)
-    have onLeft := joined.trans (congrArg (fun next => aligned.bind (fun _ => next)) inner)
-    let returnWidth : Session grow sig (Option AddrType) := .pure (some width)
-    let visitAfter := sharedRecordVisit (sig := sig) cx fields ptr ticket
-    have joined := Prog.bind_assoc aligned (fun _ => bounded.bind (fun _ => returnWidth)) visitAfter
-    have inner := Prog.bind_assoc bounded (fun _ => returnWidth) visitAfter
-    have onRight := joined.trans (congrArg (fun next => aligned.bind (fun _ => next)) inner)
-    exact onLeft.trans onRight.symm
-
-open Stored.Endpoints in
-private theorem sharedRecordPlaceEffects (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
-    (value : Value.Val) (ptr : Nat) :
-    StoreEffects (sharedRecordPlace cx type value ptr : Session grow sig (Option AddrType)) := by
-  apply (storeEffectPtrType cx).bind
-  intro width
-  by_cases fits : Stored.Lower.fits Quirks.none cx.opts.encoding width type value
-  · have aligned : StoreEffects (checkAligned ptr (ABI.layout width type).alignment.bytes : Session grow sig Unit) :=
-      storeEffectTrapIf _ _
-    simp only [fits, Bool.not_true, Bool.false_eq_true, ite_false]
-    exact aligned.bind (fun _ => (storeEffectBounds cx ptr (ABI.layout width type).size).bind fun _ => .pure (some width))
-  · have refused : Stored.Lower.fits Quirks.none cx.opts.encoding width type value = false := Bool.eq_false_iff.mpr fits
-    simp only [refused, Bool.not_false, ite_true]
-    exact .pure none
-
-private theorem storeEffectEncodeFloat (type : FloatType) (bits : BitVec type.width) :
-    StoreEffects (encodeFloat type bits : Session grow sig (BitVec (ABI.floatIntType type).width)) := by
-  have lowered : StoreEffects (lowerFloat type bits : Session grow sig (BitVec type.width)) := by
-    unfold lowerFloat
-    split
-    · exact .op rfl fun result => .pure result
-    · exact .pure bits
-  exact lowered.bind fun _ => .pure _
-
-private theorem storeEffectPrimitive (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
-    (value : Value.Val) (primitive : WIT.Primitive) (nonString : primitive ≠ .string) :
-    StoreEffects (Canon.store Limits.spec Quirks.none cx value (.prim primitive) ptr : Session grow sig Unit) := by
-  rw [Canon.store.eq_def]
-  change StoreEffects (storePrim Limits.spec Quirks.none cx primitive value ptr : Session grow sig Unit)
-  unfold storePrim
-  split
-  · exact storeEffectWrite _ _ _
-  · exact (storeEffectEncodeFloat .f32 _).bind fun _ => storeEffectWrite _ _ _
-  · exact (storeEffectEncodeFloat .f64 _).bind fun _ => storeEffectWrite _ _ _
-  · exact storeEffectWrite _ _ _
-  · contradiction
-  · split
-    · exact storeEffectWrite _ _ _
-    · exact storeEffectTrap _
-  · exact storeEffectTrap _
-
-private theorem storeEffectLocalData (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
-    (localType : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type) (ptr : Nat) :
-    StoreEffects (Canon.store Limits.spec Quirks.none cx payload.val type ptr : Session grow sig Unit) := by
-  cases localType with
-  | primitive nonString => exact storeEffectPrimitive cx ptr _ _ nonString
-  | @enum names _ =>
-    obtain ⟨value, typed⟩ := payload
-    cases typed with
-    | enum expanded =>
-      cases expanded with
-      | @variant tag _ _ _ =>
-        rw [Canon.store.eq_def]
-        change StoreEffects ((if tag < names.length then do
-          let _ ← storeVariantHead cx names.length .one tag ptr
-          pure ()
-        else storeMismatch) : Session grow sig Unit)
-        split
-        · exact ((storeEffectWrite cx ptr _).bind fun _ => .pure _).bind fun _ => .pure ()
-        · exact storeEffectTrap _
-  | flags valid =>
-    obtain ⟨value, typed⟩ := payload
-    cases typed
-    rw [Canon.store.eq_def]
-    exact storeEffectWrite _ _ _
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordScalarEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (type : Stored.TypeOf) (localType : PayloadPrefix.LocalDataType type) (payload : Stored.Payload type)
-    (index ptr : Nat) :
-    StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.data type payload) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) := by
-  simp only [RecordLower.Internal.runField, Stored.Lower.lower]
-  split
-  · exact .pure _
-  · refine ((storeEffectPtrType cx).bind fun actualWidth => ?_).bind fun _ => .pure _
-    split
-    · exact .pure _
-    · have align : StoreEffects (checkAligned ptr (ABI.layout actualWidth type).alignment.bytes : Session grow sig Unit) :=
-        storeEffectTrapIf _ _
-      exact (align.bind fun _ => (storeEffectBounds cx ptr (ABI.layout actualWidth type).size).bind fun _ =>
-        storeEffectLocalData cx type localType payload ptr).bind fun _ => .pure _
-
-section
-open Stored.Endpoints
-
-mutual
-private inductive SharedRecordLocalField : RecordLower.Field → Prop where
-  | data {type : Stored.TypeOf} {payload : Stored.Payload type} :
-      PayloadPrefix.LocalDataType type → SharedRecordLocalField (.data type payload)
-  | aggregate {type fields} : SharedRecordLocalFields fields → SharedRecordLocalField (.aggregate type fields)
-  | fixed {element length entries} : SharedRecordLocalFields entries → SharedRecordLocalField (.fixed element length entries)
-  | sumNone {type arms tag} : SharedRecordLocalField (.sum type arms tag none)
-  | sumSome {type arms tag field} :
-      SharedRecordLocalField field → SharedRecordLocalField (.sum type arms tag (some field))
-
-private inductive SharedRecordLocalFields : List RecordLower.Field → Prop where
-  | nil : SharedRecordLocalFields []
-  | cons {field fields} : SharedRecordLocalField field → SharedRecordLocalFields fields →
-      SharedRecordLocalFields (field :: fields)
-end
-
-open Stored.Endpoints in
-private theorem sharedRecordVariantHeadEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (arms : List (Option Stored.TypeOf)) (tag ptr : Nat) :
-    StoreEffects (storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr :
-      Session grow sig Nat) :=
-  (storeEffectWrite cx ptr _).bind fun _ => .pure _
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordLocalFieldEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    {field : RecordLower.Field} (localField : SharedRecordLocalField field) (index ptr : Nat) :
-    StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width field index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) := by
-  revert index ptr
-  let authority : RecordLower.Authority (core3 grow) (HostState sig) := Record.authority recordClaims Limits.spec cx
-  refine SharedRecordLocalField.rec
-    (motive_1 := fun field _ => ∀ index ptr,
-      StoreEffects (RecordLower.Internal.runField Limits.spec Quirks.none cx authority
-        width field index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)))
-    (motive_2 := fun fields _ =>
-      (∀ cursor index, StoreEffects (RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority
-        width fields cursor index : Session grow sig (Except RecordLower.Issue Unit))) ∧
-      (∀ stride ptr index, StoreEffects (RecordLower.Internal.runElements Limits.spec Quirks.none cx authority
-        width fields stride ptr index : Session grow sig (Except RecordLower.Issue Unit))))
-    ?_ ?_ ?_ ?_ ?_ ?_ ?_ localField
-  · intro type payload localType index ptr
-    exact sharedRecordScalarEffects cx width type localType payload index ptr
-  · intro type fields _ ih index ptr
-    simp only [RecordLower.Internal.runField]
-    exact (storeEffectBounds cx ptr (ABI.layout width type).size).bind fun _ =>
-      (ih.1 ptr 0).bind fun _ => .pure _
-  · intro element length fields _ ih index ptr
-    simp only [RecordLower.Internal.runField]
-    exact (ih.2 (ABI.layout width element).size ptr 0).bind fun _ => .pure _
-  · intro type arms tag index ptr
-    simp only [RecordLower.Internal.runField]
-    exact (sharedRecordVariantHeadEffects cx width arms tag ptr).bind fun _ => .pure _
-  · intro type arms tag field _ ih index ptr
-    simp only [RecordLower.Internal.runField]
-    exact (sharedRecordVariantHeadEffects cx width arms tag ptr).bind fun address =>
-      (ih 0 address).bind fun _ => .pure _
-  · exact ⟨fun _ _ => .pure _, fun _ _ _ => .pure _⟩
-  · intro field fields _ _ head tail
-    constructor
-    · intro cursor index
-      rw [RecordLower.Internal.runMemory.eq_2]
-      let area := ABI.layout width field.type
-      let ptr := ABI.alignTo cursor area.alignment
-      refine (head index ptr).bind ?_
-      intro result
-      cases result with
-      | error issue => exact .pure (Except.error issue)
-      | ok unitResult =>
-        cases unitResult
-        exact tail.1 (ptr + area.size) (index + 1)
-    · intro stride ptr index
-      rw [RecordLower.Internal.runElements.eq_2]
-      refine (head index ptr).bind ?_
-      intro result
-      cases result with
-      | error issue => exact .pure (Except.error issue)
-      | ok unitResult =>
-        cases unitResult
-        exact tail.2 stride (ptr + stride) (index + 1)
-
-end
-
-open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
-private theorem sharedRecordMemoryCons (mode : Track) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (field : RecordLower.Field) (fields : List RecordLower.Field) (cursor index : Nat)
-    (reply : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    let slot := mode.slot width field cursor
-    sharedRecordMemory mode cx width (field :: fields) cursor index reply =
-      RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-        width field index (.memory slot.1) >>= sharedRecordAfterField mode cx width fields slot.2 (index + 1) reply := by
-  dsimp only
-  let slot := mode.slot width field cursor
-  let visit : Session grow sig (Except RecordLower.Issue Unit) :=
-    RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width field index (.memory slot.1)
-  let next (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
-    match result with
-    | .error issue => pure (.error issue)
-    | .ok () =>
-      let authority := Record.authority recordClaims Limits.spec cx
-      match mode with
-      | .fields | .placedFields => RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority width fields slot.2 (index + 1)
-      | .elements stride =>
-        RecordLower.Internal.runElements Limits.spec Quirks.none cx authority width fields stride slot.2 (index + 1)
-  let after := sharedRecordAfterField mode cx width fields slot.2 (index + 1) reply
-  have source : sharedRecordMemory mode cx width (field :: fields) cursor index reply = (visit.bind next).bind reply := by
-    unfold sharedRecordMemory
-    cases mode <;> dsimp only <;>
-      first | rw [RecordLower.Internal.runMemory.eq_def] | rw [RecordLower.Internal.runElements.eq_def]
-    all_goals
-      simp only [Prog.bind_eq]
-      congr 1
-      dsimp [visit, next, slot, Track.slot]
-      congr 1
-      funext result
-      cases result with
-      | error issue => rfl
-      | ok result => cases result; rfl
-  refine source.trans ((Prog.bind_assoc visit next reply).trans (congrArg visit.bind ?_))
-  funext result
-  cases result with
-  | error issue => rfl
-  | ok result => cases result; rfl
-
 open Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem sharedRecordAggregateCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (type : Stored.TypeOf) (fields : List RecordLower.Field) (index ptr : Nat)
@@ -18864,19 +19079,6 @@ private theorem sharedRecordSumCode (cx : LiftLowerContext (core3 grow)) (width 
   | ok result => cases result; rfl
 
 open Stored.Endpoints in
-private abbrev DestructorRecordAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
-    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
-    (limit : Nat) (finish : Config (core3 grow) (HostState sig))
-    (leftProgram rightProgram : Session grow sig (Ret (core3 grow))) :=
-  ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-    left.store = right.store →
-    left.ctl = check.control leftProgram → right.ctl = canon.control rightProgram →
-    DestructorSchedulerAlignment older left right →
-    Steps profile ready (specDispatch ready base) left remaining finish →
-    remaining.length ≤ limit →
-    CallbackSliceEnd profile ready base bindings older left right remaining finish
-
 open Stored.Endpoints in
 private def sharedRecordContextBody (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
@@ -21892,36 +22094,6 @@ private theorem finishDestructorRecordFields {limit : Nat} {body : ThreadBody (c
     cases done
     exact finishDestructorScheduledReply parents thread segments stores (.ok 0) checked canonical scheduler run bounded compare
 
-open Stored.Endpoints in
-private theorem finishDestructorRecordPlacement {limit : Nat} {body : ThreadBody (core3 grow)}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {ptr leftTicket rightTicket : Nat}
-    (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (fields : List RecordLower.Field)
-    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
-    (parents : DestructorParentChain older body check.rest canon.rest)
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (stores : start.store = incoming.store)
-    (checked : start.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket))
-    (canonical : incoming.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  rw [sharedRecordPlacementCode] at checked canonical
-  refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread (sharedRecordPlace cx type value ptr)
-    (sharedRecordVisit cx fields ptr leftTicket) (sharedRecordVisit cx fields ptr rightTicket)
-    (liftDestructorStoreEffects (sharedRecordPlaceEffects cx type value ptr) (trivialPreserves _))
-    trivial stores checked canonical run ?_
-  intro left right remaining width shorter _ same leftAt rightAt align residual
-  cases width with
-  | none =>
-    exact finishDestructorScheduledReply (check := check) (canon := canon) (leftTicket := leftTicket) (rightTicket := rightTicket)
-      parents thread segments same (.error (.lowerRecord (.preflight (.abi .allocationPrecondition))))
-      leftAt rightAt (align scheduler) residual (shorter.trans bounded) compare
-  | some width =>
-    exact finishDestructorRecordFields (check := check) (canon := canon) (leftTicket := leftTicket) (rightTicket := rightTicket)
-      cx width fields ptr 0 emitted parents thread segments same leftAt rightAt residual (align scheduler) (shorter.trans bounded) compare
-
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem finishDestructorSharedRecord {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -21937,102 +22109,13 @@ private theorem finishDestructorSharedRecord {limit : Nat} {body : ThreadBody (c
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (scheduler : DestructorSchedulerAlignment older start incoming)
     (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  classical
-  cases tree with
-  | atom impossible => exact impossible.elim
-  | tag payload count children =>
-    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst leftTicket ptr payload count children] at checked
-    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst rightTicket ptr payload count children] at canonical
-    let cx := destination.context (grow := grow) inst
-    let type := sig.payload payload.1
-    let value := payload.2.val.value
-    cases compiled : Record.preflight cx type payload.2 (.memory ptr) with
-    | error issue =>
-      have refused : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
-          (.memory ptr) = .error issue := compiled
-      rw [refused] at checked canonical
-      exact finishDestructorScheduledReply parents thread segments stores (.error (.lowerRecord issue))
-        checked canonical scheduler run bounded compare
-    | ok result =>
-      obtain ⟨fields, objects⟩ := result
-      have compiledAt : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
-          (.memory ptr) = .ok (fields, objects) := compiled
-      rw [compiledAt] at checked canonical
-      have emitted := RecordLower.compileRecord_emitted cx type value payload.2.val.owners (.memory ptr)
-        fields objects (by
-          simp only [Record.preflight, bind, Except.bind, Except.mapError] at compiled
-          split at compiled <;> first | contradiction | exact compiled)
-      let plan := RecordLower.Field.listObjects fields
-      let checkedNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr leftTicket
-      let canonicalNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr rightTicket
-      let leftRead := { start with ctl := check.control (.op .hostGet
-        (fun state => checkedNext (Record.prepare start.store state.writer plan))) }
-      let rightRead := { incoming with ctl := canon.control (.op .hostGet
-        (fun state => canonicalNext (Record.prepare incoming.store state.writer plan))) }
-      have leftGet : Step profile ready (specDispatch ready base) start .tau leftRead := .get checked
-      have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rightRead :=
-        .get canonical
-      cases run with
-      | refl => exact .exhausted
-      | @cons _ _ _ _ trailing first tail =>
-        obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet first
-        have got := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet
-          (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
-        refine .destructorPrefix got (frameCalloutStep got rfl rfl) (fun aligned => aligned) ?_
-        let lhs := Record.prepare start.store start.host.writer plan
-        let rhs := Record.prepare incoming.store incoming.host.writer plan
-        let left := { leftRead with ctl := check.control (checkedNext lhs) }
-        let right := { rightRead with ctl := canon.control (canonicalNext rhs) }
-        have lread : Step profile ready (specDispatch ready base) leftRead .tau left :=
-          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
-            (k := fun state => checkedNext (Record.prepare start.store state.writer plan)) rfl
-        have rread : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau right :=
-          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
-            (k := fun state => canonicalNext (Record.prepare incoming.store state.writer plan)) rfl
-        rcases splitSilent (count := 1) (.cons lread (.refl _)) tail with ⟨suffix, used, residual⟩ | short
-        · rw [used]
-          rw [used] at bounded
-          have reads := sharedSchedulerTransport (bindings := bindings) (edit := .same) lread rread rfl rfl
-          by_cases agrees : lhs = rhs
-          · refine .destructorPrefix reads (frameCalloutStep reads rfl rfl) (fun aligned => aligned) ?_
-            cases outcome : lhs with
-            | error issue =>
-              refine finishDestructorScheduledReply (check := check) (canon := canon) (start := left) (incoming := right)
-                (leftTicket := leftTicket) (rightTicket := rightTicket) parents thread segments stores (.error (.lowerRecord issue)) ?_ ?_ scheduler residual ?_ compare
-              · change check.control (checkedNext lhs) = _
-                rw [outcome]
-                rfl
-              · change canon.control (canonicalNext rhs) = _
-                rw [← agrees, outcome]
-                rfl
-              · simp only [List.length_cons, List.length_append, List.length_replicate] at bounded
-                omega
-            | ok permit =>
-              cases permit
-              have within : suffix.length ≤ limit := by
-                simp only [List.length_cons, List.length_append, List.length_replicate] at bounded
-                omega
-              have checkedPlaced : left.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket) := by
-                change check.control (checkedNext lhs) = _
-                rw [outcome]
-                rfl
-              have canonicalPlaced : right.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket) := by
-                change canon.control (canonicalNext rhs) = _
-                rw [← agrees, outcome]
-                rfl
-              exact .sharedDropRecordPrepared parents thread segments linked compiledAt emitted stores outcome
-                (agrees.symm.trans outcome) checkedPlaced canonicalPlaced
-                (finishDestructorRecordPlacement cx type value fields emitted parents thread segments stores
-                  checkedPlaced canonicalPlaced residual scheduler within compare)
-          · have mismatch : SharedRecordPrepareMismatch leftRead rightRead left right plan check canon :=
-              ⟨checkedNext, canonicalNext, stores, rfl, rfl, rfl, rfl, agrees⟩
-            exact .sharedRecordPrepareMismatch mismatch reads
-              (.sharedRecordPrepare mismatch (.same lread rfl (.done _)) (.same rread rfl (.done _))) residual
-        · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
-          have stopped := stepsAtEmpty (empty ▸ tail)
-          rw [empty, stopped]
-          exact .exhausted
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishSourceSharedRecord destination (destructorParentStack parents) thread segments linked stores
+    checked canonical run scheduler bounded (finishDestructorCoreReply parents thread segments compare)
+    (fun cx width fields emitted => by
+      intro left right suffix same lhs rhs aligned tail within
+      exact finishDestructorRecordFields cx width fields ptr 0 emitted parents thread segments same
+        lhs rhs tail aligned within compare)
 
 private theorem sharedDestructorSourceAtAdmission
     {task : TaskId} {start reached peer : CStore (core3 grow)}

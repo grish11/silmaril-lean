@@ -2273,6 +2273,10 @@ inductive SourceParentStack (changes : ReturnFrame.Substitutions (core3 grow) (H
     List (Activation (core3 grow) (HostState sig)) → List (Activation (core3 grow) (HostState sig)) → Prop where
   | paired {left right} (active : List.Forall₂ (ReturnFrame.Related.Active changes) left right) :
       SourceParentStack changes left right
+  | prefixed {left right active peerActive}
+      (activePaired : List.Forall₂ (ReturnFrame.Related.Active changes) active peerActive)
+      (below : SourceParentStack changes left right) :
+      SourceParentStack changes (active ++ left) (peerActive ++ right)
   | destructor {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (body : ThreadBody (core3 grow)) (leftTicket rightTicket : Nat)
       (thread : check.thread = canon.thread)
@@ -2450,11 +2454,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The compiled shared record has passed both actual root prepares.
   Its recursive emitter is pending under the original continuations. -/
-  | sharedDropRecordPrepared {changes reached peer trailing finish body name kind inst ptr leftTicket rightTicket}
+  | sharedDropRecordPrepared {changes reached peer trailing finish name kind inst ptr leftTicket rightTicket}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {destination : RecordDestination} {tag : sig.Tag} {payload : Stored.OwnedMemory.Payload (sig.payload tag)}
       {fields : List Stored.Endpoints.RecordLower.Field} {objects : List Stored.Endpoints.RecordLower.Object}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (linked : resolveBinding bindings name kind = .ok ⟨name, inst, .giveRecord destination⟩)
@@ -2469,6 +2473,25 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (checked : reached.ctl = check.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr leftTicket))
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- A compiled record emitter has reached its next field under the
+  source return frames. This cut carries the actual residual for field rules
+  that have yet to join the heterogeneous scheduler comparison. -/
+  | sharedSourceRecordFields {changes reached peer trailing finish}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {cx : LiftLowerContext (core3 grow)} {width : AddrType} {cursor index leftTicket rightTicket : Nat}
+      {field : Stored.Endpoints.RecordLower.Field} {fields : List Stored.Endpoints.RecordLower.Field}
+      (parents : SourceParentStack changes check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (emitted : ∀ item ∈ field :: fields, Stored.Endpoints.RecordLower.Field.Emitted item)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (sharedRecordMemory .fields cx width (field :: fields)
+        cursor index (sharedRecordReport leftTicket)))
+      (canonical : peer.ctl = canon.control (sharedRecordMemory .fields cx width (field :: fields)
+        cursor index (sharedRecordReport rightTicket)))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The compiler's actual allocation instruction entered the canonical
   realloc body and parked its source-specific return segments. -/
