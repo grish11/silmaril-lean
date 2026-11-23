@@ -2702,8 +2702,6 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | refused _ _ _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _, _, _⟩ := reply
     exact append front (append completed tail)
-  | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | admissionTrap _ _ _ checked _ tail => exact append checked tail
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -2738,8 +2736,6 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
-  | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | admissionTrap _ install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual

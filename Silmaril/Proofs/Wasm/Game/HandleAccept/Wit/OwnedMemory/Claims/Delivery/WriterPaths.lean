@@ -216,7 +216,6 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
       exact ⟨[], [], paths.1, paths.2⟩
     · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
       exact ⟨_, _, paths.1.1, paths.2.1⟩
-  | allocation _ paths => exact paths
   | callbackBoundary _ paths => exact paths
   | append _ _ leading trailing => exact appendPaired leading trailing
 
@@ -272,14 +271,10 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
       simpa only [List.foldl_cons, List.foldl_nil, List.mem_singleton] using initial.spendLeft update
   | publication paths =>
     exact .complete [] (by simpa only [List.not_mem_nil, or_false] using publicationDiscrepancies paths initial)
-  | allocation boundary paths =>
-    simpa only [List.nil_append, List.append_nil] using
-      (WriterDiscrepancyCut.boundary [] empty (by simpa only [List.not_mem_nil, or_false] using initial)
-        (.inl boundary) paths empty)
   | callbackBoundary boundary paths =>
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.boundary [] empty (by simpa only [List.not_mem_nil, or_false] using initial)
-        (.inr boundary) paths empty)
+        boundary paths empty)
   | append front tail first later =>
     cases first initial with
     | complete spends reached =>

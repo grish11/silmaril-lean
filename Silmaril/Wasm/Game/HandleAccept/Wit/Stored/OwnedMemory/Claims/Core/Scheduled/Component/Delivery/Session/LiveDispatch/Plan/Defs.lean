@@ -97,18 +97,31 @@ def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostStat
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] ∧
     (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update)
 
-/-- Allocation boundaries whose internal writer classification is not yet
-carried by the visitor. They are distinct from proved writer frames. -/
-inductive VisitorAllocationBoundary where
-  | string
-  | collection
+/-- The reached assignment instruction, including the exact prefix to its
+focus and the executed write. -/
+def ReachedHostAssignment (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start : Config (core3 grow) (HostState sig)) (labels : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading before thread frames rest target next,
+    labels = leading ++ [.tau] ∧
+    Steps profile ready dispatch start leading before ∧
+    before.ctl = ⟨thread, .prog (.op (.hostSet target) next), frames⟩ :: rest ∧
+    finish = { before with host := target, ctl := ⟨thread, .prog (next ()), frames⟩ :: rest } ∧
+    Step profile ready dispatch before .tau finish
 
-/-- Exact compared segments whose internal writer sites still need a proof.
-These are proof frontiers, not a classification as external host writes. -/
-inductive CallbackWriterBoundary where
-  | assignment
-  | giveEntry
-  | dispatch
+/-- Exact compared segments whose writer provenance still needs a proof.
+The assignment case identifies the actual instruction on each path. -/
+inductive CallbackWriterBoundary (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
+    Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
+    Trace grow sig → Trace grow sig → Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) → Prop where
+  | assignment {start incoming checked canonical left right}
+      (lhs : ReachedHostAssignment profile ready (specDispatch ready base) start checked left)
+      (rhs : ReachedHostAssignment profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right) :
+      CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right
+  | giveEntry {start incoming checked canonical left right} :
+      CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right
 
 /-- A registration probe does not commit the registration, even on a fresh result. -/
 inductive ComponentRegistration where
@@ -190,12 +203,8 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
   | publication {start incoming labels left right tree}
       (paths : PairedPublicationWriterPrefix profile ready base bindings tree start incoming labels left right) :
       VisitorWriterPath profile ready base bindings start incoming labels labels left right
-  | allocation {start incoming checked canonical left right}
-      (boundary : VisitorAllocationBoundary)
-      (paths : PairedWriterPaths profile ready base bindings start incoming checked canonical left right) :
-      VisitorWriterPath profile ready base bindings start incoming checked canonical left right
   | callbackBoundary {start incoming checked canonical left right}
-      (boundary : CallbackWriterBoundary)
+      (boundary : CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right)
       (paths : PairedWriterPaths profile ready base bindings start incoming checked canonical left right) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
   | append {start incoming checked canonical left right leftTail rightTail finish peer}
@@ -242,7 +251,7 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
       (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun probe => pending probe ∨ probe ∈ spends))
-      (site : VisitorAllocationBoundary ⊕ CallbackWriterBoundary)
+      (site : CallbackWriterBoundary profile ready base bindings atLeft atRight siteChecked siteCanonical siteLeft siteRight)
       (actual : PairedWriterPaths profile ready base bindings atLeft atRight siteChecked siteCanonical siteLeft siteRight)
       (tail : VisitorWriterPath profile ready base bindings siteLeft siteRight tailChecked tailCanonical left right) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending
@@ -895,7 +904,6 @@ inductive GiveBodyStop (profile : ProfileKind) (ready : HostReady (HostState sig
       (step : Step profile ready (specDispatch ready base) middle taken next)
       (tail : Steps profile ready (specDispatch ready base) next suffix finish)
   | allocatorInstall {count : Nat} (short : trailing.length < count)
-  | replyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue) (short : trailing.length < 3)
   | coreReplyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue)
       (reached : CheckedCoreReplyPrefix profile ready (specDispatch ready base) left trailing finish)
   | callerNotTop (refusal : Option Stored.Endpoints.RecordLower.Issue) (missing : caller ≠ some (.active 0 0))
@@ -1169,31 +1177,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (reply : CheckedOnlyGiveReply profile ready base bindings route destination ticket issue reached peer left right
         checkLeading canonLeading trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checkLeading ++ trailing) finish
-  | directGiveEntry {changes reached peer left right name kind args inst destination schema resume check canon trailing finish}
-      (linked : resolveBinding bindings name kind =
-        .ok ⟨name, inst, Option.elim schema (.givePayload destination) (.giveFlat destination)⟩)
-      (checkedFocus : left.ctl = check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)))
-      (canonicalFocus : right.ctl = canon.control
-        (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
-      (site : PairedComponentSite changes left right check canon)
-      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
-      (checkedMark : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 0) = some (.prog resume))
-      (canonicalMark : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 0) = some (.prog resume))
-      (prelude : DirectGivePreludeCut profile ready base bindings changes name kind args destination schema
-        check canon reached peer left right trailing finish)
-      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
-  | admissionTrap {changes reached peer label next leftCount rightCount reason trailing finish}
-      (request : CoreGiveRequest bindings reached)
-      (install : GiveInstall bindings (specDispatch ready base) reached label next)
-      (caller : Plain.callerInstance reached.store request.thread = .error (.trapped reason))
-      (checked : Steps profile ready (specDispatch ready base) reached (List.replicate leftCount .tau ++ [.trap reason])
-        (StepDefs.trapCfg { reached with host := reached.host.enter request.name request.kind request.args }))
-      (canonical : Steps profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer
-        (List.replicate rightCount .tau ++ [.trap reason]) (StepDefs.trapCfg peer))
-      (residual : Steps profile ready (specDispatch ready base)
-        (StepDefs.trapCfg { reached with host := reached.host.enter request.name request.kind request.args }) trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer ((List.replicate leftCount .tau ++ [.trap reason]) ++ trailing) finish
   | directGiveTrap {changes reached peer left right checked canonical trailing finish reason}
       (cut : GiveBodyCut profile ready base bindings reached peer left right checked canonical trailing finish [none])
       (trapped : PayloadPrefix.visible checked = [.trap reason])

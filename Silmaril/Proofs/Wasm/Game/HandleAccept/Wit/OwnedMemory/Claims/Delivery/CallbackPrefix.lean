@@ -681,7 +681,7 @@ theorem replay {protectedReturn}
 
 theorem executedAtWriterBoundary {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {checked canonical : Trace grow sig} {peer : Config (core3 grow) (HostState sig)}
-    (boundary : CallbackWriterBoundary)
+    (boundary : CallbackWriterBoundary profile ready base bindings start incoming checked canonical finish peer)
     (run : CoreGrowthSteps profile ready (specDispatch ready base) start checked finish)
     (seen : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
     (paired : HostFrame.Related.Paired changes finish peer)
@@ -896,6 +896,15 @@ theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 gro
     rw [transitionEdit, atPeer]
     cases place <;> rfl
 
+private theorem reachedAssignment {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before : Config (core3 grow) (HostState sig)} {leading : Trace grow sig}
+    {thread target next frames rest}
+    (front : Steps profile ready dispatch start leading before)
+    (focus : before.ctl = ⟨thread, .prog (.op (.hostSet target) next), frames⟩ :: rest) :
+    ReachedHostAssignment profile ready dispatch start (leading ++ [.tau])
+      { before with host := target, ctl := ⟨thread, .prog (next ()), frames⟩ :: rest } :=
+  ⟨leading, before, thread, frames, rest, target, next, rfl, front, focus, rfl, .hostSet focus⟩
+
 theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread value resume frames rest}
     (focus : start.ctl = ⟨thread, .prog (.op (.hostSet value) resume), frames⟩ :: rest)
@@ -903,7 +912,7 @@ theorem compareReachedHostWrite {changes : ReturnFrame.Substitutions (core3 grow
     ∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [.tau] [.tau]
       { start with host := value, ctl := ⟨thread, .prog (resume ()), frames⟩ :: rest } peer := by
   obtain ⟨peerFrames, peerRest, atPeer, aligned⟩ := paired.retarget focus (.prog (resume ())) value value
-  refine ⟨_, executedAtWriterBoundary .assignment
+  refine ⟨_, executedAtWriterBoundary (.assignment (reachedAssignment (.refl _) focus) (reachedAssignment (.refl _) atPeer))
     (.cons (by simp [CoreUpdateGrows, focus]) (.hostSet focus) (.refl _)) rfl aligned (stationaryTransport ?_ ?_)⟩
   · intro place
     refine .step (.hostSet focus) ?_ (.done _ _)
@@ -931,7 +940,9 @@ private theorem compareReachedHostUpdate {changes : ReturnFrame.Substitutions (c
       { incoming with ctl := ⟨thread, .prog (.op (.hostSet right) (fun _ => next)), peerFrames⟩ :: peerRest } := by
     rw [← canonical]
     exact .hostGet atPeer
-  refine ⟨_, executedAtWriterBoundary .assignment (.cons (by simp [CoreUpdateGrows, focus]) leftRead
+  refine ⟨_, executedAtWriterBoundary
+    (.assignment (reachedAssignment (.cons leftRead (.refl _)) rfl) (reachedAssignment (.cons rightRead (.refl _)) rfl))
+    (.cons (by simp [CoreUpdateGrows, focus]) leftRead
     (.cons (by simp [CoreUpdateGrows]) (.hostSet rfl) (.refl _))) rfl aligned (stationaryTransport ?_ ?_), rfl⟩
   · intro place
     refine .step (middle := place) leftRead ?_ (.step (.hostSet rfl) ?_ (.done _ _))

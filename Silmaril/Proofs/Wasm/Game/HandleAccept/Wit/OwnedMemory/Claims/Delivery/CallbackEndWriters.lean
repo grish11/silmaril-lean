@@ -24,13 +24,6 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {actual checked canonical trailing : Trace grow sig} {marks : List (Option Location)}
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
 
-private theorem appendSteps {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    (front : Steps profile ready dispatch start checked left) (back : Steps profile ready dispatch left trailing finish) :
-    Steps profile ready dispatch start (checked ++ trailing) finish := by
-  induction front with
-  | refl => exact back
-  | cons step _ ih => exact .cons step (ih back)
-
 private def PrefixCut (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
@@ -137,8 +130,6 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
       (CallbackPrefix.stationaryTransport written (fun place => .done _ place))
       (.framed (WriterPaths.ofHostFrames framed) (.done _)) (.cons pop tail)
       (.executed pop (.inl edit) (complete.project_eq.trans framed.project_eq.symm) tail)
-  | directGiveEntry _ _ _ _ paths _ _ _ tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)
-  | admissionTrap _ _ _ checked _ tail => exact stop (appendSteps checked tail)
   | directGiveTrap body _ _ _ => exact terminal body.paths body.writers body.residual
   | giveLookupMismatch _ body _ _ _ _ _ _ => exact terminal body.paths body.writers body.residual
   | directGiveSelected _ _ body _ _ _ _ compiler =>
