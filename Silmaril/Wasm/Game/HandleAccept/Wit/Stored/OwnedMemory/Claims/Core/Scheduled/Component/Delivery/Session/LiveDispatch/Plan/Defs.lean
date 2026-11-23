@@ -802,16 +802,25 @@ def sharedDestructorAfterThreadRead (task : TaskId) (callee : Option (core3 grow
   | some worker => .op (.modify (CStore.setImplicitThread task worker))
       (fun _ => .op .get (sharedDestructorAfterTaskRead task callee worker))
 
-/-- Construct the task passed to the final task-arena allocation. The
-destructor function type is synchronous independently of its representation. -/
-def sharedDestructorTaskDescription (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
-    Session grow sig { entry : Task (core3 grow) // entry.ft.async_ = false } := do
-  let req := result.2
+/-- Read the representation used by the source destructor after its actual
+instance and resource checks. -/
+def sharedDestructorResourceRep (result : InstId × DtorRequest (core3 grow)) : Session grow sig AddrType := do
   let st ← getInst result.1
   trapIf (!st.mayLeave) .cannotLeave
-  let rty ← getObj ArenaField.resourceTypes req.rt
-  let caller ← allocObj ArenaField.callers (Caller.sub (.destructor req.rep) : Caller (core3 grow))
-  return ⟨{ ft := dtorType rty.rep, opts := {}, inst := impl, caller }, rfl⟩
+  let rty ← getObj ArenaField.resourceTypes result.2.rt
+  return rty.rep
+
+/-- Construct the task from the representation and the allocated caller. The
+function type is synchronous independently of the representation. -/
+def sharedDestructorTaskRecord (impl : InstId) (rep : AddrType) (caller : CallerId) :
+    { entry : Task (core3 grow) // entry.ft.async_ = false } :=
+  ⟨{ ft := dtorType rep, opts := {}, inst := impl, caller }, rfl⟩
+
+def sharedDestructorTaskDescription (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
+    Session grow sig { entry : Task (core3 grow) // entry.ft.async_ = false } := do
+  let rep ← sharedDestructorResourceRep result
+  let caller ← allocObj ArenaField.callers (Caller.sub (.destructor result.2.rep) : Caller (core3 grow))
+  return sharedDestructorTaskRecord impl rep caller
 
 def sharedDestructorTask (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
     Session grow sig TaskId := do
@@ -2004,6 +2013,14 @@ def ReachedRecordPrepareMismatch (profile : ProfileKind) (ready : HostReady (Hos
     prepare left.store left.host.writer plan ≠ prepare left.store right.host.writer plan ∧
     ∃ probe, pending probe ∧ ReachedPrepareConflict left.store left.host.writer right.host.writer plan probe
 
+/-- The registered worker still names the task and caller created by the
+source destructor setup. Reads at this entry use these actual reached stores. -/
+structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : CStore (core3 grow)) : Prop where
+  paired : checked = canonical
+  entry : ∃ (record : Task (core3 grow)) (rep : Nat),
+    ArenaField.tasks.get? checked task = some record ∧ record.ft.async_ = false ∧
+    ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2110,6 +2127,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (peerResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
         body rightTicket thread beforeRight activeRight canon)
       (selected : body = sharedDestructorThread task callee)
+      (workerSource : SharedDestructorRegisteredSource task left.store right.store)
       (checkedEntry : left.ctl = ⟨some thread, .prog (sharedDestructorAfterAdmission task callee true), []⟩ ::
         check.control (sharedDestructorAfterResume body leftTicket))
       (canonicalEntry : right.ctl = ⟨some thread, .prog (sharedDestructorAfterAdmission task callee true), []⟩ ::

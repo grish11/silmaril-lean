@@ -2771,7 +2771,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedDropWorker _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropWorker _ _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2821,7 +2821,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedDropWorker _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropWorker _ _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -13459,45 +13459,46 @@ private theorem sharedDestructorCode (result : InstId × DtorRequest (core3 grow
     simp [SharedOwnerDrop.afterSpend, destructorCall, sharedDestructorWorker, implementation, sharedDestructorStart]
   | some impl =>
     cases dtor : result.2.dtor <;>
-      simp [SharedOwnerDrop.afterSpend, destructorCall, sharedDestructorWorker, sharedDestructorTask, sharedDestructorTaskDescription, sharedDestructorThread, implementation, dtor,
+      simp [SharedOwnerDrop.afterSpend, destructorCall, sharedDestructorWorker, sharedDestructorTask, sharedDestructorTaskDescription, sharedDestructorResourceRep,
+        sharedDestructorTaskRecord, sharedDestructorThread, implementation, dtor,
         sharedDestructorStart, canonLift, canonLiftNoop, newThread, dtorType,
         bind, Prog.bind_assoc, Prog.bind, perform, Prog.lift] <;> rfl
 
-private theorem sharedDestructorTaskDescriptionEffects (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
-    StoreEffects (sharedDestructorTaskDescription result impl : Session grow sig _) := by
-  have callerAlloc (caller : Caller (core3 grow)) :
-      StoreEffects (allocObj ArenaField.callers caller : Session grow sig CallerId) :=
-    storeEffectGet.bind fun _ => (storeEffectModify _).bind fun _ => .pure _
-  unfold sharedDestructorTaskDescription getInst
+private theorem sharedDestructorResourceRepEffects (result : InstId × DtorRequest (core3 grow)) :
+    StoreEffects (sharedDestructorResourceRep result : Session grow sig AddrType) := by
+  unfold sharedDestructorResourceRep getInst
   exact (storeEffectGetObject _ _).bind fun _ => (storeEffectTrapIf _ _).bind fun _ =>
-    (storeEffectGetObject _ _).bind fun _ => (callerAlloc _).bind fun _ => .pure _
+    (storeEffectGetObject _ _).bind fun _ => .pure _
 
 private theorem sharedDestructorTaskCode (result : InstId × DtorRequest (core3 grow)) (impl : InstId)
     (implementation : result.2.impl = some impl) (ticket : Nat) :
     (SharedOwnerDrop.afterSpend ticket result : Session grow sig (Ret (core3 grow))) =
-      sharedDestructorTaskDescription result impl >>= fun entry =>
-        allocObj ArenaField.tasks entry.val >>= fun task => sharedDestructorStart ticket (some (sharedDestructorThread task result.2.dtor)) := by
+      sharedDestructorResourceRep result >>= fun rep =>
+        allocObj ArenaField.callers (Caller.sub (.destructor result.2.rep)) >>= fun caller =>
+          allocObj ArenaField.tasks (sharedDestructorTaskRecord impl rep caller).val >>= fun task =>
+            sharedDestructorStart ticket (some (sharedDestructorThread task result.2.dtor)) := by
   rw [sharedDestructorCode]
-  simp only [sharedDestructorWorker, implementation, sharedDestructorTask, Prog.bind_eq, Prog.bind_assoc,
-    Prog.pure_eq, Prog.pure_bind']
+  simp [sharedDestructorWorker, implementation, sharedDestructorTask, sharedDestructorTaskDescription,
+    bind, Prog.bind_assoc, Prog.bind]
 
 open ReturnFrame.Occurrence in
-private theorem sharedDestructorTaskAllocationPath {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+private theorem sharedDestructorAllocationPath {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (entry : Task (core3 grow)) (next : TaskId → Session grow sig (Ret (core3 grow)))
-    (focus : start.ctl = cursor.control (allocObj ArenaField.tasks entry >>= next)) :
-    let allocation := ArenaField.tasks.alloc start.store entry
-    FramedQuietPath profile ready dispatch cursor start [id, fun store => (ArenaField.tasks.alloc store entry).1]
+    {Id Data : Type} (field : ArenaField (core3 grow) Id Data)
+    (entry : Data) (next : Id → Session grow sig (Ret (core3 grow)))
+    (focus : start.ctl = cursor.control (allocObj field entry >>= next)) :
+    let allocation := field.alloc start.store entry
+    FramedQuietPath profile ready dispatch cursor start [id, fun store => (field.alloc store entry).1]
       { start with store := allocation.1, ctl := cursor.control (next allocation.2) } := by
-  have code : (allocObj ArenaField.tasks entry >>= next) =
-      .op .get (fun store => .op (.modify (ArenaOps.allocSt ArenaField.tasks entry))
-        (fun _ => next ((ArenaField.tasks (E := core3 grow)).mkId (ArenaField.tasks.size (show CStore (core3 grow) from store))))) := by
+  have code : (allocObj field entry >>= next) =
+      .op .get (fun store => .op (.modify (ArenaOps.allocSt field entry))
+        (fun _ => next (field.mkId (field.size (show CStore (core3 grow) from store))))) := by
     simp [allocObj, getStore, modifyStore, perform, Prog.lift, bind, Prog.bind]
   rw [code] at focus
   exact .step (.get focus) (by rw [transitionEdit, focus]; rfl) rfl
     (.step (.modify (th := cursor.thread) (segs := cursor.frames) (rest := cursor.rest)
-      (f := ArenaOps.allocSt ArenaField.tasks entry)
-      (k := fun _ => next (ArenaField.tasks.alloc start.store entry).2) rfl) rfl rfl .done)
+      (f := ArenaOps.allocSt field entry)
+      (k := fun _ => next (field.alloc start.store entry).2) rfl) rfl rfl .done)
 
 private def destructorResumeStore (thread : ThreadId) (store : CStore (core3 grow)) : CStore (core3 grow) :=
   if store.threadIs Thread.waiting thread then CStore.stopWaitingSt thread store else store
@@ -13855,6 +13856,8 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
     {entry : Task (core3 grow)}
     (fresh : ArenaField.tasks.get? left.store task = some entry)
     (synchronous : entry.ft.async_ = false)
+    {rep : Nat}
+    (caller : ArenaField.callers.get? left.store entry.caller = some (.sub (.destructor rep)))
     (split : labels = leading ++ trailing)
     (paired : HostFrame.Related.Paired older start incoming)
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
@@ -14029,13 +14032,14 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                 (allUsed : .tau :: labels = leading ++ trailing)
                 (paths : OccurrenceTransport profile ready base bindings start incoming leading leading left right marks)
                 (writers : VisitorWriterPath profile ready base bindings start incoming leading leading left right)
+                (workerSource : SharedDestructorRegisteredSource task left.store right.store)
                 (checked : left.ctl = workerCheck.control (sharedDestructorAfterAdmission task callee true))
                 (canonical : right.ctl = workerCanon.control (sharedDestructorAfterAdmission task callee true))
                 (tail : Steps profile ready (specDispatch ready base) left trailing finish) :
                 CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
               exact .inr (callbackTerminalSlice paired (by
                 rw [allUsed]
-                exact .sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate source checked canonical
+                exact .sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate source workerSource checked canonical
                   paths writers tickets tail))
             change Steps profile ready (specDispatch ready base) readLeft following finish at remaining
             let reachedTask := { entry with implicitThread := some worker }
@@ -14097,8 +14101,45 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                     (((((.tau :: leading) ++ [.tau]) ++ List.replicate count .tau ++ [.tau]) ++ visited) ++ used) ++ suffix := by
                   simp only [checkedUsed, split, List.append_assoc]
                 obtain ⟨_, whole, _⟩ := CallbackPrefix.transportAppend finalPaths movement
-                exact stopAt allUsed whole
-                  (finalWriters.append writes) atCheck atCanon residual
+                have checkedStore : afterCheck.store = CStore.registerThreadSt task worker readLeft.store := by
+                  simp only [afterCheck, result, sharedDestructorRegisterStore]
+                have canonicalStore : afterCanon.store = CStore.registerThreadSt task worker readRight.store := by
+                  simp only [afterCanon, result, sharedDestructorRegisterStore]
+                have callerAt : ArenaField.callers.get? readLeft.store entry.caller = some (.sub (.destructor rep)) := by
+                  change ArenaField.callers.get? (destructorResumeStore worker allocation.1) entry.caller = _
+                  unfold destructorResumeStore
+                  split <;> exact caller
+                have registeredTask : ArenaField.tasks.get? afterCheck.store task =
+                    some { reachedTask with threads := reachedTask.threads ++ [worker] } := by
+                  have found : readLeft.store.task? task = some reachedTask := taskAt
+                  have room : ∃ slot, (readLeft.store.inst? reachedTask.inst).bind (InstState.addThread? worker) = some slot := by
+                    change sharedDestructorRegisterResult readLeft.store entry.inst worker = .ok () at result
+                    unfold sharedDestructorRegisterResult at result
+                    cases live : ArenaField.insts.get? readLeft.store entry.inst with
+                    | none => simp [live] at result
+                    | some inst =>
+                      cases available : inst.addThread? worker with
+                      | none => simp [live, available] at result
+                      | some slot =>
+                        refine ⟨slot, ?_⟩
+                        change (ArenaField.insts.get? readLeft.store entry.inst).bind (InstState.addThread? worker) = _
+                        simp only [live, Option.bind_some, available]
+                  obtain ⟨⟨slot, instanceState⟩, room⟩ := room
+                  simp only [checkedStore, CStore.registerThreadSt, found, room]
+                  change ArenaField.tasks.get? (ArenaField.tasks.modify readLeft.store task
+                    (fun old => { old with threads := old.threads ++ [worker] })) task = _
+                  rw [ArenaField.get?_modify_self, taskAt]
+                  rfl
+                have registeredCaller : ArenaField.callers.get? afterCheck.store entry.caller = some (.sub (.destructor rep)) := by
+                  rw [checkedStore]
+                  unfold CStore.registerThreadSt
+                  split
+                  · exact callerAt
+                  · split <;> exact callerAt
+                have workerSource : SharedDestructorRegisteredSource task afterCheck.store afterCanon.store :=
+                  ⟨checkedStore.trans ((congrArg (CStore.registerThreadSt task worker) sameStore).trans canonicalStore.symm),
+                    _, rep, registeredTask, synchronous, registeredCaller⟩
+                exact stopAt allUsed whole (finalWriters.append writes) workerSource atCheck atCanon residual
       · have empty : afterReady = [] := List.length_eq_zero_iff.mp (by omega)
         have stopped : finish = resumeLeft := by
           have atEnd : Steps profile ready (specDispatch ready base) resumeLeft [] finish := empty ▸ resumeRun
@@ -14120,6 +14161,68 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
     exact .inr (callbackTerminalSlice paired (by
       rw [split, empty, stopped, ← List.cons_append]
       exact .coreAcceptTerminal paths writers (.refl _) (.inl rfl)))
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedDestructorAllocation {left right : Config (core3 grow) (HostState sig)}
+    {leading trailing : Trace grow sig} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {Id Data : Type} (field : ArenaField (core3 grow) Id Data) (entry : Data)
+    (checked canonical : Id → Session grow sig (Ret (core3 grow)))
+    (split : labels = leading ++ trailing)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right check canon)
+    (leftAt : left.ctl = check.control (allocObj field entry >>= checked))
+    (rightAt : right.ctl = canon.control (allocObj field entry >>= canonical))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (resume : ∀ {remaining : Trace grow sig}, labels = ((leading ++ [.tau, .tau]) ++ remaining) →
+      let allocation := field.alloc left.store entry
+      let checkAfter := { left with store := allocation.1, ctl := check.control (checked allocation.2) }
+      let canonAfter := { right with store := allocation.1, ctl := canon.control (canonical allocation.2) }
+      OccurrenceTransport profile ready base bindings start incoming (.tau :: (leading ++ [.tau, .tau]))
+        (.tau :: (leading ++ [.tau, .tau])) checkAfter canonAfter [some (.active 0 0)] →
+      VisitorWriterPath profile ready base bindings start incoming (.tau :: (leading ++ [.tau, .tau]))
+        (.tau :: (leading ++ [.tau, .tau])) checkAfter canonAfter →
+      PairedComponentSite older checkAfter canonAfter check canon →
+      Steps profile ready (specDispatch ready base) checkAfter remaining finish →
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  let allocation := field.alloc left.store entry
+  let checkAfter := { left with store := allocation.1, ctl := check.control (checked allocation.2) }
+  let canonAfter := { right with store := allocation.1, ctl := canon.control (canonical allocation.2) }
+  have same : left.store = right.store := (HostFrame.Related.Paired.data site).1
+  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check left
+      [id, fun store => (field.alloc store entry).1] checkAfter :=
+    sharedDestructorAllocationPath check field entry checked leftAt
+  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right
+      [id, fun store => (field.alloc store entry).1] canonAfter := by
+    have path := sharedDestructorAllocationPath (profile := profile) (ready := ready)
+      (dispatch := specDispatch ready (LiveDispatch.host bindings base)) canon field entry canonical rightAt
+    dsimp only at path
+    rw [← same] at path
+    exact path
+  rcases splitSilent (count := 2) (leftPath.1.track (.active 0 0)).toTrail.steps run with
+    ⟨remaining, appended, after⟩ | short
+  · have whole : labels = (leading ++ [.tau, .tau]) ++ remaining := by
+      simp only [split, appended, List.append_assoc, List.replicate_succ, List.replicate_zero]
+    have moved := retainComparedOccurrences paths (fun place => ⟨leftPath.1.track place, rightPath.1.track place⟩)
+    have certified := writers.append (.framed leftPath.2 rightPath.2)
+    have atWorker : PairedComponentSite older checkAfter canonAfter check canon := by
+      unfold PairedComponentSite HostFrame.Related.Paired at site ⊢
+      exact site.set_store allocation.1
+    exact resume whole
+      (by simpa only [List.cons_append, List.length_cons, List.length_nil, List.replicate_succ, List.replicate_zero] using moved)
+      (by simpa only [List.cons_append, List.length_cons, List.length_nil, List.replicate_succ, List.replicate_zero] using certified)
+      atWorker after
+  · obtain ⟨_, _, moved, _, shortWriters, _, _⟩ :=
+      compareFramedQuietShort leftPath rightPath site ⟨_, leftAt⟩ ⟨_, rightAt⟩ run short
+    obtain ⟨_, allPaths, _⟩ := CallbackPrefix.transportAppend paths moved
+    exact .inr (callbackTerminalSlice paired (by
+      have full : .tau :: labels = ((.tau :: leading) ++ trailing) ++ [] := by
+        simp only [split, List.append_nil, List.cons_append]
+      rw [full]
+      exact .coreAcceptTerminal allPaths (writers.append shortWriters) (.refl _) (.inl rfl)))
 
 open ReturnFrame.Occurrence in
 private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow) (HostState sig)}
@@ -14151,12 +14254,16 @@ private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow)
     rw [sharedDestructorTaskCode result impl implementation] at leftFocus rightFocus
     let checked (task : TaskId) := sharedDestructorStart (sig := sig) leftTicket (some (sharedDestructorThread task result.2.dtor))
     let canonical (task : TaskId) := sharedDestructorStart (sig := sig) rightTicket (some (sharedDestructorThread task result.2.dtor))
-    let beforeAlloc (entry : { entry : Task (core3 grow) // entry.ft.async_ = false }) : Session grow sig TaskId :=
-      allocObj ArenaField.tasks entry.val
+    let callerEntry := (Caller.sub (.destructor result.2.rep) : Caller (core3 grow))
+    let allocateTask (rep : AddrType) (caller : CallerId) : Session grow sig TaskId :=
+      allocObj ArenaField.tasks (sharedDestructorTaskRecord impl rep caller).val
+    let allocateCaller : Session grow sig CallerId := allocObj ArenaField.callers callerEntry
+    let afterCallerChecked rep caller := allocateTask rep caller >>= checked
+    let afterCallerCanonical rep caller := allocateTask rep caller >>= canonical
     obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, boundary, _, _, checkedPath, rawPath, stationary⟩ :=
-      cutComponentStoreBodyFramed (bindings := bindings) (closed := True) (sharedDestructorTaskDescription result impl)
-        (fun entry => beforeAlloc entry >>= checked) (fun entry => beforeAlloc entry >>= canonical)
-        (fun _ => sharedDestructorTaskDescriptionEffects result impl) (trivialPreserves _) trivial leftFocus rightFocus site run
+      cutComponentStoreBodyFramed (bindings := bindings) (closed := True) (sharedDestructorResourceRep result)
+        (fun rep => allocateCaller >>= afterCallerChecked rep) (fun rep => allocateCaller >>= afterCallerCanonical rep)
+        (fun _ => sharedDestructorResourceRepEffects result) (trivialPreserves _) trivial leftFocus rightFocus site run
     have usedAll : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
     have traced : VisitorWriterPath profile ready base bindings start incoming (.tau :: (leading ++ used))
         (.tau :: (leading ++ used)) reached peer := by
@@ -14171,50 +14278,29 @@ private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow)
     cases boundary with
     | pending _ _ _ _ _ normal => exact stop (.inl (normal.resolve_right (fun unsupported => unsupported.1 trivial)))
     | trapped checked raw aligned => exact stop (.inr ⟨checked, raw⟩)
-    | returned entry atCheck atCanon frame =>
+    | returned rep atCheck atCanon frame =>
       have retained := retainComparedOccurrences paths (stationary (by
         rw [atCheck]
         cases check
         exact List.cons_ne_nil _ _)).2
-      have same : reached.store = peer.store := (HostFrame.Related.Paired.data frame).1
-      let allocation := ArenaField.tasks.alloc reached.store entry.val
-      let checkAfter := { reached with store := allocation.1, ctl := check.control (checked allocation.2) }
-      let canonAfter := { peer with store := allocation.1, ctl := canon.control (canonical allocation.2) }
-      have leftPath : FramedQuietPath profile ready (specDispatch ready base) check reached
-          [id, fun store => (ArenaField.tasks.alloc store entry.val).1] checkAfter :=
-        sharedDestructorTaskAllocationPath check entry.val checked atCheck
-      have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon peer
-          [id, fun store => (ArenaField.tasks.alloc store entry.val).1] canonAfter := by
-        have path := sharedDestructorTaskAllocationPath (profile := profile) (ready := ready)
-          (dispatch := specDispatch ready (LiveDispatch.host bindings base)) canon entry.val canonical atCanon
-        dsimp only at path
-        rw [← same] at path
-        exact path
-      rcases splitSilent (count := 2) (leftPath.1.track (.active 0 0)).toTrail.steps residual with
-        ⟨remaining, appended, after⟩ | short
-      · have whole : labels = ((leading ++ used) ++ [.tau, .tau]) ++ remaining := by
-          rw [usedAll, appended]
-          simp only [List.append_assoc, List.replicate_succ, List.replicate_zero, List.cons_append, List.nil_append]
-        have moved := retainComparedOccurrences retained (fun place => ⟨leftPath.1.track place, rightPath.1.track place⟩)
-        have certified := traced.append (.framed leftPath.2 rightPath.2)
-        have atWorker : PairedComponentSite older checkAfter canonAfter check canon := by
-          unfold PairedComponentSite HostFrame.Related.Paired at frame ⊢
-          exact frame.set_store allocation.1
-        exact crossSharedDestructorWorker (leftTicket := leftTicket) (rightTicket := rightTicket)
-          allocation.2 result.2.dtor (sharedDestructorThread allocation.2 result.2.dtor) rfl
-          (ArenaField.tasks.get?_alloc_self reached.store entry.val) entry.property whole paired
-          (by simpa only [List.cons_append, List.length_cons, List.length_nil, List.replicate_succ, List.replicate_zero] using moved)
-          (by simpa only [List.cons_append, List.length_cons, List.length_nil, List.replicate_succ, List.replicate_zero] using certified)
-          atWorker rfl rfl after compare
-      · obtain ⟨_, _, moved, _, shortWriters, _, _⟩ :=
-          compareFramedQuietShort leftPath rightPath frame ⟨_, atCheck⟩ ⟨_, atCanon⟩ residual short
-        obtain ⟨_, allPaths, _⟩ := CallbackPrefix.transportAppend through moved
-        exact .inr (callbackTerminalSlice paired (by
-          have full : .tau :: labels = ((.tau :: (leading ++ used)) ++ suffix) ++ [] := by
-            simp only [usedAll, List.append_nil, List.cons_append]
-          rw [full]
-          exact .coreAcceptTerminal (by simpa only [List.cons_append] using allPaths)
-            (traced.append shortWriters) (.refl _) (.inl rfl)))
+      refine crossSharedDestructorAllocation ArenaField.callers callerEntry (afterCallerChecked rep) (afterCallerCanonical rep)
+        usedAll paired (by simpa only [List.cons_append] using retained) traced frame atCheck atCanon residual ?_
+      intro remaining usedCaller
+      dsimp only
+      intro callerPaths callerWriters callerSite callerRun
+      let caller := ArenaField.callers.alloc reached.store callerEntry
+      let entry := sharedDestructorTaskRecord (grow := grow) impl rep caller.2
+      refine crossSharedDestructorAllocation ArenaField.tasks entry.val checked canonical usedCaller paired
+        callerPaths callerWriters callerSite rfl rfl callerRun ?_
+      intro rest usedTask
+      dsimp only
+      intro taskPaths taskWriters taskSite taskRun
+      let allocation := ArenaField.tasks.alloc caller.1 entry.val
+      exact crossSharedDestructorWorker (leftTicket := leftTicket) (rightTicket := rightTicket)
+        allocation.2 result.2.dtor (sharedDestructorThread allocation.2 result.2.dtor) rfl
+        (ArenaField.tasks.get?_alloc_self caller.1 entry.val) entry.property
+        (ArenaField.callers.get?_alloc_self reached.store callerEntry)
+        usedTask paired taskPaths taskWriters taskSite rfl rfl taskRun compare
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem crossSharedDropSpend {left right checked raw : Config (core3 grow) (HostState sig)}
