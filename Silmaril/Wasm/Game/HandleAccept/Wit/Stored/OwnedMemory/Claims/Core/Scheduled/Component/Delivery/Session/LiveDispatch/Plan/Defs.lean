@@ -2080,6 +2080,13 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
+/-- Data shared by the two schedulers independently of the active worker
+and its ticket-specific dormant parents. -/
+abbrev DestructorSchedulerAlignment (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) : Prop :=
+  List.Forall₂ (ReturnFrame.Related.Saved changes) left.conts right.conts ∧
+    left.pending = right.pending ∧ left.results = right.results ∧ left.cancels = right.cancels
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2209,6 +2216,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         peer.store thread host args), .core core (sharedDestructorCoreResult task tk) :: peerFrames⟩ :: peerRest)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- A source worker prefix preserving scheduler data through actual steps. -/
+  | destructorPrefix {changes reached peer left right leading live trailing finish marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
+      (scheduler : DestructorSchedulerAlignment changes reached peer → DestructorSchedulerAlignment changes left right)
+      (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   /-- The enclosing return occurrence is lost at the executed parent pop.
   The checked suffix starts at the actual endpoint of that instruction. -/
   | sharedDropParentPop {changes reached peer left right trailing finish}
@@ -2217,7 +2231,19 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (checkedLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) reached (some (.active 0 0)) [.tau] left none)
       (canonicalLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
         peer (some (.active 0 0)) [.tau] right none)
+      (restore : DestructorSchedulerAlignment changes reached peer → HostFrame.Related.Paired changes left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  /-- The actual paired enclosing pop hands the checked suffix to the mixed
+induction. Its trails still identify the removed original occurrences. -/
+  | sharedDropParentJoined {changes reached peer left right trailing finish}
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right)
+      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] left right)
+      (checkedLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) reached (some (.active 0 0)) [.tau] left none)
+      (canonicalLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        peer (some (.active 0 0)) [.tau] right none)
+      (restored : HostFrame.Related.Paired changes left right)
+      (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | sharedDropCompared {changes reached peer left right workerLeft workerRight entered checked canonical trailing finish marks}
       {beforeLeft beforeRight : Config (core3 grow) (HostState sig)}

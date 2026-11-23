@@ -120,7 +120,10 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | coreAcceptTerminal paths writers residual _ => exact terminal paths writers residual
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ residual => exact stop residual
-  | sharedDropParentPop paths writers _ _ residual =>
+  | destructorPrefix paths writers _ _ ih => exact follow paths writers ih
+  | sharedDropParentJoined paths writers _ _ _ _ ih =>
+    simpa only [List.singleton_append] using follow paths writers ih
+  | sharedDropParentPop paths writers _ _ _ residual =>
     simpa only [List.singleton_append] using terminal paths writers residual
   | sharedDropCompared _ _ paths writers compared _ ih =>
     exact follow paths writers (follow compared.occurrences compared.writers ih)
