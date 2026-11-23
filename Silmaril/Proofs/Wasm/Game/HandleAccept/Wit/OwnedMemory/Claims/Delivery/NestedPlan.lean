@@ -6515,16 +6515,18 @@ private theorem alignCollectionRange {leftEntry rightEntry checked canonical : C
       exact align (trap .outOfBounds) verdict.2
 
 open PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
-private theorem collectionPrepareReads {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+private theorem collectionPrepareReads
     {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
     {entries : List Field} {index : Nat} {output : Stored.Lower.Output}
     {checkNext : LinkedCallback.MemorySequence.ValueCheckNext grow sig output}
     {check : Cursor (E := core3 grow) (HostState sig)}
+    (same : start.store = incoming.store)
     (focused : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext)) :
-    ∃ reached, reached.host = start.host ∧
-      SilentLocalPath profile ready dispatch start [.tau, .tau] reached ∧
-      Steps profile ready dispatch start [.tau, .tau] reached := by
+    ∃ reader reached, reached.host = start.host ∧
+      SilentLocalPath profile ready (specDispatch ready base) start [.tau, .tau] reached ∧
+      Steps profile ready (specDispatch ready base) start [.tau, .tau] reached ∧
+      ExecutedPrepareRead profile ready base start reader reached incoming [.tau] (Field.listObjects entries) := by
   let context := destination.context (grow := grow) inst
   let objects := Field.listObjects entries
   let interrupt := fun (verdict : Except Stored.Endpoints.RecordLower.Issue Unit) =>
@@ -6542,13 +6544,14 @@ private theorem collectionPrepareReads {dispatch : Call (core3 grow) → Session
     exact focused
   let middle := { start with ctl := check.control (readHost start.store) }
   let reached := { start with ctl := check.control (interrupt (Record.prepare start.store start.host.writer objects)) }
-  have first : SilentLocalStep profile ready dispatch start middle :=
+  have first : SilentLocalStep profile ready (specDispatch ready base) start middle :=
     ⟨fun place => Prefix.read_at place getAt, rfl, rfl⟩
-  have next : Step profile ready dispatch middle .tau reached :=
+  have next : Step profile ready (specDispatch ready base) middle .tau reached :=
     .hostGet (k := fun state => interrupt (Record.prepare start.store state.writer objects)) rfl
-  have second : SilentLocalStep profile ready dispatch middle reached :=
+  have second : SilentLocalStep profile ready (specDispatch ready base) middle reached :=
     ⟨fun place => .step next (by cases place <;> rfl) (.done _ _), rfl, rfl⟩
-  exact ⟨reached, rfl, .read first (.read second (.done _)), .cons (.get getAt) (.cons next (.refl _))⟩
+  exact ⟨middle, reached, rfl, .read first (.read second (.done _)), .cons (.get getAt) (.cons next (.refl _)),
+    ⟨.cons (.get getAt) (.refl _), ⟨check, interrupt, rfl⟩, next, rfl, same⟩⟩
 
 open PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower in
 private theorem collectionWidthRead {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -6621,19 +6624,18 @@ theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {
       | executed segment => exact segment.checkedRun.grows
     have writers : VisitorWriterPath profile ready base bindings start incoming ([.tau, .tau, .tau] ++ checked)
         ([.tau, .tau] ++ canonical) reached peer := by
-      obtain ⟨_, checkHost, checkReads, checkedRun⟩ := collectionPrepareReads (profile := profile) (ready := ready)
-        (dispatch := specDispatch ready base) checkAt
+      obtain ⟨_, _, checkHost, checkReads, checkedRun, prepareSite⟩ :=
+        collectionPrepareReads (profile := profile) (ready := ready) (base := base) same checkAt
       obtain ⟨_, canonHost, canonRun⟩ := collectionWidthRead (profile := profile) (ready := ready)
         (dispatch := specDispatch ready (LiveDispatch.host bindings base)) canonAt
       have checkInstall := stripExactPrefix (trailing := [.tau]) checkedRun installed.checkedRun
       have canonInstall := stripExactPrefix (trailing := [.tau]) canonRun installed.canonicalRun
-      have checkFramed := WriterPaths.append (WriterPaths.frameReads checkReads)
-        (WriterPaths.frameSingle checkInstall checkHost.symm)
+      have prep := VisitorWriterPath.prepare (bindings := bindings) prepareSite (WriterPaths.frameReads checkReads) (.done incoming)
       have canonFramed := WriterPaths.append (WriterPaths.frameSingle canonRun canonHost)
         (WriterPaths.frameSingle canonInstall canonHost.symm)
       cases input with
       | executed segment =>
-        exact .append (.framed checkFramed canonFramed) segment.writers
+        exact .append (.append prep (.framed (WriterPaths.frameSingle checkInstall checkHost.symm) canonFramed)) segment.writers
     refine .inr ⟨checked, canonical, trailing, reached, peer, mark, by simpa using split, compared, tracked, paired, movement,
       writers, grows, boundary, ?_⟩
     by_cases active : mark = some (.active 0 0)
@@ -7781,8 +7783,8 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
     (by unfold RefusalSink.CoversOccurrences; intros; exact True.intro) True.intro occurrences body
     (fun _ _ _ _ _ _ _ _ _ => True.intro)
   have sliced := driveCollectionSlice entry frame.store (frame.store ▸ width) checkAt canonAt actual bounded compare
-  obtain ⟨_, _, prepReads, prepRun⟩ := collectionPrepareReads (profile := profile) (ready := ready)
-    (dispatch := specDispatch ready base) checkAt
+  obtain ⟨_, prepEnd, _, prepReads, prepRun, prepSite⟩ :=
+    collectionPrepareReads (profile := profile) (ready := ready) (base := base) frame.store checkAt
   have insidePrep {remaining : Trace grow sig} {target : Config (core3 grow) (HostState sig)}
       (cut : [.tau, .tau] = labels ++ remaining) (nonempty : remaining ≠ [])
       (suffix : Steps profile ready (specDispatch ready base) finish remaining target) :
@@ -7804,9 +7806,13 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
     | inside cut nonempty remainder => exact insidePrep cut nonempty remainder
     | reached split tail =>
       obtain ⟨_, checked, _⟩ := CallbackPrefix.transportPaths movement none
-      have framed := (prefixReadWriters prepReads (List.append_nil _).symm checked.steps).2.2.2
+      have empty {target} (path : Steps profile ready (specDispatch ready base) prepEnd [] target) : prepEnd = target := by
+        cases path
+        rfl
+      have exactEnd := empty (stripExactPrefix (trailing := []) prepRun checked.steps)
+      rw [exactEnd] at prepReads prepSite
       exact ⟨[.tau, .tau], [], _, stopped, incoming, [], split, rfl, frame.store, movement, tail,
-        .framed framed (.done _),
+        .prepare prepSite (WriterPaths.frameReads prepReads) (.done _),
         .refused refusal check rfl atField⟩
   | ok value =>
     cases value
@@ -7823,7 +7829,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
         cases residual
         obtain ⟨stores, quiet, tracks, writer⟩ := prefixReadWriters prepReads (List.append_nil _).symm prepRun
         exact ⟨[.tau, .tau], [], [], finish, incoming, [], split, quiet, stores.trans frame.store,
-          CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place), .refl _, .framed writer (.done _),
+          CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place), .refl _, .prepare prepSite writer (.done _),
           .collectionInstall (Nat.zero_lt_succ _)⟩
     let leftTrace : Trace grow sig := [.tau, .tau, .tau] ++ checked
     let rightTrace : Trace grow sig := [.tau, .tau] ++ canonical
