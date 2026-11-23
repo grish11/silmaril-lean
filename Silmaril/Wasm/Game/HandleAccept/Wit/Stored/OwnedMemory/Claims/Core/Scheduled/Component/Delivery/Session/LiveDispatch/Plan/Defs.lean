@@ -2080,12 +2080,9 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
-/-- Internal proof cuts at an import or another resolution caller. -/
+/-- Internal proof cut at another resolution caller. -/
 inductive SharedDestructorWorkerStage (task : TaskId) (record : Task (core3 grow))
     (store : CStore (core3 grow)) : Focus (core3 grow) (HostState sig) → Prop where
-  | callout {core host args}
-      (status : (core3 grow).status store.core core = .callout host args) :
-      SharedDestructorWorkerStage task record store (.core core (sharedDestructorCoreResult task record))
   | resolve {reached : Task (core3 grow)}
       (found : ArenaField.tasks.get? store task = some reached)
       (pending : reached.state ≠ .resolved) (borrows : ¬ reached.numBorrows > 0) :
@@ -2216,6 +2213,18 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (tickets : leftTicket ≠ rightTicket)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  /-- The worker's actual Core import passed the common dispatcher reads.
+  Its Core return occurrence remains parked over the two parent programs. -/
+  | sharedDropWorkerImport {changes reached peer trailing finish}
+      {thread frames peerFrames rest peerRest core host args task tk}
+      (admitted : calloutEntry reached.store thread host = none)
+      (stores : reached.store = peer.store)
+      (checked : reached.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready base reached.store thread host args),
+        .core core (sharedDestructorCoreResult task tk) :: frames⟩ :: rest)
+      (canonical : peer.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        peer.store thread host args), .core core (sharedDestructorCoreResult task tk) :: peerFrames⟩ :: peerRest)
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The enclosing return occurrence is lost at the executed parent pop.
   The checked suffix starts at the actual endpoint of that instruction. -/
   | sharedDropParentPop {changes reached peer left right trailing finish}

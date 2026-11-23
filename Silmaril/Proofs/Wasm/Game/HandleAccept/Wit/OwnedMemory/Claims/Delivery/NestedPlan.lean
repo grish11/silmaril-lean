@@ -2773,6 +2773,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropWorker _ _ _ _ _ _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropWorkerImport _ _ _ _ residual => exact residual
   | sharedDropParentPop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
@@ -2824,6 +2825,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropWorker _ _ _ _ _ _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropWorkerImport _ _ _ _ residual => exact residual
   | sharedDropParentPop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
@@ -15004,6 +15006,76 @@ private theorem compareDestructorParentLoop {thread frame frames peerFrames rest
       have stopped := stepsAtEmpty (empty ▸ tail)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
 
+private def sharedDestructorImportProgram (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
+    (store : CStore (core3 grow)) (thread : Option ThreadId) (host : CanonHost (core3 grow)) (args : List FlatValue) :
+    Session grow sig (Ret (core3 grow)) :=
+  match calloutEntry store thread host with
+  | some reason => trap reason
+  | none => calloutBody Limits.spec Quirks.none ready impl store thread host args
+
+open ReturnFrame.Occurrence in
+private theorem sharedDestructorImportReads (impl : HostImpl (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (host : CanonHost (core3 grow)) (args : List FlatValue)
+    (atImport : start.ctl = cursor.control (specDispatch ready impl (.hostCallout host args))) :
+    FramedQuietPath profile ready (specDispatch ready impl) cursor start [id, id]
+      { start with ctl := cursor.control (sharedDestructorImportProgram ready impl start.store cursor.thread host args) } := by
+  cases cursor with
+  | mk thread frames rest =>
+    refine FramedQuietPath.step (.currentThread atImport) (by rw [transitionEdit, atImport]; rfl) rfl ?_
+    exact FramedQuietPath.step (.get rfl) rfl rfl .done
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedDestructorImport {thread frames peerFrames rest peerRest core host args}
+    (task : TaskId) (tk : Task (core3 grow)) (stores : start.store = incoming.store)
+    (leftAt : start.ctl = ⟨thread, .core core (sharedDestructorCoreResult task tk), frames⟩ :: rest)
+    (rightAt : incoming.ctl = ⟨thread, .core core (sharedDestructorCoreResult task tk), peerFrames⟩ :: peerRest)
+    (status : (core3 grow).status start.store.core core = .callout host args)
+    (run : Steps profile ready (specDispatch ready base) start (.tau :: labels) finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming (.tau :: labels) finish := by
+  let frame : Seg (core3 grow) (HostState sig) := .core core (sharedDestructorCoreResult task tk)
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let call : Call (core3 grow) := .hostCallout host args
+  let left := { start with ctl := check.control (specDispatch ready base call) }
+  let right := { incoming with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) call) }
+  have leftInstall : Step profile ready (specDispatch ready base) start .tau left := .coreCallout leftAt status
+  have rightInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+    .coreCallout rightAt (stores ▸ status)
+  cases run with
+  | cons actual tail =>
+    obtain ⟨_, rfl⟩ := silentStepUnique leftInstall actual
+    have installed := sharedSchedulerTransport (bindings := bindings) (edit := .push frame) leftInstall rightInstall
+      (by simp only [transitionEdit, leftAt, status, frame])
+      (by simp only [transitionEdit, rightAt, ← stores, status, frame])
+    refine .comparedPrefix installed (frameCalloutStep installed rfl rfl) ?_
+    have checked := sharedDestructorImportReads (profile := profile) (ready := ready) (start := left) base check host args rfl
+    have canonical := sharedDestructorImportReads (profile := profile) (ready := ready) (start := right)
+      (LiveDispatch.host bindings base) canon host args rfl
+    obtain ⟨used, remaining, reached, peer, split, paths, writers, residual, ending⟩ :=
+      cutSharedQuietWorker checked canonical tail
+    rw [split]
+    refine .comparedPrefix paths writers ?_
+    rcases ending with empty | ⟨rfl, rfl⟩
+    · subst remaining
+      cases residual
+      exact .exhausted
+    · cases admitted : calloutEntry start.store thread host with
+      | some reason =>
+        have checkCode : sharedDestructorImportProgram ready base start.store thread host args = trap reason := by
+          simp only [sharedDestructorImportProgram, admitted]
+        have canonCode : sharedDestructorImportProgram ready (LiveDispatch.host bindings base) incoming.store thread host args =
+            trap reason := by simp only [sharedDestructorImportProgram, ← stores, admitted]
+        exact compareDestructorParentTrap reason (congrArg check.control checkCode) (congrArg canon.control canonCode) residual
+      | none =>
+        have checkCode : sharedDestructorImportProgram ready base start.store thread host args =
+            calloutBody Limits.spec Quirks.none ready base start.store thread host args := by
+          simp only [sharedDestructorImportProgram, admitted]
+        have canonCode : sharedDestructorImportProgram ready (LiveDispatch.host bindings base) incoming.store thread host args =
+            calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread host args := by
+          simp only [sharedDestructorImportProgram, ← stores, admitted]
+        exact .sharedDropWorkerImport admitted stores (congrArg check.control checkCode)
+          (congrArg canon.control canonCode) residual
+
 open ReturnFrame.Occurrence in
 private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -15234,7 +15306,7 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                         | none => exact finishWorker same checkedBody canonicalBody tail
                         | some f =>
                           exact crossSharedDestructorCore task tk same checkedBody canonicalBody tail
-                            (fun stores leftAt rightAt status run => terminal (.callout status) stores leftAt rightAt run)
+                            (fun stores leftAt rightAt status run => crossSharedDestructorImport task tk stores leftAt rightAt status run)
                             (fun words stores leftAt rightAt run =>
                               crossSharedDestructorCoreResult task tk width words typeAt stores leftAt rightAt run finishWorker))))))
             change Steps profile ready (specDispatch ready base) readLeft following finish at remaining
