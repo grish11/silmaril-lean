@@ -75,7 +75,8 @@ private theorem directReply {caller resume reply}
       (.framed writers (.done incoming)) (.refl _)
   | popped written writers remaining _ _ =>
     -- The checked pop belongs to the residual because the raw occurrence is still pending.
-    exact terminal (CallbackPrefix.stationaryTransport written (fun place => .done incoming place))
+    exact terminal (checked := [.tau, .tau])
+      (CallbackPrefix.stationaryTransport written (fun place => .done incoming place))
       (.framed writers (.done incoming)) remaining
 
 private theorem directPreparation {caller resume request ticket selected field}
@@ -84,12 +85,13 @@ private theorem directPreparation {caller resume request ticket selected field}
   cases cut with
   | «prefix» _ paths writers =>
     simpa only [List.append_nil] using terminal paths (.framed writers (.done _)) (.refl _)
-  | reached _ _ ⟨_, read⟩ paths writers _ refused prepared =>
+  | reached _ _ readSite paths writers _ refused prepared =>
+    obtain ⟨_, read⟩ := readSite
     apply follow (CallbackPrefix.stationaryTransport paths (fun place => .done _ place)) (.prepare read writers (.done _))
     cases verdict : Stored.OwnedMemory.Claims.Record.prepare start.store start.host.writer field.objects with
     | error issue => exact directReply (refused issue verdict)
-    | ok unit =>
-      cases unit
+    | ok result =>
+      cases result
       cases prepared verdict with
       | «prefix» paths => exact terminal paths WriterPaths.empty (.refl _)
       | reached _ _ paths writers residual decision =>

@@ -9698,7 +9698,8 @@ private theorem crossPreparedDirectGive (request : GiveSelector bindings) (ticke
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   cases preparation with
   | «prefix» => exact .inr boundary
-  | reached prepared focused ⟨reader, read⟩ prepPaths prepWriters _ _ widthCut =>
+  | reached prepared focused readSite prepPaths prepWriters _ _ widthCut =>
+    obtain ⟨_, read⟩ := readSite
     cases preparedOk : Record.prepare left.store left.host.writer field.objects with
     | error => exact .inr boundary
     | ok done =>
