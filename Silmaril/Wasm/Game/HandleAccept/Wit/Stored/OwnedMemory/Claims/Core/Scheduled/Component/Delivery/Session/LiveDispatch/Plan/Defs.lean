@@ -2221,13 +2221,17 @@ structure SharedRecordAllocatorResolvePop (profile : ProfileKind) (ready : HostR
     returned.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (.pure .unit) ∧
     Step profile ready dispatch returned .tau after
 
+/-- The reached destructor task and the actual caller object it names. -/
+def SharedDestructorTaskSource (task : TaskId) (store : CStore (core3 grow)) : Prop :=
+  ∃ (record : Task (core3 grow)) (width : AddrType) (rep : Nat),
+    ArenaField.tasks.get? store task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
+    ArenaField.callers.get? store record.caller = some (.sub (.destructor rep))
+
 /-- The registered worker still names the task and caller created by the
 source destructor setup. Reads at this entry use these actual reached stores. -/
 structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : CStore (core3 grow)) : Prop where
   paired : checked = canonical
-  entry : ∃ (record : Task (core3 grow)) (width : AddrType) (rep : Nat),
-    ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
-    ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
+  entry : SharedDestructorTaskSource task checked
 
 /-- The worker's dormant parents run the same source lift loop with separate
 completion continuations and the original enclosing caller frames. -/
@@ -2661,7 +2665,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
-  programs and the enclosing dormant parents. Its body remains pending. -/
+  programs and the enclosing dormant parents. -/
   | sharedDropNestedResumed {changes reached peer trailing finish body impl task leftTicket rightTicket worker beforeLeft beforeRight}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {request : InstId × DtorRequest (core3 grow)}
@@ -2678,6 +2682,17 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (sharedDestructorThread task request.2.dtor) rightTicket worker beforeRight peer canon)
       (sourceParents : SourceParentStack changes (check.control (sharedDestructorAfterResume (sharedDestructorThread task request.2.dtor) leftTicket))
         (canon.control (sharedDestructorAfterResume (sharedDestructorThread task request.2.dtor) rightTicket)))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual nested worker entered and registered under its source
+  parent stack. Its onStart body uses the reached task and caller records. -/
+  | sharedDropNestedRegistered {changes reached peer trailing finish task callee}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (parents : SourceParentStack changes check.rest canon.rest)
+      (source : SharedDestructorRegisteredSource task reached.store peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (sharedDestructorAfterAdmission task callee true))
+      (canonical : peer.ctl = canon.control (sharedDestructorAfterAdmission task callee true))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The source switch reached its actual scheduler instruction after the
