@@ -21943,26 +21943,16 @@ private theorem finishSourceLiftLoopWith {cap : Nat}
 termination_by labels.length
 decreasing_by exact shorter
 
-private def sourceSchedulerBuiltin : ResolvedBuiltin (core3 grow) → Bool
-  | .threadSuspend | .threadYield | .threadSuspendThenResume | .threadYieldThenResume
-  | .threadSuspendThenPromote | .threadYieldThenPromote | .waitableSetWait _ => true
-  | _ => false
-
-private theorem crossAdmittedSourceSchedulerWith {limit cap : Nat}
+private theorem crossAdmittedSourceProgram {limit cap : Nat}
     {rest peerRest : List (Activation (core3 grow) (HostState sig))}
     {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
     {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
     (compare : SourceSwitchAt profile ready base bindings older cap finish)
-    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
+    (program : Session grow sig (Ret (core3 grow)))
     (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
     (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (checked : start.ctl = ⟨some worker, .prog
-      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.builtin builtin inst) args),
-      [.core core ret]⟩ :: rest)
-    (canonical : incoming.ctl = ⟨some worker, .prog
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
-        incoming.store (some worker) (.builtin builtin inst) args),
-      [.core core ret]⟩ :: peerRest)
+    (checked : start.ctl = ⟨some worker, .prog program, [.core core ret]⟩ :: rest)
+    (canonical : incoming.ctl = ⟨some worker, .prog program, [.core core ret]⟩ :: peerRest)
     (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
     (withinCap : labels.length ≤ cap)
     (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
@@ -22179,20 +22169,17 @@ private theorem finishSourceDestructorWorkerWith {limit : Nat} {task : TaskId} {
             have frontier := CallbackSliceEnd.sharedDropNestedCoreCallout (worker := worker) parents
               same aligned source checked canonical admitted residual
             cases host with
-            | builtin builtin inst =>
-              by_cases selected : sourceSchedulerBuiltin builtin = true
-              · have within := shorter.trans ((Nat.le_succ _).trans coreBound)
-                exact crossAdmittedSourceSchedulerWith compare builtin inst args parents parentPresent same aligned
-                  checked canonical residual within within returned
-              · exact frontier
+            | builtin _ _ | lowered _ _ _ _ =>
+              have within := shorter.trans ((Nat.le_succ _).trans coreBound)
+              exact crossAdmittedSourceProgram compare _ parents parentPresent same aligned
+                checked canonical residual within within returned
             | embedder name kind =>
               have smaller := Nat.lt_of_le_of_lt shorter (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) coreBound)
               have within := Nat.le_of_lt smaller
               exact compareAdmittedSourceLinkedWith compare within (reentry _ smaller) parents parentPresent
                 same aligned checked canonical residual (Nat.le_refl _)
                 (fun stores lhs rhs aligned run bound => returned stores lhs rhs aligned run (bound.trans within))
-                frontier
-            | _ => exact frontier))
+                frontier))
       (fun words stores aligned leftAt rightAt residual within =>
         crossSharedDestructorCoreResult task entry width words typeAt stores leftAt rightAt residual
           (fun same checked canonical align tail shorter => complete same checked canonical (align aligned.1) tail (shorter.trans within)))
@@ -22467,17 +22454,14 @@ private theorem finishSourceReentry {limit : Nat} :
         finishSourceAllocatorParent compare parents thread loopFrames onPointer cx task caller
           equal checked canonical scheduler residual bounded
       cases host with
-      | builtin builtin inst =>
-        by_cases selected : sourceSchedulerBuiltin builtin = true
-        · exact crossAdmittedSourceSchedulerWith compare builtin inst args sourceParents present same aligned
-            leftAt rightAt tail within within onParent
-        · exact frontier
+      | builtin _ _ | lowered _ _ _ _ =>
+        exact crossAdmittedSourceProgram compare _ sourceParents present same aligned
+          leftAt rightAt tail within within onParent
       | embedder name kind =>
         exact compareAdmittedSourceLinkedWith (limit := remaining.length) compare within (ih remaining.length shorter (narrowSourceSwitch compare within))
           sourceParents present same aligned leftAt rightAt tail (Nat.le_refl _)
           (fun stores checked canonical aligned run bound => onParent stores checked canonical aligned run (bound.trans within))
           frontier
-      | _ => exact frontier
     · intro check canon rep leftTicket rightTicket drop parents thread segments left right remaining
         same checked canonical liveLeft liveRight run aligned within resume
       exact finishSourceOwnerDrop drop compare (fun bound smaller => ih bound smaller
@@ -22534,30 +22518,6 @@ private theorem finishSourceLiftLoop
     CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
   finishSourceLiftLoopWith (classifySourceSwitch labels.length) task first second threads frames parents stores scheduler
     leftAt rightAt run (Nat.le_refl _) onReply
-
-private theorem crossAdmittedSourceScheduler {limit : Nat}
-    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
-    {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
-    {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
-    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
-    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (checked : start.ctl = ⟨some worker, .prog
-      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.builtin builtin inst) args),
-      [.core core ret]⟩ :: rest)
-    (canonical : incoming.ctl = ⟨some worker, .prog
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
-        incoming.store (some worker) (.builtin builtin inst) args),
-      [.core core ret]⟩ :: peerRest)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
-    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  crossAdmittedSourceSchedulerWith (classifySourceSwitch labels.length) builtin inst args parents present stores scheduler
-    checked canonical run within (Nat.le_refl _) exposed
 
 open ReturnFrame.Occurrence in
 private theorem finishReachedDestructorParentLoop {limit : Nat} {body : ThreadBody (core3 grow)}
