@@ -139,9 +139,8 @@ structure ReachedHostAssignment (profile : ProfileKind) (ready : HostReady (Host
     after = { before with host := target, ctl := ⟨thread, .prog (next ()), frames⟩ :: rest }
   step : Step profile ready dispatch before .tau after
 
-/-- Exact compared segments whose writer provenance still needs a proof.
-The assignment case starts at the actual writes and records a change
-on at least one side. -/
+/-- A compared open host assignment at the actual writes, with a writer
+change on at least one side. -/
 inductive CallbackWriterBoundary (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
     Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
@@ -151,8 +150,6 @@ inductive CallbackWriterBoundary (profile : ProfileKind) (ready : HostReady (Hos
       (rhs : ReachedHostAssignment profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming right)
       (changed : left.host.writer ≠ start.host.writer ∨ right.host.writer ≠ incoming.host.writer) :
       CallbackWriterBoundary profile ready base bindings start incoming [.tau] [.tau] left right
-  | giveBody {start incoming checked canonical left right} :
-      CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right
 
 /-- A registration probe does not commit the registration, even on a fresh result. -/
 inductive ComponentRegistration where
@@ -5860,10 +5857,9 @@ def RejoinedCallbackReplay (profile : ProfileKind) (ready : HostReady (HostState
         (GiveInstall bindings dispatch lhs label next →
           DirectGiveAt bindings lhs ∨ ∃ req : CoreGiveRequest bindings lhs, RecursiveRequestCut profile ready callees req older rhs))
 
-/-- Compare the derived successful body with the actual finite worker run.
-A different scheduler branch, an unfinished body, or a missing original
-caller does not authorize a reply. After an executed pop, only the actual
-shorter residual can drive the next dispatch. -/
+/-- Align the occurrence paths of a derived successful body with the finite
+worker run. After an executed original pop, the suffix is taken from that
+run. Writer classification of a selected request uses `ActualSelectedGive`. -/
 def PublicTransportWorkerAlignment (profile : ProfileKind) (ready : HostReady (HostState sig))
     (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
@@ -5887,10 +5883,6 @@ def PublicTransportWorkerAlignment (profile : ProfileKind) (ready : HostReady (H
         RejoinedWorkerTail profile ready bindings callees older checked canonical ∧
         RejoinedCallbackReplay profile ready bindings callees older site.start incoming checked canonical
           ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) suffix finish ∧
-        (PayloadPrefix.visible checkEntry = PayloadPrefix.visible canonEntry →
-          ExecutedCallbackSegment profile ready base bindings older site.start incoming
-            ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical ∨
-          ReachedNonGrowingUpdate profile ready dispatch site.start ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) checked) ∧
         ∀ {retained enclosingLeft enclosingRight leftTrace rightTrace cursor},
           AllocatorMark profile ready base bindings retained enclosingLeft enclosingRight leftTrace rightTrace site.start incoming cursor →
           ∃ reached,
@@ -5965,34 +5957,20 @@ def LinkedFlatWorkerBody (profile : ProfileKind) (ready : HostReady (HostState s
       PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
         site.start incoming incoming checkEntry canonEntry [] seen actual finish)
 
-/-- The recursive visitor and its actual worker observations for the ABI
-selected at a reached public request. -/
-def RecursiveWorkerBody (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig))
-    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
-    (incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
-    (finish : Config (core3 grow) (HostState sig)) : (route : GiveEffectRoute) → PayloadRoot.Site grow sig route → Prop
-  | .memory _, site => LinkedMemoryWorkerBody profile ready bindings callees older site incoming actual finish
-  | .flat _, site => LinkedFlatWorkerBody profile ready bindings callees older site incoming actual finish
-
-/-- Classify the compiled route at the executed installation, not at a
-separately chosen callback run. Refusing compilation leaves the reached
-canonical continuation pending. -/
-inductive ActualSelectedGive (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (callees : List (ComponentCall.Callee sig)) {bindings : List (Binding sig)}
+/-- The compiler outcome of the selected request and its classification on
+the actual finite checked run. The callback slice contains the visitor-derived
+writer path, exact raw peer, occurrence transport, and checked residual. -/
+structure ActualSelectedGive (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) {bindings : List (Binding sig)}
     {start : Config (core3 grow) (HostState sig)} {request : CoreGiveRequest bindings start}
     {route : GiveEffectRoute} (selection : request.Selected route)
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (incoming : Config (core3 grow) (HostState sig))
     (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop where
-  | compilerRefused {issue} (preflight : selection.preflight = .error issue)
-      (cut : RecursiveGiveEntryAlignment profile ready callees selection older incoming actual finish)
-  | compiled {tag payload arity children field plan} (preflight : selection.preflight = .ok (field, plan))
-      (root : selection.tree = .tag ⟨tag, payload⟩ arity children)
-      (linked : (selection.site tag payload arity children field).Linked bindings)
-      (cut : PayloadRoot.Cut (selection.site tag payload arity children field) profile ready bindings
-        (RecursiveWorkerBody profile ready bindings callees older incoming actual finish route
-          (selection.site tag payload arity children field)) (ComponentCall.hostWithComponent bindings callees))
-      (entry : RecursiveGiveEntryAlignment profile ready callees selection older incoming actual finish)
+  compiler :
+    (∃ issue, selection.preflight = .error issue) ∨
+      (∃ tag payload arity children field plan, selection.preflight = .ok (field, plan) ∧
+        selection.tree = .tag ⟨tag, payload⟩ arity children ∧ (selection.site tag payload arity children field).Linked bindings)
+  callback : CallbackSlice profile ready base bindings older start incoming actual finish
 
 /-- After a common nested reply, follow the closed part of its actual
 residual up to the next boundary. Only the original allocator occurrence

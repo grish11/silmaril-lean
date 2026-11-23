@@ -2521,7 +2521,8 @@ theorem linked_memory_transport_body {pointer : FlatValue} (site : PayloadRoot.S
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange.linkedMemoryTransportBody site linked family paired selected embedder
 
 /-- Align the derived occurrence paths with the actual checked execution.
-The next dispatch sees only the residual after the executed original pop. -/
+The next dispatch sees only the residual after the executed original pop.
+Use `GiveInstall.actual_selected_give` for the source-certified writer path. -/
 theorem align_public_transport_worker {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {callees : List (ComponentCall.Callee sig)} {entered left right : Config (core3 grow) (HostState sig)}
     {checkEntry canonEntry seen : Trace grow sig} {value : route.output.Result}
@@ -2531,7 +2532,7 @@ theorem align_public_transport_worker {route : GiveEffectRoute} (site : PayloadR
     PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.alignPublicTransportWorker site body run
 
-/-- Derive the worker cut from the linked memory request and its actual
+/-- Derive the occurrence cut from the linked memory request and its actual
 checked run. At a reached success, only an executed original caller pop
 exposes a shorter suffix and the next fixed-dispatch boundary. -/
 theorem linked_memory_worker_body {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
@@ -2546,7 +2547,7 @@ theorem linked_memory_worker_body {pointer : FlatValue} (site : PayloadRoot.Site
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedMemoryWorkerBody
     site linked family paired selected embedder run
 
-/-- Derive the flat worker cut with the actual emitted words and recursive
+/-- Derive the flat occurrence cut with the emitted words and recursive
 body paths. Only a surviving and executed original caller pop releases a
 shorter checked residual; late typed refusals keep the stopped canonical site. -/
 theorem linked_flat_worker_body {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
@@ -2561,18 +2562,20 @@ theorem linked_flat_worker_body {type : Stored.TypeOf} (site : PayloadRoot.Site 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedFlatWorkerBody
     site linked family paired selected embedder run
 
-/-- Apply the recursive memory or flat visitor to the checked tail at the
-extracted installation. An actual common reply carries enclosing occurrences
-into the next classified worker cut; a late typed reply is checked-only. -/
+/-- Classify the selected compiler result and drive its memory or flat visitor
+from the actual checked residual and reached raw peer. Shorter callbacks use
+the fixed mixed worker fold. Terminal prefixes retain their actual endpoints,
+and the original executed pop releases the caller suffix. -/
 theorem GiveInstall.actual_selected_give {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {label}
     {next : Config (core3 grow) (HostState sig)}
     (install : GiveInstall bindings (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start label next)
     (tail : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) next labels finish)
-    (family : RecursiveGiveDomain selection) (paired : HostFrame.Related.Paired older start incoming)
+    (paired : HostFrame.Related.Paired older start incoming)
     (selected : Stored.Endpoints.Core.childFromHistory incoming.host.writer.accepted selection.handle = some selection.tree) :
-    ActualSelectedGive profile ready callees selection older incoming (label :: labels) finish :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedGive selection install tail family paired selected
+    ActualSelectedGive profile ready (ComponentCall.hostWithComponent bindings callees)
+      selection older incoming (label :: labels) finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.actualSelectedGive selection install tail paired selected
 
 /-- Derive every child lift by induction on the compiled recursive memory
 schema, including heterogeneous fields and the selected sum arm. No child
@@ -3637,6 +3640,28 @@ theorem classify_mixed_callback_discrepancies {callees : List (ComponentCall.Cal
     Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths.discrepancyCut segment.writers initial, ending⟩
 
 open ReturnFrame.Occurrence in
+/-- Extend the writer path through the exact terminal prefix of a callback
+slice, including a selected give's recursive visitor. The terminal case
+and both runs' occurrence trails stay indexed by their reached endpoints. -/
+theorem CallbackSlice.terminal_discrepancies
+    {pending : Stored.OwnedMemory.Claims.Spend → Prop}
+    (slice : CallbackSlice profile ready base bindings older start incoming labels finish)
+    (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
+    ∃ checked canonical trailing left right, labels = checked ++ trailing ∧
+      ExecutedCallbackSegment profile ready base bindings older start incoming checked canonical left right ∧
+      CallbackSliceEnd profile ready base bindings older left right trailing finish ∧
+      ∃ localChecked localRaw residual reached peer marks, trailing = localChecked ++ residual ∧
+        OccurrenceTransport profile ready base bindings start incoming (checked ++ localChecked) (canonical ++ localRaw)
+          reached peer marks ∧
+        VisitorWriterPath profile ready base bindings start incoming (checked ++ localChecked) (canonical ++ localRaw) reached peer ∧
+        WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ localChecked) (canonical ++ localRaw)
+          reached peer ∧
+        CheckedTerminalWriterTail profile ready (specDispatch ready base) reached residual finish := by
+  obtain ⟨checked, canonical, trailing, left, right, split, segment, ending⟩ := slice
+  exact ⟨checked, canonical, trailing, left, right, split, segment, ending,
+    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.extend segment ending initial⟩
+
+open ReturnFrame.Occurrence in
 /-- Preserve the mixed callback's terminal case when extending its writer
 path. The checked execution is split at that case and again at the precise
 point reached by the writer path. The indexed terminal case retains any
@@ -3659,8 +3684,7 @@ theorem classify_mixed_callback_terminal_discrepancies {callees : List (Componen
           reached peer ∧
         CheckedTerminalWriterTail profile ready (specDispatch ready base) reached residual finish := by
   obtain ⟨checked, canonical, trailing, left, right, split, segment, _, ending, _, _⟩ := classify_mixed_callbacks run paired
-  exact ⟨checked, canonical, trailing, left, right, split, segment, ending,
-    Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters.extend segment ending initial⟩
+  exact CallbackSlice.terminal_discrepancies ⟨checked, canonical, trailing, left, right, split, segment, ending⟩ initial
 
 open ReturnFrame.Occurrence in
 /-- Carry the mixed writer comparison across a certified checked-only final
