@@ -14996,6 +14996,15 @@ private theorem sharedRecordStringCode (cx : LiftLowerContext (core3 grow)) (wid
         aligned.bind (fun _ => bounded.bind (fun _ => storeText.bind (fun _ => next (.ok ()))))
       simp only [Prog.bind_assoc, Prog.pure_bind', Except.mapError]
 
+open Stored.Endpoints in
+private theorem sharedRecordStringPlanCode (cx : LiftLowerContext (core3 grow)) (value : Value.StrVal) (dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) dest >>= fun _ => next (.ok ())) =
+      (ptrType cx >>= sharedRecordStringPlan cx value dest next) := by
+  rw [Canon.store.eq_def]
+  simp [storePrim, storeString, storeStringIntoRange, bind, Prog.bind_assoc]
+  rfl
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -15560,13 +15569,29 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         | error issue => exact finishField (.error issue) split paths writers frame checked canonical residual
         | ok placed =>
           cases placed
-          by_cases empty : trailing = []
-          · exact .inr (callbackTerminalSlice paired (by
-              rw [split, ← List.cons_append]
-              exact .coreAcceptTerminal paths writers residual (.inl empty)))
-          · exact .inr (callbackTerminalSlice paired (by
-              rw [split, ← List.cons_append]
-              exact .sharedRecordString checked canonical paths writers residual))
+          obtain ⟨value, typed⟩ := text
+          cases typed with
+          | int kind _ => cases kind
+          | @string value valid =>
+            have checkAt : left.ctl = check.control
+                (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) ptr >>= fun _ => checkNext (.ok ())) := checked
+            have canonAt : right.ctl = canon.control
+                (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) ptr >>= fun _ => canonNext (.ok ())) := canonical
+            rw [sharedRecordStringPlanCode] at checkAt canonAt
+            let planCheck := sharedRecordStringPlan cx value ptr checkNext
+            let planCanon := sharedRecordStringPlan cx value ptr canonNext
+            have finishWidth : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+                check canon planCheck planCanon := by
+              intro left right leading trailing width split paths writers frame checked canonical residual
+              by_cases empty : trailing = []
+              · exact .inr (callbackTerminalSlice paired (by
+                  rw [split, ← List.cons_append]
+                  exact .coreAcceptTerminal paths writers residual (.inl empty)))
+              · exact .inr (callbackTerminalSlice paired (by
+                  rw [split, ← List.cons_append]
+                  exact .sharedRecordString checked canonical paths writers residual))
+            exact advance (ptrType cx) (storeEffectPtrType cx) planCheck planCanon finishWidth
+              split paths writers frame checkAt canonAt residual
       exact advance _ (sharedRecordStringPlacementEffects cx text index ptr) nextCheck nextCanon finishPlacement
         split paths writers site leftFocus rightFocus run
 

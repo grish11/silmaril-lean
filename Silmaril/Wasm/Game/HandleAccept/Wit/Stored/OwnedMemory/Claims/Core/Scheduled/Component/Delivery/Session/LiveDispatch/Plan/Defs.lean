@@ -460,6 +460,18 @@ def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
   sharedRecordAllocated cx width element entries index dest ptr
 
 open Stored.Endpoints in
+/-- The canonical string plan selected by the actual emitter width read. -/
+def sharedRecordStringPlan (cx : LiftLowerContext (core3 grow))
+    (value : Value.StrVal) (dest : Nat) (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (width : AddrType) : Session grow sig (Ret (core3 grow)) := do
+  let plan := storePlanFor Quirks.none cx.opts.encoding width value
+  let begin ← runStoreSteps cx 0 plan.steps
+  let size ← ptrSize cx
+  writeMem cx dest (strWordBytes size begin)
+  writeMem cx (dest + size) (strWordBytes size plan.taggedCodeUnits)
+  next (.ok ())
+
+open Stored.Endpoints in
 def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
   let slot ← lowerOwn Limits.spec cx resource rep
@@ -1962,15 +1974,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- Remaining internal shared string emitter after actual placement. -/
+  /-- Remaining internal string traversal at the plan selected by the real emitter read. -/
   | sharedRecordString {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx ptr} {text : Stored.Payload (.prim .string)}
+      {cx ptr width value}
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : left.ctl = check.control (Canon.store Limits.spec Quirks.none cx text.val (.prim .string) ptr >>=
-        fun _ => checkedNext (.ok ())))
-      (canonical : right.ctl = canon.control (Canon.store Limits.spec Quirks.none cx text.val (.prim .string) ptr >>=
-        fun _ => canonicalNext (.ok ())))
+      (checked : left.ctl = check.control (sharedRecordStringPlan cx value ptr checkedNext width))
+      (canonical : right.ctl = canon.control (sharedRecordStringPlan cx value ptr canonicalNext width))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
