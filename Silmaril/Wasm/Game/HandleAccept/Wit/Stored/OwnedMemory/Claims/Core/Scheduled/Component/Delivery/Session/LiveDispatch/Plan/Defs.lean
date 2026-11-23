@@ -2080,14 +2080,16 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
-/-- Internal proof cut at another resolution caller. -/
-inductive SharedDestructorWorkerStage (task : TaskId) (record : Task (core3 grow))
-    (store : CStore (core3 grow)) : Focus (core3 grow) (HostState sig) → Prop where
-  | resolve {reached : Task (core3 grow)}
-      (found : ArenaField.tasks.get? store task = some reached)
-      (pending : reached.state ≠ .resolved) (borrows : ¬ reached.numBorrows > 0) :
-      SharedDestructorWorkerStage task record store
-        (.prog (.op (.call (.onResolve reached.caller (some []))) (sharedDestructorResolveReply task)))
+/-- An executed dispatcher read selected the canon-lower resolution. -/
+inductive SharedDestructorWorkerStage (task : TaskId) (store : CStore (core3 grow)) :
+    Focus (core3 grow) (HostState sig) → List (Seg (core3 grow) (HostState sig)) → Prop where
+  | lowerResolve {caller subtask context args position ft maxParams maxResults}
+      (found : ArenaField.callers.get? store caller = some (.lower subtask context args position ft maxParams maxResults)) :
+      SharedDestructorWorkerStage task store
+        (.prog (do
+          lowerOnResolve Limits.spec Quirks.none caller (some [])
+          return .unit))
+        [.prog (sharedDestructorResolveReply task)]
 
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
@@ -2186,7 +2188,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   /-- A worker proof cut above the two dormant ticket-specific parents. -/
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
       {registeredLeft registeredRight startedLeft startedRight leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee tk args focus}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee tk args focus workerFrames}
       (installed : SharedDestructorInstalled profile ready (specDispatch ready base) body leftTicket thread
         leftInstall installedLeft check)
       (canonical : SharedDestructorInstalled profile ready (specDispatch ready (LiveDispatch.host bindings base)) body rightTicket thread
@@ -2202,11 +2204,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonicalPop : SharedDestructorOnStartPop profile ready (specDispatch ready (LiveDispatch.host bindings base))
         ⟨some thread, [], canon.control (sharedDestructorAfterResume body rightTicket)⟩
         tk.caller (sharedDestructorStartReply task callee tk) args startedRight)
-      (stage : SharedDestructorWorkerStage task tk left.store focus)
+      (stage : SharedDestructorWorkerStage task left.store focus workerFrames)
       (stores : left.store = right.store)
-      (checkedEntry : left.ctl = ⟨some thread, focus, []⟩ ::
+      (checkedEntry : left.ctl = ⟨some thread, focus, workerFrames⟩ ::
         check.control (sharedDestructorAfterResume body leftTicket))
-      (canonicalEntry : right.ctl = ⟨some thread, focus, []⟩ ::
+      (canonicalEntry : right.ctl = ⟨some thread, focus, workerFrames⟩ ::
         canon.control (sharedDestructorAfterResume body rightTicket))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
