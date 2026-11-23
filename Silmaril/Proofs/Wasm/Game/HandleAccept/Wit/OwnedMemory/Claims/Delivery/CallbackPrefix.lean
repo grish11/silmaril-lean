@@ -347,14 +347,12 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     have stop (cut : CallbackWorkerBoundary bindings ready (specDispatch ready base) protectedReturn before label next) :
         ClassifiedCallbackRun bindings profile ready base protectedReturn before (label :: trailing) after :=
       .boundary (leading := []) rfl (.done before) (.refl before) (actualReplayDone before) cut step tail
-    by_cases accept : includeCoreAccept = true ∧ ∃ worker core resume frames rest name kind args inst loader,
-        before.ctl = ⟨some worker, .core core resume, frames⟩ :: rest ∧
+    by_cases accept : includeCoreAccept = true ∧ ∃ thread core resume frames rest name kind args inst loader,
+        before.ctl = ⟨thread, .core core resume, frames⟩ :: rest ∧
         (core3 grow).status before.store.core core = .callout (.embedder name kind) args ∧
-        LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader ∧
-        Plain.callerInstance before.store (some worker) = .ok (some inst) ∧
-        (before.store.inst? inst).any (·.mayLeave) = true
-    · obtain ⟨_, _, _, _, _, _, _, _, _, _, focus, calling, source, caller, mayLeave⟩ := accept.2
-      exact stop (.coreAcceptInstall focus calling source caller mayLeave)
+        LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
+    · obtain ⟨_, _, _, _, _, _, _, _, _, _, focus, calling, source⟩ := accept.2
+      exact stop (.coreAcceptInstall focus calling source)
     by_cases component : includeComponentCalls = true ∧ ∃ active hostId caller resume frames rest,
         before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest
     · obtain ⟨_, _, _, _, _, _, _, focus⟩ := component

@@ -448,12 +448,10 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
     (before : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
     (next : Config (core3 grow) (HostState sig)) : Prop where
   | give (install : GiveInstall bindings dispatch before label next)
-  | coreAcceptInstall {worker core resume frames rest name kind args inst loader}
-      (focus : before.ctl = ⟨some worker, .core core resume, frames⟩ :: rest)
+  | coreAcceptInstall {thread core resume frames rest name kind args inst loader}
+      (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
       (calling : (core3 grow).status before.store.core core = .callout (.embedder name kind) args)
       (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
-      (caller : Plain.callerInstance before.store (some worker) = .ok (some inst))
-      (mayLeave : (before.store.inst? inst).any (·.mayLeave) = true)
   | componentInstall {active hostId caller resume frames rest}
       (focus : before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
   | pollInstall {thread core resume frames rest mem inst args}
@@ -1246,8 +1244,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish)
       (ending : trailing = [] ∨ left.host.writer.accepted ≠ right.host.writer.accepted ∨
-        ∃ beforeLeft beforeRight check canon leftTicket rightTicket tree,
-          RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) :
+        (∃ beforeLeft beforeRight check canon leftTicket rightTicket tree,
+          RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
+        (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | componentEntryPrefix {changes wider reached peer left right labels mark}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}

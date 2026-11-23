@@ -3622,7 +3622,10 @@ gives, admitted component calls, and public polls, waits and cancels share the
 shorter-run induction, including inside allocator and cancellation callbacks.
 An admitted legacy Core accept follows the reached load, registration read
 and any actual commit and journal. A probe conflict keeps both branch
-programs. A common reply releases the suffix at the original marked pop.
+programs. An admission refusal journals its own result before the reply.
+A dangling caller traps only at the executed fault, clearing active marks
+while keeping saved ones. A common reply releases the suffix at the original
+marked pop.
 An unresolved cancel enters the hook after the actual request write and
 installation. Its executed marked pop leads to the reached readiness decision,
 or to the actual trapped or exhausted prefix of that decision.
