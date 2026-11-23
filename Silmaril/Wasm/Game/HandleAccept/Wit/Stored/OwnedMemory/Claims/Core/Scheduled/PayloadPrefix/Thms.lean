@@ -497,6 +497,30 @@ theorem string_plan_entry_between {grow : SingleThreaded.GrowOracle} {sig : Sign
       destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
     exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩
 
+/-- At a reached scalar field, the checked entry reads lead to the shared
+local operation. Its choices are followed using the actual checked response. -/
+theorem local_data_entry {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (focused : start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
+    let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output
+    let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) => match operation with
+      | .choose _ => True
+      | other => LocalStoreOp other) program ∧
+    (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch start place
+      (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile ready dispatch start (List.replicate reads .tau) reached) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataEntry
+    destination inst type data payload index output start cursor finish width placed focused
+
 theorem local_data_leaf_frame_between {ready : HostReady (HostState sig)}
     {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)

@@ -21336,6 +21336,59 @@ private theorem visitSourceOverlayHandle {check canon : Cursor (E := core3 grow)
           (returned value rfl scheduler rfl (by simp only [localLeafEnd, Cursor.control, thread])
             residual suffixBound)
 
+open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
+private theorem visitSourceOverlayScalar {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (destination : RecordDestination) (inst : InstId) (type : Stored.TypeOf) (data : LocalDataType type)
+    (payload : Stored.Payload type) (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (stores : start.store = incoming.store) (thread : check.thread = canon.thread)
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (checked : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= checkNext))
+    (canonical : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output >>= canonNext))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (returned : ∀ value {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → DestructorSchedulerAlignment older left right →
+      left.ctl = check.control (checkNext (.ok value)) → right.ctl = canon.control (canonNext value) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let body : Session grow sig output.Result := CanonicalTree.field Limits.spec Quirks.none
+    (destination.context inst) destination.width (.data type payload) output
+  let reached := { start with ctl := check.control (body >>= fun value => checkNext (.ok value)) }
+  obtain ⟨program, reads, tracks, readPath⟩ := local_data_entry
+    (profile := profile) (ready := ready) (dispatch := specDispatch ready base) destination inst type data
+    payload index output start check checkNext width placed checked
+  have effects {code : Session grow sig output.Result}
+      (localOps : Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) =>
+        match operation with | .choose _ => True | other => LocalStoreOp other) code) :
+      StoreEffects code := by
+    induction localOps with
+    | pure value => exact .pure value
+    | @op operation next allowed _ ih =>
+      refine .op ?_ ih
+      cases operation <;> first | rfl | exact False.elim allowed
+  cases alignLocalBody (tracks (.active 0 0)).toTrail.steps run (noBranchOfVisible (visibleTaus reads) (by simp)) with
+  | inside split _ _ =>
+    obtain ⟨_, _, paths, writers⟩ := prefixReadWriters readPath split run
+    rw [← List.append_nil labels]
+    exact .comparedPrefix (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
+      (.framed writers (.done incoming)) .exhausted
+  | reached split residual =>
+    have suffixBound := destructorSuffixBound split (Nat.le_refl _)
+    rw [split]
+    refine .comparedPrefix (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+      (.framed (WriterPaths.frameReads readPath) (.done incoming)) ?_
+    exact crossSharedWorkerBodyWith (check := check) (canon := canon) (start := reached)
+      thread body (fun value => checkNext (.ok value)) canonNext
+      (liftDestructorStoreEffects (effects program) (trivialPreserves _)) trivial stores rfl canonical residual
+      (fun value shorter _ equal leftAt rightAt keep tail =>
+        returned value equal (keep scheduler) leftAt rightAt tail (shorter.trans suffixBound))
+
 open ABI PayloadPrefix Stored.Endpoints.RecordLower in
 private theorem finishSourceOverlayLeafReply {limit : Nat}
     {check canon : Cursor (E := core3 grow) (HostState sig)} {words : List FlatValue}
@@ -21408,6 +21461,19 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
         · intro value left right remaining same aligned focused raw residual bound
           cases value
           exact finishSourceOverlayLeafReply (reply (.ok ())) rfl same focused raw aligned residual (bound.trans within) resume
+      | @scalar scalarType payload data =>
+        change rootPlacement destination start.store type (.memory pointer) = .ok () at placed
+        have scalarMatches : scalarType = type := matched.type_eq
+        have placement : rootPlacement destination start.store scalarType (.memory pointer) = .ok () := by
+          rw [scalarMatches]
+          exact placed
+        have width : ptrTypeIn start.store (destination.context inst) = destination.width := by
+          simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, destination.check_width _ linked]
+        refine visitSourceOverlayScalar destination inst scalarType data payload 0 (.memory pointer) _ next stores thread
+          width placement checkedAt canonicalAt scheduler run ?_
+        intro value left right remaining same aligned focused raw residual bound
+        cases value
+        exact finishSourceOverlayLeafReply (reply (.ok ())) rfl same focused raw aligned residual (bound.trans within) resume
       | _ => exact pending
   | some schema =>
     cases selected with
@@ -21441,6 +21507,16 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
             simp only [reply, Except.mapError, flatCompletion]
             split <;> rfl
           exact finishSourceOverlayLeafReply (reply (.ok words)) sameWords same focused raw aligned residual (bound.trans within) resume
+      | scalar scalarType data payload =>
+        have width : ptrTypeIn start.store (destination.context inst) = destination.width := by
+          simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, destination.check_width _ linked]
+        refine visitSourceOverlayScalar destination inst scalarType data payload 0 .flat _ next stores thread
+          width rfl checkedAt canonicalAt scheduler run ?_
+        intro words left right remaining same aligned focused raw residual bound
+        have sameWords : (reply (.ok words)).2 = (flatCompletion 0 (ABI.flatten destination.width schema) (.ok words)).2 := by
+          simp only [reply, Except.mapError, flatCompletion]
+          split <;> rfl
+        exact finishSourceOverlayLeafReply (reply (.ok words)) sameWords same focused raw aligned residual (bound.trans within) resume
       | _ => exact pending
 
 open ReturnFrame.Occurrence in

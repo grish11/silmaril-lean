@@ -2104,17 +2104,21 @@ private theorem localDataProgram {keep : CStore (core3 grow) → Prop} (writes :
         first | exact closedIntKeeping writes cx _ address (flagsSize labels.length) |
           exact .op trivial (fun impossible => nomatch impossible)
 
-theorem localDataLeafFrameBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+private theorem dataEntryOfType
     (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
-    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
-    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
-    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
-    (placed : rootPlacement destination left.store type output = .ok ()) (trackOccurrences : Bool := false) :
-    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference (fun store => Core3.Grows origin.core store.core) left right
-      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
-        (.data type payload) index output)
-      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
-        (.data type payload) output) trackOccurrences := by
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (focused : start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
+    let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output
+    let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    ∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start place
+      (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached := by
   have schema : Lower.checkSchema type = .ok () := by
     cases data with
     | primitive _ => exact primitiveSchema _
@@ -2127,9 +2131,55 @@ theorem localDataLeafFrameBetween {reference : Call (core3 grow) → Session gro
     cases data with
     | @primitive primitive nonString => cases primitive <;> first | contradiction | cases payload.val <;> rfl
     | enum | flags => cases payload.val <;> rfl
+  exact dataEntry destination inst type payload index output start cursor finish width schema options fit placed focused
+
+theorem localDataEntry
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (focused : start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
+    let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output
+    let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) => match operation with
+      | .choose _ => True
+      | other => LocalStoreOp other) program ∧
+    (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start place
+      (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached) := by
+  dsimp only
+  refine ⟨?_, dataEntryOfType destination inst type data payload index output start cursor finish width placed focused⟩
+  have localProgram := localDataProgram (profile := profile) (grow := grow) (sig := sig) (keep := fun _ => True)
+    (fun _ _ _ _ _ => trivial) destination inst type data payload output
+  have localEffects {body : Session grow sig output.Result}
+      (closed : Prog.Every (ClosedOp profile (fun _ => True)) body) :
+      Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) =>
+        match operation with | .choose _ => True | other => LocalStoreOp other) body := by
+    induction closed with
+    | pure value => exact .pure value
+    | @op operation _ _ _ ih =>
+      refine .op ?_ ih
+      cases operation <;> trivial
+  exact localEffects localProgram
+
+theorem localDataLeafFrameBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store type output = .ok ()) (trackOccurrences : Bool := false) :
+    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) output) trackOccurrences := by
   intro same check canon thread checkedNext canonNext checkAt canonAt
-  obtain ⟨reads, entered, entryPath⟩ := dataEntry destination inst type payload index output left check checkedNext
-    width schema options fit placed checkAt
+  obtain ⟨reads, entered, entryPath⟩ := dataEntryOfType destination inst type data payload index output left check checkedNext
+    width placed checkAt
   exact prependLocalOccurrenceCut entered entryPath (silent (fun _ member => List.eq_of_mem_replicate member))
     (closedCutOccurrencesBetween (localDataProgram (growthWrites origin) destination inst type data payload output)
       _ right check canon (fun value => checkedNext (.ok value)) canonNext growth same thread rfl canonAt) trackOccurrences
