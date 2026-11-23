@@ -119,7 +119,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     exact terminal paths (.framed (oneFrame checked.steps same.1) (oneFrame canonical.steps same.2)) (.refl _)
   | coreAcceptTerminal paths writers residual _ => exact terminal paths writers residual
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropWorkerImport _ _ _ _ _ residual => exact stop residual
+  | sharedDropWorkerImport _ _ _ _ _ _ residual => exact stop residual
   | sharedDropSwitch _ _ _ _ _ residual => exact stop residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact stop residual
   | destructorPrefix paths writers _ _ ih => exact follow paths writers ih

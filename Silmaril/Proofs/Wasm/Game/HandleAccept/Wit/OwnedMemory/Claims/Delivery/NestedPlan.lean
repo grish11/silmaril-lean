@@ -2773,7 +2773,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
+  | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2832,7 +2832,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
+  | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
@@ -16336,7 +16336,7 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
                       | exact compareSharedDestructorTrap reason
                           (checkAt.trans (congrArg check.control (flatImportTrap reason)))
                           (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
-                  · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
+                  · exact .sharedDropWorkerImport parents segments admitted stores checkAt canonAt residual
 
 private theorem rejoinDestructorParentJournal {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
     {actualLabels : Trace grow sig}
@@ -16879,6 +16879,31 @@ private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 g
         (fun _ => aligned) (finishDestructorSwitchTarget parents related .nil (congrArg update stores)
           aligned rfl rfl tail (by simp only [List.length_cons] at bounded; omega) compare)
 
+private theorem finishSharedDestructorImport {limit : Nat}
+    {thread frames peerFrames rest peerRest core host args task tk body}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (admitted : calloutEntry start.store thread host = none)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready base start.store thread host args),
+      .core core (sharedDestructorCoreResult task tk) :: frames⟩ :: rest)
+    (canonical : incoming.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      incoming.store thread host args), .core core (sharedDestructorCoreResult task tk) :: peerFrames⟩ :: peerRest)
+    (residual : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have follow
+      (code : calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread host args =
+        calloutBody Limits.spec Quirks.none ready base start.store thread host args) :
+      CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+    rw [code] at canonical
+    exact finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil stores scheduler
+      checked canonical residual bounded compare
+  cases host with
+  | embedder => exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
+  | _ => exact follow rfl
+
 /-- Discharge the pending enclosing return after following the source worker
 prefix. Every recursive use of the mixed classifier consumes the actual pop. -/
 private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
@@ -16894,6 +16919,8 @@ private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config
   | .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets tail =>
     exact .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets
       (rejoinDestructorSuffix tail scheduler bounded compare)
+  | .sharedDropWorkerImport parents segments admitted stores checked canonical residual =>
+    exact finishSharedDestructorImport parents segments admitted stores checked canonical residual scheduler bounded compare
   | .sharedDropSwitch parents segments stores checked canonical residual =>
     exact finishDestructorSwitch parents segments stores checked canonical residual scheduler bounded compare
   | .sharedDropParentLoop paths writers frames restore residual =>

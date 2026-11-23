@@ -2237,6 +2237,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   | sharedDropWorkerImport {changes reached peer trailing finish}
       {thread frames peerFrames rest peerRest core host args task tk body}
       (parents : DestructorParentChain changes body rest peerRest)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) frames peerFrames)
       (admitted : calloutEntry reached.store thread host = none)
       (stores : reached.store = peer.store)
       (checked : reached.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready base reached.store thread host args),
