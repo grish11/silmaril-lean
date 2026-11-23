@@ -856,6 +856,17 @@ def workerBranchLabel : Label (core3 grow) (HostState sig) → Prop
   | .choice _ _ | .host _ => True
   | _ => False
 
+/-- A finite checked completion prefix with the Core caller still present. -/
+structure CheckedCoreReplyPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Prop where
+  short : actual.length < 3
+  quiet : PayloadPrefix.visible actual = []
+  store : finish.store = start.store
+  writers : WriterPath profile ready dispatch start actual finish []
+  paths : ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch start place actual finish place
+
 /-- A recursive body stopped before a common caller reply. A local branch
 retains the reached checked action, not an invented canonical action. -/
 inductive GiveBodyStop (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -871,12 +882,8 @@ inductive GiveBodyStop (profile : ProfileKind) (ready : HostReady (HostState sig
       (tail : Steps profile ready (specDispatch ready base) next suffix finish)
   | allocatorInstall {count : Nat} (short : trailing.length < count)
   | replyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue) (short : trailing.length < 3)
-  /-- Actual checked refusal steps through the journal write, with the caller still parked. -/
-  | coreRefusalPrefix (issue : Stored.Endpoints.RecordLower.Issue) (short : trailing.length < 3)
-      (quiet : PayloadPrefix.visible trailing = []) (store : finish.store = left.store)
-      (writers : WriterPath profile ready (specDispatch ready base) left trailing finish [])
-      (paths : ∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base)
-        left place trailing finish place)
+  | coreReplyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue)
+      (reached : CheckedCoreReplyPrefix profile ready (specDispatch ready base) left trailing finish)
   | callerNotTop (refusal : Option Stored.Endpoints.RecordLower.Issue) (missing : caller ≠ some (.active 0 0))
 
 /-- The part of a give actually compared, rebased through its own entry.
@@ -6125,7 +6132,7 @@ def GiveVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState s
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) (value : route.output.Result) (incoming left right : Config (core3 grow) (HostState sig))
     (checkEntry checkBody canonLeading actual trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  trailing.length < 3 ∨ ∃ suffix checked canonical,
+  CheckedCoreReplyPrefix profile ready (specDispatch ready base) left trailing finish ∨ ∃ suffix checked canonical,
     trailing = [.tau, .tau, .tau] ++ suffix ∧ suffix.length < actual.length ∧
     Steps profile ready (specDispatch ready base) checked suffix finish ∧
     checked.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧

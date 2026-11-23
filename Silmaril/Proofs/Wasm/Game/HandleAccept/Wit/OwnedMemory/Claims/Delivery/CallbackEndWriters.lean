@@ -151,11 +151,11 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     exact split.symm ▸ terminal body.paths body.writers body.residual
   | body _ body ending =>
     cases ending with
-    | coreRefusalPrefix _ _ _ _ writers paths =>
+    | coreReplyPrefix _ reached =>
       apply follow body.paths body.writers
       simpa only [List.append_nil] using terminal
-        (CallbackPrefix.stationaryTransport paths (fun place => .done _ place))
-        (.framed writers (.done _)) (.refl _)
+        (CallbackPrefix.stationaryTransport reached.paths (fun place => .done _ place))
+        (.framed reached.writers (.done _)) (.refl _)
     | _ => exact terminal body.paths body.writers body.residual
   | directGiveLateReply _ _ body _ reply => exact follow body.paths body.writers (directReply reply)
   | directGiveFinite body => simpa only [List.append_nil] using terminal body.paths body.writers body.residual
