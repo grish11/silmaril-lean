@@ -2779,7 +2779,6 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedRecordAllocator paths _ _ compared _ ih =>
     simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
-  | sharedRecordAfterPrepare _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2832,7 +2831,6 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
       append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ ending =>
     exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
-  | sharedRecordAfterPrepare _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14656,31 +14654,16 @@ private theorem sharedRecordRangeEffects (cx : LiftLowerContext (core3 grow)) (a
       (storeEffectBounds cx ptr (count * area.size)).bind fun _ => .pure ptr
   all_goals exact storeEffectTrap (.internal "late-bound call: expected Ret.nat")
 
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordLocalElementsEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (stride : Nat) {entries : List RecordLower.Field} (localEntries : SharedRecordLocalFields entries)
-    (ptr index : Nat) :
-    StoreEffects (RecordLower.Internal.runElements Limits.spec Quirks.none cx
-      (Record.authority recordClaims Limits.spec cx) width entries stride ptr index :
-      Session grow sig (Except RecordLower.Issue Unit)) := by
-  induction entries generalizing ptr index with
-  | nil => exact .pure _
-  | cons field fields ih =>
-    cases localEntries with
-    | cons localField localFields =>
-      rw [RecordLower.Internal.runElements.eq_def]
-      refine (sharedRecordLocalFieldEffects cx width localField index ptr).bind fun outcome => ?_
-      cases outcome with
-      | error issue => exact .pure _
-      | ok accepted => cases accepted; exact ih localFields (ptr + stride) (index + 1)
+open Stored.Endpoints in
+private def sharedRecordCollectionResult (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (count index dest ptr : Nat) : Except RecordLower.Issue Unit → Session grow sig (Except RecordLower.Issue Unit)
+  | .error issue => .pure (.error (.nested index issue))
+  | .ok () => ListLower.publish cx width ptr count (.memory dest) >>= fun published => .pure (.ok published)
 
 open Stored.Endpoints in
-private theorem sharedRecordLocalCollectionEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) {entries : List RecordLower.Field} (localEntries : SharedRecordLocalFields entries)
-    (index dest ptr : Nat) :
-    StoreEffects (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) :
-      Session grow sig (Except RecordLower.Issue Unit)) := by
-  refine (sharedRecordLocalElementsEffects cx width (ABI.layout width element).size localEntries ptr 0).bind fun result => ?_
+private theorem sharedRecordCollectionResultEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (count index dest ptr : Nat) (result : Except RecordLower.Issue Unit) :
+    StoreEffects (sharedRecordCollectionResult cx width count index dest ptr result : Session grow sig _) := by
   cases result with
   | error issue => exact .pure _
   | ok accepted =>
@@ -14688,6 +14671,19 @@ private theorem sharedRecordLocalCollectionEffects (cx : LiftLowerContext (core3
     have widthRead : StoreEffects (ptrSize cx : Session grow sig Nat) := (storeEffectPtrType cx).bind fun _ => .pure _
     exact ((widthRead.bind fun size =>
       (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + size) _).bind fun _ => .pure _)
+
+open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
+private theorem sharedRecordAfterPrepareVisit (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= next) =
+      sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= next) := by
+  let body : Session grow sig (Except RecordLower.Issue Unit) := RecordLower.Internal.runElements Limits.spec Quirks.none cx
+    (Record.authority recordClaims Limits.spec cx) width entries (ABI.layout width element).size ptr 0
+  let report := sharedRecordCollectionResult (sig := sig) cx width entries.length index dest ptr
+  change (body.bind report).bind next = _
+  exact Prog.bind_assoc body report next
 
 open ReturnFrame.Occurrence in
 private theorem advanceSharedRecordLocal {Result : Type} {left right : Config (core3 grow) (HostState sig)} {leading live trailing : Trace grow sig}
@@ -14732,14 +14728,19 @@ private theorem advanceSharedRecordLocal {Result : Type} {left right : Config (c
       simpa only [List.cons_append] using retained
     exact resume result consumed (sharedRecordVisibleAppend used observed) allPaths traced frame checked canonical residual
 
-open ReturnFrame.Occurrence Stored.Endpoints in
+open ReturnFrame.Occurrence Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordRange {caller : Seg (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older start incoming)
     (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
     (entries : List RecordLower.Field) (index dest : Nat)
     (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (onField : SharedRecordContinuation profile ready base bindings older start incoming labels finish caller
-      checkNext canonNext) :
+      checkNext canonNext)
+    (onVisit : ∀ ptr, SharedRecordContinuation profile ready base bindings older start incoming labels finish caller
+      (fun _ : Unit => sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= checkNext))
+      (fun _ : Unit => sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= canonNext))) :
     SharedRecordContinuation profile ready base bindings older start incoming labels finish caller
       (sharedRecordAllocationResume cx width element entries index dest checkNext)
       (sharedRecordAllocationResume cx width element entries index dest canonNext) := by
@@ -14769,14 +14770,10 @@ private theorem crossSharedRecordRange {caller : Seg (core3 grow) (HostState sig
       frame checked canonical tail
   | ok result =>
     cases result
-    by_cases localEntries : SharedRecordLocalFields entries
-    · exact advanceSharedRecordLocal _ (sharedRecordLocalCollectionEffects cx width element localEntries index dest ptr)
-        checkNext canonNext onField paired split observed paths writers frame checked canonical tail
-    · exact .inr (callbackTerminalSlice paired (by
-        rw [split, ← List.cons_append]
-        by_cases empty : trailing = []
-        · exact .coreAcceptTerminal paths writers tail (.inl empty)
-        · exact .sharedRecordAfterPrepare checked canonical paths writers tail))
+    change reached.ctl = check.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= checkNext) at checked
+    change peer.ctl = canon.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= canonNext) at canonical
+    rw [sharedRecordAfterPrepareVisit] at checked canonical
+    exact onVisit ptr () split observed paths writers frame checked canonical tail
 
 open Stored.Endpoints in
 private theorem sharedRecordAllocatorCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
@@ -15006,7 +15003,7 @@ private theorem crossSharedReallocate {left right : Config (core3 grow) (HostSta
       · exact stop
     · exact stop
 
-open ReturnFrame.Occurrence Stored.Endpoints in
+open ReturnFrame.Occurrence Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {caller : Seg (core3 grow) (HostState sig)}
     {leading live trailing : Trace grow sig}
@@ -15014,6 +15011,11 @@ private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (Ho
     (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
     (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (onField : SharedRecordContinuation profile ready base bindings older start incoming labels finish caller checkNext canonNext)
+    (onVisit : ∀ ptr, SharedRecordContinuation profile ready base bindings older start incoming labels finish caller
+      (fun _ : Unit => sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= checkNext))
+      (fun _ : Unit => sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= canonNext)))
     (split : labels = leading ++ trailing) (paired : HostFrame.Related.Paired older start incoming)
     (observed : PayloadPrefix.visible live = PayloadPrefix.visible (.tau :: leading))
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) live
@@ -15030,7 +15032,7 @@ private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (Ho
   rw [sharedRecordAllocatorCode] at leftFocus rightFocus
   let area := ABI.layout width element
   exact crossSharedReallocate cx 0 0 area.alignment.bytes (entries.length * area.size) _ _
-    (crossSharedRecordRange paired cx width element entries index dest checkNext canonNext onField)
+    (crossSharedRecordRange paired cx width element entries index dest checkNext canonNext onField onVisit)
     split paired observed paths writers site leftFocus rightFocus run compare
 
 open Stored.Endpoints in
@@ -15439,6 +15441,22 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
       let body := sharedRecordBeforeAllocation (sig := sig) cx width element entries index ptr
       let nextCheck (result : Except RecordLower.Issue Unit) := body result >>= checkNext
       let nextCanon (result : Except RecordLower.Issue Unit) := body result >>= canonNext
+      have entriesEmitted : ∀ item ∈ entries, RecordLower.Field.Emitted item := by
+        intro item member
+        cases fieldEmitted with
+        | list compiled => exact compiled item member
+        | map shapes values =>
+          obtain ⟨payload, value, rfl⟩ := shapes item member
+          refine RecordLower.Field.Emitted.aggregate ?_
+          intro child atChild
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at atChild
+          rcases atChild with keyChild | valueChild
+          · exact keyChild.symm ▸ RecordLower.Field.Emitted.primitive payload
+          · exact valueChild.symm ▸ values payload value member
+      have smaller : sizeOf entries < size := by
+        rw [← fieldSize]
+        simp
+        omega
       have checked := leftFocus
       have raw := rightFocus
       rw [sharedRecordMemoryCons, sharedRecordCollectionCode] at checked raw
@@ -15451,8 +15469,20 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           split observed paths writers frame checked canonical residual
       | ok result =>
         cases result
-        exact crossSharedRecordAllocator cx width element entries index ptr checkNext canonNext finishField
+        refine crossSharedRecordAllocator cx width element entries index ptr checkNext canonNext finishField ?_
           split paired observed paths writers frame checked canonical residual compare
+        intro address thread frames rest peerFrames peerRest reached peer leading live trailing result
+          split observed paths writers frame checked canonical residual
+        let body := sharedRecordCollectionResult (sig := sig) cx width entries.length index ptr address
+        let visitChecked (item : Except RecordLower.Issue Unit) := body item >>= checkNext
+        let visitCanonical (item : Except RecordLower.Issue Unit) := body item >>= canonNext
+        have onVisit : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+            callerFrame visitChecked visitCanonical := by
+          intro thread frames rest peerFrames peerRest left right leading live trailing item split observed paths writers site checked canonical run
+          exact advanceSharedRecordLocal (body item) (sharedRecordCollectionResultEffects cx width entries.length index ptr address item)
+            checkNext canonNext finishField paired split observed paths writers site checked canonical run
+        exact ih (sizeOf entries) smaller (.elements (ABI.layout width element).size) entries address 0 entriesEmitted
+          visitChecked visitCanonical onVisit split observed paths writers frame checked canonical residual rfl
     by_cases contextField : ∃ identity, field = .context identity
     · obtain ⟨identity, rfl⟩ := contextField
       let body := sharedRecordContextBody (sig := sig) cx identity index ptr
