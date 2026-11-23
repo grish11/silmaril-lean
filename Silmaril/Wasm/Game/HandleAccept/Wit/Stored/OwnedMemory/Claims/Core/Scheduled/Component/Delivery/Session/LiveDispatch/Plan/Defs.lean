@@ -2246,8 +2246,9 @@ inductive DestructorParentChain (changes : ReturnFrame.Substitutions (core3 grow
         ((PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
         ((PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
 
+open Stored.Endpoints in
 /-- Frames beneath a selected synchronous worker. Common loop tail calls
-can add frames above the two source returns. -/
+can add frames above the two source returns and compiled allocator frames. -/
 inductive SourceLiftLoopFrames (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)) :
     List (Seg (core3 grow) (HostState sig)) → List (Seg (core3 grow) (HostState sig)) → Prop where
   | paired {left right} (frames : List.Forall₂ (ReturnFrame.Related.Segment changes) left right) :
@@ -2258,6 +2259,10 @@ inductive SourceLiftLoopFrames (changes : ReturnFrame.Substitutions (core3 grow)
   | destructor {left right} (leftTicket rightTicket : Nat) (below : SourceLiftLoopFrames changes left right) :
       SourceLiftLoopFrames changes (.prog (sharedDestructorParentReply leftTicket) :: left)
         (.prog (sharedDestructorParentReply rightTicket) :: right)
+  | allocator {left right} (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation)
+      (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+      (compiled : site.compiled cx) (below : SourceLiftLoopFrames changes left right) :
+      SourceLiftLoopFrames changes (.prog (site.resume cx leftNext) :: left) (.prog (site.resume cx rightNext) :: right)
 
 open Stored.Endpoints in
 /-- Source-indexed dormant controls. Each layer keeps its own continuation
@@ -2652,14 +2657,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual caller-result lookup reached a pointer return. The
   allocator return segment is still parked at this finite cut. -/
-  | sharedDropRecordAllocatorReturning {changes reached peer trailing finish body task caller kind n}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
-      {request : ABI.ReallocRequest} {width : AddrType}
+  | sharedDropRecordAllocatorReturning {changes reached peer trailing finish body caller args kind n}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (parents : DestructorParentChain changes body check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (source : SharedRecordAllocatorSource cx request width task caller reached.store (some (.int kind n)))
+      (lookup : ArenaField.callers.get? reached.store caller = some (.sub (.realloc args (some (.int kind n)))))
       (checked : reached.ctl = check.control (.pure (.nat n.toNat)))
       (canonical : peer.ctl = canon.control (.pure (.nat n.toNat)))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
