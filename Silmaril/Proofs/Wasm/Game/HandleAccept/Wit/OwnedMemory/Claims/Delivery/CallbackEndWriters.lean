@@ -120,7 +120,8 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | coreAcceptTerminal paths writers residual _ => exact terminal paths writers residual
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact stop residual
-  | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
+  | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | sharedDropRecordVisit _ _ _ _ _ _ _ _ residual => exact stop residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact stop residual
   | sharedDropSwitch _ _ _ _ _ residual => exact stop residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact stop residual

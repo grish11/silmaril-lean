@@ -2266,6 +2266,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (Stored.Endpoints.RecordLower.Field.listObjects fields) = .ok ())
       (checked : reached.ctl = check.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr leftTicket))
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual width and placement checks entered the compiled field visitor. -/
+  | sharedDropRecordVisit {changes reached peer trailing finish body cursor index leftTicket rightTicket width}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {cx : LiftLowerContext (core3 grow)} {fields : List Stored.Endpoints.RecordLower.Field}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (emitted : ∀ field ∈ fields, Stored.Endpoints.RecordLower.Field.Emitted field)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket)))
+      (canonical : peer.ctl = canon.control (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
