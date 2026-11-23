@@ -429,6 +429,22 @@ def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List Record
   | none => sharedRecordReport ticket (.error (.preflight (.abi .allocationPrecondition)))
   | some width => sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport ticket)
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+/-- The shared collection field after its actual pre-allocation prepare succeeded. -/
+def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) := do
+  let authority := Record.authority recordClaims Limits.spec cx
+  let area := ABI.layout width element
+  let ptr ← ListLower.allocateRange cx area entries.length
+  match ← authority.prepare (RecordLower.Field.listObjects entries) with
+  | .error (.preflight issue) => return .error (.field index (.afterAllocation issue))
+  | .error issue => return .error (.nested index issue)
+  | .ok () =>
+    match ← RecordLower.Internal.runElements Limits.spec Quirks.none cx authority width entries area.size ptr 0 with
+    | .error issue => return .error (.nested index issue)
+    | .ok () => return .ok (← ListLower.publish cx width ptr entries.length (.memory dest))
+
 open Stored.Endpoints in
 def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
@@ -1938,6 +1954,16 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
       (checked : left.ctl = check.control (sharedRecordMemory mode cx width fields cursor index checkedNext))
       (canonical : right.ctl = canon.control (sharedRecordMemory mode cx width fields cursor index canonicalNext))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  /-- Internal proof frontier at the actual shared list/map allocator call. -/
+  | sharedRecordAllocation {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx width element entries index dest}
+      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (checked : left.ctl = check.control (sharedRecordAllocate cx width element entries index dest >>= checkedNext))
+      (canonical : right.ctl = canon.control (sharedRecordAllocate cx width element entries index dest >>= canonicalNext))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
