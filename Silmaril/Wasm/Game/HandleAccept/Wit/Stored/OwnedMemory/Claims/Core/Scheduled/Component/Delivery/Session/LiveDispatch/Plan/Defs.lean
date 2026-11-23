@@ -1070,6 +1070,46 @@ structure SharedDestructorResumed (profile : ProfileKind) (ready : HostReady (Ho
   active : after.ctl = StepDefs.threadAct dispatch thread body ::
     cursor.control (sharedDestructorAfterResume body ticket)
 
+/-- The arena endpoints and buffers selected by the copy's store read. -/
+def CopyTransferOrigin (endpoint : EndId) (buffer : BufferDesc (core3 grow)) (reading : Bool)
+    (store : CStore (core3 grow)) : CopyAction (core3 grow) → Prop
+  | .none => False
+  | .transfer writer reader count writerBuffer readerBuffer =>
+    ∃ selected peer peerEnd peerBuffer,
+      store.end? endpoint = some selected ∧ selected.other = some peer ∧ peer ≠ endpoint ∧
+      store.end? peer = some peerEnd ∧ peerEnd.buffer = some peerBuffer ∧
+      count = min buffer.remain peerBuffer.remain ∧ 0 < count ∧
+      (if reading then
+        writer = peer ∧ reader = endpoint ∧ writerBuffer = peerBuffer ∧ readerBuffer = buffer
+       else
+        writer = endpoint ∧ reader = peer ∧ writerBuffer = buffer ∧ readerBuffer = peerBuffer)
+
+/-- The read has installed the selected bookkeeping and buffer program. -/
+def copyTransferRead (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (before : Config (core3 grow) (HostState sig)) (endpoint : EndId) (buffer : BufferDesc (core3 grow))
+    (reading : Bool) (action : CopyAction (core3 grow)) (next : Session grow sig (Ret (core3 grow))) :
+    Config (core3 grow) (HostState sig) :=
+  { before with ctl := cursor.control (do
+      modifyStore (copySt endpoint buffer reading)
+      performCopy Limits.spec Quirks.none action
+      next) }
+
+/-- Executing the copy read and commit leaves the selected buffer action
+pending above the original continuation. -/
+structure ExecutedCopyTransfer (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (endpoint : EndId)
+    (buffer : BufferDesc (core3 grow)) (reading : Bool) (action : CopyAction (core3 grow))
+    (next : Session grow sig (Ret (core3 grow))) (before after : Config (core3 grow) (HostState sig)) : Prop where
+  focus : before.ctl = cursor.control (endCopy Limits.spec Quirks.none endpoint buffer reading >>= fun _ => next)
+  selected : copyCore endpoint buffer reading before.store = .ok (after.store, action)
+  origin : CopyTransferOrigin endpoint buffer reading before.store action
+  read : Step profile ready dispatch before .tau (copyTransferRead cursor before endpoint buffer reading action next)
+  commit : Step profile ready dispatch (copyTransferRead cursor before endpoint buffer reading action next) .tau after
+  reached : after = { before with
+    store := after.store
+    ctl := cursor.control (performCopy Limits.spec Quirks.none action >>= fun _ => next) }
+
 /-- Ordered evidence on the actual pair of visited program segments.
 Compiled guards and shared scheduled commits identify the source of nominal spends. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1132,6 +1172,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
       (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
       VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau] left right
+  | copyTransfer {start incoming left right check canon endpoint buffer reading action next}
+      (lhs : ExecutedCopyTransfer profile ready (specDispatch ready base) check endpoint buffer reading action next start left)
+      (rhs : ExecutedCopyTransfer profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        canon endpoint buffer reading action next incoming right) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau, .tau] [.tau, .tau] left right
   | guarded {start incoming checked canonical left right plan}
       (paths : CompiledLeafWriterPaths profile ready base bindings start incoming checked canonical left right plan) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
@@ -1189,6 +1234,11 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
       (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
       ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau] left right []
+  | copyTransfer {start incoming left right check canon endpoint buffer reading action next}
+      (lhs : ExecutedCopyTransfer profile ready (specDispatch ready base) check endpoint buffer reading action next start left)
+      (rhs : ExecutedCopyTransfer profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        canon endpoint buffer reading action next incoming right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau] [.tau, .tau] left right []
   | publication {start incoming labels left right tree}
       (paths : PairedPublicationWriterPrefix profile ready base bindings tree start incoming labels left right) :
       ClassifiedWriterPrefix profile ready base bindings start incoming labels labels left right []

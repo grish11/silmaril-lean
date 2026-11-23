@@ -23978,6 +23978,130 @@ private theorem sourceCopyPerformCode (copy : SourceCopy grow) (source : SourceC
     rw [selected]
     rfl
 
+private theorem copyTransferOrigin {endpoint : EndId} {buffer : BufferDesc (core3 grow)} {reading : Bool}
+    {store committed : CStore (core3 grow)} {writer reader count writerBuffer readerBuffer}
+    (chosen : copyCore endpoint buffer reading store = .ok (committed, .transfer writer reader count writerBuffer readerBuffer)) :
+    CopyTransferOrigin endpoint buffer reading store (.transfer writer reader count writerBuffer readerBuffer) := by
+  unfold copyCore at chosen
+  repeat' split at chosen
+  all_goals try (cases chosen; done)
+  all_goals
+    rename_i positive _ direction
+    simp only [Except.ok.injEq, Prod.mk.injEq, CopyAction.transfer.injEq] at chosen
+    obtain ⟨_, rfl, rfl, rfl, rfl, rfl⟩ := chosen
+    refine ⟨_, _, _, _, by assumption, by assumption, by assumption, by assumption, by assumption, rfl, by omega, ?_⟩
+    simp [direction]
+
+private theorem sourceCopyReadCode (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    (copy.perform source : Session grow sig (Ret (core3 grow))) = .op .get (copy.afterRead source) := by
+  rw [sourceCopyPerformCode]
+  unfold getStore perform Prog.lift
+  rfl
+
+private theorem sourceCopyTransferSteps (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {before : Config (core3 grow) (HostState sig)} {committed : CStore (core3 grow)}
+    {action : CopyAction (core3 grow)}
+    (focused : before.ctl = cursor.control (copy.perform source))
+    (chosen : copyCore source.2.1 source.2.2 copy.kind.isReadable before.store = .ok (committed, action))
+    (origin : CopyTransferOrigin source.2.1 source.2.2 copy.kind.isReadable before.store action) :
+    let after := { before with
+      store := committed
+      ctl := cursor.control (performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source) }
+    ExecutedCopyTransfer profile ready dispatch cursor source.2.1 source.2.2 copy.kind.isReadable action (copy.reply source)
+      before after := by
+  dsimp only
+  let middle := copyTransferRead cursor before source.2.1 source.2.2 copy.kind.isReadable action (copy.reply source)
+  have read : Step profile ready dispatch before .tau middle := by
+    have step := Step.get (prof := profile) (hr := ready) (dispatch := dispatch)
+      (th := cursor.thread) (segs := cursor.frames) (rest := cursor.rest) (k := copy.afterRead source)
+      (focused.trans (congrArg cursor.control (sourceCopyReadCode copy source)))
+    simpa only [middle, copyTransferRead, SourceCopy.afterRead, chosen, PayloadPrefix.Cursor.control] using step
+  have write : copySt source.2.1 source.2.2 copy.kind.isReadable before.store = committed := by
+    simp only [copySt, chosen]
+  refine ⟨focused, chosen, origin, read, ?_, rfl⟩
+  rw [← write]
+  exact .modify (f := copySt source.2.1 source.2.2 copy.kind.isReadable)
+    (k := fun _ => performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source) rfl
+
+private theorem sourceGuestCopyRead (cx : LiftLowerContext (core3 grow)) (type : Option (WIT.ClosedType RtId))
+    (ptr length progress count : Nat) :
+    Prog.Every (LowerSt.ValueLiftOp cx)
+      (readBuffer Limits.spec Quirks.none (.guest cx type ptr length progress) count : Session grow sig (List Value.Val)) := by
+  cases type with
+  | none => exact .pure _
+  | some element =>
+    have width : Prog.Every (LowerSt.ValueLiftOp cx) (ptrType cx : Session grow sig AddrType) :=
+      .op .read fun _ => .pure _
+    unfold readBuffer loadListFromValidRange loadListFromValidRangeWith
+    exact width.bind fun _ => width.bind fun _ => Prog.Every.mapM fun _ _ => loadAt_scoped _ _ _ _ _ _
+
+private theorem compareSourceCopyMove {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (action : CopyAction (core3 grow))
+    (next : Session grow sig (Ret (core3 grow)))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (performCopy Limits.spec Quirks.none action >>= fun _ => next)
+      (performCopy Limits.spec Quirks.none action >>= fun _ => next) := by
+  cases action with
+  | none => exact compareProgram next
+  | transfer writer reader count writerBuffer readerBuffer =>
+    cases writerBuffer with
+    | host => exact compareProgram _
+    | guest cx type ptr length progress =>
+      intro start incoming labels stores leftAt rightAt aligned run bounded
+      let body : Session grow sig (List Value.Val) :=
+        readBuffer Limits.spec Quirks.none (.guest cx type ptr length progress) count
+      let resume (values : List Value.Val) := writeBuffer Limits.spec Quirks.none readerBuffer values >>= fun _ => next
+      have code : (performCopy Limits.spec Quirks.none (.transfer writer reader count (.guest cx type ptr length progress) readerBuffer)
+          >>= fun _ => next : Session grow sig (Ret (core3 grow))) = body >>= resume := by
+        unfold performCopy
+        exact Prog.bind_assoc _ _ _
+      refine crossSharedWorkerBodyWith (check := check) (canon := canon) threads body resume resume
+        (sourceValueLiftEffects start.store (sourceGuestCopyRead cx type ptr length progress count)) ⟨rfl, rfl⟩ stores
+        (leftAt.trans (congrArg check.control code)) (rightAt.trans (congrArg canon.control code)) run ?_
+      intro left right remaining values shorter _ same lhs rhs scheduler residual
+      exact compareProgram (resume values) same lhs rhs (scheduler aligned) residual (shorter.trans bounded)
+
+open ReturnFrame.Occurrence in
+private theorem compareSourceCopyTransfer {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program)
+    {committed : CStore (core3 grow)} {action : CopyAction (core3 grow)}
+    (chosen : copyCore source.2.1 source.2.2 copy.kind.isReadable start.store = .ok (committed, action))
+    (origin : CopyTransferOrigin source.2.1 source.2.2 copy.kind.isReadable start.store action)
+    (stores : start.store = incoming.store) (checked : start.ctl = check.control (copy.perform source))
+    (canonical : incoming.ctl = canon.control (copy.perform source))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have lhs := sourceCopyTransferSteps (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    copy source checked chosen origin
+  have rhs := sourceCopyTransferSteps (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) copy source canonical
+    (by rw [← stores]; exact chosen) (by rw [← stores]; exact origin)
+  cases run with
+  | refl => exact .exhausted
+  | cons actual tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique lhs.read actual
+    have reads := sharedSchedulerTransport (bindings := bindings) lhs.read rhs.read
+      (by rw [transitionEdit, checked, sourceCopyReadCode])
+      (by rw [transitionEdit, canonical, sourceCopyReadCode]; rfl)
+    cases tail with
+    | refl => exact .destructorPrefix reads (frameCalloutStep reads rfl rfl) (fun same => same) .exhausted
+    | cons actual residual =>
+      obtain ⟨rfl, rfl⟩ := silentStepUnique lhs.commit actual
+      have writes := sharedSchedulerTransport (bindings := bindings) lhs.commit rhs.commit (by rfl) (by rfl)
+      obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend reads writes
+      exact .destructorPrefix paths (.copyTransfer lhs rhs) (fun same => same)
+        (compareSourceCopyMove threads action (copy.reply source) compareProgram rfl rfl rfl scheduler residual
+          ((Nat.le_succ _).trans ((Nat.le_succ _).trans bounded)))
+
 /-- Run the guest-side admission and selected bookkeeping before handing the
 reached buffer action and event-wait suffix back to the source induction. -/
 private theorem compareSourceCopy {limit : Nat}
@@ -23989,22 +24113,34 @@ private theorem compareSourceCopy {limit : Nat}
       (copy.prepare >>= copy.perform) (copy.prepare >>= copy.perform) := by
   refine crossDestructorRecordStore threads copy.prepare (sourceCopyPrepareEffects copy) copy.perform copy.perform ?_
   intro source
-  rw [sourceCopyPerformCode]
-  refine crossDestructorRecordStore threads getStore storeEffectGet (copy.afterRead source) (copy.afterRead source) ?_
-  intro store
-  unfold SourceCopy.afterRead
-  split
-  · next reason chosen =>
-    intro _ _ _ _ left right _ actual _
-    exact compareSharedDestructorTrap reason left right actual
-  · next committed action chosen =>
-    let update := copySt source.2.1 source.2.2 copy.kind.isReadable
-    let complete := fun (_ : Unit) => (performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source :
-      Session grow sig (Ret (core3 grow)))
-    change DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (modifyStore update >>= complete) (modifyStore update >>= complete)
-    exact crossDestructorRecordStore (check := check) (canon := canon) threads (modifyStore update)
-      (storeEffectModify update) complete complete fun _ => compareProgram (complete ())
+  have other : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.perform source) (copy.perform source) := by
+    rw [sourceCopyPerformCode]
+    refine crossDestructorRecordStore threads getStore storeEffectGet (copy.afterRead source) (copy.afterRead source) ?_
+    intro store
+    unfold SourceCopy.afterRead
+    split
+    · next reason chosen =>
+      intro _ _ _ _ left right _ actual _
+      exact compareSharedDestructorTrap reason left right actual
+    · next committed action chosen =>
+      let update := copySt source.2.1 source.2.2 copy.kind.isReadable
+      let complete := fun (_ : Unit) => (performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source :
+        Session grow sig (Ret (core3 grow)))
+      change DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (modifyStore update >>= complete) (modifyStore update >>= complete)
+      exact crossDestructorRecordStore (check := check) (canon := canon) threads (modifyStore update)
+        (storeEffectModify update) complete complete fun _ => compareProgram (complete ())
+  intro start incoming labels stores lhs rhs scheduler run bounded
+  cases chosen : copyCore source.2.1 source.2.2 copy.kind.isReadable start.store with
+  | error => exact other stores lhs rhs scheduler run bounded
+  | ok result =>
+    obtain ⟨committed, action⟩ := result
+    cases action with
+    | none => exact other stores lhs rhs scheduler run bounded
+    | transfer =>
+      exact compareSourceCopyTransfer threads copy source compareProgram chosen (copyTransferOrigin chosen)
+        stores lhs rhs scheduler run bounded
 
 /-- Canonical builtins with source callback comparisons. Other builtins
 continue through the common executable dispatch in this fold. -/

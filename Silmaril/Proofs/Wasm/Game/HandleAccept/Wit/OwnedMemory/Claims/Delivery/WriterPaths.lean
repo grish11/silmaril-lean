@@ -275,6 +275,11 @@ private theorem recordEndpointSpendWriter {site cx index ptr next}
     .same read rfl (.changed commit different (.done _))
   simpa only [List.cons_append, List.nil_append, stable] using append guardPath tail
 
+private theorem copyTransferWriter {cursor endpoint buffer reading action next}
+    (site : ExecutedCopyTransfer profile ready dispatch cursor endpoint buffer reading action next start finish) :
+    WriterPath profile ready dispatch start [.tau, .tau] finish [] :=
+  .same site.read rfl (.same site.commit (congrArg (fun state => state.host.writer) site.reached) (.done _))
+
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
@@ -290,6 +295,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | recordOwnerCommit lhs rhs => exact ⟨_, _, (recordOwnerSpendWriter lhs).2, (recordOwnerSpendWriter rhs).2⟩
   | dropCommit lhs rhs => exact ⟨_, _, (dropSpendWriter lhs).2, (dropSpendWriter rhs).2⟩
   | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
+  | copyTransfer lhs rhs => exact ⟨[], [], copyTransferWriter lhs, copyTransferWriter rhs⟩
   | guarded paths =>
     obtain ⟨_, changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
@@ -553,6 +559,10 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     refine .complete [] (.endpointCommit lhs rhs) ?_
     rw [(endpointSpendWriter lhs).1, (endpointSpendWriter rhs).1]
     exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
+  | copyTransfer lhs rhs =>
+    exact .complete [] (.copyTransfer lhs rhs)
+      (by simpa only [List.not_mem_nil, or_false] using
+        framedDiscrepancies (copyTransferWriter lhs) (copyTransferWriter rhs) initial)
   | guarded paths =>
     obtain ⟨source, changes, checked, canonical, empty | ⟨change, update, single, selected, nominal⟩⟩ := paths
     · subst changes
