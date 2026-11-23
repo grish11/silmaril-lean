@@ -19087,15 +19087,22 @@ private theorem sharedRecordStringCode (cx : LiftLowerContext (core3 grow)) (wid
       simp only [Prog.bind_assoc, Prog.pure_bind', Except.mapError]
 
 open Stored.Endpoints in
+private theorem sharedStringStorePlanCode (cx : LiftLowerContext (core3 grow)) (value : Value.StrVal) (dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (storeString Limits.spec Quirks.none cx value dest >>= fun _ => next (.ok ())) =
+      (ptrType cx >>= sharedRecordStringPlan cx value dest next) := by
+  simp [storeString, storeStringIntoRange, bind, Prog.bind_assoc]
+  refine congrArg (ptrType (σ := HostState sig) cx).bind (funext fun width => ?_)
+  unfold sharedRecordStringPlan sharedRecordStringRemaining sharedRecordStringDescriptor
+  simp [bind, Prog.bind_assoc]
+
+open Stored.Endpoints in
 private theorem sharedRecordStringPlanCode (cx : LiftLowerContext (core3 grow)) (value : Value.StrVal) (dest : Nat)
     (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
     (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) dest >>= fun _ => next (.ok ())) =
       (ptrType cx >>= sharedRecordStringPlan cx value dest next) := by
   rw [Canon.store.eq_def]
-  simp [storePrim, storeString, storeStringIntoRange, bind, Prog.bind_assoc]
-  refine congrArg (ptrType (σ := HostState sig) cx).bind (funext fun width => ?_)
-  unfold sharedRecordStringPlan sharedRecordStringRemaining sharedRecordStringDescriptor
-  simp [bind, Prog.bind_assoc]
+  exact sharedStringStorePlanCode cx value dest next
 
 /-- The first instruction of each canonical string encoding plan allocates its initial range. -/
 private theorem stringPlanInitialAllocation (encoding : ABI.StringEncoding) (width : AddrType) (value : ABI.StringValue) :
@@ -24452,12 +24459,83 @@ private theorem finishSourceCoreReplyWith {limit cap : Nat}
   exact compare parents present (.mk segments) .nil stores scheduler lhs rhs tail bounded (bounded.trans limitWithin)
     (fun same aligned checked canonical run shorter => exposed same checked canonical aligned run shorter)
 
+private def sourceDebugMessagePrepare (opts : CanonOpts (core3 grow)) (index dest : Nat) :
+    Session grow sig (LiftLowerContext (core3 grow) × Value.StrVal) := do
+  let inst ← currentInst
+  trapIf (!(← getInst inst).mayLeave) .cannotLeave
+  let identity ← Builtins.expectErrCtx (← handlesGet inst index)
+  let entry ← getObj ArenaField.errCtxs identity
+  let cx : LiftLowerContext (core3 grow) := { opts, inst }
+  let size ← ptrSize cx
+  checkAligned dest size
+  checkInBounds cx dest (2 * size)
+  return (cx, entry.message)
+
+private theorem sourceDebugMessagePrepareEffects (opts : CanonOpts (core3 grow)) (index dest : Nat) :
+    StoreEffects (sourceDebugMessagePrepare opts index dest : Session grow sig _) := by
+  have expect (handle : HandleEntry) : StoreEffects (Builtins.expectErrCtx handle : Session grow sig ErrCtxId) := by
+    cases handle <;> first | exact .pure _ | exact storeEffectTrap _
+  unfold sourceDebugMessagePrepare getInst
+  exact storeEffectCurrentInst.bind fun inst => (storeEffectGetObject ArenaField.insts inst).bind fun record =>
+    (storeEffectTrapIf (!record.mayLeave) .cannotLeave).bind fun _ =>
+    (storeEffectHandlesGet inst index).bind fun handle => (expect handle).bind fun identity =>
+    (storeEffectGetObject ArenaField.errCtxs identity).bind fun entry =>
+    let cx : LiftLowerContext (core3 grow) := { opts, inst }
+    ((storeEffectPtrType cx).bind fun width => .pure (ptrSizeOf width)).bind fun size =>
+    (storeEffectTrapIf (dest % size != 0) .unalignedPointer).bind fun _ =>
+    (storeEffectBounds cx dest (2 * size)).bind fun _ => .pure (cx, entry.message)
+
+private def sourceDebugMessageStore (dest : Nat) (observed : LiftLowerContext (core3 grow) × Value.StrVal) :
+    Session grow sig (Ret (core3 grow)) := do
+  storeString Limits.spec Quirks.none observed.1 observed.2 dest
+  return .flat []
+
+private theorem sourceDebugMessageCalloutCode (ready : HostReady (HostState sig))
+    (host : HostImpl (core3 grow) (HostState sig)) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (inst : InstId) (opts : CanonOpts (core3 grow)) (index pointer : FlatValue) :
+    calloutBody Limits.spec Quirks.none ready host store thread (.builtin (.errorContextDebugMessage opts) inst)
+      [index, pointer] =
+      sourceDebugMessagePrepare opts (flatNat index) (flatNat pointer) >>= sourceDebugMessageStore (flatNat pointer) := by
+  simp [calloutBody, builtinProg, withArgs2, Builtins.errorContextDebugMessage, sourceDebugMessagePrepare,
+    sourceDebugMessageStore, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+
+open Stored.Endpoints in
+private theorem finishSourceDebugMessage {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (opts : CanonOpts (core3 grow)) (index dest : Nat)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sourceDebugMessagePrepare opts index dest >>= sourceDebugMessageStore dest)
+      (sourceDebugMessagePrepare opts index dest >>= sourceDebugMessageStore dest) := by
+  refine crossDestructorRecordStore (check := check) (canon := canon) thread (sourceDebugMessagePrepare opts index dest)
+    (sourceDebugMessagePrepareEffects opts index dest) (sourceDebugMessageStore dest) (sourceDebugMessageStore dest) ?_
+  intro observed start incoming labels stores checked canonical scheduler run bounded
+  let reply : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)) := fun _ => .pure (.flat [])
+  have code : (sourceDebugMessageStore dest observed : Session grow sig (Ret (core3 grow))) =
+      (ptrType observed.1 >>= sharedRecordStringPlan observed.1 observed.2 dest reply) :=
+    sharedStringStorePlanCode observed.1 observed.2 dest reply
+  rw [code] at checked canonical
+  refine crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType observed.1)
+    (storeEffectPtrType observed.1) (sharedRecordStringPlan observed.1 observed.2 dest reply)
+    (sharedRecordStringPlan observed.1 observed.2 dest reply) ?_ stores checked canonical scheduler run bounded
+  intro width left right remaining same lhs rhs aligned residual within
+  let plan := storePlanFor Quirks.none observed.1.opts.encoding width observed.2
+  exact crossSourceRecordStringSteps (check := check) (canon := canon) thread
+    (fun cx site compiled leftNext rightNext onResume =>
+      finishSourceRecordAllocator parents thread segments cx site compiled leftNext rightNext onResume (imports parents thread))
+    observed.1 width observed.2 [] plan.steps dest 0 rfl reply reply
+    (fun same checked canonical aligned run bounded => resume [] same aligned checked canonical run bounded)
+    same lhs rhs aligned residual within
+
 private theorem crossAdmittedSourceBuiltin {limit cap : Nat}
     {rest peerRest : List (Activation (core3 grow) (HostState sig))}
     {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
     {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
     (compare : SourceSwitchAt profile ready base bindings older cap finish)
-    (onDrop : SourceCanonicalDropAt profile ready base bindings older labels.length finish)
+    (reentry : SourceReentryAt profile ready base bindings older labels.length finish)
     (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
     (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
     (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
@@ -24487,7 +24565,24 @@ private theorem crossAdmittedSourceBuiltin {limit cap : Nat}
       have resume := finishSourceCoreReplyWith (limit := labels.length) (check := check) (canon := canon)
         compare withinCap parents present rfl segments
         (fun stores checked canonical aligned run bounded => exposed stores checked canonical aligned run (bounded.trans within))
-      exact onDrop (check := check) (canon := canon) resource (flatNat word) parents rfl segments stores leftAt rightAt run scheduler (Nat.le_refl _) resume
+      exact reentry.2.2 (check := check) (canon := canon) resource (flatNat word) parents rfl segments stores leftAt rightAt run scheduler (Nat.le_refl _) resume
+    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
+  | errorContextDebugMessage opts =>
+    rcases args with _ | ⟨index, _ | ⟨dest, _ | ⟨extra, tail⟩⟩⟩
+    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
+    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
+    · let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], peerRest⟩
+      have leftAt := checked.trans (congrArg check.control
+        (sourceDebugMessageCalloutCode ready base start.store (some worker) inst opts index dest))
+      have rightAt := canonical.trans (congrArg canon.control
+        (sourceDebugMessageCalloutCode ready (LiveDispatch.host bindings base) incoming.store (some worker) inst opts index dest))
+      let segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames := .cons (.same _) .nil
+      have resume := finishSourceCoreReplyWith (limit := labels.length) (check := check) (canon := canon)
+        compare withinCap parents present rfl segments
+        (fun stores checked canonical aligned run bounded => exposed stores checked canonical aligned run (bounded.trans within))
+      exact finishSourceDebugMessage (check := check) (canon := canon) reentry.1 parents rfl segments
+        opts (flatNat index) (flatNat dest) resume stores leftAt rightAt scheduler run (Nat.le_refl _)
     · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
   | _ => exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
 
@@ -24663,7 +24758,7 @@ private theorem finishSourceDestructorWorkerWith {limit : Nat} {task : TaskId} {
             | builtin builtin inst =>
               have smaller := Nat.lt_of_le_of_lt shorter (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) coreBound)
               have within := Nat.le_of_lt smaller
-              exact crossAdmittedSourceBuiltin compare (reentry _ smaller).2.2 builtin inst args parents parentPresent same aligned
+              exact crossAdmittedSourceBuiltin compare (reentry _ smaller) builtin inst args parents parentPresent same aligned
                 checked canonical residual within within returned
             | lowered _ _ _ _ =>
               have within := shorter.trans ((Nat.le_succ _).trans coreBound)
@@ -25091,7 +25186,7 @@ private theorem finishSourceReentry {limit : Nat} :
           equal checked canonical scheduler residual bounded
       cases host with
       | builtin builtin inst =>
-        exact crossAdmittedSourceBuiltin compare (ih _ shorter (narrowSourceSwitch compare within)).2.2
+        exact crossAdmittedSourceBuiltin compare (ih _ shorter (narrowSourceSwitch compare within))
           builtin inst args sourceParents present same aligned leftAt rightAt tail within within onParent
       | lowered _ _ _ _ =>
         exact crossAdmittedSourceProgram compare _ sourceParents present same aligned
