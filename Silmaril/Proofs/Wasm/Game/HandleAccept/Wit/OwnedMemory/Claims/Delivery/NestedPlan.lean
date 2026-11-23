@@ -24365,28 +24365,175 @@ private theorem compareSourceStoreElement {limit : Nat}
   | errorContext => exact leaf _ .errorContext stores lhs rhs scheduler run bounded
   | _ => exact compareProgram _ stores lhs rhs scheduler run bounded
 
-private def sourceGuestWrites (cx : LiftLowerContext (core3 grow)) (element : Stored.TypeOf)
-    (stride basePtr : Nat) (entries : List (Value.Val × Nat)) : Session grow sig Unit :=
-  Prog.forM entries fun (value, index) => Canon.store Limits.spec Quirks.none cx value element (basePtr + index * stride)
+private abbrev CompareSourceStoreAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig)) (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) :=
+  ∀ (value : Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))),
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next →
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next)
+      (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next)
 
-private theorem compareSourceGuestWrites {limit : Nat}
+private theorem sourceStoreFieldsTuple (cx : LiftLowerContext (core3 grow))
+    (fields : List (String × Stored.TypeOf)) (values : List Value.Val) (ptr : Nat) :
+    (storeFields Limits.spec Quirks.none cx values fields ptr : Session grow sig Unit) =
+      storeTuple Limits.spec Quirks.none cx values (fields.map Prod.snd) ptr := by
+  induction fields generalizing values ptr with
+  | nil =>
+    cases values <;> rw [Canon.storeFields.eq_def, List.map_nil, Canon.storeTuple.eq_def]
+  | cons field fields ih =>
+    obtain ⟨name, type⟩ := field
+    cases values with
+    | nil => rw [Canon.storeFields.eq_def, List.map_cons, Canon.storeTuple.eq_def]
+    | cons value values =>
+      rw [Canon.storeFields.eq_def, List.map_cons, Canon.storeTuple.eq_def]
+      simp only [Prog.bind_eq]
+      congr 1
+      funext width
+      congr 1
+      funext done
+      exact ih values _
+
+private theorem compareSourceStoreTuple {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread)
-    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
-    (cx : LiftLowerContext (core3 grow)) (element : Stored.TypeOf) (stride basePtr : Nat)
-    (entries : List (Value.Val × Nat)) (next : Session grow sig (Ret (core3 grow)))
-    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
-      profile ready base bindings older limit finish program program)
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (types : List Stored.TypeOf)
+    (children : ∀ type ∈ types, CompareSourceStoreAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish cx type)
+    (values : List Value.Val) (ptr : Nat) (next : Session grow sig (Ret (core3 grow)))
     (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sourceGuestWrites cx element stride basePtr entries >>= fun _ => next)
-      (sourceGuestWrites cx element stride basePtr entries >>= fun _ => next) := by
+      (storeTuple Limits.spec Quirks.none cx values types ptr >>= fun _ => next)
+      (storeTuple Limits.spec Quirks.none cx values types ptr >>= fun _ => next) := by
+  induction types generalizing values ptr with
+  | nil =>
+    cases values with
+    | nil =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      rw [Canon.storeTuple.eq_def] at lhs rhs
+      exact returned stores lhs rhs aligned run bounded
+    | cons _ _ =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      rw [Canon.storeTuple.eq_def] at lhs rhs
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread storeMismatch (storeEffectTrap _)
+        (fun _ => next) (fun _ => next) (fun _ => returned) stores lhs rhs aligned run bounded
+  | cons type types ih =>
+    cases values with
+    | nil =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      rw [Canon.storeTuple.eq_def] at lhs rhs
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread storeMismatch (storeEffectTrap _)
+        (fun _ => next) (fun _ => next) (fun _ => returned) stores lhs rhs aligned run bounded
+    | cons value values =>
+      let address (width : AddrType) := ABI.alignTo ptr (ABI.layout width type).alignment
+      let rest (width : AddrType) : Session grow sig (Ret (core3 grow)) :=
+        storeTuple Limits.spec Quirks.none cx values types (address width + (ABI.layout width type).size) >>= fun _ => next
+      let entry (width : AddrType) : Session grow sig (Ret (core3 grow)) :=
+        Canon.store Limits.spec Quirks.none cx value type (address width) >>= fun _ => rest width
+      have code : (storeTuple Limits.spec Quirks.none cx (value :: values) (type :: types) ptr >>= fun _ => next) =
+          ptrType cx >>= entry := by
+        rw [Canon.storeTuple.eq_def]
+        simp only [Prog.bind_eq, Prog.bind_assoc]
+        rfl
+      rw [code]
+      intro left right remaining stores lhs rhs aligned run bounded
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx) entry entry
+        (fun width => children type (List.mem_cons_self ..) value (address width) (rest width)
+          (ih (fun child member => children child (List.mem_cons_of_mem type member)) values
+            (address width + (ABI.layout width type).size))) stores lhs rhs aligned run bounded
+
+private abbrev sourceStoreSequence (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (stride ptr : Nat)
+    (entries : List (Value.Val × Nat)) : Session grow sig Unit :=
+  Prog.forM entries fun (value, index) => Canon.store Limits.spec Quirks.none cx value type (ptr + index * stride)
+
+private theorem compareSourceStoreSequence {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (stride ptr : Nat)
+    (child : CompareSourceStoreAt (check := check) (canon := canon) profile ready base bindings older limit finish cx type)
+    (entries : List (Value.Val × Nat)) (next : Session grow sig (Ret (core3 grow)))
+    (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sourceStoreSequence cx type stride ptr entries >>= fun _ => next)
+      (sourceStoreSequence cx type stride ptr entries >>= fun _ => next) := by
   induction entries with
   | nil => exact returned
   | cons entry tail ih =>
     obtain ⟨value, index⟩ := entry
-    simp only [sourceGuestWrites, Prog.forM, Prog.bind_eq, Prog.bind_assoc]
-    exact compareSourceStoreElement thread allocate cx element value (basePtr + index * stride) _ compareProgram ih
+    simp only [sourceStoreSequence, Prog.forM, Prog.bind_eq, Prog.bind_assoc]
+    exact child value (ptr + index * stride) _ ih
+
+private theorem compareRecursiveSourceStore {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    CompareSourceStoreAt (check := check) (canon := canon) profile ready base bindings older limit finish cx type := by
+  induction type using (measure (fun ty : Stored.TypeOf => sizeOf ty)).wf.induction with
+  | h type ih =>
+    intro value dest next returned left right remaining stores lhs rhs scheduler run bounded
+    have mismatch (type : Stored.TypeOf) (value : Value.Val)
+        (code : (Canon.store Limits.spec Quirks.none cx value type dest : Session grow sig Unit) = storeMismatch) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next)
+          (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next) := by
+      rw [code]
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread storeMismatch (storeEffectTrap _)
+        (fun _ => next) (fun _ => next) (fun _ => returned)
+    cases type with
+    | record fields =>
+      cases value with
+      | record values =>
+        have code : (Canon.store Limits.spec Quirks.none cx (.record values) (.record fields) dest : Session grow sig Unit) =
+            storeTuple Limits.spec Quirks.none cx values (fields.map Prod.snd) dest := by
+          rw [Canon.store.eq_def]
+          exact sourceStoreFieldsTuple cx fields values dest
+        have children : ∀ child ∈ fields.map Prod.snd, CompareSourceStoreAt (check := check) (canon := canon)
+            profile ready base bindings older limit finish cx child := by
+          intro child member
+          obtain ⟨field, present, rfl⟩ := List.mem_map.mp member
+          apply ih
+          have memberSize := List.sizeOf_lt_of_mem present
+          obtain ⟨name, element⟩ := field
+          change 1 + sizeOf name + sizeOf element < sizeOf fields at memberSize
+          simp_wf
+          omega
+        rw [code] at lhs rhs
+        exact compareSourceStoreTuple thread cx (fields.map Prod.snd) children values dest next returned
+          stores lhs rhs scheduler run bounded
+      | _ => exact mismatch _ _ (by rw [Canon.store.eq_def]) stores lhs rhs scheduler run bounded
+    | tuple types =>
+      cases value with
+      | record values =>
+        have children : ∀ child ∈ types, CompareSourceStoreAt (check := check) (canon := canon)
+            profile ready base bindings older limit finish cx child := by
+          intro child member
+          apply ih
+          have memberSize := List.sizeOf_lt_of_mem member
+          simp_wf
+          omega
+        rw [Canon.store.eq_def] at lhs rhs
+        exact compareSourceStoreTuple thread cx types children values dest next returned stores lhs rhs scheduler run bounded
+      | _ => exact mismatch _ _ (by rw [Canon.store.eq_def]) stores lhs rhs scheduler run bounded
+    | fixedList element count =>
+      cases value with
+      | list values =>
+        let afterWidth (width : AddrType) := sourceStoreSequence (sig := sig) cx element
+          (ABI.layout width element).size dest values.zipIdx >>= fun _ => next
+        have code : (Canon.store Limits.spec Quirks.none cx (.list values) (.fixedList element count) dest >>= fun _ => next) =
+            ptrType cx >>= afterWidth := by
+          rw [Canon.store.eq_def]
+          simp only [storeListWith, ite_true, Prog.bind_eq, Prog.bind_assoc]
+          rfl
+        have child : CompareSourceStoreAt (check := check) (canon := canon) profile ready base bindings older limit finish cx element :=
+          ih element (by simp_wf; omega)
+        rw [code] at lhs rhs
+        exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
+          afterWidth afterWidth (fun width => compareSourceStoreSequence cx element (ABI.layout width element).size dest
+            child values.zipIdx next returned) stores lhs rhs scheduler run bounded
+      | _ => exact mismatch _ _ (by rw [Canon.store.eq_def]) stores lhs rhs scheduler run bounded
+    | _ => exact compareSourceStoreElement thread allocate cx _ value dest next compareProgram returned stores lhs rhs scheduler run bounded
 
 private theorem compareSourceGuestWriteBuffer {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -24400,7 +24547,7 @@ private theorem compareSourceGuestWriteBuffer {limit : Nat}
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
       (writeBuffer Limits.spec Quirks.none (.guest cx (some element) ptr length progress) values >>= fun _ => next)
       (writeBuffer Limits.spec Quirks.none (.guest cx (some element) ptr length progress) values >>= fun _ => next) := by
-  let stores (cursorWidth strideWidth : AddrType) := sourceGuestWrites (sig := sig) cx element
+  let stores (cursorWidth strideWidth : AddrType) := sourceStoreSequence (sig := sig) cx element
     (ABI.layout strideWidth element).size (guestCursor cursorWidth element ptr progress) values.zipIdx >>= fun _ => next
   let atCursor (width : AddrType) := ptrType cx >>= stores width
   have code : (writeBuffer Limits.spec Quirks.none (.guest cx (some element) ptr length progress) values >>= fun _ => next) =
@@ -24411,8 +24558,9 @@ private theorem compareSourceGuestWriteBuffer {limit : Nat}
   exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx) atCursor atCursor
     (fun cursorWidth => crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
       (stores cursorWidth) (stores cursorWidth) (fun strideWidth =>
-        compareSourceGuestWrites thread allocate cx element (ABI.layout strideWidth element).size
-          (guestCursor cursorWidth element ptr progress) values.zipIdx next compareProgram returned))
+        compareSourceStoreSequence cx element (ABI.layout strideWidth element).size
+          (guestCursor cursorWidth element ptr progress) (compareRecursiveSourceStore thread allocate cx element compareProgram)
+          values.zipIdx next returned))
     same (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
 
 private theorem compareSourceCopyMove {limit : Nat}
