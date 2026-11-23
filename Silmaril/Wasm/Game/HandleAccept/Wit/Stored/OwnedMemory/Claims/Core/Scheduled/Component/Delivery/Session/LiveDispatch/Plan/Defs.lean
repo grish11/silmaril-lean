@@ -585,6 +585,11 @@ def sharedRecordAllocatorResult (cx : LiftLowerContext (core3 grow)) (caller : C
   | .sub (.realloc _ (some (.int _ n))) => return .nat n.toNat
   | _ => internal "reallocate: realloc did not resolve with a pointer"
 
+def sharedRecordAllocatorLoopReply (cx : LiftLowerContext (core3 grow)) (caller : CallerId) :
+    ReturnFrame.Continuation (core3 grow) (HostState sig)
+  | .unit => sharedRecordAllocatorResult cx caller
+  | _ => internal "late-bound call: expected Ret.unit"
+
 /-- The allocator parent parked by the actual synchronous lift worker resume. -/
 def sharedRecordAllocatorAfterResume (cx : LiftLowerContext (core3 grow)) (task : TaskId) (caller : CallerId) :
     Session grow sig (Ret (core3 grow)) := do
@@ -2549,6 +2554,38 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (resolved : ∃ tk, ArenaField.tasks.get? reached.store task = some tk ∧ tk.state = .resolved)
       (checked : reached.ctl = check.control (sharedRecordAllocatorAfterResume cx task caller))
       (canonical : peer.ctl = canon.control (sharedRecordAllocatorAfterResume cx task caller))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual synchronous loop popped after reading the resolved source
+  task. The allocator return remains underneath the loop occurrence. -/
+  | sharedDropRecordAllocatorLoopPopped {changes left right reached peer trailing finish body task caller value}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store (some value))
+      (checkedFocus : left.ctl = { check with frames := .prog (sharedRecordAllocatorLoopReply cx caller) :: check.frames }.control (.pure .unit))
+      (canonicalFocus : right.ctl = { canon with frames := .prog (sharedRecordAllocatorLoopReply cx caller) :: canon.frames }.control (.pure .unit))
+      (checkedPop : Step profile ready (specDispatch ready base) left .tau reached)
+      (canonicalPop : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer)
+      (checked : reached.ctl = check.control (sharedRecordAllocatorResult cx caller))
+      (canonical : peer.ctl = canon.control (sharedRecordAllocatorResult cx caller))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual caller-result lookup reached a pointer return. The
+  allocator return segment is still parked at this finite cut. -/
+  | sharedDropRecordAllocatorReturning {changes reached peer trailing finish body task caller kind n}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store (some (.int kind n)))
+      (checked : reached.ctl = check.control (.pure (.nat n.toNat)))
+      (canonical : peer.ctl = canon.control (.pure (.nat n.toNat)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
