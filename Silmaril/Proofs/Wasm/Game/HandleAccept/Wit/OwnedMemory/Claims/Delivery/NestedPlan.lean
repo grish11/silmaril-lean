@@ -3363,6 +3363,38 @@ private theorem driveFlatScalar {origin : CStore (core3 grow)} (destination : Re
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, widthAt]) rfl
       (trackOccurrences := true) frame.store check canon frame.thread checkNext canonNext checkAt canonAt) run
 
+open Stored.OwnedMemory.Claims in
+private theorem prependReachedLeafSpend {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {middle : Config (core3 grow) (HostState sig)} {label change update}
+    (step : Step profile ready dispatch start label middle) (same : middle.host.writer = start.host.writer)
+    (spent : ReachedLeafSpend profile ready dispatch middle labels finish change update) :
+    ReachedLeafSpend profile ready dispatch start (label :: labels) finish change update := by
+  obtain ⟨leading, trailing, before, after, split, front, write, tail, delta⟩ := spent.site
+  exact ⟨spent.live, ⟨label :: leading, trailing, before, after,
+    by simpa only [List.cons_append] using congrArg (label :: ·) split, .same step same front, write, tail, delta⟩⟩
+
+open Stored.OwnedMemory.Claims in
+private theorem appendReachedLeafSpend {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {middle : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig} {change update}
+    (spent : ReachedLeafSpend profile ready dispatch start labels middle change update)
+    (tail : WriterPath profile ready dispatch middle trailing finish []) :
+    ReachedLeafSpend profile ready dispatch start (labels ++ trailing) finish change update := by
+  obtain ⟨leading, rest, before, after, split, front, write, suffix, delta⟩ := spent.site
+  exact ⟨spent.live, ⟨leading, rest ++ trailing, before, after,
+    by simpa only [List.append_assoc] using congrArg (· ++ trailing) split,
+    front, write, WriterPaths.append suffix tail, delta⟩⟩
+
+open Stored.OwnedMemory.Claims in
+private theorem appendGuardWriterEffects {middle : Config (core3 grow) (HostState sig)}
+    {guard tail : Trace grow sig} {changes : List (WriterChange sig)} {plan : Option Spend}
+    (spent : changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧
+      ReachedLeafSpend profile ready (specDispatch ready base) start guard middle change update)
+    (framed : WriterPath profile ready (specDispatch ready base) middle tail finish []) :
+    changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧
+      ReachedLeafSpend profile ready (specDispatch ready base) start (guard ++ tail) finish change update :=
+  spent.imp_right (fun ⟨change, update, single, selected, actual⟩ =>
+    ⟨change, update, single, selected, appendReachedLeafSpend actual framed⟩)
+
 open PayloadPrefix ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem leafGuardPrefix {target : Config (core3 grow) (HostState sig)} {planned remaining : Trace grow sig}
     {plan : Option Spend} (path : LeafGuardSteps profile ready (specDispatch ready base) start planned target plan)
@@ -3372,7 +3404,9 @@ private theorem leafGuardPrefix {target : Config (core3 grow) (HostState sig)} {
       (fun spend => { start.host with writer := spend.apply start.host.writer }) ∧
     (∀ place, Prefix profile ready (specDispatch ready base) start place labels finish place) ∧
     ∃ changes, WriterPath profile ready (specDispatch ready base) start labels finish changes ∧
-      (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update) := by
+      (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧
+        ReachedLeafSpend profile ready (specDispatch ready base) start labels finish change update) := by
+  classical
   induction run generalizing plan planned with
   | refl state =>
     cases remaining with
@@ -3389,20 +3423,27 @@ private theorem leafGuardPrefix {target : Config (core3 grow) (HostState sig)} {
       cases labelledStepUnique step expected
       obtain ⟨same, quiet, writer, paths, changes, effects, nominal⟩ := ih back shorter
       exact ⟨same.trans store, quiet, by rw [writer, host], fun place => .step step (by rw [edit]; rfl) (paths place),
-        changes, .same step (congrArg HostState.writer host) effects, nominal⟩
-    | @commit _ _ update expected edit store host =>
+        changes, .same step (congrArg HostState.writer host) effects,
+        nominal.imp_right (fun ⟨change, update, single, selected, spent⟩ =>
+          ⟨change, update, single, selected, prependReachedLeafSpend step (congrArg HostState.writer host) spent⟩)⟩
+    | @commit _ update _ _ _ _ focus =>
       obtain ⟨rfl, empty⟩ := List.cons.inj split
       obtain ⟨rfl, rfl⟩ := List.append_eq_nil_iff.mp empty.symm
-      cases labelledStepUnique step expected
+      cases labelledStepUnique step (.hostSet focus)
       cases tail
-      exact ⟨store, rfl, host, fun place => .step step (by rw [edit]; rfl) (.done _ _),
-        WriterPaths.spendStep update step (congrArg HostState.writer host)⟩
+      refine ⟨rfl, rfl, rfl, fun place => .step step (by rw [transitionEdit, focus]; rfl) (.done _ _), ?_⟩
+      by_cases same : update.apply before.host.writer = before.host.writer
+      · exact ⟨[], .same step same (.done _), .inl rfl⟩
+      · exact ⟨_, .changed step same (.done _), .inr ⟨_, update, rfl, rfl,
+          ⟨⟨WriterPaths.liveOfChangedSpend _ _ same, rfl⟩,
+            ⟨[], [], _, _, rfl, .done _, .commit focus, .done _, rfl⟩⟩⟩⟩
 
 open PayloadPrefix ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem guardWriterPaths {target : Config (core3 grow) (HostState sig)} {plan : Option Spend} {guard : Trace grow sig}
     (path : LeafGuardSteps profile ready (specDispatch ready base) start guard target plan) :
     ∃ changes, WriterPath profile ready (specDispatch ready base) start guard target changes ∧
-      (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update) := by
+      (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧
+        ReachedLeafSpend profile ready (specDispatch ready base) start guard target change update) := by
   exact (leafGuardPrefix path (List.append_nil guard).symm (prefix_survives (path.tracks (.active 0 0))).1).2.2.2.2
 
 open Stored.OwnedMemory.Claims in
@@ -3414,7 +3455,8 @@ private theorem fullGuardedWriterPaths {left right : Config (core3 grow) (HostSt
   obtain ⟨_, source, guardRun, rfl, body⟩ := path
   obtain ⟨effects, checkedGuard, nominal⟩ := guardWriterPaths guardRun
   obtain ⟨lhs, rhs⟩ := WriterPaths.frameLeaf body
-  exact ⟨source, effects, by simpa only [List.append_nil] using WriterPaths.append checkedGuard lhs, rhs, nominal⟩
+  exact ⟨source, effects, by simpa only [List.append_nil] using WriterPaths.append checkedGuard lhs, rhs,
+    appendGuardWriterEffects nominal lhs⟩
 
 open Stored.OwnedMemory.Claims in
 private theorem refusedGuardWriterPath {target : Config (core3 grow) (HostState sig)} {guard remaining : Trace grow sig}
@@ -3467,7 +3509,7 @@ theorem cutGuardedLeaf {leftEnd rightEnd : Config (core3 grow) (HostState sig)} 
     · simp [labelSplit]
     · simp [labelSplit]
     · exact ⟨source, changes, by simpa only [labelSplit, List.append_nil] using WriterPaths.append guardEffects leftEffects,
-        rightEffects, nominal⟩
+        rightEffects, by simpa only [labelSplit] using appendGuardWriterEffects nominal leftEffects⟩
   · obtain ⟨store, quiet, host, paths, changes, guardEffects, nominal⟩ := leafGuardPrefix guarded guardSplit run
     refine ⟨[], incoming, (if front.isEmpty then plan else none).toList, store.trans same, quiet,
       CallbackPrefix.stationaryTransport paths (fun place => .done _ place), ?_, ?_, ?_, ⟨source, changes, guardEffects, .done _, nominal⟩⟩

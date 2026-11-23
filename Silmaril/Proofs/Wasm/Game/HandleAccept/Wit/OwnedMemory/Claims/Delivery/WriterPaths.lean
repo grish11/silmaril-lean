@@ -101,18 +101,6 @@ theorem liveOfChangedSpend (state : State sig) (update : Spend) (changed : updat
       simp [different])
     simp [Spend.apply, keeps]
 
-open Stored.OwnedMemory.Claims in
-theorem spendStep {label : Label (core3 grow) (HostState sig)} (update : Spend)
-    (step : Step profile ready dispatch start label finish)
-    (assigned : finish.host.writer = update.apply start.host.writer) :
-    ∃ changes, WriterPath profile ready dispatch start [label] finish changes ∧
-      (changes = [] ∨ ∃ change nominal, changes = [change] ∧ some update = some nominal ∧ change.IsSpend nominal) := by
-  classical
-  by_cases same : finish.host.writer = start.host.writer
-  · exact ⟨[], .same step same (.done _), .inl rfl⟩
-  · exact ⟨_, .changed step same (.done _), .inr ⟨_, update, rfl, rfl,
-      liveOfChangedSpend _ update (assigned ▸ same), assigned⟩⟩
-
 variable {base : HostImpl (core3 grow) (HostState sig)} {bindings : List (Binding sig)}
 variable {marks : List (Option ReturnFrame.Occurrence.Location)}
 
@@ -265,7 +253,7 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     · subst changes
       exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
     · subst changes
-      obtain ⟨lhs, rhs⟩ := checkedSpends checked canonical (.cons nominal .nil)
+      obtain ⟨lhs, rhs⟩ := checkedSpends checked canonical (.cons nominal.live .nil)
       refine .complete [update] ?_
       rw [lhs, rhs]
       simpa only [List.foldl_cons, List.foldl_nil, List.mem_singleton] using initial.spendLeft update

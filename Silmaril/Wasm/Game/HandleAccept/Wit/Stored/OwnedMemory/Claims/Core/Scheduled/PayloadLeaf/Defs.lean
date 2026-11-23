@@ -39,11 +39,12 @@ inductive LeafGuardSteps {sig : Signature} {grow : SingleThreaded.GrowOracle}
       (store : middle.store = before.store) (host : middle.host = before.host)
       (tail : LeafGuardSteps profile ready dispatch middle labels after spend) :
       LeafGuardSteps profile ready dispatch before (.tau :: labels) after spend
-  | commit {before after spend}
-      (step : Step profile ready dispatch before .tau after)
-      (edit : transitionEdit before .tau = .same)
-      (store : after.store = before.store)
-      (host : after.host = { before.host with writer := spend.apply before.host.writer }) :
-      LeafGuardSteps profile ready dispatch before [.tau] after (some spend)
+  | commit {before spend thread frames rest next}
+      (focus : before.ctl = ⟨thread,
+        .prog (.op (.hostSet { before.host with writer := spend.apply before.host.writer }) next), frames⟩ :: rest) :
+      LeafGuardSteps profile ready dispatch before [.tau]
+        { before with
+          host := { before.host with writer := spend.apply before.host.writer }
+          ctl := ⟨thread, .prog (next ()), frames⟩ :: rest } (some spend)
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled

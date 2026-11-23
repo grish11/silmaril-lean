@@ -87,6 +87,21 @@ def PairedPublicationWriterPrefix (profile : ProfileKind) (ready : HostReady (Ho
   ComponentPublicationWriterPrefix profile ready (specDispatch ready base) tree start labels left ∧
     ComponentPublicationWriterPrefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) tree incoming labels right
 
+/-- The exact checked hostSet that commits a leaf spend and the framed
+parts on either side of that instruction. -/
+structure ReachedLeafSpend (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start : Config (core3 grow) (HostState sig)) (checked : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) (change : WriterChange sig)
+    (update : Stored.OwnedMemory.Claims.Spend) : Prop where
+  live : change.IsSpend update
+  site : ∃ leading trailing before after,
+    checked = leading ++ [.tau] ++ trailing ∧
+    WriterPath profile ready dispatch start leading before [] ∧
+    LeafGuardSteps profile ready dispatch before [.tau] after (some update) ∧
+    WriterPath profile ready dispatch after trailing finish [] ∧
+    change = (before.host.writer, after.host.writer)
+
 /-- A compiled leaf has no writer-changing raw step. On the checked side,
 only the linked guard can change the writer, at its actual spend assignment. -/
 def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -95,7 +110,8 @@ def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostStat
     (left right : Config (core3 grow) (HostState sig)) (plan : Option Stored.OwnedMemory.Claims.Spend) : Prop :=
   CompiledLeafSource start plan ∧ ∃ changes, WriterPath profile ready (specDispatch ready base) start checked left changes ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] ∧
-    (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update)
+    (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧
+      ReachedLeafSpend profile ready (specDispatch ready base) start checked left change update)
 
 /-- The executed host assignment and its exact pre-write and post-write
 configurations. Any earlier read is carried by its own writer path. -/

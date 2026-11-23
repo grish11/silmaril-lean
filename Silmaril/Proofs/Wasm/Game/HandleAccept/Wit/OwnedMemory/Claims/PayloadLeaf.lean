@@ -95,7 +95,7 @@ theorem guard_tracks {before after labels spend}
   induction run with
   | done state => exact .done state place
   | read step edit _ _ _ ih => exact .step step (by rw [edit]; rfl) ih
-  | commit step edit _ _ => exact .step step (by rw [edit]; rfl) (.done _ _)
+  | commit focus => exact .step (.hostSet focus) (by rw [transitionEdit, focus]; rfl) (.done _ _)
 
 private theorem guard_append {before middle after checked trailing frontSpend spend}
     (front : LeafGuardSteps profile ready dispatch before checked middle frontSpend) (unspent : frontSpend = none)
@@ -133,7 +133,7 @@ private theorem spends (reached : Machine.Config (core3 grow) (HostState sig)) (
       { reached with host := { reached.host with writer := spend.apply reached.host.writer }
                      ctl := ⟨thread, .prog finish, segments⟩ :: rest } (some spend) :=
   .read (.hostGet focused) (by rw [transitionEdit, focused]; rfl) rfl rfl
-    (.commit (.hostSet (k := fun _ => finish) rfl) rfl rfl rfl)
+    (.commit (next := fun _ => finish) rfl)
 
 theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (destination : RecordDestination)
     (inst : InstId) (item : Field) (index : Nat) (output : Lower.Output)
