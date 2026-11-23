@@ -24228,9 +24228,197 @@ private theorem compareSourceCopyReply {limit : Nat}
     (Waitable.hasPendingEvent (.end_ source.2.1)) pending (copy.afterPending source) (copy.afterPending source) after
     same lhs rhs scheduler run bounded
 
+private theorem storeEffectCanonicalResource (cx : LiftLowerContext (core3 grow)) (handle : ResourceHandle) :
+    StoreEffects (addResHandle cx.inst handle : Session grow sig Nat) :=
+  (storeEffectArenaAlloc ArenaField.resHandles handle).bind fun identity =>
+    sharedHandleInsertEffects cx.inst (.resource identity)
+
+private theorem storeEffectCanonicalBorrow (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep : Nat) :
+    StoreEffects (lowerBorrow Limits.spec cx resource rep : Session grow sig Nat) := by
+  unfold lowerBorrow
+  split
+  · rename_i task _
+    refine (storeEffectGetObject ArenaField.resourceTypes resource).bind fun record => ?_
+    split
+    · exact .pure _
+    · exact (storeEffectArenaAlloc ArenaField.resHandles { rt := resource, rep, own := false, scope := some task }).bind
+        fun identity => (storeEffectModify (HandleSt.incBorrows task)).bind fun _ =>
+          sharedHandleInsertEffects cx.inst (.resource identity)
+  · exact storeEffectTrap _
+
+private theorem storeEffectCanonicalEndpoint (kind : AsyncRef.EndKind) (cx : LiftLowerContext (core3 grow)) (identity : EndId) :
+    StoreEffects (lowerAsyncValue Limits.spec kind cx identity : Session grow sig Nat) :=
+  (storeEffectModify (HandleSt.setEndOwner identity cx.inst)).bind fun _ =>
+    (sharedHandleInsertEffects cx.inst (.waitable (.end_ identity))).bind fun index =>
+      (storeEffectModify (HandleSt.setEndIndex identity index)).bind fun _ => .pure _
+
+private inductive SourceStoreLeaf : Stored.TypeOf → Prop where
+  | primitive {primitive} (nonString : primitive ≠ .string) : SourceStoreLeaf (.prim primitive)
+  | enum (labels : List String) : SourceStoreLeaf (.enum labels)
+  | flags (labels : List String) : SourceStoreLeaf (.flags labels)
+  | own (resource : RtId) : SourceStoreLeaf (.own resource)
+  | borrow (resource : RtId) : SourceStoreLeaf (.borrow resource)
+  | stream (element : Option Stored.TypeOf) : SourceStoreLeaf (.stream element)
+  | future (element : Option Stored.TypeOf) : SourceStoreLeaf (.future element)
+  | errorContext : SourceStoreLeaf .errorContext
+
+private theorem storeEffectSourceStoreLeaf (cx : LiftLowerContext (core3 grow)) {type : Stored.TypeOf}
+    (leaf : SourceStoreLeaf type) (value : Value.Val) (pointer : Nat) :
+    StoreEffects (Canon.store Limits.spec Quirks.none cx value type pointer : Session grow sig Unit) := by
+  cases leaf with
+  | primitive nonString => exact storeEffectPrimitive cx pointer value _ nonString
+  | enum labels =>
+    rw [Canon.store.eq_def]
+    cases value <;> try exact storeEffectTrap _
+    rename_i index _
+    change StoreEffects ((if index < labels.length then do
+      let _ ← storeVariantHead cx labels.length .one index pointer
+      pure ()
+      else storeMismatch) : Session grow sig Unit)
+    split
+    · exact ((storeEffectWrite cx pointer _).bind fun _ => .pure _).bind fun _ => .pure _
+    · exact storeEffectTrap _
+  | flags =>
+    rw [Canon.store.eq_def]
+    cases value <;> first | exact storeEffectWrite _ _ _ | exact storeEffectTrap _
+  | own resource =>
+    rw [Canon.store.eq_def]
+    cases value <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalResource cx { rt := resource, rep := _, own := true }).bind fun _ => storeEffectWrite _ _ _
+  | borrow resource =>
+    rw [Canon.store.eq_def]
+    cases value <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalBorrow cx resource _).bind fun _ => storeEffectWrite _ _ _
+  | stream =>
+    rw [Canon.store.eq_def]
+    cases value <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalEndpoint .readableStream cx _).bind fun _ => storeEffectWrite _ _ _
+  | future =>
+    rw [Canon.store.eq_def]
+    cases value <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalEndpoint .readableFuture cx _).bind fun _ => storeEffectWrite _ _ _
+  | errorContext =>
+    rw [Canon.store.eq_def]
+    cases value <;> try exact storeEffectTrap _
+    exact (sharedHandleInsertEffects cx.inst (.errCtx _)).bind fun _ => storeEffectWrite _ _ _
+
+open Stored.Endpoints in
+private theorem compareSourceStoreText {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (text : Value.StrVal) (dest : Nat)
+    (next : Session grow sig (Ret (core3 grow)))
+    (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (Canon.store Limits.spec Quirks.none cx (.string text) (.prim .string) dest >>= fun _ => next)
+      (Canon.store Limits.spec Quirks.none cx (.string text) (.prim .string) dest >>= fun _ => next) := by
+  let reply : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)) := fun _ => next
+  have code := sharedRecordStringPlanCode cx text dest reply
+  intro left right remaining stores lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
+    (sharedRecordStringPlan cx text dest reply) (sharedRecordStringPlan cx text dest reply) (fun width =>
+      crossSourceRecordStringSteps thread allocate cx width text [] (storePlanFor Quirks.none cx.opts.encoding width text).steps
+        dest 0 rfl reply reply returned) stores (lhs.trans (congrArg check.control code))
+    (rhs.trans (congrArg canon.control code)) scheduler run bounded
+
+private theorem compareSourceStoreElement {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (dest : Nat)
+    (next : Session grow sig (Ret (core3 grow)))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program)
+    (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next)
+      (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next) := by
+  have localStore (type : Stored.TypeOf) (value : Value.Val)
+      (effects : StoreEffects (Canon.store Limits.spec Quirks.none cx value type dest : Session grow sig Unit)) :
+      DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next)
+        (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next) :=
+    crossDestructorRecordStore (check := check) (canon := canon) thread _ effects (fun _ => next) (fun _ => next)
+      (fun _ => returned)
+  have leaf (type : Stored.TypeOf) (proof : SourceStoreLeaf type) :
+      DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next)
+        (Canon.store Limits.spec Quirks.none cx value type dest >>= fun _ => next) :=
+    localStore type value (storeEffectSourceStoreLeaf cx proof value dest)
+  intro left right remaining stores lhs rhs scheduler run bounded
+  cases type with
+  | prim primitive =>
+    by_cases string : primitive = .string
+    · subst primitive
+      cases value with
+      | string text => exact compareSourceStoreText thread allocate cx text dest next returned stores lhs rhs scheduler run bounded
+      | _ =>
+        exact localStore _ _ (by rw [Canon.store.eq_def]; exact storeEffectTrap _) stores lhs rhs scheduler run bounded
+    · exact leaf _ (.primitive string) stores lhs rhs scheduler run bounded
+  | enum labels => exact leaf _ (.enum labels) stores lhs rhs scheduler run bounded
+  | flags labels => exact leaf _ (.flags labels) stores lhs rhs scheduler run bounded
+  | own resource => exact leaf _ (.own resource) stores lhs rhs scheduler run bounded
+  | borrow resource => exact leaf _ (.borrow resource) stores lhs rhs scheduler run bounded
+  | stream element => exact leaf _ (.stream element) stores lhs rhs scheduler run bounded
+  | future element => exact leaf _ (.future element) stores lhs rhs scheduler run bounded
+  | errorContext => exact leaf _ .errorContext stores lhs rhs scheduler run bounded
+  | _ => exact compareProgram _ stores lhs rhs scheduler run bounded
+
+private def sourceGuestWrites (cx : LiftLowerContext (core3 grow)) (element : Stored.TypeOf)
+    (stride basePtr : Nat) (entries : List (Value.Val × Nat)) : Session grow sig Unit :=
+  Prog.forM entries fun (value, index) => Canon.store Limits.spec Quirks.none cx value element (basePtr + index * stride)
+
+private theorem compareSourceGuestWrites {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (element : Stored.TypeOf) (stride basePtr : Nat)
+    (entries : List (Value.Val × Nat)) (next : Session grow sig (Ret (core3 grow)))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program)
+    (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sourceGuestWrites cx element stride basePtr entries >>= fun _ => next)
+      (sourceGuestWrites cx element stride basePtr entries >>= fun _ => next) := by
+  induction entries with
+  | nil => exact returned
+  | cons entry tail ih =>
+    obtain ⟨value, index⟩ := entry
+    simp only [sourceGuestWrites, Prog.forM, Prog.bind_eq, Prog.bind_assoc]
+    exact compareSourceStoreElement thread allocate cx element value (basePtr + index * stride) _ compareProgram ih
+
+private theorem compareSourceGuestWriteBuffer {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (element : Stored.TypeOf) (ptr length progress : Nat)
+    (values : List Value.Val) (next : Session grow sig (Ret (core3 grow)))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program)
+    (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (writeBuffer Limits.spec Quirks.none (.guest cx (some element) ptr length progress) values >>= fun _ => next)
+      (writeBuffer Limits.spec Quirks.none (.guest cx (some element) ptr length progress) values >>= fun _ => next) := by
+  let stores (cursorWidth strideWidth : AddrType) := sourceGuestWrites (sig := sig) cx element
+    (ABI.layout strideWidth element).size (guestCursor cursorWidth element ptr progress) values.zipIdx >>= fun _ => next
+  let atCursor (width : AddrType) := ptrType cx >>= stores width
+  have code : (writeBuffer Limits.spec Quirks.none (.guest cx (some element) ptr length progress) values >>= fun _ => next) =
+      ptrType cx >>= atCursor := by
+    simp only [writeBuffer, storeListIntoValidRange, Prog.bind_eq, Prog.bind_assoc]
+    rfl
+  intro left right remaining same lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx) atCursor atCursor
+    (fun cursorWidth => crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
+      (stores cursorWidth) (stores cursorWidth) (fun strideWidth =>
+        compareSourceGuestWrites thread allocate cx element (ABI.layout strideWidth element).size
+          (guestCursor cursorWidth element ptr progress) values.zipIdx next compareProgram returned))
+    same (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
+
 private theorem compareSourceCopyMove {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (action : CopyAction (core3 grow))
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (next : Session grow sig (Ret (core3 grow)))
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program)
@@ -24263,13 +24451,15 @@ private theorem compareSourceCopyMove {limit : Nat}
         | guest context element address length progress =>
           cases element with
           | none => exact compareNext
-          | some => exact compareProgram _
+          | some element =>
+            exact compareSourceGuestWriteBuffer threads allocate context element address length progress values next compareProgram compareNext
       exact following same lhs rhs (scheduler aligned) residual (shorter.trans bounded)
 
 open ReturnFrame.Occurrence in
 private theorem compareSourceCopyTransfer {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program)
     {committed : CStore (core3 grow)} {action : CopyAction (core3 grow)}
@@ -24299,7 +24489,7 @@ private theorem compareSourceCopyTransfer {limit : Nat}
       have writes := sharedSchedulerTransport (bindings := bindings) lhs.commit rhs.commit (by rfl) (by rfl)
       obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend reads writes
       exact .destructorPrefix paths (.copyTransfer lhs rhs) (fun same => same)
-        (compareSourceCopyMove threads action (copy.reply source) compareProgram
+        (compareSourceCopyMove threads action allocate (copy.reply source) compareProgram
           (compareSourceCopyReply threads copy source compareProgram) rfl rfl rfl scheduler residual
           ((Nat.le_succ _).trans ((Nat.le_succ _).trans bounded)))
 
@@ -24308,6 +24498,7 @@ reached buffer action and event-wait suffix back to the source induction. -/
 private theorem compareSourceCopy {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (copy : SourceCopy grow)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
@@ -24332,7 +24523,7 @@ private theorem compareSourceCopy {limit : Nat}
         (modifyStore update >>= complete) (modifyStore update >>= complete)
       exact crossDestructorRecordStore (check := check) (canon := canon) threads (modifyStore update)
         (storeEffectModify update) complete complete fun _ =>
-          compareSourceCopyMove threads action (copy.reply source) compareProgram
+          compareSourceCopyMove threads action allocate (copy.reply source) compareProgram
             (compareSourceCopyReply threads copy source compareProgram)
   intro start incoming labels stores lhs rhs scheduler run bounded
   cases chosen : copyCore source.2.1 source.2.2 copy.kind.isReadable start.store with
@@ -24342,7 +24533,7 @@ private theorem compareSourceCopy {limit : Nat}
     cases action with
     | none => exact other stores lhs rhs scheduler run bounded
     | transfer =>
-      exact compareSourceCopyTransfer threads copy source compareProgram chosen (copyTransferOrigin chosen)
+      exact compareSourceCopyTransfer threads copy source allocate compareProgram chosen (copyTransferOrigin chosen)
         stores lhs rhs scheduler run bounded
 
 /-- Canonical builtins with source callback comparisons. Other builtins
@@ -24374,7 +24565,10 @@ private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
     fun words {_ _ _} same aligned lhs rhs tail within => compareProgram (.pure (.flat words)) same lhs rhs aligned tail within
   cases observed : SourceCopy.select builtin args
   case some copy =>
-    exact compareSourceCopy thread copy compareProgram stores
+    have allocate : SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish :=
+      fun cx site compiled leftNext rightNext onResume =>
+        finishSourceRecordAllocator parents thread segments cx site compiled leftNext rightNext onResume (reentry.1 parents thread)
+    exact compareSourceCopy thread copy allocate compareProgram stores
       (checked.trans (congrArg check.control (sourceCopyCalloutCode ready base start.store check.thread inst builtin args copy observed)))
       (canonical.trans (congrArg canon.control
         (sourceCopyCalloutCode ready (LiveDispatch.host bindings base) incoming.store canon.thread inst builtin args copy observed)))
