@@ -693,6 +693,25 @@ theorem give_completion_framed {sig : Signature} {grow : SingleThreaded.GrowOrac
   .next (.hostGet reached) rfl (.next (.hostSet rfl) rfl (.next (.popCore rfl) rfl (.done _)))
 
 open Machine.ReturnFrame.Occurrence in
+/-- The checked completion writes the journal while the original Core
+frame is still in place. The following step pops that frame. -/
+theorem give_completion_write {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Machine.Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest}
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    let written := { start with
+      host := start.host.record reply.1
+      ctl := ⟨thread, .prog (.pure (.flat reply.2)), .core core continuation :: segments⟩ :: rest }
+    (∀ place, Prefix profile ready dispatch start place [.tau, .tau] written place) ∧
+    HostFramedSteps HostState.writer profile ready dispatch start [.tau, .tau] written ∧
+    Machine.Step profile ready dispatch written .tau
+      { written with ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+        continuation, segments⟩ :: rest } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled.giveCompletionWrite reply reached
+
+open Machine.ReturnFrame.Occurrence in
 /-- Follow any enclosing occurrence through the real checked completion.
 Recording the reply changes the host, not any segment slot. -/
 theorem give_completion_trail {sig : Signature} {grow : SingleThreaded.GrowOracle}

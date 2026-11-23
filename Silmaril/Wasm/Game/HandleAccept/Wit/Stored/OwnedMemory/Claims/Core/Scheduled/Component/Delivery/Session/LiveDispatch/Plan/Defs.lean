@@ -834,6 +834,10 @@ def CheckedOnlyGiveReply (profile : ProfileKind) (ready : HostReady (HostState s
     checked.store = left.store ∧
     checked.host = left.host.record (route.reply destination ticket (.error issue)).1 ∧
     Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) left [.tau, .tau, .tau] checked ∧
+    (∃ written,
+      (∀ place, Prefix profile ready (specDispatch ready base) left place [.tau, .tau] written place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) left [.tau, .tau] written ∧
+      Step profile ready (specDispatch ready base) written .tau checked) ∧
     ∀ cursor : Option Location, ∃ checkedMark canonMark,
       Trail profile ready (specDispatch ready base) start cursor (checkLeading ++ [.tau, .tau, .tau]) checked checkedMark ∧
       Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming cursor canonLeading right canonMark

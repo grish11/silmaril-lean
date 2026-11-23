@@ -1463,6 +1463,24 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
   exact actual
 
 open Machine Machine.ReturnFrame.Occurrence in
+theorem giveCompletionWrite {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest}
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    let written := { start with
+      host := start.host.record reply.1
+      ctl := ⟨thread, .prog (.pure (.flat reply.2)), .core core continuation :: segments⟩ :: rest }
+    (∀ place, Prefix profile ready dispatch start place [.tau, .tau] written place) ∧
+    Plain.HostFramedSteps HostState.writer profile ready dispatch start [.tau, .tau] written ∧
+    Step profile ready dispatch written .tau
+      { written with ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+        continuation, segments⟩ :: rest } := by
+  refine ⟨fun place => ?_, .next (.hostGet reached) rfl (.next (.hostSet rfl) rfl (.done _)), .popCore rfl⟩
+  exact .step (.hostGet reached) (by rw [transitionEdit, reached]; rfl) (.step (.hostSet rfl) rfl (.done _ _))
+
+open Machine Machine.ReturnFrame.Occurrence in
 theorem giveCompletionTrail {sig : Signature} {grow : SingleThreaded.GrowOracle}
     {start : Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
     {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}

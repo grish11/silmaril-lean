@@ -1242,7 +1242,7 @@ theorem CheckedOnlyGiveReply.discrepancies {route : GiveEffectRoute} {destinatio
       Steps profile ready (specDispatch ready base) left [.tau, .tau, .tau] popped ∧
       popped.host.writer.ClaimDiscrepancies right.host.writer pending ∧
       Steps profile ready (specDispatch ready base) popped suffix finish := by
-  obtain ⟨suffix, popped, split, _, complete, residual, _, _, frames, _⟩ := reply
+  obtain ⟨suffix, popped, split, _, complete, residual, _, _, frames, _, _⟩ := reply
   exact ⟨suffix, popped, split, complete, by rwa [frames.project_eq], residual⟩
 
 /-- Strip the reached silent install and compare only its actual callback

@@ -2700,7 +2700,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused _ _ _ _ reply =>
-    obtain ⟨_, _, rfl, front, completed, tail, _, _, _, _⟩ := reply
+    obtain ⟨_, _, rfl, front, completed, tail, _, _, _, _, _⟩ := reply
     exact append front (append completed tail)
   | entryPrefix _ run _ _ => exact run
   | directGiveEntry _ _ _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2776,8 +2776,8 @@ theorem prependCheckedOnlyReply {route : GiveEffectRoute} {destination ticket is
     CheckedOnlyGiveReply profile ready base bindings route destination ticket issue start incoming checkStop canonStop
       (checkPrefix ++ checkBody) (canonPrefix ++ canonBody) trailing finish := by
   obtain ⟨move, before, _⟩ := leading
-  obtain ⟨suffix, checked, split, front, complete, tail, stored, recorded, framed, paths⟩ := reply
-  refine ⟨suffix, checked, split, append (before none).1.steps front, complete, tail, stored, recorded, framed, fun place => ?_⟩
+  obtain ⟨suffix, checked, split, front, complete, tail, stored, recorded, framed, written, paths⟩ := reply
+  refine ⟨suffix, checked, split, append (before none).1.steps front, complete, tail, stored, recorded, framed, written, fun place => ?_⟩
   obtain ⟨checkedMark, canonicalMark, checkPath, canonPath⟩ := paths (move place)
   exact ⟨checkedMark, canonicalMark,
     (List.append_assoc _ _ _).symm ▸ (before place).1.append checkPath, (before place).2.append canonPath⟩
@@ -8568,7 +8568,8 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
     · have refused : CheckedOnlyGiveReply profile ready base bindings (.memory pointer) site.destination site.start.host.nextTicket
           issue site.start incoming left right (checkEntry ++ checked) (entry ++ canonical) trailing finish := by
-        refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, Plain.give_completion_framed reply atReply, fun place => ?_⟩
+        refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl,
+          Plain.give_completion_framed reply atReply, ⟨_, Plain.give_completion_write reply atReply⟩, fun place => ?_⟩
         obtain ⟨checkedLead, canonicalLead⟩ := leading place
         cases reached : move (atEntry place) with
         | none =>
@@ -8721,7 +8722,8 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
       (ticket := site.start.host.nextTicket) (issue := issue) (left := stopped) (right := entered)
       install ((silentVisible canonQuiet).trans quiet.symm) paths
       (parkedAdmissionWriters site prepare framed canonFramed related.data.1) ?_)
-    refine ⟨suffix, _, rfl, frontRun, completed, tail, rfl, rfl, Plain.give_completion_framed reply rfl, fun place => ?_⟩
+    refine ⟨suffix, _, rfl, frontRun, completed, tail, rfl, rfl, Plain.give_completion_framed reply rfl,
+      ⟨_, Plain.give_completion_write (start := stopped) reply rfl⟩, fun place => ?_⟩
     cases place with
     | none => exact ⟨none, none, .absent (append frontRun completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
     | some place =>
@@ -8863,7 +8865,8 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
         rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
         · have stopped : CheckedOnlyGiveReply profile ready base bindings (.flat schema) site.destination site.start.host.nextTicket
               issue site.start incoming left right (checkEntry ++ checked) (entry ++ canonical) trailing finish := by
-            refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl, Plain.give_completion_framed reply atReply, fun place => ?_⟩
+            refine ⟨suffix, _, divided, (leading none).1.steps, completed, tail, rfl, rfl,
+              Plain.give_completion_framed reply atReply, ⟨_, Plain.give_completion_write reply atReply⟩, fun place => ?_⟩
             obtain ⟨checkedLead, canonicalLead⟩ := leading place
             cases reached : move (atEntry place) with
             | none =>
