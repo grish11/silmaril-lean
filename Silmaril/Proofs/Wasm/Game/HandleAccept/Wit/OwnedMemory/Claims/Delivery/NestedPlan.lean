@@ -16879,8 +16879,74 @@ private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 g
         (fun _ => aligned) (finishDestructorSwitchTarget parents related .nil (congrArg update stores)
           aligned rfl rfl tail (by simp only [List.length_cons] at bounded; omega) compare)
 
+private theorem finishDeniedDestructorImport {limit : Nat}
+    {thread frames peerFrames rest peerRest name kind args inst parentBody}
+    {frame : Seg (core3 grow) (HostState sig)} {body : Nat → Session grow sig (Except Scheduled.Issue Nat)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (rawEmbedder : (LiveDispatch.host bindings base).embedder name kind args =
+      (Scheduled.host (grow := grow) bindings).embedder name kind args)
+    (routed : ∀ ticket, route (grow := grow) ticket bindings name kind args =
+      (do Scheduled.finish ticket (← admit inst (body ticket))))
+    (denied : ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
+      (start.store.inst? inst).any (·.mayLeave) = true))
+    (parents : DestructorParentChain older parentBody rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store thread (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let verdict := scheduledDenial start.store thread
+  let ending (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :=
+    let entered := state.host.enter name kind args
+    let reply := completion state.host.nextTicket (.error .wrongContext)
+    { state with
+      host := if verdict.2 then entered else entered.record reply.1
+      ctl := cursor.control (if verdict.2 then trap (.internal "dangling arena id") else .pure (.flat reply.2)) }
+  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start
+      (List.replicate verdict.1 id) (ending start check) :=
+    scheduledDenialPath base routed (congrFun (congrFun (congrFun embedder name) kind) args) check denied checked
+  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
+      (List.replicate verdict.1 id) (ending incoming canon) := by
+    have path := scheduledDenialPath (profile := profile) (ready := ready) (start := incoming)
+      (LiveDispatch.host bindings base) routed rawEmbedder canon (stores ▸ denied) canonical
+    have same : scheduledDenial incoming.store thread = verdict := by rw [← stores]
+    simpa only [ending, canon, same] using path
+  obtain ⟨used, leftOver, reached, peer, split, paths, writers, tail, completed⟩ :=
+    cutSharedQuietWorker leftPath rightPath run
+  rw [split]
+  rcases completed with empty | ⟨rfl, rfl⟩
+  · subst leftOver
+    cases tail
+    exact .comparedPrefix paths writers .exhausted
+  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+    cases dangling : verdict.2 with
+    | true =>
+      exact compareSharedDestructorTrap (check := check) (canon := canon) (.internal "dangling arena id")
+        (by simp only [ending, dangling, ite_true]) (by simp only [ending, dangling, ite_true]) tail
+    | false =>
+      let words := (completion 0 (.error .wrongContext)).2
+      have leftReply : (ending start check).ctl = check.control (.pure (.flat words)) := by
+        simp only [ending, dangling, Bool.false_eq_true, ite_false]
+        rfl
+      have rawReply : (ending incoming canon).ctl = canon.control (.pure (.flat words)) := by
+        simp only [ending, dangling, Bool.false_eq_true, ite_false]
+        rfl
+      have shorter : leftOver.length ≤ limit := by
+        rw [split, List.length_append] at bounded
+        omega
+      exact finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil stores scheduler
+        leftReply rawReply tail shorter compare
+
 private theorem finishSharedDestructorImport {limit : Nat}
     {thread frames peerFrames rest peerRest core host args task tk body}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (parents : DestructorParentChain older body rest peerRest)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
     (admitted : calloutEntry start.store thread host = none)
@@ -16901,13 +16967,29 @@ private theorem finishSharedDestructorImport {limit : Nat}
     exact finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil stores scheduler
       checked canonical residual bounded compare
   cases host with
-  | embedder => exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
+  | embedder name kind =>
+    classical
+    by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader ∧
+        ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
+          (start.store.inst? inst).any (·.mayLeave) = true)
+    · obtain ⟨inst, loader, linked, denied⟩ := legacy
+      exact finishDeniedDestructorImport embedder (coreAcceptRawEmbedder linked embedder) (coreAcceptRoute linked)
+        denied parents segments stores checked canonical residual scheduler bounded compare
+    · by_cases shared : ∃ (inst : InstId) (action : SharedGiveAction),
+          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩ ∧
+          ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
+            (start.store.inst? inst).any (·.mayLeave) = true)
+      · obtain ⟨inst, action, linked, denied⟩ := shared
+        exact finishDeniedDestructorImport embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked)
+          denied parents segments stores checked canonical residual scheduler bounded compare
+      · exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
   | _ => exact follow rfl
 
 /-- Discharge the pending enclosing return after following the source worker
 prefix. Every recursive use of the mixed classifier consumes the actual pop. -/
 private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
     {actualLabels : Trace grow sig}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (ending : CallbackSliceEnd profile ready base bindings older sourceCfg peerCfg actualLabels finish)
     (scheduler : DestructorSchedulerAlignment older sourceCfg peerCfg)
     (bounded : actualLabels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
@@ -16915,12 +16997,12 @@ private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config
   match ending with
   | .destructorPrefix paths writers next tail =>
     exact .destructorPrefix paths writers next
-      (rejoinDestructorSuffix tail (next scheduler) (by simp only [List.length_append] at bounded; omega) compare)
+      (rejoinDestructorSuffix embedder tail (next scheduler) (by simp only [List.length_append] at bounded; omega) compare)
   | .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets tail =>
     exact .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets
-      (rejoinDestructorSuffix tail scheduler bounded compare)
+      (rejoinDestructorSuffix embedder tail scheduler bounded compare)
   | .sharedDropWorkerImport parents segments admitted stores checked canonical residual =>
-    exact finishSharedDestructorImport parents segments admitted stores checked canonical residual scheduler bounded compare
+    exact finishSharedDestructorImport embedder parents segments admitted stores checked canonical residual scheduler bounded compare
   | .sharedDropSwitch parents segments stores checked canonical residual =>
     exact finishDestructorSwitch parents segments stores checked canonical residual scheduler bounded compare
   | .sharedDropParentLoop paths writers frames restore residual =>
@@ -16936,6 +17018,7 @@ open ReturnFrame.Occurrence in
 private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
     {leftTicket rightTicket} {leading trailing : Trace grow sig}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (task : TaskId) (callee : Option (core3 grow).FuncAddr)
     (body : ThreadBody (core3 grow)) (source : body = sharedDestructorThread task callee)
     {entry : Task (core3 grow)}
@@ -17138,7 +17221,7 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                 have covers : trailing.length ≤ (.tau :: labels).length := by
                   rw [allUsed, List.length_append]
                   omega
-                refine .comparedPrefix paths writers (rejoinDestructorSuffix ?_ scheduler covers compare)
+                refine .comparedPrefix paths writers (rejoinDestructorSuffix embedder ?_ scheduler covers compare)
                 exact crossSharedDestructorOnStart task callee workerSource checked canonical tail
                   (fun tk args width rep typeAt optionsAt integer stores leftPop rightPop leftAt rightAt residual =>
                     CallbackSliceEnd.sharedDropSource leftCertificate rightCertificate activeCertificate peerCertificate
@@ -17355,7 +17438,9 @@ private theorem crossSharedDestructorAllocation {left right : Config (core3 grow
 open ReturnFrame.Occurrence in
 private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
-    {leftTicket rightTicket} {leading trailing : Trace grow sig} (result : InstId × DtorRequest (core3 grow))
+    {leftTicket rightTicket} {leading trailing : Trace grow sig}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (result : InstId × DtorRequest (core3 grow))
     (split : labels = leading ++ trailing)
     (paired : HostFrame.Related.Paired older start incoming)
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
@@ -17425,7 +17510,7 @@ private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow)
       intro taskPaths taskWriters taskSite taskRun
       let allocation := ArenaField.tasks.alloc caller.1 entry.val
       exact crossSharedDestructorWorker (leftTicket := leftTicket) (rightTicket := rightTicket)
-        allocation.2 result.2.dtor (sharedDestructorThread allocation.2 result.2.dtor) rfl
+        embedder allocation.2 result.2.dtor (sharedDestructorThread allocation.2 result.2.dtor) rfl
         (ArenaField.tasks.get?_alloc_self caller.1 entry.val) entry.property
         (width := rep) rfl rfl
         (ArenaField.callers.get?_alloc_self reached.store callerEntry)
@@ -17435,6 +17520,7 @@ open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem crossSharedDropSpend {left right checked raw : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
     {leftTicket rightTicket rep} {leading remaining : Trace grow sig}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (drop : SharedOwnerDrop)
     (split : labels = leading ++ .tau :: remaining)
     (paired : HostFrame.Related.Paired older start incoming)
@@ -17549,7 +17635,7 @@ private theorem crossSharedDropSpend {left right checked raw : Config (core3 gro
                Prefix.step peerCommit (by cases place <;> rfl) (.done _ _)⟩)
         have traced : VisitorWriterPath profile ready base bindings start incoming (.tau :: consumed) (.tau :: consumed) leftDone rightDone := by
           simpa only [consumed, List.cons_append] using writers.append (.dropCommit certified rawCertified)
-        exact crossSharedDropDestructorSetup (leftTicket := leftTicket) (rightTicket := rightTicket) result whole paired moved traced
+        exact crossSharedDropDestructorSetup (leftTicket := leftTicket) (rightTicket := rightTicket) embedder result whole paired moved traced
           (by
             unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at atSite ⊢
             exact pairQuietHost atSite _) rfl rfl continuation compare
@@ -17571,6 +17657,7 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
     {name kind inst leftTicket rightTicket position} {tree : Stored.OwnedMemory.Tree sig}
     {action : SharedGiveAction} {claim : SharedGiveClaim}
     {leading trailing : Trace grow sig}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
     (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
     (source : action.claimAt tree position = some claim)
     (split : labels = leading ++ trailing)
@@ -17666,7 +17753,7 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
           have rightObserved : drop.claim.observe right.host.writer = .ok permit := by
             change rhs = .ok permit
             rw [← agrees, outcome]
-          exact crossSharedDropSpend (leftTicket := leftTicket) (rightTicket := rightTicket) drop split paired paths writers
+          exact crossSharedDropSpend (leftTicket := leftTicket) (rightTicket := rightTicket) embedder drop split paired paths writers
             site leftFocus rightFocus leftObserved rightObserved
             (by change { left with ctl := check.control (drop.claim.afterRead inst leftTicket lhs) } = _
                 rw [outcome]
@@ -19790,7 +19877,7 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
                   exact pairQuietHost site _) leftFound rightFound residual compare
             | some claim =>
               rw [sharedClaimProgram action inst _ position tree source] at leftFound rightFound
-              exact crossSharedClaim linked source split paired paths writers (by
+              exact crossSharedClaim embedder linked source split paired paths writers (by
                 unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
                 exact pairQuietHost site _) leftFound rightFound residual compare
       · have mismatch : SharedGiveHistoryMismatch action inst start.host.nextTicket incoming.host.nextTicket position handle
