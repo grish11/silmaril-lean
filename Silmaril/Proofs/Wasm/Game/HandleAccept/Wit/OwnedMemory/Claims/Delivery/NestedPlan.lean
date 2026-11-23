@@ -15259,9 +15259,188 @@ private theorem sharedDestructorImportReads (impl : HostImpl (core3 grow) (HostS
     refine FramedQuietPath.step (.currentThread atImport) (by rw [transitionEdit, atImport]; rfl) rfl ?_
     exact FramedQuietPath.step (.get rfl) rfl rfl .done
 
+private theorem storeEffectArenaAlloc {Id Data : Type} (field : ArenaField (core3 grow) Id Data) (entry : Data) :
+    StoreEffects (allocObj field entry : Session grow sig Id) := by
+  unfold allocObj
+  exact storeEffectGet.bind fun _ => (storeEffectModify (ArenaOps.allocSt field entry)).bind fun _ => .pure _
+
+private theorem sharedDestructorResourceNew (resource : RtId) (rep : Nat) :
+    StoreEffects (Builtins.resourceNew Limits.spec resource rep : Session grow sig (List FlatValue)) := by
+  unfold Builtins.resourceNew resourceNewCore addResHandle
+  have enter : StoreEffects (Builtins.resourceEnter : Session grow sig InstId) := by
+    unfold Builtins.resourceEnter getInst
+    exact storeEffectCurrentInst.bind fun inst =>
+      (storeEffectGetObject ArenaField.insts inst).bind fun record =>
+      (storeEffectTrapIf (!record.mayLeave) .cannotLeave).bind fun _ => .pure inst
+  exact enter.bind fun inst =>
+    (storeEffectArenaAlloc ArenaField.resHandles { rt := resource, rep := rep, own := true }).bind fun identity =>
+    (sharedHandleInsertEffects inst (.resource identity)).bind fun index => .pure [i32Flat index]
+
+private theorem sharedDestructorBuiltinResourceRep (resource : RtId) (index : Nat) :
+    StoreEffects (Builtins.resourceRep Limits.spec resource index : Session grow sig (List FlatValue)) := by
+  have expect (entry : HandleEntry) : StoreEffects (expectResource entry : Session grow sig HandleObjId) := by
+    cases entry <;> first | exact .pure _ | exact storeEffectTrap _
+  unfold Builtins.resourceRep resourceRepCore getResHandle getResourceType
+  refine storeEffectCurrentInst.bind fun inst => ?_
+  refine ((storeEffectHandlesGet inst index).bind fun handle => (expect handle).bind fun identity =>
+    (storeEffectGetObject ArenaField.resHandles identity).bind fun entry =>
+    (storeEffectTrapIf (entry.rt != resource) .resourceTypeMismatch).bind fun _ => .pure entry.rep).bind fun rep =>
+    (storeEffectGetObject ArenaField.resourceTypes resource).bind fun rty => .pure [ptrFlat rty.rep rep]
+
+private theorem sharedDestructorWaitableSetNew :
+    StoreEffects (Builtins.waitableSetNew Limits.spec : Session grow sig (List FlatValue)) := by
+  unfold Builtins.waitableSetNew
+  exact storeEffectEnterWaitable.bind fun inst =>
+    (storeEffectArenaAlloc ArenaField.wsets ({} : WaitableSet)).bind fun identity =>
+    (sharedHandleInsertEffects inst (.wset identity)).bind fun index => .pure [i32Flat index]
+
+private theorem storeEffectHandlesRemove (inst : InstId) (index : Nat) :
+    StoreEffects (handlesRemove inst index : Session grow sig HandleEntry) := by
+  unfold handlesRemove getInst
+  refine (storeEffectGetObject ArenaField.insts inst).bind fun reached => ?_
+  split
+  · exact storeEffectTrap _
+  · exact (storeEffectModify _).bind fun _ => .pure _
+
+private theorem storeEffectExpectWset (entry : HandleEntry) :
+    StoreEffects (Builtins.expectWset entry : Session grow sig WsetId) := by
+  cases entry <;> first | exact .pure _ | exact storeEffectTrap _
+
+private theorem sharedDestructorWaitableSetDrop (index : Nat) :
+    StoreEffects (Builtins.waitableSetDrop Limits.spec index : Session grow sig (List FlatValue)) := by
+  have drop (identity : WsetId) : StoreEffects (Runtime.wsetDrop identity : Session grow sig Unit) := by
+    unfold Runtime.wsetDrop
+    exact (storeEffectGetObject ArenaField.wsets identity).bind fun record =>
+      (storeEffectTrapIf (!record.elems.isEmpty) .setNotEmpty).bind fun _ =>
+      storeEffectTrapIf (decide (record.numWaiting > 0)) .setHasWaiters
+  unfold Builtins.waitableSetDrop
+  exact storeEffectEnterWaitable.bind fun inst =>
+    (storeEffectHandlesRemove inst index).bind fun handle =>
+    (storeEffectExpectWset handle).bind fun identity => (drop identity).bind fun _ => .pure []
+
+private theorem sharedDestructorWaitableJoin (index setIndex : Nat) :
+    StoreEffects (Builtins.waitableJoin Limits.spec index setIndex : Session grow sig (List FlatValue)) := by
+  have expect (handle : HandleEntry) :
+      StoreEffects (Builtins.expectWaitable handle : Session grow sig Runtime.Waitable) := by
+    cases handle <;> first | exact .pure _ | exact storeEffectTrap _
+  have read (waitable : Runtime.Waitable) :
+      StoreEffects (Builtins.waitableHasSyncWaiter waitable : Session grow sig Bool) := by
+    unfold Builtins.waitableHasSyncWaiter
+    refine storeEffectGet.bind fun store => ?_
+    split
+    · exact .pure _
+    · exact storeEffectTrap _
+  unfold Builtins.waitableJoin Runtime.Waitable.join
+  refine storeEffectEnterWaitable.bind fun inst =>
+    (storeEffectHandlesGet inst index).bind fun handle => (expect handle).bind fun waitable =>
+    (read waitable).bind fun busy => (storeEffectTrapIf busy .subtaskInSet).bind fun _ => ?_
+  split
+  · exact (storeEffectModify _).bind fun _ => .pure _
+  · exact (storeEffectHandlesGet inst setIndex).bind fun setHandle =>
+      (storeEffectExpectWset setHandle).bind fun _ => (storeEffectModify _).bind fun _ => .pure _
+
+private theorem sharedDestructorSubtaskDrop (index : Nat) :
+    StoreEffects (Builtins.subtaskDrop Limits.spec index : Session grow sig (List FlatValue)) := by
+  have expect (handle : HandleEntry) :
+      StoreEffects (Builtins.expectSubtask handle : Session grow sig SubtaskId) := by
+    cases handle with
+    | waitable entry => cases entry <;> first | exact .pure _ | exact storeEffectTrap _
+    | _ => exact storeEffectTrap _
+  have drop (identity : SubtaskId) : StoreEffects (Runtime.subtaskDrop identity : Session grow sig Unit) := by
+    unfold Runtime.subtaskDrop Runtime.Subtask.resolveDelivered gets Runtime.Waitable.dropWaitable Runtime.Waitable.join
+    exact (storeEffectGet.bind fun store => .pure (store.subtaskResolveDelivered identity)).bind fun delivered =>
+      (storeEffectTrapIf (!delivered) .subtaskNotResolved).bind fun _ => storeEffectModify _
+  unfold Builtins.subtaskDrop
+  exact storeEffectEnterWaitable.bind fun inst => (storeEffectHandlesRemove inst index).bind fun handle =>
+    (expect handle).bind fun identity => (drop identity).bind fun _ => .pure []
+
+private theorem sharedDestructorErrorContextDrop (index : Nat) :
+    StoreEffects (Builtins.errorContextDrop index : Session grow sig (List FlatValue)) := by
+  have expect (handle : HandleEntry) : StoreEffects (Builtins.expectErrCtx handle : Session grow sig ErrCtxId) := by
+    cases handle <;> first | exact .pure _ | exact storeEffectTrap _
+  unfold Builtins.errorContextDrop getInst
+  exact storeEffectCurrentInst.bind fun inst =>
+    (storeEffectGetObject ArenaField.insts inst).bind fun record =>
+    (storeEffectTrapIf (!record.mayLeave) .cannotLeave).bind fun _ =>
+    (storeEffectHandlesRemove inst index).bind fun handle => (expect handle).bind fun _ => .pure []
+
+private theorem sharedDestructorWaitablePoll (memory : (core3 grow).MemAddr) (index ptr : Nat) :
+    StoreEffects (Builtins.waitableSetPoll Limits.spec memory index ptr : Session grow sig (List FlatValue)) := by
+  unfold Builtins.waitableSetPoll
+  exact storeEffectEnterWaitable.bind fun inst => (storeEffectHandlesGet inst index).bind fun handle =>
+    (storeEffectExpectWset handle).bind fun identity =>
+    (waitableSelectionEffects true identity).bind fun event =>
+    (waitableBufferEffects (Builtins.eventCx memory inst) ptr event).bind fun code => .pure [i32Flat code]
+
+private theorem storeEffectEndMayLeave (inst : InstId) :
+    StoreEffects (Builtins.endMayLeave inst : Session grow sig Unit) := by
+  unfold Builtins.endMayLeave getInst
+  exact (storeEffectGetObject ArenaField.insts inst).bind fun record =>
+    storeEffectTrapIf (!record.mayLeave) .cannotLeave
+
+private theorem sharedDestructorNewEnds (kind : AsyncRef.EndKind) (type : Option (WIT.ClosedType RtId)) :
+    StoreEffects (Builtins.newBuiltin Limits.spec kind type : Session grow sig (List FlatValue)) := by
+  unfold Builtins.newBuiltin
+  exact storeEffectCurrentInst.bind fun inst => (storeEffectEndMayLeave inst).bind fun _ =>
+    storeEffectGet.bind fun store =>
+    let identities := (Runtime.newEnds kind type (some inst) store).2
+    (storeEffectModify (Builtins.newEndsSt kind type (some inst))).bind fun _ =>
+    (sharedHandleInsertEffects inst (.waitable (.end_ identities.1))).bind fun readIndex =>
+    (storeEffectModify (HandleSt.setEndIndex identities.1 readIndex)).bind fun _ =>
+    (sharedHandleInsertEffects inst (.waitable (.end_ identities.2))).bind fun writeIndex =>
+    (storeEffectModify (HandleSt.setEndIndex identities.2 writeIndex)).bind fun _ => .pure _
+
+private theorem sharedDestructorDropEnd (kind : AsyncRef.EndKind) (type : Option (WIT.ClosedType RtId)) (index : Nat) :
+    StoreEffects (Builtins.dropEnd Limits.spec kind type index : Session grow sig (List FlatValue)) := by
+  have expect (handle : HandleEntry) :
+      StoreEffects (Builtins.expectEnd kind type handle : Session grow sig (EndId × End (core3 grow))) := by
+    cases handle with
+    | waitable entry =>
+      cases entry with
+      | end_ identity =>
+        exact (storeEffectGetObject ArenaField.ends identity).bind fun record =>
+          (storeEffectTrapIf (record.kind != kind) .wrongHandleType).bind fun _ =>
+          (storeEffectTrapIf (record.t != type) .wrongHandleType).bind fun _ => .pure _
+      | _ => exact storeEffectTrap _
+    | _ => exact storeEffectTrap _
+  unfold Builtins.dropEnd endDrop
+  exact storeEffectCurrentInst.bind fun inst => (storeEffectEndMayLeave inst).bind fun _ =>
+    (storeEffectHandlesRemove inst index).bind fun handle => (expect handle).bind fun (_, record) =>
+    (storeEffectTrapIf (record.state == .copying || record.state == .cancellingCopy)
+      (.dropBusy (!kind.isStream) kind.isReadable)).bind fun _ =>
+    (storeEffectTrapIf (kind == .writableFuture && record.state != .done) .futureNotWritten).bind fun _ =>
+    (storeEffectModify _).bind fun _ => .pure []
+
+private theorem storeEffectWithArgs0 {Result : Type} (args : List FlatValue) {body : Session grow sig Result}
+    (effects : StoreEffects body) : StoreEffects (withArgs0 args body) := by
+  cases args
+  · exact effects
+  · exact storeEffectTrap _
+
+private theorem storeEffectWithArgs1 {Result : Type} (args : List FlatValue) (body : Nat → Session grow sig Result)
+    (effects : ∀ word, StoreEffects (body word)) : StoreEffects (withArgs1 args body) := by
+  rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+  · exact storeEffectTrap _
+  · exact effects _
+  · exact storeEffectTrap _
+
+private theorem storeEffectWithArgs2 {Result : Type} (args : List FlatValue) (body : Nat → Nat → Session grow sig Result)
+    (effects : ∀ first second, StoreEffects (body first second)) : StoreEffects (withArgs2 args body) := by
+  rcases args with _ | ⟨first, _ | ⟨second, _ | ⟨extra, tail⟩⟩⟩
+  · exact storeEffectTrap _
+  · exact storeEffectTrap _
+  · exact effects _ _
+  · exact storeEffectTrap _
+
 private def sharedDestructorLocalImport : CanonHost (core3 grow) → Bool
   | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
-  | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin .threadIndex _ => true
+  | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin .threadIndex _
+  | .builtin (.resourceNew ..) _ | .builtin (.resourceRep ..) _
+  | .builtin .waitableSetNew _ | .builtin .waitableSetDrop _ | .builtin .waitableJoin _
+  | .builtin .subtaskDrop _ | .builtin .errorContextDrop _ | .builtin (.waitableSetPoll ..) _
+  | .builtin (.streamNew ..) _ | .builtin (.futureNew ..) _
+  | .builtin (.streamDropReadable ..) _ | .builtin (.streamDropWritable ..) _
+  | .builtin (.futureDropReadable ..) _ | .builtin (.futureDropWritable ..) _ => true
   | _ => false
 
 private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (args : List FlatValue)
@@ -15327,6 +15506,34 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
         unfold withArgs0 Builtins.threadIndex
         exact entered.bind fun (_, record, _) => (storeEffectOrTrap _ record.index).bind fun _ => .pure _
       | cons => exact storeEffectTrap _
+    | resourceNew resource width =>
+      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorResourceNew resource), fun _ _ _ _ => rfl⟩
+    | resourceRep resource width =>
+      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorBuiltinResourceRep resource), fun _ _ _ _ => rfl⟩
+    | waitableSetNew =>
+      exact ⟨_, storeEffectWithArgs0 args sharedDestructorWaitableSetNew, fun _ _ _ _ => rfl⟩
+    | waitableSetDrop =>
+      exact ⟨_, storeEffectWithArgs1 args _ sharedDestructorWaitableSetDrop, fun _ _ _ _ => rfl⟩
+    | waitableJoin =>
+      exact ⟨_, storeEffectWithArgs2 args _ sharedDestructorWaitableJoin, fun _ _ _ _ => rfl⟩
+    | subtaskDrop =>
+      exact ⟨_, storeEffectWithArgs1 args _ sharedDestructorSubtaskDrop, fun _ _ _ _ => rfl⟩
+    | errorContextDrop =>
+      exact ⟨_, storeEffectWithArgs1 args _ sharedDestructorErrorContextDrop, fun _ _ _ _ => rfl⟩
+    | waitableSetPoll memory =>
+      exact ⟨_, storeEffectWithArgs2 args _ (sharedDestructorWaitablePoll memory), fun _ _ _ _ => rfl⟩
+    | streamNew type =>
+      exact ⟨_, storeEffectWithArgs0 args (sharedDestructorNewEnds .readableStream type), fun _ _ _ _ => rfl⟩
+    | futureNew type =>
+      exact ⟨_, storeEffectWithArgs0 args (sharedDestructorNewEnds .readableFuture type), fun _ _ _ _ => rfl⟩
+    | streamDropReadable type =>
+      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .readableStream type), fun _ _ _ _ => rfl⟩
+    | streamDropWritable type =>
+      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .writableStream type), fun _ _ _ _ => rfl⟩
+    | futureDropReadable type =>
+      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .readableFuture type), fun _ _ _ _ => rfl⟩
+    | futureDropWritable type =>
+      exact ⟨_, storeEffectWithArgs1 args _ (sharedDestructorDropEnd .writableFuture type), fun _ _ _ _ => rfl⟩
     | _ => contradiction
   | _ => contradiction
 
