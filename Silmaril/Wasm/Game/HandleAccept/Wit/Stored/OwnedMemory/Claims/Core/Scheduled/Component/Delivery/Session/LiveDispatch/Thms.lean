@@ -148,6 +148,12 @@ theorem LiveDispatch.GiveSelector.trap_bodies (request : LiveDispatch.GiveSelect
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.giveSelectorTrapBodies
     request start thread other impl embedder trapped
 
+/-- The reached dispatcher installs the same program at a call outside the give overlay.
+Subsequent operations still read each machine's own reached host and store. -/
+theorem LiveDispatch.unchanged_dispatch {call : Call (core3 grow)} (shared : LiveDispatch.Unchanged bindings call) :
+    specDispatch ready base call = specDispatch ready (LiveDispatch.host bindings base) call :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.dispatchUnchanged shared
+
 /-- The give overlay does not replace the program installed at an on-cancel
 request. The installed program can still consult the reached host later. -/
 theorem LiveDispatch.cancel_dispatch (callback : CancelRef) :
