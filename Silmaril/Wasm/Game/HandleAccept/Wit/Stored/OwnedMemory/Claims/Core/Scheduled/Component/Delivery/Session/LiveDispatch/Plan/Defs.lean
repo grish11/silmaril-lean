@@ -2080,20 +2080,25 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
-/-- The source destructor has reached a Core callout or its canonical
-resolution call. These are internal proof cuts. -/
+/-- The worker stays above the original parent until its thread exits. -/
+def sharedDestructorWorkerControl (thread : ThreadId) (rest : List (Activation (core3 grow) (HostState sig))) :
+    Option (Focus (core3 grow) (HostState sig)) → List (Activation (core3 grow) (HostState sig))
+  | some focus => ⟨some thread, focus, []⟩ :: rest
+  | none => rest
+
+/-- Internal proof cuts in the worker or at the now-active parent. -/
 inductive SharedDestructorWorkerStage (task : TaskId) (record : Task (core3 grow))
-    (store : CStore (core3 grow)) : Focus (core3 grow) (HostState sig) → Prop where
+    (store : CStore (core3 grow)) : Option (Focus (core3 grow) (HostState sig)) → Prop where
   | callout {core host args}
       (status : (core3 grow).status store.core core = .callout host args) :
-      SharedDestructorWorkerStage task record store (.core core (sharedDestructorCoreResult task record))
+      SharedDestructorWorkerStage task record store (some (.core core (sharedDestructorCoreResult task record)))
   | resolve {reached : Task (core3 grow)}
       (found : ArenaField.tasks.get? store task = some reached)
       (pending : reached.state ≠ .resolved) (borrows : ¬ reached.numBorrows > 0) :
       SharedDestructorWorkerStage task record store
-        (.prog (.op (.call (.onResolve reached.caller (some []))) (sharedDestructorResolveReply task)))
-  | exitImplicit :
-      SharedDestructorWorkerStage task record store (.prog (sharedDestructorResolveReply task .unit))
+        (some (.prog (.op (.call (.onResolve reached.caller (some []))) (sharedDestructorResolveReply task))))
+  | parent :
+      SharedDestructorWorkerStage task record store none
 
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
@@ -2189,7 +2194,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- An internal worker proof cut with both ticket-specific parents still dormant. -/
+  /-- A proof cut in the worker or after its exit exposes both ticket-specific parents. -/
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
       {registeredLeft registeredRight startedLeft startedRight leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee tk args focus}
@@ -2210,10 +2215,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         tk.caller (sharedDestructorStartReply task callee tk) args startedRight)
       (stage : SharedDestructorWorkerStage task tk left.store focus)
       (stores : left.store = right.store)
-      (checkedEntry : left.ctl = ⟨some thread, focus, []⟩ ::
-        check.control (sharedDestructorAfterResume body leftTicket))
-      (canonicalEntry : right.ctl = ⟨some thread, focus, []⟩ ::
-        canon.control (sharedDestructorAfterResume body rightTicket))
+      (checkedEntry : left.ctl = sharedDestructorWorkerControl thread
+        (check.control (sharedDestructorAfterResume body leftTicket)) focus)
+      (canonicalEntry : right.ctl = sharedDestructorWorkerControl thread
+        (canon.control (sharedDestructorAfterResume body rightTicket)) focus)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (tickets : leftTicket ≠ rightTicket)
