@@ -483,6 +483,19 @@ def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
   let ptr ← ListLower.allocateRange cx (ABI.layout width element) entries.length
   sharedRecordAllocated cx width element entries index dest ptr
 
+def sharedRecordRange (cx : LiftLowerContext (core3 grow)) (area : ABI.Layout) (count : Nat) :
+    Ret (core3 grow) → Session grow sig Nat
+  | .nat ptr => validateListRange cx area count ptr
+  | _ => internal "late-bound call: expected Ret.nat"
+
+open Stored.Endpoints in
+def sharedRecordAllocationResume (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    ReturnFrame.Continuation (core3 grow) (HostState sig) := fun result => do
+  let ptr ← sharedRecordRange cx (ABI.layout width element) entries.length result
+  next (← sharedRecordAllocated cx width element entries index dest ptr)
+
 /-- The descriptor writes performed after the canonical string loop. -/
 def sharedRecordStringDescriptor (cx : LiftLowerContext (core3 grow)) (tagged dest pointer : Nat) :
     Session grow sig Unit := do
@@ -2304,6 +2317,35 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : reached.ctl = check.control (sharedRecordMemory mode cx width fields cursor index (SharedRecordJoin.reply cx width leftTicket join)))
       (canonical : peer.ctl = canon.control (sharedRecordMemory mode cx width fields cursor index (SharedRecordJoin.reply cx width rightTicket join)))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual collection allocation entered the canonical realloc body.
+  Its original return segments retain the source range check and field joins. -/
+  | sharedDropRecordAllocatorBody {changes left right reached peer trailing finish body width element index dest}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {entries : List Stored.Endpoints.RecordLower.Field}
+      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (emitted : ∀ field ∈ entries, Stored.Endpoints.RecordLower.Field.Emitted field)
+      (allocator : ∃ f, cx.opts.realloc = some f)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : left.ctl = check.control
+        (.op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+          (sharedRecordAllocationResume cx width element entries index dest leftNext)))
+      (canonical : right.ctl = canon.control
+        (.op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+          (sharedRecordAllocationResume cx width element entries index dest rightNext)))
+      (installed : Step profile ready (specDispatch ready base) left .tau reached)
+      (peerInstalled : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer)
+      (checkedBody : reached.ctl = (PayloadPrefix.Cursor.mk check.thread
+          (.prog (sharedRecordAllocationResume cx width element entries index dest leftNext) :: check.frames) check.rest).control
+        (reallocProg Limits.spec Quirks.none cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+      (canonicalBody : peer.ctl = (PayloadPrefix.Cursor.mk canon.thread
+          (.prog (sharedRecordAllocationResume cx width element entries index dest rightNext) :: canon.frames) canon.rest).control
+        (reallocProg Limits.spec Quirks.none cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
