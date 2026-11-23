@@ -32,7 +32,8 @@ public def main (args : List String) : IO Unit := do
   IO.println "module\n\npublic import Silmaril.Wasm.KernelEval.Thms"
   IO.println "public import Silmaril.Wasm.KernelEval.Examples"
   IO.println "public import Silmaril.Wasi.Versions.WitImport.KRfl.Defs"
-  IO.println "open Silmaril.Wasm.KernelEval Examples\nset_option maxRecDepth 100000"
+  IO.println "open Silmaril.Wasm.KernelEval Examples"
+  IO.println "set_option Elab.async false\nset_option maxRecDepth 100000"
   IO.println "set_option profiler true\nset_option profiler.threshold 0"
   IO.println s!"def c0 : Config NatMem := Config.init fillSort (fillSortLocals {n}) (NatMem.zeros 65536)"
   let mut c := c0

@@ -532,6 +532,7 @@
   }
  ],
  "chunked": {
+  "status": "Historical checkpoint timings. Superseded by the async-disabled rerun in docs/projects/wasm-kernel-eval.md.",
   "program": "fillSort 64, 64 KiB NatMem, 53342 steps",
   "chunk_steps": 5000,
   "pieces": 11,

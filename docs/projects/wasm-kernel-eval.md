@@ -9,8 +9,9 @@ claim kernel support for full Wasm.
   proofs in `Silmaril.Proofs.Wasm.KernelEval.Basic`. It uses only Lean core and needs no
   Mathlib.
 - **Benchmarks:** [`benchmarks/wasm-kernel-eval`](../../benchmarks/wasm-kernel-eval).
-- **Results:** [`docs/benchmarks/wasm-kernel-eval-2026-11-12.json`](../benchmarks/wasm-kernel-eval-2026-11-12.json),
-  with the [chart](../benchmarks/wasm-kernel-eval-2026-11-12.svg).
+- **Historical matrix:** [`docs/benchmarks/wasm-kernel-eval-2026-11-12.json`](../benchmarks/wasm-kernel-eval-2026-11-12.json),
+  with the [chart](../benchmarks/wasm-kernel-eval-2026-11-12.svg). The checkpoint timings
+  were rerun separately below.
 
 ```sh
 lake build --wfail Silmaril.Wasm.KernelEval.Tests        # proofs and kernel tests, a few seconds
@@ -50,12 +51,12 @@ python3 -I benchmarks/wasm-kernel-eval/opcode_census.py tools/wasm-tools/tests/c
   `runRec` overflowed the stack. The fix is a proved `@[csimp]` lemma
   (`runRec_eq_run_csimp`): compiled code then runs `run` and the kernel runs `runRec`, and
   the proposition is the same.
-- **Piecewise checking works.** Checkpoint configurations are found by compiled
-  evaluation, which is untrusted. Each chunk `run k cᵢ = .running cᵢ₊₁` is then checked by
-  the kernel and the chunks are composed with `run_add_of_running`.
-  - The total kernel time equals the monolithic time: 11.5 s for 53k steps.
-  - Each piece takes a bounded 0.6–0.9 s.
-  - Pieces run as separate processes give a 1.6× speedup on this 2-core machine.
+- **Piecewise checking.** Compiled evaluation proposes checkpoint configurations. The
+  kernel checks each chunk equality `run k cᵢ = .running cᵢ₊₁` and
+  `run_add_of_running` composes the equalities. The
+  [checkpoint recipe](../../benchmarks/wasm-kernel-eval/README.md) disables asynchronous
+  elaboration for timing. The [rerun](#chunked-fillsort-64) reports elapsed wall time
+  and the cumulative type-checking profile separately.
 - **Subset coverage.** The subset covers **91 %** of static instruction occurrences in three
   Rust release WASI programs (`cat`, `echo`, `hello`; 32,903 instructions). Adding the next
   tier gives 98.8 %: calls, globals, signed and other comparisons, 16- and 64-bit memory
@@ -146,16 +147,25 @@ not kept.
 | Locals in a `NatMem` | 3.82 s |
 | Instruction-first dispatch | 2.48 s |
 
-**Chunked `fillSort 64`.** 11 pieces of 5,000 steps.
+### Chunked `fillSort 64`
 
-| How the pieces ran | Time |
-| --- | ---: |
-| One file | 11.5 s, as monolithic |
-| 11 separate processes, serial | 36.0 s |
-| 11 separate processes, 2 at a time | 22.9 s |
+The 53,342-step run gives ten 5,000-step checkpoints and a 3,342-step final check. The
+2026-11-23 rerun used Lean 4.37.0-nightly-2026-11-05, two available CPU cores, one Lean thread
+per process, and asynchronous elaboration disabled in every file. Each row is one run.
+Wall time includes process start-up. Lean's cumulative `type checking` profile is summed
+across files for the separate-process rows.
 
-Process start-up dominates at this size. Each piece's kernel time is constant, so wider
-machines scale.
+| Replay | Wall time (s) | Lean type checking (s) |
+| --- | ---: | ---: |
+| Monolithic `run` with `decide +kernel` | 15.42 | 13.20 |
+| All 11 checkpoint checks in one file | 11.70 | 8.98 |
+| 11 separate files, one process at a time | 33.93 | 9.62 |
+| 11 separate files, two processes at a time | 22.61 | 9.62 |
+
+With asynchronous elaboration enabled, the same checkpoint checks reported 53.3 s of
+cumulative type checking in 10.49 s of wall time. Use the serial-elaboration recipe for
+profiler comparisons. The separate-process wall time fell from 33.93 s to 22.61 s at two
+concurrent processes in this rerun.
 
 ## Two modes, one statement
 
