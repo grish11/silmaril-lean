@@ -2321,6 +2321,13 @@ structure DestructorParentLoopFrames (first second : ReturnFrame.Continuation (c
   checkedEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 1) = some enclosing
   canonicalEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 1) = some enclosing
 
+/-- Compiler evidence retained at a reached allocating visitor. -/
+abbrev SourceOverlayFieldSource (destination : RecordDestination) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
+  ∃ (root : Stored.Endpoints.RecordLower.Field) (schema : Stored.TypeOf),
+  root.LayoutMatches schema ∧ root.Emitted ∧
+  Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true ∧
+  Stored.Endpoints.RecordLower.Field.AllocatorFor destination.realloc root ∧ root.Descendant item
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2964,7 +2971,7 @@ induction. Its trails still identify the removed original occurrences. -/
         (some (.active 0 0)) [label] next none)
       (residual : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
-  /-- The compiler visitor reached an allocating child under the
+  /-- The compiler visitor reached an allocating string under the
   original recursive parents. The next visitor proof starts at the two actual
   programs, with the current placement and checked residual. -/
   | sourceOverlayField {changes reached peer trailing finish}
@@ -2976,13 +2983,8 @@ induction. Its trails still identify the removed original occurrences. -/
       (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (pending : match item with
-        | .dynamic _ element entries => Stored.Endpoints.RecordLower.Field.EntriesMatch entries element
-        | other => other.LayoutMatches (.prim .string) ∧ other.Emitted)
-      (source : ∃ (root : Stored.Endpoints.RecordLower.Field) (schema : Stored.TypeOf),
-        root.LayoutMatches schema ∧ root.Emitted ∧
-        Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true ∧
-        Stored.Endpoints.RecordLower.Field.AllocatorFor destination.realloc root ∧ root.Descendant item)
+      (pending : item.LayoutMatches (.prim .string) ∧ item.Emitted)
+      (source : SourceOverlayFieldSource destination item)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (width : (core3 grow).memAddrType? reached.store.core destination.memory = some destination.width)
@@ -2991,6 +2993,32 @@ induction. Its trails still identify the removed original occurrences. -/
         recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index output >>= checkNext))
       (canonical : peer.ctl = canon.control (Stored.Endpoints.RecordLower.CanonicalTree.field
         Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- Both collection allocators were installed by actual call steps. Each
+  original return occurrence contains its own source-derived visitor. -/
+  | sourceOverlayCollectionInstalled {changes reached peer trailing finish}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+      (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
+      (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+      (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+      (parents : SourceParentStack changes check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (matching : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element)
+      (source : SourceOverlayFieldSource destination (.dynamic type element entries))
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : let area := ABI.layout destination.width element
+        let first := PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext
+        reached.ctl = (PayloadPrefix.collectionEntry destination inst area entries.length
+          (specDispatch ready base) reached check first).ctl)
+      (canonical : let area := ABI.layout destination.width element
+        let mode := Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput destination.width type output
+        let second := PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext mode
+        peer.ctl = (PayloadPrefix.collectionEntry destination inst area entries.length
+          (specDispatch ready (LiveDispatch.host bindings base)) peer canon second).ctl)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
