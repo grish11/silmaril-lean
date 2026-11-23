@@ -9376,6 +9376,7 @@ private theorem cutDirectGivePreparation (request : GiveSelector bindings) (tick
     {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {resume : ReturnFrame.Continuation (core3 grow) (HostState sig)}
     (linked : request.destination.check start.store = .ok ())
+    (sameStore : start.store = incoming.store)
     (focus : start.ctl = { check with frames := .prog resume :: check.frames }.control
       (request.compiledContinuation ticket selected field plan))
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
@@ -9388,14 +9389,15 @@ private theorem cutDirectGivePreparation (request : GiveSelector bindings) (tick
   have focused : start.ctl = cursor.control (.op .get (fun store => .op .hostGet (prepared store))) := by
     rw [request.compiled_reads] at focus
     exact focus
-  have path : FramedQuietPath profile ready (specDispatch ready base) cursor start [id, id] after := by
-    have get : Step profile ready (specDispatch ready base) start .tau middle := .get focused
-    have read : Step profile ready (specDispatch ready base) middle .tau after :=
-      .hostGet (m := middle) (k := prepared start.store) rfl
-    exact FramedQuietPath.step get (by rw [transitionEdit, focused]; rfl) rfl (FramedQuietPath.step read rfl rfl .done)
+  have get : Step profile ready (specDispatch ready base) start .tau middle := .get focused
+  have read : Step profile ready (specDispatch ready base) middle .tau after :=
+    .hostGet (m := middle) (k := prepared start.store) rfl
+  have path : FramedQuietPath profile ready (specDispatch ready base) cursor start [id, id] after :=
+    FramedQuietPath.step get (by rw [transitionEdit, focused]; rfl) rfl (FramedQuietPath.step read rfl rfl .done)
   rcases splitSilent (count := 2) (path.1.track (.active 0 0)).toTrail.steps run with ⟨trailing, split, residual⟩ | short
   · rw [split]
-    refine .reached after rfl path.1.track path.2 residual (fun issue refused => cutCheckedProgramReply _ ?_ residual)
+    refine .reached after rfl ⟨middle, .cons get (.refl _), ⟨cursor, request.preparedContinuation ticket selected field, rfl⟩,
+      read, rfl, sameStore⟩ path.1.track path.2 residual (fun issue refused => cutCheckedProgramReply _ ?_ residual)
       (fun accepted => cutDirectGiveWidth request ticket selected field linked ?_ residual)
     · change cursor.control (prepared start.store start.host) = _
       simp only [cursor, prepared, refused, request.prepare_refused]
@@ -9696,7 +9698,7 @@ private theorem crossPreparedDirectGive (request : GiveSelector bindings) (ticke
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   cases preparation with
   | «prefix» => exact .inr boundary
-  | reached prepared focused prepPaths prepWriters _ _ widthCut =>
+  | reached prepared focused ⟨reader, read⟩ prepPaths prepWriters _ _ widthCut =>
     cases preparedOk : Record.prepare left.store left.host.writer field.objects with
     | error => exact .inr boundary
     | ok done =>
@@ -9719,9 +9721,10 @@ private theorem crossPreparedDirectGive (request : GiveSelector bindings) (ticke
           have mark := retainComparedOccurrences paths
             (fun place => ⟨((prepPaths place).append (widthPaths place)).append (placementPaths place), .done right place⟩)
           rw [List.append_nil] at mark
-          have framed := WriterPaths.append (WriterPaths.append prepWriters widthWriters) placementWriters
-          have writers := entryWriters.append (.framed framed (.done right))
-          rw [List.append_nil] at writers
+          have prepareWriter : VisitorWriterPath profile ready base bindings left right [.tau, .tau] [] _ right :=
+            .prepare read prepWriters (.done right)
+          have framed := WriterPaths.append widthWriters placementWriters
+          have writers := (entryWriters.append prepareWriter).append (.framed framed (.done right))
           have usedAll : labels = (used ++ ([.tau, .tau, .tau] ++ placementLabels)) ++ trailing := by
             rw [split]
             simp only [List.append_assoc, List.cons_append, List.nil_append]
@@ -9729,7 +9732,7 @@ private theorem crossPreparedDirectGive (request : GiveSelector bindings) (ticke
             rw [← List.cons_append, visibleAppend, visibleAppend, observed, quiet]
             exact (List.append_nil _).symm
           exact crossPlacedDirectGive request ticket selected field plan usedAll mark
-            (by simpa only [List.cons_append, List.nil_append] using writers) seen install startPair
+            (by simpa only [List.append_assoc, List.append_nil, List.cons_append, List.nil_append] using writers) seen install startPair
             (by simpa only [PairedComponentSite, HostFrame.Related.Paired, HostFrame.replace] using site)
             compiled linked fitWidth inBounds rfl canonAt embedder residual compare boundary
 
@@ -10708,7 +10711,7 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
           have body := congrArg (PayloadPrefix.Cursor.mk (some worker) (.prog resume :: frames) rest).control
             (request.compiler_accepted left.store (some worker) left.host.nextTicket root admitted.unconfined checked)
           have prep := cutDirectGivePreparation (start := checkedEntry) (incoming := canonicalEntry) (check := check) (resume := resume)
-            request left.host.nextTicket root field plan admitted.destination body residual
+            request left.host.nextTicket root field plan admitted.destination sameStore body residual
           have stopped := callbackTerminalSlice paired (terminal (.inl ⟨field, plan, checked, body, prep⟩))
           have total : labels = ([.tau, .tau] ++ List.replicate checkCount .tau) ++ remaining := by
             rw [entered, split, List.append_assoc]

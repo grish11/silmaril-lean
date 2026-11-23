@@ -65,6 +65,40 @@ private theorem oneFrame {dispatch : Call (core3 grow) → Session grow sig (Ret
   cases run with
   | cons step tail => cases tail; exact .same step writer (.done _)
 
+private theorem directReply {caller resume reply}
+    (cut : CheckedProgramReplyCut profile ready (specDispatch ready base) start caller resume reply actual finish) :
+    PrefixCut profile ready base bindings start incoming actual finish := by
+  cases cut with
+  | «prefix» _ _ _ writers paths =>
+    simpa only [List.append_nil] using terminal
+      (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
+      (.framed writers (.done incoming)) (.refl _)
+  | popped written writers remaining _ _ =>
+    -- The checked pop belongs to the residual because the raw occurrence is still pending.
+    exact terminal (CallbackPrefix.stationaryTransport written (fun place => .done incoming place))
+      (.framed writers (.done incoming)) remaining
+
+private theorem directPreparation {caller resume request ticket selected field}
+    (cut : DirectGivePreparationCut profile ready base bindings start incoming caller resume request ticket selected field actual finish) :
+    PrefixCut profile ready base bindings start incoming actual finish := by
+  cases cut with
+  | «prefix» _ paths writers =>
+    simpa only [List.append_nil] using terminal paths (.framed writers (.done _)) (.refl _)
+  | reached _ _ ⟨_, read⟩ paths writers _ refused prepared =>
+    apply follow (CallbackPrefix.stationaryTransport paths (fun place => .done _ place)) (.prepare read writers (.done _))
+    cases verdict : Stored.OwnedMemory.Claims.Record.prepare start.store start.host.writer field.objects with
+    | error issue => exact directReply (refused issue verdict)
+    | ok unit =>
+      cases unit
+      cases prepared verdict with
+      | «prefix» paths => exact terminal paths WriterPaths.empty (.refl _)
+      | reached _ _ paths writers residual decision =>
+        apply follow (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
+          (.framed writers (.done incoming))
+        rcases decision with ⟨_, reply⟩ | _
+        · exact directReply reply
+        · exact stop residual
+
 private theorem cut (ending : CallbackSliceEnd profile ready base bindings older start incoming actual finish) :
     PrefixCut profile ready base bindings start incoming actual finish := by
   induction ending with
@@ -88,11 +122,15 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | admissionTrap _ _ _ checked _ tail => exact stop (appendSteps checked tail)
   | directGiveTrap body _ _ _ => exact terminal body.paths body.writers body.residual
   | giveLookupMismatch _ body _ _ _ _ _ _ => exact terminal body.paths body.writers body.residual
-  | directGiveSelected _ _ body _ _ _ _ _ => exact terminal body.paths body.writers body.residual
+  | directGiveSelected _ _ body _ _ _ _ compiler =>
+    apply follow body.paths body.writers
+    rcases compiler with ⟨_, _, _, _, preparation⟩ | ⟨_, _, reply⟩
+    · exact directPreparation preparation
+    · exact directReply reply
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact stop (appendSteps (checked (.active 0 0)).steps tail)
   | placementTrap _ _ _ checked _ _ _ _ tail => exact stop (appendSteps (checked (.active 0 0)).steps tail)
   | body _ body _ => exact terminal body.paths body.writers body.residual
-  | directGiveLateReply _ _ body _ _ => exact terminal body.paths body.writers body.residual
+  | directGiveLateReply _ _ body _ reply => exact follow body.paths body.writers (directReply reply)
   | directGiveFinite body => simpa only [List.append_nil] using terminal body.paths body.writers body.residual
   | allocator _ body _ _ _ _ ih => exact follow body.paths body.writers ih
   | uncertified _ _ _ paths tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)

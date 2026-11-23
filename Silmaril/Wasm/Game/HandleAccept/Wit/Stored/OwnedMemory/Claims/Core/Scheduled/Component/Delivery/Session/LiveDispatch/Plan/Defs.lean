@@ -1000,6 +1000,7 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
       (focus : after = { start with
         ctl := { caller with frames := .prog resume :: caller.frames }.control
           (request.preparedContinuation ticket selected field (Record.prepare start.store start.host.writer field.objects)) })
+      (read : ∃ reader, ExecutedPrepareRead profile ready base start reader after peer [.tau] field.objects)
       (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place [.tau, .tau] after place)
       (writers : WriterPath profile ready (specDispatch ready base) start [.tau, .tau] after [])
       (residual : Steps profile ready (specDispatch ready base) after trailing finish)
