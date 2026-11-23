@@ -3620,8 +3620,9 @@ theorem classify_give_callbacks
 /-- One finite checked-run fold under the fixed component dispatcher. Parked
 gives, admitted component calls, and public polls, waits and cancels share the
 shorter-run induction, including inside allocator and cancellation callbacks.
-An admitted legacy Core accept follows the reached load, registration read
-and any actual commit and journal. A probe conflict keeps both branch
+A legacy accept starts at the executed Core or program call, which pushes its
+own caller occurrence. On admission it follows the reached load, registration
+read and any actual commit and journal. A probe conflict keeps both branch
 programs. An admission refusal journals its own result before the reply.
 A dangling caller traps only at the executed fault, clearing active marks
 while keeping saved ones. A common reply releases the suffix at the original

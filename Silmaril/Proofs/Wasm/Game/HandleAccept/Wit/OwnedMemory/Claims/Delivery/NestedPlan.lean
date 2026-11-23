@@ -2538,24 +2538,9 @@ private def CallbackCrossingAt (profile : ProfileKind) (ready : HostReady (HostS
 private def CallbackCoreAcceptCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
   ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
-    {thread core resume frames rest name kind args inst loader},
-    checked.ctl = ⟨thread, .core core resume, frames⟩ :: rest →
-    (core3 grow).status checked.store.core core = .callout (.embedder name kind) args →
+    {name kind args inst loader},
+    LegacyAcceptCallAt checked name kind args →
     LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader →
-    Step profile ready (specDispatch ready base) checked label next →
-    Steps profile ready (specDispatch ready base) next trailing finish →
-    HostFrame.Related.Paired changes checked canonical →
-    CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
-
-private def CallbackAdmittedCoreAcceptCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
-    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
-  ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
-    {worker core resume frames rest name kind args inst loader},
-    checked.ctl = ⟨some worker, .core core resume, frames⟩ :: rest →
-    (core3 grow).status checked.store.core core = .callout (.embedder name kind) args →
-    LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader →
-    Plain.callerInstance checked.store (some worker) = .ok (some inst) →
-    (checked.store.inst? inst).any (·.mayLeave) = true →
     Step profile ready (specDispatch ready base) checked label next →
     Steps profile ready (specDispatch ready base) next trailing finish →
     HostFrame.Related.Paired changes checked canonical →
@@ -2715,10 +2700,10 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
               | cons => simp only [List.length_cons] at short; omega
           · exact stop (CallbackPrefix.compareDivergentHostRead focus step tail front.paired agrees)
       | protectedPop retained focus => exact stop (.boundary (.protectedPop retained focus) step tail)
-      | coreAcceptInstall focus calling source =>
+      | coreAcceptInstall call source =>
         cases accept with
-        | none => exact stop (.boundary (.coreAcceptInstall focus calling source) step tail)
-        | some rule => exact advance (rule.down focus calling source step tail front.paired)
+        | none => exact stop (.boundary (.coreAcceptInstall call source) step tail)
+        | some rule => exact advance (rule.down call source step tail front.paired)
       | componentInstall focus =>
         cases component with
         | none => exact stop (.boundary (.componentInstall focus) step tail)
@@ -12390,14 +12375,14 @@ private theorem coreAcceptDenialPath (impl : HostImpl (core3 grow) (HostState si
 
 open ReturnFrame.Occurrence in
 private theorem finishCoreAcceptCrossing {left right : Config (core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
-    {thread core resume frames rest peerFrames peerRest} {leading trailing : Trace grow sig}
+    {thread frames rest peerFrames peerRest} {caller : Seg (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
     (split : labels = leading ++ trailing)
     (paired : HostFrame.Related.Paired older start incoming)
     (path : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
       left right [some (.active 0 0)])
     (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
     (cut : CoreAcceptCompletionCut profile ready base bindings older left right
-      ⟨thread, .core core resume :: frames, rest⟩ ⟨thread, .core core resume :: peerFrames, peerRest⟩
+      ⟨thread, caller :: frames, rest⟩ ⟨thread, caller :: peerFrames, peerRest⟩
       leftTicket rightTicket trailing finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   obtain ⟨used, suffix, reached, peer, divided, _, paths, effects, actual, site, ending⟩ := cut
@@ -12414,55 +12399,79 @@ private theorem finishCoreAcceptCrossing {left right : Config (core3 grow) (Host
         (reason.elim Or.inl (fun rest => .inr (rest.elim Or.inl (fun mismatch => .inr (.inl mismatch)))))))
   rcases ending with empty | ⟨words, leftReply, rightReply⟩ | ⟨tree, mismatch⟩
   · exact stop (.inl empty)
-  · rcases cutWaitableCorePop leftReply rightReply site actual with empty |
-        ⟨remaining, popped, residual, rejoined, pop, lost⟩
-    · exact stop (.inl empty.1)
-    · have pops := VisitorWriterPath.framed (profile := profile) (ready := ready) (base := base) (bindings := bindings)
-        (.same (.popCore leftReply) rfl (.done _)) (.same (.popCore rightReply) rfl (.done _))
-      obtain ⟨move, full, tracks⟩ := CallbackPrefix.transportAppend retained pop
-      have removed : move (some (.active 0 0)) = none := by
-        have followed := (tracks (some (.active 0 0))).1
-        generalize endpoint : move (some (.active 0 0)) = last at followed ⊢
-        cases followed with
-        | step step tail =>
-          cases tail
-          rw [transitionEdit, leftReply]
-          rfl
-      have all := through.append pops
-      have finalSplit : labels = ((leading ++ used) ++ [.tau]) ++ remaining := by
-        simp only [total, popped, List.append_assoc, List.cons_append, List.nil_append]
-      rcases classifyReachedGrowth (CallbackPrefix.transportPaths full none).choose_spec.1.steps with growing | openUpdate
-      · let checkedPop := { reached with ctl := ⟨thread,
-            .core ((core3 grow).resume reached.store.core core (.values words)) resume, frames⟩ :: rest }
-        let rawPop := { peer with ctl := ⟨thread,
-            .core ((core3 grow).resume peer.store.core core (.values words)) resume, peerFrames⟩ :: peerRest }
-        have unmarked : OccurrenceTransport profile ready base bindings start incoming
-            ((.tau :: (leading ++ used)) ++ [.tau]) ((.tau :: (leading ++ used)) ++ [.tau]) checkedPop rawPop := by
-          obtain ⟨next, trails, outside⟩ := full
-          refine ⟨next, trails, fun older marks before => ?_⟩
-          apply outsideMarks_drop_lost.mp
-          simpa only [List.nil_append, List.map_cons, List.map_nil, List.cons_append, removed] using outside older marks before
-        exact .inl ⟨(leading ++ used) ++ [.tau], .tau :: ((leading ++ used) ++ [.tau]), remaining,
-          checkedPop, rawPop, finalSplit, ⟨by simpa only [List.cons_append] using growing, rfl, rejoined,
-            by simpa only [List.cons_append] using unmarked, by simpa only [List.cons_append] using all⟩, residual⟩
-      · exact .inr (callbackTerminalSlice paired (by
-          rw [finalSplit, ← List.cons_append, ← List.cons_append]
-          exact .nonGrowing openUpdate rejoined full all residual))
+  · cases caller with
+    | prog resume =>
+      cases actual with
+      | refl => exact stop (.inl rfl)
+      | cons step tail =>
+        exact crossDirectGiveRefusal (after := ⟨thread, frames, rest⟩) (canon := ⟨thread, peerFrames, peerRest⟩)
+          total (by simpa only [List.cons_append] using retained) (by simpa only [List.cons_append] using through)
+          rfl paired site leftReply rightReply (.cons step tail)
+    | core core resume =>
+      rcases cutWaitableCorePop leftReply rightReply site actual with empty |
+            ⟨remaining, popped, residual, rejoined, pop, lost⟩
+      · exact stop (.inl empty.1)
+      · have pops := VisitorWriterPath.framed (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+          (.same (.popCore leftReply) rfl (.done _)) (.same (.popCore rightReply) rfl (.done _))
+        obtain ⟨move, full, tracks⟩ := CallbackPrefix.transportAppend retained pop
+        have removed : move (some (.active 0 0)) = none := by
+          have followed := (tracks (some (.active 0 0))).1
+          generalize endpoint : move (some (.active 0 0)) = last at followed ⊢
+          cases followed with
+          | step step tail =>
+            cases tail
+            rw [transitionEdit, leftReply]
+            rfl
+        have all := through.append pops
+        have finalSplit : labels = ((leading ++ used) ++ [.tau]) ++ remaining := by
+          simp only [total, popped, List.append_assoc, List.cons_append, List.nil_append]
+        rcases classifyReachedGrowth (CallbackPrefix.transportPaths full none).choose_spec.1.steps with growing | openUpdate
+        · let checkedPop := { reached with ctl := ⟨thread,
+              .core ((core3 grow).resume reached.store.core core (.values words)) resume, frames⟩ :: rest }
+          let rawPop := { peer with ctl := ⟨thread,
+              .core ((core3 grow).resume peer.store.core core (.values words)) resume, peerFrames⟩ :: peerRest }
+          have unmarked : OccurrenceTransport profile ready base bindings start incoming
+              ((.tau :: (leading ++ used)) ++ [.tau]) ((.tau :: (leading ++ used)) ++ [.tau]) checkedPop rawPop := by
+            obtain ⟨next, trails, outside⟩ := full
+            refine ⟨next, trails, fun older marks before => ?_⟩
+            apply outsideMarks_drop_lost.mp
+            simpa only [List.nil_append, List.map_cons, List.map_nil, List.cons_append, removed] using outside older marks before
+          exact .inl ⟨(leading ++ used) ++ [.tau], .tau :: ((leading ++ used) ++ [.tau]), remaining,
+            checkedPop, rawPop, finalSplit, ⟨by simpa only [List.cons_append] using growing, rfl, rejoined,
+              by simpa only [List.cons_append] using unmarked, by simpa only [List.cons_append] using all⟩, residual⟩
+        · exact .inr (callbackTerminalSlice paired (by
+            rw [finalSplit, ← List.cons_append, ← List.cons_append]
+            exact .nonGrowing openUpdate rejoined full all residual))
   · exact stop (.inr (.inr ⟨left, right, _, _, leftTicket, rightTicket, tree, mismatch⟩))
 
+private def installedAccept (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
+    (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (name : String) (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) : Config (core3 grow) (HostState sig) :=
+  { state with ctl := cursor.control (specDispatch ready impl (.hostCallout (.embedder name kind) args)) }
+
 open ReturnFrame.Occurrence in
-private theorem classifiedAdmittedCoreAcceptCrossing
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    CallbackAdmittedCoreAcceptCrossing profile ready base bindings := by
+private theorem crossAdmittedAcceptBody {worker frames rest peerFrames peerRest name kind args inst loader}
+    {callerFrame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+    (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
+    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: peerFrames, peerRest⟩
+    let checked := installedAccept ready base start check name kind args
+    let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
+    PairedComponentSite older checked raw check canon →
+    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
+    Steps profile ready (specDispatch ready base) checked labels finish →
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
-  intro older start incoming next finish label labels worker core resume frames rest name kind args inst loader
-    focus calling source caller mayLeave step run paired
-  obtain ⟨peerFrames, peerRest, rfl, rfl, site, installed, _, _⟩ :=
-    cutSharedCalloutInstall (.embedder name kind) args focus calling step paired
-  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, .core core resume :: frames, rest⟩
-  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, .core core resume :: peerFrames, peerRest⟩
-  let checked := { start with ctl := check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)) }
-  let raw := { incoming with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)) }
+  dsimp only
+  intro site installed run
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: peerFrames, peerRest⟩
+  let checked := installedAccept ready base start check name kind args
+  let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
   let leftBody := { start with ctl := check.control (calloutBody Limits.spec Quirks.none ready base start.store
     check.thread (.embedder name kind) args) }
   let rightBody := { incoming with ctl := canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
@@ -12568,23 +12577,27 @@ private theorem finishCoreAcceptTrap {left right : Config (core3 grow) (HostStat
       residual (.inr (.inr (.inr ⟨rfl, rfl⟩)))
 
 open ReturnFrame.Occurrence in
-private theorem classifiedDeniedCoreAcceptCrossing {thread core resume frames rest name kind args inst loader} {label next}
+private theorem crossDeniedAcceptBody {thread frames rest peerFrames peerRest name kind args inst loader}
+    {callerFrame : Seg (core3 grow) (HostState sig)}
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
-    (focus : start.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
-    (calling : (core3 grow).status start.store.core core = .callout (.embedder name kind) args)
     (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
     (denied : ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
       (start.store.inst? inst).any (·.mayLeave) = true))
-    (step : Step profile ready (specDispatch ready base) start label next)
-    (run : Steps profile ready (specDispatch ready base) next labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
-    CallbackCrossingAt profile ready base bindings older start incoming label labels finish := by
-  obtain ⟨peerFrames, peerRest, rfl, rfl, site, installed, _, _⟩ :=
-    cutSharedCalloutInstall (.embedder name kind) args focus calling step paired
-  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .core core resume :: frames, rest⟩
-  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .core core resume :: peerFrames, peerRest⟩
-  let checked := { start with ctl := check.control (specDispatch ready base (.hostCallout (.embedder name kind) args)) }
-  let raw := { incoming with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)) }
+    let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+    let checked := installedAccept ready base start check name kind args
+    let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
+    PairedComponentSite older checked raw check canon →
+    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
+    Steps profile ready (specDispatch ready base) checked labels finish →
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  dsimp only
+  intro site installed run
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+  let checked := installedAccept ready base start check name kind args
+  let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
   let leftBody := { start with ctl := check.control (calloutBody Limits.spec Quirks.none ready base start.store
     thread (.embedder name kind) args) }
   let rightBody := { incoming with ctl := canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
@@ -12606,10 +12619,8 @@ private theorem classifiedDeniedCoreAcceptCrossing {thread core resume frames re
     refine (directGivePreludePath (LiveDispatch.host bindings base) name kind args canon rfl).append ?_
     have localPath := coreAcceptDenialPath (profile := profile) (ready := ready) (start := rightBody) (LiveDispatch.host bindings base)
       source rawEmbedder canon (same ▸ denied) rfl
-    have sameDenial : coreAcceptDenial rightBody.store canon.thread = verdict := by
-      change coreAcceptDenial incoming.store thread = coreAcceptDenial start.store thread
-      rw [← same]
-    simpa only [ending, sameDenial] using localPath
+    have sameDenial : coreAcceptDenial incoming.store thread = verdict := by rw [← same]
+    simpa only [ending, raw, rightBody, installedAccept, canon, sameDenial] using localPath
   have installedWriters := frameCalloutStep installed rfl rfl
   rcases splitSilent (leftEntry.1.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
   · have paths := retainInstalledWaitable installed (fun place => ⟨leftEntry.1.track place, rightEntry.1.track place⟩)
@@ -12635,18 +12646,43 @@ private theorem classifiedDeniedCoreAcceptCrossing {thread core resume frames re
     simpa only [List.singleton_append, List.append_nil] using
       (CallbackSliceEnd.coreAcceptTerminal (changes := older) whole (installedWriters.append framed) (.refl _) (.inl rfl))
 
-private theorem classifiedCoreAcceptCrossing
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
-    CallbackCoreAcceptCrossing profile ready base bindings := by
+open ReturnFrame.Occurrence in
+private theorem crossInstalledAccept {thread frames rest peerFrames peerRest name kind args inst loader}
+    {callerFrame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+    let checked := installedAccept ready base start check name kind args
+    let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
+    PairedComponentSite older checked raw check canon →
+    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
+    Steps profile ready (specDispatch ready base) checked labels finish →
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
-  intro older start incoming next finish label labels thread core resume frames rest name kind args inst loader
-    focus calling source step run paired
+  dsimp only
+  intro site installed run
   by_cases admitted : Plain.callerInstance start.store thread = .ok (some inst) ∧
       (start.store.inst? inst).any (·.mayLeave) = true
   · cases thread with
     | none => simp [Plain.callerInstance] at admitted
-    | some worker => exact classifiedAdmittedCoreAcceptCrossing embedder focus calling source admitted.1 admitted.2 step run paired
-  · exact classifiedDeniedCoreAcceptCrossing embedder focus calling source admitted step run paired
+    | some worker => exact crossAdmittedAcceptBody embedder source admitted.1 admitted.2 paired site installed run
+  · exact crossDeniedAcceptBody embedder source admitted paired site installed run
+
+private theorem classifiedCoreAcceptCrossing
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    CallbackCoreAcceptCrossing profile ready base bindings := by
+  intro older start incoming next finish label labels name kind args inst loader call source step run paired
+  cases call with
+  | core focus calling =>
+    obtain ⟨_, _, rfl, rfl, site, installed, _, _⟩ :=
+      cutSharedCalloutInstall (.embedder name kind) args focus calling step paired
+    exact crossInstalledAccept embedder source paired site installed run
+  | program focus =>
+    obtain ⟨_, _, rfl, rfl, site, installed, _, _, _⟩ :=
+      cutProgramCallInstall (.prog (.pure (.cancel .none))) focus step paired
+    exact crossInstalledAccept embedder source paired site installed run
 
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)

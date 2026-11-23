@@ -440,6 +440,16 @@ inductive LinkedCoreAcceptLoader (bindings : List (Binding sig)) (name : String)
       (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩) :
       LinkedCoreAcceptLoader bindings name kind args source.inst (fun state => source.load state args)
 
+/-- The linked callout can be installed by a parked Core caller or by an
+executed program call. The two instructions push different continuations. -/
+inductive LegacyAcceptCallAt (before : Config (core3 grow) (HostState sig))
+    (name : String) (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) : Prop where
+  | core {thread core resume frames rest}
+      (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
+      (calling : (core3 grow).status before.store.core core = .callout (.embedder name kind) args)
+  | program {thread resume frames rest}
+      (focus : before.ctl = ⟨thread, .prog (.op (.call (.hostCallout (.embedder name kind) args)) resume), frames⟩ :: rest)
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -448,9 +458,8 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
     (before : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
     (next : Config (core3 grow) (HostState sig)) : Prop where
   | give (install : GiveInstall bindings dispatch before label next)
-  | coreAcceptInstall {thread core resume frames rest name kind args inst loader}
-      (focus : before.ctl = ⟨thread, .core core resume, frames⟩ :: rest)
-      (calling : (core3 grow).status before.store.core core = .callout (.embedder name kind) args)
+  | coreAcceptInstall {name kind args inst loader}
+      (call : LegacyAcceptCallAt before name kind args)
       (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
   | componentInstall {active hostId caller resume frames rest}
       (focus : before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
