@@ -2246,6 +2246,33 @@ inductive DestructorParentChain (changes : ReturnFrame.Substitutions (core3 grow
         ((PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
         ((PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
 
+/-- Compiler evidence retained at a reached allocating visitor. -/
+abbrev SourceOverlayFieldSource (destination : RecordDestination) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
+  ∃ (root : Stored.Endpoints.RecordLower.Field) (schema : Stored.TypeOf),
+  root.LayoutMatches schema ∧ root.Emitted ∧
+  Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true ∧
+  Stored.Endpoints.RecordLower.Field.AllocatorFor destination.realloc root ∧ root.Descendant item
+
+open Stored.Endpoints in
+/-- The distinct return programs installed by a source allocator call. -/
+inductive SourceAllocatorReturn :
+    ReturnFrame.Continuation (core3 grow) (HostState sig) →
+    ReturnFrame.Continuation (core3 grow) (HostState sig) → Prop where
+  | record (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation)
+      (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+      (compiled : site.compiled cx) :
+      SourceAllocatorReturn (site.resume cx leftNext) (site.resume cx rightNext)
+  | collection (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
+      (entries : List RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
+      (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+      (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+      (matching : RecordLower.Field.EntriesMatch entries element)
+      (source : SourceOverlayFieldSource destination (.dynamic type element entries)) :
+      SourceAllocatorReturn
+        (PayloadPrefix.checkedCollectionResume destination inst entries (ABI.layout destination.width element) index output checkNext)
+        (PayloadPrefix.canonicalCollectionResume destination inst entries (ABI.layout destination.width element) output canonNext
+          (RecordLower.CanonicalTree.EntryMode.forOutput destination.width type output))
+
 open Stored.Endpoints in
 /-- Frames beneath a selected synchronous worker. Common loop tail calls
 can add frames above the two source returns and compiled allocator frames. -/
@@ -2259,10 +2286,9 @@ inductive SourceLiftLoopFrames (changes : ReturnFrame.Substitutions (core3 grow)
   | destructor {left right} (leftTicket rightTicket : Nat) (below : SourceLiftLoopFrames changes left right) :
       SourceLiftLoopFrames changes (.prog (sharedDestructorParentReply leftTicket) :: left)
         (.prog (sharedDestructorParentReply rightTicket) :: right)
-  | allocator {left right} (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation)
-      (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-      (compiled : site.compiled cx) (below : SourceLiftLoopFrames changes left right) :
-      SourceLiftLoopFrames changes (.prog (site.resume cx leftNext) :: left) (.prog (site.resume cx rightNext) :: right)
+  | allocator {left right first second} (source : SourceAllocatorReturn first second)
+      (below : SourceLiftLoopFrames changes left right) :
+      SourceLiftLoopFrames changes (.prog first :: left) (.prog second :: right)
 
 open Stored.Endpoints in
 /-- Source-indexed dormant controls. Each layer keeps its own continuation
@@ -2285,17 +2311,12 @@ inductive SourceParentStack (changes : ReturnFrame.Substitutions (core3 grow) (H
       SourceParentStack changes (check.control (sharedDestructorAfterResume body leftTicket))
         (canon.control (sharedDestructorAfterResume body rightTicket))
   | allocator {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation) (task : TaskId) (caller : CallerId)
-      (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-      (compiled : site.compiled cx)
+      (cx : LiftLowerContext (core3 grow)) (task : TaskId) (caller : CallerId)
       (thread : check.thread = canon.thread)
-      (frames : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (frames : SourceLiftLoopFrames changes check.frames canon.frames)
       (below : SourceParentStack changes check.rest canon.rest) :
-      SourceParentStack changes
-        ({ check with frames := .prog (site.resume cx leftNext) :: check.frames }.control
-          (sharedRecordAllocatorAfterResume cx task caller))
-        ({ canon with frames := .prog (site.resume cx rightNext) :: canon.frames }.control
-          (sharedRecordAllocatorAfterResume cx task caller))
+      SourceParentStack changes (check.control (sharedRecordAllocatorAfterResume cx task caller))
+        (canon.control (sharedRecordAllocatorAfterResume cx task caller))
 
   | syncLift {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (task : TaskId) (thread : check.thread = canon.thread)
@@ -2320,13 +2341,6 @@ structure DestructorParentLoopFrames (first second : ReturnFrame.Continuation (c
   canonicalLoop : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 0) = some (.prog second)
   checkedEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 1) = some enclosing
   canonicalEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 1) = some enclosing
-
-/-- Compiler evidence retained at a reached allocating visitor. -/
-abbrev SourceOverlayFieldSource (destination : RecordDestination) (item : Stored.Endpoints.RecordLower.Field) : Prop :=
-  ∃ (root : Stored.Endpoints.RecordLower.Field) (schema : Stored.TypeOf),
-  root.LayoutMatches schema ∧ root.Emitted ∧
-  Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true ∧
-  Stored.Endpoints.RecordLower.Field.AllocatorFor destination.realloc root ∧ root.Descendant item
 
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
@@ -2683,20 +2697,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   visitor resumes with the pointer read from the original allocator caller. -/
   | sharedDropRecordAllocatorPopped {changes left right reached peer trailing finish pointer}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx : LiftLowerContext (core3 grow)} {site : SharedRecordAllocation}
-      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+      (source : SourceAllocatorReturn first second)
       (parents : SourceParentStack changes check.rest canon.rest)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checkedFocus : left.ctl = { check with frames := .prog (site.resume cx leftNext) :: check.frames }.control (.pure (.nat pointer)))
-      (canonicalFocus : right.ctl = { canon with frames := .prog (site.resume cx rightNext) :: canon.frames }.control (.pure (.nat pointer)))
+      (checkedFocus : left.ctl = { check with frames := .prog first :: check.frames }.control (.pure (.nat pointer)))
+      (canonicalFocus : right.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure (.nat pointer)))
       (checkedPop : Step profile ready (specDispatch ready base) left .tau reached)
       (canonicalPop : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer)
       (checkedLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) left (some (.active 0 0)) [.tau] reached none)
       (canonicalLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
         right (some (.active 0 0)) [.tau] peer none)
-      (checked : reached.ctl = check.control (site.resume cx leftNext (.nat pointer)))
-      (canonical : peer.ctl = canon.control (site.resume cx rightNext (.nat pointer)))
+      (checked : reached.ctl = check.control (first (.nat pointer)))
+      (canonical : peer.ctl = canon.control (second (.nat pointer)))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
@@ -2995,10 +3009,9 @@ induction. Its trails still identify the removed original occurrences. -/
         Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The paired allocator programs have run selection, caller allocation,
-  confinement and task allocation. Their original return occurrences still
-  hold the two source visitors at the reached worker-creation operation. -/
-  | sourceOverlayCollectionWorker {changes reached peer trailing finish callee task caller width}
+  /-- The original allocator frames popped. The reached collection resumes
+  still have their range, reserve, element and publication operations ahead. -/
+  | sourceOverlayCollectionPointer {changes reached peer trailing finish pointer}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
       (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
@@ -3009,20 +3022,13 @@ induction. Its trails still identify the removed original occurrences. -/
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (matching : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element)
       (source : SourceOverlayFieldSource destination (.dynamic type element entries))
-      (allocator : let area := ABI.layout destination.width element
-        SharedRecordAllocatorSource (destination.context inst) ⟨0, 0, area.alignment.bytes, entries.length * area.size⟩
-          width task caller reached.store)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : let area := ABI.layout destination.width element
-        let first := PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext
-        reached.ctl = ({ check with frames := .prog first :: check.frames }).control
-          (.op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread (destination.context inst) task caller)))
+        reached.ctl = check.control (PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext (.nat pointer)))
       (canonical : let area := ABI.layout destination.width element
         let mode := Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput destination.width type output
-        let second := PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext mode
-        peer.ctl = ({ canon with frames := .prog second :: canon.frames }).control
-          (.op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread (destination.context inst) task caller)))
+        peer.ctl = canon.control (PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext mode (.nat pointer)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
