@@ -561,6 +561,9 @@ def SharedRecordAllocation.call (site : SharedRecordAllocation) (cx : LiftLowerC
   let request := site.request
   .reallocate cx request.oldPtr request.oldSize request.alignment request.newSize
 
+def sharedRecordAllocatorFlatArgs (width : AddrType) (request : ABI.ReallocRequest) : List FlatValue :=
+  [ptrFlat width request.oldPtr, ptrFlat width request.oldSize, ptrFlat width request.alignment, ptrFlat width request.newSize]
+
 def sharedRecordAllocatorArgs (width : AddrType) (request : ABI.ReallocRequest) : List Value.Val :=
   let kind := ptrIntKind width
   [.int kind request.oldPtr, .int kind request.oldSize, .int kind request.alignment, .int kind request.newSize]
@@ -2457,6 +2460,42 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) []
         (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control
         (sharedDestructorArguments task (some callee) entry (sharedRecordAllocatorArgs width request)))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The reached allocator Core body is at an actual reentrant import. -/
+  | sharedDropRecordAllocatorCoreCallout {changes reached peer trailing finish body task caller worker host args}
+      {core : (core3 grow).Thread (CanonHost (core3 grow))} {entry : Task (core3 grow)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store)
+      (typeAt : entry.ft = reallocType width) (optionsAt : entry.opts = {}) (callerAt : entry.caller = caller)
+      (checked : reached.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ ::
+        check.control (sharedRecordAllocatorAfterResume cx task caller))
+      (canonical : peer.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ ::
+        canon.control (sharedRecordAllocatorAfterResume cx task caller))
+      (status : (core3 grow).status reached.store.core core = .callout host args)
+      (residual : Steps profile ready (specDispatch ready base) reached (.tau :: trailing) finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  /-- Both allocator Core activations returned the actual words to the
+  canonical result lift. The original allocation return remains parked. -/
+  | sharedDropRecordAllocatorCoreReturned {changes reached peer trailing finish body task caller worker words}
+      {entry : Task (core3 grow)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store)
+      (typeAt : entry.ft = reallocType width) (optionsAt : entry.opts = {}) (callerAt : entry.caller = caller)
+      (checked : reached.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+        (check.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorCoreResult task entry words))
+      (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+        (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorCoreResult task entry words))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
