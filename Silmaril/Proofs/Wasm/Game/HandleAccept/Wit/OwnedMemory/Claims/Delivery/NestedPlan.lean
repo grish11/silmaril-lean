@@ -23678,28 +23678,69 @@ private theorem finishSourceDebugMessage {limit : Nat}
     (fun same checked canonical aligned run bounded => resume [] same aligned checked canonical run bounded)
     same lhs rhs aligned residual within
 
-/-- Canonical builtins with source allocation comparisons. Other builtins
+/-- The cancel result uses the caller of the task reread by `Task.cancel`. -/
+private def sourceTaskCancelPrepare : Session grow sig (TaskId × CallerId) := do
+  let task ← currentTask
+  let initial ← getTask task
+  let inst ← getInst initial.inst
+  trapIf (!inst.mayLeave) .cannotLeave
+  trapIf (!initial.opts.async_) .taskNotAsync
+  let reached ← getTask task
+  trapIf (decide (reached.state ≠ .cancelDelivered)) .taskCancelNotCancelled
+  trapIf (decide (reached.numBorrows > 0)) .borrowsRemain
+  return (task, reached.caller)
+
+private theorem sourceTaskCancelPrepareEffects :
+    StoreEffects (sourceTaskCancelPrepare : Session grow sig (TaskId × CallerId)) := by
+  unfold sourceTaskCancelPrepare getTask getInst
+  exact storeEffectCurrentTask.bind fun task => (storeEffectGetObject ArenaField.tasks task).bind fun initial =>
+    (storeEffectGetObject ArenaField.insts initial.inst).bind fun inst =>
+    (storeEffectTrapIf (!inst.mayLeave) .cannotLeave).bind fun _ =>
+    (storeEffectTrapIf (!initial.opts.async_) .taskNotAsync).bind fun _ =>
+    (storeEffectGetObject ArenaField.tasks task).bind fun reached =>
+    (storeEffectTrapIf (decide (reached.state ≠ .cancelDelivered)) .taskCancelNotCancelled).bind fun _ =>
+    (storeEffectTrapIf (decide (reached.numBorrows > 0)) .borrowsRemain).bind fun _ => .pure (task, reached.caller)
+
+/-- The state write is pending below the actual resolution call. -/
+private def sourceTaskCancelResolve (selected : TaskId × CallerId) : Session grow sig (Ret (core3 grow)) := do
+  callUnit (.onResolve selected.2 none)
+  modifyStore (CStore.setTaskState selected.1 .resolved)
+  return .flat []
+
+private theorem sourceTaskCancelCalloutCode (ready : HostReady (HostState sig))
+    (host : HostImpl (core3 grow) (HostState sig)) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (inst : InstId) :
+    calloutBody Limits.spec Quirks.none ready host store thread (.builtin .taskCancel inst) [] =
+      ((sourceTaskCancelPrepare : Session grow sig _) >>= sourceTaskCancelResolve) := by
+  simp [calloutBody, builtinProg, withArgs0, Builtins.taskCancel, Runtime.Task.cancel, sourceTaskCancelPrepare,
+    sourceTaskCancelResolve, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+
+/-- Canonical builtins with source callback comparisons. Other builtins
 continue through the common executable dispatch in this fold. -/
-private def sourceAllocatingBuiltin : ResolvedBuiltin (core3 grow) → List FlatValue → Bool
+private def sourceBuiltinWithCallback : ResolvedBuiltin (core3 grow) → List FlatValue → Bool
   | .resourceDrop _, [_] => true
   | .errorContextDebugMessage _, [_, _] => true
+  | .taskCancel, [] => true
   | _, _ => false
 
-private theorem finishAdmittedSourceAllocatingBuiltin {limit : Nat}
+private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (reentry : SourceReentryAt profile ready base bindings older limit finish)
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
     (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
-    (selected : sourceAllocatingBuiltin builtin args = true)
+    (selected : sourceBuiltinWithCallback builtin args = true)
     (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
     (checked : start.ctl = check.control (calloutBody Limits.spec Quirks.none ready base start.store check.thread
       (.builtin builtin inst) args))
     (canonical : incoming.ctl = canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
       incoming.store canon.thread (.builtin builtin inst) args))
     (run : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ limit)
-    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let resume : SourceCoreReply profile ready base bindings older check canon limit finish :=
+    fun words {_ _ _} same aligned lhs rhs tail within => compareProgram (.pure (.flat words)) same lhs rhs aligned tail within
   cases builtin with
   | resourceDrop resource =>
     rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
@@ -23722,21 +23763,33 @@ private theorem finishAdmittedSourceAllocatingBuiltin {limit : Nat}
       exact finishSourceDebugMessage (check := check) (canon := canon) reentry.1 parents thread segments
         opts (flatNat index) (flatNat dest) resume stores leftAt rightAt scheduler run bounded
     · contradiction
+  | taskCancel =>
+    cases args with
+    | nil =>
+      have leftAt := checked.trans (congrArg check.control
+        (sourceTaskCancelCalloutCode ready base start.store check.thread inst))
+      have rightAt := canonical.trans (congrArg canon.control
+        (sourceTaskCancelCalloutCode ready (LiveDispatch.host bindings base) incoming.store canon.thread inst))
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread sourceTaskCancelPrepare sourceTaskCancelPrepareEffects
+        sourceTaskCancelResolve sourceTaskCancelResolve (fun selected => compareProgram (sourceTaskCancelResolve selected))
+        stores leftAt rightAt scheduler run bounded
+    | cons => contradiction
   | _ => contradiction
 
-private theorem finishSourceAllocatingBuiltinEntry {limit : Nat}
+private theorem finishSourceBuiltinWithCallbackEntry {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (reentry : SourceReentryAt profile ready base bindings older limit finish)
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
     (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
-    (selected : sourceAllocatingBuiltin builtin args = true)
+    (selected : sourceBuiltinWithCallback builtin args = true)
     (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
     (checked : start.ctl = check.control (specDispatch ready base (.hostCallout (.builtin builtin inst) args)))
     (canonical : incoming.ctl = canon.control (specDispatch ready (LiveDispatch.host bindings base)
       (.hostCallout (.builtin builtin inst) args)))
     (run : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ limit)
-    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   let host : CanonHost (core3 grow) := .builtin builtin inst
   have checkedReads := sharedDestructorImportReads (profile := profile) base check host args checked
@@ -23767,9 +23820,9 @@ private theorem finishSourceAllocatingBuiltinEntry {limit : Nat}
       have rightCode : sharedDestructorImportProgram ready (LiveDispatch.host bindings base) incoming.store canon.thread host args =
           calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store canon.thread host args := by
         simp only [sharedDestructorImportProgram, rightEntry, admitted]
-      exact finishAdmittedSourceAllocatingBuiltin (check := check) (canon := canon) reentry parents thread segments
+      exact finishAdmittedSourceBuiltinWithCallback (check := check) (canon := canon) reentry parents thread segments
         builtin inst args selected stores scheduler (congrArg check.control leftCode) (congrArg canon.control rightCode)
-        residual (destructorSuffixBound split bounded) resume
+        residual (destructorSuffixBound split bounded) compareProgram
 
 open Stored.OwnedMemory.Claims in
 private theorem finishSourceSelectedGive {limit : Nat}
@@ -24039,17 +24092,18 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
                           (congrFun (congrFun (congrFun embedder name) kind) args) binding leftAt rightAt run
               · exact otherwise
           | builtin builtin inst =>
-            by_cases selected : sourceAllocatingBuiltin builtin args = true
+            by_cases selected : sourceBuiltinWithCallback builtin args = true
             · have moved := sharedSchedulerTransport (bindings := bindings) checked canonical leftEdit rightEdit
               let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, mark :: frames, active ++ rest⟩
               let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, mark :: peerFrames, peerActive ++ peerRest⟩
-              have resume : SourceCoreReply profile ready base bindings older check canon trailing.length finish :=
-                fun _ {_ _ _} same aligned lhs rhs run bound =>
+              have compareProgram (program : Session grow sig (Ret (core3 grow))) :
+                  DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older trailing.length finish program program :=
+                fun same lhs rhs aligned run bound =>
                   proceed (.mk (.cons (.same _) segments)) resumers same aligned lhs rhs run bound
               refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
-              exact finishSourceAllocatingBuiltinEntry (check := check) (canon := canon)
+              exact finishSourceBuiltinWithCallbackEntry (check := check) (canon := canon)
                 (imports trailing.length (Nat.lt_succ_self _)) (.prefixed resumers parents) rfl (.cons (.same _) segments)
-                builtin inst args selected stores scheduler rfl rfl tail (Nat.le_refl _) resume
+                builtin inst args selected stores scheduler rfl rfl tail (Nat.le_refl _) compareProgram
             · exact otherwise
           | _ => exact otherwise
         cases actual with
@@ -24657,15 +24711,16 @@ private theorem crossAdmittedSourceBuiltin {limit cap : Nat}
       Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  by_cases selected : sourceAllocatingBuiltin builtin args = true
+  by_cases selected : sourceBuiltinWithCallback builtin args = true
   · let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], rest⟩
     let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], peerRest⟩
     let segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames := .cons (.same _) .nil
-    have resume := finishSourceCoreReplyWith (limit := labels.length) (check := check) (canon := canon)
-      compare withinCap parents present rfl segments
-      (fun stores checked canonical aligned run bounded => exposed stores checked canonical aligned run (bounded.trans within))
-    exact finishAdmittedSourceAllocatingBuiltin (check := check) (canon := canon) reentry parents rfl segments
-      builtin inst args selected stores scheduler checked canonical run (Nat.le_refl _) resume
+    have compareProgram (program : Session grow sig (Ret (core3 grow))) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older labels.length finish program program :=
+      fun same lhs rhs aligned residual bounded => crossAdmittedSourceProgram compare program parents present same aligned
+        lhs rhs residual (bounded.trans within) (bounded.trans withinCap) exposed
+    exact finishAdmittedSourceBuiltinWithCallback (check := check) (canon := canon) reentry parents rfl segments
+      builtin inst args selected stores scheduler checked canonical run (Nat.le_refl _) compareProgram
   · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
 
 private theorem compareAdmittedSourceLinkedWith {limit cap : Nat}
