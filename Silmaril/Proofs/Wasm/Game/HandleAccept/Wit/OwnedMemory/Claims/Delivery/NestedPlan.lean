@@ -11811,7 +11811,7 @@ private theorem crossReadyCancelCore {decision peerDecision : Config (core3 grow
     (actual : Steps profile ready (specDispatch ready base) decision trailing finish)
     (paired : HostFrame.Related.Paired older start incoming)
     (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length)
-    (fallback : CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish) :
+    (nonempty : trailing ≠ []) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   cases choice with
   | none =>
@@ -11836,10 +11836,47 @@ private theorem crossReadyCancelCore {decision peerDecision : Config (core3 grow
         (by simpa only [List.cons_append, visibleTauCons] using seen) exit terminal residual
   | some waiter =>
     cases thread with
-    | none => exact fallback
+    | none =>
+      cases actual with
+      | refl => exact (nonempty rfl).elim
+      | @cons _ next _ action suffix first tail =>
+        let reason := TrapReason.internal "block on a host frame"
+        have checkedFault : Step profile ready (specDispatch ready base) decision (.trap reason) (StepDefs.trapCfg decision) :=
+          .fault (.blockNoThread leftFocus)
+        have rawFault : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) peerDecision
+            (.trap reason) (StepDefs.trapCfg peerDecision) :=
+          .fault (.blockNoThread rightFocus)
+        have actualLabel : action = .trap reason := by
+          by_contra different
+          exact (differentStepBranch checkedFault first (Ne.symm different)).1
+        subst action
+        cases labelledStepUnique checkedFault first
+        let clearEdit : Edit (core3 grow) (HostState sig) := .clear
+        have faultPaths : OccurrenceTransport profile ready base bindings decision peerDecision
+            [.trap reason] [.trap reason] (StepDefs.trapCfg decision) (StepDefs.trapCfg peerDecision) := by
+          refine ⟨(·.bind clearEdit.follow), fun mark => ⟨.step checkedFault (.done _ _), .step rawFault (.done _ _)⟩, ?_⟩
+          intro changes marks outside
+          rw [step_edit checkedFault, step_edit rawFault,
+            show transitionEdit decision (.trap reason) = clearEdit from rfl,
+            show transitionEdit peerDecision (.trap reason) = clearEdit from rfl]
+          simpa only [List.nil_append] using outside.edit clearEdit
+        have aligned := pairComponentFocus leftFocus rightFocus site
+        have trapped : HostFrame.Related.Paired older (StepDefs.trapCfg decision) (StepDefs.trapCfg peerDecision) := by
+          simpa only [StepDefs.trapCfg, aligned.data.1] using
+            (aligned.set_store (StepDefs.lockdownSt peerDecision.store)).clear_control
+        have paths := (CallbackPrefix.transportAppend caller faultPaths).choose_spec.1
+        have effects := decisionWriters.append (.framed (.same checkedFault rfl (.done _)) (.same rawFault rfl (.done _)))
+        have full : .tau :: labels = ((.tau :: checked) ++ [.trap reason]) ++ suffix := by
+          rw [split]
+          simp only [List.cons_append, List.append_assoc, List.nil_append]
+        refine .inr (callbackTerminalSlice paired ?_)
+        rw [full]
+        exact .cancelDecisionTerminal (check := ⟨none, .core core resume :: frames, rest⟩)
+          (canon := ⟨none, .core core resume :: peerFrames, peerRest⟩) (subtask := subtask) paths effects
+          (by simp only [visibleAppend, visibleTauCons, observed]) (.trapped rfl rfl trapped) (.inr ⟨rfl, rfl⟩) tail
     | some active =>
-      rcases cutCoreCalloutPark (bindings := bindings) (cancelFinish subtask) leftFocus rightFocus site actual with _ | parked
-      · exact fallback
+      rcases cutCoreCalloutPark (bindings := bindings) (cancelFinish subtask) leftFocus rightFocus site actual with stopped | parked
+      · exact (nonempty stopped.1).elim
       obtain ⟨remaining, used, residual, aligned, path, saved, _⟩ := parked
       have shorter : remaining.length < (.tau :: labels).length := by
         rw [split, used, List.length_cons, List.length_append, List.length_cons]
@@ -11918,6 +11955,8 @@ private theorem crossCancelAfterHook {resumed peerResume : Config (core3 grow) (
   | trapped left right _ => exact terminal (.inr ⟨left, right⟩)
   | pending _ _ _ _ _ stop => exact terminal (.inl (stop.resolve_right (fun impossible => impossible.1 trivial)))
   | returned choice left right finalSite =>
+    by_cases empty : residual = []
+    · exact terminal (.inl empty)
     have throughDecision := (CallbackPrefix.transportAppend path pathDecision).choose_spec.1
     obtain ⟨move, marked, _⟩ := CallbackPrefix.transportAppend caller pathDecision
     have fallback : CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
@@ -11943,7 +11982,7 @@ private theorem crossCancelAfterHook {resumed peerResume : Config (core3 grow) (
             cursor.control (cancelAfterHookDecision subtask choice)) checkAt))
           (right.trans (congrArg (fun cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) =>
             cursor.control (cancelAfterHookDecision subtask choice)) canonAt))
-          ((congrArg₂ (PairedComponentSite older reached peer) checkAt canonAt).mp finalSite) run paired compare fallback
+          ((congrArg₂ (PairedComponentSite older reached peer) checkAt canonAt).mp finalSite) run paired compare empty
       · exact fallback
     · exact fallback
 
