@@ -14021,7 +14021,8 @@ private theorem crossSharedDestructorOnStart
     (rightAt : incoming.ctl = canon.control (sharedDestructorAfterAdmission task callee true))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (afterPop : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
-      (tk : Task (core3 grow)) (args : List Value.Val),
+      (tk : Task (core3 grow)) (args : List Value.Val) (width : AddrType) (rep : Nat),
+      tk.ft = dtorType width → tk.opts = {} → (∃ kind, args = [.int kind (rep : Int)]) →
       SharedDestructorOnStartPop profile ready (specDispatch ready base) check tk.caller (sharedDestructorStartReply task callee tk) args left →
       SharedDestructorOnStartPop profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon
         tk.caller (sharedDestructorStartReply task callee tk) args right →
@@ -14030,7 +14031,7 @@ private theorem crossSharedDestructorOnStart
       Steps profile ready (specDispatch ready base) left remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  obtain ⟨tk, rep, taskAt, _, callerAt⟩ := source.entry
+  obtain ⟨tk, width, rep, taskAt, typeAt, optionsAt, callerAt⟩ := source.entry
   have rightTask : ArenaField.tasks.get? incoming.store task = some tk := source.paired ▸ taskAt
   let resume := sharedDestructorStartReply (sig := sig) task callee tk
   let call := Call.onStart (E := core3 grow) tk.caller
@@ -14098,7 +14099,10 @@ private theorem crossSharedDestructorOnStart
           have popped := sharedSchedulerTransport (bindings := bindings) popLeft popRight rfl rfl
           change CallbackSliceEnd profile ready base bindings older retLeft retRight ([.tau] ++ afterReturn) finish
           refine CallbackSliceEnd.comparedPrefix popped (frameCalloutStep popped rfl rfl) ?_
-          exact afterPop tk args
+          have integer : ∃ kind, args = [.int kind (rep : Int)] := by
+            unfold args sharedDestructorOnStartArguments repVal
+            split <;> exact ⟨_, rfl⟩
+          exact afterPop tk args width rep typeAt optionsAt integer
             ⟨callLeft, enterLeft, retLeft, rfl, callCheck, rfl, readLeft.1.track _, rfl, popLeft⟩
             ⟨callRight, enterRight, retRight, rfl, callCanon, rfl, readRight.1.track _, rfl, popRight⟩
             rfl rfl residual
@@ -14109,6 +14113,130 @@ private theorem crossSharedDestructorOnStart
       have stopped := stepsAtEmpty (empty ▸ residual)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
 
+private theorem sharedDestructorFlatArgumentCode (cx : LiftLowerContext (core3 grow)) (width : AddrType) (kind : Value.IntKind) (rep : Nat) :
+    (lowerFlatValues Limits.spec Quirks.none cx ABI.maxFlatParams [.int kind rep]
+      (paramTypes (dtorType width)) none : Session grow sig (List FlatValue)) =
+    .op .get (fun _ => .pure [sharedDestructorFlatArgument width rep]) := by
+  unfold lowerFlatValues ptrType
+  simp [gets, getStore, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext store
+  change CStore (core3 grow) at store
+  generalize ptrTypeIn store cx = address
+  have fits : ¬ ABI.maxFlatParams < (ABI.flattenTypes address (paramTypes (dtorType width))).length := by
+    cases width <;> simp [dtorType, ptrPrim, paramTypes, ABI.flattenTypes, ABI.flatten, ABI.flattenPrimitive, ABI.maxFlatParams]
+  simp only [fits, ite_false]
+  cases width <;> cases address <;> rfl
+
+private theorem sharedDestructorNoResultCode (cx : LiftLowerContext (core3 grow)) :
+    (liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatResults (.ofList []) [] :
+      Session grow sig (List Value.Val × FlatCursor)) =
+    .op .get (fun _ => .pure ([], .ofList [])) := by
+  unfold liftFlatValues ptrType
+  simp [gets, getStore, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext store
+  change CStore (core3 grow) at store
+  generalize ptrTypeIn store cx = address
+  have fits : ¬ ABI.maxFlatResults < (ABI.flattenTypes (Resource := RtId) address []).length := by
+    simp [ABI.flattenTypes]
+  simp only [fits, ite_false]
+  cases address <;> rfl
+
+private def sharedDestructorScalars (task : TaskId) (callee : Option (core3 grow).FuncAddr)
+    (tk : Task (core3 grow)) (width : AddrType) (rep : Nat) : Session grow sig (Ret (core3 grow)) :=
+  match callee with
+  | none => .op .get (fun _ => sharedDestructorFinish task [])
+  | some f => .op (.callCore f [sharedDestructorFlatArgument width rep]) (sharedDestructorCoreResult task tk)
+
+private theorem sharedDestructorScalarsCode (task : TaskId) (callee : Option (core3 grow).FuncAddr)
+    (tk : Task (core3 grow)) (width : AddrType) (rep : Nat) (kind : Value.IntKind)
+    (typeAt : tk.ft = dtorType width) (optionsAt : tk.opts = {}) :
+    (sharedDestructorArguments task callee tk [.int kind (rep : Int)] : Session grow sig (Ret (core3 grow))) =
+      .op .get (fun _ => sharedDestructorScalars task callee tk width rep) := by
+  let cx : LiftLowerContext (core3 grow) := { opts := tk.opts, inst := tk.inst, scope := .task task }
+  have resultTypesEmpty : resultTypes tk.ft = [] := by rw [typeAt]; rfl
+  have flat : (lowerFlatValues Limits.spec Quirks.none cx ABI.maxFlatParams [.int kind (rep : Int)]
+        (paramTypes tk.ft) none : Session grow sig (List FlatValue)) =
+      .op .get (fun _ => .pure [sharedDestructorFlatArgument width rep]) := by
+    rw [typeAt]
+    exact sharedDestructorFlatArgumentCode cx width kind rep
+  cases callee with
+  | none =>
+    unfold sharedDestructorArguments sharedDestructorScalars
+    change (lowerFlatValues Limits.spec Quirks.none cx ABI.maxFlatParams [.int kind (rep : Int)] (paramTypes tk.ft) none >>= fun _ =>
+      liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatResults (.ofList []) (resultTypes tk.ft) >>= fun result =>
+        sharedDestructorFinish task result.1) = _
+    rw [flat, resultTypesEmpty, sharedDestructorNoResultCode]
+    rfl
+  | some f =>
+    unfold sharedDestructorArguments liftArgumentsBody sharedDestructorScalars
+    change (lowerFlatValues Limits.spec Quirks.none cx ABI.maxFlatParams [.int kind (rep : Int)] (paramTypes tk.ft) none >>=
+      liftArgumentsTail Limits.spec Quirks.none task f tk cx) = _
+    rw [flat]
+    unfold liftArgumentsTail liftSyncTail
+    simp [optionsAt, cx, callCore, perform, Prog.lift, bind, Prog.bind, Prog.bind_assoc]
+    congr 1
+    funext store
+    congr 1
+    funext words
+    simp [sharedDestructorCoreResult, sharedDestructorFinish, optionsAt, bind]
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedDestructorScalars {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (task : TaskId) (callee : Option (core3 grow).FuncAddr) (tk : Task (core3 grow)) (width : AddrType) (rep : Nat)
+    (args : List Value.Val) (typeAt : tk.ft = dtorType width) (optionsAt : tk.opts = {})
+    (integer : ∃ kind, args = [.int kind (rep : Int)])
+    (leftAt : start.ctl = check.control (sharedDestructorArguments task callee tk args))
+    (rightAt : incoming.ctl = canon.control (sharedDestructorArguments task callee tk args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (resume : ∀ {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig},
+      left.ctl = ⟨check.thread, sharedDestructorBodyFocus task callee tk width rep, check.frames⟩ :: check.rest →
+      right.ctl = ⟨canon.thread, sharedDestructorBodyFocus task callee tk width rep, canon.frames⟩ :: canon.rest →
+      Steps profile ready (specDispatch ready base) left trailing finish →
+      CallbackSliceEnd profile ready base bindings older left right trailing finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  obtain ⟨kind, rfl⟩ := integer
+  rw [sharedDestructorScalarsCode task callee tk width rep kind typeAt optionsAt] at leftAt rightAt
+  let program := sharedDestructorScalars (sig := sig) task callee tk width rep
+  let left := { start with ctl := check.control program }
+  let right := { incoming with ctl := canon.control program }
+  have getLeft : Step profile ready (specDispatch ready base) start .tau left :=
+    .get (th := check.thread) (segs := check.frames) (rest := check.rest) (k := fun _ => program) leftAt
+  have getRight : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+    .get (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := fun _ => program) rightAt
+  rcases splitSilent (count := 1) (.cons getLeft (.refl _)) run with ⟨afterGet, tookGet, residual⟩ | short
+  · rw [tookGet]
+    have read := sharedSchedulerTransport (bindings := bindings) (edit := .same) getLeft getRight
+      (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+    refine CallbackSliceEnd.comparedPrefix read (frameCalloutStep read rfl rfl) ?_
+    let body := sharedDestructorBodyFocus (sig := sig) task callee tk width rep
+    let checkBody := { left with ctl := ⟨check.thread, body, check.frames⟩ :: check.rest }
+    let canonBody := { right with ctl := ⟨canon.thread, body, canon.frames⟩ :: canon.rest }
+    have checkStep : Step profile ready (specDispatch ready base) left .tau checkBody := by
+      cases callee with
+      | none => exact .get (th := check.thread) (segs := check.frames) (rest := check.rest) (k := fun _ => sharedDestructorFinish task []) rfl
+      | some f =>
+        exact .callCore (th := check.thread) (segs := check.frames) (rest := check.rest) (f := f)
+          (args := [sharedDestructorFlatArgument width rep]) (k := sharedDestructorCoreResult task tk) rfl
+    have canonStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau canonBody := by
+      cases callee with
+      | none => exact .get (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := fun _ => sharedDestructorFinish task []) rfl
+      | some f =>
+        exact .callCore (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (f := f)
+          (args := [sharedDestructorFlatArgument width rep]) (k := sharedDestructorCoreResult task tk) rfl
+    rcases splitSilent (count := 1) (.cons checkStep (.refl _)) residual with ⟨rest, used, tail⟩ | short
+    · rw [used]
+      have compared := sharedSchedulerTransport (bindings := bindings) (edit := .same) checkStep canonStep
+        (by cases callee <;> rfl) (by cases callee <;> rfl)
+      exact .comparedPrefix compared (frameCalloutStep compared rfl rfl) (resume rfl rfl tail)
+    · have empty : afterGet = [] := List.length_eq_zero_iff.mp (by omega)
+      have stopped := stepsAtEmpty (empty ▸ residual)
+      exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+  · have empty : labels = [] := List.length_eq_zero_iff.mp (by omega)
+    have stopped := stepsAtEmpty (empty ▸ run)
+    exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+
 open ReturnFrame.Occurrence in
 private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14118,6 +14246,8 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
     {entry : Task (core3 grow)}
     (fresh : ArenaField.tasks.get? left.store task = some entry)
     (synchronous : entry.ft.async_ = false)
+    {width : AddrType}
+    (typeAt : entry.ft = dtorType width) (optionsAt : entry.opts = {})
     {rep : Nat}
     (caller : ArenaField.callers.get? left.store entry.caller = some (.sub (.destructor rep)))
     (split : labels = leading ++ trailing)
@@ -14302,12 +14432,14 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
               exact .inr (callbackTerminalSlice paired (by
                 rw [allUsed]
                 exact .comparedPrefix paths writers (crossSharedDestructorOnStart task callee workerSource checked canonical tail
-                  (fun tk args leftPop rightPop leftAt rightAt residual => by
-                    simpa only [List.nil_append] using
-                      (CallbackSliceEnd.sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate
-                        source workerSource leftPop rightPop leftAt rightAt
-                        (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
-                        WriterPaths.empty tickets residual)))))
+                  (fun tk args width rep typeAt optionsAt integer leftPop rightPop leftAt rightAt residual =>
+                    crossSharedDestructorScalars task callee tk width rep args typeAt optionsAt integer leftAt rightAt residual
+                      (fun checkedBody canonicalBody tail => by
+                        simpa only [List.nil_append] using
+                          (CallbackSliceEnd.sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate
+                            source workerSource leftPop rightPop checkedBody canonicalBody
+                            (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
+                            WriterPaths.empty tickets tail))))))
             change Steps profile ready (specDispatch ready base) readLeft following finish at remaining
             let reachedTask := { entry with implicitThread := some worker }
             have taskAt : ArenaField.tasks.get? leftStore task = some reachedTask := by
@@ -14405,7 +14537,7 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                   · split <;> exact callerAt
                 have workerSource : SharedDestructorRegisteredSource task afterCheck.store afterCanon.store :=
                   ⟨checkedStore.trans ((congrArg (CStore.registerThreadSt task worker) sameStore).trans canonicalStore.symm),
-                    _, rep, registeredTask, synchronous, registeredCaller⟩
+                    _, width, rep, registeredTask, typeAt, optionsAt, registeredCaller⟩
                 exact stopAt allUsed whole (finalWriters.append writes) workerSource atCheck atCanon residual
       · have empty : afterReady = [] := List.length_eq_zero_iff.mp (by omega)
         have stopped : finish = resumeLeft := by
@@ -14566,6 +14698,7 @@ private theorem crossSharedDropDestructorSetup {left right : Config (core3 grow)
       exact crossSharedDestructorWorker (leftTicket := leftTicket) (rightTicket := rightTicket)
         allocation.2 result.2.dtor (sharedDestructorThread allocation.2 result.2.dtor) rfl
         (ArenaField.tasks.get?_alloc_self caller.1 entry.val) entry.property
+        (width := rep) rfl rfl
         (ArenaField.callers.get?_alloc_self reached.store callerEntry)
         usedTask paired taskPaths taskWriters taskSite rfl rfl taskRun compare
 
