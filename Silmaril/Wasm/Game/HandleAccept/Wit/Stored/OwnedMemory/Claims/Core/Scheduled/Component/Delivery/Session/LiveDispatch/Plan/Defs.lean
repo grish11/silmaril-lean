@@ -426,6 +426,38 @@ def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List Record
   | none => sharedRecordReport ticket (.error (.preflight (.abi .allocationPrecondition)))
   | some width => sharedRecordMemory cx width fields ptr 0 ticket
 
+open Stored.Endpoints in
+def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) := do
+  let slot ← lowerOwn Limits.spec cx resource rep
+  return .ok (← RecordLower.Internal.publishSlot cx slot (.memory ptr))
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+def sharedRecordOwnerAfterProbe (cx : LiftLowerContext (core3 grow)) (receipt : Stored.OwnedMemory.Receipt)
+    (index ptr : Nat) : Except RecordLower.Issue Nat → Session grow sig (Except RecordLower.Issue Unit)
+  | .error issue => .pure (.error (.nested index issue))
+  | .ok rep => claims.spend (.owner (receiptId receipt)) >>= fun _ => sharedRecordOwnerTransfer cx receipt.1 rep ptr
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+/-- The reached owner field checks its nominal receipt on both dispatches.
+Each post-read focus keeps the original field and caller continuation. -/
+structure SharedRecordOwnerProbeMismatch
+    (left right reached peer : Config (core3 grow) (HostState sig))
+    (receipt : Stored.OwnedMemory.Receipt) (cx : LiftLowerContext (core3 grow)) (index ptr : Nat)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) where
+  checkedNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  leftFocus : left.ctl = check.control (.op .hostGet (fun state =>
+    sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= checkedNext))
+  rightFocus : right.ctl = canon.control (.op .hostGet (fun state =>
+    sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= canonicalNext))
+  leftReached : reached.ctl = check.control
+    (sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner left.host.writer receipt).map Prod.fst) >>= checkedNext)
+  rightReached : peer.ctl = canon.control
+    (sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner right.host.writer receipt).map Prod.fst) >>= canonicalNext)
+  different : (Record.prepareOwner left.host.writer receipt).map Prod.fst ≠
+    (Record.prepareOwner right.host.writer receipt).map Prod.fst
+
 def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
   site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
 
@@ -650,6 +682,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
       VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
+  | recordOwnerMismatch {start incoming left right receipt cx index ptr check canon}
+      (site : SharedRecordOwnerProbeMismatch start incoming left right receipt cx index ptr check canon)
+      (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
   | ownerCommit {start incoming left right site rep leftTicket rightTicket}
       (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
       (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
@@ -805,6 +842,23 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
       (live : pending probe ∨ probe ∈ spends)
       (conflict : ReachedPrepareConflict atLeft.store atLeft.host.writer atRight.host.writer plan probe)
+      (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending
+        (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
+  | recordOwnerConflict {checked canonical left right atLeft atRight readLeft readRight tailChecked tailCanonical
+      receipt cx index ptr check canon}
+      (spends : List Spend)
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical atLeft atRight spends)
+      (site : SharedRecordOwnerProbeMismatch atLeft atRight readLeft readRight receipt cx index ptr check canon)
+      (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] readLeft [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] readRight [])
+      (checkedRead : ReachedReadOccurrences profile ready (specDispatch ready base) start atLeft readLeft checked)
+      (rawRead : ReachedReadOccurrences profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming atRight readRight canonical)
+      (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
+      (exceptional : pending (.owner (receiptId receipt)) ∨ .owner (receiptId receipt) ∈ spends)
+      (different : ¬ (Spend.owner (receiptId receipt)).ObservationAgrees atLeft.host.writer atRight.host.writer)
       (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending
         (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
@@ -1743,6 +1797,25 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {beforeLeft beforeRight plan}
       (site : SharedRecordPrepareMismatch beforeLeft beforeRight left right plan check canon)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedRecordOwnerMismatch {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {beforeLeft beforeRight receipt cx index ptr}
+      (site : SharedRecordOwnerProbeMismatch beforeLeft beforeRight left right receipt cx index ptr check canon)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedRecordOwnerPrepared {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {receipt cx index ptr rep}
+      {checkedSpent canonicalSpent : Stored.OwnedMemory.Claims.State sig}
+      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (checkedPrepared : Stored.OwnedMemory.Claims.Record.prepareOwner left.host.writer receipt = .ok (rep, checkedSpent))
+      (canonicalPrepared : Stored.OwnedMemory.Claims.Record.prepareOwner right.host.writer receipt = .ok (rep, canonicalSpent))
+      (checked : left.ctl = check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= checkedNext))
+      (canonical : right.ctl = canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= canonicalNext))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :

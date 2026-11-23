@@ -246,7 +246,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | sharedGiveMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
-  | sharedRecordPrepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | sharedRecordPrepare _ lhs rhs | recordOwnerMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | ownerCommit lhs rhs => exact ⟨_, _, (ownerSpendWriter lhs).2, (ownerSpendWriter rhs).2⟩
   | dropCommit lhs rhs => exact ⟨_, _, (dropSpendWriter lhs).2, (dropSpendWriter rhs).2⟩
   | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
@@ -377,10 +377,9 @@ private theorem sharedGiveReadOccurrences {atLeft atRight : Config (core3 grow) 
     exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) (by rw [transitionEdit, site.rightFocus]; rfl) reached⟩
 
 open ReturnFrame.Occurrence in
-private theorem sharedRecordReadOccurrences {atLeft atRight : Config (core3 grow) (HostState sig)}
-    {check canon plan}
+private theorem pairedWriterReadOccurrences {atLeft atRight : Config (core3 grow) (HostState sig)}
     (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
-    (site : SharedRecordPrepareMismatch atLeft atRight left right plan check canon)
+    (leftRead : transitionEdit atLeft .tau = .same) (rightRead : transitionEdit atRight .tau = .same)
     (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] left [])
     (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] right []) :
     ReachedReadOccurrences profile ready (specDispatch ready base) start atLeft left checked ∧
@@ -389,12 +388,12 @@ private theorem sharedRecordReadOccurrences {atLeft atRight : Config (core3 grow
   constructor
   · intro place
     obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps checked) place
-    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep lhs) (by rw [transitionEdit, site.leftFocus]; rfl) reached⟩
+    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep lhs) leftRead reached⟩
   · intro place
     obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps canonical) place
-    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) (by rw [transitionEdit, site.rightFocus]; rfl) reached⟩
+    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) rightRead reached⟩
 
-open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
+open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record ReturnFrame.Occurrence in
 theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
@@ -439,10 +438,21 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     have different : prepare start.store start.host.writer plan ≠ prepare start.store incoming.host.writer plan := by
       simpa only [← site.store] using site.different
     obtain ⟨probe, live, conflict⟩ := prepare_conflict start.store plan initial different
-    obtain ⟨checkedRead, rawRead⟩ := sharedRecordReadOccurrences (empty (start := start) (incoming := incoming)) site lhs rhs
+    obtain ⟨checkedRead, rawRead⟩ := pairedWriterReadOccurrences (empty (start := start) (incoming := incoming))
+      (by rw [transitionEdit, site.leftFocus]; rfl) (by rw [transitionEdit, site.rightFocus]; rfl) lhs rhs
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.sharedRecordConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
         checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using initial) (.inl live) conflict empty)
+  | @recordOwnerMismatch start incoming readLeft readRight receipt cx index ptr check canon site lhs rhs =>
+    have conflict : ¬ (Spend.owner (receiptId receipt)).ObservationAgrees start.host.writer incoming.host.writer :=
+      fun observes => site.different (prepareOwner_observed receipt observes)
+    have exceptional : pending (.owner (receiptId receipt)) :=
+      Classical.byContradiction fun outside => conflict (initial.observe _ outside)
+    obtain ⟨checkedRead, rawRead⟩ := pairedWriterReadOccurrences (empty (start := start) (incoming := incoming))
+      (by rw [transitionEdit, site.leftFocus]; rfl) (by rw [transitionEdit, site.rightFocus]; rfl) lhs rhs
+    simpa only [List.nil_append, List.append_nil] using
+      (WriterDiscrepancyCut.recordOwnerConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
+        checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using initial) (.inl exceptional) conflict empty)
   | @ownerCommit start incoming left right site rep leftTicket rightTicket lhs rhs =>
     have after := initial.spendBoth (.owner site.identity)
     refine .complete [] (.ownerCommit lhs rhs) ?_
@@ -504,10 +514,18 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
           site lhs rhs checkedRead rawRead (by simpa only [List.mem_append, or_assoc] using related)
           (by simpa only [List.mem_append, or_assoc] using live) different trailing)
       | sharedRecordConflict more leading nextCertified site lhs rhs _ _ related live conflict trailing =>
-        obtain ⟨checkedRead, rawRead⟩ := sharedRecordReadOccurrences (front.append leading) site lhs rhs
+        obtain ⟨checkedRead, rawRead⟩ := pairedWriterReadOccurrences (front.append leading)
+          (by rw [transitionEdit, site.leftFocus]; rfl) (by rw [transitionEdit, site.rightFocus]; rfl) lhs rhs
         simpa only [List.append_assoc] using (WriterDiscrepancyCut.sharedRecordConflict (spends ++ more) (front.append leading)
           (certified.append nextCertified)
           site lhs rhs checkedRead rawRead (by simpa only [List.mem_append, or_assoc] using related)
+          (by simpa only [List.mem_append, or_assoc] using live) conflict trailing)
+      | recordOwnerConflict more leading nextCertified site lhs rhs _ _ related live conflict trailing =>
+        obtain ⟨checkedRead, rawRead⟩ := pairedWriterReadOccurrences (front.append leading)
+          (by rw [transitionEdit, site.leftFocus]; rfl) (by rw [transitionEdit, site.rightFocus]; rfl) lhs rhs
+        simpa only [List.append_assoc] using (WriterDiscrepancyCut.recordOwnerConflict (spends ++ more) (front.append leading)
+          (certified.append nextCertified) site lhs rhs checkedRead rawRead
+          (by simpa only [List.mem_append, or_assoc] using related)
           (by simpa only [List.mem_append, or_assoc] using live) conflict trailing)
     | boundary spends leading certified related site actual trailing =>
       simpa only [List.append_assoc] using
@@ -527,6 +545,10 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     | sharedRecordConflict spends leading certified site lhs rhs checkedRead rawRead related live conflict trailing =>
       simpa only [List.append_assoc] using
         (WriterDiscrepancyCut.sharedRecordConflict spends leading certified site lhs rhs checkedRead rawRead related live conflict
+          (trailing.append tail))
+    | recordOwnerConflict spends leading certified site lhs rhs checkedRead rawRead related live conflict trailing =>
+      simpa only [List.append_assoc] using
+        (WriterDiscrepancyCut.recordOwnerConflict spends leading certified site lhs rhs checkedRead rawRead related live conflict
           (trailing.append tail))
 
 theorem registration {change : WriterChange sig} {tree : Stored.OwnedMemory.Tree sig}

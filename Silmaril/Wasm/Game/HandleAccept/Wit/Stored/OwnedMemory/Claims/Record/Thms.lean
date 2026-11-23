@@ -72,6 +72,13 @@ theorem prepare_conflict {E : CoreEngine} {sig : Signature} (store : CStore E)
     ∃ probe, pending probe ∧ ReachedPrepareConflict store left right plan probe :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepare_conflict store plan related unequal
 
+/-- The live owner observation fixes the record field's guard result.
+The prospective spent states may still differ. -/
+theorem prepareOwner_observed {sig : Signature} {left right : State sig} (receipt : Receipt)
+    (agrees : (Spend.owner (receiptId receipt)).ObservationAgrees left right) :
+    (prepareOwner left receipt).map Prod.fst = (prepareOwner right receipt).map Prod.fst :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.RecordPrepare.prepareOwner_observed receipt agrees
+
 theorem owner_prepared {sig : Signature} {state next : State sig} {receipt : Receipt} {rep : Nat}
     (checked : prepareOwner state receipt = .ok (rep, next)) :
     next = (Spend.owner (receiptId receipt)).apply state ∧ (Spend.owner (receiptId receipt)).Live state :=

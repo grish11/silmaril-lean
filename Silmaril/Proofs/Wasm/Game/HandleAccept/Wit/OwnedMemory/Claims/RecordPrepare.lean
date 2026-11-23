@@ -15,7 +15,7 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower (Object)
 
-private theorem prepareOwner_observed {sig : Signature} {left right : State sig} (receipt : Receipt)
+theorem prepareOwner_observed {sig : Signature} {left right : State sig} (receipt : Receipt)
     (agrees : (Spend.owner (receiptId receipt)).ObservationAgrees left right) :
     (prepareOwner left receipt).map Prod.fst = (prepareOwner right receipt).map Prod.fst := by
   have observed := State.prepare_observation_eq receipt.1 (receiptId receipt) agrees

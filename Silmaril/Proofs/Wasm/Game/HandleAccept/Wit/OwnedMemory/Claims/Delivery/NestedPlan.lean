@@ -2777,6 +2777,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordOwnerPrepared _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2822,6 +2824,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordOwnerPrepared _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14211,6 +14215,25 @@ private theorem sharedRecordContextEffects (cx : LiftLowerContext (core3 grow)) 
   · exact (sharedHandleInsertEffects _ _).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
 
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordOwnerCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (receipt : Stored.OwnedMemory.Receipt) (index ptr : Nat) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.owner receipt) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
+      .op .hostGet (fun state =>
+        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst)) := by
+  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordOwnerAfterProbe,
+    hostGet, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext snapshot
+  change HostState sig at snapshot
+  cases outcome : Record.prepareOwner snapshot.writer receipt with
+  | error issue => rfl
+  | ok result =>
+    obtain ⟨rep, writer⟩ := result
+    simp [Except.map, sharedRecordOwnerTransfer, commitOwner, Prog.bind_assoc]
+    rfl
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14318,6 +14341,90 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         exact advance body (sharedRecordContextEffects cx identity index ptr) consumed
           (by simpa only [List.cons_append] using through)
           (by simpa only [List.cons_append] using traced) pairedAfter rfl rfl residual
+      · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
+        exact .inr (callbackTerminalSlice paired (by
+          rw [split, ← List.cons_append]
+          exact .coreAcceptTerminal paths writers run (.inl empty)))
+    by_cases ownerField : ∃ receipt, field = .owner receipt
+    · obtain ⟨receipt, rfl⟩ := ownerField
+      let verdict (host : HostState sig) := (Record.prepareOwner host.writer receipt).map Prod.fst
+      let checkedBody (host : HostState sig) := sharedRecordOwnerAfterProbe cx receipt index ptr (verdict host) >>= checkNext
+      let rawBody (host : HostState sig) := sharedRecordOwnerAfterProbe cx receipt index ptr (verdict host) >>= canonNext
+      have checked := leftFocus
+      have raw := rightFocus
+      rw [sharedRecordMemoryCons, sharedRecordOwnerCode] at checked raw
+      have leftAt : left.ctl = check.control (.op .hostGet checkedBody) := checked
+      have rightAt : right.ctl = canon.control (.op .hostGet rawBody) := raw
+      let leftAfter := { left with ctl := check.control (checkedBody left.host) }
+      let rightAfter := { right with ctl := canon.control (rawBody right.host) }
+      have read : Step profile ready (specDispatch ready base) left .tau leftAfter :=
+        .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := checkedBody) leftAt
+      have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightAfter :=
+        .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := rawBody) rightAt
+      rcases splitSilent (count := 1) (.cons read (.refl _)) run with ⟨remaining, used, residual⟩ | short
+      · have consumed : labels = (leading ++ [.tau]) ++ remaining := by
+          rw [split, used]
+          simp only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.singleton_append]
+        have through := retainComparedOccurrences paths (fun place =>
+          ⟨Prefix.step read (by rw [transitionEdit, leftAt]; cases place <;> rfl) (.done _ _),
+           Prefix.step peerRead (by rw [transitionEdit, rightAt]; cases place <;> rfl) (.done _ _)⟩)
+        have moved : OccurrenceTransport profile ready base bindings start incoming
+            (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) leftAfter rightAfter [some (.active 0 0)] := by
+          simpa only [List.cons_append] using through
+        have checkedRead := WriterPaths.frameSingle (.cons read (.refl _)) rfl
+        have rawRead := WriterPaths.frameSingle (.cons peerRead (.refl _)) rfl
+        by_cases agrees : verdict left.host = verdict right.host
+        · have traced : VisitorWriterPath profile ready base bindings start incoming
+              (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) leftAfter rightAfter := by
+            simpa only [List.cons_append] using writers.append (.framed checkedRead rawRead)
+          cases result : verdict left.host with
+          | error issue =>
+            let refusal : Session grow sig (Except RecordLower.Issue Unit) := .pure (.error (.nested index issue))
+            have leftFocus : leftAfter.ctl = check.control (refusal >>= checkNext) := by
+              change check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict left.host) >>= checkNext) = _
+              rw [result]
+              rfl
+            have rightFocus : rightAfter.ctl = canon.control (refusal >>= canonNext) := by
+              change canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict right.host) >>= canonNext) = _
+              rw [← agrees, result]
+              rfl
+            exact advance refusal (.pure _) consumed moved traced site leftFocus rightFocus residual
+          | ok rep =>
+            have prepared (host : HostState sig) (accepted : verdict host = .ok rep) :
+                ∃ spent, Record.prepareOwner host.writer receipt = .ok (rep, spent) := by
+              cases owner : Record.prepareOwner host.writer receipt with
+              | error issue =>
+                change (Record.prepareOwner host.writer receipt).map Prod.fst = .ok rep at accepted
+                rw [owner] at accepted
+                cases accepted
+              | ok returned =>
+                obtain ⟨actual, spent⟩ := returned
+                change (Record.prepareOwner host.writer receipt).map Prod.fst = .ok rep at accepted
+                rw [owner] at accepted
+                cases accepted
+                exact ⟨spent, rfl⟩
+            obtain ⟨_, leftPrepared⟩ := prepared left.host result
+            obtain ⟨_, rightPrepared⟩ := prepared right.host (agrees.symm.trans result)
+            have reachedLeft : leftAfter.ctl =
+                check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= checkNext) := by
+              change check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict left.host) >>= checkNext) = _
+              rw [result]
+            have reachedRight : rightAfter.ctl =
+                canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= canonNext) := by
+              change canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict right.host) >>= canonNext) = _
+              rw [← agrees, result]
+            exact .inr (callbackTerminalSlice paired (by
+              rw [consumed, ← List.cons_append]
+              exact .sharedRecordOwnerPrepared (left := leftAfter) (right := rightAfter)
+                leftPrepared rightPrepared reachedLeft reachedRight moved traced residual))
+        · have mismatch : SharedRecordOwnerProbeMismatch left right leftAfter rightAfter receipt cx index ptr check canon :=
+            ⟨checkNext, canonNext, leftAt, rightAt, rfl, rfl, agrees⟩
+          have traced : VisitorWriterPath profile ready base bindings start incoming
+              (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) leftAfter rightAfter := by
+            simpa only [List.cons_append] using writers.append (.recordOwnerMismatch mismatch checkedRead rawRead)
+          exact .inr (callbackTerminalSlice paired (by
+            rw [consumed, ← List.cons_append]
+            exact .sharedRecordOwnerMismatch mismatch moved traced residual))
       · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
         exact .inr (callbackTerminalSlice paired (by
           rw [split, ← List.cons_append]
