@@ -19549,15 +19549,16 @@ private theorem sourceWaitableJoinPreserves (waitable : Runtime.Waitable) (set :
   all_goals rename_i common _
   all_goals cases common.wset <;> cases waitable <;> cases set <;> rfl
 
+private theorem sourceHandleLookupPreserves (invariant : CStore (core3 grow) → Prop) (inst : InstId) (slot : Nat) :
+    Prog.Every (storePreserves invariant) (handlesGet inst slot : Session grow sig HandleEntry) := by
+  unfold handlesGet getInst
+  exact (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record =>
+    sharedWorkerOrTrapPreserves invariant (.unknownHandle slot) (record.handles.get? slot)
+
 private theorem sourceWaitableJoinEffects (index setIndex : Nat)
     {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
     DestructorWorkerEffects invariant (Builtins.waitableJoin Limits.spec index setIndex : Session grow sig (List FlatValue)) := by
   refine liftDestructorStoreEffects (sharedDestructorWaitableJoin index setIndex) ?_
-  have lookup (inst : InstId) (slot : Nat) :
-      Prog.Every (storePreserves invariant) (handlesGet inst slot : Session grow sig HandleEntry) := by
-    unfold handlesGet getInst
-    exact (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record =>
-      sharedWorkerOrTrapPreserves invariant (.unknownHandle slot) (record.handles.get? slot)
   have expect (entry : HandleEntry) :
       Prog.Every (storePreserves invariant) (Builtins.expectWaitable entry : Session grow sig Runtime.Waitable) := by
     cases entry <;> first | exact .pure _ | exact .op trivial (fun impossible => nomatch impossible)
@@ -19570,11 +19571,11 @@ private theorem sourceWaitableJoinEffects (index setIndex : Nat)
     · exact .op trivial fun impossible => nomatch impossible
   unfold Builtins.waitableJoin
   refine (sourceEnterWaitablePreserves invariant).bind fun inst =>
-    (lookup inst index).bind fun entry => (expect entry).bind fun waitable =>
+    (sourceHandleLookupPreserves invariant inst index).bind fun entry => (expect entry).bind fun waitable =>
     (waiter waitable).bind fun busy => (allocatorTrapIfPreserves invariant busy .subtaskInSet).bind fun _ => ?_
   split
   · exact (sourceWaitableJoinPreserves waitable none records).bind fun _ => .pure []
-  · refine (lookup inst setIndex).bind fun entry => ?_
+  · refine (sourceHandleLookupPreserves invariant inst setIndex).bind fun entry => ?_
     have expectSet : Prog.Every (storePreserves invariant) (Builtins.expectWset entry : Session grow sig WsetId) := by
       cases entry <;> first | exact .pure _ | exact .op trivial (fun impossible => nomatch impossible)
     exact expectSet.bind fun set =>
@@ -19614,11 +19615,123 @@ private theorem sourceErrorContextDropEffects (index : Nat)
     (allocatorTrapIfPreserves invariant (!record.mayLeave) .cannotLeave).bind fun _ =>
     (sourceHandleRemovePreserves inst index records).bind fun handle => (expect handle).bind fun _ => .pure []
 
+private theorem sourceLenderWritesRecords (lenders : List HandleObjId) (store : CStore (core3 grow)) :
+    let reached := lenders.foldl (fun state identity =>
+      ArenaField.resHandles.modify state identity fun record => { record with numLends := record.numLends - 1 }) store
+    reached.tasks = store.tasks ∧ reached.callers = store.callers := by
+  induction lenders generalizing store with
+  | nil => exact ⟨rfl, rfl⟩
+  | cons identity tail ih =>
+    exact ih (ArenaField.resHandles.modify store identity fun record => { record with numLends := record.numLends - 1 })
+
+private theorem sourceSubtaskEventRecords (task : SubtaskId) (store : CStore (core3 grow)) :
+    (store.subtaskEvent task).1.tasks = store.tasks ∧ (store.subtaskEvent task).1.callers = store.callers := by
+  unfold CStore.subtaskEvent
+  split
+  · exact ⟨rfl, rfl⟩
+  · split
+    · unfold CStore.deliverResolveSt
+      split
+      · exact ⟨rfl, rfl⟩
+      · rename_i entry _
+        exact sourceLenderWritesRecords (entry.lenders.getD []) store
+    · exact ⟨rfl, rfl⟩
+
+private theorem sourceTakeWaitableRecords (waitable : Runtime.Waitable) (store : CStore (core3 grow)) :
+    (CStore.takeWaitableEventSt waitable store).tasks = store.tasks ∧
+      (CStore.takeWaitableEventSt waitable store).callers = store.callers := by
+  cases waitable with
+  | subtask task =>
+    simp only [CStore.takeWaitableEventSt, CStore.takeWaitableEvent]
+    split
+    · exact ⟨rfl, rfl⟩
+    · split
+      · exact sourceSubtaskEventRecords task _
+      · exact ⟨rfl, rfl⟩
+  | end_ endpoint =>
+    have delivered (progress : Nat) (before : CStore (core3 grow)) :
+        (Runtime.deliver endpoint progress before).1.tasks = before.tasks ∧
+          (Runtime.deliver endpoint progress before).1.callers = before.callers := by
+      unfold Runtime.deliver
+      split <;> exact ⟨rfl, rfl⟩
+    simp only [CStore.takeWaitableEventSt, CStore.takeWaitableEvent, Runtime.takeEvent]
+    split
+    · exact ⟨rfl, rfl⟩
+    · split <;> first | exact ⟨rfl, rfl⟩ | exact delivered _ _
+
+private theorem sourceWaitableSelectionPreserves (set : WsetId)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    Prog.Every (storePreserves invariant) (wsetGetPendingEvent set : Session grow sig AsyncRef.EventTuple) := by
+  have read : Prog.Every (storePreserves invariant) (getStore : Session grow sig (CStore (core3 grow))) :=
+    .op trivial fun state => .pure state
+  unfold wsetGetPendingEvent
+  refine (sharedWorkerGetPreserves invariant ArenaField.wsets set).bind fun setEntry => ?_
+  have choose : Prog.Every (storePreserves invariant) (Canon.shuffle setEntry.elems : Session grow sig (List Runtime.Waitable)) :=
+    .op trivial fun _ => .pure _
+  refine choose.bind fun elems => Prog.Every.bind
+    (p := modifyStore (CStore.wsetSetElemsSt set elems)) (.op (fun store => records store _ rfl rfl) fun _ => .pure _)
+    fun _ => read.bind fun store => ?_
+  split
+  · rename_i waitable _
+    unfold Runtime.Waitable.getPendingEvent
+    refine read.bind fun _ => ?_
+    split
+    · exact .op trivial fun impossible => nomatch impossible
+    · exact .op (fun state => records state _ (sourceTakeWaitableRecords waitable state).1
+        (sourceTakeWaitableRecords waitable state).2) fun _ => .pure _
+  · exact .op trivial fun impossible => nomatch impossible
+
+private theorem sourceWaitableBufferPreserves (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
+    (event : AsyncRef.EventTuple) {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    Prog.Every (storePreserves invariant) (unpackEvent cx ptr event : Session grow sig Nat) := by
+  have read : Prog.Every (storePreserves invariant) (getStore : Session grow sig (CStore (core3 grow))) :=
+    .op trivial fun state => .pure state
+  have memory := sharedWorkerOrTrapPreserves (sig := sig) invariant .noMemory cx.opts.memory
+  have bounds : Prog.Every (storePreserves invariant) (checkInBounds cx ptr 8 : Session grow sig Unit) := by
+    unfold checkInBounds memLen memAddr
+    exact (memory.bind fun addr => read.bind fun store =>
+      sharedWorkerOrTrapPreserves invariant (.internal "dangling memory address") ((core3 grow).memSize? store.core addr)).bind
+        fun size => allocatorTrapIfPreserves invariant (decide (ptr + 8 > size)) .outOfBounds
+  have write (position : Nat) (bytes : ByteArray) :
+      Prog.Every (storePreserves invariant) (writeMem cx position bytes : Session grow sig Unit) := by
+    unfold writeMem memAddr
+    refine memory.bind fun addr => read.bind fun _ => ?_
+    split
+    · exact .op trivial fun impossible => nomatch impossible
+    · refine .op (fun store retained => records store _ ?_ ?_ retained) fun _ => .pure _
+      all_goals unfold writeMemSt
+      all_goals split <;> rfl
+  unfold unpackEvent checkAligned
+  exact (allocatorTrapIfPreserves invariant (ptr % 4 != 0) .unalignedPointer).bind fun _ => bounds.bind fun _ =>
+    (write ptr (u32Bytes event.index)).bind fun _ => (write (ptr + 4) (u32Bytes event.payload)).bind fun _ => .pure _
+
+private theorem sourceWaitablePollEffects (memory : (core3 grow).MemAddr) (index ptr : Nat)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.waitableSetPoll Limits.spec memory index ptr : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects (sharedDestructorWaitablePoll memory index ptr) ?_
+  have expect (entry : HandleEntry) :
+      Prog.Every (storePreserves invariant) (Builtins.expectWset entry : Session grow sig WsetId) := by
+    cases entry <;> first | exact .pure _ | exact .op trivial (fun impossible => nomatch impossible)
+  have poll (set : WsetId) : Prog.Every (storePreserves invariant) (wsetPoll set : Session grow sig AsyncRef.EventTuple) := by
+    have read : Prog.Every (storePreserves invariant) (getStore : Session grow sig (CStore (core3 grow))) :=
+      .op trivial fun store => .pure store
+    unfold wsetPoll wsetHasPendingEvent gets
+    refine (read.bind fun store => Prog.Every.pure (store.wsetHasEvent set)).bind fun _ => ?_
+    split
+    · exact sourceWaitableSelectionPreserves set records
+    · exact .pure _
+  unfold Builtins.waitableSetPoll
+  exact (sourceEnterWaitablePreserves invariant).bind fun inst =>
+    (sourceHandleLookupPreserves invariant inst index).bind fun entry => (expect entry).bind fun set =>
+      (poll set).bind fun event => (sourceWaitableBufferPreserves (Builtins.eventCx memory inst) ptr event records).bind
+        fun code => .pure [i32Flat code]
+
 private def sourceLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .threadIndex _ | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
   | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin (.resourceRep ..) _
   | .builtin (.resourceNew ..) _ | .builtin .waitableSetNew _ | .builtin .waitableSetDrop _
-  | .builtin .waitableJoin _ | .builtin .subtaskDrop _ | .builtin .errorContextDrop _ => true
+  | .builtin .waitableJoin _ | .builtin .subtaskDrop _ | .builtin .errorContextDrop _
+  | .builtin (.waitableSetPoll ..) _ => true
   | _ => false
 
 private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Prop)
@@ -19683,6 +19796,13 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
       · exact trapOnly _
       · exact trapOnly _
       · exact sourceWaitableJoinEffects (flatNat first) (flatNat second) records
+      · exact trapOnly _
+    | waitableSetPoll memory =>
+      refine ⟨withArgs2 args (Builtins.waitableSetPoll Limits.spec memory), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨first, _ | ⟨second, _ | ⟨extra, tail⟩⟩⟩
+      · exact trapOnly _
+      · exact trapOnly _
+      · exact sourceWaitablePollEffects memory (flatNat first) (flatNat second) records
       · exact trapOnly _
     | subtaskDrop =>
       refine ⟨withArgs1 args (Builtins.subtaskDrop Limits.spec), ?_, fun _ _ _ _ => rfl⟩
