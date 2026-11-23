@@ -423,6 +423,30 @@ def sharedRecordMemory (mode : LinkedCallback.MemorySequence.Track) (cx : LiftLo
     | .fields | .placedFields => RecordLower.Internal.runMemory Limits.spec Quirks.none cx authority width fields cursor index
     | .elements stride => RecordLower.Internal.runElements Limits.spec Quirks.none cx authority width fields stride cursor index) >>= next
 
+open Stored.Endpoints LinkedCallback.MemorySequence in
+def sharedRecordAfterField (mode : Track) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (fields : List RecordLower.Field) (cursor index : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  | .error issue => next (.error issue)
+  | .ok () => sharedRecordMemory mode cx width fields cursor index next
+
+open Stored.Endpoints in
+/-- The source visitor's pending sibling programs below an aggregate,
+fixed-size collection, or sum child. -/
+inductive SharedRecordJoin where
+  | report
+  | field (mode : LinkedCallback.MemorySequence.Track) (siblings : List RecordLower.Field)
+      (cursor nextIndex parentIndex : Nat) (outer : SharedRecordJoin)
+
+open Stored.Endpoints in
+def SharedRecordJoin.reply (cx : LiftLowerContext (core3 grow)) (width : AddrType) (ticket : Nat) :
+    SharedRecordJoin → Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  | .report => sharedRecordReport ticket
+  | .field mode siblings cursor nextIndex parentIndex outer =>
+    fun result => sharedRecordAfterField mode cx width siblings cursor nextIndex
+      (outer.reply cx width ticket) (result.mapError (.nested parentIndex))
+
 open Stored.Endpoints in
 def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List RecordLower.Field) (ptr ticket : Nat) :
     Option AddrType → Session grow sig (Ret (core3 grow))
@@ -2268,8 +2292,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The actual width and placement checks entered the compiled field visitor. -/
-  | sharedDropRecordVisit {changes reached peer trailing finish body cursor index leftTicket rightTicket width}
+  /-- The compiled visitor reached a nonlocal field under the source sibling joins. -/
+  | sharedDropRecordVisit {changes reached peer trailing finish body mode cursor index leftTicket rightTicket width join}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {cx : LiftLowerContext (core3 grow)} {fields : List Stored.Endpoints.RecordLower.Field}
       (parents : DestructorParentChain changes body check.rest canon.rest)
@@ -2278,8 +2302,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (emitted : ∀ field ∈ fields, Stored.Endpoints.RecordLower.Field.Emitted field)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket)))
-      (canonical : peer.ctl = canon.control (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)))
+      (checked : reached.ctl = check.control (sharedRecordMemory mode cx width fields cursor index (SharedRecordJoin.reply cx width leftTicket join)))
+      (canonical : peer.ctl = canon.control (sharedRecordMemory mode cx width fields cursor index (SharedRecordJoin.reply cx width rightTicket join)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
