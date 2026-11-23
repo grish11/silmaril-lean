@@ -2775,7 +2775,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordString _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordString _ _ tail => exact tail
   | sharedRecordAllocator paths _ _ compared _ ih =>
     simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2827,7 +2827,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordString _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordString _ _ tail => exact tail
   | sharedRecordAllocator paths _ _ compared ending =>
     simpa only [List.append_assoc] using
       append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
@@ -14779,29 +14779,30 @@ private theorem sharedRecordAllocatorCode (cx : LiftLowerContext (core3 grow)) (
     cases impossible
 
 open ReturnFrame.Occurrence Stored.Endpoints in
-private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (HostState sig)}
+private theorem crossSharedReallocate {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {leading trailing : Trace grow sig}
-    (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
-    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (cx : LiftLowerContext (core3 grow)) (old oldLen alignment newLen : Nat)
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (resume : ∀ {left right : Config (core3 grow) (HostState sig)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {value remaining},
+      LinkedCallback.ChildFrameOver older left right check canon →
+      Steps profile ready (specDispatch ready base) { left with ctl := check.control (first value) } remaining finish →
+      CallbackSliceEnd profile ready base bindings older
+        { left with ctl := check.control (first value) } { right with ctl := canon.control (second value) } remaining finish)
     (split : labels = leading ++ trailing) (paired : HostFrame.Related.Paired older start incoming)
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
       left right [some (.active 0 0)])
     (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
     (site : PairedComponentSite older left right ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
     (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread frames rest).control
-      (sharedRecordAllocate cx width element entries index dest >>= checkNext))
+      (.op (.call (.reallocate cx old oldLen alignment newLen)) first))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread peerFrames peerRest).control
-      (sharedRecordAllocate cx width element entries index dest >>= canonNext))
+      (.op (.call (.reallocate cx old oldLen alignment newLen)) second))
     (run : Steps profile ready (specDispatch ready base) left trailing finish)
     (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
-  rw [sharedRecordAllocatorCode] at leftFocus rightFocus
-  let area := ABI.layout width element
-  let call : Call (core3 grow) := .reallocate cx 0 0 area.alignment.bytes (entries.length * area.size)
-  let first := sharedRecordAllocationResume cx width element entries index dest checkNext
-  let second := sharedRecordAllocationResume cx width element entries index dest canonNext
+  let call : Call (core3 grow) := .reallocate cx old oldLen alignment newLen
   let program := specDispatch ready base call
   let leftEntered := { left with ctl := ⟨thread, .prog program, .prog first :: frames⟩ :: rest }
   let rightEntered := { right with ctl := ⟨thread, .prog program, .prog second :: peerFrames⟩ :: peerRest }
@@ -14902,15 +14903,38 @@ private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (Ho
           have traced := enteredWriters.append segment.writers
           have completed := traced.append (.framed (WriterPaths.frameSingle (.cons leftPop (.refl _)) rfl)
             (WriterPaths.frameSingle (.cons rightPop (.refl _)) rfl))
-          have afterRange := classifySharedRecordRange (profile := profile) (ready := ready) (base := base)
-            (bindings := bindings) cx width element entries index dest value checkNext canonNext frame tail
+          have resumedRun := resume frame tail
           exact .inr (callbackTerminalSlice paired (by
             rw [split, divided]
             simpa only [entered, List.cons_append, List.append_assoc, List.singleton_append, List.nil_append] using
-              (CallbackSliceEnd.sharedRecordAllocatorPop (active ▸ marked) returning rawAt leftPop rightPop popped completed afterRange)))
+              (CallbackSliceEnd.sharedRecordAllocatorPop (active ▸ marked) returning rawAt leftPop rightPop popped completed resumedRun)))
       · exact stop
     · exact stop
 
+
+open ReturnFrame.Occurrence Stored.Endpoints in
+private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {leading trailing : Trace grow sig}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (split : labels = leading ++ trailing) (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread frames rest).control
+      (sharedRecordAllocate cx width element entries index dest >>= checkNext))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread peerFrames peerRest).control
+      (sharedRecordAllocate cx width element entries index dest >>= canonNext))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  rw [sharedRecordAllocatorCode] at leftFocus rightFocus
+  let area := ABI.layout width element
+  exact crossSharedReallocate cx 0 0 area.alignment.bytes (entries.length * area.size) _ _
+    (fun frame tail => classifySharedRecordRange cx width element entries index dest _ checkNext canonNext frame tail)
+    split paired paths writers site leftFocus rightFocus run compare
 
 open Stored.Endpoints in
 private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
@@ -15004,6 +15028,52 @@ private theorem sharedRecordStringPlanCode (cx : LiftLowerContext (core3 grow)) 
   rw [Canon.store.eq_def]
   simp [storePrim, storeString, storeStringIntoRange, bind, Prog.bind_assoc]
   rfl
+
+/-- The first instruction of each canonical string encoding plan allocates its initial range. -/
+private theorem stringPlanInitialAllocation (encoding : ABI.StringEncoding) (width : AddrType) (value : ABI.StringValue) :
+    ∃ alignment size remaining,
+      (ABI.storeStringIntoRange encoding width value).steps = .allocate alignment size :: remaining := by
+  unfold ABI.storeStringIntoRange
+  dsimp only
+  split
+  all_goals
+    simp only [ABI.storeStringCopy, ABI.storeUtf16ToUtf8, ABI.storeLatin1ToUtf8, ABI.storeStringToUtf8,
+      ABI.storeUtf8ToUtf16]
+  all_goals
+    repeat' first | (exact ⟨_, _, _, rfl⟩) | split |
+      (simp only [ABI.storeProbablyUtf16ToLatin1OrUtf16, ABI.storeStringToLatin1OrUtf16])
+
+open Stored.Endpoints in
+private theorem sharedRecordStringAllocationCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (value : Value.StrVal) (dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (alignment : ABI.Alignment) (size : Nat) (remaining : List ABI.StoreStep)
+    (steps : (storePlanFor Quirks.none cx.opts.encoding width value).steps = .allocate alignment size :: remaining) :
+    sharedRecordStringPlan cx value dest next width =
+      .op (.call (.reallocate cx 0 0 alignment.bytes size))
+        (sharedRecordStringResume cx remaining (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits dest next) := by
+  let tagged := (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits
+  let call : Call (core3 grow) := .reallocate cx 0 0 alignment.bytes size
+  let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
+    | .nat ptr => pure ptr
+    | _ => internal "late-bound call: expected Ret.nat"
+  have callCode : (callNat call : Session grow sig Nat) = .op (.call call) read := by
+    simp [callNat, callRet, perform, Prog.lift, bind, Prog.bind, read]
+    refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+    cases result <;> rfl
+  unfold sharedRecordStringPlan
+  dsimp only
+  rw [steps]
+  unfold sharedRecordStringRemaining runStoreSteps
+  simp only [Prog.foldlM, runStoreStep, allocate, reallocate, Prog.bind_eq, Prog.bind_assoc]
+  rw [callCode]
+  refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+  cases result
+  case nat => rfl
+  all_goals
+    change ((internal "late-bound call: expected Ret.nat" : Session grow sig Nat).bind _) = _
+    rw [internalBind]
+    rfl
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
@@ -15583,13 +15653,25 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
             have finishWidth : SharedRecordContinuation profile ready base bindings older start incoming labels finish
                 check canon planCheck planCanon := by
               intro left right leading trailing width split paths writers frame checked canonical residual
-              by_cases empty : trailing = []
-              · exact .inr (callbackTerminalSlice paired (by
-                  rw [split, ← List.cons_append]
-                  exact .coreAcceptTerminal paths writers residual (.inl empty)))
-              · exact .inr (callbackTerminalSlice paired (by
-                  rw [split, ← List.cons_append]
-                  exact .sharedRecordString checked canonical paths writers residual))
+              obtain ⟨alignment, size, remaining, steps⟩ := stringPlanInitialAllocation cx.opts.encoding width
+                (storeSource Quirks.none width value)
+              let tagged := (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits
+              have checkedAt : left.ctl = check.control (.op (.call (.reallocate cx 0 0 alignment.bytes size))
+                  (sharedRecordStringResume cx remaining tagged ptr checkNext)) :=
+                checked.trans (congrArg check.control (sharedRecordStringAllocationCode cx width value ptr checkNext
+                  alignment size remaining steps))
+              have canonicalAt : right.ctl = canon.control (.op (.call (.reallocate cx 0 0 alignment.bytes size))
+                  (sharedRecordStringResume cx remaining tagged ptr canonNext)) :=
+                canonical.trans (congrArg canon.control (sharedRecordStringAllocationCode cx width value ptr canonNext
+                  alignment size remaining steps))
+              exact crossSharedReallocate cx 0 0 alignment.bytes size _ _
+                (fun {_ _ _ _ _ suffix} _ tail => by
+                  by_cases empty : suffix = []
+                  · subst suffix
+                    rw [stepsAtEmpty tail]
+                    exact .exhausted
+                  · exact .sharedRecordString rfl rfl tail)
+                split paired paths writers frame checkedAt canonicalAt residual compare
             exact advance (ptrType cx) (storeEffectPtrType cx) planCheck planCanon finishWidth
               split paths writers frame checkAt canonAt residual
       exact advance _ (sharedRecordStringPlacementEffects cx text index ptr) nextCheck nextCanon finishPlacement
