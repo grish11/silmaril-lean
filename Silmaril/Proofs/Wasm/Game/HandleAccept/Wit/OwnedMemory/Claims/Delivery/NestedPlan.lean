@@ -13596,6 +13596,13 @@ private theorem relatedContLookup {left right : Config (core3 grow) (HostState s
       | cons _ tail => exact ih tail
   exact lookup paired thread.idx
 
+private theorem relatedSavedSome {left : Activation (core3 grow) (HostState sig)}
+    {right : Option (Activation (core3 grow) (HostState sig))}
+    (related : ReturnFrame.Related.Saved older (some left) right) :
+    ∃ peer, right = some peer ∧ ReturnFrame.Related.Active older left peer := by
+  cases related with
+  | some active => exact ⟨_, rfl, active⟩
+
 private theorem pairedSetContinuation {left right : Config (core3 grow) (HostState sig)}
     (paired : ReturnFrame.Related.Paired older left right)
     (thread : ThreadId) {first second : Option (Activation (core3 grow) (HostState sig))}
@@ -16603,6 +16610,34 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           · have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) (.hostGet leftAt) raw
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
             exact .observation leftAt agrees paths (frameCalloutStep paths rfl rfl) tail
+        | @emit _ notice _ _ _ atEmit =>
+          rw [leftAt] at atEmit
+          cases atEmit
+          have aligned : DestructorSchedulerAlignment older (StepDefs.observe start notice)
+              (StepDefs.observe incoming notice) := by
+            cases notice with
+            | resolved call values => exact DestructorSchedulerAlignment.observeResolved scheduler call values
+            | _ => exact scheduler
+          exact advance (.emit leftAt) (.emit rightAt) tail segments rfl rfl
+            (by cases notice <;> exact stores) aligned (by cases notice <;> rfl) (by cases notice <;> rfl) rfl rfl
+        | @newThread _ bodyCode resume _ _ store threadId atNew allocated =>
+          rw [leftAt] at atNew
+          cases atNew
+          have dispatchCode := LiveDispatch.unchanged_dispatch (ready := ready) (base := base)
+            (bindings := bindings) (call := .threadBody bodyCode) trivial
+          let saved := StepDefs.threadAct (specDispatch ready base) threadId bodyCode
+          have sameBody : StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) threadId bodyCode =
+              saved := by
+            change Activation.ofProg (some threadId) (specDispatch ready (LiveDispatch.host bindings base) (.threadBody bodyCode)) =
+              Activation.ofProg (some threadId) (specDispatch ready base (.threadBody bodyCode))
+            rw [← dispatchCode]
+          have raw := Step.newThread (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ allocated)
+          rw [sameBody] at raw
+          exact advance (edit := .write threadId.idx []) (.newThread leftAt allocated) raw tail segments
+            rfl rfl rfl ⟨relatedSetSlot .none scheduler.1 threadId.idx (.some (.mk .nil)), scheduler.2⟩ rfl rfl
+            (by simp only [transitionEdit, leftAt, allocated])
+            (by simp only [transitionEdit, rightAt, ← stores, allocated])
         | trap atTrap =>
           rw [leftAt] at atTrap
           cases atTrap
@@ -16663,6 +16698,29 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           exact rejoinDestructorLoopEntry
             (enterDestructorParentLoop parents (congrArg (StepDefs.threadStatusSt _ .blocked) stores) tail)
             (save scheduler) shorter compare
+        | @blockSwitch worker switched reply _ _ next atSwitch found =>
+          rw [leftAt] at atSwitch
+          cases atSwitch
+          let savedLeft := start.setCont worker (some (StepDefs.blockedAct worker reply frames))
+          let savedRight := incoming.setCont worker (some (StepDefs.blockedAct worker reply peerFrames))
+          have saved : List.Forall₂ (ReturnFrame.Related.Saved older) savedLeft.conts savedRight.conts :=
+            relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
+          have slot := relatedContLookup saved switched
+          rw [found] at slot
+          obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
+          let update (store : CStore (core3 grow)) :=
+            StepDefs.threadStatusSt switched .running (StepDefs.threadStatusSt worker .blocked store)
+          let lhs := { savedLeft.setCont switched none with store := update start.store, ctl := next :: rest }
+          let rhs := { savedRight.setCont switched none with store := update incoming.store, ctl := peer :: peerRest }
+          have checked : Step profile ready (specDispatch ready base) start .tau lhs := .blockSwitch leftAt found
+          have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
+            .blockSwitch rightAt rawFound
+          have moved := sharedSchedulerTransport (bindings := bindings) (edit := .switch worker.idx switched.idx)
+            checked raw (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          have aligned : DestructorSchedulerAlignment older lhs rhs :=
+            ⟨relatedSetSlot .none saved switched.idx .none, scheduler.2⟩
+          exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
+            (ih selected (congrArg update stores) aligned rfl rfl tail shorter)
         | _ => exact frontier
 
 open ReturnFrame.Occurrence in
@@ -16710,11 +16768,7 @@ private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 g
         (.inr (.inr (.inr ⟨rfl, rfl⟩)))
     | some next =>
       rw [present] at found
-      have someRelated {slot} (related : ReturnFrame.Related.Saved older (some next) slot) :
-          ∃ peer, slot = some peer ∧ ReturnFrame.Related.Active older next peer := by
-        cases related with
-        | some active => exact ⟨_, rfl, active⟩
-      obtain ⟨peer, rawFound, related⟩ := someRelated found
+      obtain ⟨peer, rawFound, related⟩ := relatedSavedSome found
       let update (store : CStore (core3 grow)) :=
         StepDefs.threadStatusSt target .running (StepDefs.threadStatusSt worker .blocked store)
       let checkedEnd := { left.setCont target none with store := update start.store, ctl := next :: rest }
