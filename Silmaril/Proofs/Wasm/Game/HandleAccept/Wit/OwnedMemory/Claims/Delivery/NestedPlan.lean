@@ -2775,7 +2775,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordString _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordAllocator paths _ _ compared _ ih =>
     simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2826,7 +2826,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordString _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordAllocator paths _ _ compared ending =>
     simpa only [List.append_assoc] using
       append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
@@ -14840,6 +14840,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
     {leading trailing : Trace grow sig}
     (mode : Track) (cx : LiftLowerContext (core3 grow)) (width : AddrType) (fields : List RecordLower.Field) (cursor index : Nat)
+    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
     (checkDone canonDone : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (onDone : SharedRecordContinuation profile ready base bindings older start incoming labels finish
       ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩ checkDone canonDone)
@@ -14864,6 +14865,9 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
   | nil =>
     cases mode <;> exact onDone (.ok ()) split paths writers site leftFocus rightFocus run
   | cons field fields =>
+    have fieldEmitted := emitted field (List.mem_cons_self ..)
+    have tailEmitted : ∀ item ∈ fields, RecordLower.Field.Emitted item := fun item atTail =>
+      emitted item (List.mem_cons_of_mem field atTail)
     let slot := mode.slot width field cursor
     let ptr := slot.1
     let check := (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
@@ -14880,7 +14884,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         have smaller : sizeOf fields < size := by
           rw [← fieldSize]
           simp
-        exact ih (sizeOf fields) smaller mode fields slot.2 (index + 1) checkDone canonDone
+        exact ih (sizeOf fields) smaller mode fields slot.2 (index + 1) tailEmitted checkDone canonDone
           onDone split paths writers site leftFocus rightFocus run rfl
     have advance {Result : Type} {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
         (body : Session grow sig Result) (effects : StoreEffects body)
@@ -14928,6 +14932,9 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         split paths writers site checked raw run
     by_cases aggregateField : ∃ type children, field = .aggregate type children
     · obtain ⟨type, children, rfl⟩ := aggregateField
+      have childrenEmitted : ∀ item ∈ children, RecordLower.Field.Emitted item := by
+        cases fieldEmitted with
+        | aggregate emitted => exact emitted
       let body : Session grow sig Unit := checkInBounds cx ptr (ABI.layout width type).size
       let checkChildDone (result : Except RecordLower.Issue Unit) := checkNext (result.mapError (.nested index))
       let canonChildDone (result : Except RecordLower.Issue Unit) := canonNext (result.mapError (.nested index))
@@ -14948,12 +14955,15 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           check canon checkChild canonChild := by
         intro left right leading trailing result split paths writers frame checked canonical residual
         cases result
-        exact ih (sizeOf children) smaller .fields children ptr 0 checkChildDone canonChildDone
+        exact ih (sizeOf children) smaller .fields children ptr 0 childrenEmitted checkChildDone canonChildDone
           onChild split paths writers frame checked canonical residual rfl
       exact advance body (storeEffectBounds cx ptr (ABI.layout width type).size) checkChild canonChild resume
         split paths writers site checked raw run
     by_cases fixedField : ∃ element length entries, field = .fixed element length entries
     · obtain ⟨element, length, entries, rfl⟩ := fixedField
+      have entriesEmitted : ∀ item ∈ entries, RecordLower.Field.Emitted item := by
+        cases fieldEmitted with
+        | fixed emitted => exact emitted
       let childMode := Track.elements (ABI.layout width element).size
       let checkChildDone (result : Except RecordLower.Issue Unit) := checkNext (result.mapError (.nested index))
       let canonChildDone (result : Except RecordLower.Issue Unit) := canonNext (result.mapError (.nested index))
@@ -14968,10 +14978,17 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           check canon checkChildDone canonChildDone := by
         intro left right leading trailing result split paths writers frame checked canonical residual
         exact finishField (result.mapError (.nested index)) split paths writers frame checked canonical residual
-      exact ih (sizeOf entries) smaller childMode entries ptr 0 checkChildDone canonChildDone onChild
+      exact ih (sizeOf entries) smaller childMode entries ptr 0 entriesEmitted checkChildDone canonChildDone onChild
         split paths writers site checked raw run rfl
     by_cases sumField : ∃ type arms tag child, field = .sum type arms tag (some child)
     · obtain ⟨type, arms, tag, child, rfl⟩ := sumField
+      have childEmitted : RecordLower.Field.Emitted child := by
+        cases fieldEmitted with
+        | sum emitted => exact emitted _ rfl
+      have singletonEmitted : ∀ item ∈ [child], RecordLower.Field.Emitted item := by
+        intro item member
+        rw [List.mem_singleton] at member
+        exact member.symm ▸ childEmitted
       let body : Session grow sig Nat :=
         storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
       let checkChildDone (result : Except RecordLower.Issue Unit) := checkNext (result.mapError (.nested index))
@@ -14993,7 +15010,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           check canon checkChild canonChild := by
         intro left right leading trailing address split paths writers frame checked canonical residual
         exact ih (sizeOf ([child] : List RecordLower.Field)) smaller (.elements 0) [child] address 0
-          checkChildDone canonChildDone onChild split paths writers frame checked canonical residual rfl
+          singletonEmitted checkChildDone canonChildDone onChild split paths writers frame checked canonical residual rfl
       exact advance body (sharedRecordVariantHeadEffects cx width arms tag ptr) checkChild canonChild resume
         split paths writers site checked raw run
     by_cases dynamicField : ∃ type element entries, field = .dynamic type element entries
@@ -15351,15 +15368,38 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         exact .inr (callbackTerminalSlice paired (by
           rw [split, ← List.cons_append]
           exact .coreAcceptTerminal paths writers run (.inl empty)))
-    · exact .inr (callbackTerminalSlice paired (by
+    · have stringField : ∃ text : Stored.Payload (.prim .string), field = .data (.prim .string) text := by
+        cases fieldEmitted with
+        | @primitive primitive payload =>
+          by_cases string : primitive = .string
+          · subst primitive
+            exact ⟨payload, rfl⟩
+          · exact (localField (.data (.primitive string))).elim
+        | enum payload schema => exact (localField (.data (.enum schema))).elim
+        | flags payload schema => exact (localField (.data (.flags schema))).elim
+        | endpoint => exact (endpointField ⟨_, _, _, rfl⟩).elim
+        | context => exact (contextField ⟨_, rfl⟩).elim
+        | owner => exact (ownerField ⟨_, rfl⟩).elim
+        | aggregate => exact (aggregateField ⟨_, _, rfl⟩).elim
+        | fixed => exact (fixedField ⟨_, _, _, rfl⟩).elim
+        | list => exact (dynamicField ⟨_, _, _, rfl⟩).elim
+        | map => exact (dynamicField ⟨_, _, _, rfl⟩).elim
+        | @sum type arms tag selected _ =>
+          cases selected with
+          | none => exact (localField .sumNone).elim
+          | some child => exact (sumField ⟨_, _, _, child, rfl⟩).elim
+      obtain ⟨text, rfl⟩ := stringField
+      rw [sharedRecordMemoryCons] at leftFocus rightFocus
+      exact .inr (callbackTerminalSlice paired (by
         rw [split, ← List.cons_append]
-        exact .sharedRecordVisitor leftFocus rightFocus paths writers run))
+        exact .sharedRecordString leftFocus rightFocus paths writers run))
 
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem crossSharedRecordEmit {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
     {leftTicket rightTicket ptr} {leading trailing : Trace grow sig}
     (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (fields : List RecordLower.Field)
+    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
     (split : labels = leading ++ trailing)
     (paired : HostFrame.Related.Paired older start incoming)
     (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
@@ -15403,7 +15443,7 @@ private theorem crossSharedRecordEmit {left right : Config (core3 grow) (HostSta
         (.error (.lowerRecord (.preflight (.abi .allocationPrecondition)))) usedAll paired allPaths traced
         frame checked canonical residual
     | some width =>
-      refine crossSharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport leftTicket) (sharedRecordReport rightTicket)
+      refine crossSharedRecordMemory .fields cx width fields ptr 0 emitted (sharedRecordReport leftTicket) (sharedRecordReport rightTicket)
         ?_ usedAll paired allPaths traced frame checked canonical residual compare
       intro left right leading trailing result split paths writers frame checked canonical residual
       let verdict : Except Scheduled.Issue Nat := (result.mapError Scheduled.Issue.lowerRecord).map (fun _ => 0)
@@ -15451,6 +15491,10 @@ private theorem crossSharedRecord {left right : Config (core3 grow) (HostState s
       have compiledAt : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2 (.memory ptr) =
           .ok (fields, objects) := compiled
       rw [compiledAt] at leftFocus rightFocus
+      have emitted := RecordLower.compileRecord_emitted cx type value payload.2.val.owners (.memory ptr)
+        fields objects (by
+          simp only [Record.preflight, bind, Except.bind, Except.mapError] at compiled
+          split at compiled <;> first | contradiction | exact compiled)
       let plan := RecordLower.Field.listObjects fields
       let checkedNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr leftTicket
       let canonicalNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr rightTicket
@@ -15464,7 +15508,7 @@ private theorem crossSharedRecord {left right : Config (core3 grow) (HostState s
       | ok result =>
         cases result
         exact crossSharedRecordEmit (leftTicket := leftTicket) (rightTicket := rightTicket)
-          cx type value fields split paired paths writers frame checked canonical residual compare
+          cx type value fields emitted split paired paths writers frame checked canonical residual compare
 
 open ReturnFrame.Occurrence in
 private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest name kind args inst}

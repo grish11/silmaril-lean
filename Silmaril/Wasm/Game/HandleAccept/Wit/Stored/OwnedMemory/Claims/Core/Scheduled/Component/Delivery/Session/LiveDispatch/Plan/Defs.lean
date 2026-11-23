@@ -1962,12 +1962,18 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordVisitor {changes reached peer left right leading trailing finish marks}
+  /-- Remaining internal shared string visitor. The field and its reached
+  continuation are fixed by the successful compiler. -/
+  | sharedRecordString {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {mode cx fields width cursor index}
+      {cx width ptr index} {text : Stored.Payload (.prim .string)}
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : left.ctl = check.control (sharedRecordMemory mode cx width fields cursor index checkedNext))
-      (canonical : right.ctl = canon.control (sharedRecordMemory mode cx width fields cursor index canonicalNext))
+      (checked : left.ctl = check.control (Stored.Endpoints.RecordLower.Internal.runField Limits.spec Quirks.none cx
+        (Stored.OwnedMemory.Claims.Record.authority recordClaims Limits.spec cx) width (.data (.prim .string) text)
+        index (.memory ptr) >>= checkedNext))
+      (canonical : right.ctl = canon.control (Stored.Endpoints.RecordLower.Internal.runField Limits.spec Quirks.none cx
+        (Stored.OwnedMemory.Claims.Record.authority recordClaims Limits.spec cx) width (.data (.prim .string) text)
+        index (.memory ptr) >>= canonicalNext))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
