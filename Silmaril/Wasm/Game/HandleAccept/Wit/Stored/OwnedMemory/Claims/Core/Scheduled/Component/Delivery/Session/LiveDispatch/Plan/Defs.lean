@@ -796,6 +796,17 @@ def sharedDestructorAfterTaskRead (task : TaskId) (callee : Option (core3 grow).
     ((if entered then (Task.registerThread task worker).bind fun _ => .pure true
       else .pure false) : Session grow sig Bool).bind (sharedDestructorAfterAdmission task callee)
 
+inductive SharedDestructorWorkerPoint where
+  | taskRead
+  | registered
+
+def SharedDestructorWorkerPoint.program (point : SharedDestructorWorkerPoint)
+    (task : TaskId) (callee : Option (core3 grow).FuncAddr) (worker : ThreadId)
+    (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+  match point with
+  | .taskRead => sharedDestructorAfterTaskRead task callee worker store
+  | .registered => sharedDestructorAfterAdmission task callee true
+
 def sharedDestructorAfterThreadRead (task : TaskId) (callee : Option (core3 grow).FuncAddr) :
     Option ThreadId → Session grow sig (Ret (core3 grow))
   | none => internal "no current thread"
@@ -2033,8 +2044,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- A compared shared record prefix, followed by the actual remaining run. -/
-  | sharedRecordCompared {changes reached peer left right leading live trailing finish marks}
+  /-- A compared prefix followed by the actual remaining run. -/
+  | comparedPrefix {changes reached peer left right leading live trailing finish marks}
       (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
@@ -2091,8 +2102,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The resumed worker has read its actual admission task, with its two
-  ticket-specific parents still dormant. The remaining worker is a proof cut. -/
+  /-- The resumed worker has reached its admission continuation or executed
+  registration with both ticket-specific parents still dormant. -/
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
       {leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee}
@@ -2104,9 +2115,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (peerResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
         body rightTicket thread beforeRight activeRight canon)
       (selected : body = sharedDestructorThread task callee)
-      (checkedEntry : left.ctl = ⟨some thread, .prog (sharedDestructorAfterTaskRead task callee thread left.store), []⟩ ::
+      (point : SharedDestructorWorkerPoint)
+      (checkedEntry : left.ctl = ⟨some thread, .prog (point.program task callee thread left.store), []⟩ ::
         check.control (sharedDestructorAfterResume body leftTicket))
-      (canonicalEntry : right.ctl = ⟨some thread, .prog (sharedDestructorAfterTaskRead task callee thread right.store), []⟩ ::
+      (canonicalEntry : right.ctl = ⟨some thread, .prog (point.program task callee thread right.store), []⟩ ::
         canon.control (sharedDestructorAfterResume body rightTicket))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
