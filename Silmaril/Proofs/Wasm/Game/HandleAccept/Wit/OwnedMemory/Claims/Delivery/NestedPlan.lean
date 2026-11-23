@@ -624,15 +624,34 @@ private theorem compareFramedQuietShort {check canon : PayloadPrefix.Cursor (E :
   exact ⟨short, peer, paths, site, .framed (takeQuietWriterPath left.2 run (Nat.le_of_lt short))
     (takeQuietWriterPath right.2 mate (Nat.le_of_lt short)), checked, canonical⟩
 
+private theorem ComponentQuietPath.append
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {middle : Config (core3 grow) (HostState sig)} {leading trailing : List (ComponentStoreEdit grow)}
+    (first : ComponentQuietPath profile ready dispatch cursor start leading middle)
+    (later : ComponentQuietPath profile ready dispatch cursor middle trailing finish) :
+    ComponentQuietPath profile ready dispatch cursor start (leading ++ trailing) finish := by
+  induction first with
+  | done => exact later
+  | step actual stationary _ ih => exact .step actual stationary (ih later)
+
+private theorem FramedQuietPath.append
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {middle : Config (core3 grow) (HostState sig)} {leading trailing : List (ComponentStoreEdit grow)}
+    (first : FramedQuietPath profile ready dispatch cursor start leading middle)
+    (later : FramedQuietPath profile ready dispatch cursor middle trailing finish) :
+    FramedQuietPath profile ready dispatch cursor start (leading ++ trailing) finish :=
+  ⟨first.1.append later.1, by
+    simpa only [List.length_append, List.replicate_add, List.nil_append] using WriterPaths.append first.2 later.2⟩
+
 open ReturnFrame.Occurrence in
-private theorem coreAcceptLoadPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+private theorem coreAcceptReadPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat)
-    (loader : World grow sig → CStore (core3 grow) ×
-      Except Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Issue (Stored.OwnedMemory.Tree sig))
-    (atLoad : start.ctl = cursor.control (.flat <$> (do Scheduled.finish ticket (← acceptWith ticket loader))))
-    {loaded} (result : loader ⟨start.store, start.host.writer⟩ = loaded) :
-    FramedQuietPath profile ready dispatch cursor start [id, id, fun _ => loaded.1]
-      { start with store := loaded.1, ctl := cursor.control (coreAcceptAfterLoad ticket loaded.2) } := by
+    (loader : World grow sig → CStore (core3 grow) × Except Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Issue (Stored.OwnedMemory.Tree sig))
+    (atLoad : start.ctl = cursor.control (.flat <$> (do Scheduled.finish ticket (← acceptWith ticket loader)))) :
+    FramedQuietPath profile ready dispatch cursor start [id, id]
+      { start with ctl := cursor.control (coreAcceptBeforeLoadWrite ticket (loader ⟨start.store, start.host.writer⟩)) } := by
   refine FramedQuietPath.step (.hostGet atLoad) (by rw [transitionEdit, atLoad]; rfl) rfl ?_
   refine FramedQuietPath.step (.get rfl) rfl rfl ?_
   change FramedQuietPath profile ready dispatch cursor
@@ -642,8 +661,20 @@ private theorem coreAcceptLoadPath (dispatch : Call (core3 grow) → Session gro
         match value.2 with
         | .error issue => pure (.error (.accept issue))
         | .ok tree => publishRoot ticket tree) >>= Scheduled.finish ticket)) } _ _
-  rw [result]
-  refine FramedQuietPath.step (update := fun _ => loaded.1) ?_ rfl rfl .done
+  cases loader ⟨start.store, start.host.writer⟩
+  exact .done
+
+open ReturnFrame.Occurrence in
+private theorem coreAcceptLoadPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat)
+    (loader : World grow sig → CStore (core3 grow) × Except Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Issue (Stored.OwnedMemory.Tree sig))
+    (atLoad : start.ctl = cursor.control (.flat <$> (do Scheduled.finish ticket (← acceptWith ticket loader))))
+    {loaded} (result : loader ⟨start.store, start.host.writer⟩ = loaded) :
+    FramedQuietPath profile ready dispatch cursor start [id, id, fun _ => loaded.1]
+      { start with store := loaded.1, ctl := cursor.control (coreAcceptAfterLoad ticket loaded.2) } := by
+  have reads := coreAcceptReadPath (profile := profile) (ready := ready) dispatch cursor ticket loader atLoad
+  rw [result] at reads
+  refine FramedQuietPath.append reads (FramedQuietPath.step (update := fun _ => loaded.1) ?_ rfl rfl .done)
   exact .modify (th := cursor.thread) (segs := cursor.frames) (rest := cursor.rest)
     (f := fun _ => loaded.1) (k := fun _ => coreAcceptAfterLoad ticket loaded.2) rfl
 
@@ -659,6 +690,24 @@ private theorem linkedCoreAcceptLoadAgreement {name kind args inst loader}
   | flat source _ =>
     simp only [FlatSource.load, FlatSource.preflight, same, history]
 
+private theorem cutCoreAcceptLoadAgrees {loader}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
+    (leftFocus : start.ctl = check.control (.flat <$> (do Scheduled.finish leftTicket (← acceptWith leftTicket loader))))
+    (rightFocus : incoming.ctl = canon.control (.flat <$> (do Scheduled.finish rightTicket (← acceptWith rightTicket loader))))
+    (site : PairedComponentSite older start incoming check canon)
+    (loaded : loader ⟨incoming.store, incoming.host.writer⟩ = loader ⟨start.store, start.host.writer⟩)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CoreAcceptLoadCut profile ready base bindings older start incoming check canon leftTicket rightTicket
+      (loader ⟨start.store, start.host.writer⟩) labels finish := by
+  have left := coreAcceptLoadPath (profile := profile) (ready := ready) (specDispatch ready base)
+    check leftTicket loader leftFocus rfl
+  have right := coreAcceptLoadPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    canon rightTicket loader rightFocus loaded
+  rcases splitSilent (count := 3) (left.1.track (.active 0 0)).toTrail.steps run with ⟨rest, split, tail⟩ | short
+  · refine .inr ⟨rest, split, fun place => ⟨left.1.track place, right.1.track place⟩, .framed left.2 right.2, ?_, tail⟩
+    exact site.set_store _
+  · exact .inl (compareFramedQuietShort left right site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+
 theorem cutCoreAcceptLoad {name kind args inst loader}
     (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
@@ -668,17 +717,9 @@ theorem cutCoreAcceptLoad {name kind args inst loader}
     (history : start.host.writer.accepted = incoming.host.writer.accepted)
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     CoreAcceptLoadCut profile ready base bindings older start incoming check canon leftTicket rightTicket
-      (loader ⟨start.store, start.host.writer⟩) labels finish := by
-  have same : start.store = incoming.store := (HostFrame.Related.Paired.data site).1
-  have loaded := linkedCoreAcceptLoadAgreement source same history
-  have left := coreAcceptLoadPath (profile := profile) (ready := ready) (specDispatch ready base)
-    check leftTicket loader leftFocus rfl
-  have right := coreAcceptLoadPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
-    canon rightTicket loader rightFocus loaded
-  rcases splitSilent (count := 3) (left.1.track (.active 0 0)).toTrail.steps run with ⟨rest, split, tail⟩ | short
-  · refine .inr ⟨rest, split, fun place => ⟨left.1.track place, right.1.track place⟩, .framed left.2 right.2, ?_, tail⟩
-    exact site.set_store _
-  · exact .inl (compareFramedQuietShort left right site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+      (loader ⟨start.store, start.host.writer⟩) labels finish :=
+  cutCoreAcceptLoadAgrees leftFocus rightFocus site
+    (linkedCoreAcceptLoadAgreement source (HostFrame.Related.Paired.data site).1 history) run
 
 open AsyncRef ReturnFrame.Occurrence in
 private theorem refusalResolvePath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
@@ -2847,6 +2888,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
+  | legacyLoadMismatch _ _ _ _ residual => exact residual
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
@@ -2925,6 +2967,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
+  | legacyLoadMismatch _ _ _ _ residual => exact residual
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
@@ -9876,27 +9919,6 @@ private theorem selectorLookupAdmission (request : GiveSelector bindings) (worke
       · simp [GiveSelector.lookupDemand, giveLookupDemand, caller, Bool.eq_false_iff.mpr leaves] at demand
     · simp [GiveSelector.lookupDemand, giveLookupDemand, caller, callerMatches] at demand
 
-private theorem ComponentQuietPath.append
-    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {middle : Config (core3 grow) (HostState sig)} {leading trailing : List (ComponentStoreEdit grow)}
-    (first : ComponentQuietPath profile ready dispatch cursor start leading middle)
-    (later : ComponentQuietPath profile ready dispatch cursor middle trailing finish) :
-    ComponentQuietPath profile ready dispatch cursor start (leading ++ trailing) finish := by
-  induction first with
-  | done => exact later
-  | step actual stationary _ ih => exact .step actual stationary (ih later)
-
-private theorem FramedQuietPath.append
-    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {middle : Config (core3 grow) (HostState sig)} {leading trailing : List (ComponentStoreEdit grow)}
-    (first : FramedQuietPath profile ready dispatch cursor start leading middle)
-    (later : FramedQuietPath profile ready dispatch cursor middle trailing finish) :
-    FramedQuietPath profile ready dispatch cursor start (leading ++ trailing) finish :=
-  ⟨first.1.append later.1, by
-    simpa only [List.length_append, List.replicate_add, List.nil_append] using WriterPaths.append first.2 later.2⟩
-
 private def scanSelector {Result : Type} (store : CStore (core3 grow)) (thread : Option ThreadId) :
     Session grow sig Result → Nat × Session grow sig Result
   | .op .get next => let reached := scanSelector store thread (next store); (reached.1 + 1, reached.2)
@@ -12821,11 +12843,11 @@ private theorem crossAdmittedAcceptBody {worker frames rest peerFrames peerRest 
       (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: used) (.tau :: used) left right marks)
       (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: used) (.tau :: used) left right)
       (residual : Steps profile ready (specDispatch ready base) left suffix finish)
-      (why : suffix = [] ∨ left.host.writer.accepted ≠ right.host.writer.accepted) :
+      (empty : suffix = []) :
       CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
     exact .inr (callbackTerminalSlice paired (by
       rw [split, ← List.cons_append]
-      exact .coreAcceptTerminal paths writers residual (why.elim Or.inl (fun diff => .inr (.inl diff)))))
+      exact .coreAcceptTerminal paths writers residual (.inl empty)))
   rcases splitSilent (count := 8) (leftEntry.1.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
   · let leftLoad := { start with
       host := start.host.enter name kind args
@@ -12842,24 +12864,42 @@ private theorem crossAdmittedAcceptBody {worker frames rest peerFrames peerRest 
     have entrySite : PairedComponentSite older leftLoad rightLoad check canon := by
       unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
       exact pairQuietHost site _
-    by_cases history : leftLoad.host.writer.accepted = rightLoad.host.writer.accepted
-    · rcases cutCoreAcceptLoad source rfl rfl entrySite history residual with early | ⟨trailing, used, tracked, effects, loadedSite, actual⟩
+    by_cases loaded : loader ⟨rightLoad.store, rightLoad.host.writer⟩ = loader ⟨leftLoad.store, leftLoad.host.writer⟩
+    · rcases cutCoreAcceptLoadAgrees rfl rfl entrySite loaded residual with early | ⟨trailing, used, tracked, effects, loadedSite, actual⟩
       · obtain ⟨_, peer, moved, _, framed, _, _⟩ := early
         obtain ⟨_, whole, _⟩ := CallbackPrefix.transportAppend paths moved
         exact stop (by rw [split, List.append_nil])
           (by simpa only [List.cons_append] using whole)
-          (by simpa only [List.cons_append] using writers.append framed) (.refl _) (.inl rfl)
+          (by simpa only [List.cons_append] using writers.append framed) (.refl _) rfl
       · exact finishCoreAcceptCrossing
           (by rw [split, used, List.append_assoc]) paired (live := .tau :: (_ ++ _)) rfl
           (by simpa only [List.cons_append] using retainComparedOccurrences paths tracked)
           (by simpa only [List.cons_append] using writers.append effects)
           (cutCoreAcceptCompletion rfl rfl loadedSite actual)
-    · exact stop split paths writers residual (.inr history)
+    · have lhs := coreAcceptReadPath (profile := profile) (ready := ready) (start := leftLoad)
+        (specDispatch ready base) check start.host.nextTicket loader rfl
+      have rhs := coreAcceptReadPath (profile := profile) (ready := ready) (start := rightLoad)
+        (specDispatch ready (LiveDispatch.host bindings base)) canon incoming.host.nextTicket loader rfl
+      have reads := (lhs.1.track (.active 0 0)).toTrail.steps
+      have peerReads := (rhs.1.track (.active 0 0)).toTrail.steps
+      rcases splitSilent (count := 2) reads residual with ⟨remaining, readSplit, tail⟩ | short
+      · apply Or.inr
+        apply callbackTerminalSlice paired
+        rw [split]
+        refine .comparedPrefix paths writers ?_
+        rw [readSplit]
+        exact .comparedPrefix (CallbackPrefix.stationaryTransport lhs.1.track rhs.1.track) (.framed lhs.2 rhs.2)
+          (.legacyLoadMismatch source ⟨rfl, rfl, reads⟩ ⟨rfl, rfl, peerReads⟩ (Ne.symm loaded) tail)
+      · obtain ⟨_, peer, moved, _, framed, _, _⟩ := compareFramedQuietShort lhs rhs entrySite ⟨_, rfl⟩ ⟨_, rfl⟩ residual short
+        obtain ⟨_, whole, _⟩ := CallbackPrefix.transportAppend paths moved
+        exact stop (by rw [split, List.append_nil])
+          (by simpa only [List.cons_append] using whole)
+          (by simpa only [List.cons_append] using writers.append framed) (.refl _) rfl
   · obtain ⟨_, peer, moved, _, framed, _, _⟩ := compareFramedQuietShort leftEntry rightEntry site ⟨_, rfl⟩ ⟨_, rfl⟩ run short
     obtain ⟨_, whole, _⟩ := CallbackPrefix.transportAppend installed moved
     exact stop (List.append_nil _).symm
       (by simpa only [List.singleton_append] using whole)
-      (by simpa only [List.singleton_append] using installedWriters.append framed) (.refl _) (.inl rfl)
+      (by simpa only [List.singleton_append] using installedWriters.append framed) (.refl _) rfl
 
 open ReturnFrame.Occurrence in
 private theorem finishCoreAcceptTrap {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
@@ -17241,9 +17281,8 @@ private theorem finishAdmittedSourceLegacy {limit : Nat}
   · subst following
     cases residual
     exact .comparedPrefix paths writers .exhausted
-  · by_cases history : left.host.writer.accepted = right.host.writer.accepted
+  · by_cases same : loader ⟨right.store, right.host.writer⟩ = loader ⟨left.store, left.host.writer⟩
     · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
-      have same := linkedCoreAcceptLoadAgreement (start := left) (incoming := right) source stores history
       have checkedLoad := coreAcceptLoadPath (profile := profile) (ready := ready) (start := left)
         (specDispatch ready base) check start.host.nextTicket loader rfl rfl
       have rawLoad := coreAcceptLoadPath (profile := profile) (ready := ready) (start := right)
@@ -17261,7 +17300,21 @@ private theorem finishAdmittedSourceLegacy {limit : Nat}
           omega
         exact finishSourceLegacyCompletion (check := check) (canon := canon)
           rfl rfl rfl scheduler tail within resume
-    · exact .coreAcceptTerminal paths writers residual (.inr (.inl history))
+    · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+      have lhs := coreAcceptReadPath (profile := profile) (ready := ready) (start := left)
+        (specDispatch ready base) check start.host.nextTicket loader rfl
+      have rhs := coreAcceptReadPath (profile := profile) (ready := ready) (start := right)
+        (specDispatch ready (LiveDispatch.host bindings base)) canon incoming.host.nextTicket loader rfl
+      have reads := (lhs.1.track (.active 0 0)).toTrail.steps
+      have peerReads := (rhs.1.track (.active 0 0)).toTrail.steps
+      obtain ⟨used, remaining, reached, peer, divided, moved, effects, tail, stopped⟩ := cutSharedQuietWorker lhs rhs residual
+      rw [divided]
+      rcases stopped with empty | ⟨rfl, rfl⟩
+      · subst remaining
+        cases tail
+        exact .comparedPrefix moved effects .exhausted
+      · exact .comparedPrefix moved effects
+          (.legacyLoadMismatch source ⟨rfl, rfl, reads⟩ ⟨rfl, rfl, peerReads⟩ (Ne.symm same) tail)
 
 private theorem finishSourceScheduledReply {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}

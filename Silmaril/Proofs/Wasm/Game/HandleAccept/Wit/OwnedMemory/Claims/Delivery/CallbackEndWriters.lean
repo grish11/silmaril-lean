@@ -139,6 +139,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     obtain ⟨checked, canonical⟩ := paths.choose_spec.1 none
     exact terminal paths (.framed (oneFrame checked.steps same.1) (oneFrame canonical.steps same.2)) (.refl _)
   | coreAcceptTerminal paths writers residual _ => exact terminal paths writers residual
+  | legacyLoadMismatch _ _ _ _ residual => exact stop residual
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact stop residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih

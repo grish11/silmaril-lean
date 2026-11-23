@@ -79,6 +79,23 @@ def coreAcceptAfterLoad (ticket : Nat) (result : Except Core.Issue (Stored.Owned
     | .error issue => pure (.error (.accept issue))
     | .ok tree => publishRoot ticket tree) >>= Scheduled.finish ticket)
 
+/-- The loader's reached update and registration/refusal continuation,
+prior to executing the store write. -/
+def coreAcceptBeforeLoadWrite (ticket : Nat)
+    (loaded : CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig)) :
+    Session grow sig (Ret (core3 grow)) :=
+  .op (.modify fun _ => loaded.1) fun _ => coreAcceptAfterLoad ticket loaded.2
+
+structure CoreAcceptLoaderRead (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat)
+    (loader : World grow sig → CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig))
+    (before reached : Config (core3 grow) (HostState sig)) : Prop where
+  entered : before.ctl = cursor.control (.flat <$> (do Scheduled.finish ticket (← acceptWith ticket loader)))
+  pending : reached = { before with ctl := cursor.control (coreAcceptBeforeLoadWrite ticket
+    (loader ⟨before.store, before.host.writer⟩)) }
+  reads : Steps profile ready dispatch before [.tau, .tau] reached
+
 /-- The linked publication read and its following executed registration
 write. The trailing writer frames include any reached completion journal. -/
 def ReachedRegistrationCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2477,6 +2494,17 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  /-- Both executable loader reads have run and selected different pending
+  updates or results. Registration and the loader store writes are still pending. -/
+  | legacyLoadMismatch {changes reached peer finish trailing beforeLeft beforeRight check canon leftTicket rightTicket
+      name kind args inst loader}
+      (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+      (checked : CoreAcceptLoaderRead profile ready (specDispatch ready base) check leftTicket loader beforeLeft reached)
+      (canonical : CoreAcceptLoaderRead profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        canon rightTicket loader beforeRight peer)
+      (different : loader ⟨beforeLeft.store, beforeLeft.host.writer⟩ ≠ loader ⟨beforeRight.store, beforeRight.host.writer⟩)
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The source worker continues after the original onStart pop while its
   two ticket-specific parent programs are dormant. -/
   | sharedDropSource {changes reached peer trailing finish}
