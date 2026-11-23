@@ -2724,10 +2724,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (.op (.block (some target)) fun _ => reply))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The reached activation and its resumers run above the two dormant
-  source parents. The checked suffix starts at this actual scheduler state. -/
-  | sharedDropSwitchTarget {changes reached peer trailing finish body left right active peerActive rest peerRest}
-      (parents : DestructorParentChain changes body rest peerRest)
+  /-- The reached activation and its resumers run above a dormant
+  source parent stack. The checked suffix starts at this actual scheduler state. -/
+  | sharedDropSwitchTarget {changes reached peer trailing finish left right active peerActive rest peerRest}
+      (parents : SourceParentStack changes rest peerRest)
       (target : ReturnFrame.Related.Active changes left right)
       (resumers : List.Forall₂ (ReturnFrame.Related.Active changes) active peerActive)
       (stores : reached.store = peer.store)

@@ -16742,17 +16742,27 @@ private theorem rejoinDestructorLoopEntry {limit : Nat} {sourceCfg peerCfg : Con
       (finishBlockedDestructorLoop frames restored outside residual (Nat.lt_of_succ_le bounded) compare)
   | other => exact other
 
+private theorem destructorParentStack {body : ThreadBody (core3 grow)} {left right}
+    (parents : DestructorParentChain older body left right) : SourceParentStack older left right := by
+  cases parents with
+  | paired frames rest _ => exact .destructor body _ _ rfl (.cons (.same _) frames) (.paired rest)
+
 open ReturnFrame.Occurrence in
-private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
+private theorem finishSourceSwitchTarget {limit : Nat}
     {rest peerRest left right active peerActive}
-    (parents : DestructorParentChain older body rest peerRest)
+    (parents : SourceParentStack older rest peerRest) (parentPresent : rest ≠ [] ∧ peerRest ≠ [])
     (target : ReturnFrame.Related.Active older left right)
     (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
     (stores : start.store = incoming.store)
     (scheduler : DestructorSchedulerAlignment older start incoming)
     (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    (bounded : labels.length ≤ limit)
+    (onParent : ∀ {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
+      lhs.store = rhs.store → DestructorSchedulerAlignment older lhs rhs →
+      lhs.ctl = rest → rhs.ctl = peerRest →
+      Steps profile ready (specDispatch ready base) lhs suffix finish → suffix.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   induction labels generalizing start incoming left right active peerActive finish with
   | nil =>
@@ -16770,15 +16780,8 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           (residual : Steps profile ready (specDispatch ready base) lhs trailing finish) :
           CallbackSliceEnd profile ready base bindings older lhs rhs trailing finish := by
         cases resumers with
-        | nil =>
-          have reached : DestructorParentChain older body lhs.ctl rhs.ctl := by
-            rw [lhsAt, rhsAt]
-            exact parents
-          exact rejoinDestructorLoopEntry (enterDestructorParentLoop reached same residual) aligned shorter compare
-        | cons front others => exact ih front others same aligned lhsAt rhsAt residual shorter
-      have parentPresent : rest ≠ [] ∧ peerRest ≠ [] := by
-        cases parents
-        exact ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+        | nil => exact onParent same aligned lhsAt rhsAt residual shorter
+        | cons front others => exact ih front others same aligned lhsAt rhsAt residual shorter onParent
       cases target with
       | @mk thread focus frames peerFrames segments =>
         have advance {lhs rhs : Config (core3 grow) (HostState sig)}
@@ -16797,7 +16800,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
             CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
           have paths := sharedSchedulerTransport (bindings := bindings) leftStep rightStep leftEdit rightEdit
           exact .destructorPrefix paths (.framed (.same leftStep leftWriter (.done _)) (.same rightStep rightWriter (.done _)))
-            (fun _ => aligned) (ih (.mk related) resumers same aligned leftNext rightNext residual shorter)
+            (fun _ => aligned) (ih (.mk related) resumers same aligned leftNext rightNext residual shorter onParent)
         cases actual with
         | @call _ request resume _ _ atCall =>
           rw [leftAt] at atCall
@@ -17024,7 +17027,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           have aligned : DestructorSchedulerAlignment older lhs rhs :=
             ⟨relatedSetSlot .none saved switched.idx .none, scheduler.2⟩
           exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
-            (ih selected resumers (congrArg update stores) aligned rfl rfl tail shorter)
+            (ih selected resumers (congrArg update stores) aligned rfl rfl tail shorter onParent)
         | @resumeThread _ resumed resume _ _ next atResume found =>
           rw [leftAt] at atResume
           cases atResume
@@ -17044,7 +17047,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           have aligned : DestructorSchedulerAlignment older lhs rhs :=
             ⟨relatedSetSlot .none scheduler.1 resumed.idx .none, scheduler.2⟩
           exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
-            (ih selected (.cons (.mk segments) resumers) (congrArg update stores) aligned rfl rfl tail shorter)
+            (ih selected (.cons (.mk segments) resumers) (congrArg update stores) aligned rfl rfl tail shorter onParent)
         | @fault msg fault =>
           have rawFault : Fault incoming msg := by
             cases fault with
@@ -17090,6 +17093,29 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           · exact advance (.hostSet leftAt) (.hostSet rightAt) tail segments rfl rfl stores scheduler same.1 same.2
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
           · exact .boundary (.write leftAt) (.hostSet leftAt) tail
+
+open ReturnFrame.Occurrence in
+private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
+    {rest peerRest left right active peerActive}
+    (parents : DestructorParentChain older body rest peerRest)
+    (target : ReturnFrame.Related.Active older left right)
+    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have parentPresent : rest ≠ [] ∧ peerRest ≠ [] := by
+    cases parents
+    exact ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+  refine finishSourceSwitchTarget (destructorParentStack parents) parentPresent target resumers
+    stores scheduler leftAt rightAt run bounded ?_
+  intro lhs rhs suffix same aligned lhsAt rhsAt residual shorter
+  have reached : DestructorParentChain older body lhs.ctl rhs.ctl := by
+    rw [lhsAt, rhsAt]
+    exact parents
+  exact rejoinDestructorLoopEntry (enterDestructorParentLoop reached same residual) aligned shorter compare
 
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -19823,11 +19849,6 @@ private theorem crossDestructorAllocatorRegisteredWorker {limit : Nat} {body : T
   exact .sharedDropRecordAllocatorRegistered (check := check) (canon := canon) parents thread same (align scheduler) retained
     checked canonical (crossDestructorRecordAllocatorOnStart (check := check) (canon := canon)
       parents thread onPointer cx callee task caller worker retained same checked canonical (align scheduler) tail (shorter.trans within))
-
-private theorem destructorParentStack {body : ThreadBody (core3 grow)} {left right}
-    (parents : DestructorParentChain older body left right) : SourceParentStack older left right := by
-  cases parents with
-  | paired frames rest _ => exact .destructor body _ _ rfl (.cons (.same _) frames) (.paired rest)
 
 open ReturnFrame.Occurrence in
 private theorem crossSourceWorkerResume
