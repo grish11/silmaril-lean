@@ -2016,6 +2016,18 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  /-- The actual collection body and descriptor publication have returned
+  to their original field continuation. -/
+  | sharedRecordCollectionContinuation {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {result : Except Stored.Endpoints.RecordLower.Issue Unit}
+      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (checked : left.ctl = check.control (checkedNext result))
+      (canonical : right.ctl = canon.control (canonicalNext result))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | sharedRecordPrepareMismatch {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {beforeLeft beforeRight plan}
