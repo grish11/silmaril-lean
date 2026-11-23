@@ -2860,7 +2860,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropRecordAllocatorReturning _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropNestedRegistered _ _ _ _ _ residual => exact residual
+  | sharedDropNestedRegistered _ _ _ _ _ _ ih => exact ih
+  | sharedDropNestedCoreCallout _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2933,7 +2934,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropRecordAllocatorReturning _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropNestedRegistered _ _ _ _ _ residual => exact residual
+  | sharedDropNestedRegistered _ _ _ _ _ ending => exact callbackEndSteps ending
+  | sharedDropNestedCoreCallout _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
@@ -14228,6 +14230,11 @@ private theorem sharedDestructorOnStartPath {impl : HostImpl (core3 grow) (HostS
   · simp only [sharedArenaReader, found, sharedDestructorInnerStartFromRecord]
   exact .get rfl rfl .done
 
+private theorem destructorSuffixBound {α : Type} {limit : Nat} {full leading trailing : List α}
+    (split : full = leading ++ trailing) (within : full.length ≤ limit) : trailing.length ≤ limit := by
+  rw [split, List.length_append] at within
+  omega
+
 open ReturnFrame.Occurrence in
 private theorem crossSharedDestructorOnStart
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -14245,7 +14252,8 @@ private theorem crossSharedDestructorOnStart
         tk.caller (sharedDestructorStartReply task callee tk) args right →
       left.ctl = check.control (sharedDestructorArguments task callee tk args) →
       right.ctl = canon.control (sharedDestructorArguments task callee tk args) →
-      Steps profile ready (specDispatch ready base) left remaining finish →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   obtain ⟨tk, width, rep, taskAt, typeAt, optionsAt, callerAt⟩ := source.entry
@@ -14322,7 +14330,8 @@ private theorem crossSharedDestructorOnStart
           exact afterPop tk args width rep typeAt optionsAt integer (congrArg (CStore.setTaskState task .started) source.paired)
             ⟨callLeft, enterLeft, retLeft, rfl, callCheck, rfl, readLeft.1.track _, rfl, popLeft⟩
             ⟨callRight, enterRight, retRight, rfl, callCanon, rfl, readRight.1.track _, rfl, popRight⟩
-            rfl rfl residual
+            rfl rfl (fun aligned => aligned) residual (destructorSuffixBound returned (destructorSuffixBound cut
+              (destructorSuffixBound installed (destructorSuffixBound split (Nat.le_refl _)))))
         · have empty : following = [] := List.length_eq_zero_iff.mp (by omega)
           have stopped := stepsAtEmpty (empty ▸ tail)
           exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
@@ -14412,7 +14421,8 @@ private theorem crossSharedDestructorScalars {check canon : PayloadPrefix.Cursor
       left.store = right.store →
       left.ctl = ⟨check.thread, sharedDestructorBodyFocus task callee tk width rep, check.frames⟩ :: check.rest →
       right.ctl = ⟨canon.thread, sharedDestructorBodyFocus task callee tk width rep, canon.frames⟩ :: canon.rest →
-      Steps profile ready (specDispatch ready base) left trailing finish →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left trailing finish → trailing.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right trailing finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   obtain ⟨kind, rfl⟩ := integer
@@ -14448,7 +14458,7 @@ private theorem crossSharedDestructorScalars {check canon : PayloadPrefix.Cursor
     · rw [used]
       have compared := sharedSchedulerTransport (bindings := bindings) (edit := .same) checkStep canonStep
         (by cases callee <;> rfl) (by cases callee <;> rfl)
-      exact .destructorPrefix compared (frameCalloutStep compared rfl rfl) (fun scheduler => scheduler) (resume stores rfl rfl tail)
+      exact .destructorPrefix compared (frameCalloutStep compared rfl rfl) (fun scheduler => scheduler) (resume stores rfl rfl (fun aligned => aligned) tail (destructorSuffixBound used (destructorSuffixBound tookGet (Nat.le_refl _))))
     · have empty : afterGet = [] := List.length_eq_zero_iff.mp (by omega)
       have stopped := stepsAtEmpty (empty ▸ residual)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
@@ -14482,11 +14492,6 @@ private def SharedFramedCoreContinuation (profile : ProfileKind) (ready : HostRe
     right.ctl = ⟨canon.thread, .core core (sharedDestructorCoreResult task tk), canon.frames⟩ :: canon.rest →
     Steps profile ready (specDispatch ready base) left remaining finish →
     CallbackSliceEnd profile ready base bindings older left right remaining finish
-
-private theorem destructorSuffixBound {α : Type} {limit : Nat} {full leading trailing : List α}
-    (split : full = leading ++ trailing) (within : full.length ≤ limit) : trailing.length ≤ limit := by
-  rw [split, List.length_append] at within
-  omega
 
 open ReturnFrame.Occurrence in
 private theorem crossSharedDestructorCoreWith {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -14611,7 +14616,8 @@ private theorem crossSharedDestructorCoreResult {check canon : PayloadPrefix.Cur
       left.store = right.store →
       left.ctl = check.control (sharedDestructorFinish task []) →
       right.ctl = canon.control (sharedDestructorFinish task []) →
-      Steps profile ready (specDispatch ready base) left trailing finish →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left trailing finish → trailing.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right trailing finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   have noResults : resultTypes tk.ft = [] := by rw [typeAt]; rfl
@@ -14632,7 +14638,7 @@ private theorem crossSharedDestructorCoreResult {check canon : PayloadPrefix.Cur
     obtain ⟨rfl, rfl⟩ := silentStepUnique checkRead first
     have read := sharedSchedulerTransport (bindings := bindings) (edit := .same) checkRead canonRead
       (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-    exact .destructorPrefix read (frameCalloutStep read rfl rfl) (fun scheduler => scheduler) (finishRead stores rfl rfl tail)
+    exact .destructorPrefix read (frameCalloutStep read rfl rfl) (fun scheduler => scheduler) (finishRead stores rfl rfl (fun aligned => aligned) tail (Nat.le_succ _))
 
 private def sharedDestructorReturnCall (task : TaskId) (tk : Task (core3 grow)) (values : List Value.Val := []) : Session grow sig (Ret (core3 grow)) :=
   if tk.state = .resolved then trap .taskReturnTwice
@@ -14981,13 +14987,15 @@ private theorem crossSharedWorkerStore {check canon : PayloadPrefix.Cursor (E :=
     (leftAt : start.ctl = check.control body) (rightAt : incoming.ctl = canon.control body)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (returned : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig} (reply : Ret (core3 grow)),
-      invariant left.store → left.store = right.store → left.ctl = check.control (.pure reply) → right.ctl = canon.control (.pure reply) →
+      remaining.length ≤ labels.length → invariant left.store → left.store = right.store → left.ctl = check.control (.pure reply) → right.ctl = canon.control (.pure reply) →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
       Steps profile ready (specDispatch ready base) left remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  crossSharedWorkerBody (check := check) (canon := canon) threads body Prog.pure (liftDestructorStoreEffects effects preserves) initial stores
+  crossSharedWorkerBodyWith (check := check) (canon := canon) threads body Prog.pure Prog.pure
+    (liftDestructorStoreEffects effects preserves) initial stores
     (by simpa only [Prog.bind_eq, Prog.bind_pure] using leftAt)
-    (by simpa only [Prog.bind_eq, Prog.bind_pure] using rightAt) run (fun reply _ => returned reply)
+    (by simpa only [Prog.bind_eq, Prog.bind_pure] using rightAt) run returned
 
 open ReturnFrame.Occurrence in
 private theorem crossSharedWorkerExitWith {checkRest canonRest : List (Activation (core3 grow) (HostState sig))}
@@ -15054,12 +15062,13 @@ private theorem crossSharedDestructorExit {checkRest canonRest : List (Activatio
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (parent : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
       sharedDestructorResolved task left.store → left.store = right.store → left.ctl = checkRest → right.ctl = canonRest →
-      Steps profile ready (specDispatch ready base) left remaining finish →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
   crossSharedWorkerExitWith task worker stores leftAt rightAt run (sharedDestructorResolvedWrite task start.store)
     (sharedDestructorExitKeepsResolved task) (sharedDestructorExitPreserves task worker)
-    (fun resolved same checked canonical _ tail _ => parent resolved same checked canonical tail)
+    parent
 
 open ReturnFrame.Occurrence in
 private theorem compareSharedDestructorTrap {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -15165,7 +15174,8 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
       left.store = right.store →
       left.ctl = check.control (sharedDestructorResolveReply task .unit) →
       right.ctl = canon.control (sharedDestructorResolveReply task .unit) →
-      Steps profile ready (specDispatch ready base) left trailing finish →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left trailing finish → trailing.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right trailing finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   let call : Call (core3 grow) := .onResolve caller (some [])
@@ -15206,10 +15216,14 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
       have visited := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftRead rightRead
         (by rw [transitionEdit, leftReadAt]; rfl) (by rw [transitionEdit, rightReadAt]; rfl)
       refine .destructorPrefix visited (frameCalloutStep visited rfl rfl) (fun scheduler => scheduler) ?_
+      have readBound : afterRead.length ≤ (.tau :: suffix).length :=
+        (destructorSuffixBound used (Nat.le_refl _)).trans (Nat.le_succ _)
       have pop {l r : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
           (reply : Ret (core3 grow)) (same : l.store = r.store)
           (lAt : l.ctl = checking.control (.pure reply)) (rAt : r.ctl = canonical.control (.pure reply))
-          (run : Steps profile ready (specDispatch ready base) l remaining finish) :
+          (align : DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older l r)
+          (run : Steps profile ready (specDispatch ready base) l remaining finish)
+          (bounded : remaining.length ≤ afterRead.length) :
           CallbackSliceEnd profile ready base bindings older l r remaining finish := by
         have leftPop := Step.popProg (prof := profile) (hr := ready) (dispatch := specDispatch ready base)
           (m := l) (th := check.thread) (r := reply) (k := resume) (segs := check.frames) (rest := check.rest) lAt
@@ -15220,7 +15234,7 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
           have popped := sharedSchedulerTransport (bindings := bindings) (edit := .pop) leftPop rightPop
             (by rw [transitionEdit, lAt]; rfl) (by rw [transitionEdit, rAt]; rfl)
           refine .destructorPrefix popped (frameCalloutStep popped rfl rfl) (fun scheduler => scheduler) ?_
-          cases reply <;> first | exact afterPop same rfl rfl tail |
+          cases reply <;> first | exact afterPop same rfl rfl align tail (destructorSuffixBound used (bounded.trans readBound)) |
             exact compareSharedDestructorTrap (.internal "late-bound call: expected Ret.unit") rfl rfl tail
         · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
           have stopped := stepsAtEmpty (empty ▸ run)
@@ -15230,7 +15244,7 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
           CallbackSliceEnd profile ready base bindings older readLeft readRight afterRead finish :=
         crossSharedWorkerStore (check := checking) (canon := canonical) threads program effects (trivialPreserves _) trivial
           stores (congrArg checking.control code) (congrArg canonical.control code) residual
-          (fun reply _ => pop reply)
+          (fun reply shorter _ same lAt rAt align tail => pop reply same lAt rAt align tail shorter)
       cases callerAt : ArenaField.callers.get? start.store caller with
       | none =>
         exact closed (internal "dangling arena id") (storeEffectTrap _)
@@ -15274,10 +15288,11 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
                 obtain ⟨rfl, rfl⟩ := componentEmitUnique (cursor := checking) leftEmitAt step
                 have emitted := sharedSchedulerTransport (bindings := bindings) (edit := .same) emitLeft emitRight rfl rfl
                 exact .destructorPrefix emitted (frameCalloutStep emitted rfl rfl)
-                  (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id (some [])) (pop .unit stores rfl rfl tail)
+                  (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id (some [])) (pop .unit stores rfl rfl (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id (some []))
+                    tail (empty.symm ▸ Nat.le_succ _))
           · exact pop .unit stores
               (congrArg checking.control (by rw [code]; simp [sharedDestructorResolveFromRecord, top]))
-              (congrArg canonical.control (by rw [code]; simp [sharedDestructorResolveFromRecord, top])) residual
+              (congrArg canonical.control (by rw [code]; simp [sharedDestructorResolveFromRecord, top])) (fun a => a) residual (Nat.le_refl _)
     · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
       have stopped := stepsAtEmpty (empty ▸ tail)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
@@ -15292,7 +15307,8 @@ private theorem crossSharedDestructorCompletion {check canon : PayloadPrefix.Cur
       left.store = right.store →
       left.ctl = check.control (sharedDestructorResolveReply task .unit) →
       right.ctl = canon.control (sharedDestructorResolveReply task .unit) →
-      Steps profile ready (specDispatch ready base) left trailing finish →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left trailing finish → trailing.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right trailing finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   rw [sharedDestructorCompletionCode] at leftAt rightAt
@@ -15344,7 +15360,8 @@ private theorem crossSharedDestructorCompletion {check canon : PayloadPrefix.Cur
         simp only [read, found, sharedDestructorReturnCall, resolved, borrows, ite_false]
       have atLeft := congrArg check.control code
       have atRight := congrArg canon.control code
-      exact crossSharedDestructorResolve task reached.caller threads stores atLeft atRight tail afterPop
+      exact crossSharedDestructorResolve task reached.caller threads stores atLeft atRight tail
+        (fun same leftAt rightAt align run shorter => afterPop same leftAt rightAt align run (shorter.trans (Nat.le_succ _)))
 
 private theorem sharedDestructorParentCode (body : ThreadBody (core3 grow)) (ticket : Nat) :
     (sharedDestructorAfterResume body ticket : Session grow sig (Ret (core3 grow))) =
@@ -15449,18 +15466,22 @@ private theorem compareDestructorParentJournal {thread frame frames peerFrames r
           exact .cons (.mk framesPaired) restPaired)
 
 open ReturnFrame.Occurrence in
-private theorem compareDestructorParentLoop {thread frame frames peerFrames rest peerRest}
+private theorem crossSourceDestructorParentLoop
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (body : ThreadBody (core3 grow)) (leftTicket rightTicket : Nat)
     (resolved : sharedDestructorResolved body.task start.store) (stores : start.store = incoming.store)
-    (framesPaired : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
-    (restPaired : List.Forall₂ (ReturnFrame.Related.Active older) rest peerRest)
-    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
-    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
-    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (leftAt : start.ctl = check.control (sharedDestructorAfterResume body leftTicket))
+    (rightAt : incoming.ctl = canon.control (sharedDestructorAfterResume body rightTicket))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (onReply : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store →
+      left.ctl = check.control (scheduledReply leftTicket (.ok 0)) →
+      right.ctl = canon.control (scheduledReply rightTicket (.ok 0)) →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   rw [sharedDestructorParentCode] at leftAt rightAt
-  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
-  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
   let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
   let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
   let checking := { check with frames := .prog first :: check.frames }
@@ -15521,13 +15542,28 @@ private theorem compareDestructorParentLoop {thread frame frames peerFrames rest
             (by rw [transitionEdit, leftReplyAt]; rfl)
             (by rw [transitionEdit, rightReplyAt]; rfl)
           exact .destructorPrefix pop (frameCalloutStep pop rfl rfl) (fun scheduler => scheduler)
-            (compareDestructorParentJournal leftTicket rightTicket stores framesPaired restPaired rfl rfl remainder)
+            (onReply stores rfl rfl (fun aligned => aligned) remainder
+              (destructorSuffixBound popped (destructorSuffixBound used (Nat.le_succ _))))
         · have empty : afterRead = [] := List.length_eq_zero_iff.mp (by omega)
           have stopped := stepsAtEmpty (empty ▸ residual)
           exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
     · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
       have stopped := stepsAtEmpty (empty ▸ tail)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+
+open ReturnFrame.Occurrence in
+private theorem compareDestructorParentLoop {thread frame frames peerFrames rest peerRest}
+    (body : ThreadBody (core3 grow)) (leftTicket rightTicket : Nat)
+    (resolved : sharedDestructorResolved body.task start.store) (stores : start.store = incoming.store)
+    (framesPaired : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (restPaired : List.Forall₂ (ReturnFrame.Related.Active older) rest peerRest)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  crossSourceDestructorParentLoop body leftTicket rightTicket resolved stores leftAt rightAt run
+    (fun same checked canonical _ tail _ =>
+      compareDestructorParentJournal leftTicket rightTicket same framesPaired restPaired checked canonical tail)
 
 private theorem destructorParentCoordinates {body : ThreadBody (core3 grow)}
     {left right : List (Activation (core3 grow) (HostState sig))}
@@ -20784,6 +20820,57 @@ private theorem sharedDestructorSourceAtAdmission
     rfl
 
 open ReturnFrame.Occurrence in
+private theorem finishSourceDestructorWorker {limit : Nat} {task : TaskId} {worker : ThreadId}
+    {callee : Option (core3 grow).FuncAddr} {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : SourceParentStack older check.rest canon.rest)
+    (threads : check.thread = canon.thread)
+    (source : SharedDestructorRegisteredSource task start.store incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = check.control (sharedDestructorAfterAdmission task callee true))
+    (canonical : incoming.ctl = canon.control (sharedDestructorAfterAdmission task callee true))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (returned : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      sharedDestructorResolved task left.store → left.store = right.store →
+      left.ctl = check.rest → right.ctl = canon.rest → DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish)
+    (leftWorker : check = ⟨some worker, [], check.rest⟩)
+    (rightWorker : canon = ⟨some worker, [], canon.rest⟩) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  refine crossSharedDestructorOnStart task callee source checked canonical run ?_
+  intro left right residual entry args width rep typeAt optionsAt integer stores leftPop rightPop leftAt rightAt onStartScheduler tail shorter
+  refine crossSharedDestructorScalars task callee entry width rep args typeAt optionsAt integer stores leftAt rightAt tail ?_
+  intro executing peer labels same checkBody canonBody bodyScheduler actual shorterBody
+  have atBody := bodyScheduler (onStartScheduler scheduler)
+  have bounded : labels.length ≤ limit := shorterBody.trans (shorter.trans within)
+  have complete {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
+      (stores : left.store = right.store)
+      (checked : left.ctl = check.control (sharedDestructorFinish task []))
+      (canonical : right.ctl = canon.control (sharedDestructorFinish task []))
+      (aligned : DestructorSchedulerAlignment older left right)
+      (residual : Steps profile ready (specDispatch ready base) left remaining finish) (shorter : remaining.length ≤ limit) :
+      CallbackSliceEnd profile ready base bindings older left right remaining finish := by
+    refine crossSharedDestructorCompletion task threads stores checked canonical residual ?_
+    intro resolved peer finishing same leftAt rightAt align run completionBound
+    let program := sharedDestructorResolveReply (grow := grow) (sig := sig) task .unit
+    refine crossSharedDestructorExit task worker same
+      (leftAt.trans (congrArg (fun cursor => cursor.control program) leftWorker))
+      (rightAt.trans (congrArg (fun cursor => cursor.control program) rightWorker)) run ?_
+    intro left right remaining resolved same checked canonical exitAligned tail exitBound
+    exact returned resolved same checked canonical (exitAligned (align aligned)) tail
+      (exitBound.trans (completionBound.trans shorter))
+  cases callee with
+  | none => exact complete same checkBody canonBody atBody actual bounded
+  | some callee =>
+    exact crossSharedDestructorCoreWith (frame := DestructorSchedulerAlignment older) task entry
+      (fun aligned _ _ _ _ => aligned) same atBody checkBody canonBody actual bounded
+      (fun stores aligned leftAt rightAt status residual _ =>
+        .sharedDropNestedCoreCallout parents stores aligned leftAt rightAt status residual)
+      (fun words stores aligned leftAt rightAt residual within =>
+        crossSharedDestructorCoreResult task entry width words typeAt stores leftAt rightAt residual
+          (fun same checked canonical align tail shorter => complete same checked canonical (align aligned) tail (shorter.trans within)))
+
+open ReturnFrame.Occurrence in
 private theorem finishNestedDestructorStart {limit : Nat} {parentBody : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {request : InstId × DtorRequest (core3 grow)} {impl task leftTicket rightTicket}
@@ -20842,9 +20929,19 @@ private theorem finishNestedDestructorStart {limit : Nat} {parentBody : ThreadBo
       ⟨entry, width, rep, taskAt, typeAt, optionsAt, callerFound⟩
     have sync : entry.ft.async_ = false := by rw [typeAt]; rfl
     refine crossSourceWorkerAdmission task request.2.dtor worker leftRest rightRest entry taskAt sync same checked canonical tail ?_
-    intro reached peer trailing applied equal leftAt rightAt align residual _
-    exact .sharedDropNestedRegistered sourceParents (sharedDestructorSourceAtAdmission worker reachedSource applied equal)
-      (align aligned) leftAt rightAt residual
+    intro reached peer trailing applied equal leftAt rightAt align residual admittedLength
+    let admitted := sharedDestructorSourceAtAdmission worker reachedSource applied equal
+    have acceptedScheduler := align aligned
+    refine .sharedDropNestedRegistered sourceParents admitted acceptedScheduler leftAt rightAt ?_
+    refine finishSourceDestructorWorker (check := ⟨some worker, [], leftRest⟩)
+      (canon := ⟨some worker, [], rightRest⟩) sourceParents rfl admitted acceptedScheduler leftAt rightAt residual
+      (admittedLength.trans ((Nat.le_of_lt shorter).trans bounded)) ?_ rfl rfl
+    intro left right remaining resolved stores checked canonical scheduler tail within
+    have sameTask : body.task = task := by unfold body sharedDestructorThread; split <;> rfl
+    refine crossSourceDestructorParentLoop body leftTicket rightTicket (sameTask.symm ▸ resolved) stores checked canonical tail ?_
+    intro lhs rhs suffix same atLeft atRight align afterLoop shorter
+    exact finishDestructorScheduledReply parents thread segments same (.ok 0) atLeft atRight (align scheduler) afterLoop
+      (shorter.trans within) compare
 
 
 private theorem finishDestructorDropSetup {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -21524,11 +21621,11 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                   omega
                 refine .comparedPrefix paths writers (rejoinDestructorSuffix embedder ?_ scheduler covers compare)
                 exact crossSharedDestructorOnStart task callee workerSource checked canonical tail
-                  (fun tk args width rep typeAt optionsAt integer stores leftPop rightPop leftAt rightAt residual =>
+                  (fun tk args width rep typeAt optionsAt integer stores leftPop rightPop leftAt rightAt _ residual _ =>
                     CallbackSliceEnd.sharedDropSource leftCertificate rightCertificate activeCertificate peerCertificate
                       source workerSource leftPop rightPop tickets
                       (crossSharedDestructorScalars task callee tk width rep args typeAt optionsAt integer stores leftAt rightAt residual
-                        (fun same checkedBody canonicalBody tail => by
+                        (fun same checkedBody canonicalBody _ tail _ => by
                           have finishWorker {l r : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
                               (stores : l.store = r.store)
                               (atLeft : l.ctl = workerCheck.control (sharedDestructorFinish task []))
@@ -21536,9 +21633,9 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                               (run : Steps profile ready (specDispatch ready base) l remaining finish) :
                               CallbackSliceEnd profile ready base bindings older l r remaining finish :=
                             crossSharedDestructorCompletion (check := workerCheck) (canon := workerCanon) task rfl stores atLeft atRight run
-                              (fun same lAt rAt tail =>
+                              (fun same lAt rAt _ tail _ =>
                                 crossSharedDestructorExit task worker same lAt rAt tail
-                                  (fun resolved stores leftAt rightAt run =>
+                                  (fun resolved stores leftAt rightAt _ run _ =>
                                     compareDestructorParentLoop body leftTicket rightTicket
                                       (by
                                         have taskOfBody : body.task = task := by rw [source]; cases callee <;> rfl
@@ -21552,7 +21649,7 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                                 crossSharedDestructorImport task tk (.paired framesPaired restPaired tickets)
                                   ⟨worker, rfl⟩ .nil stores leftAt rightAt status run reenter)
                               (fun words stores leftAt rightAt run =>
-                                crossSharedDestructorCoreResult task tk width words typeAt stores leftAt rightAt run finishWorker))))))
+                                crossSharedDestructorCoreResult task tk width words typeAt stores leftAt rightAt run (fun same checked canonical _ tail _ => finishWorker same checked canonical tail)))))))
             change Steps profile ready (specDispatch ready base) readLeft following finish at remaining
             let reachedTask := { entry with implicitThread := some worker }
             have taskAt : ArenaField.tasks.get? leftStore task = some reachedTask := by

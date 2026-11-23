@@ -2693,8 +2693,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : reached.ctl = check.control (sharedDestructorAfterAdmission task callee true))
       (canonical : peer.ctl = canon.control (sharedDestructorAfterAdmission task callee true))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- A nested destructor Core worker reached an import under its own
+  heterogeneous source parent stack. -/
+  | sharedDropNestedCoreCallout {changes reached peer trailing finish task entry core host args}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (parents : SourceParentStack changes check.rest canon.rest)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = ⟨check.thread, .core core (sharedDestructorCoreResult task entry), check.frames⟩ :: check.rest)
+      (canonical : peer.ctl = ⟨canon.thread, .core core (sharedDestructorCoreResult task entry), canon.frames⟩ :: canon.rest)
+      (status : (core3 grow).status reached.store.core core = .callout host args)
+      (residual : Steps profile ready (specDispatch ready base) reached (.tau :: trailing) finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   /-- The source switch reached its actual scheduler instruction after the
   target checks. The target slot is read after saving the current worker. -/
   | sharedDropSwitch {changes reached peer trailing finish body worker target frames peerFrames rest peerRest reply}
