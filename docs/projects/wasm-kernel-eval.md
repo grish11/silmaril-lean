@@ -164,8 +164,7 @@ across files for the separate-process rows.
 
 With asynchronous elaboration enabled, the same checkpoint checks reported 53.3 s of
 cumulative type checking in 10.49 s of wall time. Use the serial-elaboration recipe for
-profiler comparisons. The separate-process wall time fell from 33.93 s to 22.61 s at two
-concurrent processes in this rerun.
+profiler comparisons.
 
 ## Two modes, one statement
 
