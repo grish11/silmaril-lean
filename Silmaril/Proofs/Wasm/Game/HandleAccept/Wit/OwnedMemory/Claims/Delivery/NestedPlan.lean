@@ -14169,6 +14169,48 @@ private theorem sharedRecordMemoryCons (cx : LiftLowerContext (core3 grow)) (wid
   | error issue => rfl
   | ok result => cases result; rfl
 
+open Stored.Endpoints in
+private def sharedRecordContextBody (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) := do
+  if ((← getStore).errCtx? identity).isNone then
+    return .error (.field index (.beforeAllocation .missingContext))
+  let slot ← lowerErrorContext Limits.spec cx identity
+  return .ok (← RecordLower.Internal.publishSlot cx slot (.memory ptr))
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordContextCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (identity : ErrCtxId) (index ptr : Nat) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.context identity) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
+      .op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr) := by
+  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordContextBody,
+    hostGet, getStore, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext snapshot
+  congr 1
+  funext store
+  change CStore (core3 grow) at store
+  by_cases missing : store.errCtx? identity = none
+  · simp only [missing, ite_true]
+    rfl
+  · simp only [missing, ite_false]
+    let insert : Session grow sig Nat := lowerErrorContext Limits.spec cx identity
+    let verdict (slot : Nat) : Session grow sig (Except RecordLower.Issue Nat) := .pure (.ok slot)
+    let publish : Except RecordLower.Issue Nat → Session grow sig (Except RecordLower.Issue Unit)
+      | .error issue => .pure (.error issue)
+      | .ok slot => RecordLower.Internal.publishSlot cx slot (.memory ptr) >>= fun result => .pure (.ok result)
+    exact Prog.bind_assoc insert verdict publish
+
+private theorem sharedRecordContextEffects (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
+    StoreEffects (sharedRecordContextBody cx identity index ptr : Session grow sig (Except Stored.Endpoints.RecordLower.Issue Unit)) := by
+  unfold sharedRecordContextBody
+  apply storeEffectGet.bind
+  intro store
+  split
+  · exact .pure _
+  · exact (sharedHandleInsertEffects _ _).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
+
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14192,20 +14234,26 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
     exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) (.ok 0)
       split paired paths writers site leftFocus rightFocus run
   | cons field fields ih =>
-    by_cases scalar : ∃ (type : Stored.TypeOf) (payload : Stored.Payload type),
-        field = .data type payload ∧ PayloadPrefix.LocalDataType type
-    · obtain ⟨type, payload, rfl, localType⟩ := scalar
-      let area := ABI.layout width type
-      let ptr := ABI.alignTo cursor area.alignment
-      let body : Session grow sig (Except RecordLower.Issue Unit) :=
-        RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-          width (.data type payload) index (.memory ptr)
-      let checkNext := sharedRecordAfterField (sig := sig) cx width fields (ptr + area.size) (index + 1) leftTicket
-      let canonNext := sharedRecordAfterField (sig := sig) cx width fields (ptr + area.size) (index + 1) rightTicket
-      rw [sharedRecordMemoryCons] at leftFocus rightFocus
+    let area := ABI.layout width field.type
+    let ptr := ABI.alignTo cursor area.alignment
+    let check := (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    let canon := (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    let checkNext := sharedRecordAfterField (sig := sig) cx width fields (ptr + area.size) (index + 1) leftTicket
+    let canonNext := sharedRecordAfterField (sig := sig) cx width fields (ptr + area.size) (index + 1) rightTicket
+    have advance {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
+        (body : Session grow sig (Except RecordLower.Issue Unit)) (effects : StoreEffects body)
+        (split : labels = leading ++ trailing)
+        (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+          left right [some (.active 0 0)])
+        (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+        (site : PairedComponentSite older left right check canon)
+        (leftFocus : left.ctl = check.control (body >>= checkNext))
+        (rightFocus : right.ctl = canon.control (body >>= canonNext))
+        (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+        CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
       obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, frontier, _, _, leftWriter, rightWriter, stationary⟩ :=
         cutComponentStoreBodyFramed (bindings := bindings) (closed := True) body checkNext canonNext
-          (fun _ => sharedRecordScalarEffects cx width type localType payload index ptr)
+          (fun _ => effects)
           (trivialPreserves _) trivial leftFocus rightFocus site run
       have consumed : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
       have traced : VisitorWriterPath profile ready base bindings start incoming (.tau :: (leading ++ used))
@@ -14233,6 +14281,47 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         | ok result =>
           cases result
           exact ih (ptr + area.size) (index + 1) consumed allPaths traced frame checked canonical residual
+    by_cases scalar : ∃ (type : Stored.TypeOf) (payload : Stored.Payload type),
+        field = .data type payload ∧ PayloadPrefix.LocalDataType type
+    · obtain ⟨type, payload, rfl, localType⟩ := scalar
+      have checked := leftFocus
+      have raw := rightFocus
+      rw [sharedRecordMemoryCons] at checked raw
+      exact advance _ (sharedRecordScalarEffects cx width type localType payload index ptr)
+        split paths writers site checked raw run
+    by_cases contextField : ∃ identity, field = .context identity
+    · obtain ⟨identity, rfl⟩ := contextField
+      let body := sharedRecordContextBody (sig := sig) cx identity index ptr
+      have checked := leftFocus
+      have raw := rightFocus
+      rw [sharedRecordMemoryCons, sharedRecordContextCode] at checked raw
+      let leftAfter := { left with ctl := check.control (body >>= checkNext) }
+      let rightAfter := { right with ctl := canon.control (body >>= canonNext) }
+      have leftAt : left.ctl = check.control (.op .hostGet (fun _ => body >>= checkNext)) := checked
+      have rightAt : right.ctl = canon.control (.op .hostGet (fun _ => body >>= canonNext)) := raw
+      have read : Step profile ready (specDispatch ready base) left .tau leftAfter :=
+        .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+          (k := fun _ => body >>= checkNext) leftAt
+      have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightAfter :=
+        .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+          (k := fun _ => body >>= canonNext) rightAt
+      rcases splitSilent (count := 1) (.cons read (.refl _)) run with ⟨remaining, used, residual⟩ | short
+      · have consumed : labels = (leading ++ [.tau]) ++ remaining := by
+          rw [split, used]
+          simp only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.singleton_append]
+        have through := retainComparedOccurrences paths (fun place =>
+          ⟨Prefix.step read (by rw [transitionEdit, leftAt]; cases place <;> rfl) (.done _ _),
+           Prefix.step peerRead (by rw [transitionEdit, rightAt]; cases place <;> rfl) (.done _ _)⟩)
+        have traced := writers.append (.framed (WriterPaths.frameSingle (.cons read (.refl _)) rfl)
+          (WriterPaths.frameSingle (.cons peerRead (.refl _)) rfl))
+        have pairedAfter : PairedComponentSite older leftAfter rightAfter check canon := site
+        exact advance body (sharedRecordContextEffects cx identity index ptr) consumed
+          (by simpa only [List.cons_append] using through)
+          (by simpa only [List.cons_append] using traced) pairedAfter rfl rfl residual
+      · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
+        exact .inr (callbackTerminalSlice paired (by
+          rw [split, ← List.cons_append]
+          exact .coreAcceptTerminal paths writers run (.inl empty)))
     · exact .inr (callbackTerminalSlice paired (by
         rw [split, ← List.cons_append]
         exact .sharedRecordVisitor leftFocus rightFocus paths writers run))
