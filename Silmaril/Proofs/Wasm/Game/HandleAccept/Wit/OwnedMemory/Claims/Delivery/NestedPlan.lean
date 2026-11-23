@@ -20895,12 +20895,107 @@ private theorem sourceWaitablePollEffects (memory : (core3 grow).MemAddr) (index
       (poll set).bind fun event => (sourceWaitableBufferPreserves (Builtins.eventCx memory inst) ptr event records).bind
         fun code => .pure [i32Flat code]
 
+private theorem sourceThreadResumeLaterEffects (index : Nat)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.threadResumeLater index : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects (sharedDestructorThreadResumeLater index) ?_
+  have lookup (inst : InstId) :
+      Prog.Every (storePreserves invariant) (threadsGet inst index : Session grow sig ThreadId) := by
+    unfold threadsGet getInst
+    exact (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record =>
+      sharedWorkerOrTrapPreserves invariant (.unknownHandle index) (record.threads.get? index)
+  have suspended (thread : ThreadId) :
+      Prog.Every (storePreserves invariant) (Builtins.trapUnlessSuspended thread : Session grow sig Unit) := by
+    unfold Builtins.trapUnlessSuspended
+    exact (show Prog.Every (storePreserves invariant) (getStore : Session grow sig (CStore (core3 grow))) from
+      .op trivial fun store => .pure store).bind fun store =>
+        allocatorTrapIfPreserves invariant (!(store.threadIs Runtime.Thread.suspended thread)) .cannotResumeThread
+  unfold Builtins.threadResumeLater Runtime.Thread.resumeLater Runtime.Thread.startWaiting getInst modifyStore
+  exact (allocatorCurrentInstPreserves invariant).bind fun inst =>
+    (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record =>
+    (allocatorTrapIfPreserves invariant (!record.mayLeave) .cannotLeave).bind fun _ =>
+    (lookup inst).bind fun thread => (suspended thread).bind fun _ =>
+    .op (fun store => records store _ rfl rfl) (fun _ => .pure [])
+
+private theorem sourceEndMayLeavePreserves (invariant : CStore (core3 grow) → Prop) (inst : InstId) :
+    Prog.Every (storePreserves invariant) (Builtins.endMayLeave inst : Session grow sig Unit) := by
+  unfold Builtins.endMayLeave getInst
+  exact (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record =>
+    allocatorTrapIfPreserves invariant (!record.mayLeave) .cannotLeave
+
+private theorem sourceNewEndsEffects (kind : AsyncRef.EndKind) (type : Option (WIT.ClosedType RtId))
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.newBuiltin Limits.spec kind type : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects (sharedDestructorNewEnds kind type) ?_
+  have index (identity : EndId) (slot : Nat) :
+      Prog.Every (storePreserves invariant) (modifyStore (HandleSt.setEndIndex identity slot) : Session grow sig Unit) :=
+    .op (fun store => records store _ rfl rfl) fun _ => .pure _
+  have allocate (inst : InstId) :
+      Prog.Every (storePreserves invariant) (modifyStore (Builtins.newEndsSt kind type (some inst)) : Session grow sig Unit) :=
+    .op (fun store => records store _ rfl rfl) fun _ => .pure _
+  have snapshot : Prog.Every (storePreserves invariant) (getStore : Session grow sig (CStore (core3 grow))) :=
+    .op trivial fun store => .pure store
+  unfold Builtins.newBuiltin
+  exact (allocatorCurrentInstPreserves invariant).bind fun inst =>
+    (sourceEndMayLeavePreserves invariant inst).bind fun _ => snapshot.bind fun store =>
+    let identities := (Runtime.newEnds kind type (some inst) store).2
+    (allocate inst).bind fun _ =>
+    (sourceHandleInsertPreserves inst (.waitable (.end_ identities.1)) records).bind fun readable =>
+    (index identities.1 readable).bind fun _ =>
+    (sourceHandleInsertPreserves inst (.waitable (.end_ identities.2)) records).bind fun writable =>
+    (index identities.2 writable).bind fun _ => .pure _
+
+private theorem sourceDropEndRecords (identity : EndId) (store : CStore (core3 grow)) :
+    (Runtime.dropEnd identity store).tasks = store.tasks ∧ (Runtime.dropEnd identity store).callers = store.callers := by
+  unfold Runtime.dropEnd
+  split
+  · exact ⟨rfl, rfl⟩
+  rename_i record _
+  cases record.common.wset <;> cases record.other <;> try exact ⟨rfl, rfl⟩
+  all_goals
+    rename_i peer
+    by_cases self : peer = identity
+    · simp only [self, ite_true]
+      exact ⟨rfl, rfl⟩
+    · simp only [ite_eq_right self]
+      split <;> exact ⟨rfl, rfl⟩
+
+private theorem sourceDropEndEffects (kind : AsyncRef.EndKind) (type : Option (WIT.ClosedType RtId)) (index : Nat)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.dropEnd Limits.spec kind type index : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects (sharedDestructorDropEnd kind type index) ?_
+  have expect (entry : HandleEntry) :
+      Prog.Every (storePreserves invariant) (Builtins.expectEnd kind type entry : Session grow sig (EndId × End (core3 grow))) := by
+    cases entry with
+    | waitable waitable =>
+      cases waitable with
+      | end_ identity =>
+        exact (sharedWorkerGetPreserves invariant ArenaField.ends identity).bind fun record =>
+          (allocatorTrapIfPreserves invariant (record.kind != kind) .wrongHandleType).bind fun _ =>
+          (allocatorTrapIfPreserves invariant (record.t != type) .wrongHandleType).bind fun _ => .pure _
+      | _ => exact .op trivial fun impossible => nomatch impossible
+    | _ => exact .op trivial fun impossible => nomatch impossible
+  unfold Builtins.dropEnd endDrop
+  refine (allocatorCurrentInstPreserves invariant).bind fun inst =>
+    (sourceEndMayLeavePreserves invariant inst).bind fun _ =>
+    (sourceHandleRemovePreserves inst index records).bind fun entry =>
+    (expect entry).bind fun (identity, record) =>
+    (allocatorTrapIfPreserves invariant (record.state == .copying || record.state == .cancellingCopy)
+      (.dropBusy (!kind.isStream) kind.isReadable)).bind fun _ =>
+    (allocatorTrapIfPreserves invariant (kind == .writableFuture && record.state != .done)
+      .futureNotWritten).bind fun _ => ?_
+  exact .op (fun store => records store _ (sourceDropEndRecords identity store).1 (sourceDropEndRecords identity store).2)
+    fun _ => .pure []
+
 private def sourceLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .threadIndex _ | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
   | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin (.resourceRep ..) _
   | .builtin (.resourceNew ..) _ | .builtin .waitableSetNew _ | .builtin .waitableSetDrop _
   | .builtin .waitableJoin _ | .builtin .subtaskDrop _ | .builtin .errorContextDrop _
-  | .builtin (.waitableSetPoll ..) _ => true
+  | .builtin (.waitableSetPoll ..) _ | .builtin .threadResumeLater _
+  | .builtin (.streamNew ..) _ | .builtin (.futureNew ..) _
+  | .builtin (.streamDropReadable ..) _ | .builtin (.streamDropWritable ..) _
+  | .builtin (.futureDropReadable ..) _ | .builtin (.futureDropWritable ..) _ => true
   | _ => false
 
 private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Prop)
@@ -20984,6 +21079,46 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
       rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
       · exact trapOnly _
       · exact sourceErrorContextDropEffects (flatNat word) records
+      · exact trapOnly _
+    | threadResumeLater =>
+      refine ⟨withArgs1 args Builtins.threadResumeLater, ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceThreadResumeLaterEffects (flatNat word) records
+      · exact trapOnly _
+    | streamNew type =>
+      refine ⟨withArgs0 args (Builtins.streamNew Limits.spec type), ?_, fun _ _ _ _ => rfl⟩
+      cases args with
+      | nil => exact sourceNewEndsEffects .readableStream type records
+      | cons => exact trapOnly _
+    | futureNew type =>
+      refine ⟨withArgs0 args (Builtins.futureNew Limits.spec type), ?_, fun _ _ _ _ => rfl⟩
+      cases args with
+      | nil => exact sourceNewEndsEffects .readableFuture type records
+      | cons => exact trapOnly _
+    | streamDropReadable type =>
+      refine ⟨withArgs1 args (Builtins.streamDropReadable Limits.spec type), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceDropEndEffects .readableStream type (flatNat word) records
+      · exact trapOnly _
+    | streamDropWritable type =>
+      refine ⟨withArgs1 args (Builtins.streamDropWritable Limits.spec type), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceDropEndEffects .writableStream type (flatNat word) records
+      · exact trapOnly _
+    | futureDropReadable type =>
+      refine ⟨withArgs1 args (Builtins.futureDropReadable Limits.spec type), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceDropEndEffects .readableFuture type (flatNat word) records
+      · exact trapOnly _
+    | futureDropWritable type =>
+      refine ⟨withArgs1 args (Builtins.futureDropWritable Limits.spec type), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceDropEndEffects .writableFuture type (flatNat word) records
       · exact trapOnly _
     | contextGet addressSize index =>
       refine ⟨withArgs0 args (Builtins.contextGet addressSize index), ?_, fun _ _ _ _ => rfl⟩
