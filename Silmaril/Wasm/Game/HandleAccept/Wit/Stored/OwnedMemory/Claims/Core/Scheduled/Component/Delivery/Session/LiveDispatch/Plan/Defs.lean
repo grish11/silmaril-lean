@@ -432,12 +432,20 @@ def sharedRecordAfterField (mode : Track) (cx : LiftLowerContext (core3 grow)) (
   | .ok () => sharedRecordMemory mode cx width fields cursor index next
 
 open Stored.Endpoints in
+def sharedRecordCollectionResult (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (count index dest ptr : Nat) : Except RecordLower.Issue Unit → Session grow sig (Except RecordLower.Issue Unit)
+  | .error issue => .pure (.error (.nested index issue))
+  | .ok () => ListLower.publish cx width ptr count (.memory dest) >>= fun published => .pure (.ok published)
+
+open Stored.Endpoints in
 /-- The source visitor's pending sibling programs below an aggregate,
-fixed-size collection, or sum child. -/
+collection, or sum child. -/
 inductive SharedRecordJoin where
   | report
   | field (mode : LinkedCallback.MemorySequence.Track) (siblings : List RecordLower.Field)
       (cursor nextIndex parentIndex : Nat) (outer : SharedRecordJoin)
+  | collection (mode : LinkedCallback.MemorySequence.Track) (siblings : List RecordLower.Field)
+      (cursor nextIndex parentIndex count dest pointer : Nat) (outer : SharedRecordJoin)
 
 open Stored.Endpoints in
 def SharedRecordJoin.reply (cx : LiftLowerContext (core3 grow)) (width : AddrType) (ticket : Nat) :
@@ -446,6 +454,9 @@ def SharedRecordJoin.reply (cx : LiftLowerContext (core3 grow)) (width : AddrTyp
   | .field mode siblings cursor nextIndex parentIndex outer =>
     fun result => sharedRecordAfterField mode cx width siblings cursor nextIndex
       (outer.reply cx width ticket) (result.mapError (.nested parentIndex))
+  | .collection mode siblings cursor nextIndex parentIndex count dest pointer outer =>
+    fun result => sharedRecordCollectionResult cx width count parentIndex dest pointer result >>=
+      sharedRecordAfterField mode cx width siblings cursor nextIndex (outer.reply cx width ticket)
 
 open Stored.Endpoints in
 def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List RecordLower.Field) (ptr ticket : Nat) :
@@ -2608,18 +2619,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (site.resume cx rightNext (.nat pointer)))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- Both original post-allocation prepares observed the same result after
-  the executed range checks. The remaining descendant or refusal program is exact. -/
-  | sharedDropRecordCollectionPrepared {changes reached peer trailing finish width element entries index dest pointer result}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx : LiftLowerContext (core3 grow)}
-      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (sharedRecordAfterAllocationPrepare cx width element entries index dest pointer result >>= leftNext))
-      (canonical : peer.ctl = canon.control (sharedRecordAfterAllocationPrepare cx width element entries index dest pointer result >>= rightNext))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The local string loop reached an actual later allocation or reallocation call. -/
   | sharedDropRecordStringReallocate {changes reached peer trailing finish steps tagged dest old oldLen alignment size}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -2631,16 +2630,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (sharedRecordStringResume cx steps tagged dest leftNext)))
       (canonical : peer.ctl = canon.control (.op (.call (.reallocate cx old oldLen alignment size))
         (sharedRecordStringResume cx steps tagged dest rightNext)))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- Both descriptor writes completed, exposing the next source field or report. -/
-  | sharedDropRecordStringDescriptorWritten {changes reached peer trailing finish}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (leftNext (.ok ())))
-      (canonical : peer.ctl = canon.control (rightNext (.ok ())))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
