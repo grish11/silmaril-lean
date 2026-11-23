@@ -8,6 +8,7 @@ public import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 public import Silmaril.Wasm.Component.Reference.Runtime.Arena.Thms
 public import Silmaril.Wasm.Component.Reference.Runtime.Store.Thms
 public import Silmaril.Wasm.Component.Reference.Validation.Context.Thms
+import Silmaril.Proofs.Wasm.Component.Reference.Canon.Handles.AsyncLift
 
 /-!
 # `Canon.Handles`: laws of the component reference
@@ -25,6 +26,31 @@ namespace Silmaril.Wasm.Component.Canon
 open _root_.Silmaril.Wasm.Component.Engine _root_.Silmaril.Wasm.Component.Runtime
   _root_.Silmaril.Wasm.Component.Value _root_.Silmaril.Wasm.Component.AsyncRef
 variable {E : CoreEngine} {σ : Type}
+
+/-- The first store read selects the source slot and commits its removal
+before validating the removed entry. For an endpoint, a second store read
+selects the guards, and only success releases that same arena identity. -/
+theorem liftAsyncValue_source (lim : Limits) (kind : EndKind) (cx : LiftLowerContext E)
+    (t : Option (WIT.ClosedType RtId)) (slot : Nat) :
+    (liftAsyncValue lim kind cx t slot : P E σ EndId) = (do
+      let source ← getStore
+      match source.inst? cx.inst with
+      | none => internal "dangling arena id"
+      | some inst =>
+        match inst.removeHandle? slot with
+        | none => trap (.unknownHandle slot)
+        | some (entry, _) =>
+          modifyInst cx.inst (InstState.removeHandle slot)
+          match entry with
+          | .waitable (.end_ identity) =>
+            let reached ← getStore
+            match checkLiftEndRead kind t (reached.end? identity) with
+            | .error reason => trap reason
+            | .ok () =>
+              modifyStore (HandleSt.releaseEnd identity)
+              return identity
+          | _ => trap .wrongHandleType) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Canon.Handles.AsyncLift.source lim kind cx t slot
 
 namespace P.Inv
 

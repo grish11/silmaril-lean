@@ -37,6 +37,18 @@ open _root_.Silmaril.Wasm.Component.Engine _root_.Silmaril.Wasm.Component.Runtim
   _root_.Silmaril.Wasm.Component.Value _root_.Silmaril.Wasm.Component.ABI
 variable {E : CoreEngine} {σ : Type}
 
+/-- Store operations of the executable memory lift for a closed WIT type. -/
+theorem loadAt_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
+    (width : AddrType) (type : WIT.ClosedType RtId) (ptr : Nat) :
+    Prog.Every (LowerSt.ValueLiftOp cx) (loadAt lim q cx width type ptr : P E σ Val) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift.loadAt_scoped lim q cx width type ptr
+
+/-- Store operations of the executable flat lift for a closed WIT type. -/
+theorem liftFlatAt_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
+    (width : AddrType) (type : WIT.ClosedType RtId) (cursor : FlatCursor) :
+    Prog.Every (LowerSt.ValueLiftOp cx) (liftFlatAt lim q cx width type cursor : P E σ _) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift.liftFlatAt_scoped lim q cx width type cursor
+
 /-- Classification of the executable typed value lift, in either the flat or
 spilled-memory route, at its actual instance and borrow scope. -/
 theorem liftFlatValues_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)

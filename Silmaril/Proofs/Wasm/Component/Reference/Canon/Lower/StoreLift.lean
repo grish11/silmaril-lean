@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Wasm.Component.Reference.Canon.Lower.Defs
+import Silmaril.Wasm.Component.Reference.Canon.Handles.Thms
 import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 
 namespace Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift
@@ -122,13 +123,20 @@ private theorem liftBorrow (lim : Limits) (cx : LiftLowerContext E) (rt : RtId) 
 private theorem liftAsyncValue (lim : Limits) (kind : EndKind) (cx : LiftLowerContext E)
     (type : Option (WIT.ClosedType RtId)) (index : Nat) :
     Local (scope := cx) (Canon.liftAsyncValue lim kind cx type index : P E σ EndId) := by
-  have checked (entry : HandleEntry) : Local (scope := cx) (checkLiftEnd kind type entry : P E σ EndId) := by
-    unfold checkLiftEnd
-    split
-    · exact bind (getObj _ _) fun _ => bind (trapIf _ _) fun _ => bind (trapIf _ _) fun _ =>
-        bind (trapIf _ _) fun _ => bind (trapIf _ _) fun _ => pure _
+  rw [liftAsyncValue_source]
+  refine bind getStore fun source => ?_
+  split
+  · exact internal _
+  · split
     · exact trap _
-  exact bind (handlesRemove cx _) fun _ => bind (checked _) fun identity => bind (modifyStore _ (.releaseEnd identity)) fun _ => pure _
+    · refine bind (modifyStore _ (.removeHandle index)) fun _ => ?_
+      split
+      · rename_i identity _
+        refine bind getStore fun reached => ?_
+        split
+        · exact trap _
+        · exact bind (modifyStore _ (.releaseEnd identity)) fun _ => pure _
+      · exact trap _
 
 private theorem liftErrorContext (lim : Limits) (cx : LiftLowerContext E) (index : Nat) :
     Local (scope := scope) (Canon.liftErrorContext lim cx index : P E σ ErrCtxId) :=
@@ -421,6 +429,16 @@ mutual
     | some t, vi => by
       rw [Canon.liftFlatOpt, Canon.liftFlatOptWith]; exact bind (liftFlatAt lim q cx p t vi) fun _ => pure _
 end
+
+public theorem loadAt_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
+    (width : AddrType) (type : WIT.ClosedType RtId) (ptr : Nat) :
+    Prog.Every (LowerSt.ValueLiftOp cx) (Canon.loadAt lim q cx width type ptr : P E σ Val) :=
+  loadAt lim q cx width type ptr
+
+public theorem liftFlatAt_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
+    (width : AddrType) (type : WIT.ClosedType RtId) (cursor : FlatCursor) :
+    Prog.Every (LowerSt.ValueLiftOp cx) (Canon.liftFlatAt lim q cx width type cursor : P E σ _) :=
+  liftFlatAt lim q cx width type cursor
 
 public theorem liftFlatValues_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
     (max : Nat) (vi : FlatCursor) (ts : List (WIT.ClosedType RtId)) :
