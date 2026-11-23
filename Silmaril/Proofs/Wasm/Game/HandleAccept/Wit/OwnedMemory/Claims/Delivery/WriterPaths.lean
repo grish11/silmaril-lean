@@ -202,6 +202,20 @@ private theorem endpointSpendWriter {site : SharedEndpointGive} {ticket : Nat}
   rw [unchanged]
   exact live
 
+open Stored.OwnedMemory.Claims in
+private theorem ownerSpendWriter {site : SharedOwnerGive} {rep ticket : Nat}
+    (executed : ExecutedSharedOwnerSpend profile ready dispatch site rep ticket start finish) :
+    finish.host.writer = (Spend.owner site.identity).apply start.host.writer ∧
+    WriterPath profile ready dispatch start [.tau, .tau, .tau] finish [(start.host.writer, finish.host.writer)] := by
+  obtain ⟨cursor, prepared, writing, spent, _, admitted, rfl, rfl, rfl, first, read, commit⟩ := executed.executed
+  obtain ⟨receipt, held, identity, _, _⟩ := prepare_provenance admitted
+  refine ⟨rfl, .same first rfl (.same read rfl (.changed commit ?_ (.done _)))⟩
+  intro unchanged
+  apply Spend.not_live (.owner site.identity) start.host.writer
+  change (Spend.owner site.identity).apply start.host.writer = start.host.writer at unchanged
+  rw [unchanged]
+  exact List.mem_map.mpr ⟨receipt, held, identity⟩
+
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
@@ -209,6 +223,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | sharedGiveMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | ownerCommit lhs rhs => exact ⟨_, _, (ownerSpendWriter lhs).2, (ownerSpendWriter rhs).2⟩
   | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
   | guarded paths =>
     obtain ⟨_, changes, lhs, rhs, _⟩ := paths
@@ -377,6 +392,11 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.sharedGiveConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
         checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using related) (.inl exceptional) conflict empty)
+  | @ownerCommit start incoming left right site rep leftTicket rightTicket lhs rhs =>
+    have after := initial.spendBoth (.owner site.identity)
+    refine .complete [] (.ownerCommit lhs rhs) ?_
+    rw [(ownerSpendWriter lhs).1, (ownerSpendWriter rhs).1]
+    exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
   | @endpointCommit start incoming left right site leftTicket rightTicket lhs rhs =>
     have after := initial.spendBoth (.endpoint site.identity)
     refine .complete [] (.endpointCommit lhs rhs) ?_

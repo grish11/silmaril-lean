@@ -422,8 +422,49 @@ structure ExecutedSharedEndpointSpend (profile : ProfileKind) (ready : HostReady
     Step profile ready dispatch prepared .tau writing ∧
     Step profile ready dispatch writing .tau finish
 
-/-- Ordered evidence on the actual pair of visited program segments. Only
-the guarded case attributes a change to a compiled nominal assignment. -/
+/-- The linked owner give fixes the type and the selected arena identity.
+Its representation comes from the live prepare on each side. -/
+structure SharedOwnerGive where
+  resource : RtId
+  identity : HandleObjId
+  inst : InstId
+
+def SharedOwnerGive.claim (site : SharedOwnerGive) : SharedGiveClaim :=
+  .giveOwner site.resource site.identity
+
+def SharedOwnerGive.transfer (site : SharedOwnerGive) (rep : Nat) : Session grow sig Nat :=
+  lowerOwn Limits.spec { opts := {}, inst := site.inst } site.resource rep
+
+def SharedOwnerGive.afterSpend (site : SharedOwnerGive) (rep ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  site.transfer rep >>= fun idx => scheduledReply ticket (.ok idx)
+
+def SharedOwnerGive.spend (site : SharedOwnerGive) (rep ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  claims.spend (.owner site.identity) >>= fun _ => site.afterSpend rep ticket
+
+open Stored.OwnedMemory.Claims in
+/-- The reached owner prepare authorizes the spend read and its actual hostSet
+before canonical lowering allocates a fresh handle. -/
+structure ExecutedSharedOwnerSpend (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (site : SharedOwnerGive) (rep ticket : Nat)
+    (start finish : Config (core3 grow) (HostState sig)) : Prop where
+  executed : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (prepared writing : Config (core3 grow) (HostState sig)) (spent : Stored.OwnedMemory.Claims.State sig),
+    start.ctl = cursor.control (site.claim.probe site.inst ticket) ∧
+    start.host.writer.prepare site.resource site.identity = .ok (rep, spent) ∧
+    prepared = { start with ctl := cursor.control (site.spend rep ticket) } ∧
+    writing = { prepared with ctl := cursor.control (.op (.hostSet
+      { prepared.host with writer := (Spend.owner site.identity).apply prepared.host.writer })
+      (fun _ => site.afterSpend rep ticket)) } ∧
+    finish = { writing with
+      host := { writing.host with writer := (Spend.owner site.identity).apply writing.host.writer }
+      ctl := cursor.control (site.afterSpend rep ticket) } ∧
+    Step profile ready dispatch start .tau prepared ∧
+    Step profile ready dispatch prepared .tau writing ∧
+    Step profile ready dispatch writing .tau finish
+
+/-- Ordered evidence on the actual pair of visited program segments.
+Compiled guards and shared scheduled commits identify the source of nominal spends. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
     Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
@@ -447,6 +488,10 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
       VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
+  | ownerCommit {start incoming left right site rep leftTicket rightTicket}
+      (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
+      (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right
   | endpointCommit {start incoming left right site leftTicket rightTicket}
       (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
       (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
@@ -468,8 +513,8 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
 
 open Stored.OwnedMemory.Claims in
 /-- Ordered classified writer effects before a conflict or open assignment.
-The spend list is built from executed compiled guard commits. A publication
-keeps the registration evidence and contributes no spend. -/
+The spend list records checked-only compiled guard commits. Shared scheduled
+commits and publications retain their own evidence and add no one-sided spend. -/
 inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) :
     Config (core3 grow) (HostState sig) → Config (core3 grow) (HostState sig) →
@@ -484,6 +529,10 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       (commit : ReachedLeafSpend profile ready (specDispatch ready base) start checked left change update)
       (raw : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
       ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right [update]
+  | ownerCommit {start incoming left right site rep leftTicket rightTicket}
+      (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
+      (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right []
   | endpointCommit {start incoming left right site leftTicket rightTicket}
       (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
       (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
