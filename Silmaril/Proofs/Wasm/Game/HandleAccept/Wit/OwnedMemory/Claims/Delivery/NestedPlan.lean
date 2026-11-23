@@ -19173,6 +19173,21 @@ private theorem crossDestructorRecordAllocatorResult {limit : Nat} {body : Threa
       exact crossDestructorRecordAllocatorTaskReturn (check := check) (canon := canon)
         parents thread onPointer cx task caller worker value source stores rfl rfl scheduler tail (Nat.le_of_succ_le within)
 
+private theorem allocatorCurrentThreadPreserves (invariant : CStore (core3 grow) → Prop) :
+    Prog.Every (storePreserves invariant) (currentThreadId : Session grow sig ThreadId) := by
+  unfold currentThreadId
+  refine .op trivial fun result => ?_
+  cases result with
+  | none => exact .op trivial fun impossible => nomatch impossible
+  | some thread => exact .pure thread
+
+private theorem allocatorTrapIfPreserves (invariant : CStore (core3 grow) → Prop)
+    (denied : Bool) (reason : TrapReason) :
+    Prog.Every (storePreserves invariant) (trapIf denied reason : Session grow sig Unit) := by
+  cases denied
+  · exact .pure ()
+  · exact .op trivial fun impossible => nomatch impossible
+
 private theorem allocatorThreadIndexEffects (invariant : CStore (core3 grow) → Prop)
     (args : List FlatValue) :
     DestructorWorkerEffects invariant (withArgs0 args Builtins.threadIndex : Session grow sig (List FlatValue)) := by
@@ -19184,27 +19199,70 @@ private theorem allocatorThreadIndexEffects (invariant : CStore (core3 grow) →
     refine liftDestructorStoreEffects
       (destructorThreadEntryEffects.bind fun (_, record, _) =>
         (storeEffectOrTrap _ record.index).bind fun _ => .pure _) ?_
-    have current : Prog.Every (storePreserves invariant) (currentThreadId : Session grow sig ThreadId) := by
-      unfold currentThreadId
-      refine .op trivial fun result => ?_
-      cases result with
-      | none => exact .op trivial fun impossible => nomatch impossible
-      | some thread => exact .pure thread
-    have guard (denied : Bool) :
-        Prog.Every (storePreserves invariant) (trapIf denied .cannotLeave : Session grow sig Unit) := by
-      cases denied
-      · exact .pure ()
-      · exact .op trivial fun impossible => nomatch impossible
     have enter : Prog.Every (storePreserves invariant)
         (Builtins.enterThreadBuiltin : Session grow sig (ThreadId × Runtime.Thread × Task (core3 grow))) := by
       unfold Builtins.enterThreadBuiltin getThread getTask getInst
-      exact current.bind fun thread =>
+      exact (allocatorCurrentThreadPreserves invariant).bind fun thread =>
         (sharedWorkerGetPreserves invariant ArenaField.threads thread).bind fun record =>
         (sharedWorkerGetPreserves invariant ArenaField.tasks record.task).bind fun task =>
         (sharedWorkerGetPreserves invariant ArenaField.insts task.inst).bind fun inst =>
-        (guard (!inst.mayLeave)).bind fun _ => .pure _
+        (allocatorTrapIfPreserves invariant (!inst.mayLeave) .cannotLeave).bind fun _ => .pure _
     exact enter.bind fun (_, record, _) =>
       (sharedWorkerOrTrapPreserves invariant _ record.index).bind fun _ => .pure _
+
+private def allocatorThreadImport : CanonHost (core3 grow) → Bool
+  | .builtin .threadIndex _ | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _ => true
+  | _ => false
+
+private theorem allocatorThreadImportProgram (cx : LiftLowerContext (core3 grow))
+    (request : ABI.ReallocRequest) (width : AddrType) (task : TaskId) (caller : CallerId)
+    (host : CanonHost (core3 grow)) (args : List FlatValue) (selected : allocatorThreadImport host = true) :
+    ∃ program : Session grow sig (List FlatValue),
+      DestructorWorkerEffects (fun store => SharedRecordAllocatorSource cx request width task caller store) program ∧
+      ∀ (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
+        (store : CStore (core3 grow)) (thread : Option ThreadId),
+        calloutBody Limits.spec Quirks.none ready impl store thread host args =
+          (program >>= fun words => .pure (.flat words)) := by
+  let retained (store : CStore (core3 grow)) := SharedRecordAllocatorSource cx request width task caller store
+  have trapOnly (reason : TrapReason) :
+      DestructorWorkerEffects retained (trap reason : Session grow sig (List FlatValue)) :=
+    liftDestructorStoreEffects (storeEffectTrap _) (.op trivial fun impossible => nomatch impossible)
+  cases host with
+  | builtin builtin inst =>
+    cases builtin with
+    | threadIndex =>
+      exact ⟨withArgs0 args Builtins.threadIndex, allocatorThreadIndexEffects retained args, fun _ _ _ _ => rfl⟩
+    | contextGet addressSize index =>
+      refine ⟨withArgs0 args (Builtins.contextGet addressSize index), ?_, fun _ _ _ _ => rfl⟩
+      change DestructorWorkerEffects retained _
+      cases args with
+      | cons => exact trapOnly _
+      | nil =>
+        unfold withArgs0 Builtins.contextGet getThread
+        refine liftDestructorStoreEffects
+          (storeEffectCurrentThread.bind fun thread =>
+            (storeEffectGetObject ArenaField.threads thread).bind fun record =>
+            (storeEffectOrTrap .contextIndex record.storage[index]?).bind fun _ => .pure _) ?_
+        exact (allocatorCurrentThreadPreserves retained).bind fun thread =>
+          (sharedWorkerGetPreserves retained ArenaField.threads thread).bind fun record =>
+          (sharedWorkerOrTrapPreserves retained .contextIndex record.storage[index]?).bind fun _ => .pure _
+    | contextSet addressSize index =>
+      refine ⟨withArgs1 args (Builtins.contextSet addressSize index), ?_, fun _ _ _ _ => rfl⟩
+      change DestructorWorkerEffects retained _
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · unfold withArgs1 Builtins.contextSet getThread
+        refine liftDestructorStoreEffects
+          (storeEffectCurrentThread.bind fun thread =>
+            (storeEffectGetObject ArenaField.threads thread).bind fun record =>
+            (storeEffectTrapIf _ .contextIndex).bind fun _ => (storeEffectModify _).bind fun _ => .pure _) ?_
+        refine (allocatorCurrentThreadPreserves retained).bind fun thread =>
+          (sharedWorkerGetPreserves retained ArenaField.threads thread).bind fun record =>
+          (allocatorTrapIfPreserves retained (decide (record.storage.length ≤ index)) .contextIndex).bind fun _ => ?_
+        exact .op (fun _ source => sharedRecordAllocatorSourceFrame source rfl rfl) (fun _ => .pure _)
+      · exact trapOnly _
+    | _ => contradiction
+  | _ => contradiction
 
 open ReturnFrame.Occurrence in
 private theorem crossDestructorAllocatorCoreImport {body : ThreadBody (core3 grow)}
@@ -19272,13 +19330,14 @@ private theorem crossDestructorAllocatorCoreImport {body : ThreadBody (core3 gro
           simp only [sharedDestructorImportProgram, ← stores, admitted]
         have checkAt := congrArg lhs.control checkCode
         have canonAt := congrArg rhs.control canonCode
-        by_cases indexImport : ∃ inst, host = .builtin .threadIndex inst
-        · obtain ⟨inst, rfl⟩ := indexImport
-          let program : Session grow sig (List FlatValue) := withArgs0 args Builtins.threadIndex
+        by_cases localImport : allocatorThreadImport host = true
+        · obtain ⟨program, effects, compiled⟩ := allocatorThreadImportProgram cx request width task caller host args localImport
           let result (words : List FlatValue) : Session grow sig (Ret (core3 grow)) := .pure (.flat words)
-          let invariant (store : CStore (core3 grow)) := SharedRecordAllocatorSource cx request width task caller store
+          have localCheck := checkAt.trans (congrArg lhs.control (compiled ready base start.store (some worker)))
+          have localCanon := canonAt.trans (congrArg rhs.control
+            (compiled ready (LiveDispatch.host bindings base) incoming.store (some worker)))
           refine crossSharedWorkerBodyWith (check := lhs) (canon := rhs) rfl program result result
-            (allocatorThreadIndexEffects invariant args) source stores checkAt canonAt residual ?_
+            effects source stores localCheck localCanon residual ?_
           intro l r restLabels words bounded retained same lAt rAt aligned actual
           let resumed := (core3 grow).resume l.store.core core (.values words)
           let lResume := { l with ctl := ⟨some worker, .core resumed ret, []⟩ :: lhs.rest }
