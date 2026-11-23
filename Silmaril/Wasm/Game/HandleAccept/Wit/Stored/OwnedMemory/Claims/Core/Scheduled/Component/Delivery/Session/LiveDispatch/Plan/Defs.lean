@@ -2080,6 +2080,19 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
+/-- The worker's dormant parents run the same source lift loop with separate
+completion continuations and the original enclosing caller frames. -/
+inductive DestructorParentChain (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (body : ThreadBody (core3 grow)) :
+    List (Activation (core3 grow) (HostState sig)) → List (Activation (core3 grow) (HostState sig)) → Prop where
+  | paired {thread frame frames peerFrames rest peerRest leftTicket rightTicket}
+      (framesPaired : List.Forall₂ (ReturnFrame.Related.Segment changes) frames peerFrames)
+      (restPaired : List.Forall₂ (ReturnFrame.Related.Active changes) rest peerRest)
+      (tickets : leftTicket ≠ rightTicket) :
+      DestructorParentChain changes body
+        ((PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
+        ((PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
+
 /-- Data shared by the two schedulers independently of the active worker
 and its ticket-specific dormant parents. -/
 abbrev DestructorSchedulerAlignment (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -2207,7 +2220,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   /-- The worker's actual Core import passed the common dispatcher reads.
   Its Core return occurrence remains parked over the two parent programs. -/
   | sharedDropWorkerImport {changes reached peer trailing finish}
-      {thread frames peerFrames rest peerRest core host args task tk}
+      {thread frames peerFrames rest peerRest core host args task tk body}
+      (parents : DestructorParentChain changes body rest peerRest)
       (admitted : calloutEntry reached.store thread host = none)
       (stores : reached.store = peer.store)
       (checked : reached.ctl = ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready base reached.store thread host args),
@@ -2244,6 +2258,21 @@ induction. Its trails still identify the removed original occurrences. -/
         peer (some (.active 0 0)) [.tau] right none)
       (restored : HostFrame.Related.Paired changes left right)
       (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  /-- A parked worker exposed the original parents. Their actual loop call
+  installs the two source continuations before the shorter scheduler run. -/
+  | sharedDropParentLoop {changes reached peer left right trailing finish first second}
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
+      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] left right)
+      (restore : DestructorSchedulerAlignment changes reached peer →
+        HostFrame.Related.Paired (ReturnFrame.Extend changes first second) left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  | sharedDropParentLoopJoined {changes reached peer left right trailing finish first second}
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
+      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] left right)
+      (restored : HostFrame.Related.Paired (ReturnFrame.Extend changes first second) left right)
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second) left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | sharedDropCompared {changes reached peer left right workerLeft workerRight entered checked canonical trailing finish marks}
       {beforeLeft beforeRight : Config (core3 grow) (HostState sig)}

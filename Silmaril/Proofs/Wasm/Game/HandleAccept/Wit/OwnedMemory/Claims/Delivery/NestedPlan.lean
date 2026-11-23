@@ -1490,13 +1490,13 @@ theorem cutWaitableWaitResume (mem : (core3 grow).MemAddr) (entry : WaitableCall
 
 open ReturnFrame.Occurrence in
 private theorem sharedPushTransport {left right : Config (core3 grow) (HostState sig)}
-    {frame : Seg (core3 grow) (HostState sig)}
+    {frame peerFrame : Seg (core3 grow) (HostState sig)}
     (checked : Step profile ready (specDispatch ready base) start .tau left)
     (canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right)
     (leftEdit : transitionEdit start .tau = .push frame)
-    (rightEdit : transitionEdit incoming .tau = .push frame) :
+    (rightEdit : transitionEdit incoming .tau = .push peerFrame) :
     OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right [some (.active 0 0)] := by
-  have shifted (place : Option Location) : place.bind (Edit.push frame).follow = place.map Location.pushed := by
+  have shifted (frame : Seg (core3 grow) (HostState sig)) (place : Option Location) : place.bind (Edit.push frame).follow = place.map Location.pushed := by
     cases place with
     | none => rfl
     | some place => cases place with
@@ -2773,10 +2773,12 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropWorkerImport _ _ _ _ residual => exact residual
+  | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentJoined paths _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | sharedDropParentLoop paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | sharedDropParentLoopJoined paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2827,10 +2829,13 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropWorkerImport _ _ _ _ residual => exact residual
+  | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentJoined paths _ _ _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | sharedDropParentLoop paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | sharedDropParentLoopJoined paths _ _ ending =>
+    exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -15221,21 +15226,7 @@ private theorem compareDestructorParentLoop {thread frame frames peerFrames rest
     obtain ⟨rfl, rfl⟩ := silentStepUnique leftCall actual
     have leftEdit : transitionEdit start .tau = .push (.prog first) := by rw [transitionEdit, leftAt]; rfl
     have rightEdit : transitionEdit incoming .tau = .push (.prog second) := by rw [transitionEdit, rightAt]; rfl
-    have shift (seg : Seg (core3 grow) (HostState sig)) (place : Option Location) :
-        place.bind (Edit.push seg).follow = place.map Location.pushed := by
-      cases place with
-      | none => rfl
-      | some place => cases place with
-        | active n _ => cases n <;> rfl
-        | saved => rfl
-    have installed : OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] left right
-        [some (.active 0 0)] := by
-      refine ⟨(·.map Location.pushed), fun place => ⟨.step leftCall ?_, .step rightCall ?_⟩, ?_⟩
-      · rw [leftEdit, shift]; exact .done _ _
-      · rw [rightEdit, shift]; exact .done _ _
-      · intro older marks outside
-        rw [step_edit leftCall, step_edit rightCall, leftEdit, rightEdit]
-        exact outside.push _ _
+    have installed := sharedPushTransport (bindings := bindings) leftCall rightCall leftEdit rightEdit
     refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun scheduler => scheduler) ?_
     let read := sharedDestructorReadLoopTask (grow := grow) ready body.task
     have leftReadAt : left.ctl = checking.control (.op .get read) := congrArg checking.control (sharedDestructorLoopReadCode ready body.task)
@@ -15285,6 +15276,56 @@ private theorem compareDestructorParentLoop {thread frame frames peerFrames rest
     · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
       have stopped := stepsAtEmpty (empty ▸ tail)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+
+private theorem destructorParentCoordinates {body : ThreadBody (core3 grow)}
+    {left right : List (Activation (core3 grow) (HostState sig))}
+    (parents : DestructorParentChain older body left right) :
+    ∃ thread frame frames peerFrames rest peerRest leftTicket rightTicket,
+      List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames ∧
+      List.Forall₂ (ReturnFrame.Related.Active older) rest peerRest ∧
+      left = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket) ∧
+      right = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control
+        (sharedDestructorAfterResume body rightTicket) := by
+  cases parents with
+  | paired frames rest _ => exact ⟨_, _, _, _, _, _, _, _, frames, rest, rfl, rfl⟩
+
+open ReturnFrame.Occurrence in
+private theorem enterDestructorParentLoop {body : ThreadBody (core3 grow)}
+    (parents : DestructorParentChain older body start.ctl incoming.ctl)
+    (stores : start.store = incoming.store)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  obtain ⟨thread, frame, frames, peerFrames, rest, peerRest, leftTicket, rightTicket,
+    framesPaired, restPaired, leftAt, rightAt⟩ := destructorParentCoordinates parents
+  rw [sharedDestructorParentCode] at leftAt rightAt
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
+  let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
+  let program := syncLiftLoopBody (E := core3 grow) ready body.task
+  let left := { start with ctl := { check with frames := .prog first :: check.frames }.control program }
+  let right := { incoming with ctl := { canon with frames := .prog second :: canon.frames }.control program }
+  have leftCall : Step profile ready (specDispatch ready base) start .tau left := .call leftAt
+  have rightCall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right := .call rightAt
+  cases run with
+  | refl => exact .exhausted
+  | cons actual tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique leftCall actual
+    have installed := sharedPushTransport (bindings := bindings) leftCall rightCall
+      (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+    refine .sharedDropParentLoop (first := first) (second := second)
+      installed (frameCalloutStep installed rfl rfl) ?_ tail
+    intro scheduler
+    let idle : Session grow sig (Ret (core3 grow)) := .pure .unit
+    have aligned : HostFrame.Related.Paired older
+        { start with ctl := check.control idle } { incoming with ctl := canon.control idle } :=
+      destructorSchedulerPair scheduler stores (.cons (.mk (.cons (.same _) framesPaired)) restPaired)
+    obtain ⟨otherFrames, otherRest, atPeer, expanded⟩ :=
+      aligned.push (show ({ start with ctl := check.control idle }).ctl = _ from rfl) program first second
+    change ⟨thread, .prog idle, frame :: peerFrames⟩ :: peerRest = _ at atPeer
+    rw [List.cons.injEq, Activation.mk.injEq] at atPeer
+    obtain ⟨⟨_, _, rfl⟩, rfl⟩ := atPeer
+    exact expanded
 
 private def sharedDestructorImportProgram (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
     (store : CStore (core3 grow)) (thread : Option ThreadId) (host : CanonHost (core3 grow)) (args : List FlatValue) :
@@ -15542,6 +15583,15 @@ private def sharedDestructorLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .threadResumeLater _ | .builtin (.threadNewIndirect ..) _ => true
   | _ => false
 
+private theorem destructorThreadEntryEffects :
+    StoreEffects (Builtins.enterThreadBuiltin : Session grow sig (ThreadId × Runtime.Thread × Task (core3 grow))) := by
+  unfold Builtins.enterThreadBuiltin getThread getTask getInst
+  exact storeEffectCurrentThread.bind fun thread =>
+    (storeEffectGetObject ArenaField.threads thread).bind fun record =>
+    (storeEffectGetObject ArenaField.tasks record.task).bind fun task =>
+    (storeEffectGetObject ArenaField.insts task.inst).bind fun inst =>
+    (storeEffectTrapIf (!inst.mayLeave) .cannotLeave).bind fun _ => .pure _
+
 private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (args : List FlatValue)
     (selected : sharedDestructorLocalImport host = true) :
     ∃ body : Session grow sig (List FlatValue), DestructorWorkerEffects (fun _ => True) body ∧
@@ -15602,15 +15652,9 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
       apply closed
       cases args with
       | nil =>
-        have entered : StoreEffects (Builtins.enterThreadBuiltin : Session grow sig (ThreadId × Runtime.Thread × Task (core3 grow))) := by
-          unfold Builtins.enterThreadBuiltin getThread getTask getInst
-          exact storeEffectCurrentThread.bind fun thread =>
-            (storeEffectGetObject ArenaField.threads thread).bind fun record =>
-            (storeEffectGetObject ArenaField.tasks record.task).bind fun task =>
-            (storeEffectGetObject ArenaField.insts task.inst).bind fun inst =>
-            (storeEffectTrapIf _ .cannotLeave).bind fun _ => .pure _
         unfold withArgs0 Builtins.threadIndex
-        exact entered.bind fun (_, record, _) => (storeEffectOrTrap _ record.index).bind fun _ => .pure _
+        exact destructorThreadEntryEffects.bind fun (_, record, _) =>
+          (storeEffectOrTrap _ record.index).bind fun _ => .pure _
       | cons => exact storeEffectTrap _
     | resourceNew resource width =>
       exact ⟨_, closed (storeEffectWithArgs1 args _ (sharedDestructorResourceNew resource)), fun _ _ _ _ => rfl⟩
@@ -15654,8 +15698,57 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
   | _ => contradiction
 
 open ReturnFrame.Occurrence in
-private theorem crossSharedDestructorImport {thread frames peerFrames rest peerRest core host args}
-    (task : TaskId) (tk : Task (core3 grow)) (stores : start.store = incoming.store)
+private theorem crossDestructorSuspend {worker : ThreadId} {frames peerFrames rest peerRest body}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      (Builtins.threadSuspend >>= fun words => .pure (.flat words)))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      (Builtins.threadSuspend >>= fun words => .pure (.flat words)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, peerFrames, peerRest⟩
+  let reply : Session grow sig (Ret (core3 grow)) := .pure (.flat [i32Flat 0])
+  let suspend : Session grow sig (Ret (core3 grow)) := .op (.block none) fun _ => reply
+  have code : (Builtins.threadSuspend >>= fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) =
+      Builtins.enterThreadBuiltin >>= fun _ => suspend := by
+    change (Prog.bind (Prog.bind (Builtins.enterThreadBuiltin : Session grow sig _) fun _ =>
+      Prog.bind (block none : Session grow sig Unit) fun _ => Prog.pure [i32Flat 0]) fun words =>
+        Prog.pure (Ret.flat (E := core3 grow) words)) = _
+    rw [Prog.bind_assoc]
+    rfl
+  refine crossSharedWorkerBody (check := check) (canon := canon) rfl Builtins.enterThreadBuiltin (fun _ => suspend)
+    (liftDestructorStoreEffects destructorThreadEntryEffects (trivialPreserves _)) trivial stores
+    (congrArg check.control code ▸ leftAt) (congrArg canon.control code ▸ rightAt) run ?_
+  intro left right remaining _ _ _ same lAt rAt tail
+  let savedLeft := StepDefs.blockedAct (E := core3 grow) worker (fun _ => reply) frames
+  let savedRight := StepDefs.blockedAct (E := core3 grow) worker (fun _ => reply) peerFrames
+  let parkedLeft := { left.setCont worker (some savedLeft) with
+    store := StepDefs.threadStatusSt worker .blocked left.store, ctl := rest }
+  let parkedRight := { right.setCont worker (some savedRight) with
+    store := StepDefs.threadStatusSt worker .blocked right.store, ctl := peerRest }
+  have leftBlock : Step profile ready (specDispatch ready base) left .tau parkedLeft := .block lAt
+  have rightBlock : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau parkedRight := .block rAt
+  cases tail with
+  | refl => exact .exhausted
+  | cons actual tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique leftBlock actual
+    have path := sharedSchedulerTransport (bindings := bindings) (edit := .block worker.idx) leftBlock rightBlock
+      (by rw [transitionEdit, lAt]; rfl) (by rw [transitionEdit, rAt]; rfl)
+    refine .destructorPrefix path (frameCalloutStep path rfl rfl) ?_
+      (enterDestructorParentLoop parents (congrArg (StepDefs.threadStatusSt worker .blocked) same) tail)
+    intro scheduler
+    exact ⟨relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments)), scheduler.2⟩
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedDestructorImport {thread frames peerFrames rest peerRest core host args body}
+    (task : TaskId) (tk : Task (core3 grow))
+    (parents : DestructorParentChain older body rest peerRest)
+    (activeThread : ∃ worker, thread = some worker)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
     (leftAt : start.ctl = ⟨thread, .core core (sharedDestructorCoreResult task tk), frames⟩ :: rest)
     (rightAt : incoming.ctl = ⟨thread, .core core (sharedDestructorCoreResult task tk), peerFrames⟩ :: peerRest)
     (status : (core3 grow).status start.store.core core = .callout host args)
@@ -15738,7 +15831,22 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
           · have empty : restLabels = [] := List.length_eq_zero_iff.mp (by omega)
             have stopped := stepsAtEmpty (empty ▸ actual)
             exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
-        · exact .sharedDropWorkerImport admitted stores checkAt canonAt residual
+        · by_cases suspend : ∃ inst, host = .builtin .threadSuspend inst
+          · obtain ⟨inst, rfl⟩ := suspend
+            obtain ⟨worker, rfl⟩ := activeThread
+            cases args with
+            | nil => exact crossDestructorSuspend parents (.cons (.same frame) segments) stores checkAt canonAt residual
+            | cons arg rest =>
+              let reason := TrapReason.internal "built-in: wrong number of arguments"
+              have fails : (trap reason >>= fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) =
+                  trap reason := by
+                simp only [trap, Prog.bind_eq, Prog.bind]
+                congr 1
+                funext empty
+                cases empty
+              exact compareSharedDestructorTrap reason
+                (checkAt.trans (congrArg check.control fails)) (canonAt.trans (congrArg canon.control fails)) residual
+          · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
 
 /-- Discharge the pending enclosing return after following the source worker
 prefix. Every recursive use of the mixed classifier consumes the actual pop. -/
@@ -15755,6 +15863,12 @@ private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config
   | .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets tail =>
     exact .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets
       (rejoinDestructorSuffix tail scheduler bounded compare)
+  | .sharedDropParentLoop paths writers restore residual =>
+    have restored := restore scheduler
+    obtain ⟨used, live, trailing, reached, peer, split, compared, tail⟩ :=
+      compare (Nat.lt_of_succ_le bounded) residual restored
+    rw [split]
+    exact .sharedDropParentLoopJoined paths writers restored (.comparedPrefix compared.occurrences compared.writers tail)
   | .sharedDropParentPop paths writers checkedLost canonicalLost restore residual =>
     have restored := restore scheduler
     obtain ⟨used, live, trailing, reached, peer, split, compared, tail⟩ :=
@@ -15997,7 +16111,9 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                           | none => exact finishWorker same checkedBody canonicalBody tail
                           | some f =>
                             exact crossSharedDestructorCore task tk same checkedBody canonicalBody tail
-                              (fun stores leftAt rightAt status run reenter => crossSharedDestructorImport task tk stores leftAt rightAt status run reenter)
+                              (fun stores leftAt rightAt status run reenter =>
+                                crossSharedDestructorImport task tk (.paired framesPaired restPaired tickets)
+                                  ⟨worker, rfl⟩ .nil stores leftAt rightAt status run reenter)
                               (fun words stores leftAt rightAt run =>
                                 crossSharedDestructorCoreResult task tk width words typeAt stores leftAt rightAt run finishWorker))))))
             change Steps profile ready (specDispatch ready base) readLeft following finish at remaining
