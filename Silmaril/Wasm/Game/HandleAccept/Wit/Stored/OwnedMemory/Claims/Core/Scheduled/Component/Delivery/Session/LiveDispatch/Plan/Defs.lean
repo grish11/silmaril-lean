@@ -70,6 +70,21 @@ def PairedWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig)
     WriterPath profile ready (specDispatch ready base) start checked left leftEffects ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right rightEffects
 
+/-- The linked publication read and its following executed registration
+write. The trailing writer frames include any reached completion journal. -/
+def ReachedRegistrationCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (tree : Stored.OwnedMemory.Tree sig) (start : Config (core3 grow) (HostState sig))
+    (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ (ticket handle : Nat) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
+    ∃ probe committed next trailing,
+    labels = [.tau, .tau] ++ trailing ∧
+    start.ctl = cursor.control (ComponentCall.completeResolvedTree ticket tree handle) ∧
+    probe.ctl = cursor.control (.op (.hostSet committed.host) next) ∧
+    Step profile ready dispatch start .tau probe ∧ Step profile ready dispatch probe .tau committed ∧
+    probe.host = start.host ∧ probe.host.writer.register tree = .ok committed.host.writer ∧
+    WriterPath profile ready dispatch committed trailing finish []
+
 /-- The completion site's first read only probes. The following assignment
 registers once; the remaining completion instructions only journal. -/
 def ComponentPublicationWriterPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -78,7 +93,8 @@ def ComponentPublicationWriterPrefix (profile : ProfileKind) (ready : HostReady 
     (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
   if labels.length < 2 then WriterPath profile ready dispatch start labels finish []
   else WriterPath profile ready dispatch start labels finish [(start.host.writer, finish.host.writer)] ∧
-    start.host.writer.register tree = .ok finish.host.writer
+    start.host.writer.register tree = .ok finish.host.writer ∧
+    ReachedRegistrationCommit profile ready dispatch tree start labels finish
 
 def PairedPublicationWriterPrefix (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))

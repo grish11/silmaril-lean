@@ -187,7 +187,7 @@ theorem publicationDiscrepancies {tree : Stored.OwnedMemory.Tree sig} {pending :
   · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
     exact framedDiscrepancies paths.1 paths.2 related
   · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
-    exact related.register paths.1.2 paths.2.2
+    exact related.register paths.1.2.1 paths.2.2.1
 
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by

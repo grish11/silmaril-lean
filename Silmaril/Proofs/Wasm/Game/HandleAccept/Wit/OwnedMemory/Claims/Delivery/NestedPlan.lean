@@ -2339,8 +2339,13 @@ private theorem publicationPath (dispatch : Call (core3 grow) → Session grow s
         have same := WriterPaths.spend suffix (updates := []) .nil
         have finalWriter : reached.host.writer = writer := same
         simp only [ComponentPublicationWriterPrefix, List.length_cons, Nat.not_lt.mpr (Nat.le_add_left 2 _), ite_false]
-        rw [finalWriter]
-        exact ⟨.same read rfl (.changed assign different suffix), registered⟩
+        have path : WriterPath profile ready dispatch start (.tau :: .tau :: _) reached [(start.host.writer, writer)] :=
+          .same read rfl (.changed assign different suffix)
+        refine ⟨?_, ?_, ⟨ticket, handle, cursor, probe, committed, fun _ => complete, _, rfl, focused, rfl,
+          read, assign, rfl, registered, suffix⟩⟩
+        · rw [finalWriter]
+          exact path
+        · rwa [finalWriter]
 
 theorem cutComponentPublication {tree : Stored.OwnedMemory.Tree sig} {handle leftTicket rightTicket : Nat}
     {leftWriter rightWriter : Stored.OwnedMemory.Claims.State sig}
