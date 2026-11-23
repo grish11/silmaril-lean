@@ -20834,6 +20834,14 @@ private abbrev SourceAllocatorImports {check canon : PayloadPrefix.Cursor (E := 
       CallbackSliceEnd profile ready base bindings older left right remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish
 
+private abbrev SourceAllocatorImportsAt
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
+  ∀ {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)},
+    SourceParentStack older check.rest canon.rest → check.thread = canon.thread →
+    SourceAllocatorImports (check := check) (canon := canon) profile ready base bindings older limit finish
+
 open ReturnFrame.Occurrence in
 private theorem crossSourceAllocatorCoreImport {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -21083,16 +21091,14 @@ private theorem finishSourceRecordFields {limit : Nat}
     (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
     (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
       (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket))
       (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)) := by
   refine visitSourceRecordFields leftTicket rightTicket cx width .fields fields cursor index .report emitted thread ?_ ?_
   · intro context site compiled first second onResume
-    refine finishSourceRecordAllocator parents thread segments context site compiled first second onResume ?_
-    intro cx task caller loopFrames sourceParents onPointer host args worker core ret left right remaining
-      same aligned checked canonical run within frontier
-    exact frontier
+    exact finishSourceRecordAllocator parents thread segments context site compiled first second onResume (imports parents thread)
   · intro result left right remaining same checked canonical scheduler run bounded
     cases result with
     | error issue =>
@@ -21109,6 +21115,7 @@ open Stored.OwnedMemory.Claims in
 private theorem finishSourceSelectedGive {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {name kind inst position leftTicket rightTicket} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
     (transfer : sourceGiveWithReply action = true)
     (parents : SourceParentStack older check.rest canon.rest)
     (thread : check.thread = canon.thread)
@@ -21150,12 +21157,13 @@ private theorem finishSourceSelectedGive {limit : Nat}
   | record destination =>
     exact finishSourceSharedRecord destination parents thread segments linked stores checked canonical run scheduler bounded resume
       (fun cx width fields emitted => finishSourceRecordFields leftTicket rightTicket cx width fields position 0
-        emitted parents thread segments resume)
+        emitted parents thread segments imports resume)
   | dropOwner _ => contradiction
 
 private theorem finishAdmittedSourceSharedGive {limit : Nat}
     {worker frames peerFrames rest peerRest name kind args inst} {action : SharedGiveAction}
     {frame : Seg (core3 grow) (HostState sig)}
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
     (transfer : sourceGiveWithReply action = true)
     (parents : SourceParentStack older rest peerRest)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
@@ -21177,7 +21185,7 @@ private theorem finishAdmittedSourceSharedGive {limit : Nat}
   finishAdmittedSourceSharedSelector embedder linked caller mayLeave stores checked canonical run scheduler bounded resume
     (fun _ _ {_ _ _} missing same leftAt rightAt residual aligned within =>
       finishSourceSelectedGive (check := ⟨some worker, frame :: frames, rest⟩)
-        (canon := ⟨some worker, frame :: peerFrames, peerRest⟩) transfer parents rfl (.cons (.same _) segments)
+        (canon := ⟨some worker, frame :: peerFrames, peerRest⟩) imports transfer parents rfl (.cons (.same _) segments)
         linked missing same leftAt rightAt residual aligned within resume)
 
 private theorem crossSelectedEmbedderAdmission {limit : Nat}
@@ -21214,7 +21222,7 @@ private theorem crossSelectedEmbedderAdmission {limit : Nat}
       (enter rfl rfl rfl rfl scheduler residual (destructorSuffixBound split bounded))
 
 open ReturnFrame.Occurrence in
-private theorem finishSourceSwitchTarget {limit : Nat}
+private theorem finishSourceSwitchTargetWith {limit : Nat}
     {rest peerRest left right active peerActive}
     (parents : SourceParentStack older rest peerRest) (parentPresent : rest ≠ [] ∧ peerRest ≠ [])
     (target : ReturnFrame.Related.Active older left right)
@@ -21224,6 +21232,7 @@ private theorem finishSourceSwitchTarget {limit : Nat}
     (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (bounded : labels.length ≤ limit)
+    (imports : ∀ bound, bound < labels.length → SourceAllocatorImportsAt profile ready base bindings older bound finish)
     (onParent : ∀ {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
       lhs.store = rhs.store → DestructorSchedulerAlignment older lhs rhs →
       lhs.ctl = rest → rhs.ctl = peerRest →
@@ -21249,7 +21258,8 @@ private theorem finishSourceSwitchTarget {limit : Nat}
           (atMost : suffix.length ≤ trailing.length) :
           CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish := by
         exact ih suffix.length (size ▸ Nat.lt_succ_of_le atMost)
-          headPaired tailPaired same aligned lhsAt rhsAt residual (atMost.trans shorter) rfl
+          headPaired tailPaired same aligned lhsAt rhsAt residual (atMost.trans shorter)
+          (fun bound smaller => imports bound (Nat.lt_trans smaller (Nat.lt_succ_of_le atMost))) rfl
       have leave {lhs rhs : Config (core3 grow) (HostState sig)}
           (same : lhs.store = rhs.store) (aligned : DestructorSchedulerAlignment older lhs rhs)
           (lhsAt : lhs.ctl = active ++ rest) (rhsAt : rhs.ctl = peerActive ++ peerRest)
@@ -21321,7 +21331,8 @@ private theorem finishSourceSwitchTarget {limit : Nat}
                     · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
                       refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
                       intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
-                      exact finishAdmittedSourceSharedGive transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
+                      exact finishAdmittedSourceSharedGive (imports trailing.length (Nat.lt_succ_self _))
+                        transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
                         (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
                     · exact otherwise
                   · exact otherwise
@@ -21649,9 +21660,30 @@ private theorem sourceResumeMissingUnique
     injection operation
   simp_all
 
+private abbrev SourceSwitchAt
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (cap : Nat) (finish : Config (core3 grow) (HostState sig)) :=
+  ∀ {limit : Nat} {start incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
+    {rest peerRest left right active peerActive},
+    SourceParentStack older rest peerRest → (rest ≠ [] ∧ peerRest ≠ []) →
+    ReturnFrame.Related.Active older left right →
+    List.Forall₂ (ReturnFrame.Related.Active older) active peerActive →
+    start.store = incoming.store → DestructorSchedulerAlignment older start incoming →
+    start.ctl = left :: (active ++ rest) → incoming.ctl = right :: (peerActive ++ peerRest) →
+    Steps profile ready (specDispatch ready base) start labels finish →
+    labels.length ≤ limit → labels.length ≤ cap →
+    (∀ {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
+      lhs.store = rhs.store → DestructorSchedulerAlignment older lhs rhs →
+      lhs.ctl = rest → rhs.ctl = peerRest →
+      Steps profile ready (specDispatch ready base) lhs suffix finish → suffix.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish) →
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish
+
 open ReturnFrame.Occurrence in
-private theorem crossSourceSelectedResume
+private theorem crossSourceSelectedResume {cap : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
     (worker : ThreadId) (task : TaskId)
     (threads : check.thread = canon.thread)
     (frames : SourceLiftLoopFrames older check.frames canon.frames)
@@ -21660,6 +21692,7 @@ private theorem crossSourceSelectedResume
     (leftAt : start.ctl = check.control (Thread.resume worker >>= fun _ => callRet (.loop (.syncLiftLoop task))))
     (rightAt : incoming.ctl = canon.control (Thread.resume worker >>= fun _ => callRet (.loop (.syncLiftLoop task))))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (withinCap : labels.length ≤ cap)
     (restart : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
       left.store = right.store → DestructorSchedulerAlignment older left right →
       left.ctl = check.control (callRet (.loop (.syncLiftLoop task))) →
@@ -21719,14 +21752,15 @@ private theorem crossSourceSelectedResume
         have preserve (before : DestructorSchedulerAlignment older lhs rhs) : DestructorSchedulerAlignment older left right :=
           ⟨relatedSetSlot .none before.1 worker.idx .none, before.2⟩
         refine .destructorPrefix resumed (frameCalloutStep resumed rfl rfl) preserve ?_
-        refine finishSourceSwitchTarget (.syncLift task threads frames parents) ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+        refine compare (.syncLift task threads frames parents) ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
           active .nil (congrArg (advance ∘ destructorResumeStore worker) stores) (preserve scheduler)
-          rfl rfl residual (Nat.le_of_succ_le bound) ?_
+          rfl rfl residual (Nat.le_of_succ_le bound) ((Nat.le_of_succ_le bound).trans withinCap) ?_
         intro reached peer trailing same aligned leftAt rightAt residual shorter
         exact restart same aligned leftAt rightAt residual shorter
 
-private theorem crossSourceLiftCandidates
+private theorem crossSourceLiftCandidates {cap : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
     (task : TaskId) (choices : List ThreadId)
     (threads : check.thread = canon.thread)
     (frames : SourceLiftLoopFrames older check.frames canon.frames)
@@ -21735,6 +21769,7 @@ private theorem crossSourceLiftCandidates
     (leftAt : start.ctl = check.control (syncLiftCandidates task choices))
     (rightAt : incoming.ctl = canon.control (syncLiftCandidates task choices))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (withinCap : labels.length ≤ cap)
     (restart : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
       left.store = right.store → DestructorSchedulerAlignment older left right →
       left.ctl = check.control (callRet (.loop (.syncLiftLoop task))) →
@@ -21754,8 +21789,148 @@ private theorem crossSourceLiftCandidates
     refine crossSharedWorkerBodyWith threads decide resume resume (liftDestructorStoreEffects pick (trivialPreserves _))
       trivial stores (congrArg check.control program ▸ leftAt) (congrArg canon.control program ▸ rightAt) run ?_
     intro left right trailing worker shorter _ same checked canonical align tail
-    exact crossSourceSelectedResume worker task threads frames parents same (align scheduler) checked canonical tail
+    exact crossSourceSelectedResume compare worker task threads frames parents same (align scheduler) checked canonical tail (shorter.trans withinCap)
       (fun same aligned leftAt rightAt actual within => restart same aligned leftAt rightAt actual (within.trans shorter))
+
+private theorem finishSourceLiftLoopWith {cap : Nat}
+    {start incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
+    (task : TaskId) (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (threads : check.thread = canon.thread)
+    (frames : SourceLiftLoopFrames older (.prog first :: check.frames) (.prog second :: canon.frames))
+    (parents : SourceParentStack older check.rest canon.rest)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = check.control (.op (.call (.loop (.syncLiftLoop task))) first))
+    (rightAt : incoming.ctl = canon.control (.op (.call (.loop (.syncLiftLoop task))) second))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (withinCap : labels.length ≤ cap)
+    (onReply : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → DestructorSchedulerAlignment older left right →
+      left.ctl = check.control (first .unit) → right.ctl = canon.control (second .unit) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  refine crossSourceSyncLiftIteration task first second stores leftAt rightAt run ?_ ?_
+  · intro left right remaining lhs rhs leftAt rightAt align tail shorter
+    exact onReply (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail (Nat.le_of_lt shorter)
+  · intro left right remaining _ candidates _ _ lhs rhs leftAt rightAt align tail within
+    let checking := { check with frames := .prog first :: check.frames }
+    let canonical := { canon with frames := .prog second :: canon.frames }
+    refine crossSourceLiftCandidates (check := checking) (canon := canonical) compare task candidates threads frames parents
+      (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail ((Nat.le_of_lt within).trans withinCap) ?_
+    intro next peer trailing same aligned checked raw residual afterWorker
+    have shorter : trailing.length < labels.length := Nat.lt_of_le_of_lt afterWorker within
+    refine finishSourceLiftLoopWith (start := next) (incoming := peer) (labels := trailing)
+      (check := checking) (canon := canonical) compare task .pure .pure threads (.common .pure frames)
+      parents same aligned checked raw residual ((Nat.le_of_lt shorter).trans withinCap) ?_
+    intro left right suffix equal saved leftAt rightAt tail afterLoop
+    refine crossSourceLiftUnitPop first second leftAt rightAt tail ?_
+    intro returned peer remaining lhs rhs checked raw align tail afterPop
+    exact onReply (lhs.trans (equal.trans rhs.symm)) (align saved) checked raw tail
+      (afterPop.trans (afterLoop.trans (Nat.le_of_lt shorter)))
+termination_by labels.length
+decreasing_by exact shorter
+
+private def sourceSchedulerBuiltin : ResolvedBuiltin (core3 grow) → Bool
+  | .threadSuspend | .threadYield | .threadSuspendThenResume | .threadYieldThenResume
+  | .threadSuspendThenPromote | .threadYieldThenPromote | .waitableSetWait _ => true
+  | _ => false
+
+private theorem crossAdmittedSourceSchedulerWith {limit cap : Nat}
+    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
+    {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
+    {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
+    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
+    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = ⟨some worker, .prog
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.builtin builtin inst) args),
+      [.core core ret]⟩ :: rest)
+    (canonical : incoming.ctl = ⟨some worker, .prog
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        incoming.store (some worker) (.builtin builtin inst) args),
+      [.core core ret]⟩ :: peerRest)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (withinCap : labels.length ≤ cap)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  compare parents present (.mk (.cons (.same _) .nil)) .nil stores scheduler checked canonical run within withinCap
+    (fun same aligned lhs rhs tail bound => exposed same lhs rhs aligned tail bound)
+
+private theorem finishSourceAllocatorParent {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (compare : SourceSwitchAt profile ready base bindings older limit finish)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (loopFrames : SourceLiftLoopFrames older check.frames canon.frames)
+    (onPointer : DestructorAllocatorPointer profile ready base bindings older check canon limit finish)
+    (cx : LiftLowerContext (core3 grow)) (task : TaskId) (caller : CallerId)
+    (equal : start.store = incoming.store)
+    (checked : start.ctl = check.control (sharedRecordAllocatorAfterResume cx task caller))
+    (canonical : incoming.ctl = canon.control (sharedRecordAllocatorAfterResume cx task caller))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (residual : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  change start.ctl = check.control (sharedRecordAllocatorAfterResume cx task caller) at checked
+  change incoming.ctl = canon.control (sharedRecordAllocatorAfterResume cx task caller) at canonical
+  rw [sharedRecordAllocatorParentCode] at checked canonical
+  let reply := sharedRecordAllocatorLoopReply (sig := sig) cx caller
+  refine finishSourceLiftLoopWith compare task reply reply thread (.common reply loopFrames) parents
+    equal scheduler checked canonical residual bounded ?_
+  intro left right suffix same aligned lhs rhs run shorter
+  exact crossSourceRecordAllocatorEpilogue parents thread onPointer cx caller same lhs rhs aligned run
+    (shorter.trans bounded)
+
+private theorem finishSourceAllocatorSchedulerImport {limit : Nat}
+    (compare : SourceSwitchAt profile ready base bindings older limit finish) :
+    SourceAllocatorImportsAt profile ready base bindings older limit finish := by
+  intro check canon parents thread cx task caller loopFrames sourceParents onPointer host args worker core ret
+    left right remaining same aligned leftAt rightAt tail within frontier
+  cases host with
+  | builtin builtin inst =>
+    by_cases selected : sourceSchedulerBuiltin builtin = true
+    · exact crossAdmittedSourceSchedulerWith compare builtin inst args sourceParents
+        ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩ same aligned leftAt rightAt tail within within
+        (finishSourceAllocatorParent compare parents thread loopFrames onPointer cx task caller)
+    · exact frontier
+  | _ => exact frontier
+
+private theorem classifySourceSwitch {profile : ProfileKind} {ready : HostReady (HostState sig)}
+    {base : HostImpl (core3 grow) (HostState sig)} {bindings : List (Binding sig)}
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {finish : Config (core3 grow) (HostState sig)}
+    (cap : Nat) : SourceSwitchAt profile ready base bindings older cap finish := by
+  induction cap using Nat.strong_induction_on with
+  | ind cap ih =>
+    intro limit start incoming labels rest peerRest left right active peerActive parents present target resumers
+      stores aligned checked canonical run bounded within onParent
+    exact finishSourceSwitchTargetWith parents present target resumers stores aligned checked canonical run bounded
+      (fun bound smaller => finishSourceAllocatorSchedulerImport (ih bound (smaller.trans_le within))) onParent
+
+open ReturnFrame.Occurrence in
+private theorem finishSourceSwitchTarget {limit : Nat}
+    {rest peerRest left right active peerActive}
+    (parents : SourceParentStack older rest peerRest) (parentPresent : rest ≠ [] ∧ peerRest ≠ [])
+    (target : ReturnFrame.Related.Active older left right)
+    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit)
+    (onParent : ∀ {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
+      lhs.store = rhs.store → DestructorSchedulerAlignment older lhs rhs →
+      lhs.ctl = rest → rhs.ctl = peerRest →
+      Steps profile ready (specDispatch ready base) lhs suffix finish → suffix.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  classifySourceSwitch labels.length parents parentPresent target resumers stores scheduler leftAt rightAt run bounded
+    (Nat.le_refl _) onParent
 
 private theorem finishSourceLiftLoop
     {start incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
@@ -21773,32 +21948,9 @@ private theorem finishSourceLiftLoop
       left.ctl = check.control (first .unit) → right.ctl = canon.control (second .unit) →
       Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  refine crossSourceSyncLiftIteration task first second stores leftAt rightAt run ?_ ?_
-  · intro left right remaining lhs rhs leftAt rightAt align tail shorter
-    exact onReply (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail (Nat.le_of_lt shorter)
-  · intro left right remaining _ candidates _ _ lhs rhs leftAt rightAt align tail within
-    let checking := { check with frames := .prog first :: check.frames }
-    let canonical := { canon with frames := .prog second :: canon.frames }
-    refine crossSourceLiftCandidates (check := checking) (canon := canonical) task candidates threads frames parents
-      (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail ?_
-    intro next peer trailing same aligned checked raw residual afterWorker
-    have shorter : trailing.length < labels.length := Nat.lt_of_le_of_lt afterWorker within
-    refine finishSourceLiftLoop (start := next) (incoming := peer) (labels := trailing)
-      (check := checking) (canon := canonical) task .pure .pure threads (.common .pure frames)
-      parents same aligned checked raw residual ?_
-    intro left right suffix equal saved leftAt rightAt tail afterLoop
-    refine crossSourceLiftUnitPop first second leftAt rightAt tail ?_
-    intro returned peer remaining lhs rhs checked raw align tail afterPop
-    exact onReply (lhs.trans (equal.trans rhs.symm)) (align saved) checked raw tail
-      (afterPop.trans (afterLoop.trans (Nat.le_of_lt shorter)))
-termination_by labels.length
-decreasing_by exact shorter
-
-private def sourceSchedulerBuiltin : ResolvedBuiltin (core3 grow) → Bool
-  | .threadSuspend | .threadYield | .threadSuspendThenResume | .threadYieldThenResume
-  | .threadSuspendThenPromote | .threadYieldThenPromote | .waitableSetWait _ => true
-  | _ => false
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishSourceLiftLoopWith (classifySourceSwitch labels.length) task first second threads frames parents stores scheduler
+    leftAt rightAt run (Nat.le_refl _) onReply
 
 private theorem crossAdmittedSourceScheduler {limit : Nat}
     {rest peerRest : List (Activation (core3 grow) (HostState sig))}
@@ -21821,8 +21973,8 @@ private theorem crossAdmittedSourceScheduler {limit : Nat}
       Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  finishSourceSwitchTarget parents present (.mk (.cons (.same _) .nil)) .nil stores scheduler checked canonical run within
-    (fun same aligned lhs rhs tail bound => exposed same lhs rhs aligned tail bound)
+  crossAdmittedSourceSchedulerWith (classifySourceSwitch labels.length) builtin inst args parents present stores scheduler
+    checked canonical run within (Nat.le_refl _) exposed
 
 open ReturnFrame.Occurrence in
 private theorem finishReachedDestructorParentLoop {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -22111,7 +22263,8 @@ private theorem compareAdmittedSourceLinked {limit : Nat}
       · obtain ⟨inst, action, transfer, linked⟩ := shared
         by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
             (start.store.inst? inst).any (·.mayLeave) = true
-        · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := []) transfer parents .nil embedder linked context.1 context.2
+        · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := [])
+            (finishSourceAllocatorSchedulerImport (classifySourceSwitch limit)) transfer parents .nil embedder linked context.1 context.2
             stores checked canonical run scheduler within
             (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
         · exact frontier
@@ -22147,16 +22300,9 @@ private theorem finishSourceAllocatorImport {limit : Nat}
       (scheduler : DestructorSchedulerAlignment older left right)
       (residual : Steps profile ready (specDispatch ready base) left remaining finish)
       (bounded : remaining.length ≤ limit) :
-      CallbackSliceEnd profile ready base bindings older left right remaining finish := by
-    change left.ctl = check.control (sharedRecordAllocatorAfterResume cx task caller) at checked
-    change right.ctl = canon.control (sharedRecordAllocatorAfterResume cx task caller) at canonical
-    rw [sharedRecordAllocatorParentCode] at checked canonical
-    let reply := sharedRecordAllocatorLoopReply (sig := sig) cx caller
-    refine finishSourceLiftLoop task reply reply thread (.common reply loopFrames) parents
-      equal scheduler checked canonical residual ?_
-    intro left right suffix same aligned lhs rhs run shorter
-    exact crossSourceRecordAllocatorEpilogue parents thread onPointer cx caller same lhs rhs aligned run
-      (shorter.trans bounded)
+      CallbackSliceEnd profile ready base bindings older left right remaining finish :=
+    finishSourceAllocatorParent (classifySourceSwitch limit) parents thread loopFrames onPointer cx task caller
+      equal checked canonical scheduler residual bounded
   have present : check.control parent ≠ [] ∧ canon.control parent ≠ [] :=
     ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
   cases host with
