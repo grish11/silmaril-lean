@@ -2474,32 +2474,30 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- A compiled record emitter has reached its next field under the
-  source return frames. This cut carries the actual residual for field rules
-  that have yet to join the heterogeneous scheduler comparison. -/
-  | sharedSourceRecordFields {changes reached peer trailing finish}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx : LiftLowerContext (core3 grow)} {width : AddrType} {cursor index leftTicket rightTicket : Nat}
-      {field : Stored.Endpoints.RecordLower.Field} {fields : List Stored.Endpoints.RecordLower.Field}
+  /-- The installed realloc body still needs a worker comparison under
+  the recursive source parents. Both original allocator resumes are parked. -/
+  | sharedSourceRecordAllocator {changes reached peer trailing finish}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {site : SharedRecordAllocation}
+      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
       (parents : SourceParentStack changes check.rest canon.rest)
-      (thread : check.thread = canon.thread)
-      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (emitted : ∀ item ∈ field :: fields, Stored.Endpoints.RecordLower.Field.Emitted item)
+      (compiled : site.compiled cx)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (sharedRecordMemory .fields cx width (field :: fields)
-        cursor index (sharedRecordReport leftTicket)))
-      (canonical : peer.ctl = canon.control (sharedRecordMemory .fields cx width (field :: fields)
-        cursor index (sharedRecordReport rightTicket)))
+      (checked : reached.ctl = (PayloadPrefix.Cursor.mk check.thread
+          (.prog (site.resume cx leftNext) :: check.frames) check.rest).control (specDispatch ready base (site.call cx)))
+      (canonical : peer.ctl = (PayloadPrefix.Cursor.mk canon.thread
+          (.prog (site.resume cx rightNext) :: canon.frames) canon.rest).control
+        (specDispatch ready (LiveDispatch.host bindings base) (site.call cx)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The compiler's actual allocation instruction entered the canonical
   realloc body and parked its source-specific return segments. -/
-  | sharedDropRecordAllocatorBody {changes left right reached peer trailing finish body}
+  | sharedDropRecordAllocatorBody {changes left right reached peer trailing finish}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
       {site : SharedRecordAllocation}
       {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (compiled : site.compiled cx)

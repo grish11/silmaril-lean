@@ -2848,7 +2848,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedSourceRecordFields _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedSourceRecordAllocator _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorRegistered _ _ _ _ _ _ _ _ ih => exact ih
@@ -2923,7 +2923,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedSourceRecordFields _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedSourceRecordAllocator _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordAllocatorBody _ _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorResumed _ _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorRegistered _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
@@ -17938,7 +17938,6 @@ private theorem sharedRecordSumCode (cx : LiftLowerContext (core3 grow)) (width 
   | ok result => cases result; rfl
 
 open Stored.Endpoints in
-open Stored.Endpoints in
 private def sharedRecordContextBody (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
   if ((← getStore).errCtx? identity).isNone then
@@ -18568,6 +18567,119 @@ private theorem crossDestructorRecordCollectionResume {limit : Nat}
     exact onVisit ptr equal checked canonical aligned residual within
 
 open Stored.Endpoints in
+private abbrev SourceRecordAllocationAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
+  ∀ (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation), site.compiled cx →
+    ∀ (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))),
+      (∀ ptr, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (site.resume cx leftNext (.nat ptr)) (site.resume cx rightNext (.nat ptr))) →
+      DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (.op (.call (site.call cx)) (site.resume cx leftNext))
+        (.op (.call (site.call cx)) (site.resume cx rightNext))
+
+open ReturnFrame.Occurrence Stored.Endpoints in
+private theorem enterSourceRecordAllocator {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : SourceParentStack older check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation) (compiled : site.compiled cx)
+    (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onBody : DestructorRecordAt
+      (check := { check with frames := .prog (site.resume cx leftNext) :: check.frames })
+      (canon := { canon with frames := .prog (site.resume cx rightNext) :: canon.frames })
+      profile ready base bindings older limit finish
+      (specDispatch ready base (site.call cx)) (specDispatch ready (LiveDispatch.host bindings base) (site.call cx))) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op (.call (site.call cx)) (site.resume cx leftNext))
+      (.op (.call (site.call cx)) (site.resume cx rightNext)) := by
+  classical
+  intro left right labels stores checked canonical scheduler run within
+  let call := site.call cx
+  let first := site.resume cx leftNext
+  let second := site.resume cx rightNext
+  let checkEntered := { check with frames := .prog first :: check.frames }
+  let canonEntered := { canon with frames := .prog second :: canon.frames }
+  let program := specDispatch ready base call
+  let reached := { left with ctl := checkEntered.control program }
+  let peer := { right with ctl := canonEntered.control program }
+  have install : Step profile ready (specDispatch ready base) left .tau reached := .call checked
+  have peerInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer := .call canonical
+  cases run with
+  | refl => exact .exhausted
+  | cons actual residual =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique install actual
+    have paths := sharedPushTransport install peerInstall
+      (show transitionEdit left .tau = .push (.prog first) by rw [transitionEdit, checked]; rfl)
+      (show transitionEdit right .tau = .push (.prog second) by rw [transitionEdit, canonical]; rfl)
+    refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned) ?_
+    exact .sharedDropRecordAllocatorBody (check := check) (canon := canon) (site := site)
+      parents thread segments compiled stores scheduler checked canonical install peerInstall rfl rfl
+      (onBody stores rfl rfl scheduler residual (Nat.le_of_succ_le within))
+
+open Stored.Endpoints in
+private theorem crossSourceRecordStringSteps {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal)
+    (prior steps : List ABI.StoreStep) (dest pointer : Nat)
+    (compiled : (storePlanFor Quirks.none cx.opts.encoding width value).steps = prior ++ steps)
+    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onDone : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkNext (.ok ())) (canonNext (.ok ()))) :
+    let tagged := (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordStringRemaining cx steps tagged dest pointer checkNext)
+      (sharedRecordStringRemaining cx steps tagged dest pointer canonNext) := by
+  dsimp only
+  let plan := storePlanFor Quirks.none cx.opts.encoding width value
+  let tagged := plan.taggedCodeUnits
+  induction steps generalizing prior pointer with
+  | nil =>
+    intro left right remaining stores checked canonical scheduler run bounded
+    exact crossDestructorRecordStore (check := check) (canon := canon) thread
+      (sharedRecordStringDescriptor cx tagged dest pointer) (sharedStringDescriptorEffects cx tagged dest pointer)
+      (fun _ => checkNext (.ok ())) (fun _ => canonNext (.ok ()))
+      (fun _ => onDone) stores checked canonical scheduler run bounded
+  | cons step steps ih =>
+    intro left right remaining stores checked canonical scheduler run bounded
+    rw [sharedRecordStringRemainingCons] at checked canonical
+    have suffix : plan.steps = (prior ++ [step]) ++ steps := by
+      rw [List.append_assoc]
+      exact compiled
+    have resume (ptr : Nat) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
+          (sharedRecordStringRemaining cx steps tagged dest ptr canonNext) :=
+      ih (prior ++ [step]) ptr suffix
+    by_cases localStep : sharedStringLocalStep step = true
+    · exact crossDestructorRecordStore (check := check) (canon := canon) thread
+        (runStoreStep cx pointer step) (sharedStringStepEffects cx pointer step localStep)
+        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
+        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr canonNext)
+        resume stores checked canonical scheduler run bounded
+    · cases step
+      case allocate alignment size =>
+        let site := SharedRecordAllocation.string width value dest prior none alignment size steps
+        exact allocate cx site compiled checkNext canonNext resume
+          stores
+          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged 0 0 checkNext alignment.bytes size steps)))
+          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged 0 0 canonNext alignment.bytes size steps)))
+          scheduler run bounded
+      case reallocate oldLen alignment size =>
+        let site := SharedRecordAllocation.string width value dest prior (some (pointer, oldLen)) alignment size steps
+        exact allocate cx site compiled checkNext canonNext resume
+          stores
+          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen checkNext alignment.bytes size steps)))
+          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen canonNext alignment.bytes size steps)))
+          scheduler run bounded
+      all_goals exact False.elim (localStep rfl)
+
+open Stored.Endpoints in
 private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
     (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) :=
@@ -18695,7 +18807,223 @@ private theorem sharedRecordStringAllocationCode (cx : LiftLowerContext (core3 g
   exact sharedRecordStringRequestCode cx dest _ 0 0 next alignment.bytes size remaining
 
 open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
-private theorem finishSourceLocalRecordFields {limit : Nat}
+private theorem visitSourceRecordFields {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (mode : Track) (fields : List RecordLower.Field) (cursor index : Nat) (join : SharedRecordJoin)
+    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
+    (thread : check.thread = canon.thread)
+    (allocate : SourceRecordAllocationAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish)
+    (onJoin : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (join.reply cx width leftTicket result) (join.reply cx width rightTicket result)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordMemory mode cx width fields cursor index (join.reply cx width leftTicket))
+      (sharedRecordMemory mode cx width fields cursor index (join.reply cx width rightTicket)) := by
+  classical
+  induction fieldSize : sizeOf fields using Nat.strong_induction_on generalizing mode fields cursor index join
+  rename_i size ih
+  cases fields with
+  | nil =>
+    intro left right remaining stores checked canonical scheduler run bounded
+    cases mode <;> exact onJoin (.ok ()) stores checked canonical scheduler run bounded
+  | cons field fields =>
+    have fieldEmitted := emitted field (List.mem_cons_self ..)
+    have tailEmitted : ∀ item ∈ fields, RecordLower.Field.Emitted item :=
+      fun item inTail => emitted item (List.mem_cons_of_mem field inTail)
+    let slot := mode.slot width field cursor
+    let ptr := slot.1
+    let following (ticket : Nat) := sharedRecordAfterField (sig := sig) mode cx width fields slot.2 (index + 1) (join.reply cx width ticket)
+    have onField (result : Except RecordLower.Issue Unit) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (following leftTicket result) (following rightTicket result) := by
+      cases result with
+      | error issue => exact onJoin (.error issue)
+      | ok done =>
+        cases done
+        have smaller : sizeOf fields < size := by rw [← fieldSize]; simp
+        exact @ih (sizeOf fields) smaller mode fields slot.2 (index + 1) join tailEmitted onJoin rfl
+    let childJoin := SharedRecordJoin.field mode fields slot.2 (index + 1) index join
+    have onChild (result : Except RecordLower.Issue Unit) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (childJoin.reply cx width leftTicket result) (childJoin.reply cx width rightTicket result) :=
+      @onField (result.mapError (.nested index))
+    intro left right remaining stores checked canonical scheduler run bounded
+    by_cases localField : SharedRecordLocalField field
+    · let visit : Session grow sig (Except RecordLower.Issue Unit) :=
+        RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx) width field index (.memory ptr)
+      rw [sharedRecordMemoryCons] at checked canonical
+      exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread visit (following leftTicket) (following rightTicket)
+        (liftDestructorStoreEffects (sharedRecordLocalFieldEffects cx width localField index ptr) (trivialPreserves _))
+        trivial stores checked canonical run
+        (fun result shorter _ same leftAt rightAt aligned residual =>
+          onField result same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
+    by_cases aggregate : ∃ type children, field = .aggregate type children
+    · obtain ⟨type, children, rfl⟩ := aggregate
+      have childrenEmitted : ∀ item ∈ children, RecordLower.Field.Emitted item := by
+        cases fieldEmitted with
+        | aggregate compiled => exact compiled
+      have smaller : sizeOf children < size := by rw [← fieldSize]; simp; omega
+      let resume (ticket : Nat) (_ : Unit) := sharedRecordMemory (sig := sig) .fields cx width children ptr 0 (childJoin.reply cx width ticket)
+      rw [sharedRecordMemoryCons, sharedRecordAggregateCode] at checked canonical
+      exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread
+        (checkInBounds cx ptr (ABI.layout width type).size) (resume leftTicket) (resume rightTicket)
+        (liftDestructorStoreEffects (storeEffectBounds cx ptr (ABI.layout width type).size) (trivialPreserves _))
+        trivial stores checked canonical run
+        (fun _ shorter _ same leftAt rightAt aligned residual =>
+          ih (sizeOf children) smaller .fields children ptr 0 childJoin childrenEmitted onChild rfl
+            same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
+    by_cases fixed : ∃ element length entries, field = .fixed element length entries
+    · obtain ⟨element, length, entries, rfl⟩ := fixed
+      have entriesEmitted : ∀ item ∈ entries, RecordLower.Field.Emitted item := by
+        cases fieldEmitted with
+        | fixed compiled => exact compiled
+      have smaller : sizeOf entries < size := by rw [← fieldSize]; simp; omega
+      rw [sharedRecordMemoryCons, sharedRecordFixedCode] at checked canonical
+      exact ih (sizeOf entries) smaller (.elements (ABI.layout width element).size) entries ptr 0 childJoin entriesEmitted onChild rfl
+        stores checked canonical scheduler run bounded
+    by_cases sum : ∃ type arms tag child, field = .sum type arms tag (some child)
+    · obtain ⟨type, arms, tag, child, rfl⟩ := sum
+      have childEmitted : ∀ item ∈ [child], RecordLower.Field.Emitted item := by
+        intro item member
+        rw [List.mem_singleton] at member
+        subst item
+        cases fieldEmitted with
+        | sum compiled => exact compiled _ rfl
+      have smaller : sizeOf ([child] : List RecordLower.Field) < size := by rw [← fieldSize]; simp; omega
+      let head : Session grow sig Nat :=
+        storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
+      let resume (ticket address : Nat) :=
+        sharedRecordMemory (sig := sig) (.elements 0) cx width [child] address 0 (childJoin.reply cx width ticket)
+      rw [sharedRecordMemoryCons, sharedRecordSumCode] at checked canonical
+      exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread head (resume leftTicket) (resume rightTicket)
+        (liftDestructorStoreEffects (sharedRecordVariantHeadEffects cx width arms tag ptr) (trivialPreserves _))
+        trivial stores checked canonical run
+        (fun address shorter _ same leftAt rightAt aligned residual =>
+          ih (sizeOf ([child] : List RecordLower.Field)) smaller (.elements 0) [child] address 0 childJoin childEmitted onChild rfl
+            same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
+    by_cases context : ∃ identity, field = .context identity
+    · obtain ⟨identity, rfl⟩ := context
+      rw [sharedRecordMemoryCons, sharedRecordContextCode] at checked canonical
+      exact crossDestructorRecordContext thread cx identity index ptr
+        (following leftTicket) (following rightTicket) onField stores checked canonical scheduler run bounded
+    by_cases owner : ∃ receipt, field = .owner receipt
+    · obtain ⟨receipt, rfl⟩ := owner
+      rw [sharedRecordMemoryCons, sharedRecordOwnerCode] at checked canonical
+      exact crossDestructorRecordOwner thread cx receipt index ptr
+        (following leftTicket) (following rightTicket) onField stores checked canonical scheduler run bounded
+    by_cases endpoint : ∃ channel element identity, field = .endpoint channel element identity
+    · obtain ⟨channel, element, identity, rfl⟩ := endpoint
+      rw [sharedRecordMemoryCons, sharedRecordEndpointCode] at checked canonical
+      exact crossDestructorRecordEndpoint thread cx ⟨channel, element, identity, cx.inst⟩ index ptr
+        (following leftTicket) (following rightTicket) onField stores checked canonical scheduler run bounded
+    by_cases dynamic : ∃ type element entries, field = .dynamic type element entries
+    · obtain ⟨type, element, entries, rfl⟩ := dynamic
+      have entriesEmitted : ∀ item ∈ entries, RecordLower.Field.Emitted item := by
+        intro item member
+        cases fieldEmitted with
+        | list compiled => exact compiled item member
+        | map shapes values =>
+          obtain ⟨payload, value, rfl⟩ := shapes item member
+          refine RecordLower.Field.Emitted.aggregate ?_
+          intro child atChild
+          simp only [List.mem_cons, List.not_mem_nil, or_false] at atChild
+          rcases atChild with keyChild | valueChild
+          · exact keyChild.symm ▸ RecordLower.Field.Emitted.primitive payload
+          · exact valueChild.symm ▸ values payload value member
+      let next (ticket : Nat) (result : Except RecordLower.Issue Unit) :=
+        sharedRecordBeforeAllocation cx width element entries index ptr result >>= following ticket
+      rw [sharedRecordMemoryCons, sharedRecordCollectionCode] at checked canonical
+      refine crossDestructorRecordPrepare (RecordLower.Field.listObjects entries) (next leftTicket) (next rightTicket)
+        ?_ stores checked canonical scheduler run bounded
+      intro result left right remaining stores checked canonical scheduler run bounded
+      cases result with
+      | error issue =>
+        exact onField (.error (sharedRecordPreAllocationIssue index issue)) stores checked canonical scheduler run bounded
+      | ok done =>
+        cases done
+        let site := SharedRecordAllocation.collection width element entries index ptr
+        change left.ctl = check.control (sharedRecordAllocate cx width element entries index ptr >>= following leftTicket) at checked
+        change right.ctl = canon.control (sharedRecordAllocate cx width element entries index ptr >>= following rightTicket) at canonical
+        rw [sharedRecordAllocatorCode] at checked canonical
+        have smaller : sizeOf entries < size := by rw [← fieldSize]; simp; omega
+        have onResume (pointer : Nat) :
+            DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+              (site.resume cx (following leftTicket) (.nat pointer))
+              (site.resume cx (following rightTicket) (.nat pointer)) := by
+          refine crossDestructorRecordCollectionResume thread cx width element entries index ptr pointer
+            (following leftTicket) (following rightTicket) onField ?_
+          intro address
+          let childJoin := SharedRecordJoin.collection mode fields slot.2 (index + 1) index entries.length ptr address join
+          have childDone (result : Except RecordLower.Issue Unit) :
+              DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+                (childJoin.reply cx width leftTicket result) (childJoin.reply cx width rightTicket result) :=
+            crossDestructorRecordStore thread (sharedRecordCollectionResult cx width entries.length index ptr address result)
+              (sharedRecordCollectionResultEffects cx width entries.length index ptr address result)
+              (following leftTicket) (following rightTicket) onField
+          exact @ih (sizeOf entries) smaller (.elements (ABI.layout width element).size) entries address 0
+            childJoin entriesEmitted childDone rfl
+        exact allocate cx site entriesEmitted
+          (following leftTicket) (following rightTicket) onResume stores checked canonical scheduler run bounded
+    have stringField : ∃ text : Stored.Payload (.prim .string), field = .data (.prim .string) text := by
+      cases fieldEmitted with
+      | @primitive primitive payload =>
+        by_cases string : primitive = .string
+        · subst primitive
+          exact ⟨payload, rfl⟩
+        · exact (localField (.data (.primitive string))).elim
+      | enum payload schema => exact (localField (.data (.enum schema))).elim
+      | flags payload schema => exact (localField (.data (.flags schema))).elim
+      | endpoint => exact (endpoint ⟨_, _, _, rfl⟩).elim
+      | context => exact (context ⟨_, rfl⟩).elim
+      | owner => exact (owner ⟨_, rfl⟩).elim
+      | aggregate => exact (aggregate ⟨_, _, rfl⟩).elim
+      | fixed => exact (fixed ⟨_, _, _, rfl⟩).elim
+      | list => exact (dynamic ⟨_, _, _, rfl⟩).elim
+      | map => exact (dynamic ⟨_, _, _, rfl⟩).elim
+      | @sum type arms tag selected _ =>
+        cases selected with
+        | none => exact (localField .sumNone).elim
+        | some child => exact (sum ⟨_, _, _, child, rfl⟩).elim
+    obtain ⟨text, rfl⟩ := stringField
+    rw [sharedRecordMemoryCons, sharedRecordStringCode] at checked canonical
+    let placed (ticket : Nat) := sharedRecordStringEmit cx text ptr (following ticket)
+    refine crossDestructorRecordStore thread (sharedRecordStringPlacement cx text index ptr)
+      (sharedRecordStringPlacementEffects cx text index ptr) (placed leftTicket) (placed rightTicket)
+      ?_ stores checked canonical scheduler run bounded
+    intro result left right remaining stores checked canonical scheduler run bounded
+    cases result with
+    | error issue => exact onField (.error issue) stores checked canonical scheduler run bounded
+    | ok done =>
+      cases done
+      obtain ⟨value, typed⟩ := text
+      cases typed with
+      | int kind _ => cases kind
+      | @string value valid =>
+        have checkedAt : left.ctl = check.control
+            (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) ptr >>= fun _ => following leftTicket (.ok ())) := checked
+        have canonicalAt : right.ctl = canon.control
+            (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) ptr >>= fun _ => following rightTicket (.ok ())) := canonical
+        rw [sharedRecordStringPlanCode] at checkedAt canonicalAt
+        refine crossDestructorRecordStore thread (ptrType cx) (storeEffectPtrType cx)
+          (sharedRecordStringPlan cx value ptr (following leftTicket)) (sharedRecordStringPlan cx value ptr (following rightTicket))
+          ?_ stores checkedAt canonicalAt scheduler run bounded
+        intro actualWidth left right remaining stores checked canonical scheduler run bounded
+        obtain ⟨alignment, size, tail, steps⟩ := stringPlanInitialAllocation cx.opts.encoding actualWidth
+          (storeSource Quirks.none actualWidth value)
+        let site := SharedRecordAllocation.string actualWidth value ptr [] none alignment size tail
+        exact allocate cx site steps (following leftTicket) (following rightTicket)
+          (fun pointer => crossSourceRecordStringSteps thread allocate cx actualWidth value
+            [.allocate alignment size] tail ptr pointer steps (following leftTicket) (following rightTicket) (onField (.ok ())))
+          stores
+          (checked.trans (congrArg check.control (sharedRecordStringAllocationCode cx actualWidth value ptr
+            (following leftTicket) alignment size tail steps)))
+          (canonical.trans (congrArg canon.control (sharedRecordStringAllocationCode cx actualWidth value ptr
+            (following rightTicket) alignment size tail steps)))
+          scheduler run bounded
+
+open Stored.Endpoints in
+private theorem finishSourceRecordFields {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
     (cx : LiftLowerContext (core3 grow)) (width : AddrType) (fields : List RecordLower.Field) (cursor index : Nat)
     (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
@@ -18705,37 +19033,21 @@ private theorem finishSourceLocalRecordFields {limit : Nat}
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
       (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket))
       (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)) := by
-  classical
-  induction fields generalizing cursor index with
-  | nil =>
-    intro left right remaining same checked canonical scheduler run bounded
-    exact finishSourceScheduledReply same (.ok 0) checked canonical scheduler run bounded resume
-  | cons field fields ih =>
-    intro left right remaining same checked canonical scheduler run bounded
-    by_cases localField : SharedRecordLocalField field
-    · let slot := Track.slot .fields width field cursor
-      let visit : Session grow sig (Except RecordLower.Issue Unit) :=
-        RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-          width field index (.memory slot.1)
-      let next (ticket : Nat) := sharedRecordAfterField (sig := sig)
-        .fields cx width fields slot.2 (index + 1) (sharedRecordReport ticket)
-      rw [sharedRecordMemoryCons] at checked canonical
-      refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread visit (next leftTicket) (next rightTicket)
-        (liftDestructorStoreEffects (sharedRecordLocalFieldEffects cx width localField index slot.1) (trivialPreserves _))
-        trivial same checked canonical run ?_
-      intro reached peer suffix result shorter _ stores lhs rhs aligned residual
-      cases result with
-      | error issue =>
-        exact finishSourceScheduledReply stores (.error (.lowerRecord issue)) lhs rhs
-          (aligned scheduler) residual (shorter.trans bounded) resume
-      | ok done =>
-        cases done
-        exact ih slot.2 (index + 1) (fun item member => emitted item (List.mem_cons_of_mem field member))
-          stores lhs rhs (aligned scheduler) residual (shorter.trans bounded)
-    · cases run with
-      | refl => exact .exhausted
-      | cons first tail =>
-        exact .sharedSourceRecordFields parents thread segments emitted same scheduler checked canonical (.cons first tail)
+  refine visitSourceRecordFields leftTicket rightTicket cx width .fields fields cursor index .report emitted thread ?_ ?_
+  · intro context site compiled first second _
+    refine enterSourceRecordAllocator parents thread segments context site compiled first second ?_
+    intro left right remaining same checked canonical scheduler run _
+    cases run with
+    | refl => exact .exhausted
+    | cons step tail =>
+      exact .sharedSourceRecordAllocator parents compiled same scheduler checked canonical (.cons step tail)
+  · intro result left right remaining same checked canonical scheduler run bounded
+    cases result with
+    | error issue =>
+      exact finishSourceScheduledReply same (.error (.lowerRecord issue)) checked canonical scheduler run bounded resume
+    | ok done =>
+      cases done
+      exact finishSourceScheduledReply same (.ok 0) checked canonical scheduler run bounded resume
 
 private def sourceGiveWithReply : SharedGiveAction → Bool
   | .giveOwner _ | .endpoint _ _ | .record _ => true
@@ -18785,7 +19097,7 @@ private theorem finishSourceSelectedGive {limit : Nat}
         checked canonical leftLive rightLive visited scheduler bounded resume
   | record destination =>
     exact finishSourceSharedRecord destination parents thread segments linked stores checked canonical run scheduler bounded resume
-      (fun cx width fields emitted => finishSourceLocalRecordFields leftTicket rightTicket cx width fields position 0
+      (fun cx width fields emitted => finishSourceRecordFields leftTicket rightTicket cx width fields position 0
         emitted parents thread segments resume)
   | dropOwner _ => contradiction
 
@@ -21712,361 +22024,69 @@ private theorem crossDestructorRecordAllocator {limit : Nat} {body : ThreadBody 
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
       (.op (.call (site.call cx)) (site.resume cx leftNext))
       (.op (.call (site.call cx)) (site.resume cx rightNext)) := by
-  classical
-  intro left right labels stores checked canonical scheduler run within
-  let call := site.call cx
-  let first := site.resume cx leftNext
-  let second := site.resume cx rightNext
-  let checkEntered := { check with frames := .prog first :: check.frames }
-  let canonEntered := { canon with frames := .prog second :: canon.frames }
-  let program := specDispatch ready base call
-  let reached := { left with ctl := checkEntered.control program }
-  let peer := { right with ctl := canonEntered.control program }
-  have install : Step profile ready (specDispatch ready base) left .tau reached := .call checked
-  have peerInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer := .call canonical
-  cases run with
-  | refl => exact .exhausted
-  | cons actual residual =>
-    obtain ⟨rfl, rfl⟩ := silentStepUnique install actual
-    have paths := sharedPushTransport install peerInstall
-      (show transitionEdit left .tau = .push (.prog first) by rw [transitionEdit, checked]; rfl)
-      (show transitionEdit right .tau = .push (.prog second) by rw [transitionEdit, canonical]; rfl)
-    refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned) ?_
-    refine .sharedDropRecordAllocatorBody (check := check) (canon := canon) (site := site)
-      parents thread segments compiled stores scheduler checked canonical install peerInstall rfl rfl ?_
-    have code : program = (sharedRecordAllocatorSetup cx site.request >>= fun (callee, task, caller) =>
-        .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)) :=
-      sharedRecordAllocatorSetupCode cx site.request
-    let next (selected : AddrType × (core3 grow).FuncAddr) : Session grow sig (Ret (core3 grow)) :=
-      let (width, callee) := selected
-      allocObj ArenaField.callers (.sub (.realloc (sharedRecordAllocatorArgs width site.request) none)) >>= fun caller => do
-        sharedRecordAllocatorConfine cx
-        let task ← allocObj ArenaField.tasks (sharedRecordAllocatorTask cx width caller)
-        .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)
-    have split : program = sharedRecordAllocatorSelect cx >>= next := by
-      rw [code]
-      simp only [sharedRecordAllocatorSetup, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
-      congr 1
-    let selection := sharedRecordAllocatorSelect (sig := sig) cx
-    refine crossSharedWorkerBodyWith (check := checkEntered) (canon := canonEntered) thread selection next next
-      (liftDestructorStoreEffects (sharedRecordAllocatorSelectEffects cx) (trivialPreserves _)) trivial stores
-      (congrArg checkEntered.control split) (congrArg canonEntered.control split) residual ?_
-    intro before beforePeer remaining selected shorterSelection _ same leftAt rightAt aligned tail
-    obtain ⟨width, callee⟩ := selected
-    let args := sharedRecordAllocatorArgs width site.request
-    let callerEntry : Caller (core3 grow) := .sub (.realloc args none)
-    let installWorker (caller : CallerId) (task : TaskId) : Session grow sig (Ret (core3 grow)) :=
+  refine enterSourceRecordAllocator (destructorParentStack parents) thread segments cx site compiled leftNext rightNext ?_
+  intro reached peer remaining stores checked canonical scheduler residual within
+  let checkEntered := { check with frames := .prog (site.resume cx leftNext) :: check.frames }
+  let canonEntered := { canon with frames := .prog (site.resume cx rightNext) :: canon.frames }
+  let program := specDispatch ready base (site.call cx)
+  have code : program = (sharedRecordAllocatorSetup cx site.request >>= fun (callee, task, caller) =>
+      .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)) :=
+    sharedRecordAllocatorSetupCode cx site.request
+  let next (selected : AddrType × (core3 grow).FuncAddr) : Session grow sig (Ret (core3 grow)) :=
+    let (width, callee) := selected
+    allocObj ArenaField.callers (.sub (.realloc (sharedRecordAllocatorArgs width site.request) none)) >>= fun caller => do
+      sharedRecordAllocatorConfine cx
+      let task ← allocObj ArenaField.tasks (sharedRecordAllocatorTask cx width caller)
       .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)
-    let allocateTask (caller : CallerId) :=
-      allocObj ArenaField.tasks (sharedRecordAllocatorTask cx width caller) >>= installWorker caller
-    let afterCaller (caller : CallerId) : Session grow sig (Ret (core3 grow)) :=
-      sharedRecordAllocatorConfine cx >>= fun _ => allocateTask caller
-    refine crossSharedRecordArenaAlloc ArenaField.callers callerEntry afterCaller afterCaller same leftAt rightAt tail ?_
-    intro remaining
-    dsimp only
-    intro callerRun shorterCaller
-    let allocation := ArenaField.callers.alloc before.store callerEntry
-    let caller := allocation.2
-    let confine := sharedRecordAllocatorConfine (sig := sig) cx
-    let preserved := sharedRecordAllocatorConfinePreserves (sig := sig) cx caller callerEntry
-    let continues (_ : Unit) := allocateTask caller
-    refine crossSharedWorkerBodyWith (check := checkEntered) (canon := canonEntered) thread confine continues continues
-      (liftDestructorStoreEffects (sharedRecordAllocatorConfineEffects cx) preserved)
-      (ArenaField.callers.get?_alloc_self before.store callerEntry) rfl rfl rfl callerRun ?_
-    intro taskStart taskPeer remaining _ shorterConfine callerFound same taskAt taskAtPeer afterConfine taskRun
-    let entry := sharedRecordAllocatorTask cx width caller
-    refine crossSharedRecordArenaAlloc ArenaField.tasks entry (installWorker caller) (installWorker caller) same taskAt taskAtPeer taskRun ?_
-    intro remaining
-    dsimp only
-    intro afterTask shorterTask
-    let fresh := ArenaField.tasks.alloc taskStart.store entry
-    have allocatorSource : SharedRecordAllocatorSource cx site.request width fresh.2 caller fresh.1 :=
-      ⟨⟨entry, ArenaField.tasks.get?_alloc_self taskStart.store entry, rfl, rfl, rfl, rfl⟩, callerFound⟩
-    exact crossDestructorRecordAllocatorWorker (check := checkEntered) (canon := canonEntered)
-      parents thread (crossDestructorRecordAllocatorPop parents cx site leftNext rightNext onResume)
-      cx callee fresh.2 caller
-      (.allocator cx site leftNext rightNext compiled (.paired segments))
-      (.allocator cx site fresh.2 caller leftNext rightNext compiled thread segments (destructorParentStack parents))
-      allocatorSource rfl rfl rfl
-      (afterConfine (aligned scheduler)) afterTask
-      (shorterTask.trans (shorterConfine.trans (shorterCaller.trans
-        (shorterSelection.trans (Nat.le_of_succ_le within)))))
-
-
-open Stored.Endpoints in
-private theorem crossDestructorRecordStringSteps {limit : Nat} {body : ThreadBody (core3 grow)}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (parents : DestructorParentChain older body check.rest canon.rest) (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal)
-    (prior steps : List ABI.StoreStep) (dest pointer : Nat)
-    (compiled : (storePlanFor Quirks.none cx.opts.encoding width value).steps = prior ++ steps)
-    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onDone : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkNext (.ok ())) (canonNext (.ok ()))) :
-    let tagged := (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sharedRecordStringRemaining cx steps tagged dest pointer checkNext)
-      (sharedRecordStringRemaining cx steps tagged dest pointer canonNext) := by
+  have split : program = sharedRecordAllocatorSelect cx >>= next := by
+    rw [code]
+    simp only [sharedRecordAllocatorSetup, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+    congr 1
+  let selection := sharedRecordAllocatorSelect (sig := sig) cx
+  refine crossSharedWorkerBodyWith (check := checkEntered) (canon := canonEntered) thread selection next next
+    (liftDestructorStoreEffects (sharedRecordAllocatorSelectEffects cx) (trivialPreserves _)) trivial stores
+    (checked.trans (congrArg checkEntered.control split)) (canonical.trans (congrArg canonEntered.control split)) residual ?_
+  intro before beforePeer remaining selected shorterSelection _ same leftAt rightAt aligned tail
+  obtain ⟨width, callee⟩ := selected
+  let args := sharedRecordAllocatorArgs width site.request
+  let callerEntry : Caller (core3 grow) := .sub (.realloc args none)
+  let installWorker (caller : CallerId) (task : TaskId) : Session grow sig (Ret (core3 grow)) :=
+    .op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread cx task caller)
+  let allocateTask (caller : CallerId) :=
+    allocObj ArenaField.tasks (sharedRecordAllocatorTask cx width caller) >>= installWorker caller
+  let afterCaller (caller : CallerId) : Session grow sig (Ret (core3 grow)) :=
+    sharedRecordAllocatorConfine cx >>= fun _ => allocateTask caller
+  refine crossSharedRecordArenaAlloc ArenaField.callers callerEntry afterCaller afterCaller same leftAt rightAt tail ?_
+  intro remaining
   dsimp only
-  let plan := storePlanFor Quirks.none cx.opts.encoding width value
-  let tagged := plan.taggedCodeUnits
-  induction steps generalizing prior pointer with
-  | nil =>
-    intro left right remaining stores checked canonical scheduler run bounded
-    exact crossDestructorRecordStore (check := check) (canon := canon) thread
-      (sharedRecordStringDescriptor cx tagged dest pointer) (sharedStringDescriptorEffects cx tagged dest pointer)
-      (fun _ => checkNext (.ok ())) (fun _ => canonNext (.ok ()))
-      (fun _ => onDone) stores checked canonical scheduler run bounded
-  | cons step steps ih =>
-    intro left right remaining stores checked canonical scheduler run bounded
-    rw [sharedRecordStringRemainingCons] at checked canonical
-    have suffix : plan.steps = (prior ++ [step]) ++ steps := by
-      rw [List.append_assoc]
-      exact compiled
-    have resume (ptr : Nat) :
-        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-          (sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
-          (sharedRecordStringRemaining cx steps tagged dest ptr canonNext) :=
-      ih (prior ++ [step]) ptr suffix
-    by_cases localStep : sharedStringLocalStep step = true
-    · exact crossDestructorRecordStore (check := check) (canon := canon) thread
-        (runStoreStep cx pointer step) (sharedStringStepEffects cx pointer step localStep)
-        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
-        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr canonNext)
-        resume stores checked canonical scheduler run bounded
-    · cases step
-      case allocate alignment size =>
-        let site := SharedRecordAllocation.string width value dest prior none alignment size steps
-        exact crossDestructorRecordAllocator parents thread segments cx site compiled checkNext canonNext resume
-          stores
-          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged 0 0 checkNext alignment.bytes size steps)))
-          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged 0 0 canonNext alignment.bytes size steps)))
-          scheduler run bounded
-      case reallocate oldLen alignment size =>
-        let site := SharedRecordAllocation.string width value dest prior (some (pointer, oldLen)) alignment size steps
-        exact crossDestructorRecordAllocator parents thread segments cx site compiled checkNext canonNext resume
-          stores
-          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen checkNext alignment.bytes size steps)))
-          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen canonNext alignment.bytes size steps)))
-          scheduler run bounded
-      all_goals exact False.elim (localStep rfl)
+  intro callerRun shorterCaller
+  let allocation := ArenaField.callers.alloc before.store callerEntry
+  let caller := allocation.2
+  let confine := sharedRecordAllocatorConfine (sig := sig) cx
+  let preserved := sharedRecordAllocatorConfinePreserves (sig := sig) cx caller callerEntry
+  let continues (_ : Unit) := allocateTask caller
+  refine crossSharedWorkerBodyWith (check := checkEntered) (canon := canonEntered) thread confine continues continues
+    (liftDestructorStoreEffects (sharedRecordAllocatorConfineEffects cx) preserved)
+    (ArenaField.callers.get?_alloc_self before.store callerEntry) rfl rfl rfl callerRun ?_
+  intro taskStart taskPeer remaining _ shorterConfine callerFound same taskAt taskAtPeer afterConfine taskRun
+  let entry := sharedRecordAllocatorTask cx width caller
+  refine crossSharedRecordArenaAlloc ArenaField.tasks entry (installWorker caller) (installWorker caller) same taskAt taskAtPeer taskRun ?_
+  intro remaining
+  dsimp only
+  intro afterTask shorterTask
+  let fresh := ArenaField.tasks.alloc taskStart.store entry
+  have allocatorSource : SharedRecordAllocatorSource cx site.request width fresh.2 caller fresh.1 :=
+    ⟨⟨entry, ArenaField.tasks.get?_alloc_self taskStart.store entry, rfl, rfl, rfl, rfl⟩, callerFound⟩
+  exact crossDestructorRecordAllocatorWorker (check := checkEntered) (canon := canonEntered)
+    parents thread (crossDestructorRecordAllocatorPop parents cx site leftNext rightNext onResume)
+    cx callee fresh.2 caller
+    (.allocator cx site leftNext rightNext compiled (.paired segments))
+    (.allocator cx site fresh.2 caller leftNext rightNext compiled thread segments (destructorParentStack parents))
+    allocatorSource rfl rfl rfl
+    (afterConfine (aligned scheduler)) afterTask
+    (shorterTask.trans (shorterConfine.trans (shorterCaller.trans
+      (shorterSelection.trans within))))
 
-open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
-private theorem visitDestructorRecordFields {limit : Nat} {body : ThreadBody (core3 grow)}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
-    (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (mode : Track) (fields : List RecordLower.Field) (cursor index : Nat) (join : SharedRecordJoin)
-    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
-    (parents : DestructorParentChain older body check.rest canon.rest)
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (onJoin : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (join.reply cx width leftTicket result) (join.reply cx width rightTicket result)) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sharedRecordMemory mode cx width fields cursor index (join.reply cx width leftTicket))
-      (sharedRecordMemory mode cx width fields cursor index (join.reply cx width rightTicket)) := by
-  classical
-  induction fieldSize : sizeOf fields using Nat.strong_induction_on generalizing mode fields cursor index join
-  rename_i size ih
-  cases fields with
-  | nil =>
-    intro left right remaining stores checked canonical scheduler run bounded
-    cases mode <;> exact onJoin (.ok ()) stores checked canonical scheduler run bounded
-  | cons field fields =>
-    have fieldEmitted := emitted field (List.mem_cons_self ..)
-    have tailEmitted : ∀ item ∈ fields, RecordLower.Field.Emitted item :=
-      fun item inTail => emitted item (List.mem_cons_of_mem field inTail)
-    let slot := mode.slot width field cursor
-    let ptr := slot.1
-    let following (ticket : Nat) := sharedRecordAfterField (sig := sig) mode cx width fields slot.2 (index + 1) (join.reply cx width ticket)
-    have onField (result : Except RecordLower.Issue Unit) :
-        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-          (following leftTicket result) (following rightTicket result) := by
-      cases result with
-      | error issue => exact onJoin (.error issue)
-      | ok done =>
-        cases done
-        have smaller : sizeOf fields < size := by rw [← fieldSize]; simp
-        exact @ih (sizeOf fields) smaller mode fields slot.2 (index + 1) join tailEmitted onJoin rfl
-    let childJoin := SharedRecordJoin.field mode fields slot.2 (index + 1) index join
-    have onChild (result : Except RecordLower.Issue Unit) :
-        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-          (childJoin.reply cx width leftTicket result) (childJoin.reply cx width rightTicket result) :=
-      @onField (result.mapError (.nested index))
-    intro left right remaining stores checked canonical scheduler run bounded
-    by_cases localField : SharedRecordLocalField field
-    · let visit : Session grow sig (Except RecordLower.Issue Unit) :=
-        RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx) width field index (.memory ptr)
-      rw [sharedRecordMemoryCons] at checked canonical
-      exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread visit (following leftTicket) (following rightTicket)
-        (liftDestructorStoreEffects (sharedRecordLocalFieldEffects cx width localField index ptr) (trivialPreserves _))
-        trivial stores checked canonical run
-        (fun result shorter _ same leftAt rightAt aligned residual =>
-          onField result same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
-    by_cases aggregate : ∃ type children, field = .aggregate type children
-    · obtain ⟨type, children, rfl⟩ := aggregate
-      have childrenEmitted : ∀ item ∈ children, RecordLower.Field.Emitted item := by
-        cases fieldEmitted with
-        | aggregate compiled => exact compiled
-      have smaller : sizeOf children < size := by rw [← fieldSize]; simp; omega
-      let resume (ticket : Nat) (_ : Unit) := sharedRecordMemory (sig := sig) .fields cx width children ptr 0 (childJoin.reply cx width ticket)
-      rw [sharedRecordMemoryCons, sharedRecordAggregateCode] at checked canonical
-      exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread
-        (checkInBounds cx ptr (ABI.layout width type).size) (resume leftTicket) (resume rightTicket)
-        (liftDestructorStoreEffects (storeEffectBounds cx ptr (ABI.layout width type).size) (trivialPreserves _))
-        trivial stores checked canonical run
-        (fun _ shorter _ same leftAt rightAt aligned residual =>
-          ih (sizeOf children) smaller .fields children ptr 0 childJoin childrenEmitted onChild rfl
-            same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
-    by_cases fixed : ∃ element length entries, field = .fixed element length entries
-    · obtain ⟨element, length, entries, rfl⟩ := fixed
-      have entriesEmitted : ∀ item ∈ entries, RecordLower.Field.Emitted item := by
-        cases fieldEmitted with
-        | fixed compiled => exact compiled
-      have smaller : sizeOf entries < size := by rw [← fieldSize]; simp; omega
-      rw [sharedRecordMemoryCons, sharedRecordFixedCode] at checked canonical
-      exact ih (sizeOf entries) smaller (.elements (ABI.layout width element).size) entries ptr 0 childJoin entriesEmitted onChild rfl
-        stores checked canonical scheduler run bounded
-    by_cases sum : ∃ type arms tag child, field = .sum type arms tag (some child)
-    · obtain ⟨type, arms, tag, child, rfl⟩ := sum
-      have childEmitted : ∀ item ∈ [child], RecordLower.Field.Emitted item := by
-        intro item member
-        rw [List.mem_singleton] at member
-        subst item
-        cases fieldEmitted with
-        | sum compiled => exact compiled _ rfl
-      have smaller : sizeOf ([child] : List RecordLower.Field) < size := by rw [← fieldSize]; simp; omega
-      let head : Session grow sig Nat :=
-        storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
-      let resume (ticket address : Nat) :=
-        sharedRecordMemory (sig := sig) (.elements 0) cx width [child] address 0 (childJoin.reply cx width ticket)
-      rw [sharedRecordMemoryCons, sharedRecordSumCode] at checked canonical
-      exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread head (resume leftTicket) (resume rightTicket)
-        (liftDestructorStoreEffects (sharedRecordVariantHeadEffects cx width arms tag ptr) (trivialPreserves _))
-        trivial stores checked canonical run
-        (fun address shorter _ same leftAt rightAt aligned residual =>
-          ih (sizeOf ([child] : List RecordLower.Field)) smaller (.elements 0) [child] address 0 childJoin childEmitted onChild rfl
-            same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
-    by_cases context : ∃ identity, field = .context identity
-    · obtain ⟨identity, rfl⟩ := context
-      rw [sharedRecordMemoryCons, sharedRecordContextCode] at checked canonical
-      exact crossDestructorRecordContext thread cx identity index ptr
-        (following leftTicket) (following rightTicket) onField stores checked canonical scheduler run bounded
-    by_cases owner : ∃ receipt, field = .owner receipt
-    · obtain ⟨receipt, rfl⟩ := owner
-      rw [sharedRecordMemoryCons, sharedRecordOwnerCode] at checked canonical
-      exact crossDestructorRecordOwner thread cx receipt index ptr
-        (following leftTicket) (following rightTicket) onField stores checked canonical scheduler run bounded
-    by_cases endpoint : ∃ channel element identity, field = .endpoint channel element identity
-    · obtain ⟨channel, element, identity, rfl⟩ := endpoint
-      rw [sharedRecordMemoryCons, sharedRecordEndpointCode] at checked canonical
-      exact crossDestructorRecordEndpoint thread cx ⟨channel, element, identity, cx.inst⟩ index ptr
-        (following leftTicket) (following rightTicket) onField stores checked canonical scheduler run bounded
-    by_cases dynamic : ∃ type element entries, field = .dynamic type element entries
-    · obtain ⟨type, element, entries, rfl⟩ := dynamic
-      have entriesEmitted : ∀ item ∈ entries, RecordLower.Field.Emitted item := by
-        intro item member
-        cases fieldEmitted with
-        | list compiled => exact compiled item member
-        | map shapes values =>
-          obtain ⟨payload, value, rfl⟩ := shapes item member
-          refine RecordLower.Field.Emitted.aggregate ?_
-          intro child atChild
-          simp only [List.mem_cons, List.not_mem_nil, or_false] at atChild
-          rcases atChild with keyChild | valueChild
-          · exact keyChild.symm ▸ RecordLower.Field.Emitted.primitive payload
-          · exact valueChild.symm ▸ values payload value member
-      let next (ticket : Nat) (result : Except RecordLower.Issue Unit) :=
-        sharedRecordBeforeAllocation cx width element entries index ptr result >>= following ticket
-      rw [sharedRecordMemoryCons, sharedRecordCollectionCode] at checked canonical
-      refine crossDestructorRecordPrepare (RecordLower.Field.listObjects entries) (next leftTicket) (next rightTicket)
-        ?_ stores checked canonical scheduler run bounded
-      intro result left right remaining stores checked canonical scheduler run bounded
-      cases result with
-      | error issue =>
-        exact onField (.error (sharedRecordPreAllocationIssue index issue)) stores checked canonical scheduler run bounded
-      | ok done =>
-        cases done
-        let site := SharedRecordAllocation.collection width element entries index ptr
-        change left.ctl = check.control (sharedRecordAllocate cx width element entries index ptr >>= following leftTicket) at checked
-        change right.ctl = canon.control (sharedRecordAllocate cx width element entries index ptr >>= following rightTicket) at canonical
-        rw [sharedRecordAllocatorCode] at checked canonical
-        have smaller : sizeOf entries < size := by rw [← fieldSize]; simp; omega
-        have onResume (pointer : Nat) :
-            DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-              (site.resume cx (following leftTicket) (.nat pointer))
-              (site.resume cx (following rightTicket) (.nat pointer)) := by
-          refine crossDestructorRecordCollectionResume thread cx width element entries index ptr pointer
-            (following leftTicket) (following rightTicket) onField ?_
-          intro address
-          let childJoin := SharedRecordJoin.collection mode fields slot.2 (index + 1) index entries.length ptr address join
-          have childDone (result : Except RecordLower.Issue Unit) :
-              DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-                (childJoin.reply cx width leftTicket result) (childJoin.reply cx width rightTicket result) :=
-            crossDestructorRecordStore thread (sharedRecordCollectionResult cx width entries.length index ptr address result)
-              (sharedRecordCollectionResultEffects cx width entries.length index ptr address result)
-              (following leftTicket) (following rightTicket) onField
-          exact @ih (sizeOf entries) smaller (.elements (ABI.layout width element).size) entries address 0
-            childJoin entriesEmitted childDone rfl
-        exact crossDestructorRecordAllocator parents thread segments cx site entriesEmitted
-          (following leftTicket) (following rightTicket) onResume stores checked canonical scheduler run bounded
-    have stringField : ∃ text : Stored.Payload (.prim .string), field = .data (.prim .string) text := by
-      cases fieldEmitted with
-      | @primitive primitive payload =>
-        by_cases string : primitive = .string
-        · subst primitive
-          exact ⟨payload, rfl⟩
-        · exact (localField (.data (.primitive string))).elim
-      | enum payload schema => exact (localField (.data (.enum schema))).elim
-      | flags payload schema => exact (localField (.data (.flags schema))).elim
-      | endpoint => exact (endpoint ⟨_, _, _, rfl⟩).elim
-      | context => exact (context ⟨_, rfl⟩).elim
-      | owner => exact (owner ⟨_, rfl⟩).elim
-      | aggregate => exact (aggregate ⟨_, _, rfl⟩).elim
-      | fixed => exact (fixed ⟨_, _, _, rfl⟩).elim
-      | list => exact (dynamic ⟨_, _, _, rfl⟩).elim
-      | map => exact (dynamic ⟨_, _, _, rfl⟩).elim
-      | @sum type arms tag selected _ =>
-        cases selected with
-        | none => exact (localField .sumNone).elim
-        | some child => exact (sum ⟨_, _, _, child, rfl⟩).elim
-    obtain ⟨text, rfl⟩ := stringField
-    rw [sharedRecordMemoryCons, sharedRecordStringCode] at checked canonical
-    let placed (ticket : Nat) := sharedRecordStringEmit cx text ptr (following ticket)
-    refine crossDestructorRecordStore thread (sharedRecordStringPlacement cx text index ptr)
-      (sharedRecordStringPlacementEffects cx text index ptr) (placed leftTicket) (placed rightTicket)
-      ?_ stores checked canonical scheduler run bounded
-    intro result left right remaining stores checked canonical scheduler run bounded
-    cases result with
-    | error issue => exact onField (.error issue) stores checked canonical scheduler run bounded
-    | ok done =>
-      cases done
-      obtain ⟨value, typed⟩ := text
-      cases typed with
-      | int kind _ => cases kind
-      | @string value valid =>
-        have checkedAt : left.ctl = check.control
-            (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) ptr >>= fun _ => following leftTicket (.ok ())) := checked
-        have canonicalAt : right.ctl = canon.control
-            (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) ptr >>= fun _ => following rightTicket (.ok ())) := canonical
-        rw [sharedRecordStringPlanCode] at checkedAt canonicalAt
-        refine crossDestructorRecordStore thread (ptrType cx) (storeEffectPtrType cx)
-          (sharedRecordStringPlan cx value ptr (following leftTicket)) (sharedRecordStringPlan cx value ptr (following rightTicket))
-          ?_ stores checkedAt canonicalAt scheduler run bounded
-        intro actualWidth left right remaining stores checked canonical scheduler run bounded
-        obtain ⟨alignment, size, tail, steps⟩ := stringPlanInitialAllocation cx.opts.encoding actualWidth
-          (storeSource Quirks.none actualWidth value)
-        let site := SharedRecordAllocation.string actualWidth value ptr [] none alignment size tail
-        exact crossDestructorRecordAllocator parents thread segments cx site steps (following leftTicket) (following rightTicket)
-          (fun pointer => crossDestructorRecordStringSteps parents thread segments cx actualWidth value
-            [.allocate alignment size] tail ptr pointer steps (following leftTicket) (following rightTicket) (onField (.ok ())))
-          stores
-          (checked.trans (congrArg check.control (sharedRecordStringAllocationCode cx actualWidth value ptr
-            (following leftTicket) alignment size tail steps)))
-          (canonical.trans (congrArg canon.control (sharedRecordStringAllocationCode cx actualWidth value ptr
-            (following rightTicket) alignment size tail steps)))
-          scheduler run bounded
 
 open Stored.Endpoints in
 private theorem finishDestructorRecordFields {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -22083,8 +22103,9 @@ private theorem finishDestructorRecordFields {limit : Nat} {body : ThreadBody (c
     (scheduler : DestructorSchedulerAlignment older start incoming)
     (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  refine visitDestructorRecordFields (check := check) (canon := canon) leftTicket rightTicket
-    cx width .fields fields cursor index .report emitted parents thread segments ?_ stores checked canonical scheduler run bounded
+  refine visitSourceRecordFields (check := check) (canon := canon) leftTicket rightTicket
+    cx width .fields fields cursor index .report emitted thread (crossDestructorRecordAllocator parents thread segments)
+    ?_ stores checked canonical scheduler run bounded
   intro result left right remaining stores checked canonical scheduler run bounded
   cases result with
   | error issue =>
