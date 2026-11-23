@@ -2775,7 +2775,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedGiveSelected _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordEmit _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2819,7 +2820,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedGiveSelected _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordEmit _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -12861,6 +12863,49 @@ private theorem finishSharedResult {left right : Config (core3 grow) (HostState 
       unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
       exact pairQuietHost site _) run)
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private def sharedRecordAfterPrepare (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val)
+    (fields : List RecordLower.Field) (ptr ticket : Nat) :
+    Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  | .error issue => sharedRecordReport ticket (.error issue)
+  | .ok () => sharedRecordEmit cx type value fields ptr ticket
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private def sharedRecordPrepare (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val)
+    (fields : List RecordLower.Field) (ptr ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  .op .get fun store => .op .hostGet fun state =>
+    sharedRecordAfterPrepare cx type value fields ptr ticket
+      (Record.prepare store state.writer (RecordLower.Field.listObjects fields))
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordCode (dest : RecordDestination) (inst : InstId) (ticket ptr : Nat)
+    (payload : Σ tag, Stored.OwnedMemory.Payload (sig.payload tag))
+    (n : Nat) (children : Fin n → Stored.OwnedMemory.Tree sig) :
+    (SharedGiveAction.afterLookup (.record dest) inst ticket ptr (some (.tag payload n children)) :
+      Session grow sig (Ret (core3 grow))) =
+      match Record.preflight (dest.context (grow := grow) inst) (sig.payload payload.1) payload.2 (.memory ptr) with
+      | .error issue => sharedRecordReport ticket (.error issue)
+      | .ok (fields, _) => sharedRecordPrepare (dest.context inst) (sig.payload payload.1)
+          payload.2.val.value fields ptr ticket := by
+  unfold SharedGiveAction.afterLookup SharedGiveAction.selected
+  dsimp [Record.lowerRoot, Record.lower, RecordLower.Internal.lowerCompiled, RecordLower.Internal.lowerWithPlan]
+  cases Record.preflight (dest.context (grow := grow) inst)
+      (sig.payload payload.1) payload.2 (.memory ptr) with
+  | error issue =>
+    rfl
+  | ok plan =>
+    obtain ⟨fields, objects⟩ := plan
+    simp [sharedRecordPrepare, sharedRecordAfterPrepare, sharedRecordEmit, sharedRecordReport, scheduledReply, Record.authority,
+      recordClaims, claims, getStore, hostGet, perform, Prog.lift, bind, Prog.bind, Prog.bind_assoc]
+    congr 1
+    funext store
+    congr 1
+    funext host
+    cases Record.prepare (show CStore (core3 grow) from store)
+      (show HostState sig from host).writer (RecordLower.Field.listObjects fields) with
+    | error issue => rfl
+    | ok result => cases result; rfl
+
 private def missingSharedPosition (action : SharedGiveAction) (tree : Stored.OwnedMemory.Tree sig)
     (position : Nat) : Prop :=
   match action with
@@ -13959,6 +14004,135 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
         rw [used, ← List.cons_append]
         exact .sharedGiveProbeMismatch linked source difference moved extended residual))
 
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem crossSharedRecord {left right : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
+    {inst leftTicket rightTicket ptr} {leading trailing : Trace grow sig}
+    (destination : RecordDestination) (tree : Stored.OwnedMemory.Tree sig)
+    (split : labels = leading ++ trailing)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control
+      ((SharedGiveAction.record destination).afterLookup inst leftTicket ptr (some tree)))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
+      ((SharedGiveAction.record destination).afterLookup inst rightTicket ptr (some tree)))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  classical
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+  cases tree with
+  | atom impossible => exact impossible.elim
+  | tag payload count children =>
+    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst leftTicket ptr payload count children] at leftFocus
+    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst rightTicket ptr payload count children] at rightFocus
+    let cx := destination.context (grow := grow) inst
+    let type := sig.payload payload.1
+    let value := payload.2.val.value
+    cases compiled : Record.preflight cx type payload.2 (.memory ptr) with
+    | error issue =>
+      have refused : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
+          (.memory ptr) = .error issue := compiled
+      rw [refused] at leftFocus rightFocus
+      exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) (.error (.lowerRecord issue))
+        split paired paths writers site leftFocus rightFocus run
+    | ok result =>
+      obtain ⟨fields, objects⟩ := result
+      have compiledAt : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2 (.memory ptr) =
+          .ok (fields, objects) := compiled
+      rw [compiledAt] at leftFocus rightFocus
+      let plan := RecordLower.Field.listObjects fields
+      let checkedNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr leftTicket
+      let canonicalNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr rightTicket
+      let leftRead := { left with ctl := check.control (.op .hostGet (fun state => checkedNext (Record.prepare left.store state.writer plan))) }
+      let rightRead := { right with ctl := canon.control (.op .hostGet (fun state => canonicalNext (Record.prepare right.store state.writer plan))) }
+      have leftGet : Step profile ready (specDispatch ready base) left .tau leftRead := .get leftFocus
+      have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead := .get rightFocus
+      have leftGetEdit : transitionEdit left .tau = .same := by rw [transitionEdit, leftFocus]; rfl
+      have rightGetEdit : transitionEdit right .tau = .same := by rw [transitionEdit, rightFocus]; rfl
+      cases run with
+      | refl =>
+        exact .inr (callbackTerminalSlice paired (by
+          rw [split, ← List.cons_append]
+          exact .coreAcceptTerminal paths writers (.refl _) (.inl rfl)))
+      | @cons _ _ finish label tail first residual =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet first
+        have got := retainComparedOccurrences paths (fun place =>
+          ⟨Prefix.step leftGet (by rw [leftGetEdit]; rfl) (.done _ _),
+            Prefix.step rightGet (by rw [rightGetEdit]; rfl) (.done _ _)⟩)
+        have throughGet := writers.append (.framed (WriterPaths.frameSingle (.cons leftGet (.refl _)) rfl)
+          (WriterPaths.frameSingle (.cons rightGet (.refl _)) rfl))
+        let leftResult := Record.prepare left.store left.host.writer plan
+        let rightResult := Record.prepare right.store right.host.writer plan
+        let reached := { leftRead with ctl := check.control (checkedNext leftResult) }
+        let peer := { rightRead with ctl := canon.control (canonicalNext rightResult) }
+        have checkedRead : Step profile ready (specDispatch ready base) leftRead .tau reached :=
+          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+            (k := fun state => checkedNext (Record.prepare left.store state.writer plan)) rfl
+        have canonicalRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau peer :=
+          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+            (k := fun state => canonicalNext (Record.prepare right.store state.writer plan)) rfl
+        rcases splitSilent (count := 1) (.cons checkedRead (.refl _)) residual with ⟨remaining, readUsed, continuation⟩ | short
+        · have lhs := WriterPaths.frameSingle (.cons checkedRead (.refl _)) rfl
+          have rhs := WriterPaths.frameSingle (.cons canonicalRead (.refl _)) rfl
+          have through := retainComparedOccurrences got (fun place =>
+            ⟨Prefix.step checkedRead (by cases place <;> rfl) (.done _ _),
+              Prefix.step canonicalRead (by cases place <;> rfl) (.done _ _)⟩)
+          have used : labels = (leading ++ [.tau, .tau]) ++ remaining := by
+            rw [split, readUsed]
+            simp only [List.append_assoc, List.cons_append, List.nil_append, List.replicate_succ, List.replicate_zero]
+          have moved : OccurrenceTransport profile ready base bindings start incoming
+              (.tau :: (leading ++ [.tau, .tau])) (.tau :: (leading ++ [.tau, .tau]))
+              reached peer [some (.active 0 0)] := by
+            simpa only [List.cons_append, List.append_assoc, List.nil_append] using through
+          by_cases same : leftResult = rightResult
+          · have traced : VisitorWriterPath profile ready base bindings start incoming
+                (.tau :: (leading ++ [.tau, .tau])) (.tau :: (leading ++ [.tau, .tau])) reached peer := by
+              simpa only [List.cons_append, List.append_assoc, List.nil_append] using throughGet.append (.framed lhs rhs)
+            cases outcome : leftResult with
+            | error issue =>
+              apply finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) (.error (.lowerRecord issue))
+                used paired moved traced
+              · unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
+                exact site
+              · change check.control (checkedNext leftResult) = _
+                rw [outcome]
+                rfl
+              · change canon.control (canonicalNext rightResult) = _
+                rw [← same, outcome]
+                rfl
+              · exact continuation
+            | ok result =>
+              cases result
+              have checked : reached.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket) := by
+                change check.control (checkedNext leftResult) = _
+                rw [outcome]
+                rfl
+              have canonical : peer.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket) := by
+                change canon.control (canonicalNext rightResult) = _
+                rw [← same, outcome]
+                rfl
+              exact .inr (callbackTerminalSlice paired (by
+                rw [used, ← List.cons_append]
+                exact .sharedRecordEmit checked canonical moved traced continuation))
+          · have mismatch : SharedRecordPrepareMismatch leftRead rightRead reached peer plan check canon :=
+              ⟨checkedNext, canonicalNext, (HostFrame.Related.Paired.data site).1, rfl, rfl, rfl, rfl, same⟩
+            have traced : VisitorWriterPath profile ready base bindings start incoming
+                (.tau :: (leading ++ [.tau, .tau])) (.tau :: (leading ++ [.tau, .tau])) reached peer := by
+              simpa only [List.cons_append, List.append_assoc, List.nil_append] using throughGet.append (.sharedRecordPrepare mismatch lhs rhs)
+            exact .inr (callbackTerminalSlice paired (by
+              rw [used, ← List.cons_append]
+              exact .sharedRecordPrepareMismatch mismatch moved traced continuation))
+        · have empty : tail = [] := List.length_eq_zero_iff.mp (by omega)
+          have stopped : finish = leftRead := stepsAtEmpty (empty ▸ residual)
+          exact .inr (callbackTerminalSlice paired (by
+            rw [split, empty, stopped]
+            simpa only [List.cons_append, List.append_nil, List.singleton_append] using
+              (CallbackSliceEnd.coreAcceptTerminal (changes := older) got throughGet (.refl _) (.inl rfl))))
+
 open ReturnFrame.Occurrence in
 private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest name kind args inst}
     {action : SharedGiveAction} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14089,10 +14263,20 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
                 exact pairQuietHost site _) leftFound rightFound residual
           · cases source : action.claimAt tree position with
             | none =>
-              apply Or.inr
-              apply callbackTerminalSlice paired
-              rw [split, ← List.cons_append]
-              exact .sharedGiveSelected linked leftFound rightFound paths writers residual
+              have record : ∃ destination, action = .record destination := by
+                cases action with
+                | record destination => exact ⟨destination, rfl⟩
+                | giveOwner resource =>
+                  exact (missing (Option.map_eq_none_iff.mp source)).elim
+                | dropOwner resource =>
+                  exact (missing (Option.map_eq_none_iff.mp source)).elim
+                | endpoint channel element =>
+                  exact (missing (Option.map_eq_none_iff.mp source)).elim
+              obtain ⟨destination, rfl⟩ := record
+              exact crossSharedRecord (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
+                destination tree split paired paths writers (by
+                  unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
+                  exact pairQuietHost site _) leftFound rightFound residual
             | some claim =>
               rw [sharedClaimProgram action inst _ position tree source] at leftFound rightFound
               exact crossSharedClaim linked source split paired paths writers (by

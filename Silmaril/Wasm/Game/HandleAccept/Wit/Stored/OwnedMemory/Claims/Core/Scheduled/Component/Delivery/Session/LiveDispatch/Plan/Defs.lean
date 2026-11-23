@@ -239,6 +239,22 @@ structure ExecutedPrepareRead (profile : ProfileKind) (ready : HostReady (HostSt
   writer : reader.host.writer = start.host.writer
   store : reader.store = right.store
 
+open Stored.OwnedMemory.Claims.Record in
+/-- Both dispatches execute the shared record's prepare. Each closure retains
+its own completion continuation and the store read by its preceding get. -/
+structure SharedRecordPrepareMismatch
+    (left right reached peer : Config (core3 grow) (HostState sig))
+    (plan : List Stored.Endpoints.RecordLower.Object)
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) where
+  checkedNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  store : left.store = right.store
+  leftFocus : left.ctl = check.control (.op .hostGet (fun state => checkedNext (prepare left.store state.writer plan)))
+  rightFocus : right.ctl = canon.control (.op .hostGet (fun state => canonicalNext (prepare right.store state.writer plan)))
+  leftReached : reached.ctl = check.control (checkedNext (prepare left.store left.host.writer plan))
+  rightReached : peer.ctl = canon.control (canonicalNext (prepare right.store right.host.writer plan))
+  different : prepare left.store left.host.writer plan ≠ prepare right.store right.host.writer plan
+
 /-- The four scheduled operations dispatched identically by both hosts.
 The link fixes the resource or endpoint type before any guest argument is read. -/
 inductive SharedGiveAction where
@@ -381,6 +397,21 @@ def SharedEndpointGive.transfer (site : SharedEndpointGive) : Session grow sig N
 
 def scheduledReply (ticket : Nat) (verdict : Except Scheduled.Issue Nat) : Session grow sig (Ret (core3 grow)) := do
   return .flat (← Scheduled.finish ticket verdict)
+
+open Stored.Endpoints in
+def sharedRecordReport (ticket : Nat) (result : Except RecordLower.Issue Unit) :
+    Session grow sig (Ret (core3 grow)) :=
+  scheduledReply ticket (result.mapError .lowerRecord |>.map (fun _ => 0))
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+def sharedRecordEmit (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val)
+    (fields : List RecordLower.Field) (ptr ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  (do
+    let width ← ptrType cx
+    if !Stored.Lower.fits Quirks.none cx.opts.encoding width type value then
+      return .error (.preflight (.abi .allocationPrecondition))
+    RecordLower.Internal.emitRecord Limits.spec Quirks.none cx
+      (Record.authority recordClaims Limits.spec cx) width type fields (.memory ptr)) >>= sharedRecordReport ticket
 
 def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
   site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
@@ -601,6 +632,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
       VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
+  | sharedRecordPrepare {start incoming left right check canon plan}
+      (site : SharedRecordPrepareMismatch start incoming left right plan check canon)
+      (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
   | ownerCommit {start incoming left right site rep leftTicket rightTicket}
       (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
       (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
@@ -739,6 +775,23 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (related : readLeft.host.writer.ClaimDiscrepancies readRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
       (exceptional : pending claim.demand ∨ claim.demand ∈ spends)
       (different : ¬ claim.demand.ObservationAgrees readLeft.host.writer readRight.host.writer)
+      (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending
+        (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
+  | sharedRecordConflict {checked canonical left right atLeft atRight readLeft readRight tailChecked tailCanonical
+      check canon plan probe}
+      (spends : List Spend)
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical atLeft atRight spends)
+      (site : SharedRecordPrepareMismatch atLeft atRight readLeft readRight plan check canon)
+      (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] readLeft [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] readRight [])
+      (checkedRead : ReachedReadOccurrences profile ready (specDispatch ready base) start atLeft readLeft checked)
+      (rawRead : ReachedReadOccurrences profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming atRight readRight canonical)
+      (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
+      (live : pending probe ∨ probe ∈ spends)
+      (conflict : ReachedPrepareConflict atLeft.store atLeft.host.writer atRight.host.writer plan probe)
       (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending
         (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
@@ -1664,12 +1717,19 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedGiveSelected {changes reached peer left right leading trailing finish marks}
+  | sharedRecordEmit {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {name kind inst leftTicket rightTicket position tree} {action : SharedGiveAction}
-      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
-      (checked : left.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
-      (canonical : right.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+      {cx type value fields ptr leftTicket rightTicket}
+      (checked : left.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket))
+      (canonical : right.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedRecordPrepareMismatch {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {beforeLeft beforeRight plan}
+      (site : SharedRecordPrepareMismatch beforeLeft beforeRight left right plan check canon)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
