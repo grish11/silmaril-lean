@@ -2724,6 +2724,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | componentRefusedTerminal _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | componentReplyDisplaced _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused _ _ _ _ reply =>
     obtain ⟨_, _, rfl, front, completed, tail, _, _, _, _, _⟩ := reply
     exact append front (append completed tail)
@@ -2760,6 +2761,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | componentRefusedTerminal _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentRegistrationMismatch _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentAcceptedTerminal _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | componentReplyDisplaced _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | refused install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
@@ -11276,35 +11278,40 @@ private theorem crossComponentReply {origin reference reached peer : Config (cor
     (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: used) (.tau :: used) reached peer)
     (reply : ComponentMarkedReplyTail profile ready base bindings older origin reference reached peer leading
       check resume resume suffix finish)
-    (paired : HostFrame.Related.Paired older start incoming)
-    (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
+    (focus : reached.ctl = check.control (.pure (.cancel .none)))
+    (nonempty : suffix ≠ [])
+    (actualTail : Steps profile ready (specDispatch ready base) reached suffix finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
-  classical
-  by_cases focus : reached.ctl = check.control (.pure (.cancel .none))
-  · obtain ⟨_, _, actual⟩ := reply
-    rcases actual focus with _ | ⟨after, atCaller, pop⟩
-    · exact .inr boundary
-    rcases pop with _ | _ | ⟨remaining, canon, _, popped, _, residual, livePop, frame, _, _, transport⟩
-    · exact .inr boundary
-    · exact .inr boundary
-    have whole := transport (markTransport moved)
-    have pops := VisitorWriterPath.framed (base := base) (bindings := bindings)
-      (.same (.popProg (atCaller ▸ focus)) rfl (.done _)) (.same livePop rfl (.done _))
-    rcases classifyReachedGrowth (CallbackPrefix.transportPaths whole none).choose_spec.1.steps with growing | nonGrowing
-    · refine .inl ⟨used ++ [.tau], .tau :: (used ++ [.tau]), remaining, { reached with ctl := after.control (resume (.cancel .none)) },
-        { peer with ctl := canon.control (resume (.cancel .none)) }, ?_, ?_, residual⟩
-      · rw [split, popped, List.append_assoc]
-        rfl
-      · exact ⟨by simpa only [List.cons_append] using growing, rfl, pairAfterComponentPop frame,
-          by simpa only [List.cons_append, List.map_nil] using whole,
-          by simpa only [List.cons_append, PayloadPrefix.Cursor.control] using writers.append pops⟩
-    · refine .inr (callbackTerminalSlice paired ?_)
-      have full : .tau :: labels = ((.tau :: used) ++ [.tau]) ++ remaining := by
-        rw [split, popped]
-        exact (List.append_assoc (.tau :: used) [.tau] remaining).symm
-      rw [full]
-      exact .nonGrowing nonGrowing (pairAfterComponentPop frame) whole (writers.append pops) residual
-  · exact .inr boundary
+  obtain ⟨mark, tracked, actual⟩ := reply
+  have stop (missing : mark ≠ some (.active 0 0)) :
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+    apply Or.inr
+    apply callbackTerminalSlice paired
+    rw [split, ← List.cons_append]
+    exact .componentReplyDisplaced tracked focus missing moved writers actualTail
+  rcases actual focus with missing | ⟨after, atCaller, pop⟩
+  · exact stop missing
+  rcases pop with missing | empty | ⟨remaining, canon, _, popped, _, residual, livePop, frame, _, _, transport⟩
+  · exact stop missing
+  · exact (nonempty empty.1).elim
+  have whole := transport (markTransport moved)
+  have pops := VisitorWriterPath.framed (base := base) (bindings := bindings)
+    (.same (.popProg (atCaller ▸ focus)) rfl (.done _)) (.same livePop rfl (.done _))
+  rcases classifyReachedGrowth (CallbackPrefix.transportPaths whole none).choose_spec.1.steps with growing | nonGrowing
+  · refine .inl ⟨used ++ [.tau], .tau :: (used ++ [.tau]), remaining, { reached with ctl := after.control (resume (.cancel .none)) },
+      { peer with ctl := canon.control (resume (.cancel .none)) }, ?_, ?_, residual⟩
+    · rw [split, popped, List.append_assoc]
+      rfl
+    · exact ⟨by simpa only [List.cons_append] using growing, rfl, pairAfterComponentPop frame,
+        by simpa only [List.cons_append, List.map_nil] using whole,
+        by simpa only [List.cons_append, PayloadPrefix.Cursor.control] using writers.append pops⟩
+  · refine .inr (callbackTerminalSlice paired ?_)
+    have full : .tau :: labels = ((.tau :: used) ++ [.tau]) ++ remaining := by
+      rw [split, popped]
+      exact (List.append_assoc (.tau :: used) [.tau] remaining).symm
+    rw [full]
+    exact .nonGrowing nonGrowing (pairAfterComponentPop frame) whole (writers.append pops) residual
 
 private theorem crossComponentBodyReply
     {left right startBody peerBody reached peer : Config (core3 grow) (HostState sig)}
@@ -11319,22 +11326,45 @@ private theorem crossComponentBodyReply
     (bodyWriters : VisitorWriterPath profile ready base bindings startBody peerBody leading leading reached peer)
     (reply : ComponentMarkedReplyTail profile ready base bindings older startBody peerBody reached peer leading
       check resume resume remainder finish)
-    (paired : HostFrame.Related.Paired older start incoming)
-    (boundary : CallbackSlice profile ready base bindings older start incoming (.tau :: labels) finish) :
+    (focus : reached.ctl = check.control (.pure (.cancel .none)))
+    (nonempty : remainder ≠ [])
+    (residual : Steps profile ready (specDispatch ready base) reached remainder finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   have prefixPath := (CallbackPrefix.transportAppend entryPath bodyPath).choose_spec.1
   have whole := (CallbackPrefix.transportAppend installed prefixPath).choose_spec.1
   have split : labels = (entry ++ leading) ++ remainder := by rw [entrySplit, bodySplit, List.append_assoc]
   have full : OccurrenceTransport profile ready base bindings start incoming (.tau :: (entry ++ leading))
       (.tau :: (entry ++ leading)) reached peer := whole
-  exact crossComponentReply split full (entryWriters.append bodyWriters) reply paired boundary
+  exact crossComponentReply split full (entryWriters.append bodyWriters) reply focus nonempty residual paired
+
+private theorem componentRefusedReplyFocus {changes reached peer suffix check canon}
+    (frontier : ComponentStoreFrontier (grow := grow) (sig := sig) (Result := Unit) changes check canon
+      (fun _ => .pure (.cancel .none)) (fun _ => .pure (.cancel .none)) reached peer suffix True)
+    (continued : ¬ (suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = []))) :
+    reached.ctl = check.control (.pure (.cancel .none)) := by
+  cases frontier with
+  | returned _ checked _ _ => exact checked
+  | pending _ _ _ _ _ cut =>
+    rcases cut with empty | ⟨impossible, _⟩
+    · exact (continued (.inl empty)).elim
+    · exact (impossible trivial).elim
+  | trapped checked canonical _ => exact (continued (.inr ⟨checked, canonical⟩)).elim
+
+private theorem componentAcceptedReplyFocus {changes reached peer suffix check canon tree handle}
+    (frontier : ComponentAcceptedFrontier (grow := grow) (sig := sig) changes check canon tree handle reached peer suffix)
+    (continued : ¬ (suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = []))) :
+    reached.ctl = check.control (.pure (.cancel .none)) := by
+  cases frontier with
+  | published checked _ _ _ _ => exact checked
+  | pending _ empty => exact (continued (.inl empty)).elim
+  | trapped checked canonical _ => exact (continued (.inr ⟨checked, canonical⟩)).elim
 
 set_option maxHeartbeats 800000 in
 private theorem classifiedComponentCrossing {callees : List (ComponentCall.Callee sig)} :
     CallbackComponentCrossing profile ready (ComponentCall.hostWithComponent (grow := grow) bindings callees) bindings := by
   classical
   intro older start incoming next finish label labels active hostId caller resume frames rest focus step tail paired
-  have boundary := callbackTerminalSlice (bindings := bindings) paired (.boundary (.componentInstall focus) step tail)
   by_cases admits : ComponentHostAdmission callees hostId caller active start
   · obtain ⟨callee, subtask, cx, args, pos, ft, limits, results, entry, task, linked, record, liveThread, liveTask, context, admitted⟩ := admits
     obtain ⟨peerFrames, peerRest, rfl, rfl, entered, install, leftMark, rightMark, outside⟩ :=
@@ -11402,7 +11432,8 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
           apply callbackTerminalSlice paired
           simpa only [entrySplit, split, List.cons_append, List.append_assoc] using
             (CallbackSliceEnd.componentRefusedTerminal frontier terminal finalPaths (entryWriters.append bodyWriters) residual)
-        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply paired boundary
+        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply
+            (componentRefusedReplyFocus frontier terminal) (fun empty => terminal (.inl empty)) residual paired
     | ok planned =>
       obtain ⟨leading, remainder, reached, peer, split, path, checkedResidual, observed⟩ := body
       have stopObserver {wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -11452,7 +11483,8 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
           apply callbackTerminalSlice paired
           simpa only [entrySplit, split, List.cons_append, List.append_assoc] using
             (CallbackSliceEnd.componentRefusedTerminal frontier terminal finalPaths (entryWriters.append bodyWriters) checkedResidual)
-        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply paired boundary
+        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply
+            (componentRefusedReplyFocus frontier terminal) (fun empty => terminal (.inl empty)) checkedResidual paired
       | accepted frontier reply bodyWriters flow =>
         by_cases terminal : remainder = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])
         · have throughBody := CallbackPrefix.transportAppend install (CallbackPrefix.transportAppend moved path).choose_spec.1
@@ -11466,7 +11498,8 @@ private theorem classifiedComponentCrossing {callees : List (ComponentCall.Calle
           simpa only [entrySplit, split, List.cons_append, List.append_assoc] using
             (CallbackSliceEnd.componentAcceptedTerminal frontier terminal finalPaths (entryWriters.append bodyWriters)
               (fun pending related => flow pending related) checkedResidual)
-        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply paired boundary
+        · exact crossComponentBodyReply installed entrySplit moved entryWriters split path bodyWriters reply
+            (componentAcceptedReplyFocus frontier terminal) (fun empty => terminal (.inl empty)) checkedResidual paired
   · have failure : ComponentEntryFailure profile ready bindings callees older start incoming finish label labels := by
       by_cases linked : ∃ callee, callees.filter (·.hostId == hostId) = [callee]
       · obtain ⟨callee, singleton⟩ := linked

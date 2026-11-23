@@ -1168,6 +1168,15 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         left.host.writer.ClaimDiscrepancies right.host.writer pending)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | componentReplyDisplaced {changes reached peer left right bodyEntry peerEntry bodyTrace leading trailing finish mark}
+      {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (tracked : AllocatorMark profile ready base bindings changes bodyEntry peerEntry bodyTrace bodyTrace left right mark)
+      (focus : left.ctl = check.control (.pure (.cancel .none)))
+      (missing : mark ≠ some (.active 0 0))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | refused {changes reached peer label next route destination ticket issue left right checkLeading canonLeading trailing finish marks}
       (install : GiveInstall bindings (specDispatch ready base) reached label next)
       (observed : PayloadPrefix.visible canonLeading = PayloadPrefix.visible checkLeading)

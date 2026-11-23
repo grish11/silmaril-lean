@@ -123,6 +123,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | componentRefusedTerminal _ _ paths writers tail => exact terminal paths writers tail
   | componentRegistrationMismatch _ _ paths writers _ tail => exact terminal paths writers tail
   | componentAcceptedTerminal _ _ paths writers _ tail => exact terminal paths writers tail
+  | componentReplyDisplaced _ _ _ paths writers tail => exact terminal paths writers tail
   | refused _ _ paths writers reply =>
     obtain ⟨_, _, rfl, _, _, tail, _, _, complete, ⟨_, written, framed, pop, edit⟩, _⟩ := reply
     apply follow paths writers
