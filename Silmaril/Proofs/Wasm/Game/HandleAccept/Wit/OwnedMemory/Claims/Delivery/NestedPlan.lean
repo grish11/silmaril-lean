@@ -2615,9 +2615,9 @@ private def CallbackCrossingAt (profile : ProfileKind) (ready : HostReady (HostS
 private def CallbackCoreAcceptCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
   ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
-    {name kind args inst loader},
+    {name kind args},
     LegacyAcceptCallAt checked name kind args →
-    LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader →
+    LinkedLegacyAccept (grow := grow) bindings name kind args →
     Step profile ready (specDispatch ready base) checked label next →
     Steps profile ready (specDispatch ready base) next trailing finish →
     HostFrame.Related.Paired changes checked canonical →
@@ -12528,12 +12528,6 @@ private theorem coreAcceptRawEmbedder {name kind args inst loader}
   | memory _ _ linked => simp only [LiveDispatch.host, selectBinding, linked, embedder]
   | flat _ linked => simp only [LiveDispatch.host, selectBinding, linked, embedder]
 
-private def LegacyBindingContextMismatch (binding : Binding sig) : Prop :=
-  match binding.action with
-  | .accept contract _ => contract.inst ≠ binding.inst
-  | .acceptFlat source => source.inst ≠ binding.inst
-  | _ => False
-
 private theorem resolvedBindingName {name kind} {selected : Binding sig}
     (linked : resolveBinding bindings name kind = .ok selected) : selected.name = name := by
   unfold resolveBinding at linked
@@ -13005,19 +12999,108 @@ private theorem crossInstalledAccept {thread frames rest peerFrames peerRest nam
     | some worker => exact crossAdmittedAcceptBody embedder source admitted.1 admitted.2 paired site installed run
   · exact crossDeniedScheduledBody embedder (coreAcceptRawEmbedder source embedder) (coreAcceptRoute source) admitted paired site installed run
 
+open ReturnFrame.Occurrence in
+private theorem scheduledLegacyMismatchPath (impl : HostImpl (core3 grow) (HostState sig))
+    {name kind args} {selected : Binding sig} {worker : ThreadId}
+    (linked : resolveBinding bindings name kind = .ok selected) (mismatch : LegacyBindingContextMismatch selected)
+    (embedder : impl.embedder name kind args = (Scheduled.host (grow := grow) bindings).embedder name kind args)
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (active : cursor.thread = some worker)
+    (caller : Plain.callerInstance start.store (some worker) = .ok (some selected.inst))
+    (mayLeave : (start.store.inst? selected.inst).any (·.mayLeave) = true)
+    (focus : start.ctl = cursor.control (calloutBody Limits.spec Quirks.none ready impl start.store cursor.thread
+      (.embedder name kind) args)) :
+    let reply := completion start.host.nextTicket (.error .wrongContext)
+    FramedQuietPath profile ready (specDispatch ready impl) cursor start (List.replicate 8 id)
+      { start with host := (start.host.enter name kind args).record reply.1, ctl := cursor.control (.pure (.flat reply.2)) } := by
+  have entry := scheduledEntryPath (profile := profile) (ready := ready) (start := start)
+    impl (legacyMismatchRoute linked mismatch) embedder cursor active caller mayLeave focus
+  exact entry.append (checkedCompletionPath (completion start.host.nextTicket (.error .wrongContext)) rfl)
+
+open ReturnFrame.Occurrence in
+private theorem crossInstalledLegacyMismatch {thread frames rest peerFrames peerRest name kind args} {selected : Binding sig}
+    {callerFrame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (linked : resolveBinding bindings name kind = .ok selected) (mismatch : LegacyBindingContextMismatch selected)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+    let checked := installedAccept ready base start check name kind args
+    let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
+    PairedComponentSite older checked raw check canon →
+    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
+    Steps profile ready (specDispatch ready base) checked labels finish →
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  dsimp only
+  intro site installed run
+  have rawEmbedder := legacyMismatchRawEmbedder (args := args) linked mismatch embedder
+  by_cases admitted : Plain.callerInstance start.store thread = .ok (some selected.inst) ∧
+      (start.store.inst? selected.inst).any (·.mayLeave) = true
+  · cases thread with
+    | none => simp [Plain.callerInstance] at admitted
+    | some worker =>
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, callerFrame :: peerFrames, peerRest⟩
+      let checked := installedAccept ready base start check name kind args
+      let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
+      let leftBody := { start with ctl := check.control (calloutBody Limits.spec Quirks.none ready base start.store
+        check.thread (.embedder name kind) args) }
+      let rightBody := { incoming with ctl := canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        incoming.store canon.thread (.embedder name kind) args) }
+      have same := paired.data.1
+      have lhs := (directGivePreludePath (profile := profile) (ready := ready) (start := checked) base name kind args check rfl).append
+        (scheduledLegacyMismatchPath (start := leftBody) base linked mismatch (congrFun (congrFun (congrFun embedder name) kind) args)
+          check rfl admitted.1 admitted.2 rfl)
+      have rhs := (directGivePreludePath (profile := profile) (ready := ready) (start := raw)
+        (LiveDispatch.host bindings base) name kind args canon rfl).append
+        (scheduledLegacyMismatchPath (start := rightBody) (LiveDispatch.host bindings base) linked mismatch rawEmbedder
+          canon rfl (same ▸ admitted.1) (same ▸ admitted.2) rfl)
+      let leftReply := completion start.host.nextTicket (.error .wrongContext)
+      let rightReply := completion incoming.host.nextTicket (.error .wrongContext)
+      let left := { start with
+        host := (start.host.enter name kind args).record leftReply.1
+        ctl := check.control (.pure (.flat leftReply.2)) }
+      let right := { incoming with
+        host := (incoming.host.enter name kind args).record rightReply.1
+        ctl := canon.control (.pure (.flat rightReply.2)) }
+      have related : PairedComponentSite older left right check canon := by
+        unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
+        exact pairQuietHost site _
+      exact finishCoreAcceptCrossing (leading := []) (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
+        rfl paired rfl installed (frameCalloutStep installed rfl rfl)
+        (compareCoreAcceptFramed site lhs rhs ⟨_, rfl⟩ ⟨_, rfl⟩ rfl rfl related run)
+  · exact crossDeniedScheduledBody embedder rawEmbedder (legacyMismatchRoute linked mismatch) admitted paired site installed run
+
+open ReturnFrame.Occurrence in
+private theorem crossInstalledLegacyRoute {thread frames rest peerFrames peerRest name kind args}
+    {callerFrame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (source : LinkedLegacyAccept (grow := grow) bindings name kind args)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+    let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+    let checked := installedAccept ready base start check name kind args
+    let raw := installedAccept ready (LiveDispatch.host bindings base) incoming canon name kind args
+    PairedComponentSite older checked raw check canon →
+    OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] checked raw [some (.active 0 0)] →
+    Steps profile ready (specDispatch ready base) checked labels finish →
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  rcases source with ⟨inst, loader, source⟩ | ⟨selected, linked, mismatch⟩
+  · exact crossInstalledAccept embedder source paired
+  · exact crossInstalledLegacyMismatch embedder linked mismatch paired
+
 private theorem classifiedCoreAcceptCrossing
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
     CallbackCoreAcceptCrossing profile ready base bindings := by
-  intro older start incoming next finish label labels name kind args inst loader call source step run paired
+  intro older start incoming next finish label labels name kind args call source step run paired
   cases call with
   | core focus calling =>
     obtain ⟨_, _, rfl, rfl, site, installed, _, _⟩ :=
       cutSharedCalloutInstall (.embedder name kind) args focus calling step paired
-    exact crossInstalledAccept embedder source paired site installed run
+    exact crossInstalledLegacyRoute embedder source paired site installed run
   | program focus =>
     obtain ⟨_, _, rfl, rfl, site, installed, _, _, _⟩ :=
       cutProgramCallInstall (.prog (.pure (.cancel .none))) focus step paired
-    exact crossInstalledAccept embedder source paired site installed run
+    exact crossInstalledLegacyRoute embedder source paired site installed run
 
 private theorem sharedNominalBody (action : SharedGiveAction) (inst : InstId) (args : List FlatValue)
     (nominal : ∀ dest, action ≠ .record dest) :
@@ -21372,15 +21455,20 @@ private theorem finishSourceLegacyMismatch {limit : Nat}
     | some worker =>
       let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: frames, rest⟩
       let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: peerFrames, peerRest⟩
-      let rejected := fun ticket => (do return .flat (← Scheduled.finish ticket (.error .wrongContext)) : Session grow sig (Ret (core3 grow)))
-      let left := { start with host := start.host.enter name kind args, ctl := check.control (rejected start.host.nextTicket) }
-      let right := { incoming with host := incoming.host.enter name kind args, ctl := canon.control (rejected incoming.host.nextTicket) }
-      have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start [id, id, id, id, id, id] left :=
-        scheduledEntryPath base (legacyMismatchRoute linked mismatch) (congrFun (congrFun (congrFun embedder name) kind) args)
+      let leftReply := completion start.host.nextTicket (.error .wrongContext)
+      let rightReply := completion incoming.host.nextTicket (.error .wrongContext)
+      let left := { start with
+        host := (start.host.enter name kind args).record leftReply.1
+        ctl := check.control (.pure (.flat leftReply.2)) }
+      let right := { incoming with
+        host := (incoming.host.enter name kind args).record rightReply.1
+        ctl := canon.control (.pure (.flat rightReply.2)) }
+      have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start (List.replicate 8 id) left :=
+        scheduledLegacyMismatchPath base linked mismatch (congrFun (congrFun (congrFun embedder name) kind) args)
           check rfl admitted.1 admitted.2 checked
       have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
-          [id, id, id, id, id, id] right :=
-        scheduledEntryPath (LiveDispatch.host bindings base) (legacyMismatchRoute linked mismatch) rawEmbedder
+          (List.replicate 8 id) right :=
+        scheduledLegacyMismatchPath (LiveDispatch.host bindings base) linked mismatch rawEmbedder
           canon rfl (stores ▸ admitted.1) (stores ▸ admitted.2) canonical
       obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ := cutSharedQuietWorker leftPath rightPath run
       rw [split]
@@ -21389,8 +21477,7 @@ private theorem finishSourceLegacyMismatch {limit : Nat}
         cases tail
         exact .comparedPrefix paths writers .exhausted
       · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
-        exact finishSourceScheduledReply stores (.error .wrongContext) rfl rfl scheduler tail
-          (destructorSuffixBound split bounded) resume
+        exact resume leftReply.2 stores scheduler rfl rfl tail (destructorSuffixBound split bounded)
   · exact finishDeniedSourceImport embedder rawEmbedder (legacyMismatchRoute linked mismatch) admitted stores
       checked canonical run scheduler bounded resume
 

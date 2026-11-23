@@ -347,9 +347,9 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     have stop (cut : CallbackWorkerBoundary bindings ready (specDispatch ready base) protectedReturn before label next) :
         ClassifiedCallbackRun bindings profile ready base protectedReturn before (label :: trailing) after :=
       .boundary (leading := []) rfl (.done before) (.refl before) (actualReplayDone before) cut step tail
-    by_cases accept : includeCoreAccept = true ∧ ∃ name kind args inst loader,
-        LegacyAcceptCallAt before name kind args ∧ LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
-    · obtain ⟨_, _, _, _, _, call, source⟩ := accept.2
+    by_cases accept : includeCoreAccept = true ∧ ∃ name kind args,
+        LegacyAcceptCallAt before name kind args ∧ LinkedLegacyAccept (grow := grow) bindings name kind args
+    · obtain ⟨_, _, _, call, source⟩ := accept.2
       exact stop (.coreAcceptInstall call source)
     by_cases shared : includeSharedGive = true ∧ ∃ name kind args inst, ∃ action : SharedGiveAction,
         LegacyAcceptCallAt before name kind args ∧

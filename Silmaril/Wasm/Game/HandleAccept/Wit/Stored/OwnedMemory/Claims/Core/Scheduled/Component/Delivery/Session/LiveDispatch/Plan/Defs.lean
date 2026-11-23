@@ -1387,6 +1387,20 @@ inductive LinkedCoreAcceptLoader (bindings : List (Binding sig)) (name : String)
       (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩) :
       LinkedCoreAcceptLoader bindings name kind args source.inst (fun state => source.load state args)
 
+/-- A resolved legacy action can carry an instance different from the
+binding's instance. The executable handler returns a typed context error. -/
+def LegacyBindingContextMismatch (binding : Binding sig) : Prop :=
+  match binding.action with
+  | .accept contract _ => contract.inst ≠ binding.inst
+  | .acceptFlat source => source.inst ≠ binding.inst
+  | _ => False
+
+/-- Both kinds of resolved legacy accept entry selected by the source fold. -/
+def LinkedLegacyAccept (bindings : List (Binding sig)) (name : String)
+    (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) : Prop :=
+  (∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader) ∨
+    ∃ binding, resolveBinding bindings name kind = .ok binding ∧ LegacyBindingContextMismatch binding
+
 /-- The linked callout can be installed by a parked Core caller or by an
 executed program call. The two instructions push different continuations. -/
 inductive LegacyAcceptCallAt (before : Config (core3 grow) (HostState sig))
@@ -1420,9 +1434,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
     (before : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
     (next : Config (core3 grow) (HostState sig)) : Prop where
   | give (install : GiveInstall bindings dispatch before label next)
-  | coreAcceptInstall {name kind args inst loader}
+  | coreAcceptInstall {name kind args}
       (call : LegacyAcceptCallAt before name kind args)
-      (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+      (source : LinkedLegacyAccept (grow := grow) bindings name kind args)
   | sharedGiveInstall {name kind args inst} {action : SharedGiveAction}
       (call : LegacyAcceptCallAt before name kind args)
       (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩) :
