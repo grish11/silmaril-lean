@@ -2620,15 +2620,27 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordAfterAllocationPrepare cx width element entries index dest pointer result >>= rightNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The reached string loop starts at the returned allocation pointer. -/
-  | sharedDropRecordStringAllocated {changes reached peer trailing finish steps tagged dest pointer}
+  /-- The local string loop reached an actual later allocation or reallocation call. -/
+  | sharedDropRecordStringReallocate {changes reached peer trailing finish steps tagged dest old oldLen alignment size}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {cx : LiftLowerContext (core3 grow)}
       {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (sharedRecordStringRemaining cx steps tagged dest pointer leftNext))
-      (canonical : peer.ctl = canon.control (sharedRecordStringRemaining cx steps tagged dest pointer rightNext))
+      (checked : reached.ctl = check.control (.op (.call (.reallocate cx old oldLen alignment size))
+        (sharedRecordStringResume cx steps tagged dest leftNext)))
+      (canonical : peer.ctl = canon.control (.op (.call (.reallocate cx old oldLen alignment size))
+        (sharedRecordStringResume cx steps tagged dest rightNext)))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- Both descriptor writes completed, exposing the next source field or report. -/
+  | sharedDropRecordStringDescriptorWritten {changes reached peer trailing finish}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (leftNext (.ok ())))
+      (canonical : peer.ctl = canon.control (rightNext (.ok ())))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
