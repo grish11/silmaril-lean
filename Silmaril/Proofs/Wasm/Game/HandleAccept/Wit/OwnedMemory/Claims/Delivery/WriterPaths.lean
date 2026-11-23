@@ -257,6 +257,24 @@ private theorem recordEndpointGuardWriter {site cx index ptr next captured curso
     WriterPath profile ready dispatch start [.tau, .tau] finish [] :=
   .same guard.hostRead (by rw [guard.capture]) (.same guard.storeRead (by rw [guard.prepare]) (.done _))
 
+open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
+private theorem recordEndpointSpendWriter {site cx index ptr next}
+    (executed : ExecutedSharedRecordEndpointSpend profile ready dispatch site cx index ptr next start finish) :
+    finish.host.writer = (Spend.endpoint site.identity).apply start.host.writer ∧
+    WriterPath profile ready dispatch start [.tau, .tau, .tau, .tau] finish [(start.host.writer, finish.host.writer)] := by
+  obtain ⟨_, _, prepared, writing, _, guard, admitted, rfl, rfl, read, commit⟩ := executed.executed
+  have guardPath := recordEndpointGuardWriter guard
+  have stable : prepared.host.writer = start.host.writer := spend guardPath (updates := []) .nil
+  have different : (Spend.endpoint site.identity).apply prepared.host.writer ≠ prepared.host.writer := by
+    intro same
+    have noClaim := Spend.not_live (.endpoint site.identity) prepared.host.writer
+    rw [same, stable] at noClaim
+    exact noClaim (endpoint_prepared admitted).2
+  refine ⟨congrArg (Spend.endpoint site.identity).apply stable, ?_⟩
+  have tail : WriterPath profile ready dispatch prepared [.tau, .tau] _ [(prepared.host.writer, _)] :=
+    .same read rfl (.changed commit different (.done _))
+  simpa only [List.cons_append, List.nil_append, stable] using append guardPath tail
+
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
@@ -268,6 +286,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | recordEndpointMismatch mismatch =>
     exact ⟨[], [], recordEndpointGuardWriter mismatch.checked, recordEndpointGuardWriter mismatch.canonical⟩
   | ownerCommit lhs rhs => exact ⟨_, _, (ownerSpendWriter lhs).2, (ownerSpendWriter rhs).2⟩
+  | recordEndpointCommit lhs rhs => exact ⟨_, _, (recordEndpointSpendWriter lhs).2, (recordEndpointSpendWriter rhs).2⟩
   | recordOwnerCommit lhs rhs => exact ⟨_, _, (recordOwnerSpendWriter lhs).2, (recordOwnerSpendWriter rhs).2⟩
   | dropCommit lhs rhs => exact ⟨_, _, (dropSpendWriter lhs).2, (dropSpendWriter rhs).2⟩
   | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
@@ -509,6 +528,11 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.recordEndpointConflict [] (empty (start := start) (incoming := incoming)) noSteps
         mismatch checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using initial) (.inl exceptional) conflict empty)
+  | @recordEndpointCommit start incoming left right site cx index ptr checkedNext canonicalNext lhs rhs =>
+    have after := initial.spendBoth (.endpoint site.identity)
+    refine .complete [] (.recordEndpointCommit lhs rhs) ?_
+    rw [(recordEndpointSpendWriter lhs).1, (recordEndpointSpendWriter rhs).1]
+    exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
   | @recordOwnerCommit start incoming left right receipt cx index ptr rep checkedNext canonicalNext lhs rhs =>
     have after := initial.spendBoth (.owner (receiptId receipt))
     refine .complete [] (.recordOwnerCommit lhs rhs) ?_

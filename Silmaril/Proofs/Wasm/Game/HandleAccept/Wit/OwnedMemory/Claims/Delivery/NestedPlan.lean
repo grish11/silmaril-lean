@@ -2779,7 +2779,6 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordEndpointPrepared _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2827,7 +2826,6 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordEndpointPrepared _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14259,6 +14257,15 @@ private theorem sharedRecordEndpointCode (cx : LiftLowerContext (core3 grow)) (w
       sharedRecordEndpointTransfer, SharedEndpointGive.transfer, claims, hostGet, perform, Prog.lift, Prog.bind_assoc]
     rfl
 
+open Stored.OwnedMemory.Claims in
+private theorem sharedRecordEndpointPrepared (site : SharedEndpointGive) (store : CStore (core3 grow))
+    (writer : State sig) (accepted : sharedRecordEndpointPrepare site store writer = .ok ()) :
+    ∃ spent, Record.prepareEndpoint store writer site.channel site.element site.identity = .ok spent := by
+  cases result : Record.prepareEndpoint store writer site.channel site.element site.identity with
+  | error issue =>
+    simp [sharedRecordEndpointPrepare, Record.prepare, result, bind, Except.bind] at accepted
+  | ok spent => exact ⟨spent, rfl⟩
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14584,9 +14591,75 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
               exact advance refusal (.pure _) consumed moved traced site atLeft atRight residual
             | ok unitResult =>
               cases unitResult
-              exact .inr (callbackTerminalSlice paired (by
-                rw [consumed, ← List.cons_append]
-                exact .sharedRecordEndpointPrepared lhs rhs result (agrees.symm.trans result) moved traced residual))
+              obtain ⟨leftSpent, leftAdmitted⟩ := sharedRecordEndpointPrepared endpoint leftCaptured.store left.host.writer result
+              obtain ⟨rightSpent, rightAdmitted⟩ := sharedRecordEndpointPrepared endpoint rightCaptured.store right.host.writer
+                (agrees.symm.trans result)
+              let body := sharedRecordEndpointTransfer (sig := sig) endpoint cx ptr
+              let spendHost (host : HostState sig) := { host with writer := (Spend.endpoint identity).apply host.writer }
+              let writeAfter (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+                  (host : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+                .op (.hostSet (spendHost host)) (fun _ => body >>= next)
+              let leftWrite := { leftPrepared with ctl := check.control (writeAfter checkNext leftPrepared.host) }
+              let rightWrite := { rightPrepared with ctl := canon.control (writeAfter canonNext rightPrepared.host) }
+              have leftSpendAt : leftPrepared.ctl = check.control (.op .hostGet (writeAfter checkNext)) := by
+                change check.control (sharedRecordEndpointAfterPrepare endpoint cx index ptr leftVerdict >>= checkNext) = _
+                rw [result]
+                rfl
+              have rightSpendAt : rightPrepared.ctl = canon.control (.op .hostGet (writeAfter canonNext)) := by
+                change canon.control (sharedRecordEndpointAfterPrepare endpoint cx index ptr rightVerdict >>= canonNext) = _
+                rw [← agrees, result]
+                rfl
+              have spendRead : Step profile ready (specDispatch ready base) leftPrepared .tau leftWrite :=
+                .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := writeAfter checkNext) leftSpendAt
+              have peerSpendRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightPrepared .tau rightWrite :=
+                .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := writeAfter canonNext) rightSpendAt
+              rcases splitSilent (count := 1) (.cons spendRead (.refl _)) residual with ⟨remaining, staged, atWrite⟩ | short
+              · have beforeCommit := retainComparedOccurrences moved (fun place =>
+                  ⟨Prefix.step spendRead (by rw [transitionEdit, leftSpendAt]; cases place <;> rfl) (.done _ _),
+                   Prefix.step peerSpendRead (by rw [transitionEdit, rightSpendAt]; cases place <;> rfl) (.done _ _)⟩)
+                let leftDone := { leftWrite with host := spendHost leftWrite.host, ctl := check.control (body >>= checkNext) }
+                let rightDone := { rightWrite with host := spendHost rightWrite.host, ctl := canon.control (body >>= canonNext) }
+                have commit : Step profile ready (specDispatch ready base) leftWrite .tau leftDone :=
+                  .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest)
+                    (s := leftDone.host) (k := fun _ => body >>= checkNext) rfl
+                have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightWrite .tau rightDone :=
+                  .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+                    (s := rightDone.host) (k := fun _ => body >>= canonNext) rfl
+                rcases splitSilent (count := 1) (.cons commit (.refl _)) atWrite with ⟨tail, assigned, nextRun⟩ | short
+                · have certified : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready base)
+                      endpoint cx index ptr checkNext left leftDone :=
+                    ⟨check, leftCaptured, leftPrepared, leftWrite, leftSpent, lhs, leftAdmitted, rfl, rfl, spendRead, commit⟩
+                  have rawCertified :
+                      ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+                        endpoint cx index ptr canonNext right rightDone :=
+                    ⟨canon, rightCaptured, rightPrepared, rightWrite, rightSpent, rhs, rightAdmitted, rfl, rfl, peerSpendRead, peerCommit⟩
+                  have usedAll : labels = (leading ++ [.tau, .tau, .tau, .tau]) ++ tail := by
+                    rw [consumed, staged, assigned]
+                    simp only [List.replicate_succ, List.replicate_zero, List.nil_append, List.append_assoc, List.cons_append]
+                  have allPaths := retainComparedOccurrences beforeCommit (fun place =>
+                    ⟨Prefix.step commit (by cases place <;> rfl) (.done _ _),
+                     Prefix.step peerCommit (by cases place <;> rfl) (.done _ _)⟩)
+                  have allWriters := writers.append (.recordEndpointCommit certified rawCertified)
+                  have effects : StoreEffects body :=
+                    (sharedEndpointTransferEffects endpoint).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
+                  have pairedAfter : PairedComponentSite older leftDone rightDone check canon := by
+                    unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
+                    exact pairQuietHost site _
+                  exact advance body effects usedAll
+                    (by simpa only [List.cons_append, List.append_assoc, List.nil_append] using allPaths)
+                    (by simpa only [List.cons_append] using allWriters) pairedAfter rfl rfl nextRun
+                · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
+                  have stopped : finish = leftWrite := stepsAtEmpty (empty ▸ atWrite)
+                  have framed := traced.append (.framed (.same spendRead rfl (.done _)) (.same peerSpendRead rfl (.done _)))
+                  exact .inr (callbackTerminalSlice paired (by
+                    rw [consumed, staged, empty, stopped]
+                    simpa only [List.cons_append, List.append_assoc, List.nil_append, List.append_nil,
+                      List.replicate_succ, List.replicate_zero] using
+                      (CallbackSliceEnd.coreAcceptTerminal (changes := older) beforeCommit framed (.refl _) (.inl rfl))))
+              · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
+                exact .inr (callbackTerminalSlice paired (by
+                  rw [consumed, ← List.cons_append]
+                  exact .coreAcceptTerminal moved traced residual (.inl empty)))
           · have mismatch : SharedRecordEndpointMismatch profile ready base bindings endpoint left right leftPrepared rightPrepared :=
               ⟨cx, index, ptr, check, canon, checkNext, canonNext, leftCaptured, rightCaptured, lhs, rhs, (HostFrame.Related.Paired.data site).1, agrees⟩
             have traced : VisitorWriterPath profile ready base bindings start incoming

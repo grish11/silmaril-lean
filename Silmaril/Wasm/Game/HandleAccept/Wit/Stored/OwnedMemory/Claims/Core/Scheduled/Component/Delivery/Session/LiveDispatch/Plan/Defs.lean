@@ -544,6 +544,27 @@ structure SharedRecordEndpointMismatch (profile : ProfileKind) (ready : HostRead
   different : sharedRecordEndpointPrepare site left.store left.host.writer ≠
     sharedRecordEndpointPrepare site right.store right.host.writer
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+/-- The executed endpoint-field guard precedes a fresh spend read and the
+actual assignment. Canonical transfer and publication follow this endpoint. -/
+structure ExecutedSharedRecordEndpointSpend (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (site : SharedEndpointGive) (cx : LiftLowerContext (core3 grow)) (index ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (start finish : Config (core3 grow) (HostState sig)) : Prop where
+  executed : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (captured prepared writing : Config (core3 grow) (HostState sig)) (spent : Stored.OwnedMemory.Claims.State sig),
+    ExecutedSharedRecordEndpointGuard profile ready dispatch site cx index ptr next start captured prepared cursor ∧
+    Record.prepareEndpoint captured.store start.host.writer site.channel site.element site.identity = .ok spent ∧
+    writing = { prepared with ctl := cursor.control (.op (.hostSet
+      { prepared.host with writer := (Spend.endpoint site.identity).apply prepared.host.writer })
+      (fun _ => sharedRecordEndpointTransfer site cx ptr >>= next)) } ∧
+    finish = { writing with
+      host := { writing.host with writer := (Spend.endpoint site.identity).apply writing.host.writer }
+      ctl := cursor.control (sharedRecordEndpointTransfer site cx ptr >>= next) } ∧
+    Step profile ready dispatch prepared .tau writing ∧
+    Step profile ready dispatch writing .tau finish
+
 def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
   site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
 
@@ -776,6 +797,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
   | recordEndpointMismatch {start incoming left right site}
       (mismatch : SharedRecordEndpointMismatch profile ready base bindings site start incoming left right) :
       VisitorWriterPath profile ready base bindings start incoming [.tau, .tau] [.tau, .tau] left right
+  | recordEndpointCommit {start incoming left right site cx index ptr checkedNext canonicalNext}
+      (lhs : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready base) site cx index ptr checkedNext start left)
+      (rhs : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        site cx index ptr canonicalNext incoming right) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau] left right
   | recordOwnerCommit {start incoming left right receipt cx index ptr rep checkedNext canonicalNext}
       (lhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready base) receipt cx index ptr rep checkedNext start left)
       (rhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
@@ -828,6 +854,11 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       (commit : ReachedLeafSpend profile ready (specDispatch ready base) start checked left change update)
       (raw : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
       ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right [update]
+  | recordEndpointCommit {start incoming left right site cx index ptr checkedNext canonicalNext}
+      (lhs : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready base) site cx index ptr checkedNext start left)
+      (rhs : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        site cx index ptr canonicalNext incoming right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau] left right []
   | recordOwnerCommit {start incoming left right receipt cx index ptr rep checkedNext canonicalNext}
       (lhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready base) receipt cx index ptr rep checkedNext start left)
       (rhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
@@ -1925,20 +1956,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   | sharedRecordEndpointMismatch {changes reached peer left right leading trailing finish marks}
       {beforeLeft beforeRight site}
       (mismatch : SharedRecordEndpointMismatch profile ready base bindings site beforeLeft beforeRight left right)
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
-      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordEndpointPrepared {changes reached peer left right leading trailing finish marks}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {site cx index ptr beforeLeft beforeRight capturedLeft capturedRight}
-      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : ExecutedSharedRecordEndpointGuard profile ready (specDispatch ready base)
-        site cx index ptr checkedNext beforeLeft capturedLeft left check)
-      (canonical : ExecutedSharedRecordEndpointGuard profile ready (specDispatch ready (LiveDispatch.host bindings base))
-        site cx index ptr canonicalNext beforeRight capturedRight right canon)
-      (checkedPrepared : sharedRecordEndpointPrepare site capturedLeft.store beforeLeft.host.writer = .ok ())
-      (canonicalPrepared : sharedRecordEndpointPrepare site capturedRight.store beforeRight.host.writer = .ok ())
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
