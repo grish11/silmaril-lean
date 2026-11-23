@@ -2534,6 +2534,21 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (check.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorResolveReply task .unit))
       (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) []
         (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorResolveReply task .unit))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The allocator worker's actual exit exposed the two original parents.
+  Their shared task has resolved and its caller retains the lifted pointer. -/
+  | sharedDropRecordAllocatorWorkerExited {changes reached peer trailing finish body task caller value}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store (some value))
+      (resolved : ∃ tk, ArenaField.tasks.get? reached.store task = some tk ∧ tk.state = .resolved)
+      (checked : reached.ctl = check.control (sharedRecordAllocatorAfterResume cx task caller))
+      (canonical : peer.ctl = canon.control (sharedRecordAllocatorAfterResume cx task caller))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent

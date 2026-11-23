@@ -2854,7 +2854,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropRecordAllocatorArguments _ _ _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorCoreCallout _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordAllocatorCoreReturned _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropRecordAllocatorResolved _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordAllocatorResolved _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | sharedDropRecordAllocatorWorkerExited _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -2922,7 +2923,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropRecordAllocatorArguments _ _ _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorCoreCallout _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropRecordAllocatorCoreReturned _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropRecordAllocatorResolved _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordAllocatorResolved _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
+  | sharedDropRecordAllocatorWorkerExited _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -14737,47 +14739,55 @@ private theorem sharedDestructorExitPreserves (task : TaskId) (worker : ThreadId
     (s : CStore (core3 grow)) (resolved : sharedDestructorResolved task s) :
     sharedDestructorResolved task (StepDefs.threadStatusSt worker .exited s) := resolved
 
-private theorem sharedDestructorGetPreserves {Id Data} (task : TaskId) (field : ArenaField (core3 grow) Id Data) (id : Id) :
-    Prog.Every (storePreserves (sharedDestructorResolved task)) (getObj field id : Session grow sig Data) := by
+private theorem sharedWorkerGetPreserves {Id Data} (invariant : CStore (core3 grow) → Prop) (field : ArenaField (core3 grow) Id Data) (id : Id) :
+    Prog.Every (storePreserves invariant) (getObj field id : Session grow sig Data) := by
   unfold getObj
-  refine (show Prog.Every (storePreserves (sharedDestructorResolved task)) (getStore : Session grow sig _) from
+  refine (show Prog.Every (storePreserves invariant) (getStore : Session grow sig _) from
     .op trivial fun _ => .pure _).bind fun _ => ?_
   split
   · exact .pure _
   · exact .op trivial (fun impossible => nomatch impossible)
 
-private theorem sharedDestructorOrTrapPreserves {Data} (task : TaskId) (reason : TrapReason) (data : Option Data) :
-    Prog.Every (storePreserves (sharedDestructorResolved task)) (orTrap reason data : Session grow sig Data) := by
+private theorem sharedWorkerOrTrapPreserves {Data} (invariant : CStore (core3 grow) → Prop) (reason : TrapReason) (data : Option Data) :
+    Prog.Every (storePreserves invariant) (orTrap reason data : Session grow sig Data) := by
   cases data
   · exact .op trivial (fun impossible => nomatch impossible)
   · exact .pure _
 
-private theorem sharedDestructorUnregisterKeepsResolved (task : TaskId) (worker : ThreadId) :
-    Prog.Every (storePreserves (sharedDestructorResolved task)) (Task.unregisterThread task worker : Session grow sig Unit) := by
+private theorem sharedWorkerUnregisterPreserves (task : TaskId) (worker : ThreadId)
+    {invariant : CStore (core3 grow) → Prop}
+    (unregister : ∀ index store, invariant store → invariant (CStore.unregisterThreadSt task worker index store)) :
+    Prog.Every (storePreserves invariant) (Task.unregisterThread task worker : Session grow sig Unit) := by
   unfold Task.unregisterThread getTask getThread getInst
-  refine (sharedDestructorGetPreserves task ArenaField.tasks task).bind fun tk =>
-    (show Prog.Every (storePreserves (sharedDestructorResolved task)) (trapIf _ .taskNotResolved : Session grow sig Unit) from ?_).bind fun _ =>
-    (sharedDestructorGetPreserves task ArenaField.threads worker).bind fun thread =>
-    (sharedDestructorOrTrapPreserves task _ thread.index).bind fun index =>
-    (sharedDestructorGetPreserves task ArenaField.insts tk.inst).bind fun inst => ?_
+  refine (sharedWorkerGetPreserves invariant ArenaField.tasks task).bind fun tk =>
+    (show Prog.Every (storePreserves invariant) (trapIf _ .taskNotResolved : Session grow sig Unit) from ?_).bind fun _ =>
+    (sharedWorkerGetPreserves invariant ArenaField.threads worker).bind fun thread =>
+    (sharedWorkerOrTrapPreserves invariant _ thread.index).bind fun index =>
+    (sharedWorkerGetPreserves invariant ArenaField.insts tk.inst).bind fun inst => ?_
   · unfold trapIf
     split
     · exact .op trivial (fun impossible => nomatch impossible)
     · exact .pure _
   · split
     · exact .op trivial (fun impossible => nomatch impossible)
-    · exact .op (sharedDestructorUnregisterPreserves task worker index) (fun _ => .pure _)
+    · exact .op (unregister index) (fun _ => .pure _)
 
-private theorem sharedDestructorExitKeepsResolved (task : TaskId) :
-    Prog.Every (storePreserves (sharedDestructorResolved task)) (Task.exitImplicitThread task : Session grow sig Unit) := by
+private theorem sharedWorkerExitPreserves (task : TaskId) {invariant : CStore (core3 grow) → Prop}
+    (unregister : ∀ worker index store, invariant store → invariant (CStore.unregisterThreadSt task worker index store))
+    (instUpdate : ∀ inst store, invariant store → invariant (ArenaOps.updateSt ArenaField.insts inst (InstState.withExclusive none) store)) :
+    Prog.Every (storePreserves invariant) (Task.exitImplicitThread task : Session grow sig Unit) := by
   unfold Task.exitImplicitThread getTask
-  refine (sharedDestructorGetPreserves task ArenaField.tasks task).bind fun tk =>
-    (sharedDestructorOrTrapPreserves task _ tk.implicitThread).bind fun thread =>
-    (sharedDestructorUnregisterKeepsResolved task thread).bind fun _ => ?_
+  refine (sharedWorkerGetPreserves invariant ArenaField.tasks task).bind fun tk =>
+    (sharedWorkerOrTrapPreserves invariant _ tk.implicitThread).bind fun thread =>
+    (sharedWorkerUnregisterPreserves task thread (unregister thread)).bind fun _ => ?_
   split
   · unfold modifyInst modifyObj
-    exact .op (fun _ keeps => keeps) fun _ => .pure _
+    exact .op (instUpdate tk.inst) fun _ => .pure _
   · exact .pure _
+
+private theorem sharedDestructorExitKeepsResolved (task : TaskId) :
+    Prog.Every (storePreserves (sharedDestructorResolved task)) (Task.exitImplicitThread task : Session grow sig Unit) :=
+  sharedWorkerExitPreserves task (sharedDestructorUnregisterPreserves task) (fun _ _ kept => kept)
 
 private theorem sharedDestructorUnregisterEffects (task : TaskId) (thread : ThreadId) :
     StoreEffects (Task.unregisterThread task thread : Session grow sig Unit) := by
@@ -14964,13 +14974,18 @@ private theorem crossSharedWorkerStore {check canon : PayloadPrefix.Cursor (E :=
     (by simpa only [Prog.bind_eq, Prog.bind_pure] using rightAt) run (fun reply _ => returned reply)
 
 open ReturnFrame.Occurrence in
-private theorem crossSharedDestructorExit {checkRest canonRest : List (Activation (core3 grow) (HostState sig))}
+private theorem crossSharedWorkerExitWith {checkRest canonRest : List (Activation (core3 grow) (HostState sig))}
     (task : TaskId) (worker : ThreadId) (stores : start.store = incoming.store)
     (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) [] checkRest).control (sharedDestructorResolveReply task .unit))
     (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) [] canonRest).control (sharedDestructorResolveReply task .unit))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
+    {invariant : CStore (core3 grow) → Prop}
+    (initial : invariant (CStore.setTaskState task .resolved start.store))
+    (preserves : Prog.Every (storePreserves invariant) (Task.exitImplicitThread task : Session grow sig Unit))
+    (workerExit : ∀ store, invariant store → invariant (StepDefs.threadStatusSt worker .exited store))
     (parent : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      sharedDestructorResolved task left.store → left.store = right.store → left.ctl = checkRest → right.ctl = canonRest →
+      invariant left.store → left.store = right.store → left.ctl = checkRest → right.ctl = canonRest →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
       Steps profile ready (specDispatch ready base) left remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
@@ -14991,11 +15006,11 @@ private theorem crossSharedDestructorExit {checkRest canonRest : List (Activatio
     have wrote := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftWrite rightWrite
       (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
     refine .destructorPrefix wrote (frameCalloutStep wrote rfl rfl) (fun scheduler => scheduler) ?_
-    refine crossSharedWorkerStore (check := check) (canon := canon) rfl exit
-      ((sharedDestructorExitEffects task).bind fun _ => .pure _)
-      ((sharedDestructorExitKeepsResolved task).bind fun _ => .pure _)
-      (sharedDestructorResolvedWrite task start.store) (congrArg write stores) rfl rfl tail ?_
-    intro left right remaining reply resolved stores leftAt rightAt run
+    refine crossSharedWorkerBodyWith (check := check) (canon := canon) rfl exit Prog.pure Prog.pure
+      (liftDestructorStoreEffects ((sharedDestructorExitEffects task).bind fun _ => .pure _)
+        (preserves.bind fun _ => .pure _)) initial (congrArg write stores)
+      (by simp only [Prog.bind_eq, Prog.bind_pure]; rfl) (by simp only [Prog.bind_eq, Prog.bind_pure]; rfl) tail ?_
+    intro left right remaining reply _ retained stores leftAt rightAt aligned run
     let checked := { left with store := StepDefs.threadStatusSt worker .exited left.store, ctl := checkRest }
     let canonical := { right with store := StepDefs.threadStatusSt worker .exited right.store, ctl := canonRest }
     have leftExit : Step profile ready (specDispatch ready base) left .tau checked :=
@@ -15007,11 +15022,26 @@ private theorem crossSharedDestructorExit {checkRest canonRest : List (Activatio
       have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) leftExit rightExit
         (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
       exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun scheduler => scheduler)
-        (parent (sharedDestructorExitPreserves task worker left.store resolved)
-        (congrArg (StepDefs.threadStatusSt worker .exited) stores) rfl rfl tail)
+        (parent (workerExit left.store retained)
+        (congrArg (StepDefs.threadStatusSt worker .exited) stores) rfl rfl (fun scheduler => aligned scheduler) tail)
     · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
       have stopped := stepsAtEmpty (empty ▸ run)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedDestructorExit {checkRest canonRest : List (Activation (core3 grow) (HostState sig))}
+    (task : TaskId) (worker : ThreadId) (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) [] checkRest).control (sharedDestructorResolveReply task .unit))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) [] canonRest).control (sharedDestructorResolveReply task .unit))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (parent : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      sharedDestructorResolved task left.store → left.store = right.store → left.ctl = checkRest → right.ctl = canonRest →
+      Steps profile ready (specDispatch ready base) left remaining finish →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  crossSharedWorkerExitWith task worker stores leftAt rightAt run (sharedDestructorResolvedWrite task start.store)
+    (sharedDestructorExitKeepsResolved task) (sharedDestructorExitPreserves task worker)
+    (fun resolved same checked canonical _ tail => parent resolved same checked canonical tail)
 
 open ReturnFrame.Occurrence in
 private theorem compareSharedDestructorTrap {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -18312,11 +18342,11 @@ private theorem crossSharedRecordArenaAlloc {check canon : PayloadPrefix.Cursor 
     exact .comparedPrefix paths writers .exhausted
   · exact .destructorPrefix paths writers (fun aligned => aligned) (continueAt residual)
 
-private theorem sharedRecordAllocatorSourceFrame {cx : LiftLowerContext (core3 grow)} {request width task caller}
-    {previous reached : CStore (core3 grow)} (source : SharedRecordAllocatorSource cx request width task caller previous)
+private theorem sharedRecordAllocatorSourceFrame {cx : LiftLowerContext (core3 grow)} {request width task caller result}
+    {previous reached : CStore (core3 grow)} (source : SharedRecordAllocatorSource cx request width task caller previous result)
     (tasks : ArenaField.tasks.get? reached task = ArenaField.tasks.get? previous task)
     (callers : ArenaField.callers.get? reached caller = ArenaField.callers.get? previous caller) :
-    SharedRecordAllocatorSource cx request width task caller reached :=
+    SharedRecordAllocatorSource cx request width task caller reached result :=
   ⟨by rw [tasks]; exact source.taskEntry, callers.trans source.callerEntry⟩
 
 private theorem sharedRecordAllocatorSetupCode (cx : LiftLowerContext (core3 grow)) (request : ABI.ReallocRequest) :
@@ -18491,6 +18521,61 @@ private theorem sharedRecordAllocatorSourceResolve {cx : LiftLowerContext (core3
   rw [ArenaOps.updateSt, ArenaField.get?_modify_self, source.callerEntry]
   rfl
 
+private theorem sharedRecordAllocatorSourceResolved {cx : LiftLowerContext (core3 grow)} {request width task caller value}
+    {store : CStore (core3 grow)} (source : SharedRecordAllocatorSource cx request width task caller store (some value)) :
+    SharedRecordAllocatorSource cx request width task caller (CStore.setTaskState task .resolved store) (some value) := by
+  obtain ⟨entry, found, typeAt, optionsAt, instanceAt, callerAt⟩ := source.taskEntry
+  refine ⟨⟨entry.withState .resolved, ?_, typeAt, optionsAt, instanceAt, callerAt⟩, source.callerEntry⟩
+  rw [CStore.setTaskState, ArenaField.get?_modify_self, found]
+  rfl
+
+private theorem sharedRecordAllocatorSourceUnregister {cx : LiftLowerContext (core3 grow)} {request width task caller value}
+    {store : CStore (core3 grow)} (worker : ThreadId) (index : Nat)
+    (source : SharedRecordAllocatorSource cx request width task caller store (some value)) :
+    SharedRecordAllocatorSource cx request width task caller (CStore.unregisterThreadSt task worker index store) (some value) := by
+  obtain ⟨entry, found, typeAt, optionsAt, instanceAt, callerAt⟩ := source.taskEntry
+  have actual : store.task? task = some entry := found
+  simp only [CStore.unregisterThreadSt, actual]
+  refine ⟨⟨{ entry with threads := entry.threads.erase worker }, ?_, typeAt, optionsAt, instanceAt, callerAt⟩, source.callerEntry⟩
+  change ArenaField.tasks.get? (ArenaField.tasks.modify store task
+    (fun previous => { previous with threads := previous.threads.erase worker })) task = _
+  rw [ArenaField.get?_modify_self, found]
+  rfl
+
+open ReturnFrame.Occurrence in
+private theorem crossDestructorRecordAllocatorExit {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : DestructorParentChain older body check.rest canon.rest) (thread : check.thread = canon.thread)
+    (cx : LiftLowerContext (core3 grow)) (task : TaskId) (caller : CallerId) (worker : ThreadId)
+    {request : ABI.ReallocRequest} {width : AddrType} (value : Value.Val)
+    (source : SharedRecordAllocatorSource cx request width task caller start.store (some value))
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+      (check.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorResolveReply task .unit))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+      (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorResolveReply task .unit))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let frame (store : CStore (core3 grow)) :=
+    SharedRecordAllocatorSource cx request width task caller store (some value) ∧ sharedDestructorResolved task store
+  have unregister (removed : ThreadId) (index : Nat) (store : CStore (core3 grow)) (data : frame store) :
+      frame (CStore.unregisterThreadSt task removed index store) :=
+    ⟨sharedRecordAllocatorSourceUnregister removed index data.1, sharedDestructorUnregisterPreserves task removed index store data.2⟩
+  have instUpdate (inst : InstId) (store : CStore (core3 grow)) (data : frame store) :
+      frame (ArenaOps.updateSt ArenaField.insts inst (InstState.withExclusive none) store) :=
+    ⟨sharedRecordAllocatorSourceFrame data.1 rfl rfl, data.2⟩
+  have threadUpdate (store : CStore (core3 grow)) (data : frame store) :
+      frame (StepDefs.threadStatusSt worker .exited store) :=
+    ⟨sharedRecordAllocatorSourceFrame data.1 rfl rfl, sharedDestructorExitPreserves task worker store data.2⟩
+  refine crossSharedWorkerExitWith (invariant := frame) task worker stores checked canonical run
+    ⟨sharedRecordAllocatorSourceResolved source, sharedDestructorResolvedWrite task start.store⟩
+    (sharedWorkerExitPreserves task unregister instUpdate) threadUpdate ?_
+  intro left right remaining reached same leftAt rightAt aligned tail
+  obtain ⟨entry, found, _, _, _, _⟩ := reached.1.taskEntry
+  exact .sharedDropRecordAllocatorWorkerExited (check := check) (canon := canon) parents thread same
+    (aligned scheduler) reached.1 ⟨entry, found, reached.2 entry found⟩ leftAt rightAt tail
+
 open ReturnFrame.Occurrence in
 private theorem crossDestructorRecordAllocatorResolve {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -18562,7 +18647,9 @@ private theorem crossDestructorRecordAllocatorResolve {body : ThreadBody (core3 
             (congrArg update stores) scheduler (sharedRecordAllocatorSourceResolve value source)
             ⟨start, leftEntered, leftReturn, checked, install, rfl, leftReads.1.track _, rfl, rfl, pop⟩
             ⟨incoming, rightEntered, rightReturn, canonical, peerInstall, rfl, rightReads.1.track _, rfl, rfl, peerPop⟩
-            rfl rfl actual)
+            rfl rfl
+            (crossDestructorRecordAllocatorExit (check := check) (canon := canon) parents thread cx task caller worker value
+              (sharedRecordAllocatorSourceResolve value source) (congrArg update stores) rfl rfl scheduler actual))
       · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
         have stopped := stepsAtEmpty (empty ▸ tail)
         exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
