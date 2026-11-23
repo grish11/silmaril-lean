@@ -1986,9 +1986,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right)
       (writers : left.host.writer = reached.host.writer ∧ right.host.writer = peer.host.writer) :
       CallbackSliceEnd profile ready base bindings changes reached peer [.tau] left
-  | coreAcceptTerminal {changes reached peer left right leading trailing finish marks}
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+  | coreAcceptTerminal {changes reached peer left right leading live trailing finish marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish)
       (ending : trailing = [] ∨ left.host.writer.accepted ≠ right.host.writer.accepted ∨
         (∃ beforeLeft beforeRight check canon leftTicket rightTicket tree,
@@ -1996,9 +1996,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   /-- A compared shared record prefix, followed by the actual remaining run. -/
-  | sharedRecordCompared {changes reached peer left right leading trailing finish marks}
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+  | sharedRecordCompared {changes reached peer left right leading live trailing finish marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   /-- The actual shared allocator is compared under its two installed
@@ -2032,47 +2032,36 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (ending : CallbackSliceEnd profile ready base bindings changes afterLeft afterRight trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (((leading ++ checked) ++ [.tau]) ++ trailing) finish
   /-- Internal proof frontier at the continuation of a matched collection prepare. -/
-  | sharedRecordAfterPrepare {changes reached peer left right leading trailing finish marks}
+  | sharedRecordAfterPrepare {changes reached peer left right leading live trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {cx width element entries index dest ptr result}
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
       (checked : left.ctl = check.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= checkedNext))
       (canonical : right.ctl = canon.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= canonicalNext))
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The actual field body has returned to its original continuation. -/
-  | sharedRecordFieldContinuation {changes reached peer left right leading trailing finish marks}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {result : Except Stored.Endpoints.RecordLower.Issue Unit}
-      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : left.ctl = check.control (checkedNext result))
-      (canonical : right.ctl = canon.control (canonicalNext result))
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
-      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordPrepareMismatch {changes reached peer left right leading trailing finish marks}
+  | sharedRecordPrepareMismatch {changes reached peer left right leading live trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {beforeLeft beforeRight plan}
       (site : SharedRecordPrepareMismatch beforeLeft beforeRight left right plan check canon)
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordOwnerMismatch {changes reached peer left right leading trailing finish marks}
+  | sharedRecordOwnerMismatch {changes reached peer left right leading live trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {beforeLeft beforeRight receipt cx index ptr}
       (site : SharedRecordOwnerProbeMismatch beforeLeft beforeRight left right receipt cx index ptr check canon)
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordEndpointMismatch {changes reached peer left right leading trailing finish marks}
+  | sharedRecordEndpointMismatch {changes reached peer left right leading live trailing finish marks}
       {beforeLeft beforeRight site}
       (mismatch : SharedRecordEndpointMismatch profile ready base bindings site beforeLeft beforeRight left right)
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
