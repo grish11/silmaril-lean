@@ -3639,7 +3639,9 @@ open ReturnFrame.Occurrence in
 /-- Extend the mixed worker comparison through the reached, certified endpoint
 segments. The two traces retain their own journals and all occurrence moves.
 An asymmetric reply or a site missing a paired certificate leaves an actual
-checked residual; it does not extend the raw execution. -/
+checked residual; it does not extend the raw execution. An executed fresh
+collection prepare can expose a conflict with the pending raw writer, not a
+raw prepare step or an observation at a prefix that has not read it. -/
 theorem classify_mixed_callback_endpoint_discrepancies {callees : List (ComponentCall.Callee sig)}
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)

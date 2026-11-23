@@ -6438,11 +6438,12 @@ private theorem alignRangeTransport {leftEntry rightEntry checked canonical lhs 
     (notBranch : ∀ action ∈ observed, ¬ workerBranchLabel action)
     (actual : Steps profile ready (specDispatch ready base) checked labels finish) :
     AlignedCollectionRange profile ready base bindings leftEntry rightEntry checked canonical lhs rhs checkTrace canonTrace observed labels finish := by
-  obtain ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same, path⟩ := suffix movement
+  obtain ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same, path, _⟩ := suffix movement
   obtain ⟨_, before, _⟩ := CallbackPrefix.transportPaths movement none
   obtain ⟨_, after, _⟩ := CallbackPrefix.transportPaths whole none
+  obtain ⟨lhs, rhs⟩ := WriterPaths.frameLocal path
   exact ⟨leftTail, rightTail, whole, checkSeen, canonSeen, same,
-    alignLocalBody (stripExactPrefix before.steps after.steps) actual (noBranchOfVisible checkSeen notBranch), path⟩
+    alignLocalBody (stripExactPrefix before.steps after.steps) actual (noBranchOfVisible checkSeen notBranch), path, .framed lhs rhs⟩
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims.Record in
 private theorem alignCollectionRange {leftEntry rightEntry checked canonical : Config (core3 grow) (HostState sig)}
@@ -6474,9 +6475,21 @@ private theorem alignCollectionRange {leftEntry rightEntry checked canonical : C
     · simp only [ite_eq_left fits] at verdict ⊢
       obtain ⟨canon, frame, _, _, _, suffix, reader, readSite⟩ := verdict
       have beforeRead := (readSite.checkedTracks none).steps
-      have checkedPrefix := append beforeRead (prefix_survives (readSite.read.tracks (.active 0 0))).1
-      refine ⟨canon, frame, align (by simp) suffix, ?_⟩
-      cases alignLocalBody checkedPrefix actual (by simp [workerBranchLabel]) with
+      have readRun := (prefix_survives (readSite.read.tracks (.active 0 0))).1
+      have checkedPrefix := append beforeRead readRun
+      have aligned := alignLocalBody checkedPrefix actual (by simp [workerBranchLabel])
+      refine ⟨canon, frame, ?_, ?_⟩
+      · obtain ⟨_, _, tracks, seenLeft, seenRight, store, path, ⟨rfl, rfl⟩⟩ := suffix movement
+        obtain ⟨lhs, rhs⟩ := WriterPaths.frameLocal path
+        have step : Step profile ready (specDispatch ready base) reader .tau
+            { checked with ctl := cursor.control (checkNext pointer (prepare checked.store checked.host.writer plan)) } := by
+          cases readRun with
+          | cons step tail => cases tail; exact step
+        have site : ExecutedPrepareRead profile ready base checked reader _ _ [.tau, .tau, .tau] plan :=
+          ⟨beforeRead, ⟨cursor, checkNext pointer, readSite.focus⟩, step,
+            congrArg HostState.writer readSite.checkedHost, readSite.sameStore⟩
+        exact ⟨_, _, tracks, seenLeft, seenRight, store, aligned, path, .prepare site lhs rhs⟩
+      cases aligned with
       | inside split nonempty _ =>
         have length := congrArg List.length split
         have remaining := List.length_pos_iff.mpr nonempty
@@ -6623,7 +6636,7 @@ theorem driveCollectionSlice {destination : RecordDestination} {inst : InstId} {
       | executed segment =>
         exact .append (.framed checkFramed canonFramed) segment.writers
     refine .inr ⟨checked, canonical, trailing, reached, peer, mark, by simpa using split, compared, tracked, paired, movement,
-      writers, boundary, ?_⟩
+      writers, grows, boundary, ?_⟩
     by_cases active : mark = some (.active 0 0)
     · subst mark
       let area := ABI.layout destination.width element
@@ -7063,7 +7076,7 @@ theorem driveNominalListAfterRange (destination : RecordDestination) (inst : Ins
         (publishCanonical destination inst pointer entries.length output canonNext)) check canon start incoming labels finish
       (fun lhs rhs => ∃ spends, CheckedSpendFlow left.host.writer right.host.writer lhs.host.writer rhs.host.writer spends) := by
   intro area mode checkAt canonAt range
-  obtain ⟨leftTail, rightTail, movement, silentLeft, silentRight, _, aligned, _⟩ := range
+  obtain ⟨leftTail, rightTail, movement, silentLeft, silentRight, _, aligned, _, _⟩ := range
   cases aligned with
   | inside _ nonempty tail => exact .inl ⟨_, nonempty, tail⟩
   | reached used suffix =>
@@ -7106,7 +7119,7 @@ theorem driveStringListAfterRange (destination : RecordDestination) (inst : Inst
         Core3.Grows start.store.core lhs.store.core ∧ lhs.ctl = cursor.control (checkNext (.ok value)) ∧ rhs.ctl = peer.control (canonNext value))
       start incoming labels finish := by
   intro element area mode aligned bounds checkAt canonAt range
-  obtain ⟨rangeLeft, rangeRight, rangeMovement, silentLeft, silentRight, _, rangeRun, _⟩ := range
+  obtain ⟨rangeLeft, rangeRight, rangeMovement, silentLeft, silentRight, _, rangeRun, _, _⟩ := range
   cases rangeRun with
   | inside _ nonempty tail => exact .inl ⟨_, nonempty, tail⟩
   | @reached suffixLabels used suffix =>
@@ -7799,7 +7812,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
   | ok value =>
     cases value
     simp only [prepared] at sliced
-    rcases sliced with short | ⟨checked, canonical, trailing, reached, peer, mark, split, seen, tracked, paired, movement, writers, ending, returned⟩
+    rcases sliced with short | ⟨checked, canonical, trailing, reached, peer, mark, split, seen, tracked, paired, movement, writers, grew, ending, returned⟩
     · cases alignLocalBody prepRun actual (by simp [workerBranchLabel]) with
       | inside cut nonempty remainder => exact insidePrep cut nonempty remainder
       | @reached remaining split residual =>
@@ -7817,7 +7830,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
     let rightTrace : Trace grow sig := [.tau, .tau] ++ canonical
     have observed : visible leftTrace = visible rightTrace := seen.symm
     have tail := callbackEndSteps ending
-    rcases returned with pending | ⟨pointer, cursor, _, active, _, _, _, range, fresh⟩
+    rcases returned with pending | ⟨pointer, cursor, _, active, _, _, _, range, _⟩
     · exact ⟨leftTrace, rightTrace, trailing, reached, peer, [mark], split, observed, paired.data.1, movement, tail,
         writers,
         .boundary (.callback tracked paired ending pending)⟩
@@ -7827,7 +7840,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
         (next : ∀ residual, Steps profile ready (specDispatch ready base) lhs residual finish → residual.length ≤ budget →
           ValueVisitRun profile ready base bindings older origin output.Result pending checkNext canonNext lhs rhs residual finish) :
         ValueVisitRun profile ready base bindings older origin output.Result pending checkNext canonNext start incoming labels finish := by
-      obtain ⟨checkRange, canonRange, moved, leftSeen, rightSeen, _, aligned, path⟩ := cut
+      obtain ⟨checkRange, canonRange, moved, leftSeen, rightSeen, _, aligned, path, effects⟩ := cut
       cases aligned with
       | inside cut nonempty remainder =>
         obtain ⟨used, rangePeer, store, seen, _, _, rangeMovement, leftEffects, rightEffects⟩ :=
@@ -7838,13 +7851,12 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
           by rw [visibleAppend leftTrace trailing, visibleAppend rightTrace used, observed, seen],
           store, whole, .refl _, .append writers (.framed leftEffects rightEffects), .collectionRange nonempty remainder⟩
       | @reached residual used suffix =>
-        obtain ⟨leftEffects, rightEffects⟩ := WriterPaths.frameLocal path
         have combined : labels = (leftTrace ++ checkRange) ++ residual := by
           simp only [leftTrace, split, used, List.append_assoc]
         have remaining : residual.length ≤ budget := by rw [combined, List.length_append] at bounded; omega
         exact prependValueVisit combined
           (by rw [visibleAppend leftTrace checkRange, visibleAppend rightTrace canonRange, observed, leftSeen, rightSeen]) moved
-          (.append writers (.framed leftEffects rightEffects))
+          (.append writers effects)
           (next residual suffix remaining)
     have trap (reason : TrapReason)
         (cut : AlignedCollectionRange profile ready base bindings start incoming reached peer (StepDefs.trapCfg reached) (StepDefs.trapCfg peer)
@@ -7853,7 +7865,7 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
       advance cut (fun residual suffix _ => ⟨[], [], residual, StepDefs.trapCfg reached, StepDefs.trapCfg peer, [], rfl, rfl,
         congrArg StepDefs.lockdownSt paired.data.1,
         CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), suffix, WriterPaths.empty, .boundary (.trap rfl rfl)⟩)
-    obtain ⟨bytes, _, sized, range⟩ := range
+    obtain ⟨bytes, liveWidth, sized, range⟩ := range
     by_cases misaligned : pointer ≠ alignTo pointer (layout destination.width element).alignment
     · exact trap .unalignedPointer (by simpa only [ite_eq_left misaligned] using range)
     simp only [ite_eq_right misaligned] at range
@@ -7874,10 +7886,12 @@ private theorem driveCollection {origin : CStore (core3 grow)} {budget : Nat}
           .refused refused cursor checkedAt (atTail rhs pointer peerCursor rfl)⟩
       | ok value =>
         cases value
-        obtain ⟨lhs, rhs, peerCursor, related, liveWidth, liveSize, grew, checkedAt, canonicalAt, cut, _⟩ :=
-          fresh bytes sized aligned bounds prepared
+        simp only [prepared] at range
+        obtain ⟨peerCursor, related, cut, _⟩ := range
+        let lhs := { reached with ctl := cursor.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext) }
+        let rhs := { peer with ctl := peerCursor.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext) }
         exact advance cut (fun residual suffix remaining => visit lhs rhs bytes pointer cursor peerCursor residual related
-          (growth.trans grew) liveWidth liveSize aligned bounds checkedAt canonicalAt suffix remaining)
+          (growth.trans grew) liveWidth sized aligned bounds rfl rfl suffix remaining)
     · exact trap .outOfBounds (by simpa only [ite_eq_right bounds] using range)
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in

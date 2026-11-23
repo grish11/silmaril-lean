@@ -110,6 +110,21 @@ inductive CallbackWriterBoundary where
   | giveEntry
   | dispatch
 
+open Stored.OwnedMemory.Claims.Record in
+/-- A checked prepare read compared against the writer of the pending raw
+program. The raw path does not execute a prepare. -/
+structure ExecutedPrepareRead (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig))
+    (start reader left right : Config (core3 grow) (HostState sig)) (leading : Trace grow sig)
+    (plan : List Stored.Endpoints.RecordLower.Object) : Prop where
+  beforeRead : Steps profile ready (specDispatch ready base) start leading reader
+  focus : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))),
+    reader.ctl = cursor.control (.op .hostGet (fun state => next (prepare reader.store state.writer plan)))
+  read : Step profile ready (specDispatch ready base) reader .tau left
+  writer : reader.host.writer = start.host.writer
+  store : reader.store = right.store
+
 /-- Ordered evidence on the actual pair of visited program segments. Only
 the guarded case attributes a change to a compiled nominal assignment. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -120,6 +135,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start checked left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
+  | prepare {start incoming reader leading canonical left right plan}
+      (site : ExecutedPrepareRead profile ready base start reader left right leading plan)
+      (lhs : WriterPath profile ready (specDispatch ready base) start (leading ++ [.tau]) left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
+      VisitorWriterPath profile ready base bindings start incoming (leading ++ [.tau]) canonical left right
   | guarded {start incoming checked canonical left right plan}
       (paths : CompiledLeafWriterPaths profile ready base bindings start incoming checked canonical left right plan) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
@@ -139,9 +159,9 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (tail : VisitorWriterPath profile ready base bindings left right leftTail rightTail finish peer) :
       VisitorWriterPath profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail) finish peer
 
-/-- Interpret the reached writer sites up to the first segment whose source
-classification is missing. A proof boundary describes an actual piece of the
-run, not a new runtime outcome or a classification of its writes. -/
+open Stored.OwnedMemory.Claims.Record in
+/-- Interpret the reached writer sites up to the first conflicting prepare
+or missing source classification. The remaining paths are retained, not replayed. -/
 inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (start incoming : Config (core3 grow) (HostState sig)) (pending : Stored.OwnedMemory.Claims.Spend → Prop) :
@@ -149,6 +169,19 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
   | complete {checked canonical left right} (spends : List Stored.OwnedMemory.Claims.Spend)
       (related : left.host.writer.ClaimDiscrepancies right.host.writer (fun probe => pending probe ∨ probe ∈ spends)) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending checked canonical left right
+  | prepareConflict {checked canonical left right atLeft atRight reader leading rawLeading readLeft readRight tailChecked tailCanonical plan probe}
+      (spends : List Stored.OwnedMemory.Claims.Spend)
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (related : atLeft.host.writer.ClaimDiscrepancies atRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
+      (site : ExecutedPrepareRead profile ready base atLeft reader readLeft readRight leading plan)
+      (lhs : WriterPath profile ready (specDispatch ready base) atLeft (leading ++ [.tau]) readLeft [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight rawLeading readRight [])
+      (live : pending probe ∨ probe ∈ spends)
+      (unequal : prepare reader.store reader.host.writer plan ≠ prepare reader.store readRight.host.writer plan)
+      (conflict : ReachedPrepareConflict reader.store reader.host.writer readRight.host.writer plan probe)
+      (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending
+        (checked ++ (leading ++ [.tau]) ++ tailChecked) (canonical ++ rawLeading ++ tailCanonical) left right
   | boundary {checked canonical left right atLeft atRight siteChecked siteCanonical siteLeft siteRight tailChecked tailCanonical}
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
@@ -1789,14 +1822,15 @@ suffix. The input mark is the allocator's returned top occurrence, not an
 arbitrary frame with an equal continuation. -/
 def CollectionRangeTransport (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
-    (checked canonical lhs rhs : Config (core3 grow) (HostState sig)) (observed : Trace grow sig) : Prop :=
+    (checked canonical lhs rhs : Config (core3 grow) (HostState sig)) (observed : Trace grow sig)
+    (traceShape : Trace grow sig → Trace grow sig → Prop := fun _ _ => True) : Prop :=
   ∀ {leftStart rightStart checkTrace canonTrace},
     OccurrenceTransport profile ready base bindings leftStart rightStart checkTrace canonTrace checked canonical [some (.active 0 0)] →
     ∃ leftTail rightTail, OccurrenceTransport profile ready base bindings leftStart rightStart
       (checkTrace ++ leftTail) (canonTrace ++ rightTail) lhs rhs ∧
       PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store ∧
       PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
-        checked canonical leftTail rightTail lhs rhs
+        checked canonical leftTail rightTail lhs rhs ∧ traceShape leftTail rightTail
 
 open Stored.OwnedMemory.Claims.Record in
 /-- In the in-bounds route the marked pop and range/store reads reach a
@@ -1844,7 +1878,8 @@ def CollectionRangeOccurrences (profile : ProfileKind) (ready : HostReady (HostS
         (∃ labels, (∀ label ∈ labels, label = .tau) ∧
           RangeReturnTrails profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical labels right) ∧
         ComparedOccurrencePaths profile ready base bindings leftStart rightStart seen left right ∧
-        CollectionRangeTransport profile ready base bindings checked canonical left right [] ∧
+        CollectionRangeTransport profile ready base bindings checked canonical left right []
+          (fun lhs rhs => lhs = [.tau, .tau, .tau, .tau] ∧ rhs = [.tau, .tau]) ∧
         ∃ reader, CollectionPrepareSite profile ready base bindings checked canonical left right reader cursor plan (checkNext pointer)
     else traps .outOfBounds
 
@@ -5200,7 +5235,8 @@ def AlignedCollectionRange (profile : ProfileKind) (ready : HostReady (HostState
     PayloadPrefix.visible leftTail = observed ∧ PayloadPrefix.visible rightTail = observed ∧ lhs.store = rhs.store ∧
     LocalRunAlignment profile ready (specDispatch ready base) lhs leftTail actual finish ∧
     PayloadPrefix.PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
-      checked canonical leftTail rightTail lhs rhs
+      checked canonical leftTail rightTail lhs rhs ∧
+    VisitorWriterPath profile ready base bindings checked canonical leftTail rightTail lhs rhs
 
 open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
 /-- A finite cut in the preceding range prefix has not read prepare. At
@@ -5290,6 +5326,7 @@ def CollectionRunSlice (profile : ProfileKind) (ready : HostReady (HostState sig
       HostFrame.Related.Paired (ReturnFrame.Extend older first second) reached peer ∧
       OccurrenceTransport profile ready base bindings start incoming checkTrace canonTrace reached peer [mark] ∧
       VisitorWriterPath profile ready base bindings start incoming checkTrace canonTrace reached peer ∧
+      Core3.Grows start.store.core reached.store.core ∧
       CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older first second) reached peer trailing finish ∧
       ((trailing = [] ∨ mark ≠ some (.active 0 0) ∨
         ¬ ∃ (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig)),

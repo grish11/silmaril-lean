@@ -310,11 +310,13 @@ private theorem rangeTransport {checked canonical lhs rhs : Config (core3 grow) 
     (locked : trapped = true → lhs.ctl = []) (checkSeen : visible leftLabels = observed) (canonSeen : visible rightLabels = observed)
     (same : lhs.store = rhs.store)
     (path : PairedLocalPath profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
-      checked canonical leftLabels rightLabels lhs rhs) :
-    CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed := by
+      checked canonical leftLabels rightLabels lhs rhs)
+    (traceShape : Trace grow sig → Trace grow sig → Prop := fun _ _ => True)
+    (shape : traceShape leftLabels rightLabels := by trivial) :
+    CollectionRangeTransport profile ready base bindings checked canonical lhs rhs observed traceShape := by
   intro leftStart rightStart checkTrace canonTrace leading
   obtain ⟨move, trails, retained⟩ := leading
-  refine ⟨leftLabels, rightLabels, ⟨rangeMove grow sig trapped ∘ move, ?_, ?_⟩, checkSeen, canonSeen, same, path⟩
+  refine ⟨leftLabels, rightLabels, ⟨rangeMove grow sig trapped ∘ move, ?_, ?_⟩, checkSeen, canonSeen, same, path, shape⟩
   · intro mark
     obtain ⟨lhs, rhs⟩ := trails mark
     exact ⟨lhs.append (left _), rhs.append (right _)⟩
@@ -331,6 +333,14 @@ private theorem comparedRange {checked canonical lhs rhs : Config (core3 grow) (
     (leftSeen : visible leftLabels = seen) (rightSeen : visible rightLabels = seen) (same : lhs.store = rhs.store) :
     ComparedOccurrencePaths profile ready base bindings checked canonical seen lhs rhs :=
   ⟨leftLabels, rightLabels, fun mark => ⟨_, left mark, right mark⟩, leftSeen, rightSeen, same⟩
+
+private theorem forgetRangeShape {checked canonical left right : Config (core3 grow) (HostState sig)}
+    {observed : Trace grow sig} {traceShape : Trace grow sig → Trace grow sig → Prop}
+    (range : CollectionRangeTransport profile ready base bindings checked canonical left right observed traceShape) :
+    CollectionRangeTransport profile ready base bindings checked canonical left right observed := by
+  intro _ _ _ _ movement
+  obtain ⟨leftTail, rightTail, tracked, leftSeen, rightSeen, same, path, _⟩ := range movement
+  exact ⟨leftTail, rightTail, tracked, leftSeen, rightSeen, same, path, True.intro⟩
 
 theorem collectionRangeOccurrences (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (output : Stored.Lower.Output) (index pointer : Nat)
@@ -406,7 +416,7 @@ theorem collectionRangeOccurrences (destination : RecordDestination) (inst : Ins
         ⟨_, by simp, left⟩, ⟨_, by simp, right⟩, ?_, ?_, readSite⟩
       · simpa only [List.append_nil, Cursor.control, lhs, rhs] using CallbackPrefix.appendComparedOccurrences leading
           (comparedRange left right leftQuiet rightQuiet frame.store)
-      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) leftQuiet rightQuiet frame.store localPath.1
+      · exact rangeTransport left right (fun impossible => Bool.noConfusion impossible) leftQuiet rightQuiet frame.store localPath.1 _ ⟨rfl, rfl⟩
     · simp only [ite_eq_right bounds] at sites ⊢
       exact traps .outOfBounds 2 sites
 
@@ -582,7 +592,7 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
         dsimp only at checkTrails paths range
         rw [fresh, stopped] at checkTrails paths range
         exact ⟨peer, sameStore, slotsAfter checkTau canonTau checkTrails.retains canonTrails.retains, paths,
-          by simpa only [List.append_nil] using continued range, trivial⟩
+          by simpa only [List.append_nil] using continued (forgetRangeShape range), trivial⟩
       · rw [ite_eq_right bounds] at outcomes ⊢
         exact ⟨traps .outOfBounds outcomes.1, outcomes.1, continued outcomes.2⟩
     · rw [ite_eq_left aligned] at outcomes ⊢
@@ -594,8 +604,9 @@ private theorem collectionPathsFrom (destination : RecordDestination) (inst : In
   dsimp only at frameAfter checkTracks paths range
   rw [fresh] at frameAfter checkTracks paths range
   exact ⟨_, _, peer, slotsAfter checkTau canonTau checkTracks.retains canonTracks.retains, paths,
-    by simpa only [List.append_nil] using continued range, frameAfter, liveWidth, sized,
-    aligned, bounds, growth, rfl, rfl, range, children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
+    by simpa only [List.append_nil] using continued (forgetRangeShape range), frameAfter, liveWidth, sized,
+    aligned, bounds, growth, rfl, rfl, forgetRangeShape range,
+    children pointer bytes _ _ _ _ frameAfter growth liveWidth sized aligned bounds rfl rfl⟩
 
 private theorem collectionEntryVisiting (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
     (entries : List Field) (index : Nat) (output : Stored.Lower.Output)

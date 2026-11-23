@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Plan.Defs
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 
 public section
 
@@ -204,6 +205,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
   | framed lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | guarded paths =>
     obtain ⟨changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
@@ -223,6 +225,7 @@ theorem checkedSpends (leftPath : WriterPath profile ready (specDispatch ready b
     CheckedSpendFlow start.host.writer incoming.host.writer left.host.writer right.host.writer updates :=
   ⟨spend leftPath spends, spend rightPath (updates := []) .nil⟩
 
+open Stored.OwnedMemory.Claims.Record in
 theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
@@ -230,6 +233,15 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
   induction path generalizing pending with
   | framed checked canonical =>
     exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
+  | @prepare start incoming reader leading rawLeading readLeft readRight plan site lhs rhs =>
+    by_cases same : prepare reader.store reader.host.writer plan = prepare reader.store readRight.host.writer plan
+    · exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies lhs rhs initial)
+    · have rawWriter : readRight.host.writer = incoming.host.writer := spend rhs (updates := []) .nil
+      have live : reader.host.writer.ClaimDiscrepancies readRight.host.writer pending := by rwa [site.writer, rawWriter]
+      obtain ⟨probe, demanded, conflict⟩ := prepare_conflict reader.store plan live same
+      simpa only [List.nil_append, List.append_nil] using
+        (WriterDiscrepancyCut.prepareConflict [] (empty (start := start) (incoming := incoming))
+          (by simpa only [List.not_mem_nil, or_false] using initial) site lhs rhs (.inl demanded) same conflict empty)
   | guarded paths =>
     obtain ⟨changes, checked, canonical, empty | ⟨change, update, single, _, nominal⟩⟩ := paths
     · subst changes
@@ -258,9 +270,16 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
       | boundary more leading related site actual trailing =>
         simpa only [List.append_assoc] using (WriterDiscrepancyCut.boundary (spends ++ more) (front.append leading)
           (by simpa only [List.mem_append, or_assoc] using related) site actual trailing)
+      | prepareConflict more leading related site lhs rhs live unequal conflict trailing =>
+        simpa only [List.append_assoc] using (WriterDiscrepancyCut.prepareConflict (spends ++ more) (front.append leading)
+          (by simpa only [List.mem_append, or_assoc] using related) site lhs rhs
+          (by simpa only [List.mem_append, or_assoc] using live) unequal conflict trailing)
     | boundary spends leading related site actual trailing =>
       simpa only [List.append_assoc] using
         (WriterDiscrepancyCut.boundary spends leading related site actual (trailing.append tail))
+    | prepareConflict spends leading related site lhs rhs live unequal conflict trailing =>
+      simpa only [List.append_assoc] using
+        (WriterDiscrepancyCut.prepareConflict spends leading related site lhs rhs live unequal conflict (trailing.append tail))
 
 theorem registration {change : WriterChange sig} {tree : Stored.OwnedMemory.Tree sig}
     (path : WriterPath profile ready dispatch start labels finish [change])
