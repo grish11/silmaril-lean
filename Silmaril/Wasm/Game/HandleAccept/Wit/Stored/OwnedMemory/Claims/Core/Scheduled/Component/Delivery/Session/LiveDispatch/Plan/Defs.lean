@@ -768,6 +768,23 @@ def sharedDestructorThread (task : TaskId) (callee : Option (core3 grow).FuncAdd
   | some callee => .liftImplicit task callee
   | none => .liftNoop task
 
+def sharedDestructorArguments (task : TaskId) (callee : Option (core3 grow).FuncAddr)
+    (tk : Task (core3 grow)) (args : List Value.Val) : Session grow sig (Ret (core3 grow)) :=
+  match callee with
+  | some callee => liftArgumentsBody Limits.spec Quirks.none task callee tk args
+  | none => do
+    let cx : LiftLowerContext (core3 grow) := { opts := tk.opts, inst := tk.inst, scope := .task task }
+    let _ ← lowerFlatValues Limits.spec Quirks.none cx ABI.maxFlatParams args (paramTypes tk.ft) none
+    let (result, _) ← liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatResults (.ofList []) (resultTypes tk.ft)
+    Task.return_ task result
+    Task.exitImplicitThread task
+    return .unit
+
+def sharedDestructorStartReply (task : TaskId) (callee : Option (core3 grow).FuncAddr)
+    (tk : Task (core3 grow)) : ReturnFrame.Continuation (core3 grow) (HostState sig)
+  | .vals args => sharedDestructorArguments task callee tk args
+  | _ => internal "late-bound call: expected Ret.vals"
+
 def sharedDestructorAfterAdmission (task : TaskId) (callee : Option (core3 grow).FuncAddr) :
     Bool → Session grow sig (Ret (core3 grow))
   | false => .pure .unit
@@ -2013,6 +2030,21 @@ def ReachedRecordPrepareMismatch (profile : ProfileKind) (ready : HostReady (Hos
     prepare left.store left.host.writer plan ≠ prepare left.store right.host.writer plan ∧
     ∃ probe, pending probe ∧ ReachedPrepareConflict left.store left.host.writer right.host.writer plan probe
 
+/-- The actual on-start call installed this return occurrence, which survived
+the caller reads and was popped at the designated worker cursor. -/
+structure SharedDestructorOnStartPop (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (caller : CallerId)
+    (resume : ReturnFrame.Continuation (core3 grow) (HostState sig)) (args : List Value.Val)
+    (after : Config (core3 grow) (HostState sig)) : Prop where
+  executed : ∃ before entered returned,
+    before.ctl = cursor.control (.op (.call (.onStart caller)) resume) ∧
+    Step profile ready dispatch before .tau entered ∧
+    entered.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (dispatch (.onStart caller)) ∧
+    ReturnFrame.Occurrence.Prefix profile ready dispatch entered (.active 0 0) [.tau, .tau, .tau] returned (.active 0 0) ∧
+    returned.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (.pure (.vals args)) ∧
+    Step profile ready dispatch returned .tau after
+
 /-- The registered worker still names the task and caller created by the
 source destructor setup. Reads at this entry use these actual reached stores. -/
 structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : CStore (core3 grow)) : Prop where
@@ -2115,10 +2147,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The resumed worker executed registration with both ticket-specific parents still dormant. -/
+  /-- The resumed worker executed its internal on-start call with both ticket-specific parents still dormant. -/
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
-      {leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee}
+      {registeredLeft registeredRight leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee tk args}
       (installed : SharedDestructorInstalled profile ready (specDispatch ready base) body leftTicket thread
         leftInstall installedLeft check)
       (canonical : SharedDestructorInstalled profile ready (specDispatch ready (LiveDispatch.host bindings base)) body rightTicket thread
@@ -2127,10 +2159,16 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (peerResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
         body rightTicket thread beforeRight activeRight canon)
       (selected : body = sharedDestructorThread task callee)
-      (workerSource : SharedDestructorRegisteredSource task left.store right.store)
-      (checkedEntry : left.ctl = ⟨some thread, .prog (sharedDestructorAfterAdmission task callee true), []⟩ ::
+      (workerSource : SharedDestructorRegisteredSource task registeredLeft.store registeredRight.store)
+      (checkedPop : SharedDestructorOnStartPop profile ready (specDispatch ready base)
+        ⟨some thread, [], check.control (sharedDestructorAfterResume body leftTicket)⟩
+        tk.caller (sharedDestructorStartReply task callee tk) args left)
+      (canonicalPop : SharedDestructorOnStartPop profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        ⟨some thread, [], canon.control (sharedDestructorAfterResume body rightTicket)⟩
+        tk.caller (sharedDestructorStartReply task callee tk) args right)
+      (checkedEntry : left.ctl = ⟨some thread, .prog (sharedDestructorArguments task callee tk args), []⟩ ::
         check.control (sharedDestructorAfterResume body leftTicket))
-      (canonicalEntry : right.ctl = ⟨some thread, .prog (sharedDestructorAfterAdmission task callee true), []⟩ ::
+      (canonicalEntry : right.ctl = ⟨some thread, .prog (sharedDestructorArguments task callee tk args), []⟩ ::
         canon.control (sharedDestructorAfterResume body rightTicket))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
