@@ -37,6 +37,13 @@ open _root_.Silmaril.Wasm.Component.Engine _root_.Silmaril.Wasm.Component.Runtim
   _root_.Silmaril.Wasm.Component.Value _root_.Silmaril.Wasm.Component.ABI
 variable {E : CoreEngine} {σ : Type}
 
+/-- Classification of the executable typed value lift, in either the flat or
+spilled-memory route, at its actual instance and borrow scope. -/
+theorem liftFlatValues_scoped (lim : Limits) (q : Quirks) (cx : LiftLowerContext E)
+    (max : Nat) (vi : FlatCursor) (ts : List (WIT.ClosedType RtId)) :
+    Prog.Every (LowerSt.ValueLiftOp cx) (liftFlatValues lim q cx max vi ts : P E σ _) :=
+  Silmaril.Proofs.Wasm.Component.Reference.Canon.Lower.StoreLift.liftFlatValues_scoped lim q cx max vi ts
+
 /-- The direct and spilled argument lifts, including recursive loads and
 handle transfers, issue only store reads, store modifications and traps. -/
 theorem lowerOnStart_every (lim : Limits) (q : Quirks) (caller : CallerId)

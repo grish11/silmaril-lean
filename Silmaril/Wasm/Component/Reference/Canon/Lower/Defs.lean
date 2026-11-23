@@ -132,6 +132,18 @@ def setCallerPosSt (c : CallerId) (pos : Nat) (st : CStore E) : CStore E :=
 def callerShape (st : CStore E) (caller : CallerId) : Option (Caller E) :=
   (st.caller? caller).map fun record => Caller.withPos record 0
 
+/-- Instructions issued by the canonical memory and flat value lifts. The
+instance and subtask scope come from the lifting context. These constructors
+classify the individual effects, including before a later trap. -/
+inductive ValueLiftOp (cx : LiftLowerContext E) : Op E σ → Prop where
+  | read : ValueLiftOp cx .get
+  | trap (reason : TrapReason) : ValueLiftOp cx (.trap reason)
+  | removeHandle (slot : Nat) : ValueLiftOp cx (.modify
+      (ArenaField.insts.modify · cx.inst (InstState.removeHandle slot)))
+  | lend (subtask : SubtaskId) (identity : HandleObjId) (scope : cx.scope = .subtask subtask) :
+      ValueLiftOp cx (.modify (HandleSt.addLender subtask identity))
+  | releaseEnd (identity : EndId) : ValueLiftOp cx (.modify (HandleSt.releaseEnd identity))
+
 /-- Argument lifting may update the store and advance the cursor, but does
 not alter a caller's ABI data or install/remove a caller. -/
 def argumentLiftOp : Op E σ → Prop
