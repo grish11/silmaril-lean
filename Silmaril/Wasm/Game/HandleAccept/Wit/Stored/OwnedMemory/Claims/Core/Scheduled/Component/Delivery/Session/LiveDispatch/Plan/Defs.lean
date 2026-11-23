@@ -3035,6 +3035,19 @@ induction. Its trails still identify the removed original occurrences. -/
         peer.ctl = canon.control (PayloadPrefix.canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The actual descriptor finished. The remaining controls are precisely
+  the containing field's two continuations. -/
+  | sourceOverlayCollectionPublished {changes reached peer trailing finish}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (output : Stored.Lower.Output) (value : output.Result)
+      (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+      (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = check.control (checkNext (.ok value)))
+      (canonical : peer.ctl = canon.control (canonNext value))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
