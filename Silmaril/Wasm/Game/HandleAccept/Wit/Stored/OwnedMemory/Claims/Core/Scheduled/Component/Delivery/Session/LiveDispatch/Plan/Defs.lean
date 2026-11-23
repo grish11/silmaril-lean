@@ -2246,6 +2246,38 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         peer.store thread host args), .core core (sharedDestructorCoreResult task tk) :: peerFrames⟩ :: peerRest)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- A shared scheduled give selected the actual tree and position below
+  the dormant parents. Its authority-sensitive body is still pending. -/
+  | sharedDropGiveSelected {changes reached peer trailing finish body name kind inst position leftTicket rightTicket}
+      {tree : Stored.OwnedMemory.Tree sig}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {action : SharedGiveAction}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+      (stores : reached.store = peer.store)
+      (checked : reached.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
+      (canonical : peer.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- Both actual nominal probes selected the same permit. The subsequent
+  spend and store effects are still pending. -/
+  | sharedDropGiveGuarded {changes reached peer trailing finish body name kind inst position leftTicket rightTicket}
+      {tree : Stored.OwnedMemory.Tree sig}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {action : SharedGiveAction}
+      {claim : SharedGiveClaim} {permit : claim.Permit}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+      (source : action.claimAt tree position = some claim)
+      (stores : reached.store = peer.store)
+      (checkedRead : claim.observe reached.host.writer = .ok permit)
+      (canonicalRead : claim.observe peer.host.writer = .ok permit)
+      (checked : reached.ctl = check.control (claim.afterRead inst leftTicket (.ok permit)))
+      (canonical : peer.ctl = canon.control (claim.afterRead inst rightTicket (.ok permit)))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The source switch reached its actual scheduler instruction after the
   target checks. The target slot is read after saving the current worker. -/
   | sharedDropSwitch {changes reached peer trailing finish body worker target frames peerFrames rest peerRest reply}

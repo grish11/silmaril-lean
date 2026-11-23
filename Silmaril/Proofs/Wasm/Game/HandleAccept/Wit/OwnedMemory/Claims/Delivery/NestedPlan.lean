@@ -2780,6 +2780,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
+  | sharedDropGiveSelected _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropGiveGuarded _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
@@ -2839,6 +2841,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
+  | sharedDropGiveSelected _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropGiveGuarded _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
@@ -17219,6 +17223,219 @@ private theorem finishDestructorBindingTrap {check canon : PayloadPrefix.Cursor 
       (compareSharedDestructorTrap (check := check) (canon := canon)
         (.hostTrap "invalid mixed acceptor import binding") rfl rfl residual)
 
+private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (stores : start.store = incoming.store)
+    (result : Except Scheduled.Issue Nat)
+    (checked : start.ctl = check.control (do return .flat (← Scheduled.finish leftTicket result)))
+    (canonical : incoming.ctl = canon.control (do return .flat (← Scheduled.finish rightTicket result)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have left := checkedCompletionPath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    (completion leftTicket result) checked
+  have right := checkedCompletionPath (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) (completion rightTicket result) canonical
+  refine finishDestructorCoreReplyPaths (words := (completion leftTicket result).2)
+    parents thread segments ?_ left.1 right.1 rfl (by cases result <;> rfl)
+    (fun count lhs rhs => .framed (takeQuietWriterPath left.2 lhs count) (takeQuietWriterPath right.2 rhs count))
+    (fun same => same) scheduler run bounded compare
+  exact stores
+
+open ReturnFrame.Occurrence in
+private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {name kind inst position leftTicket rightTicket} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
+    (canonical : incoming.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  cases source : action.claimAt tree position with
+  | none => exact .sharedDropGiveSelected parents thread segments linked stores checked canonical run
+  | some claim =>
+    rw [sharedClaimProgram action inst _ position tree source] at checked canonical
+    cases run with
+    | refl => exact .exhausted
+    | cons actual tail =>
+      let lhs := claim.observe start.host.writer
+      let rhs := claim.observe incoming.host.writer
+      let left := { start with ctl := check.control (claim.afterRead inst leftTicket lhs) }
+      let right := { incoming with ctl := canon.control (claim.afterRead inst rightTicket rhs) }
+      have checkedRead : Step profile ready (specDispatch ready base) start .tau left :=
+        .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) checked
+      have rawRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+        .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) canonical
+      obtain ⟨rfl, rfl⟩ := silentStepUnique checkedRead actual
+      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) checkedRead rawRead
+        (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
+      by_cases agrees : lhs = rhs
+      · refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned) ?_
+        cases observed : lhs with
+        | error issue =>
+          exact finishDestructorScheduledReply (check := check) (canon := canon) (start := left) (incoming := right)
+            parents thread segments stores (.error (.claim issue))
+            (by change check.control (claim.afterRead inst leftTicket lhs) = _; rw [observed]; rfl)
+            (by change canon.control (claim.afterRead inst rightTicket rhs) = _; rw [← agrees, observed]; rfl)
+            scheduler tail (Nat.le_trans (Nat.le_succ _) bounded) compare
+        | ok permit =>
+          exact .sharedDropGiveGuarded parents thread segments linked source stores observed (agrees.symm.trans observed)
+            (by change check.control (claim.afterRead inst leftTicket lhs) = _; rw [observed])
+            (by change canon.control (claim.afterRead inst rightTicket rhs) = _; rw [← agrees, observed]) tail
+      · have mismatch : SharedGiveProbeMismatch claim inst leftTicket rightTicket start incoming left right check canon :=
+          ⟨checked, canonical, rfl, rfl, agrees⟩
+        exact .sharedGiveProbeMismatch linked source mismatch paths
+          (.sharedGiveMismatch mismatch (.same checkedRead rfl (.done _)) (.same rawRead rfl (.done _))) tail
+
+open ReturnFrame.Occurrence in
+private theorem finishAdmittedSharedDestructor {limit : Nat}
+    {worker frames peerFrames rest peerRest name kind args inst parentBody} {action : SharedGiveAction}
+    {frame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
+    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
+    (parents : DestructorParentChain older parentBody rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store (some worker) (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: peerFrames, peerRest⟩
+  have leftEntry := scheduledEntryPath (profile := profile) (start := start) base (sharedGiveRoute linked)
+    (congrFun (congrFun (congrFun embedder name) kind) args) check rfl caller mayLeave checked
+  have rightEntry := scheduledEntryPath (profile := profile) (start := incoming) (LiveDispatch.host bindings base)
+    (sharedGiveRoute linked) (sharedGiveRawEmbedder linked embedder) canon rfl (stores ▸ caller) (stores ▸ mayLeave) canonical
+  let leftSelection := { start with
+    host := start.host.enter name kind args
+    ctl := check.control (action.selection args >>= finishSharedSelection action inst start.host.nextTicket) }
+  let rightSelection := { incoming with
+    host := incoming.host.enter name kind args
+    ctl := canon.control (action.selection args >>= finishSharedSelection action inst incoming.host.nextTicket) }
+  have leftScan := scanSelectorPath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    (start := leftSelection) check (action.selection args) (finishSharedSelection action inst start.host.nextTicket) rfl
+  have rightScan := scanSelectorPath (profile := profile) (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+    (start := rightSelection) canon (action.selection args) (finishSharedSelection action inst incoming.host.nextTicket) rfl
+  rw [sharedGiveBeforeSelection] at leftEntry rightEntry
+  generalize scanned : scanSelector start.store (some worker) (action.selection (sig := sig) args) = reached
+  obtain ⟨count, program⟩ := reached
+  have rightScanned : scanSelector incoming.store (some worker) (action.selection (sig := sig) args) = (count, program) :=
+    stores ▸ scanned
+  dsimp only [leftSelection, rightSelection, check, canon] at leftScan rightScan
+  rw [scanned] at leftScan
+  rw [rightScanned] at rightScan
+  have selected := sharedSelectionFrontier action args start.store (some worker) (sig := sig)
+  rw [scanned] at selected
+  have refusal {left right : Config (core3 grow) (HostState sig)} {edits}
+      (lhs : FramedQuietPath profile ready (specDispatch ready base) check start edits left)
+      (rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming edits right)
+      (same : left.store = right.store)
+      (keep : DestructorSchedulerAlignment older left right)
+      (issue : Scheduled.Issue)
+      (leftAt : left.ctl = check.control (do return .flat (← Scheduled.finish start.host.nextTicket (.error issue))))
+      (rightAt : right.ctl = canon.control (do return .flat (← Scheduled.finish incoming.host.nextTicket (.error issue)))) :
+      CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+    obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ := cutSharedQuietWorker lhs rhs run
+    rw [split]
+    rcases ending with empty | ⟨rfl, rfl⟩
+    · subst remaining
+      cases tail
+      exact .comparedPrefix paths writers .exhausted
+    · refine .destructorPrefix paths writers (fun _ => keep) ?_
+      have within : remaining.length ≤ limit := by rw [split, List.length_append] at bounded; omega
+      exact finishDestructorScheduledReply (check := check) (canon := canon) parents rfl (.cons (.same _) segments) same (.error issue)
+        leftAt rightAt keep tail within compare
+  cases selected with
+  | refused issue =>
+    exact refusal (leftEntry.append leftScan) (rightEntry.append rightScan) stores scheduler issue rfl rfl
+  | lookup handle position =>
+    change FramedQuietPath _ _ _ check leftSelection (List.replicate count id)
+      { leftSelection with ctl := check.control ((select handle >>= selectedAt position) >>=
+        finishSharedSelection action inst start.host.nextTicket) } at leftScan
+    change FramedQuietPath _ _ _ canon rightSelection (List.replicate count id)
+      { rightSelection with ctl := canon.control ((select handle >>= selectedAt position) >>=
+        finishSharedSelection action inst incoming.host.nextTicket) } at rightScan
+    rw [sharedSelectionFinishLookup] at leftScan rightScan
+    have lhs := leftEntry.append leftScan
+    have rhs := rightEntry.append rightScan
+    let leftBefore := { leftSelection with ctl := check.control (select handle >>= action.afterLookup inst start.host.nextTicket position) }
+    let rightBefore := { rightSelection with ctl := canon.control (select handle >>= action.afterLookup inst incoming.host.nextTicket position) }
+    let leftRoot := Stored.Endpoints.Core.childFromHistory leftBefore.host.writer.accepted handle
+    let rightRoot := Stored.Endpoints.Core.childFromHistory rightBefore.host.writer.accepted handle
+    let left := { leftBefore with ctl := check.control (action.afterLookup inst start.host.nextTicket position leftRoot) }
+    let right := { rightBefore with ctl := canon.control (action.afterLookup inst incoming.host.nextTicket position rightRoot) }
+    have leftRead := (selectorReadStep (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      check handle (action.afterLookup inst start.host.nextTicket position) (start := leftBefore) rfl).1
+    have rightRead := (selectorReadStep (profile := profile) (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+      canon handle (action.afterLookup inst incoming.host.nextTicket position) (start := rightBefore) rfl).1
+    have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start _ left :=
+      lhs.append (trailing := [id]) (selectorReadStep check handle (action.afterLookup inst start.host.nextTicket position)
+        (start := leftBefore) rfl).2
+    have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming _ right :=
+      rhs.append (trailing := [id]) (selectorReadStep canon handle (action.afterLookup inst incoming.host.nextTicket position)
+        (start := rightBefore) rfl).2
+    by_cases agrees : leftRoot = rightRoot
+    · cases found : leftRoot with
+      | none =>
+        exact refusal leftPath rightPath stores scheduler .badSelection
+          (by simp only [left, found, SharedGiveAction.afterLookup])
+          (by simp only [right, ← agrees, found, SharedGiveAction.afterLookup])
+      | some tree =>
+        have leftAt : left.ctl = check.control (action.afterLookup inst start.host.nextTicket position (some tree)) := by
+          rw [← found]
+        have rightAt : right.ctl = canon.control (action.afterLookup inst incoming.host.nextTicket position (some tree)) := by
+          rw [← found, agrees]
+        by_cases missing : missingSharedPosition action tree position
+        · rw [sharedPositionRefusal _ _ _ _ _ missing] at leftAt rightAt
+          exact refusal leftPath rightPath stores scheduler .badSelection leftAt rightAt
+        · obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ :=
+            cutSharedQuietWorker leftPath rightPath run
+          rw [split]
+          rcases ending with empty | ⟨rfl, rfl⟩
+          · subst remaining
+            cases tail
+            exact .comparedPrefix paths writers .exhausted
+          · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+            have within : remaining.length ≤ limit := by rw [split, List.length_append] at bounded; omega
+            exact finishDestructorSelectedSharedGive (check := check) (canon := canon) parents rfl (.cons (.same _) segments) linked stores
+              leftAt rightAt tail scheduler within compare
+    · obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ := cutSharedQuietWorker lhs rhs run
+      rw [split]
+      rcases ending with empty | ⟨rfl, rfl⟩
+      · subst remaining
+        cases tail
+        exact .comparedPrefix paths writers .exhausted
+      · cases tail with
+        | refl => exact .comparedPrefix paths writers .exhausted
+        | cons actual residual =>
+          obtain ⟨rfl, rfl⟩ := silentStepUnique leftRead actual
+          have readPaths := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftRead rightRead rfl rfl
+          have mismatch : SharedGiveHistoryMismatch action inst start.host.nextTicket incoming.host.nextTicket position handle
+              leftBefore rightBefore left right check canon := ⟨rfl, rfl, rfl, rfl, agrees⟩
+          refine .comparedPrefix paths writers ?_
+          exact .sharedGiveSelectionMismatch (leading := []) mismatch
+            (fun place => ⟨place, .done _ _, .step leftRead (by cases place <;> exact .done _ _)⟩)
+            (fun place => ⟨place, .done _ _, .step rightRead (by cases place <;> exact .done _ _)⟩)
+            readPaths (frameCalloutStep readPaths rfl rfl) residual
+
 private theorem finishSharedDestructorImport {limit : Nat}
     {thread frames peerFrames rest peerRest core host args task tk body}
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -17256,12 +17473,17 @@ private theorem finishSharedDestructorImport {limit : Nat}
       · exact finishDeniedDestructorImport embedder (coreAcceptRawEmbedder linked embedder) (coreAcceptRoute linked)
           context parents segments stores checked canonical residual scheduler bounded compare
     · by_cases shared : ∃ (inst : InstId) (action : SharedGiveAction),
-          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩ ∧
-          ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
-            (start.store.inst? inst).any (·.mayLeave) = true)
-      · obtain ⟨inst, action, linked, denied⟩ := shared
-        exact finishDeniedDestructorImport embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked)
-          denied parents segments stores checked canonical residual scheduler bounded compare
+          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
+      · obtain ⟨inst, action, linked⟩ := shared
+        by_cases context : Plain.callerInstance start.store thread = .ok (some inst) ∧
+            (start.store.inst? inst).any (·.mayLeave) = true
+        · cases thread with
+          | none => simp [Plain.callerInstance] at context
+          | some worker =>
+            exact finishAdmittedSharedDestructor embedder linked context.1 context.2 parents segments stores
+              checked canonical residual scheduler bounded compare
+        · exact finishDeniedDestructorImport embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked)
+            context parents segments stores checked canonical residual scheduler bounded compare
       · cases linked : resolveBinding bindings name kind with
         | error issue =>
           exact finishDestructorBindingTrap
