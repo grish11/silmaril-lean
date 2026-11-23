@@ -16545,13 +16545,13 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
             (rightNext : rhs.ctl = ⟨thread, next, outPeerFrames⟩ :: (peerActive ++ peerRest))
             (same : lhs.store = rhs.store)
             (aligned : DestructorSchedulerAlignment older lhs rhs)
-            (leftHost : lhs.host = start.host) (rightHost : rhs.host = incoming.host)
+            (leftWriter : lhs.host.writer = start.host.writer) (rightWriter : rhs.host.writer = incoming.host.writer)
             {edit : Edit (core3 grow) (HostState sig)}
             (leftEdit : transitionEdit start label = edit) (rightEdit : transitionEdit incoming label = edit) :
             CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
           have paths := sharedSchedulerTransport (bindings := bindings) leftStep rightStep leftEdit rightEdit
-          exact .destructorPrefix paths (frameCalloutStep paths leftHost rightHost) (fun _ => aligned)
-            (ih (.mk related) resumers same aligned leftNext rightNext residual shorter)
+          exact .destructorPrefix paths (.framed (.same leftStep leftWriter (.done _)) (.same rightStep rightWriter (.done _)))
+            (fun _ => aligned) (ih (.mk related) resumers same aligned leftNext rightNext residual shorter)
         cases actual with
         | @call _ request resume _ _ atCall =>
           rw [leftAt] at atCall
@@ -16689,7 +16689,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
             rw [congrArg CStore.core stores.symm] at raw
             exact advance (.popCore leftAt) raw tail tails rfl rfl stores scheduler rfl rfl
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
-        | popProg atPop =>
+        | @popProg _ result resume _ _ atPop =>
           rw [leftAt] at atPop
           cases atPop
           cases segments with
@@ -16698,7 +16698,13 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
             | same _ =>
               exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl rfl stores scheduler rfl rfl
                 (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
-            | swap _ => exact frontier
+            | @swap _ second source =>
+              classical
+              by_cases agrees : resume result = second result
+              · exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl
+                  (by change ⟨thread, .prog (second result), _⟩ :: (peerActive ++ peerRest) = _; rw [← agrees])
+                  stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
+              · exact .boundary (.protectedPop ⟨second, source⟩ leftAt) (.popProg leftAt) tail
         | threadExit atExit =>
           rw [leftAt] at atExit
           cases atExit
@@ -16830,7 +16836,14 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           have empty := ready.1
           rw [leftAt] at empty
           contradiction
-        | hostSet _ => exact frontier
+        | @hostSet _ state _ _ _ atWrite =>
+          rw [leftAt] at atWrite
+          cases atWrite
+          classical
+          by_cases same : state.writer = start.host.writer ∧ state.writer = incoming.host.writer
+          · exact advance (.hostSet leftAt) (.hostSet rightAt) tail segments rfl rfl stores scheduler same.1 same.2
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+          · exact .boundary (.write leftAt) (.hostSet leftAt) tail
 
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}
