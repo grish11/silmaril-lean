@@ -17366,6 +17366,49 @@ private theorem finishDestructorSharedRecord {limit : Nat} {body : ThreadBody (c
           rw [empty, stopped]
           exact .exhausted
 
+open ReturnFrame.Occurrence in
+private theorem finishDestructorFramedCut
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {edits : List (ComponentStoreEdit grow)} {target peerTarget : Config (core3 grow) (HostState sig)}
+    (lhs : FramedQuietPath profile ready (specDispatch ready base) check start edits target)
+    (rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming edits peerTarget)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ edits.length) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  obtain ⟨used, remaining, reached, peer, split, consumed, paths, tail, ending⟩ :=
+    cutSharedWorkerPath lhs.1 rhs.1 run
+  have empty : remaining = [] := by
+    rcases ending with empty | ⟨allUsed, _, _⟩
+    · exact empty
+    · rw [split, List.length_append, allUsed] at bounded
+      exact List.length_eq_zero_iff.mp (by omega)
+  have actual := (CallbackPrefix.transportPaths paths none).choose_spec
+  have writers := VisitorWriterPath.framed
+    (takeQuietWriterPath lhs.2 actual.1.steps consumed) (takeQuietWriterPath rhs.2 actual.2.steps consumed)
+  rw [split, empty]
+  exact .comparedPrefix paths writers (stepsAtEmpty (empty ▸ tail) ▸ CallbackSliceEnd.exhausted)
+
+private theorem finishDestructorNominalTransfer {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {leftTicket rightTicket : Nat}
+    (transfer : Session grow sig Nat) (effects : StoreEffects transfer)
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (stores : start.store = incoming.store)
+    (leftFocus : start.ctl = check.control (transfer >>= fun idx => scheduledReply leftTicket (.ok idx)))
+    (rightFocus : incoming.ctl = canon.control (transfer >>= fun idx => scheduledReply rightTicket (.ok idx)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread transfer
+    (fun idx => scheduledReply leftTicket (.ok idx)) (fun idx => scheduledReply rightTicket (.ok idx))
+    (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores leftFocus rightFocus run ?_
+  intro left right suffix idx shorter _ same leftAt rightAt aligned residual
+  exact finishDestructorScheduledReply parents thread segments same (.ok idx) leftAt rightAt
+    (aligned scheduler) residual (shorter.trans bounded) compare
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
 private theorem finishDestructorOwnerGive {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -17437,24 +17480,114 @@ private theorem finishDestructorOwnerGive {limit : Nat} {body : ThreadBody (core
     have within : remaining.length ≤ limit := by
       rw [used, List.length_append, List.length_replicate] at bounded
       omega
-    refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread (owner.transfer rep)
-      (fun idx => scheduledReply leftTicket (.ok idx)) (fun idx => scheduledReply rightTicket (.ok idx))
-      (liftDestructorStoreEffects (sharedOwnerTransferEffects owner rep) (trivialPreserves _)) trivial stores rfl rfl tail ?_
-    intro left right suffix idx shorter _ same leftAt rightAt aligned residual
-    exact finishDestructorScheduledReply parents thread segments same (.ok idx) leftAt rightAt
-      (aligned scheduler) residual (shorter.trans within) compare
-  · obtain ⟨used, remaining, reached, peer, split, consumed, paths, tail, ending⟩ :=
-      cutSharedWorkerPath lhs.1 rhs.1 run
-    have empty : remaining = [] := by
-      rcases ending with empty | ⟨allUsed, _, _⟩
-      · exact empty
-      · rw [split, List.length_append] at short
-        exact List.length_eq_zero_iff.mp (by simp only [List.length_cons, List.length_nil] at allUsed; omega)
-    have actual := (CallbackPrefix.transportPaths paths none).choose_spec
-    have writers := VisitorWriterPath.framed
-      (takeQuietWriterPath lhs.2 actual.1.steps consumed) (takeQuietWriterPath rhs.2 actual.2.steps consumed)
-    rw [split, empty]
-    exact .comparedPrefix paths writers (stepsAtEmpty (empty ▸ tail) ▸ CallbackSliceEnd.exhausted)
+    exact finishDestructorNominalTransfer (check := check) (canon := canon) (leftTicket := leftTicket) (rightTicket := rightTicket)
+      (owner.transfer rep) (sharedOwnerTransferEffects owner rep) parents thread segments stores rfl rfl tail scheduler within compare
+  · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem finishDestructorEndpointGive {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {leftTicket rightTicket : Nat} (endpoint : SharedEndpointGive)
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (stores : start.store = incoming.store)
+    (leftFocus : start.ctl = check.control (endpoint.claim.probe endpoint.inst leftTicket))
+    (rightFocus : incoming.ctl = canon.control (endpoint.claim.probe endpoint.inst rightTicket))
+    (leftLive : endpoint.claim.observe start.host.writer = .ok ())
+    (rightLive : endpoint.claim.observe incoming.host.writer = .ok ())
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let checked := { start with ctl := check.control (endpoint.checkedStore leftTicket) }
+  let raw := { incoming with ctl := canon.control (endpoint.checkedStore rightTicket) }
+  have guard : Step profile ready (specDispatch ready base) start .tau checked := by
+    have step : Step profile ready (specDispatch ready base) start .tau
+        { start with ctl := check.control (endpoint.claim.afterRead endpoint.inst leftTicket (endpoint.claim.observe start.host.writer)) } :=
+      .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) leftFocus
+    rw [leftLive, sharedEndpointReadyCode] at step
+    exact step
+  have peerGuard : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau raw := by
+    have step : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+        { incoming with ctl := canon.control (endpoint.claim.afterRead endpoint.inst rightTicket (endpoint.claim.observe incoming.host.writer)) } :=
+      .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) rightFocus
+    rw [rightLive, sharedEndpointReadyCode] at step
+    exact step
+  let leftReady := { checked with ctl := check.control (endpoint.afterReady leftTicket start.store) }
+  let rightReady := { raw with ctl := canon.control (endpoint.afterReady rightTicket incoming.store) }
+  have readiness : Step profile ready (specDispatch ready base) checked .tau leftReady := .get rfl
+  have peerReadiness : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) raw .tau rightReady := .get rfl
+  have lhs : FramedQuietPath profile ready (specDispatch ready base) check start [id, id] leftReady :=
+    .step guard (by rw [transitionEdit, leftFocus]; rfl) rfl (.step readiness rfl rfl .done)
+  have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming [id, id] rightReady :=
+    .step peerGuard (by rw [transitionEdit, rightFocus]; rfl) rfl (.step peerReadiness rfl rfl .done)
+  cases verdict : Async.Transfer.readyToGive start.store endpoint.channel endpoint.element ⟨endpoint.identity⟩ with
+  | error issue =>
+    rcases splitSilent (count := 2) (.cons guard (.cons readiness (.refl _))) run with ⟨remaining, used, tail⟩ | short
+    · rw [used]
+      have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
+      refine .destructorPrefix paths (.framed lhs.2 rhs.2) (fun aligned => aligned) ?_
+      have within : remaining.length ≤ limit := by rw [used, List.length_append, List.length_replicate] at bounded; omega
+      exact finishDestructorScheduledReply (check := check) (canon := canon) (start := leftReady) (incoming := rightReady)
+        (leftTicket := leftTicket) (rightTicket := rightTicket) parents thread segments stores (.error (.claim (.endpointTransfer issue)))
+        (by simp only [leftReady, SharedEndpointGive.afterReady, verdict]; rfl)
+        (by simp only [rightReady, SharedEndpointGive.afterReady, ← stores, verdict]; rfl)
+        scheduler tail within compare
+    · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
+  | ok valid =>
+    cases valid
+    let leftSpend := { checked with ctl := check.control (endpoint.spend leftTicket) }
+    let rightSpend := { raw with ctl := canon.control (endpoint.spend rightTicket) }
+    have leftSelected : leftReady = leftSpend := by simp only [leftReady, leftSpend, SharedEndpointGive.afterReady, verdict]
+    have rightSelected : rightReady = rightSpend := by
+      simp only [rightReady, rightSpend, SharedEndpointGive.afterReady, ← stores, verdict]
+    let spendHost (host : HostState sig) : HostState sig :=
+      { host with writer := (Spend.endpoint endpoint.identity).apply host.writer }
+    let writeAfter (ticket : Nat) (host : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+      .op (.hostSet (spendHost host)) (fun _ => endpoint.afterSpend ticket)
+    let leftWrite := { leftSpend with ctl := check.control (writeAfter leftTicket leftSpend.host) }
+    let rightWrite := { rightSpend with ctl := canon.control (writeAfter rightTicket rightSpend.host) }
+    let leftDone := { leftWrite with host := spendHost leftWrite.host, ctl := check.control (endpoint.afterSpend leftTicket) }
+    let rightDone := { rightWrite with host := spendHost rightWrite.host, ctl := canon.control (endpoint.afterSpend rightTicket) }
+    have read : Step profile ready (specDispatch ready base) leftSpend .tau leftWrite :=
+      .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := writeAfter leftTicket) rfl
+    have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightSpend .tau rightWrite :=
+      .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := writeAfter rightTicket) rfl
+    have commit : Step profile ready (specDispatch ready base) leftWrite .tau leftDone :=
+      .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest)
+        (s := leftDone.host) (k := fun _ => endpoint.afterSpend leftTicket) rfl
+    have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightWrite .tau rightDone :=
+      .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+        (s := rightDone.host) (k := fun _ => endpoint.afterSpend rightTicket) rfl
+    have leftPrepared : FramedQuietPath profile ready (specDispatch ready base) check start [id, id] leftSpend :=
+      leftSelected ▸ lhs
+    have rightPrepared : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming [id, id] rightSpend :=
+      rightSelected ▸ rhs
+    have leftQuiet : FramedQuietPath profile ready (specDispatch ready base) check start [id, id, id] leftWrite :=
+      leftPrepared.append (.step (update := id) read rfl rfl .done)
+    have rightQuiet : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming [id, id, id] rightWrite :=
+      rightPrepared.append (.step (update := id) peerRead rfl rfl .done)
+    have leftPath : ComponentQuietPath profile ready (specDispatch ready base) check start [id, id, id, id] leftDone :=
+      leftQuiet.1.append (ComponentQuietPath.step (update := id) commit rfl (.done _))
+    have rightPath : ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
+        [id, id, id, id] rightDone :=
+      rightQuiet.1.append (ComponentQuietPath.step (update := id) peerCommit rfl (.done _))
+    rcases splitSilent (leftPath.track (.active 0 0)).toTrail.steps run with ⟨remaining, used, tail⟩ | short
+    · rw [used]
+      have certified : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) endpoint leftTicket start leftDone :=
+        ⟨check, checked, leftSpend, leftWrite, leftFocus, sharedEndpointLive endpoint leftLive, verdict,
+          rfl, rfl, rfl, rfl, guard, leftSelected ▸ readiness, read, commit⟩
+      have rawCertified : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+          endpoint rightTicket incoming rightDone :=
+        ⟨canon, raw, rightSpend, rightWrite, rightFocus, sharedEndpointLive endpoint rightLive, stores ▸ verdict,
+          rfl, rfl, rfl, rfl, peerGuard, rightSelected ▸ peerReadiness, peerRead, peerCommit⟩
+      have paths := CallbackPrefix.stationaryTransport (bindings := bindings) leftPath.track rightPath.track
+      refine .destructorPrefix paths (.endpointCommit certified rawCertified) (fun aligned => aligned) ?_
+      have within : remaining.length ≤ limit := by rw [used, List.length_append, List.length_replicate] at bounded; omega
+      exact finishDestructorNominalTransfer (check := check) (canon := canon) (leftTicket := leftTicket) (rightTicket := rightTicket)
+        endpoint.transfer (sharedEndpointTransferEffects endpoint) parents thread segments stores rfl rfl tail scheduler within compare
+    · exact finishDestructorFramedCut leftQuiet rightQuiet run (by simp only [List.length_cons, List.length_nil] at short ⊢; omega)
 
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -17513,7 +17646,11 @@ private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadB
           | giveOwner resource identity =>
             exact finishDestructorOwnerGive ⟨resource, identity, inst⟩ parents thread segments stores checked canonical
               observed (agrees.symm.trans observed) (.cons checkedRead tail) scheduler bounded compare
-          | dropOwner _ _ | endpoint _ _ _ =>
+          | endpoint channel element identity =>
+            cases permit
+            exact finishDestructorEndpointGive ⟨channel, element, identity, inst⟩ parents thread segments stores
+              checked canonical observed (agrees.symm.trans observed) (.cons checkedRead tail) scheduler bounded compare
+          | dropOwner _ _ =>
             exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned)
               (.sharedDropGiveGuarded parents thread segments linked source stores observed (agrees.symm.trans observed)
                 (by change check.control (SharedGiveClaim.afterRead _ inst leftTicket lhs) = _; rw [observed])
