@@ -2572,6 +2572,31 @@ private def CallbackCancelCrossing (profile : ProfileKind) (ready : HostReady (H
     ShorterCallbackSlices profile ready base bindings (label :: trailing).length →
     CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
 
+open ReturnFrame.Occurrence in
+private theorem compareNonGrowingUpdate {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {label next}
+    (failed : ¬ CoreUpdateGrows start) (step : Step profile ready (specDispatch ready base) start label next)
+    (tail : Steps profile ready (specDispatch ready base) next labels finish)
+    (paired : HostFrame.Related.Paired changes start incoming) :
+    CallbackSliceEnd profile ready base bindings changes start incoming (label :: labels) finish := by
+  have openUpdate := failed
+  unfold CoreUpdateGrows at failed
+  split at failed
+  next thread update resume frames rest focus =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique (.modify focus) step
+    obtain ⟨peerFrames, peerRest, atPeer, continued⟩ :=
+      paired.retarget focus (.prog (resume ())) start.host incoming.host
+    have live : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+        { incoming with store := update start.store, ctl := ⟨thread, .prog (resume ()), peerFrames⟩ :: peerRest } := by
+      rw [paired.data.1]
+      exact .modify atPeer
+    have aligned := continued.set_store (update start.store)
+    have path := CallbackPrefix.stationaryTransport (base := base) (bindings := bindings)
+      (fun place => Prefix.step (.modify focus) (by rw [transitionEdit, focus]; rfl) (.done _ place))
+      (fun place => Prefix.step live (by rw [transitionEdit, atPeer]; rfl) (.done _ place))
+    refine .nonGrowing ⟨[], .tau, [], start, _, rfl, .refl _, openUpdate, .modify focus, .refl _⟩
+      aligned path (.framed (.same (.modify focus) rfl (.done _)) (.same live rfl (.done _))) tail
+  next => simp at failed
+
 private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile ready base bindings)
     (component : Option (PLift (CallbackComponentCrossing profile ready base bindings)))
     (poll : Option (PLift (CallbackWaitableCrossing profile ready base bindings true)))
@@ -2677,7 +2702,7 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
         exact ⟨leading ++ [.tau] ++ checked, leading ++ [.tau] ++ canonical, trailing, lhs, rhs,
           by rw [split, used]; simp only [List.append_assoc, List.cons_append, List.nil_append],
           CallbackPrefix.appendExecutedCallbacks (CallbackPrefix.appendExecutedCallbacks front compared) continued, ending⟩
-      | nonGrowingUpdate failed => exact stop (.boundary (.nonGrowingUpdate failed) step tail)
+      | nonGrowingUpdate failed => exact stop (compareNonGrowingUpdate failed step tail front.paired)
 
 theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bindings)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
