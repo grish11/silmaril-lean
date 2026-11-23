@@ -2776,11 +2776,12 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordString _ _ tail => exact tail
+  | sharedRecordStringCompared paths _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedRecordAllocator paths _ _ compared _ ih =>
     simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedRecordAfterPrepare _ _ paths _ tail
-  | sharedRecordCollectionContinuation _ _ paths _ tail
+  | sharedRecordFieldContinuation _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2828,13 +2829,14 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordString _ _ tail => exact tail
+  | sharedRecordStringCompared paths _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedRecordAllocator paths _ _ compared ending =>
     simpa only [List.append_assoc] using
       append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ ending =>
     exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedRecordAfterPrepare _ _ paths _ tail
-  | sharedRecordCollectionContinuation _ _ paths _ tail
+  | sharedRecordFieldContinuation _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14672,7 +14674,7 @@ private theorem classifySharedCollectionResult {left right beforeLeft beforeRigh
   | returned result checkAt canonAt _ =>
     by_cases empty : suffix = []
     · exact .coreAcceptTerminal moved traced residual (.inl empty)
-    · exact .sharedRecordCollectionContinuation checkAt canonAt moved traced residual
+    · exact .sharedRecordFieldContinuation checkAt canonAt moved traced residual
 
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem classifySharedRecordRange {beforeLeft beforeRight : Config (core3 grow) (HostState sig)}
@@ -15027,7 +15029,9 @@ private theorem sharedRecordStringPlanCode (cx : LiftLowerContext (core3 grow)) 
       (ptrType cx >>= sharedRecordStringPlan cx value dest next) := by
   rw [Canon.store.eq_def]
   simp [storePrim, storeString, storeStringIntoRange, bind, Prog.bind_assoc]
-  rfl
+  refine congrArg (ptrType (σ := HostState sig) cx).bind (funext fun width => ?_)
+  unfold sharedRecordStringPlan sharedRecordStringRemaining sharedRecordStringDescriptor
+  simp [bind, Prog.bind_assoc]
 
 /-- The first instruction of each canonical string encoding plan allocates its initial range. -/
 private theorem stringPlanInitialAllocation (encoding : ABI.StringEncoding) (width : AddrType) (value : ABI.StringValue) :
@@ -15074,6 +15078,137 @@ private theorem sharedRecordStringAllocationCode (cx : LiftLowerContext (core3 g
     change ((internal "late-bound call: expected Ret.nat" : Session grow sig Nat).bind _) = _
     rw [internalBind]
     rfl
+
+private def sharedStringLocalStep : ABI.StoreStep → Bool
+  | .allocate .. | .reallocate .. => false
+  | _ => true
+
+private theorem sharedStringStepEffects (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
+    (step : ABI.StoreStep) (localStep : sharedStringLocalStep step = true) :
+    StoreEffects (runStoreStep cx ptr step : Session grow sig Nat) := by
+  have readEffects (len : Nat) : StoreEffects (readMem cx ptr len : Session grow sig ByteArray) := by
+    unfold readMem memAddr
+    exact (storeEffectOrTrap _ _).bind fun _ => storeEffectGet.bind fun _ => storeEffectOrTrap _ _
+  cases step with
+  | allocate | reallocate => contradiction
+  | trapIfMisaligned => exact (storeEffectTrapIf _ _).bind fun _ => .pure _
+  | trapIfOutOfBounds => exact (storeEffectBounds cx ptr _).bind fun _ => .pure _
+  | write => exact (storeEffectWrite cx _ _).bind fun _ => .pure _
+  | inflateLatin1 | deflateUtf16 =>
+    exact (readEffects _).bind fun _ => (storeEffectWrite cx ptr _).bind fun _ => .pure _
+
+private theorem sharedStringDescriptorEffects (cx : LiftLowerContext (core3 grow)) (tagged dest pointer : Nat) :
+    StoreEffects (sharedRecordStringDescriptor cx tagged dest pointer : Session grow sig Unit) := by
+  have size : StoreEffects (ptrSize cx : Session grow sig Nat) := (storeEffectPtrType cx).bind fun _ => .pure _
+  exact size.bind fun n => (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + n) _
+
+open Stored.Endpoints in
+private theorem sharedRecordStringRemainingCons (cx : LiftLowerContext (core3 grow))
+    (step : ABI.StoreStep) (steps : List ABI.StoreStep) (tagged dest pointer : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    sharedRecordStringRemaining cx (step :: steps) tagged dest pointer next =
+      (runStoreStep cx pointer step >>= fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr next) := by
+  unfold sharedRecordStringRemaining runStoreSteps
+  simp only [Prog.foldlM, Prog.bind_eq, Prog.bind_assoc]
+
+private theorem classifySharedStringLocal
+    {Result : Type} {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (body : Session grow sig Result) (effects : StoreEffects body)
+    (checkedNext canonNext : Result → Session grow sig (Ret (core3 grow)))
+    (frame : PairedComponentSite older left right check canon)
+    (checked : left.ctl = check.control (body >>= checkedNext))
+    (canonical : right.ctl = canon.control (body >>= canonNext))
+    (run : Steps profile ready (specDispatch ready base) left labels finish)
+    (resume : ∀ {reached peer : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig} (value : Result),
+      PairedComponentSite older reached peer check canon →
+      reached.ctl = check.control (checkedNext value) → peer.ctl = canon.control (canonNext value) →
+      Steps profile ready (specDispatch ready base) reached suffix finish →
+      CallbackSliceEnd profile ready base bindings older reached peer suffix finish) :
+    CallbackSliceEnd profile ready base bindings older left right labels finish := by
+  obtain ⟨used, suffix, reached, peer, split, paths, residual, frontier, _, _, lhs, rhs, _⟩ :=
+    cutComponentStoreBodyFramed (bindings := bindings) (closed := True) body checkedNext canonNext
+      (fun _ => effects) (trivialPreserves _) trivial checked canonical frame run
+  rw [split]
+  cases frontier with
+  | pending _ _ _ _ _ normal =>
+    exact .coreAcceptTerminal paths (.framed lhs rhs) residual (.inl (normal.resolve_right (fun unsupported => unsupported.1 trivial)))
+  | trapped atLeft atRight _ =>
+    exact .coreAcceptTerminal paths (.framed lhs rhs) residual (.inr (.inr (.inr ⟨atLeft, atRight⟩)))
+  | returned value atLeft atRight site =>
+    exact .sharedRecordStringCompared paths (.framed lhs rhs) (resume value site atLeft atRight residual)
+
+open Stored.Endpoints in
+private theorem classifySharedStringSteps
+    {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (cx : LiftLowerContext (core3 grow)) (steps : List ABI.StoreStep) (tagged dest pointer : Nat)
+    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (frame : PairedComponentSite older left right check canon)
+    (checked : left.ctl = check.control (sharedRecordStringRemaining cx steps tagged dest pointer checkNext))
+    (canonical : right.ctl = canon.control (sharedRecordStringRemaining cx steps tagged dest pointer canonNext))
+    (run : Steps profile ready (specDispatch ready base) left labels finish) :
+    CallbackSliceEnd profile ready base bindings older left right labels finish := by
+  induction steps generalizing pointer left right labels with
+  | nil =>
+    exact classifySharedStringLocal (sharedRecordStringDescriptor cx tagged dest pointer)
+      (sharedStringDescriptorEffects cx tagged dest pointer) (fun _ => checkNext (.ok ())) (fun _ => canonNext (.ok ()))
+      frame checked canonical run (fun {_ _ suffix} _ _ atLeft atRight tail => by
+        by_cases empty : suffix = []
+        · subst suffix
+          rw [stepsAtEmpty tail]
+          exact .exhausted
+        · exact .sharedRecordFieldContinuation atLeft atRight
+            (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
+            WriterPaths.empty tail)
+  | cons step remaining ih =>
+    by_cases noAllocation : sharedStringLocalStep step = true
+    · rw [sharedRecordStringRemainingCons] at checked canonical
+      exact classifySharedStringLocal (runStoreStep cx pointer step) (sharedStringStepEffects cx pointer step noAllocation)
+        (fun ptr => sharedRecordStringRemaining cx remaining tagged dest ptr checkNext)
+        (fun ptr => sharedRecordStringRemaining cx remaining tagged dest ptr canonNext)
+        frame checked canonical run (fun ptr => ih ptr)
+    · by_cases empty : labels = []
+      · subst labels
+        rw [stepsAtEmpty run]
+        exact .exhausted
+      · exact .sharedRecordString checked canonical run
+
+open Stored.Endpoints in
+private theorem classifySharedStringResume {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (cx : LiftLowerContext (core3 grow)) (steps : List ABI.StoreStep) (tagged dest : Nat)
+    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (value : Ret (core3 grow))
+    (parent : LinkedCallback.ChildFrameOver older left right check canon) :
+    let checked := { left with ctl := check.control (sharedRecordStringResume cx steps tagged dest checkNext value) }
+    let canonical := { right with ctl := canon.control (sharedRecordStringResume cx steps tagged dest canonNext value) }
+    Steps profile ready (specDispatch ready base) checked labels finish →
+    CallbackSliceEnd profile ready base bindings older checked canonical labels finish := by
+  dsimp only
+  intro run
+  have frame : ∀ first second : Session grow sig (Ret (core3 grow)),
+      PairedComponentSite older { left with ctl := check.control first } { right with ctl := canon.control second } check canon :=
+    fun _ _ => pairAfterComponentPop (left := left) (right := right) (program := .pure (.cancel .none)) parent
+  have malformed (actual : Ret (core3 grow))
+      (badLeft : sharedRecordStringResume cx steps tagged dest checkNext actual =
+        (internal "late-bound call: expected Ret.nat" : Session grow sig (Ret (core3 grow))))
+      (badRight : sharedRecordStringResume cx steps tagged dest canonNext actual =
+        (internal "late-bound call: expected Ret.nat" : Session grow sig (Ret (core3 grow)))) :
+      let checked := { left with ctl := check.control (sharedRecordStringResume cx steps tagged dest checkNext actual) }
+      let canonical := { right with ctl := canon.control (sharedRecordStringResume cx steps tagged dest canonNext actual) }
+      Steps profile ready (specDispatch ready base) checked labels finish →
+      CallbackSliceEnd profile ready base bindings older checked canonical labels finish := by
+    dsimp only
+    intro tail
+    let msg := "late-bound call: expected Ret.nat"
+    let body : Session grow sig Empty := internal msg
+    let impossible (value : Empty) : Session grow sig (Ret (core3 grow)) := nomatch value
+    have stuck : body >>= impossible = internal msg := internalBind msg impossible
+    exact classifySharedStringLocal body (storeEffectTrap (.internal msg)) impossible impossible (frame _ _)
+      (by rw [badLeft, stuck]) (by rw [badRight, stuck]) tail (fun value => nomatch value)
+  cases value
+  case nat ptr => exact classifySharedStringSteps cx steps tagged dest ptr checkNext canonNext (frame _ _) rfl rfl run
+  all_goals exact malformed _ rfl rfl run
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
@@ -15665,12 +15800,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
                 canonical.trans (congrArg canon.control (sharedRecordStringAllocationCode cx width value ptr canonNext
                   alignment size remaining steps))
               exact crossSharedReallocate cx 0 0 alignment.bytes size _ _
-                (fun {_ _ _ _ _ suffix} _ tail => by
-                  by_cases empty : suffix = []
-                  · subst suffix
-                    rw [stepsAtEmpty tail]
-                    exact .exhausted
-                  · exact .sharedRecordString rfl rfl tail)
+                (fun child tail => classifySharedStringResume cx remaining tagged ptr checkNext canonNext _ child tail)
                 split paired paths writers frame checkedAt canonicalAt residual compare
             exact advance (ptrType cx) (storeEffectPtrType cx) planCheck planCanon finishWidth
               split paths writers frame checkAt canonAt residual

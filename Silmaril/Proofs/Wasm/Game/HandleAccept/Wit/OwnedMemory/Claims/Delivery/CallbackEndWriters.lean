@@ -123,11 +123,12 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     exact follow paths writers (follow compared.occurrences compared.writers ih)
   | sharedGiveProbeMismatch _ _ _ paths writers residual => exact terminal paths writers residual
   | sharedRecordString _ _ residual => exact stop residual
+  | sharedRecordStringCompared paths writers _ ih => exact follow paths writers ih
   | sharedRecordAllocator paths writers _ compared _ ih =>
     simpa only [List.append_assoc] using follow paths writers (follow compared.occurrences compared.writers ih)
   | sharedRecordAllocatorPop _ _ _ _ _ paths writers _ ih => exact follow paths writers ih
   | sharedRecordAfterPrepare _ _ paths writers residual
-  | sharedRecordCollectionContinuation _ _ paths writers residual => exact terminal paths writers residual
+  | sharedRecordFieldContinuation _ _ paths writers residual => exact terminal paths writers residual
   | sharedRecordPrepareMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedRecordOwnerMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedRecordEndpointMismatch _ paths writers residual => exact terminal paths writers residual

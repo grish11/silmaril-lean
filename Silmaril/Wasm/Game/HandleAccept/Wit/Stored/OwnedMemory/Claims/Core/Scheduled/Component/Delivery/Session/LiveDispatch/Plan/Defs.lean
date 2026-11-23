@@ -459,6 +459,13 @@ def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
   let ptr ← ListLower.allocateRange cx (ABI.layout width element) entries.length
   sharedRecordAllocated cx width element entries index dest ptr
 
+/-- The descriptor writes performed after the canonical string loop. -/
+def sharedRecordStringDescriptor (cx : LiftLowerContext (core3 grow)) (tagged dest pointer : Nat) :
+    Session grow sig Unit := do
+  let size ← ptrSize cx
+  writeMem cx dest (strWordBytes size pointer)
+  writeMem cx (dest + size) (strWordBytes size tagged)
+
 open Stored.Endpoints in
 /-- Resume the actual canonical string loop at its reached pointer and remaining steps. -/
 def sharedRecordStringRemaining (cx : LiftLowerContext (core3 grow))
@@ -466,9 +473,7 @@ def sharedRecordStringRemaining (cx : LiftLowerContext (core3 grow))
     (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
     Session grow sig (Ret (core3 grow)) := do
   let begin ← runStoreSteps cx pointer steps
-  let size ← ptrSize cx
-  writeMem cx dest (strWordBytes size begin)
-  writeMem cx (dest + size) (strWordBytes size tagged)
+  sharedRecordStringDescriptor cx tagged dest begin
   next (.ok ())
 
 open Stored.Endpoints in
@@ -1990,14 +1995,20 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- Internal proof frontier at the actual continuation after the marked string allocator pop. -/
+  /-- The actual next string realloc, after the preceding local steps. -/
   | sharedRecordString {changes reached peer finish trailing}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx steps tagged dest value}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx steps tagged dest pointer}
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : reached.ctl = check.control (sharedRecordStringResume cx steps tagged dest checkedNext value))
-      (canonical : peer.ctl = canon.control (sharedRecordStringResume cx steps tagged dest canonicalNext value))
+      (checked : reached.ctl = check.control (sharedRecordStringRemaining cx steps tagged dest pointer checkedNext))
+      (canonical : peer.ctl = canon.control (sharedRecordStringRemaining cx steps tagged dest pointer canonicalNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- A compared local string instruction, followed by the actual remaining run. -/
+  | sharedRecordStringCompared {changes reached peer left right leading trailing finish}
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   /-- The actual shared allocator is compared under its two installed
   continuations. The marked callback ending retains the checked suffix. -/
   | sharedRecordAllocator {changes reached peer left right resumed canonical leading checked canonLabels trailing finish marks}
@@ -2039,9 +2050,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The actual collection body and descriptor publication have returned
-  to their original field continuation. -/
-  | sharedRecordCollectionContinuation {changes reached peer left right leading trailing finish marks}
+  /-- The actual field body has returned to its original continuation. -/
+  | sharedRecordFieldContinuation {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {result : Except Stored.Endpoints.RecordLower.Issue Unit}
       {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
