@@ -2868,7 +2868,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropParentJoined paths _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropParentLoop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | sharedDropParentLoopJoined paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
+  | sharedDropParentLoopJoined _ _ _ _ ih => exact ih
   | sharedDropLoopReturn paths _ _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
@@ -2942,8 +2942,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropParentJoined paths _ _ _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropParentLoop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | sharedDropParentLoopJoined paths _ _ ending =>
-    exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
+  | sharedDropParentLoopJoined _ _ _ ending => exact callbackEndSteps ending
   | sharedDropLoopReturn paths _ _ _ _ _ ending =>
     exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropCompared _ _ paths _ compared ending =>
@@ -15466,6 +15465,144 @@ private theorem compareDestructorParentJournal {thread frame frames peerFrames r
           exact .cons (.mk framesPaired) restPaired)
 
 open ReturnFrame.Occurrence in
+private theorem crossSourceSyncLiftIteration
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (task : TaskId) (first second : Ret (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = check.control (.op (.call (.loop (.syncLiftLoop task))) first))
+    (rightAt : incoming.ctl = canon.control (.op (.call (.loop (.syncLiftLoop task))) second))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (onReply : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = start.store → right.store = incoming.store →
+      left.ctl = check.control (first .unit) → right.ctl = canon.control (second .unit) →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length < labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish)
+    (onCandidates : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
+      (entry : Task (core3 grow)) (candidates : List ThreadId),
+      start.store.task? task = some entry → entry.state ≠ .resolved →
+      left.store = start.store → right.store = incoming.store →
+      left.ctl = { check with frames := .prog first :: check.frames }.control (syncLiftCandidates task candidates) →
+      right.ctl = { canon with frames := .prog second :: canon.frames }.control (syncLiftCandidates task candidates) →
+      (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length < labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let checking := { check with frames := .prog first :: check.frames }
+  let canonical := { canon with frames := .prog second :: canon.frames }
+  let call : Call (core3 grow) := .loop (.syncLiftLoop task)
+  let left := { start with ctl := checking.control (syncLiftLoopBody ready task) }
+  let right := { incoming with ctl := canonical.control (syncLiftLoopBody ready task) }
+  have leftCall : Step profile ready (specDispatch ready base) start .tau left :=
+    .call (th := check.thread) (c := call) (k := first) (segs := check.frames) (rest := check.rest) leftAt
+  have rightCall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+    .call (th := canon.thread) (c := call) (k := second) (segs := canon.frames) (rest := canon.rest) rightAt
+  cases run with
+  | refl => exact .exhausted
+  | @cons _ _ _ _ suffix actual tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique leftCall actual
+    have leftEdit : transitionEdit start .tau = .push (.prog first) := by rw [transitionEdit, leftAt]; rfl
+    have rightEdit : transitionEdit incoming .tau = .push (.prog second) := by rw [transitionEdit, rightAt]; rfl
+    have installed := sharedPushTransport (bindings := bindings) leftCall rightCall leftEdit rightEdit
+    refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun scheduler => scheduler) ?_
+    let read := sharedDestructorReadLoopTask (grow := grow) ready task
+    have leftReadAt : left.ctl = checking.control (.op .get read) := congrArg checking.control (sharedDestructorLoopReadCode ready task)
+    have rightReadAt : right.ctl = canonical.control (.op .get read) := congrArg canonical.control (sharedDestructorLoopReadCode ready task)
+    let readLeft := { left with ctl := checking.control (read left.store) }
+    let readRight := { right with ctl := canonical.control (read left.store) }
+    have leftRead : Step profile ready (specDispatch ready base) left .tau readLeft :=
+      .get (th := checking.thread) (segs := checking.frames) (rest := checking.rest) (k := read) leftReadAt
+    have rightRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau readRight := by
+      have step := Step.get (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+        (th := canonical.thread) (segs := canonical.frames) (rest := canonical.rest) (k := read) rightReadAt
+      rw [congrArg read stores.symm] at step
+      exact step
+    rcases splitSilent (count := 1) (.cons leftRead (.refl _)) tail with ⟨afterRead, used, residual⟩ | short
+    · rw [used]
+      have visited := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftRead rightRead
+        (by rw [transitionEdit, leftReadAt]; rfl) (by rw [transitionEdit, rightReadAt]; rfl)
+      refine .destructorPrefix visited (frameCalloutStep visited rfl rfl) (fun scheduler => scheduler) ?_
+      cases taskAt : left.store.task? task with
+      | none =>
+        have evaluates : read left.store = internal "dangling arena id" := by simp only [read, sharedDestructorReadLoopTask, taskAt]
+        have checkedAt := congrArg checking.control evaluates
+        have canonicalAt := congrArg canonical.control evaluates
+        exact compareSharedDestructorTrap (.internal "dangling arena id") checkedAt canonicalAt residual
+      | some tk =>
+        by_cases doneState : tk.state = .resolved
+        · have evaluates : read left.store = .pure .unit := by
+            simp only [read, sharedDestructorReadLoopTask, taskAt, doneState, ite_true]
+          have leftReplyAt : readLeft.ctl = checking.control (.pure .unit) := congrArg checking.control evaluates
+          have rightReplyAt : readRight.ctl = canonical.control (.pure .unit) := congrArg canonical.control evaluates
+          have leftPop := Step.popProg (prof := profile) (hr := ready) (dispatch := specDispatch ready base)
+            (m := readLeft) (th := check.thread) (r := .unit) (k := first) (segs := check.frames) (rest := check.rest)
+            (congrArg checking.control evaluates)
+          have rightPop := Step.popProg (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+            (m := readRight) (th := canon.thread) (r := .unit) (k := second) (segs := canon.frames) (rest := canon.rest)
+            (congrArg canonical.control evaluates)
+          rcases splitSilent (count := 1) (.cons leftPop (.refl _)) residual with ⟨afterPop, popped, remainder⟩ | short
+          · rw [popped]
+            have pop := sharedSchedulerTransport (bindings := bindings) (edit := .pop) leftPop rightPop
+              (by rw [transitionEdit, leftReplyAt]; rfl)
+              (by rw [transitionEdit, rightReplyAt]; rfl)
+            exact .destructorPrefix pop (frameCalloutStep pop rfl rfl) (fun scheduler => scheduler)
+              (onReply rfl rfl rfl rfl (fun aligned => aligned) remainder
+                (Nat.lt_succ_of_le (destructorSuffixBound popped (destructorSuffixBound used (Nat.le_refl _)))))
+          · have empty : afterRead = [] := List.length_eq_zero_iff.mp (by omega)
+            have stopped := stepsAtEmpty (empty ▸ residual)
+            exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+        · let peek (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+            .op .hostGet (fun host => syncLiftCandidates task (store.instCandidates (ready host) tk.inst))
+          have pending : read left.store = .op .get peek := by
+            simp only [read, sharedDestructorReadLoopTask, taskAt, doneState, ite_false]
+            rfl
+          let leftPeek := { readLeft with ctl := checking.control (peek left.store) }
+          let rightPeek := { readRight with ctl := canonical.control (peek left.store) }
+          have leftAtGet : readLeft.ctl = checking.control (.op .get peek) := congrArg checking.control pending
+          have rightAtGet : readRight.ctl = canonical.control (.op .get peek) := congrArg canonical.control pending
+          have leftGet : Step profile ready (specDispatch ready base) readLeft .tau leftPeek :=
+            .get (th := checking.thread) (segs := checking.frames) (rest := checking.rest) (k := peek) leftAtGet
+          have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) readRight .tau rightPeek := by
+            have raw := Step.get (prof := profile) (hr := ready)
+              (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+              (th := canonical.thread) (segs := canonical.frames) (rest := canonical.rest) (k := peek) rightAtGet
+            rw [congrArg peek stores.symm] at raw
+            exact raw
+          rcases splitSilent (count := 1) (.cons leftGet (.refl _)) residual with ⟨afterGet, got, fromGet⟩ | short
+          · rw [got]
+            have readStore := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet
+              (by rw [transitionEdit, leftAtGet]; rfl)
+              (by rw [transitionEdit, rightAtGet]; rfl)
+            refine .destructorPrefix readStore (frameCalloutStep readStore rfl rfl) (fun aligned => aligned) ?_
+            let observe (host : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+              syncLiftCandidates task (left.store.instCandidates (ready host) tk.inst)
+            have leftFocus : leftPeek.ctl = checking.control (.op .hostGet observe) := rfl
+            have rightFocus : rightPeek.ctl = canonical.control (.op .hostGet observe) := rfl
+            have leftHost := Step.hostGet (prof := profile) (hr := ready)
+              (dispatch := specDispatch ready base) leftFocus
+            have rightHost := Step.hostGet (prof := profile) (hr := ready)
+              (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightFocus
+            rcases splitSilent (count := 1) (.cons leftHost (.refl _)) fromGet with ⟨afterHost, readHost, fromHost⟩ | short
+            · rw [readHost]
+              have observed := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftHost rightHost rfl rfl
+              classical
+              by_cases agrees : observe leftPeek.host = observe rightPeek.host
+              · refine .destructorPrefix observed (frameCalloutStep observed rfl rfl) (fun aligned => aligned) ?_
+                exact onCandidates tk _ taskAt doneState rfl rfl rfl (congrArg canonical.control agrees.symm)
+                  (fun aligned => aligned) fromHost (Nat.lt_succ_of_le (destructorSuffixBound readHost
+                    (destructorSuffixBound got (destructorSuffixBound used (Nat.le_refl _)))))
+              · exact .observation leftFocus agrees observed (frameCalloutStep observed rfl rfl) fromHost
+            · have empty : afterGet = [] := List.length_eq_zero_iff.mp (by omega)
+              have stopped := stepsAtEmpty (empty ▸ fromGet)
+              exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+          · have empty : afterRead = [] := List.length_eq_zero_iff.mp (by omega)
+            have stopped := stepsAtEmpty (empty ▸ residual)
+            exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+    · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
+      have stopped := stepsAtEmpty (empty ▸ tail)
+      exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+
+open ReturnFrame.Occurrence in
 private theorem crossSourceDestructorParentLoop
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (body : ThreadBody (core3 grow)) (leftTicket rightTicket : Nat)
@@ -15482,74 +15619,11 @@ private theorem crossSourceDestructorParentLoop
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   rw [sharedDestructorParentCode] at leftAt rightAt
-  let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
-  let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
-  let checking := { check with frames := .prog first :: check.frames }
-  let canonical := { canon with frames := .prog second :: canon.frames }
-  let call : Call (core3 grow) := .loop (.syncLiftLoop body.task)
-  let left := { start with ctl := checking.control (syncLiftLoopBody ready body.task) }
-  let right := { incoming with ctl := canonical.control (syncLiftLoopBody ready body.task) }
-  have leftCall : Step profile ready (specDispatch ready base) start .tau left :=
-    .call (th := check.thread) (c := call) (k := first) (segs := check.frames) (rest := check.rest) leftAt
-  have rightCall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
-    .call (th := canon.thread) (c := call) (k := second) (segs := canon.frames) (rest := canon.rest) rightAt
-  cases run with
-  | refl => exact .exhausted
-  | @cons _ _ _ _ suffix actual tail =>
-    obtain ⟨rfl, rfl⟩ := silentStepUnique leftCall actual
-    have leftEdit : transitionEdit start .tau = .push (.prog first) := by rw [transitionEdit, leftAt]; rfl
-    have rightEdit : transitionEdit incoming .tau = .push (.prog second) := by rw [transitionEdit, rightAt]; rfl
-    have installed := sharedPushTransport (bindings := bindings) leftCall rightCall leftEdit rightEdit
-    refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun scheduler => scheduler) ?_
-    let read := sharedDestructorReadLoopTask (grow := grow) ready body.task
-    have leftReadAt : left.ctl = checking.control (.op .get read) := congrArg checking.control (sharedDestructorLoopReadCode ready body.task)
-    have rightReadAt : right.ctl = canonical.control (.op .get read) := congrArg canonical.control (sharedDestructorLoopReadCode ready body.task)
-    let readLeft := { left with ctl := checking.control (read left.store) }
-    let readRight := { right with ctl := canonical.control (read left.store) }
-    have leftRead : Step profile ready (specDispatch ready base) left .tau readLeft :=
-      .get (th := checking.thread) (segs := checking.frames) (rest := checking.rest) (k := read) leftReadAt
-    have rightRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau readRight := by
-      have step := Step.get (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
-        (th := canonical.thread) (segs := canonical.frames) (rest := canonical.rest) (k := read) rightReadAt
-      rw [congrArg read stores.symm] at step
-      exact step
-    rcases splitSilent (count := 1) (.cons leftRead (.refl _)) tail with ⟨afterRead, used, residual⟩ | short
-    · rw [used]
-      have visited := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftRead rightRead
-        (by rw [transitionEdit, leftReadAt]; rfl) (by rw [transitionEdit, rightReadAt]; rfl)
-      refine .destructorPrefix visited (frameCalloutStep visited rfl rfl) (fun scheduler => scheduler) ?_
-      cases taskAt : left.store.task? body.task with
-      | none =>
-        have evaluates : read left.store = internal "dangling arena id" := by simp only [read, sharedDestructorReadLoopTask, taskAt]
-        have checkedAt := congrArg checking.control evaluates
-        have canonicalAt := congrArg canonical.control evaluates
-        exact compareSharedDestructorTrap (.internal "dangling arena id") checkedAt canonicalAt residual
-      | some tk =>
-        have doneState : tk.state = .resolved := resolved tk taskAt
-        have evaluates : read left.store = .pure .unit := by
-          simp only [read, sharedDestructorReadLoopTask, taskAt, doneState, ite_true]
-        have leftReplyAt : readLeft.ctl = checking.control (.pure .unit) := congrArg checking.control evaluates
-        have rightReplyAt : readRight.ctl = canonical.control (.pure .unit) := congrArg canonical.control evaluates
-        have leftPop := Step.popProg (prof := profile) (hr := ready) (dispatch := specDispatch ready base)
-          (m := readLeft) (th := check.thread) (r := .unit) (k := first) (segs := check.frames) (rest := check.rest)
-          (congrArg checking.control evaluates)
-        have rightPop := Step.popProg (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
-          (m := readRight) (th := canon.thread) (r := .unit) (k := second) (segs := canon.frames) (rest := canon.rest)
-          (congrArg canonical.control evaluates)
-        rcases splitSilent (count := 1) (.cons leftPop (.refl _)) residual with ⟨afterPop, popped, remainder⟩ | short
-        · rw [popped]
-          have pop := sharedSchedulerTransport (bindings := bindings) (edit := .pop) leftPop rightPop
-            (by rw [transitionEdit, leftReplyAt]; rfl)
-            (by rw [transitionEdit, rightReplyAt]; rfl)
-          exact .destructorPrefix pop (frameCalloutStep pop rfl rfl) (fun scheduler => scheduler)
-            (onReply stores rfl rfl (fun aligned => aligned) remainder
-              (destructorSuffixBound popped (destructorSuffixBound used (Nat.le_succ _))))
-        · have empty : afterRead = [] := List.length_eq_zero_iff.mp (by omega)
-          have stopped := stepsAtEmpty (empty ▸ residual)
-          exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
-    · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
-      have stopped := stepsAtEmpty (empty ▸ tail)
-      exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+  refine crossSourceSyncLiftIteration body.task _ _ stores leftAt rightAt run ?_ ?_
+  · intro left right remaining checkStore canonStore checkAt canonAt align residual shorter
+    exact onReply (checkStore.trans (stores.trans canonStore.symm)) checkAt canonAt align residual (Nat.le_of_lt shorter)
+  · intro left right remaining entry _ found pending
+    exact False.elim (pending (resolved entry found))
 
 open ReturnFrame.Occurrence in
 private theorem compareDestructorParentLoop {thread frame frames peerFrames rest peerRest}
@@ -16738,8 +16812,8 @@ private theorem rejoinDestructorLoopEntry {limit : Nat} {sourceCfg peerCfg : Con
   match ending with
   | .sharedDropParentLoop paths writers frames restore residual =>
     obtain ⟨restored, outside⟩ := restore scheduler
-    exact .sharedDropParentLoopJoined paths writers restored
-      (finishBlockedDestructorLoop frames restored outside residual (Nat.lt_of_succ_le bounded) compare)
+    exact .comparedPrefix paths writers (.sharedDropParentLoopJoined frames restored outside
+      (finishBlockedDestructorLoop frames restored outside residual (Nat.lt_of_succ_le bounded) compare))
   | other => exact other
 
 private theorem destructorParentStack {body : ThreadBody (core3 grow)} {left right}
@@ -17095,6 +17169,60 @@ private theorem finishSourceSwitchTarget {limit : Nat}
           · exact .boundary (.write leftAt) (.hostSet leftAt) tail
 
 open ReturnFrame.Occurrence in
+private theorem finishReachedDestructorParentLoop {limit : Nat} {body : ThreadBody (core3 grow)}
+    (parents : DestructorParentChain older body start.ctl incoming.ctl)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  obtain ⟨thread, frame, frames, peerFrames, rest, peerRest, leftTicket, rightTicket,
+    framesPaired, restPaired, leftAt, rightAt⟩ := destructorParentCoordinates parents
+  rw [sharedDestructorParentCode] at leftAt rightAt
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
+  let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
+  refine crossSourceSyncLiftIteration (check := check) (canon := canon) body.task first second
+    stores leftAt rightAt run ?_ ?_
+  · intro left right remaining checkStore canonStore checked canonical align residual shorter
+    have journal := compareDestructorParentJournal (bindings := bindings) leftTicket rightTicket
+      (checkStore.trans (stores.trans canonStore.symm)) framesPaired restPaired checked canonical residual
+    exact rejoinDestructorParentJournal journal (align scheduler) ((Nat.le_of_lt shorter).trans bounded) compare
+  · intro left right remaining _ candidates _ _ checkStore canonStore checked canonical align residual shorter
+    let program := syncLiftCandidates (E := core3 grow) (σ := HostState sig) body.task candidates
+    have same := checkStore.trans (stores.trans canonStore.symm)
+    let idle : Session grow sig (Ret (core3 grow)) := .pure .unit
+    have peeled : HostFrame.Related.Paired older
+        { left with ctl := check.control idle } { right with ctl := canon.control idle } :=
+      destructorSchedulerPair (align scheduler) same (.cons (.mk (.cons (.same _) framesPaired)) restPaired)
+    obtain ⟨otherFrames, otherRest, atPeer, expanded⟩ :=
+      peeled.push (show ({ left with ctl := check.control idle }).ctl = _ from rfl) program first second
+    change ⟨thread, .prog idle, frame :: peerFrames⟩ :: peerRest = _ at atPeer
+    rw [List.cons.injEq, Activation.mk.injEq] at atPeer
+    obtain ⟨⟨_, _, rfl⟩, rfl⟩ := atPeer
+    have paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) left right := by
+      have leftEq : { left with ctl := { check with frames := .prog first :: check.frames }.control program } = left := by
+        cases left
+        simp only [Config.mk.injEq, true_and, and_true]
+        exact checked.symm
+      have rightEq : { right with ctl := { canon with frames := .prog second :: canon.frames }.control program } = right := by
+        cases right
+        simp only [Config.mk.injEq, true_and, and_true]
+        exact canonical.symm
+      exact leftEq ▸ rightEq ▸ expanded
+    have frames : DestructorParentLoopFrames first second frame left right := by
+      constructor <;> simp only [segmentStorage, checked, canonical] <;> rfl
+    have related := paired_outside (show ReturnFrame.Related.Paired older
+      (HostFrame.replace { left with ctl := check.control idle } right.host) { right with ctl := canon.control idle }
+      from peeled)
+    have outside : Outside older (segmentStorage left) (segmentStorage right) (some (.active 0 0)) := by
+      simp only [segmentStorage, checked, canonical, PayloadPrefix.Cursor.control]
+      exact outside_push (.prog first) (.prog second) related
+    exact .sharedDropParentLoopJoined frames paired outside
+      (finishBlockedDestructorLoop frames paired outside residual (Nat.lt_of_lt_of_le shorter bounded) compare)
+
+open ReturnFrame.Occurrence in
 private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
     {rest peerRest left right active peerActive}
     (parents : DestructorParentChain older body rest peerRest)
@@ -17115,7 +17243,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
   have reached : DestructorParentChain older body lhs.ctl rhs.ctl := by
     rw [lhsAt, rhsAt]
     exact parents
-  exact rejoinDestructorLoopEntry (enterDestructorParentLoop reached same residual) aligned shorter compare
+  exact finishReachedDestructorParentLoop reached same aligned residual shorter compare
 
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}

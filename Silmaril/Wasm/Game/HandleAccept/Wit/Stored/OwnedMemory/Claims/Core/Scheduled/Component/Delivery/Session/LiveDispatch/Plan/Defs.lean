@@ -2779,12 +2779,17 @@ induction. Its trails still identify the removed original occurrences. -/
           (ReturnFrame.Occurrence.segmentStorage right) (some (.active 0 0)))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
-  | sharedDropParentLoopJoined {changes reached peer left right trailing finish first second}
-      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
-      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] left right)
-      (restored : HostFrame.Related.Paired (ReturnFrame.Extend changes first second) left right)
-      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second) left right trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  /-- Compare the reached loop under its installed return substitution. Both
+  original occurrences are present when this comparison starts. -/
+  | sharedDropParentLoopJoined {changes reached peer trailing finish first second enclosing}
+      (frames : DestructorParentLoopFrames first second enclosing reached peer)
+      (restored : HostFrame.Related.Paired (ReturnFrame.Extend changes first second) reached peer)
+      (outside : ReturnFrame.Occurrence.Outside changes
+        (ReturnFrame.Occurrence.segmentStorage reached)
+        (ReturnFrame.Occurrence.segmentStorage peer) (some (.active 0 0)))
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second)
+        reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The executed original loop pop removes only the loop substitution.
   The enclosing occurrence remains active for its ticket-specific journal. -/
   | sharedDropLoopReturn {changes reached peer left right trailing finish first second checkEntry canonEntry checkTrace canonTrace}

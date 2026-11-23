@@ -144,8 +144,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     simpa only [List.singleton_append] using terminal paths writers residual
   | sharedDropParentLoop paths writers _ _ residual =>
     simpa only [List.singleton_append] using terminal paths writers residual
-  | sharedDropParentLoopJoined paths writers _ _ ih =>
-    simpa only [List.singleton_append] using follow paths writers ih
+  | sharedDropParentLoopJoined _ _ _ _ ih => exact ih
   | sharedDropLoopReturn paths writers _ _ _ _ _ ih =>
     simpa only [List.singleton_append] using follow paths writers ih
   | sharedDropCompared _ _ paths writers compared _ ih =>
