@@ -19173,6 +19173,138 @@ private theorem crossDestructorRecordAllocatorResult {limit : Nat} {body : Threa
       exact crossDestructorRecordAllocatorTaskReturn (check := check) (canon := canon)
         parents thread onPointer cx task caller worker value source stores rfl rfl scheduler tail (Nat.le_of_succ_le within)
 
+private theorem allocatorThreadIndexEffects (invariant : CStore (core3 grow) → Prop)
+    (args : List FlatValue) :
+    DestructorWorkerEffects invariant (withArgs0 args Builtins.threadIndex : Session grow sig (List FlatValue)) := by
+  cases args with
+  | cons =>
+    exact liftDestructorStoreEffects (storeEffectTrap _) (.op trivial fun impossible => nomatch impossible)
+  | nil =>
+    unfold withArgs0 Builtins.threadIndex
+    refine liftDestructorStoreEffects
+      (destructorThreadEntryEffects.bind fun (_, record, _) =>
+        (storeEffectOrTrap _ record.index).bind fun _ => .pure _) ?_
+    have current : Prog.Every (storePreserves invariant) (currentThreadId : Session grow sig ThreadId) := by
+      unfold currentThreadId
+      refine .op trivial fun result => ?_
+      cases result with
+      | none => exact .op trivial fun impossible => nomatch impossible
+      | some thread => exact .pure thread
+    have guard (denied : Bool) :
+        Prog.Every (storePreserves invariant) (trapIf denied .cannotLeave : Session grow sig Unit) := by
+      cases denied
+      · exact .pure ()
+      · exact .op trivial fun impossible => nomatch impossible
+    have enter : Prog.Every (storePreserves invariant)
+        (Builtins.enterThreadBuiltin : Session grow sig (ThreadId × Runtime.Thread × Task (core3 grow))) := by
+      unfold Builtins.enterThreadBuiltin getThread getTask getInst
+      exact current.bind fun thread =>
+        (sharedWorkerGetPreserves invariant ArenaField.threads thread).bind fun record =>
+        (sharedWorkerGetPreserves invariant ArenaField.tasks record.task).bind fun task =>
+        (sharedWorkerGetPreserves invariant ArenaField.insts task.inst).bind fun inst =>
+        (guard (!inst.mayLeave)).bind fun _ => .pure _
+    exact enter.bind fun (_, record, _) =>
+      (sharedWorkerOrTrapPreserves invariant _ record.index).bind fun _ => .pure _
+
+open ReturnFrame.Occurrence in
+private theorem crossDestructorAllocatorCoreImport {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {cx : LiftLowerContext (core3 grow)} {request : ABI.ReallocRequest} {width : AddrType}
+    {core : (core3 grow).Thread (CanonHost (core3 grow))} {host args task caller worker entry}
+    (parents : DestructorParentChain older body check.rest canon.rest) (thread : check.thread = canon.thread)
+    (typeAt : entry.ft = reallocType width) (optionsAt : entry.opts = {}) (callerAt : entry.caller = caller)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (source : SharedRecordAllocatorSource cx request width task caller start.store)
+    (checked : start.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ ::
+        check.control (sharedRecordAllocatorAfterResume cx task caller))
+    (canonical : incoming.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ ::
+        canon.control (sharedRecordAllocatorAfterResume cx task caller))
+    (status : (core3 grow).status start.store.core core = .callout host args)
+    (run : Steps profile ready (specDispatch ready base) start (.tau :: labels) finish)
+    (reenter : SharedFramedCoreContinuation profile ready base bindings older
+      ⟨some worker, [], check.control (sharedRecordAllocatorAfterResume cx task caller)⟩
+      ⟨some worker, [], canon.control (sharedRecordAllocatorAfterResume cx task caller)⟩ task entry
+      (fun left right => DestructorSchedulerAlignment older left right ∧ SharedRecordAllocatorSource cx request width task caller left.store)
+      (.tau :: labels).length finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming (.tau :: labels) finish := by
+  let parent := sharedRecordAllocatorAfterResume (sig := sig) cx task caller
+  let ret := sharedDestructorCoreResult (sig := sig) task entry
+  let mark : Seg (core3 grow) (HostState sig) := .core core ret
+  let lhs : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [mark], check.control parent⟩
+  let rhs : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [mark], canon.control parent⟩
+  let call : Call (core3 grow) := .hostCallout host args
+  let left := { start with ctl := lhs.control (specDispatch ready base call) }
+  let right := { incoming with ctl := rhs.control (specDispatch ready (LiveDispatch.host bindings base) call) }
+  have install : Step profile ready (specDispatch ready base) start .tau left := .coreCallout checked status
+  have peerInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+    .coreCallout canonical (stores ▸ status)
+  cases run with
+  | cons actual tail =>
+    obtain ⟨_, rfl⟩ := silentStepUnique install actual
+    have installed := sharedSchedulerTransport (bindings := bindings) (edit := .push mark) install peerInstall
+      (by simp only [transitionEdit, checked, status, mark, ret])
+      (by simp only [transitionEdit, canonical, ← stores, status, mark, ret])
+    refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun aligned => aligned) ?_
+    have leftReads := sharedDestructorImportReads (profile := profile) (ready := ready) (start := left) base lhs host args rfl
+    have rightReads := sharedDestructorImportReads (profile := profile) (ready := ready) (start := right)
+      (LiveDispatch.host bindings base) rhs host args rfl
+    obtain ⟨used, remaining, reached, peer, split, paths, writers, residual, ending⟩ :=
+      cutSharedQuietWorker leftReads rightReads tail
+    rw [split]
+    rcases ending with empty | ⟨rfl, rfl⟩
+    · subst remaining
+      cases residual
+      exact .comparedPrefix paths writers .exhausted
+    · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+      cases admitted : calloutEntry start.store (some worker) host with
+      | some reason =>
+        have checkCode : sharedDestructorImportProgram ready base start.store (some worker) host args = trap reason := by
+          simp only [sharedDestructorImportProgram, admitted]
+        have canonCode : sharedDestructorImportProgram ready (LiveDispatch.host bindings base) incoming.store (some worker) host args = trap reason := by
+          simp only [sharedDestructorImportProgram, ← stores, admitted]
+        exact compareSharedDestructorTrap reason (congrArg lhs.control checkCode) (congrArg rhs.control canonCode) residual
+      | none =>
+        have checkCode : sharedDestructorImportProgram ready base start.store (some worker) host args =
+            calloutBody Limits.spec Quirks.none ready base start.store (some worker) host args := by
+          simp only [sharedDestructorImportProgram, admitted]
+        have canonCode : sharedDestructorImportProgram ready (LiveDispatch.host bindings base) incoming.store (some worker) host args =
+            calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store (some worker) host args := by
+          simp only [sharedDestructorImportProgram, ← stores, admitted]
+        have checkAt := congrArg lhs.control checkCode
+        have canonAt := congrArg rhs.control canonCode
+        by_cases indexImport : ∃ inst, host = .builtin .threadIndex inst
+        · obtain ⟨inst, rfl⟩ := indexImport
+          let program : Session grow sig (List FlatValue) := withArgs0 args Builtins.threadIndex
+          let result (words : List FlatValue) : Session grow sig (Ret (core3 grow)) := .pure (.flat words)
+          let invariant (store : CStore (core3 grow)) := SharedRecordAllocatorSource cx request width task caller store
+          refine crossSharedWorkerBodyWith (check := lhs) (canon := rhs) rfl program result result
+            (allocatorThreadIndexEffects invariant args) source stores checkAt canonAt residual ?_
+          intro l r restLabels words bounded retained same lAt rAt aligned actual
+          let resumed := (core3 grow).resume l.store.core core (.values words)
+          let lResume := { l with ctl := ⟨some worker, .core resumed ret, []⟩ :: lhs.rest }
+          let rResume := { r with ctl := ⟨some worker, .core resumed ret, []⟩ :: rhs.rest }
+          have leftPop : Step profile ready (specDispatch ready base) l .tau lResume :=
+            .popCore (th := some worker) (ct := core) (k := ret) (vs := words) (segs := []) (rest := lhs.rest) lAt
+          have rightPop : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) r .tau rResume := by
+            change Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) r .tau
+              { r with ctl := ⟨some worker, .core resumed ret, []⟩ :: rhs.rest }
+            rw [show resumed = (core3 grow).resume r.store.core core (.values words) by simp only [resumed, same]]
+            exact .popCore (th := some worker) (ct := core) (k := ret) (vs := words) (segs := []) (rest := rhs.rest) rAt
+          rcases splitSilent (count := 1) (.cons leftPop (.refl _)) actual with ⟨after, pop, continuation⟩ | short
+          · rw [pop]
+            have paths := sharedSchedulerTransport (bindings := bindings) (edit := .pop) leftPop rightPop
+              (by rw [transitionEdit, lAt]; rfl) (by rw [transitionEdit, rAt]; rfl)
+            refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun scheduler => scheduler) ?_
+            have within := destructorSuffixBound split (Nat.le_refl labels.length)
+            have shorter : after.length < (.tau :: labels).length :=
+              Nat.lt_of_le_of_lt (destructorSuffixBound pop (bounded.trans within)) (Nat.lt_succ_self _)
+            exact reenter shorter same ⟨aligned scheduler, retained⟩ rfl rfl continuation
+          · have empty : restLabels = [] := List.length_eq_zero_iff.mp (by omega)
+            have stopped := stepsAtEmpty (empty ▸ actual)
+            exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
+        · exact .sharedDropRecordAllocatorCoreCallout (check := check) (canon := canon)
+            parents thread stores scheduler source typeAt optionsAt callerAt checkAt canonAt admitted residual
+
 open ReturnFrame.Occurrence in
 private theorem crossDestructorRecordAllocatorCore {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -19226,9 +19358,9 @@ private theorem crossDestructorRecordAllocatorCore {limit : Nat} {body : ThreadB
       exact crossSharedDestructorCoreWith (check := leftWorker) (canon := rightWorker) (frame := frame)
         task entry (fun retained _ _ _ _ => ⟨retained.1, sharedRecordAllocatorSourceFrame retained.2 rfl rfl⟩)
         stores ⟨scheduler, source⟩ rfl rfl bodyRun (destructorSuffixBound installed (destructorSuffixBound used within))
-        (fun same retained leftAt rightAt status remaining _ =>
-          .sharedDropRecordAllocatorCoreCallout (check := check) (canon := canon)
-            parents thread same retained.1 retained.2 typeAt optionsAt callerAt leftAt rightAt status remaining)
+        (fun same retained leftAt rightAt status remaining reenter =>
+          crossDestructorAllocatorCoreImport (check := check) (canon := canon)
+            parents thread typeAt optionsAt callerAt same retained.1 retained.2 leftAt rightAt status remaining reenter)
         (fun words same retained leftAt rightAt remaining shorter =>
           .sharedDropRecordAllocatorCoreReturned (check := check) (canon := canon)
             parents thread same retained.1 retained.2 typeAt optionsAt callerAt leftAt rightAt

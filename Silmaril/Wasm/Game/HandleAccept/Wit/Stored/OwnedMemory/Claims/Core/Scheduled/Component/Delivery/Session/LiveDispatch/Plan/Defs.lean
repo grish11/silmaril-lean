@@ -2501,7 +2501,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (sharedDestructorArguments task (some callee) entry (sharedRecordAllocatorArgs width request)))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The reached allocator Core body is at an actual reentrant import. -/
+  /-- The allocator's installed reentrant import passed the actual admission reads. -/
   | sharedDropRecordAllocatorCoreCallout {changes reached peer trailing finish body task caller worker host args}
       {core : (core3 grow).Thread (CanonHost (core3 grow))} {entry : Task (core3 grow)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
@@ -2512,13 +2512,17 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (source : SharedRecordAllocatorSource cx request width task caller reached.store)
       (typeAt : entry.ft = reallocType width) (optionsAt : entry.opts = {}) (callerAt : entry.caller = caller)
-      (checked : reached.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ ::
+      (checked : reached.ctl = ⟨some worker, .prog
+        (calloutBody Limits.spec Quirks.none ready base reached.store (some worker) host args),
+        [.core core (sharedDestructorCoreResult task entry)]⟩ ::
         check.control (sharedRecordAllocatorAfterResume cx task caller))
-      (canonical : peer.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ ::
+      (canonical : peer.ctl = ⟨some worker, .prog
+        (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) peer.store (some worker) host args),
+        [.core core (sharedDestructorCoreResult task entry)]⟩ ::
         canon.control (sharedRecordAllocatorAfterResume cx task caller))
-      (status : (core3 grow).status reached.store.core core = .callout host args)
-      (residual : Steps profile ready (specDispatch ready base) reached (.tau :: trailing) finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+      (admitted : calloutEntry reached.store (some worker) host = none)
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Both allocator Core activations returned the actual words to the
   canonical result lift. The original allocation return remains parked. -/
   | sharedDropRecordAllocatorCoreReturned {changes reached peer trailing finish body task caller worker words}
