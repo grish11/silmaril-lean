@@ -796,31 +796,27 @@ def sharedDestructorAfterTaskRead (task : TaskId) (callee : Option (core3 grow).
     ((if entered then (Task.registerThread task worker).bind fun _ => .pure true
       else .pure false) : Session grow sig Bool).bind (sharedDestructorAfterAdmission task callee)
 
-inductive SharedDestructorWorkerPoint where
-  | taskRead
-  | registered
-
-def SharedDestructorWorkerPoint.program (point : SharedDestructorWorkerPoint)
-    (task : TaskId) (callee : Option (core3 grow).FuncAddr) (worker : ThreadId)
-    (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
-  match point with
-  | .taskRead => sharedDestructorAfterTaskRead task callee worker store
-  | .registered => sharedDestructorAfterAdmission task callee true
-
 def sharedDestructorAfterThreadRead (task : TaskId) (callee : Option (core3 grow).FuncAddr) :
     Option ThreadId → Session grow sig (Ret (core3 grow))
   | none => internal "no current thread"
   | some worker => .op (.modify (CStore.setImplicitThread task worker))
       (fun _ => .op .get (sharedDestructorAfterTaskRead task callee worker))
 
-def sharedDestructorTask (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
-    Session grow sig TaskId := do
+/-- Construct the task passed to the final task-arena allocation. The
+destructor function type is synchronous independently of its representation. -/
+def sharedDestructorTaskDescription (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
+    Session grow sig { entry : Task (core3 grow) // entry.ft.async_ = false } := do
   let req := result.2
   let st ← getInst result.1
   trapIf (!st.mayLeave) .cannotLeave
   let rty ← getObj ArenaField.resourceTypes req.rt
   let caller ← allocObj ArenaField.callers (Caller.sub (.destructor req.rep) : Caller (core3 grow))
-  allocObj ArenaField.tasks ({ ft := dtorType rty.rep, opts := {}, inst := impl, caller } : Task (core3 grow))
+  return ⟨{ ft := dtorType rty.rep, opts := {}, inst := impl, caller }, rfl⟩
+
+def sharedDestructorTask (result : InstId × DtorRequest (core3 grow)) (impl : InstId) :
+    Session grow sig TaskId := do
+  let entry ← sharedDestructorTaskDescription result impl
+  allocObj ArenaField.tasks entry.val
 
 /-- The store-only prefix of the canonical destructor determines the worker
 body and its task. A host resource needs no worker. -/
@@ -2102,8 +2098,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The resumed worker has reached its admission continuation or executed
-  registration with both ticket-specific parents still dormant. -/
+  /-- The resumed worker executed registration with both ticket-specific parents still dormant. -/
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
       {leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee}
@@ -2115,10 +2110,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (peerResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
         body rightTicket thread beforeRight activeRight canon)
       (selected : body = sharedDestructorThread task callee)
-      (point : SharedDestructorWorkerPoint)
-      (checkedEntry : left.ctl = ⟨some thread, .prog (point.program task callee thread left.store), []⟩ ::
+      (checkedEntry : left.ctl = ⟨some thread, .prog (sharedDestructorAfterAdmission task callee true), []⟩ ::
         check.control (sharedDestructorAfterResume body leftTicket))
-      (canonicalEntry : right.ctl = ⟨some thread, .prog (point.program task callee thread right.store), []⟩ ::
+      (canonicalEntry : right.ctl = ⟨some thread, .prog (sharedDestructorAfterAdmission task callee true), []⟩ ::
         canon.control (sharedDestructorAfterResume body rightTicket))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
