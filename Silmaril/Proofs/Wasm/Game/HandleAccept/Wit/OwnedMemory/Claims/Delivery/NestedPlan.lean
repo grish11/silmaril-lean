@@ -15822,6 +15822,20 @@ private theorem sharedDestructorYieldSpec :
     Prog.pure (Ret.flat (E := core3 grow) [i32Flat 0])) = _
   exact sharedDestructorYieldCode
 
+private theorem destructorYieldDecisionEffects :
+    StoreEffects (sharedDestructorYieldDecision : Session grow sig Bool) := by
+  have choice (now : Bool) :
+      StoreEffects ((if now then choose (.earlyReturn .yield_) else pure false) : Session grow sig Bool) := by
+    cases now
+    · exact .pure _
+    · exact .op rfl fun _ => .pure _
+  unfold sharedDestructorYieldDecision
+  refine storeEffectCurrentThread.bind fun thread =>
+    (storeEffectGet.bind fun _ => .pure _).bind fun now => (choice now).bind fun early => ?_
+  cases early
+  · exact (storeEffectModify _).bind fun _ => .pure _
+  · exact .pure _
+
 private theorem crossDestructorYield {worker : ThreadId} {frames peerFrames rest peerRest body}
     (parents : DestructorParentChain older body rest peerRest)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
@@ -15841,18 +15855,7 @@ private theorem crossDestructorYield {worker : ThreadId} {frames peerFrames rest
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
   let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, peerFrames, peerRest⟩
   let decision : Session grow sig Bool := Builtins.enterThreadBuiltin >>= fun _ => sharedDestructorYieldDecision
-  have choice (now : Bool) :
-      StoreEffects ((if now then choose (.earlyReturn .yield_) else pure false) : Session grow sig Bool) := by
-    cases now
-    · exact .pure _
-    · exact .op rfl fun _ => .pure _
-  have effects : StoreEffects decision := by
-    unfold decision sharedDestructorYieldDecision
-    refine destructorThreadEntryEffects.bind fun _ => storeEffectCurrentThread.bind fun thread =>
-      (storeEffectGet.bind fun _ => .pure _).bind fun now => (choice now).bind fun early => ?_
-    cases early
-    · exact (storeEffectModify _).bind fun _ => .pure _
-    · exact .pure _
+  have effects : StoreEffects decision := destructorThreadEntryEffects.bind fun _ => destructorYieldDecisionEffects
   refine crossSharedWorkerBody (check := check) (canon := canon) rfl decision sharedDestructorYieldAfter
     (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores
     (congrArg check.control sharedDestructorYieldSpec ▸ leftAt)
@@ -15982,6 +15985,175 @@ private theorem crossDestructorSwitchBuiltin {worker : ThreadId} {frames peerFra
     trivial stores (congrArg check.control code ▸ leftAt) (congrArg canon.control code ▸ rightAt) run ?_
   intro left right _ target _ _ same lAt rAt tail
   exact .sharedDropSwitch parents segments same lAt rAt tail
+
+private def destructorPromotionTarget (index : Nat) : Session grow sig ThreadId := do
+  let (_, current, task) ← Builtins.enterThreadBuiltin
+  trapIf (current.index == some index) .cannotResumeThread
+  threadsGet task.inst index
+
+private def destructorAfterPromotion (yielding : Bool) (target : ThreadId) (runnable : Bool) :
+    Session grow sig (Ret (core3 grow)) :=
+  (if runnable then
+    Thread.stopWaiting target >>= fun _ =>
+      if yielding then Thread.yieldThenResume target else Thread.suspendThenResume target
+  else if yielding then Thread.yield_ else Thread.suspend) >>= fun _ => .pure (.flat [i32Flat 0])
+
+private def destructorPromotionAfterStore (ready : HostReady (HostState sig)) (yielding : Bool)
+    (target : ThreadId) (store : CStore (core3 grow)) (host : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+  destructorAfterPromotion yielding target (store.threadReady (ready host) target)
+
+private def destructorPromotionRead (ready : HostReady (HostState sig)) (yielding : Bool) (target : ThreadId) :
+    Session grow sig (Ret (core3 grow)) :=
+  .op .get (fun store => .op .hostGet (destructorPromotionAfterStore ready yielding target store))
+
+private theorem destructorPromotionSource (ready : HostReady (HostState sig)) (yielding : Bool) (index : Nat) :
+    ((if yielding then Builtins.threadYieldThenPromote ready Quirks.none index
+      else Builtins.threadSuspendThenPromote ready Quirks.none index) >>=
+        fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) =
+      destructorPromotionTarget index >>= destructorPromotionRead ready yielding := by
+  cases yielding <;>
+    simp [Builtins.threadYieldThenPromote, Builtins.threadSuspendThenPromote, destructorPromotionTarget,
+      Runtime.Thread.yieldThenPromote,
+      Runtime.Thread.suspendThenPromote, Runtime.Thread.isPromotable, Runtime.Thread.isReady, Quirks.none,
+      getStore, hostGet, perform, Prog.lift, Prog.bind_assoc, Prog.bind] <;>
+    congr 1
+
+private theorem destructorPromotionTargetEffects (index : Nat) :
+    StoreEffects (destructorPromotionTarget index : Session grow sig ThreadId) := by
+  unfold destructorPromotionTarget
+  exact destructorThreadEntryEffects.bind fun (_, current, task) =>
+    (storeEffectTrapIf (current.index == some index) .cannotResumeThread).bind fun _ =>
+    storeEffectThreadsGet task.inst index
+
+private theorem destructorPromotionSwitch (yielding : Bool) (target : ThreadId) :
+    let edits : Session grow sig Unit := do
+      Thread.stopWaiting target
+      if yielding then
+        let thread ← currentThreadId
+        Thread.startWaiting thread .always
+    destructorAfterPromotion yielding target true = edits >>= fun _ => destructorSwitchReply target := by
+  cases yielding <;> simp [destructorAfterPromotion, destructorSwitchReply, Runtime.Thread.yieldThenResume,
+    Runtime.Thread.suspendThenResume, block, perform, Prog.lift, Prog.bind_assoc, Prog.bind] <;> rfl
+
+open ReturnFrame.Occurrence in
+private theorem crossDestructorPromotionRead {worker : ThreadId} {frames peerFrames rest peerRest body}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (yielding : Bool) (target : ThreadId) (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      (destructorPromotionRead ready yielding target))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      (destructorPromotionRead ready yielding target))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (returned : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      remaining.length ≤ labels.length → left.store = right.store →
+      left.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control (.pure (.flat [i32Flat 0])) →
+      right.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control (.pure (.flat [i32Flat 0])) →
+      Steps profile ready (specDispatch ready base) left remaining finish →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, peerFrames, peerRest⟩
+  let read := destructorPromotionAfterStore ready yielding target start.store
+  let atReadLeft := { start with ctl := check.control (.op .hostGet read) }
+  let atReadRight := { incoming with ctl := canon.control (.op .hostGet read) }
+  have checkStore : Step profile ready (specDispatch ready base) start .tau atReadLeft := .get leftAt
+  have rawStore : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau atReadRight := by
+    let otherRead := destructorPromotionAfterStore ready yielding target incoming.store
+    have step : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+        { incoming with ctl := canon.control (.op .hostGet otherRead) } := .get rightAt
+    have sameRead : otherRead = read := congrArg (destructorPromotionAfterStore ready yielding target) stores.symm
+    rw [sameRead] at step
+    exact step
+  cases run with
+  | refl => exact .exhausted
+  | cons actual tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique checkStore actual
+    have storeRead := sharedSchedulerTransport (bindings := bindings) (edit := .same) checkStore rawStore
+      (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+    refine .destructorPrefix storeRead (frameCalloutStep storeRead rfl rfl) (fun scheduler => scheduler) ?_
+    rcases inspectReplyStep tail with ⟨rfl, stops⟩ | ⟨_, trailing, _, used, actual, tail⟩
+    · exact stops ▸ CallbackSliceEnd.exhausted
+    · rw [used]
+      rw [used] at returned
+      let checkNext := { atReadLeft with ctl := check.control (read atReadLeft.host) }
+      let rawNext := { atReadRight with ctl := canon.control (read atReadRight.host) }
+      have leftGet : Step profile ready (specDispatch ready base) atReadLeft .tau checkNext := .hostGet rfl
+      have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) atReadRight .tau rawNext :=
+        .hostGet rfl
+      obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet actual
+      have got := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet rfl rfl
+      classical
+      by_cases agrees : read atReadLeft.host = read atReadRight.host
+      · refine .destructorPrefix got (frameCalloutStep got rfl rfl) (fun scheduler => scheduler) ?_
+        let runnable := start.store.threadReady (ready start.host) target
+        have lhs : checkNext.ctl = check.control (destructorAfterPromotion yielding target runnable) := rfl
+        have rhs : rawNext.ctl = canon.control (destructorAfterPromotion yielding target runnable) :=
+          congrArg canon.control agrees.symm
+        cases verdict : runnable with
+        | true =>
+          let edits : Session grow sig Unit := do
+            Thread.stopWaiting target
+            if yielding then
+              let thread ← currentThreadId
+              Thread.startWaiting thread .always
+          have effects : StoreEffects edits := by
+            refine (storeEffectModify (CStore.stopWaitingSt target)).bind fun _ => ?_
+            cases yielding
+            · exact .pure _
+            · exact storeEffectCurrentThread.bind fun thread => storeEffectModify (CStore.startWaitingSt thread .always)
+          rw [verdict] at lhs rhs
+          have compiled : destructorAfterPromotion yielding target true =
+              edits >>= fun _ => destructorSwitchReply target := destructorPromotionSwitch yielding target
+          refine crossSharedWorkerBody (check := check) (canon := canon) rfl edits (fun _ => destructorSwitchReply target)
+            (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores
+            (congrArg check.control compiled ▸ lhs) (congrArg canon.control compiled ▸ rhs) tail ?_
+          intro left right _ _ _ _ same checkAt canonAt residual
+          exact .sharedDropSwitch parents segments same checkAt canonAt residual
+        | false =>
+          rw [verdict] at lhs rhs
+          cases yielding with
+          | false => exact crossDestructorPark parents segments (.pure (.flat [i32Flat 0])) stores lhs rhs tail
+          | true =>
+            have compiled : (destructorAfterPromotion true target false : Session grow sig (Ret (core3 grow))) =
+                sharedDestructorYieldDecision >>= sharedDestructorYieldAfter := sharedDestructorYieldCode
+            refine crossSharedWorkerBody (check := check) (canon := canon) rfl sharedDestructorYieldDecision
+              sharedDestructorYieldAfter (liftDestructorStoreEffects destructorYieldDecisionEffects (trivialPreserves _))
+              trivial stores (congrArg check.control compiled ▸ lhs) (congrArg canon.control compiled ▸ rhs) tail ?_
+            intro left right remaining early bounded _ same lAt rAt residual
+            cases early with
+            | false => exact crossDestructorPark parents segments (.pure (.flat [i32Flat 0])) same lAt rAt residual
+            | true => exact returned (Nat.le_trans bounded (by simp only [List.length_cons]; omega)) same lAt rAt residual
+      · exact .observation rfl agrees got (frameCalloutStep got rfl rfl) tail
+
+private theorem crossDestructorPromoteBuiltin {worker : ThreadId} {frames peerFrames rest peerRest body}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (yielding : Bool) (index : Nat) (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      ((if yielding then Builtins.threadYieldThenPromote ready Quirks.none index
+        else Builtins.threadSuspendThenPromote ready Quirks.none index) >>= fun words => .pure (.flat words)))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      ((if yielding then Builtins.threadYieldThenPromote ready Quirks.none index
+        else Builtins.threadSuspendThenPromote ready Quirks.none index) >>= fun words => .pure (.flat words)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (returned : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      remaining.length ≤ labels.length → left.store = right.store →
+      left.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control (.pure (.flat [i32Flat 0])) →
+      right.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control (.pure (.flat [i32Flat 0])) →
+      Steps profile ready (specDispatch ready base) left remaining finish →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, peerFrames, peerRest⟩
+  have code := destructorPromotionSource (grow := grow) ready yielding index
+  refine crossSharedWorkerBody (check := check) (canon := canon) rfl (destructorPromotionTarget index)
+    (destructorPromotionRead ready yielding)
+    (liftDestructorStoreEffects (destructorPromotionTargetEffects index) (trivialPreserves _))
+    trivial stores (congrArg check.control code ▸ leftAt) (congrArg canon.control code ▸ rightAt) run ?_
+  intro left right _ target bounded _ same lAt rAt tail
+  exact crossDestructorPromotionRead parents segments yielding target same lAt rAt tail
+    (fun shorter => returned (shorter.trans bounded))
 
 private theorem flatImportTrap (reason : TrapReason) :
     (trap reason >>= fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) = trap reason := by
@@ -16137,7 +16309,22 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
                     | exact compareSharedDestructorTrap reason
                         (checkAt.trans (congrArg check.control (flatImportTrap reason)))
                         (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
-                · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
+                · by_cases promote : ∃ (isYield : Bool) (inst : InstId), host =
+                      .builtin (if isYield then .threadYieldThenPromote else .threadSuspendThenPromote) inst
+                  · obtain ⟨isYield, inst, rfl⟩ := promote
+                    obtain ⟨worker, rfl⟩ := activeThread
+                    let reason := TrapReason.internal "built-in: wrong number of arguments"
+                    cases isYield <;> rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+                    all_goals
+                      first
+                      | exact crossDestructorPromoteBuiltin parents (.cons (.same frame) segments)
+                          false (flatNat word) stores checkAt canonAt residual (resumeCore [i32Flat 0])
+                      | exact crossDestructorPromoteBuiltin parents (.cons (.same frame) segments)
+                          true (flatNat word) stores checkAt canonAt residual (resumeCore [i32Flat 0])
+                      | exact compareSharedDestructorTrap reason
+                          (checkAt.trans (congrArg check.control (flatImportTrap reason)))
+                          (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
+                  · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
 
 private theorem rejoinDestructorParentJournal {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
     {actualLabels : Trace grow sig}
