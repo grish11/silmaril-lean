@@ -20720,7 +20720,7 @@ private theorem crossSourceWorkerCoreImport
       right.ctl = ⟨some worker, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
         right.store (some worker) host args), [.core core (sharedDestructorCoreResult task entry)]⟩ :: rightRest →
       calloutEntry left.store (some worker) host = none →
-      remaining.length ≤ (.tau :: labels).length →
+      remaining.length ≤ labels.length →
       Steps profile ready (specDispatch ready base) left remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish) :
     CallbackSliceEnd profile ready base bindings older start incoming (.tau :: labels) finish := by
@@ -20799,8 +20799,7 @@ private theorem crossSourceWorkerCoreImport
           · have empty : restLabels = [] := List.length_eq_zero_iff.mp (by omega)
             have stopped := stepsAtEmpty (empty ▸ actual)
             exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
-        · have shorter : remaining.length ≤ (.tau :: labels).length :=
-            (destructorSuffixBound split (Nat.le_refl labels.length)).trans (Nat.le_succ _)
+        · have shorter : remaining.length ≤ labels.length := destructorSuffixBound split (Nat.le_refl _)
           cases host with
           | embedder name kind =>
             cases binding : resolveBinding bindings name kind with
@@ -20830,7 +20829,7 @@ private abbrev SourceAllocatorImports {check canon : PayloadPrefix.Cursor (E := 
         [.core core ret]⟩ :: check.control (sharedRecordAllocatorAfterResume cx task caller) →
       right.ctl = ⟨some worker, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
         right.store (some worker) host args), [.core core ret]⟩ :: canon.control (sharedRecordAllocatorAfterResume cx task caller) →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length < limit →
       CallbackSliceEnd profile ready base bindings older left right remaining finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish
 
@@ -20878,7 +20877,8 @@ private theorem crossSourceAllocatorCoreImport {limit : Nat}
       have frontier := CallbackSliceEnd.sharedDropRecordAllocatorCoreCallout (check := check) (canon := canon)
         parents thread same aligned reachedSource typeAt optionsAt callerAt leftAt rightAt admitted tail
       exact imports cx task caller loopFrames sourceParents onPointer same aligned
-        leftAt rightAt tail (shorter.trans within) frontier)
+        leftAt rightAt tail
+        (Nat.lt_of_le_of_lt shorter (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) within)) frontier)
 
 open ReturnFrame.Occurrence in
 private theorem crossSourceRecordAllocatorCore {limit : Nat}
@@ -21107,6 +21107,70 @@ private theorem finishSourceRecordFields {limit : Nat}
       cases done
       exact finishSourceScheduledReply same (.ok 0) checked canonical scheduler run bounded resume
 
+private theorem finishDeniedSourceImport {limit : Nat}
+    {thread frames peerFrames rest peerRest name kind args inst}
+    {frame : Seg (core3 grow) (HostState sig)} {body : Nat → Session grow sig (Except Scheduled.Issue Nat)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (rawEmbedder : (LiveDispatch.host bindings base).embedder name kind args =
+      (Scheduled.host (grow := grow) bindings).embedder name kind args)
+    (routed : ∀ ticket, route (grow := grow) ticket bindings name kind args =
+      (do Scheduled.finish ticket (← admit inst (body ticket))))
+    (denied : ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
+      (start.store.inst? inst).any (·.mayLeave) = true))
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store thread (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older
+      ⟨thread, frame :: frames, rest⟩ ⟨thread, frame :: peerFrames, peerRest⟩ limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let verdict := scheduledDenial start.store thread
+  let ending (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :=
+    let entered := state.host.enter name kind args
+    let reply := completion state.host.nextTicket (.error .wrongContext)
+    { state with
+      host := if verdict.2 then entered else entered.record reply.1
+      ctl := cursor.control (if verdict.2 then trap (.internal "dangling arena id") else .pure (.flat reply.2)) }
+  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start
+      (List.replicate verdict.1 id) (ending start check) :=
+    scheduledDenialPath base routed (congrFun (congrFun (congrFun embedder name) kind) args) check denied checked
+  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
+      (List.replicate verdict.1 id) (ending incoming canon) := by
+    have path := scheduledDenialPath (profile := profile) (ready := ready) (start := incoming)
+      (LiveDispatch.host bindings base) routed rawEmbedder canon (stores ▸ denied) canonical
+    have same : scheduledDenial incoming.store thread = verdict := by rw [← stores]
+    simpa only [ending, canon, same] using path
+  obtain ⟨used, leftOver, reached, peer, split, paths, writers, tail, completed⟩ :=
+    cutSharedQuietWorker leftPath rightPath run
+  rw [split]
+  rcases completed with empty | ⟨rfl, rfl⟩
+  · subst leftOver
+    cases tail
+    exact .comparedPrefix paths writers .exhausted
+  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+    cases dangling : verdict.2 with
+    | true =>
+      exact compareSharedDestructorTrap (check := check) (canon := canon) (.internal "dangling arena id")
+        (by simp only [ending, dangling, ite_true]) (by simp only [ending, dangling, ite_true]) tail
+    | false =>
+      let words := (completion 0 (.error .wrongContext)).2
+      have leftReply : (ending start check).ctl = check.control (.pure (.flat words)) := by
+        simp only [ending, dangling, Bool.false_eq_true, ite_false]
+        rfl
+      have rawReply : (ending incoming canon).ctl = canon.control (.pure (.flat words)) := by
+        simp only [ending, dangling, Bool.false_eq_true, ite_false]
+        rfl
+      have shorter : leftOver.length ≤ limit := by
+        rw [split, List.length_append] at bounded
+        omega
+      exact resume words stores scheduler leftReply rawReply tail shorter
+
 private def sourceGiveWithReply : SharedGiveAction → Bool
   | .giveOwner _ | .endpoint _ _ | .record _ => true
   | _ => false
@@ -21322,20 +21386,39 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
                     intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
                     exact finishAdmittedSourceLegacy embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
                       (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
-                  · exact otherwise
-                · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
+                  · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                    refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                    intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                    exact finishDeniedSourceImport embedder (coreAcceptRawEmbedder linked embedder) (coreAcceptRoute linked)
+                      (fun permitted => context ⟨lhs ▸ permitted.1, lhs ▸ permitted.2⟩)
+                      (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
+                · by_cases shared : ∃ (inst : InstId) (action : SharedGiveAction),
                       resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
-                  · obtain ⟨inst, action, transfer, linked⟩ := shared
+                  · obtain ⟨inst, action, linked⟩ := shared
                     by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
                         (start.store.inst? inst).any (·.mayLeave) = true
+                    · by_cases transfer : sourceGiveWithReply action = true
+                      · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                        refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                        intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                        exact finishAdmittedSourceSharedGive (imports trailing.length (Nat.lt_succ_self _))
+                          transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
+                          (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
+                      · exact otherwise
                     · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
                       refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
                       intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
-                      exact finishAdmittedSourceSharedGive (imports trailing.length (Nat.lt_succ_self _))
-                        transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
+                      exact finishDeniedSourceImport embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked)
+                        (fun permitted => context ⟨lhs ▸ permitted.1, lhs ▸ permitted.2⟩)
                         (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
-                    · exact otherwise
-                  · exact otherwise
+                  · cases binding : resolveBinding bindings name kind with
+                    | ok _ => exact otherwise
+                    | error issue =>
+                      refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                      refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                      intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                      exact finishDestructorBindingTrap (check := check) (canon := canon)
+                        (congrFun (congrFun (congrFun embedder name) kind) args) binding leftAt rightAt run
               · exact otherwise
           | _ => exact otherwise
         cases actual with
@@ -21887,19 +21970,120 @@ private theorem finishSourceAllocatorParent {limit : Nat}
   exact crossSourceRecordAllocatorEpilogue parents thread onPointer cx caller same lhs rhs aligned run
     (shorter.trans bounded)
 
-private theorem finishSourceAllocatorSchedulerImport {limit : Nat}
-    (compare : SourceSwitchAt profile ready base bindings older limit finish) :
+private theorem finishSourceCoreReplyWith {limit cap : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
+    (limitWithin : limit ≤ cap)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (present : check.rest ≠ [] ∧ canon.rest ≠ [])
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = check.rest → right.ctl = canon.rest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    SourceCoreReply profile ready base bindings older check canon limit finish := by
+  intro words left right remaining stores scheduler lhs rhs tail bounded
+  cases check
+  cases canon
+  cases thread
+  exact compare parents present (.mk segments) .nil stores scheduler lhs rhs tail bounded (bounded.trans limitWithin)
+    (fun same aligned checked canonical run shorter => exposed same checked canonical aligned run shorter)
+
+private theorem compareAdmittedSourceLinkedWith {limit cap : Nat}
+    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
+    {worker : ThreadId} {name kind args} {frame : Seg (core3 grow) (HostState sig)}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
+    (limitWithin : limit ≤ cap)
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
+    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) [frame] rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) [frame] peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        incoming.store (some worker) (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish)
+    (frontier : CallbackSliceEnd profile ready base bindings older start incoming labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  have resume : SourceCoreReply profile ready base bindings older
+      ⟨some worker, [frame], rest⟩ ⟨some worker, [frame], peerRest⟩ limit finish :=
+    finishSourceCoreReplyWith compare limitWithin parents present rfl (.cons (.same _) .nil) exposed
+  by_cases embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder
+  · by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
+    · obtain ⟨inst, loader, selected⟩ := legacy
+      by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
+          (start.store.inst? inst).any (·.mayLeave) = true
+      · exact finishAdmittedSourceLegacy (frames := []) (peerFrames := []) embedder selected context.1 context.2
+          stores checked canonical run scheduler within
+          resume
+      · exact finishDeniedSourceImport (frames := []) (peerFrames := [])
+          embedder (coreAcceptRawEmbedder selected embedder) (coreAcceptRoute selected) context
+          stores checked canonical run scheduler within resume
+    · by_cases shared : ∃ (inst : InstId) (action : SharedGiveAction),
+          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
+      · obtain ⟨inst, action, linked⟩ := shared
+        by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
+            (start.store.inst? inst).any (·.mayLeave) = true
+        · by_cases transfer : sourceGiveWithReply action = true
+          · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := [])
+              imports transfer parents .nil embedder linked context.1 context.2
+              stores checked canonical run scheduler within resume
+          · exact frontier
+        · exact finishDeniedSourceImport (frames := []) (peerFrames := [])
+            embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked) context
+            stores checked canonical run scheduler within resume
+      · cases binding : resolveBinding bindings name kind with
+        | ok _ => exact frontier
+        | error issue =>
+          exact finishDestructorBindingTrap
+            (check := ⟨some worker, [frame], rest⟩) (canon := ⟨some worker, [frame], peerRest⟩)
+            (congrFun (congrFun (congrFun embedder name) kind) args) binding checked canonical run
+  · exact frontier
+
+private theorem finishSourceAllocatorReentrantImport {limit : Nat} :
+    SourceSwitchAt profile ready base bindings older limit finish →
     SourceAllocatorImportsAt profile ready base bindings older limit finish := by
-  intro check canon parents thread cx task caller loopFrames sourceParents onPointer host args worker core ret
-    left right remaining same aligned leftAt rightAt tail within frontier
-  cases host with
-  | builtin builtin inst =>
-    by_cases selected : sourceSchedulerBuiltin builtin = true
-    · exact crossAdmittedSourceSchedulerWith compare builtin inst args sourceParents
-        ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩ same aligned leftAt rightAt tail within within
-        (finishSourceAllocatorParent compare parents thread loopFrames onPointer cx task caller)
-    · exact frontier
-  | _ => exact frontier
+  induction limit using Nat.strong_induction_on with
+  | ind limit ih =>
+    intro compare check canon parents thread cx task caller loopFrames sourceParents onPointer host args worker core ret
+      left right remaining same aligned leftAt rightAt tail shorter frontier
+    have within := Nat.le_of_lt shorter
+    let parent := sharedRecordAllocatorAfterResume (sig := sig) cx task caller
+    have present : check.control parent ≠ [] ∧ canon.control parent ≠ [] :=
+      ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+    have onParent {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig}
+        (equal : left.store = right.store)
+        (checked : left.ctl = check.control parent) (canonical : right.ctl = canon.control parent)
+        (scheduler : DestructorSchedulerAlignment older left right)
+        (residual : Steps profile ready (specDispatch ready base) left suffix finish)
+        (bounded : suffix.length ≤ limit) :
+        CallbackSliceEnd profile ready base bindings older left right suffix finish :=
+      finishSourceAllocatorParent compare parents thread loopFrames onPointer cx task caller
+        equal checked canonical scheduler residual bounded
+    cases host with
+    | builtin builtin inst =>
+      by_cases selected : sourceSchedulerBuiltin builtin = true
+      · exact crossAdmittedSourceSchedulerWith compare builtin inst args sourceParents present same aligned
+          leftAt rightAt tail within within onParent
+      · exact frontier
+    | embedder name kind =>
+      have narrowed : SourceSwitchAt profile ready base bindings older remaining.length finish := by
+        intro bound start incoming labels rest peerRest left right active peerActive parents present target resumers
+          stores aligned checked canonical run bounded cap onParent
+        exact compare parents present target resumers stores aligned checked canonical run bounded (cap.trans within) onParent
+      exact compareAdmittedSourceLinkedWith (limit := remaining.length) compare within (ih remaining.length shorter narrowed)
+        sourceParents present same aligned leftAt rightAt tail (Nat.le_refl _)
+        (fun stores checked canonical aligned run bound => onParent stores checked canonical aligned run (bound.trans within))
+        frontier
+    | _ => exact frontier
 
 private theorem classifySourceSwitch {profile : ProfileKind} {ready : HostReady (HostState sig)}
     {base : HostImpl (core3 grow) (HostState sig)} {bindings : List (Binding sig)}
@@ -21910,7 +22094,7 @@ private theorem classifySourceSwitch {profile : ProfileKind} {ready : HostReady 
     intro limit start incoming labels rest peerRest left right active peerActive parents present target resumers
       stores aligned checked canonical run bounded within onParent
     exact finishSourceSwitchTargetWith parents present target resumers stores aligned checked canonical run bounded
-      (fun bound smaller => finishSourceAllocatorSchedulerImport (ih bound (smaller.trans_le within))) onParent
+      (fun bound smaller => finishSourceAllocatorReentrantImport (ih bound (smaller.trans_le within))) onParent
 
 open ReturnFrame.Occurrence in
 private theorem finishSourceSwitchTarget {limit : Nat}
@@ -22132,69 +22316,10 @@ private theorem finishDeniedDestructorImport {limit : Nat}
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (scheduler : DestructorSchedulerAlignment older start incoming)
     (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
-  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
-  let verdict := scheduledDenial start.store thread
-  let ending (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :=
-    let entered := state.host.enter name kind args
-    let reply := completion state.host.nextTicket (.error .wrongContext)
-    { state with
-      host := if verdict.2 then entered else entered.record reply.1
-      ctl := cursor.control (if verdict.2 then trap (.internal "dangling arena id") else .pure (.flat reply.2)) }
-  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start
-      (List.replicate verdict.1 id) (ending start check) :=
-    scheduledDenialPath base routed (congrFun (congrFun (congrFun embedder name) kind) args) check denied checked
-  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
-      (List.replicate verdict.1 id) (ending incoming canon) := by
-    have path := scheduledDenialPath (profile := profile) (ready := ready) (start := incoming)
-      (LiveDispatch.host bindings base) routed rawEmbedder canon (stores ▸ denied) canonical
-    have same : scheduledDenial incoming.store thread = verdict := by rw [← stores]
-    simpa only [ending, canon, same] using path
-  obtain ⟨used, leftOver, reached, peer, split, paths, writers, tail, completed⟩ :=
-    cutSharedQuietWorker leftPath rightPath run
-  rw [split]
-  rcases completed with empty | ⟨rfl, rfl⟩
-  · subst leftOver
-    cases tail
-    exact .comparedPrefix paths writers .exhausted
-  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
-    cases dangling : verdict.2 with
-    | true =>
-      exact compareSharedDestructorTrap (check := check) (canon := canon) (.internal "dangling arena id")
-        (by simp only [ending, dangling, ite_true]) (by simp only [ending, dangling, ite_true]) tail
-    | false =>
-      let words := (completion 0 (.error .wrongContext)).2
-      have leftReply : (ending start check).ctl = check.control (.pure (.flat words)) := by
-        simp only [ending, dangling, Bool.false_eq_true, ite_false]
-        rfl
-      have rawReply : (ending incoming canon).ctl = canon.control (.pure (.flat words)) := by
-        simp only [ending, dangling, Bool.false_eq_true, ite_false]
-        rfl
-      have shorter : leftOver.length ≤ limit := by
-        rw [split, List.length_append] at bounded
-        omega
-      exact finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil stores scheduler
-        leftReply rawReply tail shorter compare
-
-private theorem finishSourceCoreReply {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (parents : SourceParentStack older check.rest canon.rest)
-    (present : check.rest ≠ [] ∧ canon.rest ≠ [])
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → left.ctl = check.rest → right.ctl = canon.rest →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    SourceCoreReply profile ready base bindings older check canon limit finish := by
-  intro words left right remaining stores scheduler lhs rhs tail bounded
-  cases check
-  cases canon
-  cases thread
-  exact finishSourceSwitchTarget parents present (.mk segments) .nil stores scheduler lhs rhs tail bounded
-    (fun same aligned checked canonical run shorter => exposed same checked canonical aligned run shorter)
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishDeniedSourceImport embedder rawEmbedder routed denied stores checked canonical run scheduler bounded
+    (fun _words {_ _ _} same aligned lhs rhs tail bound =>
+      finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil same aligned lhs rhs tail bound compare)
 
 private theorem finishDestructorCoreReply {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -22247,29 +22372,10 @@ private theorem compareAdmittedSourceLinked {limit : Nat}
       Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
       CallbackSliceEnd profile ready base bindings older left right remaining finish)
     (frontier : CallbackSliceEnd profile ready base bindings older start incoming labels finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  classical
-  by_cases embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder
-  · by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
-    · obtain ⟨inst, loader, selected⟩ := legacy
-      by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
-          (start.store.inst? inst).any (·.mayLeave) = true
-      · exact finishAdmittedSourceLegacy (frames := []) (peerFrames := []) embedder selected context.1 context.2
-          stores checked canonical run scheduler within
-          (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
-      · exact frontier
-    · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
-          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
-      · obtain ⟨inst, action, transfer, linked⟩ := shared
-        by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
-            (start.store.inst? inst).any (·.mayLeave) = true
-        · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := [])
-            (finishSourceAllocatorSchedulerImport (classifySourceSwitch limit)) transfer parents .nil embedder linked context.1 context.2
-            stores checked canonical run scheduler within
-            (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
-        · exact frontier
-      · exact frontier
-  · exact frontier
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  compareAdmittedSourceLinkedWith (classifySourceSwitch limit) (Nat.le_refl _)
+    (finishSourceAllocatorReentrantImport (classifySourceSwitch limit))
+    parents present stores scheduler checked canonical run within exposed frontier
 
 private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
@@ -22290,31 +22396,8 @@ private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody 
 private theorem finishSourceAllocatorImport {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread) :
-    SourceAllocatorImports (check := check) (canon := canon) profile ready base bindings older limit finish := by
-  intro cx task caller loopFrames sourceParents onPointer host args worker core ret left right remaining
-    same aligned leftAt rightAt tail within frontier
-  let parent := sharedRecordAllocatorAfterResume (sig := sig) cx task caller
-  have onParent {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
-      (equal : left.store = right.store)
-      (checked : left.ctl = check.control parent) (canonical : right.ctl = canon.control parent)
-      (scheduler : DestructorSchedulerAlignment older left right)
-      (residual : Steps profile ready (specDispatch ready base) left remaining finish)
-      (bounded : remaining.length ≤ limit) :
-      CallbackSliceEnd profile ready base bindings older left right remaining finish :=
-    finishSourceAllocatorParent (classifySourceSwitch limit) parents thread loopFrames onPointer cx task caller
-      equal checked canonical scheduler residual bounded
-  have present : check.control parent ≠ [] ∧ canon.control parent ≠ [] :=
-    ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
-  cases host with
-  | builtin builtin inst =>
-    by_cases selected : sourceSchedulerBuiltin builtin = true
-    · exact crossAdmittedSourceScheduler builtin inst args sourceParents present same aligned
-        leftAt rightAt tail within onParent
-    · exact frontier
-  | embedder name kind =>
-    exact compareAdmittedSourceLinked sourceParents present same aligned leftAt rightAt tail
-      within onParent frontier
-  | _ => exact frontier
+    SourceAllocatorImports (check := check) (canon := canon) profile ready base bindings older limit finish :=
+  finishSourceAllocatorReentrantImport (classifySourceSwitch limit) parents thread
 
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem crossDestructorRecordAllocator {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -22480,11 +22563,11 @@ private theorem finishSourceDestructorWorker {limit : Nat} {task : TaskId} {work
             | builtin builtin inst =>
               by_cases selected : sourceSchedulerBuiltin builtin = true
               · exact crossAdmittedSourceScheduler builtin inst args parents parentPresent same aligned
-                  checked canonical residual (shorter.trans coreBound) returned
+                  checked canonical residual (shorter.trans ((Nat.le_succ _).trans coreBound)) returned
               · exact frontier
             | embedder name kind =>
               exact compareAdmittedSourceLinked parents parentPresent same aligned checked canonical residual
-                (shorter.trans coreBound) returned frontier
+                (shorter.trans ((Nat.le_succ _).trans coreBound)) returned frontier
             | _ => exact frontier))
       (fun words stores aligned leftAt rightAt residual within =>
         crossSharedDestructorCoreResult task entry width words typeAt stores leftAt rightAt residual
