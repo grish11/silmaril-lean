@@ -93,7 +93,7 @@ def CompiledLeafWriterPaths (profile : ProfileKind) (ready : HostReady (HostStat
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (start incoming : Config (core3 grow) (HostState sig)) (checked canonical : Trace grow sig)
     (left right : Config (core3 grow) (HostState sig)) (plan : Option Stored.OwnedMemory.Claims.Spend) : Prop :=
-  ∃ changes, WriterPath profile ready (specDispatch ready base) start checked left changes ∧
+  CompiledLeafSource start plan ∧ ∃ changes, WriterPath profile ready (specDispatch ready base) start checked left changes ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right [] ∧
     (changes = [] ∨ ∃ change update, changes = [change] ∧ plan = some update ∧ change.IsSpend update)
 

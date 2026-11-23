@@ -372,7 +372,9 @@ theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 
     have tracks := pairTracks bodyRun trace
     have guardRun := (prefix_survives (prefixTracks (.active 0 0))).1
     refine ⟨reached, outcome, guardLabels, labels, labels, grown, guardSilent, trace, trace,
-      ?_, (tracks none).2.steps, ?_, ?_, ⟨checkedNext, guard, rfl, ?_⟩, ?_⟩
+      ?_, (tracks none).2.steps, ?_, ?_, ⟨checkedNext,
+        ⟨destination, inst, item, index, output, checkNext, thread, checkFrames, checkRest, checkAt, verdict⟩,
+        guard, rfl, ?_⟩, ?_⟩
     · cases outcome <;> exact chain guardRun (tracks none).1.steps
     · intro mark
       refine ⟨?_, (tracks mark).2⟩

@@ -59,6 +59,17 @@ inductive PairedLeafSteps {E : CoreEngine} {Host : Type} (profile : ProfileKind)
       (tail : PairedLeafSteps profile ready dispatch reference middle peer labels after canonical) :
       PairedLeafSteps profile ready dispatch reference left right (label :: labels) after canonical
 
+/-- The compiled leaf at the checked focus and its successful live plan.
+The field, output and continuation come from the executing program. -/
+def CompiledLeafSource {sig : Stored.Signature} {grow : Silmaril.Wasm.SingleThreaded.GrowOracle}
+    (state : Config (core3 grow) (HostState sig)) (plan : Option Spend) : Prop :=
+  ∃ (destination : RecordDestination) (inst : InstId) (field : Field) (index : Nat) (output : Stored.Lower.Output)
+    (next : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow))),
+    ∃ thread frames rest,
+    state.ctl = ⟨thread, .prog (Record.Effects.checkedLeaf recordClaims Component.Limits.spec Quirks.none
+      (destination.context inst) destination.width field index output >>= next), frames⟩ :: rest ∧
+    liveLeafPlan state.store state.host.writer index field = .ok plan
+
 /-- The raw leaf remains pending during the checked guard, then both execute
 the canonical body in lockstep with their unchanged continuations. -/
 def GuardedLeafSteps {sig : Stored.Signature} {grow : Silmaril.Wasm.SingleThreaded.GrowOracle}
@@ -67,7 +78,7 @@ def GuardedLeafSteps {sig : Stored.Signature} {grow : Silmaril.Wasm.SingleThread
     (left right : Config (core3 grow) (HostState sig))
     (guard checked canonical : List (Label (core3 grow) (HostState sig)))
     (reached peer : Config (core3 grow) (HostState sig)) (spend : Option Spend) : Prop :=
-  ∃ committed, LeafGuardSteps profile ready dispatch left guard committed spend ∧ checked = canonical ∧
+  ∃ committed, CompiledLeafSource left spend ∧ LeafGuardSteps profile ready dispatch left guard committed spend ∧ checked = canonical ∧
     PairedLeafSteps profile ready dispatch reference committed right checked reached peer
 
 /-- An exclusive checked guard spends its claim before the canonical leaf effects.

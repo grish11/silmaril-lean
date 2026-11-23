@@ -3411,10 +3411,10 @@ private theorem fullGuardedWriterPaths {left right : Config (core3 grow) (HostSt
     (path : GuardedLeafSteps profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
       start incoming guard checked canonical left right plan) :
     CompiledLeafWriterPaths profile ready base bindings start incoming (guard ++ checked) canonical left right plan := by
-  obtain ⟨_, guardRun, rfl, body⟩ := path
+  obtain ⟨_, source, guardRun, rfl, body⟩ := path
   obtain ⟨effects, checkedGuard, nominal⟩ := guardWriterPaths guardRun
   obtain ⟨lhs, rhs⟩ := WriterPaths.frameLeaf body
-  exact ⟨effects, by simpa only [List.append_nil] using WriterPaths.append checkedGuard lhs, rhs, nominal⟩
+  exact ⟨source, effects, by simpa only [List.append_nil] using WriterPaths.append checkedGuard lhs, rhs, nominal⟩
 
 open Stored.OwnedMemory.Claims in
 private theorem refusedGuardWriterPath {target : Config (core3 grow) (HostState sig)} {guard remaining : Trace grow sig}
@@ -3450,7 +3450,7 @@ theorem cutGuardedLeaf {leftEnd rightEnd : Config (core3 grow) (HostState sig)} 
       CheckedSpendFlow start.host.writer incoming.host.writer finish.host.writer peer.host.writer spends ∧
       used = labels.drop guard.length ∧ (spends = if guard.length ≤ labels.length then plan.toList else []) ∧
       CompiledLeafWriterPaths profile ready base bindings start incoming labels used finish peer plan := by
-  obtain ⟨committed, guarded, rfl, body⟩ := path
+  obtain ⟨committed, source, guarded, rfl, body⟩ := path
   rcases List.append_eq_append_iff.mp split with ⟨front, labelSplit, checkSplit⟩ | ⟨front, guardSplit, _⟩
   · have tracks := guarded.tracks
     have entered := (prefix_survives (tracks (.active 0 0))).1
@@ -3466,11 +3466,11 @@ theorem cutGuardedLeaf {leftEnd rightEnd : Config (core3 grow) (HostState sig)} 
       cases plan <;> rfl
     · simp [labelSplit]
     · simp [labelSplit]
-    · exact ⟨changes, by simpa only [labelSplit, List.append_nil] using WriterPaths.append guardEffects leftEffects,
+    · exact ⟨source, changes, by simpa only [labelSplit, List.append_nil] using WriterPaths.append guardEffects leftEffects,
         rightEffects, nominal⟩
   · obtain ⟨store, quiet, host, paths, changes, guardEffects, nominal⟩ := leafGuardPrefix guarded guardSplit run
     refine ⟨[], incoming, (if front.isEmpty then plan else none).toList, store.trans same, quiet,
-      CallbackPrefix.stationaryTransport paths (fun place => .done _ place), ?_, ?_, ?_, ⟨changes, guardEffects, .done _, nominal⟩⟩
+      CallbackPrefix.stationaryTransport paths (fun place => .done _ place), ?_, ?_, ?_, ⟨source, changes, guardEffects, .done _, nominal⟩⟩
     · refine ⟨?_, rfl⟩
       rw [host]
       cases (if front.isEmpty then plan else none) <;> rfl

@@ -208,7 +208,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | guarded paths =>
-    obtain ⟨changes, lhs, rhs, _⟩ := paths
+    obtain ⟨_, changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
   | @publication start incoming labels left right tree paths =>
     by_cases early : labels.length < 2
@@ -261,7 +261,7 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
       (WriterDiscrepancyCut.registrationConflict [] (empty (start := start) (incoming := incoming)) site lhs rhs
         (by simpa only [live] using related) (by simpa only [live] using conflict) empty)
   | guarded paths =>
-    obtain ⟨changes, checked, canonical, empty | ⟨change, update, single, _, nominal⟩⟩ := paths
+    obtain ⟨_, changes, checked, canonical, empty | ⟨change, update, single, _, nominal⟩⟩ := paths
     · subst changes
       exact .complete [] (by simpa only [List.not_mem_nil, or_false] using framedDiscrepancies checked canonical initial)
     · subst changes
