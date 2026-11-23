@@ -211,9 +211,9 @@ theorem parked {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory 
     PublicOutcome call element entries following next profile ready bindings := by
   let site := publicSite call element entries following
   rcases call.parked (profile := profile) (ready := ready) linked with
-    ⟨issue, silent, stopped, framed⟩ | ⟨reason, count, placed, halted, framed⟩ | ⟨silent, placed, prepared, run, _, framed⟩
-  · exact .refused issue silent stopped framed
-  · exact .placementTrap reason count placed halted framed
+    ⟨issue, silent, stopped, framed, read⟩ | ⟨reason, count, placed, halted, framed, read⟩ | ⟨silent, placed, prepared, run, _, framed, read⟩
+  · exact .refused issue silent stopped framed read
+  · exact .placementTrap reason count placed halted framed read
   · obtain ⟨plan, compiled⟩ := linked.compiled
     have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
     rw [field] at matched
@@ -255,7 +255,7 @@ theorem parked {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory 
       (call.reference next) call.cursor (publicReply call) next rfl (Core3.Grows.refl _) (fun item member => MemoryChildRule.local_memory site.destination site.inst
         (localEntries item member) (entries_match_of_mem childMatch member))
       (fun item member => MemoryChildRule.local_memory site.destination site.inst (localTail item member) (tailMatch item member))
-      rfl reference⟩ framed
+      rfl reference⟩ framed read
 
 theorem flatAtCursor (site : FlatSite) {origin : CStore (core3 grow)} {bytes : Nat}
     (width : (core3 grow).memAddrType? origin.core site.destination.memory = some site.destination.width)
@@ -341,9 +341,9 @@ theorem parkedFlat {schema : TypeOf} (call : PayloadRoot.Site grow sig (.flat sc
     PublicFlatOutcome call element entries following next profile ready bindings := by
   let site := publicFlatSite call element entries following
   rcases call.parked (profile := profile) (ready := ready) linked with
-    ⟨issue, silent, stopped, framed⟩ | ⟨reason, count, placed, halted, framed⟩ | ⟨silent, placed, prepared, run, _, framed⟩
-  · exact .refused issue silent stopped framed
-  · exact .placementTrap reason count placed halted framed
+    ⟨issue, silent, stopped, framed, read⟩ | ⟨reason, count, placed, halted, framed, read⟩ | ⟨silent, placed, prepared, run, _, framed, read⟩
+  · exact .refused issue silent stopped framed read
+  · exact .placementTrap reason count placed halted framed read
   · obtain ⟨plan, compiled⟩ := linked.compiled
     have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
     rw [field] at matched
@@ -379,6 +379,6 @@ theorem parkedFlat {schema : TypeOf} (call : PayloadRoot.Site grow sig (.flat sc
     obtain ⟨bytes, sized⟩ := Option.isSome_iff_exists.mp sizePresent
     exact .placed silent placed prepared run (flatAtCursor site width sized call.checked (call.reference next) call.cursor
       (publicFlatReply call) next rfl (Core3.Grows.refl _) (fun item member => MemoryChildRule.local_memory
-        site.destination site.inst (localEntries item member) (entries_match_of_mem childMatch member)) tail checked reference) framed
+        site.destination site.inst (localEntries item member) (entries_match_of_mem childMatch member)) tail checked reference) framed read
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.NestedRecord

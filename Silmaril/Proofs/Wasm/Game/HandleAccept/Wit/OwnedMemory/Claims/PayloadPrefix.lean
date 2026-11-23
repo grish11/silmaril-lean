@@ -3245,7 +3245,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
       (destination.context inst) destination.width field .flat >>= canonNext) := by
     rw [reference]
     exact canonAt
-  have entry := start.2.2.2
+  have entry := start.2.2.2.2
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
@@ -3365,7 +3365,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
       (destination.context inst) destination.width field (.memory ptr) >>= canonNext) := by
     rw [reference]
     exact canonAt
-  have entry := started.2.2.2
+  have entry := started.2.2.2.2
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry

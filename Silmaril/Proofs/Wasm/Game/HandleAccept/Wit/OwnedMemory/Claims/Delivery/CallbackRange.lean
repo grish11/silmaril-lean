@@ -4175,10 +4175,10 @@ theorem linkedCollectionRejoinPaths {route : GiveEffectRoute} (site : PayloadRoo
   have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
     family collection schema paired selected embedder
   cases cut with
-  | refused issue quiet run framed => exact .refused issue quiet run framed
-  | placementTrap reason count verdict run framed => exact .placementTrap reason count verdict run framed
-  | placed silent verdict prepared path body framed =>
-    refine .placed silent verdict prepared path ?_ framed
+  | refused issue quiet run framed read => exact .refused issue quiet run framed read
+  | placementTrap reason count verdict run framed read => exact .placementTrap reason count verdict run framed read
+  | placed silent verdict prepared path body framed read =>
+    refine .placed silent verdict prepared path ?_ framed read
     cases family with
     | leaf nominal => cases nominal <;> cases collection
     | data data => cases data <;> cases collection
@@ -4807,10 +4807,10 @@ theorem linkedCollectionReturnFailures {route : GiveEffectRoute} (site : Payload
   have cut := linkedRecursiveCollectionBody (profile := profile) (ready := ready) site linked
     family collection schema paired selected embedder
   cases cut with
-  | refused issue quiet run framed => exact .refused issue quiet run framed
-  | placementTrap reason count verdict run framed => exact .placementTrap reason count verdict run framed
-  | placed quiet verdict prepared path body framed =>
-    refine .placed quiet verdict prepared path ?_ framed
+  | refused issue quiet run framed read => exact .refused issue quiet run framed read
+  | placementTrap reason count verdict run framed read => exact .placementTrap reason count verdict run framed read
+  | placed quiet verdict prepared path body framed read =>
+    refine .placed quiet verdict prepared path ?_ framed read
     cases type <;> first | exact liftLinkedCollectionFailures site linked prepared body | contradiction
 
 theorem linkedStringMapDispatch {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

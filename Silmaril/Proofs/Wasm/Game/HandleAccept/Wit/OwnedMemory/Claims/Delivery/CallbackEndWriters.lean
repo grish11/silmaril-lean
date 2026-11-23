@@ -130,7 +130,9 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     · exact directPreparation preparation
     · exact directReply reply
   | compilerRefused _ _ _ checked _ _ _ _ tail => exact stop (appendSteps (checked (.active 0 0)).steps tail)
-  | placementTrap _ _ _ checked _ _ _ _ tail => exact stop (appendSteps (checked (.active 0 0)).steps tail)
+  | placementTrap _ _ _ _ _ _ _ _ _ reached =>
+    obtain ⟨_, _, _, split, body⟩ := reached
+    exact split.symm ▸ terminal body.paths body.writers body.residual
   | body _ body _ => exact terminal body.paths body.writers body.residual
   | directGiveLateReply _ _ body _ reply => exact follow body.paths body.writers (directReply reply)
   | directGiveFinite body => simpa only [List.append_nil] using terminal body.paths body.writers body.residual

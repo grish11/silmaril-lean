@@ -105,6 +105,33 @@ def Site.EntryTrap (site : Site grow sig route) (profile : ProfileKind) (ready :
   ∀ place, Trail profile ready (specDispatch ready impl) site.start (some place) labels
     (StepDefs.trapCfg site.checked) ((Edit.clear : Edit (core3 grow) (HostState sig)).follow (site.entryPlace place))
 
+abbrev Site.PrepareNext (_site : Site grow sig route) :=
+  Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+
+def Site.entered (site : Site grow sig route) : Config (core3 grow) (HostState sig) :=
+  site.withBody (route.run site.destination site.inst site.tree site.start.host.nextTicket)
+
+def Site.prepareReader (site : Site grow sig route) (next : site.PrepareNext) : Config (core3 grow) (HostState sig) :=
+  site.withBody (.op .hostGet (fun current => next (Record.prepare site.start.store current.writer site.field.objects)))
+
+def Site.prepared (site : Site grow sig route) (next : site.PrepareNext) : Config (core3 grow) (HostState sig) :=
+  site.withBody (next (Record.prepare site.start.store site.entered.host.writer site.field.objects))
+
+/-- The parked callout prefix reaches the compiler's store read. The next two
+steps read the store and then the current writer at the original Core frame. -/
+structure Site.PrepareEntry (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (impl : HostImpl (core3 grow) (HostState sig)) (front : List (Label (core3 grow) (HostState sig)))
+    (next : site.PrepareNext) : Prop where
+  entry : site.EntryPrefix profile ready impl front site.entered
+  framed : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start front site.entered
+  quiet : visible front = []
+  getFocus : site.entered.ctl = site.cursor.control (.op .get (fun store => .op .hostGet fun current =>
+    next (Record.prepare store current.writer site.field.objects)))
+
+def Site.PreparedEntry (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (impl : HostImpl (core3 grow) (HostState sig)) (labels : List (Label (core3 grow) (HostState sig))) : Prop :=
+  ∃ front next tail, labels = (front ++ [.tau, .tau]) ++ tail ∧ site.PrepareEntry profile ready impl front next
+
 /-- The actual prefix before the first recursive field. No recursive
 comparison, allocator return or completion delivery is assumed. -/
 inductive Cut (site : Site grow sig route) (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -113,17 +140,21 @@ inductive Cut (site : Site grow sig route) (profile : ProfileKind) (ready : Host
       site.EntryPrefix profile ready impl labels (site.withBody (site.reply (.error issue))) →
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start labels
         (site.withBody (site.reply (.error issue))) →
+      site.PreparedEntry profile ready impl labels →
       Cut site profile ready bindings body impl
   | placementTrap (reason : TrapReason) (count : Nat)
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .error reason) :
       site.EntryTrap profile ready impl (List.replicate count .tau ++ [.trap reason]) →
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) → Cut site profile ready bindings body impl
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) →
+      site.PreparedEntry profile ready impl (List.replicate count .tau ++ [.trap reason]) →
+      Cut site profile ready bindings body impl
   | placed {labels} (silent : visible labels = [])
       (verdict : rootPlacement site.destination site.start.store (sig.payload site.tag) route.output = .ok ())
       (prepared : Record.prepare site.start.store site.start.host.writer site.field.objects = .ok ()) :
       site.EntryPrefix profile ready impl labels site.checked → body →
       Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) site.start labels site.checked →
+      site.PreparedEntry profile ready impl labels →
       Cut site profile ready bindings body impl
 
 end Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot

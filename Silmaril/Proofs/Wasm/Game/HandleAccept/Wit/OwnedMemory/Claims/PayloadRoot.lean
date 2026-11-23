@@ -122,15 +122,19 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
     intro label member
     rw [onlyTau label member]
     simp
-  let entered := site.withBody (route.run site.destination site.inst site.tree site.start.host.nextTicket)
+  let entered := site.entered
   have entryRun : site.EntryPrefix profile ready impl front entered := entry
-  obtain ⟨_, _, _, started⟩ := site.destination.compiled_payload_effects (profile := profile) (ready := ready)
+  obtain ⟨_, _, _, ⟨next, focus⟩, started⟩ := site.destination.compiled_payload_effects (profile := profile) (ready := ready)
     (dispatch := dispatch) entered site.inst site.tag site.payload route.output site.field plan site.reply compiled
     linked.destination rfl
+  have prepare : site.PrepareEntry profile ready impl front next := ⟨entryRun, entryWriter, silent, focus⟩
+  have reads (tail : List (Label (core3 grow) (HostState sig))) :
+      site.PreparedEntry profile ready impl ((front ++ [.tau, .tau]) ++ tail) := ⟨front, next, tail, rfl, prepare⟩
   cases prepared : Record.prepare entered.store entered.host.writer site.field.objects with
   | error issue =>
     rw [prepared] at started
-    exact .refused issue (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started.1 (site.entryPlace place))) (entryWriter.append started.2)
+    exact .refused issue (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started.1 (site.entryPlace place)))
+      (entryWriter.append started.2) (by simpa only [List.append_nil] using reads [])
   | ok accepted =>
     cases accepted
     rw [prepared] at started
@@ -140,6 +144,7 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
       simp only [fits, Bool.not_false, ↓reduceIte] at started
       exact .refused (.preflight (.abi .allocationPrecondition))
         (by rw [visibleAppend, silent]; rfl) (fun place => (entryRun place).append (started.1 (site.entryPlace place))) (entryWriter.append started.2)
+        (by simpa only [List.append_assoc, List.cons_append, List.nil_append] using reads [.tau])
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at started
       let root := site.withBody (Record.Effects.root recordClaims Limits.spec Quirks.none
@@ -161,19 +166,23 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
         have frames := placementTrapWriter bound (halted (.active 0 0)).steps
         change Plain.HostFramedSteps HostState.writer profile ready dispatch root
           (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg site.checked) at frames
-        refine .placementTrap reason (front.length + 3 + count) placed ?_ ?_
+        refine .placementTrap reason (front.length + 3 + count) placed ?_ ?_ ?_
         · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
           exact fun place => (rootRun place).toTrail.append (halted (site.entryPlace place))
         · rw [List.replicate_add, List.replicate_add, ← replicated, List.append_assoc]
           exact (entryWriter.append started.2).append frames
+        · rw [List.replicate_add, List.replicate_add, ← replicated]
+          simpa only [List.replicate_succ, List.replicate_zero, List.append_assoc, List.cons_append, List.nil_append]
+            using reads (.tau :: (List.replicate count .tau ++ [.trap reason]))
       | ok _ =>
         rw [placed] at placement
         obtain ⟨labels, shape, placementSilent, placedRun⟩ := placement
         have frame := placementWriter shape (placedRun (.active 0 0)).toTrail.steps rfl
         refine .placed ?_ placed prepared (fun place => (rootRun place).append (placedRun (site.entryPlace place)))
-          (afterFit fits placed prepared) ((entryWriter.append started.2).append frame)
-        rw [visibleAppend, visibleAppend, silent, placementSilent]
-        rfl
+          (afterFit fits placed prepared) ((entryWriter.append started.2).append frame) ?_
+        · rw [visibleAppend, visibleAppend, silent, placementSilent]
+          rfl
+        · simpa only [List.append_assoc, List.cons_append, List.nil_append] using reads (.tau :: labels)
 
 theorem parkedAfterPlacement (site : Site grow sig route) (linked : site.Linked bindings) (body : Prop)
     (afterFit : Lower.fits Quirks.none site.destination.encoding site.destination.width (sig.payload site.tag)
