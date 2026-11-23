@@ -254,6 +254,15 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       ClassifiedWriterPrefix profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail)
         finish peer (first ++ second)
 
+open ReturnFrame.Occurrence in
+/-- Each active or saved occurrence follows the actual prefix to the
+hostGet, then stays at its reached location through that read. -/
+def ReachedReadOccurrences (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (start reader after : Config (core3 grow) (HostState sig)) (leading : Trace grow sig) : Prop :=
+  ∀ place, ∃ reached, Trail profile ready dispatch start place leading reader reached ∧
+    Trail profile ready dispatch reader reached [.tau] after reached
+
 open Stored.OwnedMemory.Claims.Record in
 /-- Interpret the reached writer sites up to the first conflicting read
 or missing source classification. The remaining paths are retained, not replayed. -/
@@ -273,6 +282,10 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (site : ExecutedPrepareRead profile ready base atLeft reader readLeft readRight leading plan)
       (lhs : WriterPath profile ready (specDispatch ready base) atLeft (leading ++ [.tau]) readLeft [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight rawLeading readRight [])
+      (checkedRead : ReachedReadOccurrences profile ready (specDispatch ready base)
+        start reader readLeft (checked ++ leading))
+      (rawTrail : ∀ place, ∃ reached, ReturnFrame.Occurrence.Trail profile ready
+        (specDispatch ready (LiveDispatch.host bindings base)) incoming place (canonical ++ rawLeading) readRight reached)
       (live : pending probe ∨ probe ∈ spends)
       (unequal : prepare reader.store reader.host.writer plan ≠ prepare reader.store readRight.host.writer plan)
       (conflict : ReachedPrepareConflict reader.store reader.host.writer readRight.host.writer plan probe)
@@ -287,6 +300,9 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (site : RegistrationProbeMismatch atLeft atRight readLeft readRight check canon leftTicket rightTicket caller tree)
       (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] readLeft [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] readRight [])
+      (checkedRead : ReachedReadOccurrences profile ready (specDispatch ready base) start atLeft readLeft checked)
+      (rawRead : ReachedReadOccurrences profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming atRight readRight canonical)
       (related : readLeft.host.writer.ClaimDiscrepancies readRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
       (conflict : RegistrationConflict readLeft.host.writer readRight.host.writer tree (fun demand => pending demand ∨ demand ∈ spends))
       (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
