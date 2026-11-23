@@ -14362,9 +14362,9 @@ private def SharedRecordContinuation (profile : ProfileKind) (ready : HostReady 
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) (start incoming : Config (core3 grow) (HostState sig))
     (labels : Trace grow sig) (finish : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (checked canonical : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) : Prop :=
+    {Result : Type} (checked canonical : Result → Session grow sig (Ret (core3 grow))) : Prop :=
   ∀ {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
-    (result : Except RecordLower.Issue Unit),
+    (result : Result),
     labels = leading ++ trailing →
     OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
       left right [some (.active 0 0)] →
@@ -14410,6 +14410,33 @@ private theorem sharedRecordFixedCode (cx : LiftLowerContext (core3 grow)) (widt
     .pure (result.mapError (.nested index))
   simp only [RecordLower.Internal.runField]
   exact Prog.bind_assoc entriesVisit wrap next
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordSumCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf)) (tag : Nat) (child : RecordLower.Field)
+    (index ptr : Nat) (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.sum type arms tag (some child)) index (.memory ptr) >>= next) =
+    (storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr >>=
+      fun address => sharedRecordMemory (.elements 0) cx width [child] address 0
+        (fun result => next (result.mapError (.nested index)))) := by
+  let head : Session grow sig Nat :=
+    storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
+  let visit (address : Nat) : Session grow sig (Except RecordLower.Issue Unit) :=
+    RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width child 0 (.memory address)
+  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    .pure (result.mapError (.nested index))
+  simp only [RecordLower.Internal.runField]
+  change (head.bind (fun address => (visit address).bind wrap)).bind next = _
+  rw [Prog.bind_assoc]
+  refine congrArg head.bind (funext fun address => ?_)
+  rw [Prog.bind_assoc, sharedRecordMemoryCons]
+  change (visit address).bind _ = (visit address).bind _
+  refine congrArg (visit address).bind (funext fun result => ?_)
+  cases result with
+  | error issue => rfl
+  | ok result => cases result; rfl
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
@@ -14457,19 +14484,22 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           simp
         exact ih (sizeOf fields) smaller mode fields slot.2 (index + 1) checkDone canonDone
           onDone split paths writers site leftFocus rightFocus run rfl
-    have advance {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
-        (body : Session grow sig (Except RecordLower.Issue Unit)) (effects : StoreEffects body)
+    have advance {Result : Type} {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
+        (body : Session grow sig Result) (effects : StoreEffects body)
+        (nextCheck nextCanon : Result → Session grow sig (Ret (core3 grow)))
+        (resume : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+          check canon nextCheck nextCanon)
         (split : labels = leading ++ trailing)
         (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
           left right [some (.active 0 0)])
         (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
         (site : PairedComponentSite older left right check canon)
-        (leftFocus : left.ctl = check.control (body >>= checkNext))
-        (rightFocus : right.ctl = canon.control (body >>= canonNext))
+        (leftFocus : left.ctl = check.control (body >>= nextCheck))
+        (rightFocus : right.ctl = canon.control (body >>= nextCanon))
         (run : Steps profile ready (specDispatch ready base) left trailing finish) :
         CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
       obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, frontier, _, _, leftWriter, rightWriter, stationary⟩ :=
-        cutComponentStoreBodyFramed (bindings := bindings) (closed := True) body checkNext canonNext
+        cutComponentStoreBodyFramed (bindings := bindings) (closed := True) body nextCheck nextCanon
           (fun _ => effects)
           (trivialPreserves _) trivial leftFocus rightFocus site run
       have consumed : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
@@ -14491,12 +14521,12 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         have allPaths : OccurrenceTransport profile ready base bindings start incoming
             (.tau :: (leading ++ used)) (.tau :: (leading ++ used)) reached peer [some (.active 0 0)] := by
           simpa only [List.cons_append] using retained
-        exact finishField result consumed allPaths traced frame checked canonical residual
+        exact resume result consumed allPaths traced frame checked canonical residual
     by_cases localField : SharedRecordLocalField field
     · have checked := leftFocus
       have raw := rightFocus
       rw [sharedRecordMemoryCons] at checked raw
-      exact advance _ (sharedRecordLocalFieldEffects cx width localField index ptr)
+      exact advance _ (sharedRecordLocalFieldEffects cx width localField index ptr) checkNext canonNext finishField
         split paths writers site checked raw run
     by_cases aggregateField : ∃ type children, field = .aggregate type children
     · obtain ⟨type, children, rfl⟩ := aggregateField
@@ -14508,39 +14538,22 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
       have checked := leftFocus
       have raw := rightFocus
       rw [sharedRecordMemoryCons, sharedRecordAggregateCode] at checked raw
-      obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, frontier, _, _, leftWriter, rightWriter, stationary⟩ :=
-        cutComponentStoreBodyFramed (bindings := bindings) (closed := True) body checkChild canonChild
-          (fun _ => storeEffectBounds cx ptr (ABI.layout width type).size)
-          (trivialPreserves _) trivial checked raw site run
-      have consumed : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
-      have traced : VisitorWriterPath profile ready base bindings start incoming (.tau :: (leading ++ used))
-          (.tau :: (leading ++ used)) reached peer := by
-        simpa only [List.cons_append] using writers.append (.framed leftWriter rightWriter)
-      obtain ⟨_, through, _⟩ := CallbackPrefix.transportAppend paths localPaths
-      have stop (terminal : suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])) :
-          CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish :=
-        .inr (callbackTerminalSlice paired (by
-          rw [consumed, ← List.cons_append]
-          exact .coreAcceptTerminal (by simpa only [List.cons_append] using through) traced residual
-            (terminal.elim Or.inl (fun trapped => .inr (.inr (.inr trapped))))))
-      cases frontier with
-      | pending _ _ _ _ _ normal => exact stop (.inl (normal.resolve_right (fun unsupported => unsupported.1 trivial)))
-      | trapped checked canonical _ => exact stop (.inr ⟨checked, canonical⟩)
-      | returned _ checked canonical frame =>
-        have retained := retainComparedOccurrences paths (stationary (by rw [checked]; exact List.cons_ne_nil _ _)).2
-        have allPaths : OccurrenceTransport profile ready base bindings start incoming
-            (.tau :: (leading ++ used)) (.tau :: (leading ++ used)) reached peer [some (.active 0 0)] := by
-          simpa only [List.cons_append] using retained
-        have smaller : sizeOf children < size := by
-          rw [← fieldSize]
-          simp
-          omega
-        have onChild : SharedRecordContinuation profile ready base bindings older start incoming labels finish
-            check canon checkChildDone canonChildDone := by
-          intro left right leading trailing result split paths writers frame checked canonical residual
-          exact finishField (result.mapError (.nested index)) split paths writers frame checked canonical residual
+      have smaller : sizeOf children < size := by
+        rw [← fieldSize]
+        simp
+        omega
+      have onChild : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+          check canon checkChildDone canonChildDone := by
+        intro left right leading trailing result split paths writers frame checked canonical residual
+        exact finishField (result.mapError (.nested index)) split paths writers frame checked canonical residual
+      have resume : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+          check canon checkChild canonChild := by
+        intro left right leading trailing result split paths writers frame checked canonical residual
+        cases result
         exact ih (sizeOf children) smaller .fields children ptr 0 checkChildDone canonChildDone
-          onChild consumed allPaths traced frame checked canonical residual rfl
+          onChild split paths writers frame checked canonical residual rfl
+      exact advance body (storeEffectBounds cx ptr (ABI.layout width type).size) checkChild canonChild resume
+        split paths writers site checked raw run
     by_cases fixedField : ∃ element length entries, field = .fixed element length entries
     · obtain ⟨element, length, entries, rfl⟩ := fixedField
       let childMode := Track.elements (ABI.layout width element).size
@@ -14559,6 +14572,32 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         exact finishField (result.mapError (.nested index)) split paths writers frame checked canonical residual
       exact ih (sizeOf entries) smaller childMode entries ptr 0 checkChildDone canonChildDone onChild
         split paths writers site checked raw run rfl
+    by_cases sumField : ∃ type arms tag child, field = .sum type arms tag (some child)
+    · obtain ⟨type, arms, tag, child, rfl⟩ := sumField
+      let body : Session grow sig Nat :=
+        storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
+      let checkChildDone (result : Except RecordLower.Issue Unit) := checkNext (result.mapError (.nested index))
+      let canonChildDone (result : Except RecordLower.Issue Unit) := canonNext (result.mapError (.nested index))
+      let checkChild (address : Nat) := sharedRecordMemory (.elements 0) cx width [child] address 0 checkChildDone
+      let canonChild (address : Nat) := sharedRecordMemory (.elements 0) cx width [child] address 0 canonChildDone
+      have checked := leftFocus
+      have raw := rightFocus
+      rw [sharedRecordMemoryCons, sharedRecordSumCode] at checked raw
+      have smaller : sizeOf ([child] : List RecordLower.Field) < size := by
+        rw [← fieldSize]
+        simp
+        omega
+      have onChild : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+          check canon checkChildDone canonChildDone := by
+        intro left right leading trailing result split paths writers frame checked canonical residual
+        exact finishField (result.mapError (.nested index)) split paths writers frame checked canonical residual
+      have resume : SharedRecordContinuation profile ready base bindings older start incoming labels finish
+          check canon checkChild canonChild := by
+        intro left right leading trailing address split paths writers frame checked canonical residual
+        exact ih (sizeOf ([child] : List RecordLower.Field)) smaller (.elements 0) [child] address 0
+          checkChildDone canonChildDone onChild split paths writers frame checked canonical residual rfl
+      exact advance body (sharedRecordVariantHeadEffects cx width arms tag ptr) checkChild canonChild resume
+        split paths writers site checked raw run
     by_cases contextField : ∃ identity, field = .context identity
     · obtain ⟨identity, rfl⟩ := contextField
       let body := sharedRecordContextBody (sig := sig) cx identity index ptr
@@ -14585,7 +14624,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
         have traced := writers.append (.framed (WriterPaths.frameSingle (.cons read (.refl _)) rfl)
           (WriterPaths.frameSingle (.cons peerRead (.refl _)) rfl))
         have pairedAfter : PairedComponentSite older leftAfter rightAfter check canon := site
-        exact advance body (sharedRecordContextEffects cx identity index ptr) consumed
+        exact advance body (sharedRecordContextEffects cx identity index ptr) checkNext canonNext finishField consumed
           (by simpa only [List.cons_append] using through)
           (by simpa only [List.cons_append] using traced) pairedAfter rfl rfl residual
       · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
@@ -14635,7 +14674,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
               change canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict right.host) >>= canonNext) = _
               rw [← agrees, result]
               rfl
-            exact advance refusal (.pure _) consumed moved traced site leftFocus rightFocus residual
+            exact advance refusal (.pure _) checkNext canonNext finishField consumed moved traced site leftFocus rightFocus residual
           | ok rep =>
             have prepared (host : HostState sig) (accepted : verdict host = .ok rep) :
                 ∃ spent, Record.prepareOwner host.writer receipt = .ok (rep, spent) := by
@@ -14709,7 +14748,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
                 have pairedAfter : PairedComponentSite older leftDone rightDone check canon := by
                   unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
                   exact pairQuietHost site _
-                exact advance body effects usedAll
+                exact advance body effects checkNext canonNext finishField usedAll
                   (by simpa only [List.cons_append, List.append_assoc, List.nil_append] using allPaths)
                   (by simpa only [List.cons_append] using allWriters) pairedAfter rfl rfl nextRun
               · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
@@ -14803,7 +14842,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
                 change canon.control (sharedRecordEndpointAfterPrepare endpoint cx index ptr rightVerdict >>= canonNext) = _
                 rw [← agrees, result]
                 rfl
-              exact advance refusal (.pure _) consumed moved traced site atLeft atRight residual
+              exact advance refusal (.pure _) checkNext canonNext finishField consumed moved traced site atLeft atRight residual
             | ok unitResult =>
               cases unitResult
               obtain ⟨leftSpent, leftAdmitted⟩ := sharedRecordEndpointPrepared endpoint leftCaptured.store left.host.writer result
@@ -14860,7 +14899,7 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
                   have pairedAfter : PairedComponentSite older leftDone rightDone check canon := by
                     unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
                     exact pairQuietHost site _
-                  exact advance body effects usedAll
+                  exact advance body effects checkNext canonNext finishField usedAll
                     (by simpa only [List.cons_append, List.append_assoc, List.nil_append] using allPaths)
                     (by simpa only [List.cons_append] using allWriters) pairedAfter rfl rfl nextRun
                 · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
