@@ -2164,7 +2164,7 @@ def ReachedRecordPrepareMismatch (profile : ProfileKind) (ready : HostReady (Hos
 
 /-- The actual on-start call installed this return occurrence, which survived
 the caller reads and was popped at the designated worker cursor. -/
-structure SharedDestructorOnStartPop (profile : ProfileKind) (ready : HostReady (HostState sig))
+structure SharedLiftOnStartPop (reads : Nat) (profile : ProfileKind) (ready : HostReady (HostState sig))
     (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (caller : CallerId)
     (resume : ReturnFrame.Continuation (core3 grow) (HostState sig)) (args : List Value.Val)
@@ -2173,9 +2173,11 @@ structure SharedDestructorOnStartPop (profile : ProfileKind) (ready : HostReady 
     before.ctl = cursor.control (.op (.call (.onStart caller)) resume) ∧
     Step profile ready dispatch before .tau entered ∧
     entered.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (dispatch (.onStart caller)) ∧
-    ReturnFrame.Occurrence.Prefix profile ready dispatch entered (.active 0 0) [.tau, .tau, .tau] returned (.active 0 0) ∧
+    ReturnFrame.Occurrence.Prefix profile ready dispatch entered (.active 0 0) (List.replicate reads .tau) returned (.active 0 0) ∧
     returned.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (.pure (.vals args)) ∧
     Step profile ready dispatch returned .tau after
+
+abbrev SharedDestructorOnStartPop := SharedLiftOnStartPop (grow := grow) (sig := sig) 3
 
 /-- The registered worker still names the task and caller created by the
 source destructor setup. Reads at this entry use these actual reached stores. -/
@@ -2411,6 +2413,50 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         check.control (sharedRecordAllocatorAfterResume cx task caller))
       (canonicalAt : peer.ctl = StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) worker (.liftImplicit task callee) ::
         canon.control (sharedRecordAllocatorAfterResume cx task caller))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The reached allocator worker has executed its synchronous registration.
+  Its source caller and task are retained for the following actual onStart. -/
+  | sharedDropRecordAllocatorRegistered {changes reached peer trailing finish body callee task caller worker}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store)
+      (checked : reached.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+        (check.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorAfterAdmission task (some callee) true))
+      (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+        (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control (sharedDestructorAfterAdmission task (some callee) true))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- Both original onStart frames popped after reading the source allocator
+  arguments. The actual Core argument lowering remains in the two workers. -/
+  | sharedDropRecordAllocatorArguments {changes reached peer trailing finish body callee task caller worker}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType} {entry : Task (core3 grow)}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (thread : check.thread = canon.thread)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (source : SharedRecordAllocatorSource cx request width task caller reached.store)
+      (typeAt : entry.ft = reallocType width)
+      (optionsAt : entry.opts = {})
+      (instanceAt : entry.inst = cx.inst)
+      (callerAt : entry.caller = caller)
+      (checkedPop : SharedLiftOnStartPop 2 profile ready (specDispatch ready base)
+        ⟨some worker, [], check.control (sharedRecordAllocatorAfterResume cx task caller)⟩
+        entry.caller (sharedDestructorStartReply task (some callee) entry) (sharedRecordAllocatorArgs width request) reached)
+      (canonicalPop : SharedLiftOnStartPop 2 profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        ⟨some worker, [], canon.control (sharedRecordAllocatorAfterResume cx task caller)⟩
+        entry.caller (sharedDestructorStartReply task (some callee) entry) (sharedRecordAllocatorArgs width request) peer)
+      (checked : reached.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+        (check.control (sharedRecordAllocatorAfterResume cx task caller))).control
+        (sharedDestructorArguments task (some callee) entry (sharedRecordAllocatorArgs width request)))
+      (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) []
+        (canon.control (sharedRecordAllocatorAfterResume cx task caller))).control
+        (sharedDestructorArguments task (some callee) entry (sharedRecordAllocatorArgs width request)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
