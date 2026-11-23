@@ -17874,6 +17874,826 @@ private theorem finishSourceSharedRecord {limit : Nat}
           rw [empty, stopped]
           exact .exhausted
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordAggregateCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type : Stored.TypeOf) (fields : List RecordLower.Field) (index ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.aggregate type fields) index (.memory ptr) >>= next) =
+    (checkInBounds cx ptr (ABI.layout width type).size >>= fun _ =>
+      sharedRecordMemory .fields cx width fields ptr 0 (fun result => next (result.mapError (.nested index)))) := by
+  let bounds : Session grow sig Unit := checkInBounds cx ptr (ABI.layout width type).size
+  let visit : Session grow sig (Except RecordLower.Issue Unit) :=
+    RecordLower.Internal.runMemory Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width fields ptr 0
+  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    .pure (result.mapError (.nested index))
+  simp only [RecordLower.Internal.runField]
+  change (bounds.bind (fun _ => visit.bind wrap)).bind next =
+    bounds.bind (fun _ => visit.bind (fun result => next (result.mapError (.nested index))))
+  exact (Prog.bind_assoc bounds (fun _ => visit.bind wrap) next).trans
+    (congrArg (fun rest => bounds.bind (fun _ => rest)) (Prog.bind_assoc visit wrap next))
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordFixedCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (length : Nat) (entries : List RecordLower.Field) (index ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.fixed element length entries) index (.memory ptr) >>= next) =
+    sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+      (fun result => next (result.mapError (.nested index))) := by
+  let entriesVisit : Session grow sig (Except RecordLower.Issue Unit) :=
+    RecordLower.Internal.runElements Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width entries (ABI.layout width element).size ptr 0
+  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    .pure (result.mapError (.nested index))
+  simp only [RecordLower.Internal.runField]
+  exact Prog.bind_assoc entriesVisit wrap next
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordSumCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf)) (tag : Nat) (child : RecordLower.Field)
+    (index ptr : Nat) (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.sum type arms tag (some child)) index (.memory ptr) >>= next) =
+    (storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr >>=
+      fun address => sharedRecordMemory (.elements 0) cx width [child] address 0
+        (fun result => next (result.mapError (.nested index)))) := by
+  let head : Session grow sig Nat :=
+    storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
+  let visit (address : Nat) : Session grow sig (Except RecordLower.Issue Unit) :=
+    RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width child 0 (.memory address)
+  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    .pure (result.mapError (.nested index))
+  simp only [RecordLower.Internal.runField]
+  change (head.bind (fun address => (visit address).bind wrap)).bind next = _
+  rw [Prog.bind_assoc]
+  refine congrArg head.bind (funext fun address => ?_)
+  rw [Prog.bind_assoc, sharedRecordMemoryCons]
+  change (visit address).bind _ = (visit address).bind _
+  refine congrArg (visit address).bind (funext fun result => ?_)
+  cases result with
+  | error issue => rfl
+  | ok result => cases result; rfl
+
+open Stored.Endpoints in
+open Stored.Endpoints in
+private def sharedRecordContextBody (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) := do
+  if ((← getStore).errCtx? identity).isNone then
+    return .error (.field index (.beforeAllocation .missingContext))
+  let slot ← lowerErrorContext Limits.spec cx identity
+  return .ok (← RecordLower.Internal.publishSlot cx slot (.memory ptr))
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordContextCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (identity : ErrCtxId) (index ptr : Nat) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.context identity) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
+      .op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr) := by
+  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordContextBody,
+    hostGet, getStore, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext snapshot
+  congr 1
+  funext store
+  change CStore (core3 grow) at store
+  by_cases missing : store.errCtx? identity = none
+  · simp only [missing, ite_true]
+    rfl
+  · simp only [missing, ite_false]
+    let insert : Session grow sig Nat := lowerErrorContext Limits.spec cx identity
+    let verdict (slot : Nat) : Session grow sig (Except RecordLower.Issue Nat) := .pure (.ok slot)
+    let publish : Except RecordLower.Issue Nat → Session grow sig (Except RecordLower.Issue Unit)
+      | .error issue => .pure (.error issue)
+      | .ok slot => RecordLower.Internal.publishSlot cx slot (.memory ptr) >>= fun result => .pure (.ok result)
+    exact Prog.bind_assoc insert verdict publish
+
+private theorem sharedRecordContextEffects (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
+    StoreEffects (sharedRecordContextBody cx identity index ptr : Session grow sig (Except Stored.Endpoints.RecordLower.Issue Unit)) := by
+  unfold sharedRecordContextBody
+  apply storeEffectGet.bind
+  intro store
+  split
+  · exact .pure _
+  · exact (sharedHandleInsertEffects _ _).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
+
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordOwnerCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (receipt : Stored.OwnedMemory.Receipt) (index ptr : Nat) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.owner receipt) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
+      .op .hostGet (fun state =>
+        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst)) := by
+  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordOwnerAfterProbe,
+    hostGet, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext snapshot
+  change HostState sig at snapshot
+  cases outcome : Record.prepareOwner snapshot.writer receipt with
+  | error issue => rfl
+  | ok result =>
+    obtain ⟨rep, writer⟩ := result
+    simp [Except.map, sharedRecordOwnerTransfer, commitOwner, Prog.bind_assoc]
+    rfl
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordEndpointCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (channel : Async.Channel) (element : Async.Element) (identity : EndId) (index ptr : Nat) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.endpoint channel element identity) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
+      .op .hostGet (fun state => sharedRecordEndpointRead ⟨channel, element, identity, cx.inst⟩ cx index ptr state.writer) := by
+  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordEndpointRead,
+    hostGet, getStore, perform, Prog.lift, bind, Prog.bind]
+  congr 1
+  funext snapshot
+  congr 1
+  funext store
+  change CStore (core3 grow) at store
+  change HostState sig at snapshot
+  cases outcome : Record.prepareEndpoint store snapshot.writer channel element identity with
+  | error issue =>
+    simp [sharedRecordEndpointPrepare, Record.prepare, outcome, sharedRecordEndpointAfterPrepare, bind, Except.bind, Prog.bind]
+    rfl
+  | ok prospective =>
+    simp [sharedRecordEndpointPrepare, Record.prepare, outcome, sharedRecordEndpointAfterPrepare, bind, Except.bind, Prog.bind,
+      sharedRecordEndpointTransfer, SharedEndpointGive.transfer, claims, hostGet, perform, Prog.lift, Prog.bind_assoc]
+    rfl
+
+open Stored.OwnedMemory.Claims in
+private theorem sharedRecordEndpointPrepared (site : SharedEndpointGive) (store : CStore (core3 grow))
+    (writer : State sig) (accepted : sharedRecordEndpointPrepare site store writer = .ok ()) :
+    ∃ spent, Record.prepareEndpoint store writer site.channel site.element site.identity = .ok spent := by
+  cases result : Record.prepareEndpoint store writer site.channel site.element site.identity with
+  | error issue =>
+    simp [sharedRecordEndpointPrepare, Record.prepare, result, bind, Except.bind] at accepted
+  | ok spent => exact ⟨spent, rfl⟩
+
+open Stored.Endpoints in
+private theorem crossDestructorRecordStore {limit : Nat} {Result : Type}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (body : Session grow sig Result) (effects : StoreEffects body)
+    (checkedNext canonicalNext : Result → Session grow sig (Ret (core3 grow)))
+    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkedNext result) (canonicalNext result)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (body >>= checkedNext) (body >>= canonicalNext) := by
+  intro start incoming labels stores checked canonical scheduler run bounded
+  exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread body checkedNext canonicalNext
+    (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores checked canonical run
+    (fun result shorter _ same leftAt rightAt aligned residual =>
+      onResult result same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem crossDestructorRecordContext {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat)
+    (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkedNext result) (canonicalNext result)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr >>= checkedNext))
+      (.op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr >>= canonicalNext)) := by
+  intro left right labels stores checked canonical scheduler run bounded
+  let body := sharedRecordContextBody (sig := sig) cx identity index ptr
+  let leftAfter := { left with ctl := check.control (body >>= checkedNext) }
+  let rightAfter := { right with ctl := canon.control (body >>= canonicalNext) }
+  have read : Step profile ready (specDispatch ready base) left .tau leftAfter :=
+    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := fun _ => body >>= checkedNext) checked
+  have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightAfter :=
+    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := fun _ => body >>= canonicalNext) canonical
+  cases run with
+  | refl => exact .exhausted
+  | cons actual residual =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique read actual
+    have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) read peerRead
+      (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
+    exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned)
+      (crossDestructorRecordStore thread body (sharedRecordContextEffects cx identity index ptr)
+        checkedNext canonicalNext onResult stores rfl rfl scheduler residual (by simp at bounded; omega))
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem crossDestructorRecordOwner {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (receipt : Stored.OwnedMemory.Receipt)
+    (index ptr : Nat) (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkedNext result) (canonicalNext result)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op .hostGet (fun state =>
+        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= checkedNext))
+      (.op .hostGet (fun state =>
+        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= canonicalNext)) := by
+  classical
+  intro left right labels stores checked canonical scheduler run bounded
+  let verdict (host : HostState sig) := (Record.prepareOwner host.writer receipt).map Prod.fst
+  let following (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (host : HostState sig) :=
+    sharedRecordOwnerAfterProbe cx receipt index ptr (verdict host) >>= next
+  let checkedAt : left.ctl = check.control (.op .hostGet (following checkedNext)) := checked
+  let canonicalAt : right.ctl = canon.control (.op .hostGet (following canonicalNext)) := canonical
+  let leftRead := { left with ctl := check.control (following checkedNext left.host) }
+  let rightRead := { right with ctl := canon.control (following canonicalNext right.host) }
+  have guard : Step profile ready (specDispatch ready base) left .tau leftRead :=
+    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := following checkedNext) checkedAt
+  have peerGuard : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead :=
+    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := following canonicalNext) canonicalAt
+  cases run with
+  | refl => exact .exhausted
+  | @cons _ _ _ _ suffix actual afterGuard =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique guard actual
+    have editsLeft : transitionEdit left .tau = .same := by rw [transitionEdit, checkedAt]; rfl
+    have editsRight : transitionEdit right .tau = .same := by rw [transitionEdit, canonicalAt]; rfl
+    have paths := sharedSchedulerTransport (bindings := bindings) guard peerGuard editsLeft editsRight
+    by_cases agrees : verdict left.host = verdict right.host
+    · cases observed : verdict left.host with
+      | error issue =>
+        refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned) ?_
+        refine onResult (.error (.nested index issue)) stores ?_ ?_ scheduler afterGuard (by simp at bounded; omega)
+        · change check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict left.host) >>= checkedNext) = _
+          rw [observed]
+          rfl
+        · change canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict right.host) >>= canonicalNext) = _
+          rw [← agrees, observed]
+          rfl
+      | ok rep =>
+        have prepared (host : HostState sig) (accepted : verdict host = .ok rep) :
+            ∃ spent, Record.prepareOwner host.writer receipt = .ok (rep, spent) := by
+          unfold verdict at accepted
+          cases result : Record.prepareOwner host.writer receipt with
+          | error issue => simp [result, Except.map] at accepted
+          | ok resultValue =>
+            obtain ⟨representation, spent⟩ := resultValue
+            simp only [result, Except.map, Except.ok.injEq] at accepted
+            subst representation
+            exact ⟨spent, rfl⟩
+        obtain ⟨leftSpent, leftPrepared⟩ := prepared left.host observed
+        obtain ⟨rightSpent, rightPrepared⟩ := prepared right.host (agrees.symm.trans observed)
+        have leftReached : leftRead.ctl = check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= checkedNext) :=
+          congrArg check.control (congrArg (fun result => sharedRecordOwnerAfterProbe cx receipt index ptr result >>= checkedNext) observed)
+        have rightReached : rightRead.ctl = canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= canonicalNext) :=
+          congrArg canon.control (congrArg (fun result => sharedRecordOwnerAfterProbe cx receipt index ptr result >>= canonicalNext) (agrees.symm.trans observed))
+        let body := sharedRecordOwnerTransfer (sig := sig) cx receipt.1 rep ptr
+        let spendHost (host : HostState sig) := { host with writer := (Spend.owner (receiptId receipt)).apply host.writer }
+        let writeAfter (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (host : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+          Prog.op (.hostSet (spendHost host)) (fun _ => body >>= next)
+        let leftWrite := { leftRead with ctl := check.control (writeAfter checkedNext leftRead.host) }
+        let rightWrite := { rightRead with ctl := canon.control (writeAfter canonicalNext rightRead.host) }
+        let leftDone := { leftWrite with host := spendHost leftWrite.host, ctl := check.control (body >>= checkedNext) }
+        let rightDone := { rightWrite with host := spendHost rightWrite.host, ctl := canon.control (body >>= canonicalNext) }
+        have read : Step profile ready (specDispatch ready base) leftRead .tau leftWrite :=
+          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := writeAfter checkedNext) leftReached
+        have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau rightWrite :=
+          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := writeAfter canonicalNext) rightReached
+        have commit : Step profile ready (specDispatch ready base) leftWrite .tau leftDone :=
+          .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest) (s := leftDone.host) (k := fun _ => body >>= checkedNext) rfl
+        have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightWrite .tau rightDone :=
+          .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (s := rightDone.host) (k := fun _ => body >>= canonicalNext) rfl
+        have lhs : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] leftWrite :=
+          .step guard editsLeft rfl (.step read (by rw [transitionEdit, leftReached]; rfl) rfl .done)
+        have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id] rightWrite :=
+          .step peerGuard editsRight rfl (.step peerRead (by rw [transitionEdit, rightReached]; rfl) rfl .done)
+        rcases splitSilent (count := 2) (.cons read (.cons commit (.refl _))) afterGuard with ⟨remaining, used, residual⟩ | short
+        · rw [used]
+          have leftPath : ComponentQuietPath profile ready (specDispatch ready base) check left [id, id, id] leftDone :=
+            lhs.1.append (ComponentQuietPath.step (update := id) commit rfl (.done _))
+          have rightPath : ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id, id] rightDone :=
+            rhs.1.append (ComponentQuietPath.step (update := id) peerCommit rfl (.done _))
+          have committed : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready base) receipt cx index ptr rep checkedNext left leftDone :=
+            ⟨check, leftRead, leftWrite, leftSpent, checkedAt, leftPrepared,
+              congrArg (fun ctl => { left with ctl }) leftReached, rfl, rfl, guard, read, commit⟩
+          have peerCommitted : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+              receipt cx index ptr rep canonicalNext right rightDone :=
+            ⟨canon, rightRead, rightWrite, rightSpent, canonicalAt, rightPrepared,
+              congrArg (fun ctl => { right with ctl }) rightReached, rfl, rfl, peerGuard, peerRead, peerCommit⟩
+          have moved := CallbackPrefix.stationaryTransport (bindings := bindings) leftPath.track rightPath.track
+          refine .destructorPrefix moved (.recordOwnerCommit committed peerCommitted) (fun aligned => aligned) ?_
+          have lowered : StoreEffects (lowerOwn Limits.spec cx receipt.1 rep : Session grow sig Nat) :=
+            sharedOwnerTransferEffects ⟨receipt.1, receiptId receipt, cx.inst⟩ rep
+          have effects : StoreEffects body := lowered.bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
+          exact crossDestructorRecordStore thread body effects checkedNext canonicalNext onResult stores rfl rfl scheduler residual (by
+            rw [used] at bounded
+            simp at bounded
+            omega)
+        · exact finishDestructorFramedCut lhs rhs (.cons guard afterGuard) (by simp only [List.length_cons, List.length_nil]; omega)
+    · have mismatch : SharedRecordOwnerProbeMismatch left right leftRead rightRead receipt cx index ptr check canon :=
+        ⟨checkedNext, canonicalNext, checkedAt, canonicalAt, rfl, rfl, agrees⟩
+      exact .sharedRecordOwnerMismatch mismatch paths
+        (.recordOwnerMismatch mismatch (.same guard rfl (.done _)) (.same peerGuard rfl (.done _))) afterGuard
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem crossDestructorRecordEndpoint {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (site : SharedEndpointGive)
+    (index ptr : Nat) (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkedNext result) (canonicalNext result)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op .hostGet (fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= checkedNext))
+      (.op .hostGet (fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= canonicalNext)) := by
+  classical
+  intro left right labels stores checked canonical scheduler run bounded
+  let leftRead := { left with ctl := check.control (sharedRecordEndpointRead site cx index ptr left.host.writer >>= checkedNext) }
+  let rightRead := { right with ctl := canon.control (sharedRecordEndpointRead site cx index ptr right.host.writer >>= canonicalNext) }
+  let leftResult := sharedRecordEndpointPrepare site left.store left.host.writer
+  let rightResult := sharedRecordEndpointPrepare site right.store right.host.writer
+  let leftReady := { leftRead with ctl := check.control (sharedRecordEndpointAfterPrepare site cx index ptr leftResult >>= checkedNext) }
+  let rightReady := { rightRead with ctl := canon.control (sharedRecordEndpointAfterPrepare site cx index ptr rightResult >>= canonicalNext) }
+  have capture : Step profile ready (specDispatch ready base) left .tau leftRead :=
+    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+      (k := fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= checkedNext) checked
+  have peerCapture : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead :=
+    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+      (k := fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= canonicalNext) canonical
+  have probe : Step profile ready (specDispatch ready base) leftRead .tau leftReady :=
+    .get (th := check.thread) (segs := check.frames) (rest := check.rest)
+      (k := fun store => sharedRecordEndpointAfterPrepare site cx index ptr
+        (sharedRecordEndpointPrepare site store left.host.writer) >>= checkedNext) rfl
+  have peerProbe : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau rightReady :=
+    .get (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+      (k := fun store => sharedRecordEndpointAfterPrepare site cx index ptr
+        (sharedRecordEndpointPrepare site store right.host.writer) >>= canonicalNext) rfl
+  have lhs : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] leftReady :=
+    .step capture (by rw [transitionEdit, checked]; rfl) rfl (.step probe rfl rfl .done)
+  have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id] rightReady :=
+    .step peerCapture (by rw [transitionEdit, canonical]; rfl) rfl (.step peerProbe rfl rfl .done)
+  rcases splitSilent (count := 2) (.cons capture (.cons probe (.refl _))) run with ⟨suffix, used, residual⟩ | short
+  · rw [used]
+    have leftGuard : ExecutedSharedRecordEndpointGuard profile ready (specDispatch ready base)
+        site cx index ptr checkedNext left leftRead leftReady check :=
+      ⟨checked, rfl, rfl, capture, probe⟩
+    have rightGuard : ExecutedSharedRecordEndpointGuard profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        site cx index ptr canonicalNext right rightRead rightReady canon :=
+      ⟨canonical, rfl, rfl, peerCapture, peerProbe⟩
+    have within : suffix.length ≤ limit := by rw [used, List.length_append, List.length_replicate] at bounded; omega
+    by_cases agrees : leftResult = rightResult
+    · cases answer : leftResult with
+      | error issue =>
+        have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
+        refine .destructorPrefix paths (.framed lhs.2 rhs.2) (fun aligned => aligned) ?_
+        refine onResult (.error (.nested index issue)) stores ?_ ?_ scheduler residual within
+        · change check.control (sharedRecordEndpointAfterPrepare site cx index ptr leftResult >>= checkedNext) = _
+          rw [answer]
+          rfl
+        · change canon.control (sharedRecordEndpointAfterPrepare site cx index ptr rightResult >>= canonicalNext) = _
+          rw [← agrees, answer]
+          rfl
+      | ok readyResult =>
+        cases readyResult
+        obtain ⟨leftSpent, leftPrepared⟩ := sharedRecordEndpointPrepared site left.store left.host.writer answer
+        obtain ⟨rightSpent, rightPrepared⟩ := sharedRecordEndpointPrepared site right.store right.host.writer (agrees.symm.trans answer)
+        let body := sharedRecordEndpointTransfer (sig := sig) site cx ptr
+        let spendHost (host : HostState sig) := { host with writer := (Spend.endpoint site.identity).apply host.writer }
+        let writeAfter (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (host : HostState sig) :
+            Session grow sig (Ret (core3 grow)) :=
+          .op (.hostSet (spendHost host)) (fun _ => body >>= next)
+        let leftWrite := { leftReady with ctl := check.control (writeAfter checkedNext leftReady.host) }
+        let rightWrite := { rightReady with ctl := canon.control (writeAfter canonicalNext rightReady.host) }
+        let leftDone := { leftWrite with host := spendHost leftWrite.host, ctl := check.control (body >>= checkedNext) }
+        let rightDone := { rightWrite with host := spendHost rightWrite.host, ctl := canon.control (body >>= canonicalNext) }
+        have leftAt : leftReady.ctl = check.control (.op .hostGet (writeAfter checkedNext)) := by
+          change check.control (sharedRecordEndpointAfterPrepare site cx index ptr leftResult >>= checkedNext) = _
+          rw [answer]
+          rfl
+        have rightAt : rightReady.ctl = canon.control (.op .hostGet (writeAfter canonicalNext)) := by
+          change canon.control (sharedRecordEndpointAfterPrepare site cx index ptr rightResult >>= canonicalNext) = _
+          rw [← agrees, answer]
+          rfl
+        have read : Step profile ready (specDispatch ready base) leftReady .tau leftWrite :=
+          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) leftAt
+        have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightReady .tau rightWrite :=
+          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) rightAt
+        have commit : Step profile ready (specDispatch ready base) leftWrite .tau leftDone :=
+          .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest) (s := leftDone.host) (k := fun _ => body >>= checkedNext) rfl
+        have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightWrite .tau rightDone :=
+          .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (s := rightDone.host) (k := fun _ => body >>= canonicalNext) rfl
+        have leftQuiet : FramedQuietPath profile ready (specDispatch ready base) check left [id, id, id] leftWrite :=
+          lhs.append (.step (update := id) read (by rw [transitionEdit, leftAt]; rfl) rfl .done)
+        have rightQuiet : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id, id] rightWrite :=
+          rhs.append (.step (update := id) peerRead (by rw [transitionEdit, rightAt]; rfl) rfl .done)
+        rcases splitSilent (count := 2) (.cons read (.cons commit (.refl _))) residual with ⟨remaining, assigned, tail⟩ | short
+        · rw [assigned]
+          have leftPath : ComponentQuietPath profile ready (specDispatch ready base) check left [id, id, id, id] leftDone :=
+            leftQuiet.1.append (ComponentQuietPath.step (update := id) commit rfl (.done _))
+          have rightPath : ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id, id, id] rightDone :=
+            rightQuiet.1.append (ComponentQuietPath.step (update := id) peerCommit rfl (.done _))
+          have committed : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready base)
+              site cx index ptr checkedNext left leftDone :=
+            ⟨check, leftRead, leftReady, leftWrite, leftSpent, leftGuard, leftPrepared, rfl, rfl, read, commit⟩
+          have peerCommitted : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+              site cx index ptr canonicalNext right rightDone :=
+            ⟨canon, rightRead, rightReady, rightWrite, rightSpent, rightGuard, rightPrepared, rfl, rfl, peerRead, peerCommit⟩
+          have moved := CallbackPrefix.stationaryTransport (bindings := bindings) leftPath.track rightPath.track
+          refine .destructorPrefix (leading := [.tau, .tau, .tau, .tau]) moved (.recordEndpointCommit committed peerCommitted) (fun aligned => aligned) ?_
+          have effects : StoreEffects body :=
+            (sharedEndpointTransferEffects site).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
+          exact crossDestructorRecordStore thread body effects checkedNext canonicalNext onResult stores rfl rfl scheduler tail (by
+            rw [assigned, List.length_append, List.length_replicate] at within
+            omega)
+        · exact finishDestructorFramedCut leftQuiet rightQuiet (used ▸ run) (by
+            rw [List.length_append, List.length_replicate]
+            simp only [List.length_cons, List.length_nil]
+            omega)
+    · have mismatch : SharedRecordEndpointMismatch profile ready base bindings site left right leftReady rightReady :=
+        ⟨cx, index, ptr, check, canon, checkedNext, canonicalNext, leftRead, rightRead, leftGuard, rightGuard, stores, agrees⟩
+      have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
+      exact .sharedRecordEndpointMismatch mismatch paths (.recordEndpointMismatch mismatch) residual
+  · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
+
+open Stored.Endpoints in
+private def sharedRecordPreAllocationIssue (index : Nat) : RecordLower.Issue → RecordLower.Issue
+  | .preflight issue => .field index (.beforeAllocation issue)
+  | issue => .nested index issue
+
+open Stored.Endpoints in
+private def sharedRecordBeforeAllocation (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat) :
+    Except RecordLower.Issue Unit → Session grow sig (Except RecordLower.Issue Unit)
+  | .error issue => pure (.error (sharedRecordPreAllocationIssue index issue))
+  | .ok () => sharedRecordAllocate cx width element entries index dest
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordCollectionCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.dynamic type element entries) index (.memory dest) >>= next) =
+    .op .get (fun store => .op .hostGet fun state =>
+      sharedRecordBeforeAllocation cx width element entries index dest
+        (Record.prepare store state.writer (RecordLower.Field.listObjects entries)) >>= next) := by
+  let plan := RecordLower.Field.listObjects entries
+  let prepare : Session grow sig (Except RecordLower.Issue Unit) :=
+    (Record.authority recordClaims Limits.spec cx).prepare plan
+  let checked := sharedRecordBeforeAllocation (sig := sig) cx width element entries index dest
+  have program : (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.dynamic type element entries) index (.memory dest) : Session grow sig (Except RecordLower.Issue Unit)) =
+      prepare.bind checked := by
+    simp only [RecordLower.Internal.runField, Prog.bind_eq]
+    refine congrArg prepare.bind (funext fun result => ?_)
+    cases result with
+    | error issue => cases issue <;> rfl
+    | ok result => cases result; rfl
+  rw [program]
+  change (prepare.bind checked).bind next = _
+  rw [Prog.bind_assoc]
+  rfl
+
+open Stored.Endpoints in
+private theorem sharedRecordAllocatorCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (sharedRecordAllocate cx width element entries index dest >>= next) =
+      .op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+        (sharedRecordAllocationResume cx width element entries index dest next) := by
+  let area := ABI.layout width element
+  let call : Call (core3 grow) := .reallocate cx 0 0 area.alignment.bytes (entries.length * area.size)
+  let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
+    | .nat ptr => pure ptr
+    | _ => internal "late-bound call: expected Ret.nat"
+  have callCode : (callNat call : Session grow sig Nat) = .op (.call call) read := by
+    simp [callNat, callRet, perform, Prog.lift, bind, Prog.bind, read]
+    refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+    cases result <;> rfl
+  unfold sharedRecordAllocate ListLower.allocateRange allocateListRange allocate reallocate
+  rw [callCode]
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call) (fun result => (read result).bind fun ptr =>
+    (validateListRange cx area entries.length ptr).bind fun address =>
+      (sharedRecordAllocated cx width element entries index dest address).bind next) = _
+  refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+  cases result <;> try rfl
+  all_goals
+    change Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap (.internal "late-bound call: expected Ret.nat")) _ =
+      Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap (.internal "late-bound call: expected Ret.nat")) _
+    congr 1
+    funext impossible
+    cases impossible
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem crossDestructorRecordPrepare {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (plan : List RecordLower.Object)
+    (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onRead : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkedNext result) (canonicalNext result)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op .get (fun store => .op .hostGet fun state => checkedNext (Record.prepare store state.writer plan)))
+      (.op .get (fun store => .op .hostGet fun state => canonicalNext (Record.prepare store state.writer plan))) := by
+  classical
+  intro left right labels stores checked canonical scheduler run bounded
+  let leftRead := { left with ctl := check.control (.op .hostGet
+    (fun state => checkedNext (Record.prepare left.store state.writer plan))) }
+  let rightRead := { right with ctl := canon.control (.op .hostGet
+    (fun state => canonicalNext (Record.prepare right.store state.writer plan))) }
+  let leftResult := Record.prepare left.store left.host.writer plan
+  let rightResult := Record.prepare right.store right.host.writer plan
+  let reached := { leftRead with ctl := check.control (checkedNext leftResult) }
+  let peer := { rightRead with ctl := canon.control (canonicalNext rightResult) }
+  have leftGet : Step profile ready (specDispatch ready base) left .tau leftRead := .get checked
+  have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead := .get canonical
+  have leftProbe : Step profile ready (specDispatch ready base) leftRead .tau reached :=
+    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+      (k := fun state => checkedNext (Record.prepare left.store state.writer plan)) rfl
+  have rightProbe : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau peer :=
+    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+      (k := fun state => canonicalNext (Record.prepare right.store state.writer plan)) rfl
+  have lhs : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] reached :=
+    .step leftGet (by rw [transitionEdit, checked]; rfl) rfl (.step leftProbe rfl rfl .done)
+  have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id] peer :=
+    .step rightGet (by rw [transitionEdit, canonical]; rfl) rfl (.step rightProbe rfl rfl .done)
+  rcases splitSilent (count := 2) (.cons leftGet (.cons leftProbe (.refl _))) run with ⟨suffix, used, residual⟩ | short
+  · rw [used]
+    by_cases agrees : leftResult = rightResult
+    · have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
+      refine .destructorPrefix paths (.framed lhs.2 rhs.2) (fun aligned => aligned) ?_
+      exact onRead leftResult stores rfl (congrArg (fun result => canon.control (canonicalNext result)) agrees.symm)
+        scheduler residual (by rw [used, List.length_append, List.length_replicate] at bounded; omega)
+    · have mismatch : SharedRecordPrepareMismatch leftRead rightRead reached peer plan check canon :=
+        ⟨checkedNext, canonicalNext, stores, rfl, rfl, rfl, rfl, agrees⟩
+      have readStores := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet
+        (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
+      have readWriters := frameCalloutStep readStores rfl rfl
+      have readClaims := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftProbe rightProbe rfl rfl
+      exact .destructorPrefix (leading := [.tau]) readStores readWriters (fun aligned => aligned)
+        (.sharedRecordPrepareMismatch mismatch readClaims
+          (.sharedRecordPrepare mismatch (.same leftProbe rfl (.done _)) (.same rightProbe rfl (.done _))) residual)
+  · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
+
+private theorem sharedRecordRangeEffects (cx : LiftLowerContext (core3 grow)) (area : ABI.Layout) (count : Nat)
+    (result : Ret (core3 grow)) : StoreEffects (sharedRecordRange cx area count result : Session grow sig Nat) := by
+  cases result
+  case nat ptr =>
+    exact (storeEffectTrapIf (decide (ptr ≠ ABI.alignTo ptr area.alignment)) .unalignedPointer).bind fun _ =>
+      (storeEffectBounds cx ptr (count * area.size)).bind fun _ => .pure ptr
+  all_goals exact storeEffectTrap (.internal "late-bound call: expected Ret.nat")
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordAllocatedPrepareCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest pointer : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (sharedRecordAllocated cx width element entries index dest pointer >>= next) =
+      .op .get (fun store => .op .hostGet fun state =>
+        sharedRecordAfterAllocationPrepare cx width element entries index dest pointer
+          (Record.prepare store state.writer (RecordLower.Field.listObjects entries)) >>= next) := by
+  rfl
+
+private def sharedStringLocalStep : ABI.StoreStep → Bool
+  | .allocate .. | .reallocate .. => false
+  | _ => true
+
+private theorem sharedStringStepEffects (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
+    (step : ABI.StoreStep) (localStep : sharedStringLocalStep step = true) :
+    StoreEffects (runStoreStep cx ptr step : Session grow sig Nat) := by
+  have readEffects (len : Nat) : StoreEffects (readMem cx ptr len : Session grow sig ByteArray) := by
+    unfold readMem memAddr
+    exact (storeEffectOrTrap _ _).bind fun _ => storeEffectGet.bind fun _ => storeEffectOrTrap _ _
+  cases step with
+  | allocate | reallocate => contradiction
+  | trapIfMisaligned => exact (storeEffectTrapIf _ _).bind fun _ => .pure _
+  | trapIfOutOfBounds => exact (storeEffectBounds cx ptr _).bind fun _ => .pure _
+  | write => exact (storeEffectWrite cx _ _).bind fun _ => .pure _
+  | inflateLatin1 | deflateUtf16 =>
+    exact (readEffects _).bind fun _ => (storeEffectWrite cx ptr _).bind fun _ => .pure _
+
+private theorem sharedStringDescriptorEffects (cx : LiftLowerContext (core3 grow)) (tagged dest pointer : Nat) :
+    StoreEffects (sharedRecordStringDescriptor cx tagged dest pointer : Session grow sig Unit) := by
+  have size : StoreEffects (ptrSize cx : Session grow sig Nat) := (storeEffectPtrType cx).bind fun _ => .pure _
+  exact size.bind fun n => (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + n) _
+
+open Stored.Endpoints in
+private theorem sharedRecordStringRemainingCons (cx : LiftLowerContext (core3 grow))
+    (step : ABI.StoreStep) (steps : List ABI.StoreStep) (tagged dest pointer : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    sharedRecordStringRemaining cx (step :: steps) tagged dest pointer next =
+      (runStoreStep cx pointer step >>= fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr next) := by
+  unfold sharedRecordStringRemaining runStoreSteps
+  simp only [Prog.foldlM, Prog.bind_eq, Prog.bind_assoc]
+
+open Stored.Endpoints in
+private theorem sharedRecordStringRequestCode (cx : LiftLowerContext (core3 grow)) (dest tagged old oldLen : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (alignment size : Nat) (remaining : List ABI.StoreStep) :
+    (reallocate cx old oldLen alignment size >>= fun ptr => sharedRecordStringRemaining cx remaining tagged dest ptr next) =
+      .op (.call (.reallocate cx old oldLen alignment size))
+        (sharedRecordStringResume cx remaining tagged dest next) := by
+  let call : Call (core3 grow) := .reallocate cx old oldLen alignment size
+  let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
+    | .nat ptr => pure ptr
+    | _ => internal "late-bound call: expected Ret.nat"
+  have callCode : (callNat call : Session grow sig Nat) = .op (.call call) read := by
+    simp [callNat, callRet, perform, Prog.lift, bind, Prog.bind, read]
+    refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+    cases result <;> rfl
+  unfold reallocate
+  rw [callCode]
+  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)
+    (fun result => (read result).bind fun ptr => sharedRecordStringRemaining cx remaining tagged dest ptr next) = _
+  refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+  cases result
+  case nat => rfl
+  all_goals
+    change ((internal "late-bound call: expected Ret.nat" : Session grow sig Nat).bind _) = _
+    rw [internalBind]
+    rfl
+
+open Stored.Endpoints in
+private theorem sharedRecordCollectionResultEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (count index dest ptr : Nat) (result : Except RecordLower.Issue Unit) :
+    StoreEffects (sharedRecordCollectionResult cx width count index dest ptr result : Session grow sig _) := by
+  cases result with
+  | error issue => exact .pure _
+  | ok accepted =>
+    cases accepted
+    have widthRead : StoreEffects (ptrSize cx : Session grow sig Nat) := (storeEffectPtrType cx).bind fun _ => .pure _
+    exact ((widthRead.bind fun size =>
+      (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + size) _).bind fun _ => .pure _)
+
+open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
+private theorem sharedRecordAfterPrepareVisit (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= next) =
+      sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= next) := by
+  let body : Session grow sig (Except RecordLower.Issue Unit) := RecordLower.Internal.runElements Limits.spec Quirks.none cx
+    (Record.authority recordClaims Limits.spec cx) width entries (ABI.layout width element).size ptr 0
+  let report := sharedRecordCollectionResult (sig := sig) cx width entries.length index dest ptr
+  change (body.bind report).bind next = _
+  exact Prog.bind_assoc body report next
+
+open Stored.Endpoints LinkedCallback.MemorySequence in
+private theorem crossDestructorRecordCollectionResume {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
+    (entries : List RecordLower.Field) (index dest pointer : Nat)
+    (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onField : ∀ verdict, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (leftNext verdict) (rightNext verdict))
+    (onVisit : ∀ ptr, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun verdict => sharedRecordCollectionResult cx width entries.length index dest ptr verdict >>= leftNext))
+      (sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
+        (fun verdict => sharedRecordCollectionResult cx width entries.length index dest ptr verdict >>= rightNext))) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordAllocationResume cx width element entries index dest leftNext (.nat pointer))
+      (sharedRecordAllocationResume cx width element entries index dest rightNext (.nat pointer)) := by
+  intro start incoming labels stores checked canonical scheduler run within
+  let area := ABI.layout width element
+  let range : Session grow sig Nat := sharedRecordRange cx area entries.length (.nat pointer)
+  let afterRange (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (ptr : Nat) :=
+    sharedRecordAllocated cx width element entries index dest ptr >>= next
+  refine crossDestructorRecordStore (check := check) (canon := canon) thread range
+    (sharedRecordRangeEffects cx area entries.length (.nat pointer)) (afterRange leftNext) (afterRange rightNext)
+    ?_ stores checked canonical scheduler run within
+  intro ptr left right remaining same leftAt rightAt aligned tail bounded
+  change left.ctl = check.control (sharedRecordAllocated cx width element entries index dest ptr >>= leftNext) at leftAt
+  change right.ctl = canon.control (sharedRecordAllocated cx width element entries index dest ptr >>= rightNext) at rightAt
+  rw [sharedRecordAllocatedPrepareCode] at leftAt rightAt
+  let afterPrepare (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+      (result : Except RecordLower.Issue Unit) :=
+    sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= next
+  refine crossDestructorRecordPrepare (check := check) (canon := canon) (RecordLower.Field.listObjects entries)
+    (afterPrepare leftNext) (afterPrepare rightNext) ?_ same leftAt rightAt aligned tail bounded
+  intro result reached peer trailing equal checked canonical aligned residual within
+  cases result with
+  | error issue =>
+    cases issue <;> exact onField _ equal checked canonical aligned residual within
+  | ok accepted =>
+    cases accepted
+    change reached.ctl = check.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= leftNext) at checked
+    change peer.ctl = canon.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= rightNext) at canonical
+    rw [sharedRecordAfterPrepareVisit] at checked canonical
+    exact onVisit ptr equal checked canonical aligned residual within
+
+open Stored.Endpoints in
+private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
+    (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) :=
+  let type : Stored.TypeOf := .prim .string
+  let refuse := fun issue => .error (.field index (.beforeAllocation (.abi issue)))
+  match Stored.Lower.checkSchema type >>= fun _ => Stored.Lower.checkOptions cx type (.memory ptr) with
+  | .error issue => pure (refuse issue)
+  | .ok () => do
+    let width ← ptrType cx
+    if !Stored.Lower.fits Quirks.none cx.opts.encoding width type text.val then
+      return refuse .allocationPrecondition
+    let area := ABI.layout width type
+    checkAligned ptr area.alignment.bytes
+    checkInBounds cx ptr area.size
+    return .ok ()
+
+open Stored.Endpoints in
+private def sharedRecordStringEmit (cx : LiftLowerContext (core3 grow))
+    (text : Stored.Payload (.prim .string)) (ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
+  | .error issue => next (.error issue)
+  | .ok () => Canon.store Limits.spec Quirks.none cx text.val (.prim .string) ptr >>= fun _ => next (.ok ())
+
+open Stored.Endpoints in
+private theorem sharedRecordStringPlacementEffects (cx : LiftLowerContext (core3 grow))
+    (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
+    StoreEffects (sharedRecordStringPlacement cx text index ptr : Session grow sig (Except RecordLower.Issue Unit)) := by
+  unfold sharedRecordStringPlacement
+  dsimp only
+  split
+  · exact .pure _
+  · refine (storeEffectPtrType cx).bind fun width => ?_
+    split
+    · exact .pure _
+    · exact (storeEffectTrapIf _ _).bind fun _ =>
+        (storeEffectBounds cx ptr (ABI.layout width (.prim .string)).size).bind fun _ => .pure _
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordStringCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (text : Stored.Payload (.prim .string)) (index ptr : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+      width (.data (.prim .string) text) index (.memory ptr) >>= next) =
+    (sharedRecordStringPlacement cx text index ptr >>= sharedRecordStringEmit cx text ptr next) := by
+  let type : Stored.TypeOf := .prim .string
+  let initialWidth : Session grow sig AddrType := ptrType cx
+  let fits (width : AddrType) := Stored.Lower.fits Quirks.none cx.opts.encoding width type text.val
+  let issue := RecordLower.Issue.field index ∘ ListLower.Issue.beforeAllocation ∘ Stored.Endpoints.Lower.Issue.abi
+  let lower (width : AddrType) : Session grow sig (Except Stored.Lower.Issue Unit) :=
+    if !fits width then pure (.error .allocationPrecondition)
+    else do return .ok (← Stored.Lower.emit Limits.spec Quirks.none cx width type text (.memory ptr))
+  let place (width : AddrType) : Session grow sig (Except RecordLower.Issue Unit) :=
+    if !fits width then pure (.error (issue .allocationPrecondition))
+    else do
+      let area := ABI.layout width type
+      checkAligned ptr area.alignment.bytes
+      checkInBounds cx ptr area.size
+      return .ok ()
+  let packed (result : Except Stored.Lower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
+    .pure (result.mapError issue)
+  let emit := sharedRecordStringEmit cx text ptr next
+  simp only [RecordLower.Internal.runField, Stored.Lower.lower, sharedRecordStringPlacement]
+  cases (Stored.Lower.checkSchema type >>= fun _ => Stored.Lower.checkOptions cx type (.memory ptr)) with
+  | error rejected => rfl
+  | ok accepted =>
+    cases accepted
+    change ((initialWidth.bind lower).bind packed).bind next = (initialWidth.bind place).bind emit
+    simp only [Prog.bind_assoc]
+    refine congrArg initialWidth.bind (funext fun actualWidth => ?_)
+    cases ready : fits actualWidth with
+    | false => simp [lower, place, ready, packed, emit]; rfl
+    | true =>
+      simp [lower, place, ready, Stored.Lower.emit, Prog.bind_assoc, packed, emit, sharedRecordStringEmit]
+      let area := ABI.layout actualWidth type
+      let aligned : Session grow sig Unit := checkAligned ptr area.alignment.bytes
+      let bounded : Session grow sig Unit := checkInBounds cx ptr area.size
+      let storeText : Session grow sig Unit := Canon.store Limits.spec Quirks.none cx text.val type ptr
+      change (((aligned.bind fun _ => bounded.bind fun _ => storeText).bind
+        fun value => .pure (.ok value : Except Stored.Lower.Issue Unit)).bind (fun result => next (result.mapError issue))) =
+        aligned.bind (fun _ => bounded.bind (fun _ => storeText.bind (fun _ => next (.ok ()))))
+      simp only [Prog.bind_assoc, Prog.pure_bind', Except.mapError]
+
+open Stored.Endpoints in
+private theorem sharedRecordStringPlanCode (cx : LiftLowerContext (core3 grow)) (value : Value.StrVal) (dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) dest >>= fun _ => next (.ok ())) =
+      (ptrType cx >>= sharedRecordStringPlan cx value dest next) := by
+  rw [Canon.store.eq_def]
+  simp [storePrim, storeString, storeStringIntoRange, bind, Prog.bind_assoc]
+  refine congrArg (ptrType (σ := HostState sig) cx).bind (funext fun width => ?_)
+  unfold sharedRecordStringPlan sharedRecordStringRemaining sharedRecordStringDescriptor
+  simp [bind, Prog.bind_assoc]
+
+/-- The first instruction of each canonical string encoding plan allocates its initial range. -/
+private theorem stringPlanInitialAllocation (encoding : ABI.StringEncoding) (width : AddrType) (value : ABI.StringValue) :
+    ∃ alignment size remaining,
+      (ABI.storeStringIntoRange encoding width value).steps = .allocate alignment size :: remaining := by
+  unfold ABI.storeStringIntoRange
+  dsimp only
+  split
+  all_goals
+    simp only [ABI.storeStringCopy, ABI.storeUtf16ToUtf8, ABI.storeLatin1ToUtf8, ABI.storeStringToUtf8,
+      ABI.storeUtf8ToUtf16]
+  all_goals
+    repeat' first | (exact ⟨_, _, _, rfl⟩) | split |
+      (simp only [ABI.storeProbablyUtf16ToLatin1OrUtf16, ABI.storeStringToLatin1OrUtf16])
+
+
+open Stored.Endpoints in
+private theorem sharedRecordStringAllocationCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (value : Value.StrVal) (dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (alignment : ABI.Alignment) (size : Nat) (remaining : List ABI.StoreStep)
+    (steps : (storePlanFor Quirks.none cx.opts.encoding width value).steps = .allocate alignment size :: remaining) :
+    sharedRecordStringPlan cx value dest next width =
+      .op (.call (.reallocate cx 0 0 alignment.bytes size))
+        (sharedRecordStringResume cx remaining (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits dest next) := by
+  unfold sharedRecordStringPlan
+  dsimp only
+  rw [steps]
+  change (((runStoreStep cx 0 (.allocate alignment size)).bind
+      fun ptr => runStoreSteps cx ptr remaining) : Session grow sig Nat).bind _ = _
+  rw [Prog.bind_assoc]
+  exact sharedRecordStringRequestCode cx dest _ 0 0 next alignment.bytes size remaining
+
 open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem finishSourceLocalRecordFields {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
@@ -19015,552 +19835,6 @@ private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody 
   finishSourceScheduledReply stores result checked canonical scheduler run bounded
     (finishDestructorCoreReply parents thread segments compare)
 
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordAggregateCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (type : Stored.TypeOf) (fields : List RecordLower.Field) (index ptr : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.aggregate type fields) index (.memory ptr) >>= next) =
-    (checkInBounds cx ptr (ABI.layout width type).size >>= fun _ =>
-      sharedRecordMemory .fields cx width fields ptr 0 (fun result => next (result.mapError (.nested index)))) := by
-  let bounds : Session grow sig Unit := checkInBounds cx ptr (ABI.layout width type).size
-  let visit : Session grow sig (Except RecordLower.Issue Unit) :=
-    RecordLower.Internal.runMemory Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width fields ptr 0
-  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
-    .pure (result.mapError (.nested index))
-  simp only [RecordLower.Internal.runField]
-  change (bounds.bind (fun _ => visit.bind wrap)).bind next =
-    bounds.bind (fun _ => visit.bind (fun result => next (result.mapError (.nested index))))
-  exact (Prog.bind_assoc bounds (fun _ => visit.bind wrap) next).trans
-    (congrArg (fun rest => bounds.bind (fun _ => rest)) (Prog.bind_assoc visit wrap next))
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordFixedCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (length : Nat) (entries : List RecordLower.Field) (index ptr : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.fixed element length entries) index (.memory ptr) >>= next) =
-    sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
-      (fun result => next (result.mapError (.nested index))) := by
-  let entriesVisit : Session grow sig (Except RecordLower.Issue Unit) :=
-    RecordLower.Internal.runElements Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width entries (ABI.layout width element).size ptr 0
-  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
-    .pure (result.mapError (.nested index))
-  simp only [RecordLower.Internal.runField]
-  exact Prog.bind_assoc entriesVisit wrap next
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordSumCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (type : Stored.TypeOf) (arms : List (Option Stored.TypeOf)) (tag : Nat) (child : RecordLower.Field)
-    (index ptr : Nat) (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.sum type arms tag (some child)) index (.memory ptr) >>= next) =
-    (storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr >>=
-      fun address => sharedRecordMemory (.elements 0) cx width [child] address 0
-        (fun result => next (result.mapError (.nested index)))) := by
-  let head : Session grow sig Nat :=
-    storeVariantHead cx arms.length (ABI.maxCaseAlignment (arms.map (ABI.layoutOption width))) tag ptr
-  let visit (address : Nat) : Session grow sig (Except RecordLower.Issue Unit) :=
-    RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width child 0 (.memory address)
-  let wrap (result : Except RecordLower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
-    .pure (result.mapError (.nested index))
-  simp only [RecordLower.Internal.runField]
-  change (head.bind (fun address => (visit address).bind wrap)).bind next = _
-  rw [Prog.bind_assoc]
-  refine congrArg head.bind (funext fun address => ?_)
-  rw [Prog.bind_assoc, sharedRecordMemoryCons]
-  change (visit address).bind _ = (visit address).bind _
-  refine congrArg (visit address).bind (funext fun result => ?_)
-  cases result with
-  | error issue => rfl
-  | ok result => cases result; rfl
-
-open Stored.Endpoints in
-open Stored.Endpoints in
-private def sharedRecordContextBody (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
-    Session grow sig (Except RecordLower.Issue Unit) := do
-  if ((← getStore).errCtx? identity).isNone then
-    return .error (.field index (.beforeAllocation .missingContext))
-  let slot ← lowerErrorContext Limits.spec cx identity
-  return .ok (← RecordLower.Internal.publishSlot cx slot (.memory ptr))
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordContextCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (identity : ErrCtxId) (index ptr : Nat) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.context identity) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
-      .op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr) := by
-  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordContextBody,
-    hostGet, getStore, perform, Prog.lift, bind, Prog.bind]
-  congr 1
-  funext snapshot
-  congr 1
-  funext store
-  change CStore (core3 grow) at store
-  by_cases missing : store.errCtx? identity = none
-  · simp only [missing, ite_true]
-    rfl
-  · simp only [missing, ite_false]
-    let insert : Session grow sig Nat := lowerErrorContext Limits.spec cx identity
-    let verdict (slot : Nat) : Session grow sig (Except RecordLower.Issue Nat) := .pure (.ok slot)
-    let publish : Except RecordLower.Issue Nat → Session grow sig (Except RecordLower.Issue Unit)
-      | .error issue => .pure (.error issue)
-      | .ok slot => RecordLower.Internal.publishSlot cx slot (.memory ptr) >>= fun result => .pure (.ok result)
-    exact Prog.bind_assoc insert verdict publish
-
-private theorem sharedRecordContextEffects (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat) :
-    StoreEffects (sharedRecordContextBody cx identity index ptr : Session grow sig (Except Stored.Endpoints.RecordLower.Issue Unit)) := by
-  unfold sharedRecordContextBody
-  apply storeEffectGet.bind
-  intro store
-  split
-  · exact .pure _
-  · exact (sharedHandleInsertEffects _ _).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
-
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordOwnerCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (receipt : Stored.OwnedMemory.Receipt) (index ptr : Nat) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.owner receipt) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
-      .op .hostGet (fun state =>
-        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst)) := by
-  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordOwnerAfterProbe,
-    hostGet, perform, Prog.lift, bind, Prog.bind]
-  congr 1
-  funext snapshot
-  change HostState sig at snapshot
-  cases outcome : Record.prepareOwner snapshot.writer receipt with
-  | error issue => rfl
-  | ok result =>
-    obtain ⟨rep, writer⟩ := result
-    simp [Except.map, sharedRecordOwnerTransfer, commitOwner, Prog.bind_assoc]
-    rfl
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordEndpointCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (channel : Async.Channel) (element : Async.Element) (identity : EndId) (index ptr : Nat) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.endpoint channel element identity) index (.memory ptr) : Session grow sig (Except RecordLower.Issue Unit)) =
-      .op .hostGet (fun state => sharedRecordEndpointRead ⟨channel, element, identity, cx.inst⟩ cx index ptr state.writer) := by
-  simp [RecordLower.Internal.runField, Record.authority, recordClaims, claims, sharedRecordEndpointRead,
-    hostGet, getStore, perform, Prog.lift, bind, Prog.bind]
-  congr 1
-  funext snapshot
-  congr 1
-  funext store
-  change CStore (core3 grow) at store
-  change HostState sig at snapshot
-  cases outcome : Record.prepareEndpoint store snapshot.writer channel element identity with
-  | error issue =>
-    simp [sharedRecordEndpointPrepare, Record.prepare, outcome, sharedRecordEndpointAfterPrepare, bind, Except.bind, Prog.bind]
-    rfl
-  | ok prospective =>
-    simp [sharedRecordEndpointPrepare, Record.prepare, outcome, sharedRecordEndpointAfterPrepare, bind, Except.bind, Prog.bind,
-      sharedRecordEndpointTransfer, SharedEndpointGive.transfer, claims, hostGet, perform, Prog.lift, Prog.bind_assoc]
-    rfl
-
-open Stored.OwnedMemory.Claims in
-private theorem sharedRecordEndpointPrepared (site : SharedEndpointGive) (store : CStore (core3 grow))
-    (writer : State sig) (accepted : sharedRecordEndpointPrepare site store writer = .ok ()) :
-    ∃ spent, Record.prepareEndpoint store writer site.channel site.element site.identity = .ok spent := by
-  cases result : Record.prepareEndpoint store writer site.channel site.element site.identity with
-  | error issue =>
-    simp [sharedRecordEndpointPrepare, Record.prepare, result, bind, Except.bind] at accepted
-  | ok spent => exact ⟨spent, rfl⟩
-
-open Stored.Endpoints in
-private theorem crossDestructorRecordStore {limit : Nat} {Result : Type}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread) (body : Session grow sig Result) (effects : StoreEffects body)
-    (checkedNext canonicalNext : Result → Session grow sig (Ret (core3 grow)))
-    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkedNext result) (canonicalNext result)) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (body >>= checkedNext) (body >>= canonicalNext) := by
-  intro start incoming labels stores checked canonical scheduler run bounded
-  exact crossSharedWorkerBodyWith (check := check) (canon := canon) thread body checkedNext canonicalNext
-    (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores checked canonical run
-    (fun result shorter _ same leftAt rightAt aligned residual =>
-      onResult result same leftAt rightAt (aligned scheduler) residual (shorter.trans bounded))
-
-open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem crossDestructorRecordContext {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (identity : ErrCtxId) (index ptr : Nat)
-    (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkedNext result) (canonicalNext result)) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (.op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr >>= checkedNext))
-      (.op .hostGet (fun _ => sharedRecordContextBody cx identity index ptr >>= canonicalNext)) := by
-  intro left right labels stores checked canonical scheduler run bounded
-  let body := sharedRecordContextBody (sig := sig) cx identity index ptr
-  let leftAfter := { left with ctl := check.control (body >>= checkedNext) }
-  let rightAfter := { right with ctl := canon.control (body >>= canonicalNext) }
-  have read : Step profile ready (specDispatch ready base) left .tau leftAfter :=
-    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := fun _ => body >>= checkedNext) checked
-  have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightAfter :=
-    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := fun _ => body >>= canonicalNext) canonical
-  cases run with
-  | refl => exact .exhausted
-  | cons actual residual =>
-    obtain ⟨rfl, rfl⟩ := silentStepUnique read actual
-    have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) read peerRead
-      (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
-    exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned)
-      (crossDestructorRecordStore thread body (sharedRecordContextEffects cx identity index ptr)
-        checkedNext canonicalNext onResult stores rfl rfl scheduler residual (by simp at bounded; omega))
-
-open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem crossDestructorRecordOwner {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (receipt : Stored.OwnedMemory.Receipt)
-    (index ptr : Nat) (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkedNext result) (canonicalNext result)) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (.op .hostGet (fun state =>
-        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= checkedNext))
-      (.op .hostGet (fun state =>
-        sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= canonicalNext)) := by
-  classical
-  intro left right labels stores checked canonical scheduler run bounded
-  let verdict (host : HostState sig) := (Record.prepareOwner host.writer receipt).map Prod.fst
-  let following (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (host : HostState sig) :=
-    sharedRecordOwnerAfterProbe cx receipt index ptr (verdict host) >>= next
-  let checkedAt : left.ctl = check.control (.op .hostGet (following checkedNext)) := checked
-  let canonicalAt : right.ctl = canon.control (.op .hostGet (following canonicalNext)) := canonical
-  let leftRead := { left with ctl := check.control (following checkedNext left.host) }
-  let rightRead := { right with ctl := canon.control (following canonicalNext right.host) }
-  have guard : Step profile ready (specDispatch ready base) left .tau leftRead :=
-    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := following checkedNext) checkedAt
-  have peerGuard : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead :=
-    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := following canonicalNext) canonicalAt
-  cases run with
-  | refl => exact .exhausted
-  | @cons _ _ _ _ suffix actual afterGuard =>
-    obtain ⟨rfl, rfl⟩ := silentStepUnique guard actual
-    have editsLeft : transitionEdit left .tau = .same := by rw [transitionEdit, checkedAt]; rfl
-    have editsRight : transitionEdit right .tau = .same := by rw [transitionEdit, canonicalAt]; rfl
-    have paths := sharedSchedulerTransport (bindings := bindings) guard peerGuard editsLeft editsRight
-    by_cases agrees : verdict left.host = verdict right.host
-    · cases observed : verdict left.host with
-      | error issue =>
-        refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned) ?_
-        refine onResult (.error (.nested index issue)) stores ?_ ?_ scheduler afterGuard (by simp at bounded; omega)
-        · change check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict left.host) >>= checkedNext) = _
-          rw [observed]
-          rfl
-        · change canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (verdict right.host) >>= canonicalNext) = _
-          rw [← agrees, observed]
-          rfl
-      | ok rep =>
-        have prepared (host : HostState sig) (accepted : verdict host = .ok rep) :
-            ∃ spent, Record.prepareOwner host.writer receipt = .ok (rep, spent) := by
-          unfold verdict at accepted
-          cases result : Record.prepareOwner host.writer receipt with
-          | error issue => simp [result, Except.map] at accepted
-          | ok resultValue =>
-            obtain ⟨representation, spent⟩ := resultValue
-            simp only [result, Except.map, Except.ok.injEq] at accepted
-            subst representation
-            exact ⟨spent, rfl⟩
-        obtain ⟨leftSpent, leftPrepared⟩ := prepared left.host observed
-        obtain ⟨rightSpent, rightPrepared⟩ := prepared right.host (agrees.symm.trans observed)
-        have leftReached : leftRead.ctl = check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= checkedNext) :=
-          congrArg check.control (congrArg (fun result => sharedRecordOwnerAfterProbe cx receipt index ptr result >>= checkedNext) observed)
-        have rightReached : rightRead.ctl = canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= canonicalNext) :=
-          congrArg canon.control (congrArg (fun result => sharedRecordOwnerAfterProbe cx receipt index ptr result >>= canonicalNext) (agrees.symm.trans observed))
-        let body := sharedRecordOwnerTransfer (sig := sig) cx receipt.1 rep ptr
-        let spendHost (host : HostState sig) := { host with writer := (Spend.owner (receiptId receipt)).apply host.writer }
-        let writeAfter (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (host : HostState sig) : Session grow sig (Ret (core3 grow)) :=
-          Prog.op (.hostSet (spendHost host)) (fun _ => body >>= next)
-        let leftWrite := { leftRead with ctl := check.control (writeAfter checkedNext leftRead.host) }
-        let rightWrite := { rightRead with ctl := canon.control (writeAfter canonicalNext rightRead.host) }
-        let leftDone := { leftWrite with host := spendHost leftWrite.host, ctl := check.control (body >>= checkedNext) }
-        let rightDone := { rightWrite with host := spendHost rightWrite.host, ctl := canon.control (body >>= canonicalNext) }
-        have read : Step profile ready (specDispatch ready base) leftRead .tau leftWrite :=
-          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := writeAfter checkedNext) leftReached
-        have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau rightWrite :=
-          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := writeAfter canonicalNext) rightReached
-        have commit : Step profile ready (specDispatch ready base) leftWrite .tau leftDone :=
-          .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest) (s := leftDone.host) (k := fun _ => body >>= checkedNext) rfl
-        have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightWrite .tau rightDone :=
-          .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (s := rightDone.host) (k := fun _ => body >>= canonicalNext) rfl
-        have lhs : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] leftWrite :=
-          .step guard editsLeft rfl (.step read (by rw [transitionEdit, leftReached]; rfl) rfl .done)
-        have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id] rightWrite :=
-          .step peerGuard editsRight rfl (.step peerRead (by rw [transitionEdit, rightReached]; rfl) rfl .done)
-        rcases splitSilent (count := 2) (.cons read (.cons commit (.refl _))) afterGuard with ⟨remaining, used, residual⟩ | short
-        · rw [used]
-          have leftPath : ComponentQuietPath profile ready (specDispatch ready base) check left [id, id, id] leftDone :=
-            lhs.1.append (ComponentQuietPath.step (update := id) commit rfl (.done _))
-          have rightPath : ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id, id] rightDone :=
-            rhs.1.append (ComponentQuietPath.step (update := id) peerCommit rfl (.done _))
-          have committed : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready base) receipt cx index ptr rep checkedNext left leftDone :=
-            ⟨check, leftRead, leftWrite, leftSpent, checkedAt, leftPrepared,
-              congrArg (fun ctl => { left with ctl }) leftReached, rfl, rfl, guard, read, commit⟩
-          have peerCommitted : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
-              receipt cx index ptr rep canonicalNext right rightDone :=
-            ⟨canon, rightRead, rightWrite, rightSpent, canonicalAt, rightPrepared,
-              congrArg (fun ctl => { right with ctl }) rightReached, rfl, rfl, peerGuard, peerRead, peerCommit⟩
-          have moved := CallbackPrefix.stationaryTransport (bindings := bindings) leftPath.track rightPath.track
-          refine .destructorPrefix moved (.recordOwnerCommit committed peerCommitted) (fun aligned => aligned) ?_
-          have lowered : StoreEffects (lowerOwn Limits.spec cx receipt.1 rep : Session grow sig Nat) :=
-            sharedOwnerTransferEffects ⟨receipt.1, receiptId receipt, cx.inst⟩ rep
-          have effects : StoreEffects body := lowered.bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
-          exact crossDestructorRecordStore thread body effects checkedNext canonicalNext onResult stores rfl rfl scheduler residual (by
-            rw [used] at bounded
-            simp at bounded
-            omega)
-        · exact finishDestructorFramedCut lhs rhs (.cons guard afterGuard) (by simp only [List.length_cons, List.length_nil]; omega)
-    · have mismatch : SharedRecordOwnerProbeMismatch left right leftRead rightRead receipt cx index ptr check canon :=
-        ⟨checkedNext, canonicalNext, checkedAt, canonicalAt, rfl, rfl, agrees⟩
-      exact .sharedRecordOwnerMismatch mismatch paths
-        (.recordOwnerMismatch mismatch (.same guard rfl (.done _)) (.same peerGuard rfl (.done _))) afterGuard
-
-open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem crossDestructorRecordEndpoint {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (site : SharedEndpointGive)
-    (index ptr : Nat) (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onResult : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkedNext result) (canonicalNext result)) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (.op .hostGet (fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= checkedNext))
-      (.op .hostGet (fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= canonicalNext)) := by
-  classical
-  intro left right labels stores checked canonical scheduler run bounded
-  let leftRead := { left with ctl := check.control (sharedRecordEndpointRead site cx index ptr left.host.writer >>= checkedNext) }
-  let rightRead := { right with ctl := canon.control (sharedRecordEndpointRead site cx index ptr right.host.writer >>= canonicalNext) }
-  let leftResult := sharedRecordEndpointPrepare site left.store left.host.writer
-  let rightResult := sharedRecordEndpointPrepare site right.store right.host.writer
-  let leftReady := { leftRead with ctl := check.control (sharedRecordEndpointAfterPrepare site cx index ptr leftResult >>= checkedNext) }
-  let rightReady := { rightRead with ctl := canon.control (sharedRecordEndpointAfterPrepare site cx index ptr rightResult >>= canonicalNext) }
-  have capture : Step profile ready (specDispatch ready base) left .tau leftRead :=
-    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
-      (k := fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= checkedNext) checked
-  have peerCapture : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead :=
-    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
-      (k := fun state => sharedRecordEndpointRead site cx index ptr state.writer >>= canonicalNext) canonical
-  have probe : Step profile ready (specDispatch ready base) leftRead .tau leftReady :=
-    .get (th := check.thread) (segs := check.frames) (rest := check.rest)
-      (k := fun store => sharedRecordEndpointAfterPrepare site cx index ptr
-        (sharedRecordEndpointPrepare site store left.host.writer) >>= checkedNext) rfl
-  have peerProbe : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau rightReady :=
-    .get (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
-      (k := fun store => sharedRecordEndpointAfterPrepare site cx index ptr
-        (sharedRecordEndpointPrepare site store right.host.writer) >>= canonicalNext) rfl
-  have lhs : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] leftReady :=
-    .step capture (by rw [transitionEdit, checked]; rfl) rfl (.step probe rfl rfl .done)
-  have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id] rightReady :=
-    .step peerCapture (by rw [transitionEdit, canonical]; rfl) rfl (.step peerProbe rfl rfl .done)
-  rcases splitSilent (count := 2) (.cons capture (.cons probe (.refl _))) run with ⟨suffix, used, residual⟩ | short
-  · rw [used]
-    have leftGuard : ExecutedSharedRecordEndpointGuard profile ready (specDispatch ready base)
-        site cx index ptr checkedNext left leftRead leftReady check :=
-      ⟨checked, rfl, rfl, capture, probe⟩
-    have rightGuard : ExecutedSharedRecordEndpointGuard profile ready (specDispatch ready (LiveDispatch.host bindings base))
-        site cx index ptr canonicalNext right rightRead rightReady canon :=
-      ⟨canonical, rfl, rfl, peerCapture, peerProbe⟩
-    have within : suffix.length ≤ limit := by rw [used, List.length_append, List.length_replicate] at bounded; omega
-    by_cases agrees : leftResult = rightResult
-    · cases answer : leftResult with
-      | error issue =>
-        have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
-        refine .destructorPrefix paths (.framed lhs.2 rhs.2) (fun aligned => aligned) ?_
-        refine onResult (.error (.nested index issue)) stores ?_ ?_ scheduler residual within
-        · change check.control (sharedRecordEndpointAfterPrepare site cx index ptr leftResult >>= checkedNext) = _
-          rw [answer]
-          rfl
-        · change canon.control (sharedRecordEndpointAfterPrepare site cx index ptr rightResult >>= canonicalNext) = _
-          rw [← agrees, answer]
-          rfl
-      | ok readyResult =>
-        cases readyResult
-        obtain ⟨leftSpent, leftPrepared⟩ := sharedRecordEndpointPrepared site left.store left.host.writer answer
-        obtain ⟨rightSpent, rightPrepared⟩ := sharedRecordEndpointPrepared site right.store right.host.writer (agrees.symm.trans answer)
-        let body := sharedRecordEndpointTransfer (sig := sig) site cx ptr
-        let spendHost (host : HostState sig) := { host with writer := (Spend.endpoint site.identity).apply host.writer }
-        let writeAfter (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (host : HostState sig) :
-            Session grow sig (Ret (core3 grow)) :=
-          .op (.hostSet (spendHost host)) (fun _ => body >>= next)
-        let leftWrite := { leftReady with ctl := check.control (writeAfter checkedNext leftReady.host) }
-        let rightWrite := { rightReady with ctl := canon.control (writeAfter canonicalNext rightReady.host) }
-        let leftDone := { leftWrite with host := spendHost leftWrite.host, ctl := check.control (body >>= checkedNext) }
-        let rightDone := { rightWrite with host := spendHost rightWrite.host, ctl := canon.control (body >>= canonicalNext) }
-        have leftAt : leftReady.ctl = check.control (.op .hostGet (writeAfter checkedNext)) := by
-          change check.control (sharedRecordEndpointAfterPrepare site cx index ptr leftResult >>= checkedNext) = _
-          rw [answer]
-          rfl
-        have rightAt : rightReady.ctl = canon.control (.op .hostGet (writeAfter canonicalNext)) := by
-          change canon.control (sharedRecordEndpointAfterPrepare site cx index ptr rightResult >>= canonicalNext) = _
-          rw [← agrees, answer]
-          rfl
-        have read : Step profile ready (specDispatch ready base) leftReady .tau leftWrite :=
-          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) leftAt
-        have peerRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightReady .tau rightWrite :=
-          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) rightAt
-        have commit : Step profile ready (specDispatch ready base) leftWrite .tau leftDone :=
-          .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest) (s := leftDone.host) (k := fun _ => body >>= checkedNext) rfl
-        have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightWrite .tau rightDone :=
-          .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (s := rightDone.host) (k := fun _ => body >>= canonicalNext) rfl
-        have leftQuiet : FramedQuietPath profile ready (specDispatch ready base) check left [id, id, id] leftWrite :=
-          lhs.append (.step (update := id) read (by rw [transitionEdit, leftAt]; rfl) rfl .done)
-        have rightQuiet : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id, id] rightWrite :=
-          rhs.append (.step (update := id) peerRead (by rw [transitionEdit, rightAt]; rfl) rfl .done)
-        rcases splitSilent (count := 2) (.cons read (.cons commit (.refl _))) residual with ⟨remaining, assigned, tail⟩ | short
-        · rw [assigned]
-          have leftPath : ComponentQuietPath profile ready (specDispatch ready base) check left [id, id, id, id] leftDone :=
-            leftQuiet.1.append (ComponentQuietPath.step (update := id) commit rfl (.done _))
-          have rightPath : ComponentQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id, id, id] rightDone :=
-            rightQuiet.1.append (ComponentQuietPath.step (update := id) peerCommit rfl (.done _))
-          have committed : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready base)
-              site cx index ptr checkedNext left leftDone :=
-            ⟨check, leftRead, leftReady, leftWrite, leftSpent, leftGuard, leftPrepared, rfl, rfl, read, commit⟩
-          have peerCommitted : ExecutedSharedRecordEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
-              site cx index ptr canonicalNext right rightDone :=
-            ⟨canon, rightRead, rightReady, rightWrite, rightSpent, rightGuard, rightPrepared, rfl, rfl, peerRead, peerCommit⟩
-          have moved := CallbackPrefix.stationaryTransport (bindings := bindings) leftPath.track rightPath.track
-          refine .destructorPrefix (leading := [.tau, .tau, .tau, .tau]) moved (.recordEndpointCommit committed peerCommitted) (fun aligned => aligned) ?_
-          have effects : StoreEffects body :=
-            (sharedEndpointTransferEffects site).bind fun _ => (storeEffectWrite _ _ _).bind fun _ => .pure _
-          exact crossDestructorRecordStore thread body effects checkedNext canonicalNext onResult stores rfl rfl scheduler tail (by
-            rw [assigned, List.length_append, List.length_replicate] at within
-            omega)
-        · exact finishDestructorFramedCut leftQuiet rightQuiet (used ▸ run) (by
-            rw [List.length_append, List.length_replicate]
-            simp only [List.length_cons, List.length_nil]
-            omega)
-    · have mismatch : SharedRecordEndpointMismatch profile ready base bindings site left right leftReady rightReady :=
-        ⟨cx, index, ptr, check, canon, checkedNext, canonicalNext, leftRead, rightRead, leftGuard, rightGuard, stores, agrees⟩
-      have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
-      exact .sharedRecordEndpointMismatch mismatch paths (.recordEndpointMismatch mismatch) residual
-  · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
-
-open Stored.Endpoints in
-private def sharedRecordPreAllocationIssue (index : Nat) : RecordLower.Issue → RecordLower.Issue
-  | .preflight issue => .field index (.beforeAllocation issue)
-  | issue => .nested index issue
-
-open Stored.Endpoints in
-private def sharedRecordBeforeAllocation (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat) :
-    Except RecordLower.Issue Unit → Session grow sig (Except RecordLower.Issue Unit)
-  | .error issue => pure (.error (sharedRecordPreAllocationIssue index issue))
-  | .ok () => sharedRecordAllocate cx width element entries index dest
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordCollectionCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (type element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.dynamic type element entries) index (.memory dest) >>= next) =
-    .op .get (fun store => .op .hostGet fun state =>
-      sharedRecordBeforeAllocation cx width element entries index dest
-        (Record.prepare store state.writer (RecordLower.Field.listObjects entries)) >>= next) := by
-  let plan := RecordLower.Field.listObjects entries
-  let prepare : Session grow sig (Except RecordLower.Issue Unit) :=
-    (Record.authority recordClaims Limits.spec cx).prepare plan
-  let checked := sharedRecordBeforeAllocation (sig := sig) cx width element entries index dest
-  have program : (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.dynamic type element entries) index (.memory dest) : Session grow sig (Except RecordLower.Issue Unit)) =
-      prepare.bind checked := by
-    simp only [RecordLower.Internal.runField, Prog.bind_eq]
-    refine congrArg prepare.bind (funext fun result => ?_)
-    cases result with
-    | error issue => cases issue <;> rfl
-    | ok result => cases result; rfl
-  rw [program]
-  change (prepare.bind checked).bind next = _
-  rw [Prog.bind_assoc]
-  rfl
-
-open Stored.Endpoints in
-private theorem sharedRecordAllocatorCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (sharedRecordAllocate cx width element entries index dest >>= next) =
-      .op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
-        (sharedRecordAllocationResume cx width element entries index dest next) := by
-  let area := ABI.layout width element
-  let call : Call (core3 grow) := .reallocate cx 0 0 area.alignment.bytes (entries.length * area.size)
-  let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
-    | .nat ptr => pure ptr
-    | _ => internal "late-bound call: expected Ret.nat"
-  have callCode : (callNat call : Session grow sig Nat) = .op (.call call) read := by
-    simp [callNat, callRet, perform, Prog.lift, bind, Prog.bind, read]
-    refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
-    cases result <;> rfl
-  unfold sharedRecordAllocate ListLower.allocateRange allocateListRange allocate reallocate
-  rw [callCode]
-  simp only [Prog.bind_eq, Prog.bind_assoc]
-  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call) (fun result => (read result).bind fun ptr =>
-    (validateListRange cx area entries.length ptr).bind fun address =>
-      (sharedRecordAllocated cx width element entries index dest address).bind next) = _
-  refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
-  cases result <;> try rfl
-  all_goals
-    change Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap (.internal "late-bound call: expected Ret.nat")) _ =
-      Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap (.internal "late-bound call: expected Ret.nat")) _
-    congr 1
-    funext impossible
-    cases impossible
-
-open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem crossDestructorRecordPrepare {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (plan : List RecordLower.Object)
-    (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onRead : ∀ result, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkedNext result) (canonicalNext result)) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (.op .get (fun store => .op .hostGet fun state => checkedNext (Record.prepare store state.writer plan)))
-      (.op .get (fun store => .op .hostGet fun state => canonicalNext (Record.prepare store state.writer plan))) := by
-  classical
-  intro left right labels stores checked canonical scheduler run bounded
-  let leftRead := { left with ctl := check.control (.op .hostGet
-    (fun state => checkedNext (Record.prepare left.store state.writer plan))) }
-  let rightRead := { right with ctl := canon.control (.op .hostGet
-    (fun state => canonicalNext (Record.prepare right.store state.writer plan))) }
-  let leftResult := Record.prepare left.store left.host.writer plan
-  let rightResult := Record.prepare right.store right.host.writer plan
-  let reached := { leftRead with ctl := check.control (checkedNext leftResult) }
-  let peer := { rightRead with ctl := canon.control (canonicalNext rightResult) }
-  have leftGet : Step profile ready (specDispatch ready base) left .tau leftRead := .get checked
-  have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead := .get canonical
-  have leftProbe : Step profile ready (specDispatch ready base) leftRead .tau reached :=
-    .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
-      (k := fun state => checkedNext (Record.prepare left.store state.writer plan)) rfl
-  have rightProbe : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau peer :=
-    .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
-      (k := fun state => canonicalNext (Record.prepare right.store state.writer plan)) rfl
-  have lhs : FramedQuietPath profile ready (specDispatch ready base) check left [id, id] reached :=
-    .step leftGet (by rw [transitionEdit, checked]; rfl) rfl (.step leftProbe rfl rfl .done)
-  have rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id, id] peer :=
-    .step rightGet (by rw [transitionEdit, canonical]; rfl) rfl (.step rightProbe rfl rfl .done)
-  rcases splitSilent (count := 2) (.cons leftGet (.cons leftProbe (.refl _))) run with ⟨suffix, used, residual⟩ | short
-  · rw [used]
-    by_cases agrees : leftResult = rightResult
-    · have paths := CallbackPrefix.stationaryTransport (bindings := bindings) lhs.1.track rhs.1.track
-      refine .destructorPrefix paths (.framed lhs.2 rhs.2) (fun aligned => aligned) ?_
-      exact onRead leftResult stores rfl (congrArg (fun result => canon.control (canonicalNext result)) agrees.symm)
-        scheduler residual (by rw [used, List.length_append, List.length_replicate] at bounded; omega)
-    · have mismatch : SharedRecordPrepareMismatch leftRead rightRead reached peer plan check canon :=
-        ⟨checkedNext, canonicalNext, stores, rfl, rfl, rfl, rfl, agrees⟩
-      have readStores := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet
-        (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
-      have readWriters := frameCalloutStep readStores rfl rfl
-      have readClaims := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftProbe rightProbe rfl rfl
-      exact .destructorPrefix (leading := [.tau]) readStores readWriters (fun aligned => aligned)
-        (.sharedRecordPrepareMismatch mismatch readClaims
-          (.sharedRecordPrepare mismatch (.same leftProbe rfl (.done _)) (.same rightProbe rfl (.done _))) residual)
-  · exact finishDestructorFramedCut lhs rhs run (by simp only [List.length_cons, List.length_nil]; omega)
-
 private def sharedRecordAllocatorSelect (cx : LiftLowerContext (core3 grow)) :
     Session grow sig (AddrType × (core3 grow).FuncAddr) := do
   let width ← ptrType cx
@@ -19862,153 +20136,6 @@ private abbrev DestructorAllocatorPointer
     DestructorSchedulerAlignment older left right →
     Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
     CallbackSliceEnd profile ready base bindings older left right remaining finish
-
-private theorem sharedRecordRangeEffects (cx : LiftLowerContext (core3 grow)) (area : ABI.Layout) (count : Nat)
-    (result : Ret (core3 grow)) : StoreEffects (sharedRecordRange cx area count result : Session grow sig Nat) := by
-  cases result
-  case nat ptr =>
-    exact (storeEffectTrapIf (decide (ptr ≠ ABI.alignTo ptr area.alignment)) .unalignedPointer).bind fun _ =>
-      (storeEffectBounds cx ptr (count * area.size)).bind fun _ => .pure ptr
-  all_goals exact storeEffectTrap (.internal "late-bound call: expected Ret.nat")
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordAllocatedPrepareCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest pointer : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (sharedRecordAllocated cx width element entries index dest pointer >>= next) =
-      .op .get (fun store => .op .hostGet fun state =>
-        sharedRecordAfterAllocationPrepare cx width element entries index dest pointer
-          (Record.prepare store state.writer (RecordLower.Field.listObjects entries)) >>= next) := by
-  rfl
-
-private def sharedStringLocalStep : ABI.StoreStep → Bool
-  | .allocate .. | .reallocate .. => false
-  | _ => true
-
-private theorem sharedStringStepEffects (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
-    (step : ABI.StoreStep) (localStep : sharedStringLocalStep step = true) :
-    StoreEffects (runStoreStep cx ptr step : Session grow sig Nat) := by
-  have readEffects (len : Nat) : StoreEffects (readMem cx ptr len : Session grow sig ByteArray) := by
-    unfold readMem memAddr
-    exact (storeEffectOrTrap _ _).bind fun _ => storeEffectGet.bind fun _ => storeEffectOrTrap _ _
-  cases step with
-  | allocate | reallocate => contradiction
-  | trapIfMisaligned => exact (storeEffectTrapIf _ _).bind fun _ => .pure _
-  | trapIfOutOfBounds => exact (storeEffectBounds cx ptr _).bind fun _ => .pure _
-  | write => exact (storeEffectWrite cx _ _).bind fun _ => .pure _
-  | inflateLatin1 | deflateUtf16 =>
-    exact (readEffects _).bind fun _ => (storeEffectWrite cx ptr _).bind fun _ => .pure _
-
-private theorem sharedStringDescriptorEffects (cx : LiftLowerContext (core3 grow)) (tagged dest pointer : Nat) :
-    StoreEffects (sharedRecordStringDescriptor cx tagged dest pointer : Session grow sig Unit) := by
-  have size : StoreEffects (ptrSize cx : Session grow sig Nat) := (storeEffectPtrType cx).bind fun _ => .pure _
-  exact size.bind fun n => (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + n) _
-
-open Stored.Endpoints in
-private theorem sharedRecordStringRemainingCons (cx : LiftLowerContext (core3 grow))
-    (step : ABI.StoreStep) (steps : List ABI.StoreStep) (tagged dest pointer : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    sharedRecordStringRemaining cx (step :: steps) tagged dest pointer next =
-      (runStoreStep cx pointer step >>= fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr next) := by
-  unfold sharedRecordStringRemaining runStoreSteps
-  simp only [Prog.foldlM, Prog.bind_eq, Prog.bind_assoc]
-
-open Stored.Endpoints in
-private theorem sharedRecordStringRequestCode (cx : LiftLowerContext (core3 grow)) (dest tagged old oldLen : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (alignment size : Nat) (remaining : List ABI.StoreStep) :
-    (reallocate cx old oldLen alignment size >>= fun ptr => sharedRecordStringRemaining cx remaining tagged dest ptr next) =
-      .op (.call (.reallocate cx old oldLen alignment size))
-        (sharedRecordStringResume cx remaining tagged dest next) := by
-  let call : Call (core3 grow) := .reallocate cx old oldLen alignment size
-  let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
-    | .nat ptr => pure ptr
-    | _ => internal "late-bound call: expected Ret.nat"
-  have callCode : (callNat call : Session grow sig Nat) = .op (.call call) read := by
-    simp [callNat, callRet, perform, Prog.lift, bind, Prog.bind, read]
-    refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
-    cases result <;> rfl
-  unfold reallocate
-  rw [callCode]
-  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)
-    (fun result => (read result).bind fun ptr => sharedRecordStringRemaining cx remaining tagged dest ptr next) = _
-  refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
-  cases result
-  case nat => rfl
-  all_goals
-    change ((internal "late-bound call: expected Ret.nat" : Session grow sig Nat).bind _) = _
-    rw [internalBind]
-    rfl
-
-open Stored.Endpoints in
-private theorem sharedRecordCollectionResultEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (count index dest ptr : Nat) (result : Except RecordLower.Issue Unit) :
-    StoreEffects (sharedRecordCollectionResult cx width count index dest ptr result : Session grow sig _) := by
-  cases result with
-  | error issue => exact .pure _
-  | ok accepted =>
-    cases accepted
-    have widthRead : StoreEffects (ptrSize cx : Session grow sig Nat) := (storeEffectPtrType cx).bind fun _ => .pure _
-    exact ((widthRead.bind fun size =>
-      (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + size) _).bind fun _ => .pure _)
-
-open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
-private theorem sharedRecordAfterPrepareVisit (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest ptr : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= next) =
-      sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
-        (fun result => sharedRecordCollectionResult cx width entries.length index dest ptr result >>= next) := by
-  let body : Session grow sig (Except RecordLower.Issue Unit) := RecordLower.Internal.runElements Limits.spec Quirks.none cx
-    (Record.authority recordClaims Limits.spec cx) width entries (ABI.layout width element).size ptr 0
-  let report := sharedRecordCollectionResult (sig := sig) cx width entries.length index dest ptr
-  change (body.bind report).bind next = _
-  exact Prog.bind_assoc body report next
-
-open Stored.Endpoints LinkedCallback.MemorySequence in
-private theorem crossDestructorRecordCollectionResume {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread)
-    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
-    (entries : List RecordLower.Field) (index dest pointer : Nat)
-    (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onField : ∀ verdict, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (leftNext verdict) (rightNext verdict))
-    (onVisit : ∀ ptr, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
-        (fun verdict => sharedRecordCollectionResult cx width entries.length index dest ptr verdict >>= leftNext))
-      (sharedRecordMemory (.elements (ABI.layout width element).size) cx width entries ptr 0
-        (fun verdict => sharedRecordCollectionResult cx width entries.length index dest ptr verdict >>= rightNext))) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sharedRecordAllocationResume cx width element entries index dest leftNext (.nat pointer))
-      (sharedRecordAllocationResume cx width element entries index dest rightNext (.nat pointer)) := by
-  intro start incoming labels stores checked canonical scheduler run within
-  let area := ABI.layout width element
-  let range : Session grow sig Nat := sharedRecordRange cx area entries.length (.nat pointer)
-  let afterRange (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (ptr : Nat) :=
-    sharedRecordAllocated cx width element entries index dest ptr >>= next
-  refine crossDestructorRecordStore (check := check) (canon := canon) thread range
-    (sharedRecordRangeEffects cx area entries.length (.nat pointer)) (afterRange leftNext) (afterRange rightNext)
-    ?_ stores checked canonical scheduler run within
-  intro ptr left right remaining same leftAt rightAt aligned tail bounded
-  change left.ctl = check.control (sharedRecordAllocated cx width element entries index dest ptr >>= leftNext) at leftAt
-  change right.ctl = canon.control (sharedRecordAllocated cx width element entries index dest ptr >>= rightNext) at rightAt
-  rw [sharedRecordAllocatedPrepareCode] at leftAt rightAt
-  let afterPrepare (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-      (result : Except RecordLower.Issue Unit) :=
-    sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= next
-  refine crossDestructorRecordPrepare (check := check) (canon := canon) (RecordLower.Field.listObjects entries)
-    (afterPrepare leftNext) (afterPrepare rightNext) ?_ same leftAt rightAt aligned tail bounded
-  intro result reached peer trailing equal checked canonical aligned residual within
-  cases result with
-  | error issue =>
-    cases issue <;> exact onField _ equal checked canonical aligned residual within
-  | ok accepted =>
-    cases accepted
-    change reached.ctl = check.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= leftNext) at checked
-    change peer.ctl = canon.control (sharedRecordAfterAllocationPrepare cx width element entries index dest ptr (.ok ()) >>= rightNext) at canonical
-    rw [sharedRecordAfterPrepareVisit] at checked canonical
-    exact onVisit ptr equal checked canonical aligned residual within
 
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem crossDestructorRecordAllocatorPop {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -21724,133 +21851,6 @@ private theorem crossDestructorRecordStringSteps {limit : Nat} {body : ThreadBod
           (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen canonNext alignment.bytes size steps)))
           scheduler run bounded
       all_goals exact False.elim (localStep rfl)
-
-open Stored.Endpoints in
-private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
-    (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
-    Session grow sig (Except RecordLower.Issue Unit) :=
-  let type : Stored.TypeOf := .prim .string
-  let refuse := fun issue => .error (.field index (.beforeAllocation (.abi issue)))
-  match Stored.Lower.checkSchema type >>= fun _ => Stored.Lower.checkOptions cx type (.memory ptr) with
-  | .error issue => pure (refuse issue)
-  | .ok () => do
-    let width ← ptrType cx
-    if !Stored.Lower.fits Quirks.none cx.opts.encoding width type text.val then
-      return refuse .allocationPrecondition
-    let area := ABI.layout width type
-    checkAligned ptr area.alignment.bytes
-    checkInBounds cx ptr area.size
-    return .ok ()
-
-open Stored.Endpoints in
-private def sharedRecordStringEmit (cx : LiftLowerContext (core3 grow))
-    (text : Stored.Payload (.prim .string)) (ptr : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))
-  | .error issue => next (.error issue)
-  | .ok () => Canon.store Limits.spec Quirks.none cx text.val (.prim .string) ptr >>= fun _ => next (.ok ())
-
-open Stored.Endpoints in
-private theorem sharedRecordStringPlacementEffects (cx : LiftLowerContext (core3 grow))
-    (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
-    StoreEffects (sharedRecordStringPlacement cx text index ptr : Session grow sig (Except RecordLower.Issue Unit)) := by
-  unfold sharedRecordStringPlacement
-  dsimp only
-  split
-  · exact .pure _
-  · refine (storeEffectPtrType cx).bind fun width => ?_
-    split
-    · exact .pure _
-    · exact (storeEffectTrapIf _ _).bind fun _ =>
-        (storeEffectBounds cx ptr (ABI.layout width (.prim .string)).size).bind fun _ => .pure _
-
-open Stored.OwnedMemory.Claims Stored.Endpoints in
-private theorem sharedRecordStringCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (text : Stored.Payload (.prim .string)) (index ptr : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (RecordLower.Internal.runField Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
-      width (.data (.prim .string) text) index (.memory ptr) >>= next) =
-    (sharedRecordStringPlacement cx text index ptr >>= sharedRecordStringEmit cx text ptr next) := by
-  let type : Stored.TypeOf := .prim .string
-  let initialWidth : Session grow sig AddrType := ptrType cx
-  let fits (width : AddrType) := Stored.Lower.fits Quirks.none cx.opts.encoding width type text.val
-  let issue := RecordLower.Issue.field index ∘ ListLower.Issue.beforeAllocation ∘ Stored.Endpoints.Lower.Issue.abi
-  let lower (width : AddrType) : Session grow sig (Except Stored.Lower.Issue Unit) :=
-    if !fits width then pure (.error .allocationPrecondition)
-    else do return .ok (← Stored.Lower.emit Limits.spec Quirks.none cx width type text (.memory ptr))
-  let place (width : AddrType) : Session grow sig (Except RecordLower.Issue Unit) :=
-    if !fits width then pure (.error (issue .allocationPrecondition))
-    else do
-      let area := ABI.layout width type
-      checkAligned ptr area.alignment.bytes
-      checkInBounds cx ptr area.size
-      return .ok ()
-  let packed (result : Except Stored.Lower.Issue Unit) : Session grow sig (Except RecordLower.Issue Unit) :=
-    .pure (result.mapError issue)
-  let emit := sharedRecordStringEmit cx text ptr next
-  simp only [RecordLower.Internal.runField, Stored.Lower.lower, sharedRecordStringPlacement]
-  cases (Stored.Lower.checkSchema type >>= fun _ => Stored.Lower.checkOptions cx type (.memory ptr)) with
-  | error rejected => rfl
-  | ok accepted =>
-    cases accepted
-    change ((initialWidth.bind lower).bind packed).bind next = (initialWidth.bind place).bind emit
-    simp only [Prog.bind_assoc]
-    refine congrArg initialWidth.bind (funext fun actualWidth => ?_)
-    cases ready : fits actualWidth with
-    | false => simp [lower, place, ready, packed, emit]; rfl
-    | true =>
-      simp [lower, place, ready, Stored.Lower.emit, Prog.bind_assoc, packed, emit, sharedRecordStringEmit]
-      let area := ABI.layout actualWidth type
-      let aligned : Session grow sig Unit := checkAligned ptr area.alignment.bytes
-      let bounded : Session grow sig Unit := checkInBounds cx ptr area.size
-      let storeText : Session grow sig Unit := Canon.store Limits.spec Quirks.none cx text.val type ptr
-      change (((aligned.bind fun _ => bounded.bind fun _ => storeText).bind
-        fun value => .pure (.ok value : Except Stored.Lower.Issue Unit)).bind (fun result => next (result.mapError issue))) =
-        aligned.bind (fun _ => bounded.bind (fun _ => storeText.bind (fun _ => next (.ok ()))))
-      simp only [Prog.bind_assoc, Prog.pure_bind', Except.mapError]
-
-open Stored.Endpoints in
-private theorem sharedRecordStringPlanCode (cx : LiftLowerContext (core3 grow)) (value : Value.StrVal) (dest : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
-    (Canon.store Limits.spec Quirks.none cx (.string value) (.prim .string) dest >>= fun _ => next (.ok ())) =
-      (ptrType cx >>= sharedRecordStringPlan cx value dest next) := by
-  rw [Canon.store.eq_def]
-  simp [storePrim, storeString, storeStringIntoRange, bind, Prog.bind_assoc]
-  refine congrArg (ptrType (σ := HostState sig) cx).bind (funext fun width => ?_)
-  unfold sharedRecordStringPlan sharedRecordStringRemaining sharedRecordStringDescriptor
-  simp [bind, Prog.bind_assoc]
-
-/-- The first instruction of each canonical string encoding plan allocates its initial range. -/
-private theorem stringPlanInitialAllocation (encoding : ABI.StringEncoding) (width : AddrType) (value : ABI.StringValue) :
-    ∃ alignment size remaining,
-      (ABI.storeStringIntoRange encoding width value).steps = .allocate alignment size :: remaining := by
-  unfold ABI.storeStringIntoRange
-  dsimp only
-  split
-  all_goals
-    simp only [ABI.storeStringCopy, ABI.storeUtf16ToUtf8, ABI.storeLatin1ToUtf8, ABI.storeStringToUtf8,
-      ABI.storeUtf8ToUtf16]
-  all_goals
-    repeat' first | (exact ⟨_, _, _, rfl⟩) | split |
-      (simp only [ABI.storeProbablyUtf16ToLatin1OrUtf16, ABI.storeStringToLatin1OrUtf16])
-
-
-open Stored.Endpoints in
-private theorem sharedRecordStringAllocationCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (value : Value.StrVal) (dest : Nat)
-    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (alignment : ABI.Alignment) (size : Nat) (remaining : List ABI.StoreStep)
-    (steps : (storePlanFor Quirks.none cx.opts.encoding width value).steps = .allocate alignment size :: remaining) :
-    sharedRecordStringPlan cx value dest next width =
-      .op (.call (.reallocate cx 0 0 alignment.bytes size))
-        (sharedRecordStringResume cx remaining (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits dest next) := by
-  unfold sharedRecordStringPlan
-  dsimp only
-  rw [steps]
-  change (((runStoreStep cx 0 (.allocate alignment size)).bind
-      fun ptr => runStoreSteps cx ptr remaining) : Session grow sig Nat).bind _ = _
-  rw [Prog.bind_assoc]
-  exact sharedRecordStringRequestCode cx dest _ 0 0 next alignment.bytes size remaining
 
 open Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem visitDestructorRecordFields {limit : Nat} {body : ThreadBody (core3 grow)}
