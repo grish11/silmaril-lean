@@ -2777,8 +2777,9 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentJoined paths _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | sharedDropParentLoop paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | sharedDropParentLoop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropParentLoopJoined paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
+  | sharedDropLoopReturn paths _ _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2833,8 +2834,10 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentJoined paths _ _ _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
-  | sharedDropParentLoop paths _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
+  | sharedDropParentLoop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropParentLoopJoined paths _ _ ending =>
+    exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
+  | sharedDropLoopReturn paths _ _ _ _ _ ending =>
     exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
@@ -15090,10 +15093,6 @@ private theorem crossSharedDestructorCompletion {check canon : PayloadPrefix.Cur
       have atRight := congrArg canon.control code
       exact crossSharedDestructorResolve task reached.caller threads stores atLeft atRight tail afterPop
 
-private def sharedDestructorParentReply (ticket : Nat) : ReturnFrame.Continuation (core3 grow) (HostState sig)
-  | .unit => scheduledReply ticket (.ok 0)
-  | _ => internal "late-bound call: expected Ret.unit"
-
 private theorem sharedDestructorParentCode (body : ThreadBody (core3 grow)) (ticket : Nat) :
     (sharedDestructorAfterResume body ticket : Session grow sig (Ret (core3 grow))) =
       .op (.call (.loop (.syncLiftLoop body.task))) (sharedDestructorParentReply ticket) := by
@@ -15313,8 +15312,8 @@ private theorem enterDestructorParentLoop {body : ThreadBody (core3 grow)}
     obtain ⟨rfl, rfl⟩ := silentStepUnique leftCall actual
     have installed := sharedPushTransport (bindings := bindings) leftCall rightCall
       (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-    refine .sharedDropParentLoop (first := first) (second := second)
-      installed (frameCalloutStep installed rfl rfl) ?_ tail
+    refine .sharedDropParentLoop (leftTicket := leftTicket) (rightTicket := rightTicket) (enclosing := frame)
+      installed (frameCalloutStep installed rfl rfl) ⟨rfl, rfl, rfl, rfl⟩ ?_ tail
     intro scheduler
     let idle : Session grow sig (Ret (core3 grow)) := .pure .unit
     have aligned : HostFrame.Related.Paired older
@@ -15325,7 +15324,11 @@ private theorem enterDestructorParentLoop {body : ThreadBody (core3 grow)}
     change ⟨thread, .prog idle, frame :: peerFrames⟩ :: peerRest = _ at atPeer
     rw [List.cons.injEq, Activation.mk.injEq] at atPeer
     obtain ⟨⟨_, _, rfl⟩, rfl⟩ := atPeer
-    exact expanded
+    refine ⟨expanded, ?_⟩
+    have related := paired_outside (show ReturnFrame.Related.Paired older
+      (HostFrame.replace { start with ctl := check.control idle } incoming.host) { incoming with ctl := canon.control idle }
+      from aligned)
+    exact outside_push (.prog first) (.prog second) related
 
 private def sharedDestructorImportProgram (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
     (store : CStore (core3 grow)) (thread : Option ThreadId) (host : CanonHost (core3 grow)) (args : List FlatValue) :
@@ -15951,6 +15954,139 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
                   (checkAt.trans (congrArg check.control (flatImportTrap reason))) (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
             · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
 
+private theorem rejoinDestructorParentJournal {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
+    {actualLabels : Trace grow sig}
+    (ending : CallbackSliceEnd profile ready base bindings older sourceCfg peerCfg actualLabels finish)
+    (scheduler : DestructorSchedulerAlignment older sourceCfg peerCfg)
+    (bounded : actualLabels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older sourceCfg peerCfg actualLabels finish := by
+  match ending with
+  | .destructorPrefix paths writers next tail =>
+    exact .destructorPrefix paths writers next
+      (rejoinDestructorParentJournal tail (next scheduler) (by simp only [List.length_append] at bounded; omega) compare)
+  | .sharedDropParentPop paths writers checkedLost canonicalLost restore residual =>
+    have restored := restore scheduler
+    obtain ⟨used, live, trailing, reached, peer, split, compared, tail⟩ :=
+      compare (Nat.lt_of_succ_le bounded) residual restored
+    rw [split]
+    exact .sharedDropParentJoined paths writers checkedLost canonicalLost restored
+      (.comparedPrefix compared.occurrences compared.writers tail)
+  | other => exact other
+termination_by structural ending
+
+open ReturnFrame.Occurrence in
+private theorem destructorEnclosingFrame {config : Config (core3 grow) (HostState sig)}
+    {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {resume value enclosing}
+    (focused : config.ctl = { cursor with frames := .prog resume :: cursor.frames }.control (.pure value))
+    (marked : segmentAt (segmentStorage config) (.active 0 1) = some enclosing) :
+    ∃ frames, cursor.frames = enclosing :: frames := by
+  cases cursor with
+  | mk thread frames rest =>
+    cases frames with
+    | nil => simp [segmentStorage, segmentAt, focused, PayloadPrefix.Cursor.control] at marked
+    | cons first tail =>
+      have frame : first = enclosing := by
+        simpa [segmentStorage, segmentAt, focused, PayloadPrefix.Cursor.control] using marked
+      exact ⟨tail, by rw [frame]⟩
+
+open ReturnFrame.Occurrence in
+private theorem finishBlockedDestructorLoop {limit leftTicket rightTicket : Nat}
+    {enclosing : Seg (core3 grow) (HostState sig)}
+    (frames : DestructorParentLoopFrames (sharedDestructorParentReply leftTicket) (sharedDestructorParentReply rightTicket)
+      enclosing start incoming)
+    (aligned : HostFrame.Related.Paired (ReturnFrame.Extend older (sharedDestructorParentReply leftTicket)
+      (sharedDestructorParentReply rightTicket)) start incoming)
+    (outside : Outside older (segmentStorage start) (segmentStorage incoming) (some (.active 0 0)))
+    (residual : Steps profile ready (specDispatch ready base) start labels finish)
+    (shorter : labels.length < limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend older (sharedDestructorParentReply leftTicket)
+      (sharedDestructorParentReply rightTicket)) start incoming labels finish := by
+  obtain ⟨used, live, trailing, reached, peer, split, compared, tail⟩ := compare shorter residual aligned
+  rw [split]
+  refine .comparedPrefix compared.occurrences compared.writers ?_
+  obtain ⟨move, tracks, retained⟩ := compared.occurrences
+  let top : Option Location := some (.active 0 0)
+  classical
+  by_cases atTop : move top = top
+  · have lostOutside : Outside older (segmentStorage reached) (segmentStorage peer) top := by
+      have moved := retained older [top] (outsideMarks_singleton.mpr outside)
+      exact outsideMarks_singleton.mp (by simpa only [List.nil_append, List.map_cons, List.map_nil, atTop] using moved)
+    have leftTrail := (atTop ▸ (tracks top).1)
+    have rightTrail := (atTop ▸ (tracks top).2)
+    have marked : AllocatorMark profile ready base bindings older start incoming used live reached peer top :=
+      ⟨lostOutside, leftTrail, rightTrail, CallbackPrefix.transportPaths compared.occurrences⟩
+    obtain ⟨_, atLeft, leftPrefix⟩ := leftTrail.survives
+    obtain ⟨_, atRight, rightPrefix⟩ := rightTrail.survives
+    dsimp only [top] at atLeft atRight
+    cases atLeft
+    cases atRight
+    let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
+    let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
+    by_cases returning : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (value : Ret (core3 grow)),
+        reached.ctl = cursor.control (.pure value)
+    · obtain ⟨cursor, value, focus⟩ := returning
+      obtain ⟨check, focused⟩ := cursorAtInstalledReply focus
+        ((prefix_survives leftPrefix).2.trans frames.checkedLoop)
+      have returning := focused ▸ focus
+      obtain ⟨canon, frame, checked, canonical, _, _, _, canonAt⟩ :=
+        CallbackPrefix.pop marked compared.paired returning frames.canonicalLoop
+      have leftEnclosing : segmentAt (segmentStorage reached) (.active 0 1) = some enclosing :=
+        (prefix_survives (leftPrefix.under 1)).2.trans frames.checkedEnclosing
+      have rightEnclosing : segmentAt (segmentStorage peer) (.active 0 1) = some enclosing :=
+        (prefix_survives (rightPrefix.under 1)).2.trans frames.canonicalEnclosing
+      obtain ⟨checkFrames, checkAt⟩ := destructorEnclosingFrame returning leftEnclosing
+      obtain ⟨canonFrames, canonFramesAt⟩ := destructorEnclosingFrame canonAt rightEnclosing
+      let left := { reached with ctl := check.control (first value) }
+      let right := { peer with ctl := canon.control (second value) }
+      rcases splitSilent (count := 1) (.cons checked (.refl _)) (callbackEndSteps tail)
+        with ⟨remaining, popped, actual⟩ | short
+      · rw [popped]
+        have checkedEdit : transitionEdit reached .tau = .pop := by
+          rw [transitionEdit, returning]; rfl
+        have canonicalEdit : transitionEdit peer .tau = .pop := by
+          rw [transitionEdit, canonAt]; rfl
+        have paths := sharedSchedulerTransport (bindings := bindings) (edit := .pop)
+          checked canonical checkedEdit canonicalEdit
+        have checkedLost : Trail profile ready (specDispatch ready base) reached top [.tau] left none :=
+          .step checked (by rw [checkedEdit]; exact .done _ _)
+        have canonicalLost : Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) peer top [.tau] right none :=
+          .step canonical (by rw [canonicalEdit]; exact .done _ _)
+        have checkedCaller : Trail profile ready (specDispatch ready base) start (some (.active 0 1))
+            (used ++ [.tau]) left (some (.active 0 0)) :=
+          (leftPrefix.under 1).toTrail.append (Trail.pop_prog (some (.active 0 1)) returning)
+        have canonicalCaller : Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming
+            (some (.active 0 1)) (live ++ [.tau]) right (some (.active 0 0)) :=
+          (rightPrefix.under 1).toTrail.append (Trail.pop_prog (some (.active 0 1)) canonAt)
+        refine .sharedDropLoopReturn paths (frameCalloutStep paths rfl rfl) checkedLost canonicalLost
+          checkedCaller canonicalCaller ?_
+        cases value with
+        | unit =>
+          have segments := frame.frames
+          rw [checkAt, canonFramesAt] at segments
+          cases segments with
+          | cons _ related =>
+            have checkedJournal : left.ctl =
+                (PayloadPrefix.Cursor.mk check.thread (enclosing :: checkFrames) check.rest).control
+                  (scheduledReply leftTicket (.ok 0)) := by
+              simp only [left, PayloadPrefix.Cursor.control, checkAt, first, sharedDestructorParentReply]
+            have rawJournal : right.ctl =
+                (PayloadPrefix.Cursor.mk check.thread (enclosing :: canonFrames) canon.rest).control
+                  (scheduledReply rightTicket (.ok 0)) := by
+              simp only [right, PayloadPrefix.Cursor.control, canonFramesAt, ← frame.thread, second, sharedDestructorParentReply]
+            have journal := compareDestructorParentJournal (bindings := bindings) (start := left) (incoming := right)
+              leftTicket rightTicket frame.store related frame.rest checkedJournal rawJournal actual
+            have scheduler : DestructorSchedulerAlignment older left right :=
+              ⟨frame.blocked, frame.pending, frame.results, frame.cancels⟩
+            have bound : remaining.length ≤ limit := by
+              rw [split, popped] at shorter
+              simp only [List.length_append, List.length_replicate] at shorter
+              omega
+            exact rejoinDestructorParentJournal journal scheduler bound compare
+        | _ => exact compareSharedDestructorTrap (.internal "late-bound call: expected Ret.unit") rfl rfl actual
+      · exact tail
+    · exact tail
+  · exact tail
+
 /-- Discharge the pending enclosing return after following the source worker
 prefix. Every recursive use of the mixed classifier consumes the actual pop. -/
 private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
@@ -15966,19 +16102,13 @@ private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config
   | .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets tail =>
     exact .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets
       (rejoinDestructorSuffix tail scheduler bounded compare)
-  | .sharedDropParentLoop paths writers restore residual =>
-    have restored := restore scheduler
-    obtain ⟨used, live, trailing, reached, peer, split, compared, tail⟩ :=
-      compare (Nat.lt_of_succ_le bounded) residual restored
-    rw [split]
-    exact .sharedDropParentLoopJoined paths writers restored (.comparedPrefix compared.occurrences compared.writers tail)
+  | .sharedDropParentLoop paths writers frames restore residual =>
+    obtain ⟨restored, outside⟩ := restore scheduler
+    exact .sharedDropParentLoopJoined paths writers restored
+      (finishBlockedDestructorLoop frames restored outside residual (Nat.lt_of_succ_le bounded) compare)
   | .sharedDropParentPop paths writers checkedLost canonicalLost restore residual =>
-    have restored := restore scheduler
-    obtain ⟨used, live, trailing, reached, peer, split, compared, tail⟩ :=
-      compare (Nat.lt_of_succ_le bounded) residual restored
-    rw [split]
-    exact .sharedDropParentJoined paths writers checkedLost canonicalLost restored
-      (.comparedPrefix compared.occurrences compared.writers tail)
+    exact rejoinDestructorParentJournal
+      (.sharedDropParentPop paths writers checkedLost canonicalLost restore residual) scheduler bounded compare
   | other => exact other
 termination_by structural ending
 

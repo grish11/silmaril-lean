@@ -879,6 +879,11 @@ def sharedDestructorWorker (result : InstId × DtorRequest (core3 grow)) :
   | none => pure none
   | some impl => sharedDestructorTask result impl >>= fun task => pure (some (sharedDestructorThread task result.2.dtor))
 
+/-- Dispatch the result of the parent loop into the source completion journal. -/
+def sharedDestructorParentReply (ticket : Nat) : ReturnFrame.Continuation (core3 grow) (HostState sig)
+  | .unit => scheduledReply ticket (.ok 0)
+  | _ => internal "late-bound call: expected Ret.unit"
+
 /-- The suspended parent runs the same synchronous lift loop with its own
 completion ticket after the actual worker resume. -/
 def sharedDestructorAfterResume (body : ThreadBody (core3 grow)) (ticket : Nat) :
@@ -2100,6 +2105,16 @@ abbrev DestructorSchedulerAlignment (changes : ReturnFrame.Substitutions (core3 
   List.Forall₂ (ReturnFrame.Related.Saved changes) left.conts right.conts ∧
     left.pending = right.pending ∧ left.results = right.results ∧ left.cancels = right.cancels
 
+/-- The loop return and the enclosing parent occurrence start in adjacent
+slots of the actual paired loop entries. Their trails can outlive scheduling
+and reentry, and are independent of continuation equality elsewhere. -/
+structure DestructorParentLoopFrames (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (enclosing : Seg (core3 grow) (HostState sig)) (left right : Config (core3 grow) (HostState sig)) : Prop where
+  checkedLoop : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 0) = some (.prog first)
+  canonicalLoop : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 0) = some (.prog second)
+  checkedEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 1) = some enclosing
+  canonicalEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 1) = some enclosing
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2261,11 +2276,16 @@ induction. Its trails still identify the removed original occurrences. -/
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   /-- A parked worker exposed the original parents. Their actual loop call
   installs the two source continuations before the shorter scheduler run. -/
-  | sharedDropParentLoop {changes reached peer left right trailing finish first second}
+  | sharedDropParentLoop {changes reached peer left right trailing finish leftTicket rightTicket enclosing}
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right [some (.active 0 0)])
       (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] left right)
+      (frames : DestructorParentLoopFrames (sharedDestructorParentReply leftTicket) (sharedDestructorParentReply rightTicket)
+        enclosing left right)
       (restore : DestructorSchedulerAlignment changes reached peer →
-        HostFrame.Related.Paired (ReturnFrame.Extend changes first second) left right)
+        HostFrame.Related.Paired (ReturnFrame.Extend changes (sharedDestructorParentReply leftTicket)
+          (sharedDestructorParentReply rightTicket)) left right ∧
+        ReturnFrame.Occurrence.Outside changes (ReturnFrame.Occurrence.segmentStorage left)
+          (ReturnFrame.Occurrence.segmentStorage right) (some (.active 0 0)))
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | sharedDropParentLoopJoined {changes reached peer left right trailing finish first second}
@@ -2274,6 +2294,20 @@ induction. Its trails still identify the removed original occurrences. -/
       (restored : HostFrame.Related.Paired (ReturnFrame.Extend changes first second) left right)
       (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second) left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  /-- The executed original loop pop removes only the loop substitution.
+  The enclosing occurrence remains active for its ticket-specific journal. -/
+  | sharedDropLoopReturn {changes reached peer left right trailing finish first second checkEntry canonEntry checkTrace canonTrace}
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right)
+      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] left right)
+      (checkedLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) reached (some (.active 0 0)) [.tau] left none)
+      (canonicalLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        peer (some (.active 0 0)) [.tau] right none)
+      (checkedEnclosing : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base)
+        checkEntry (some (.active 0 1)) (checkTrace ++ [.tau]) left (some (.active 0 0)))
+      (canonicalEnclosing : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        canonEntry (some (.active 0 1)) (canonTrace ++ [.tau]) right (some (.active 0 0)))
+      (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
+      CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second) reached peer (.tau :: trailing) finish
   | sharedDropCompared {changes reached peer left right workerLeft workerRight entered checked canonical trailing finish marks}
       {beforeLeft beforeRight : Config (core3 grow) (HostState sig)}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread ticket}
