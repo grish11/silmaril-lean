@@ -70,6 +70,14 @@ def PairedWriterPaths (profile : ProfileKind) (ready : HostReady (HostState sig)
     WriterPath profile ready (specDispatch ready base) start checked left leftEffects ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right rightEffects
 
+/-- Control immediately after the loader's store write. Successful loading
+leaves the registration read pending at the reached writer. -/
+def coreAcceptAfterLoad (ticket : Nat) (result : Except Core.Issue (Stored.OwnedMemory.Tree sig)) :
+    Session grow sig (Ret (core3 grow)) :=
+  .flat <$> ((match result with
+    | .error issue => pure (.error (.accept issue))
+    | .ok tree => publishRoot ticket tree) >>= Scheduled.finish ticket)
+
 /-- The linked publication read and its following executed registration
 write. The trailing writer frames include any reached completion journal. -/
 def ReachedRegistrationCommit (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -79,7 +87,8 @@ def ReachedRegistrationCommit (profile : ProfileKind) (ready : HostReady (HostSt
   ∃ (ticket handle : Nat) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
     ∃ probe committed next trailing,
     labels = [.tau, .tau] ++ trailing ∧
-    start.ctl = cursor.control (ComponentCall.completeResolvedTree ticket tree handle) ∧
+    (start.ctl = cursor.control (ComponentCall.completeResolvedTree ticket tree handle) ∨
+      start.ctl = cursor.control (coreAcceptAfterLoad ticket (.ok tree))) ∧
     probe.ctl = cursor.control (.op (.hostSet committed.host) next) ∧
     Step profile ready dispatch start .tau probe ∧ Step profile ready dispatch probe .tau committed ∧
     probe.host = start.host ∧ probe.host.writer.register tree = .ok committed.host.writer ∧
@@ -171,14 +180,38 @@ def componentRegistrationProgram (ticket : Nat) (caller : CallerId) (tree : Stor
     lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))])
     ComponentCall.completeResolvedTree ticket tree handle
 
+/-- The legacy Core registration selects its journal or commit from the
+writer at the executed read. A fresh result still has a pending hostSet. -/
+def coreAcceptRegistrationProgram (ticket : Nat) (tree : Stored.OwnedMemory.Tree sig) (current : HostState sig) :
+    Session grow sig (Ret (core3 grow)) :=
+  .flat <$> ((match current.writer.register tree with
+    | .error issue => pure (.error (.accept (.claims issue)))
+    | .ok writer => do
+      let handle := writer.accepted.length
+      if handle ≥ 2 ^ 32 then return .error (.accept (.boundary .exhaustedHandles))
+      hostSet (({ current with writer } : HostState sig).record (.published ticket handle))
+      return .ok handle) >>= Scheduled.finish ticket)
+
+def registrationProbeProgram (caller : Option CallerId) (ticket : Nat) (tree : Stored.OwnedMemory.Tree sig) :
+    Session grow sig (Ret (core3 grow)) :=
+  match caller with
+  | none => coreAcceptAfterLoad ticket (.ok tree)
+  | some caller => ComponentCall.resolveTree ticket caller tree
+
+def registrationAfterProbe (caller : Option CallerId) (ticket : Nat) (tree : Stored.OwnedMemory.Tree sig)
+    (current : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+  match caller with
+  | none => coreAcceptRegistrationProgram ticket tree current
+  | some caller => componentRegistrationProgram ticket caller tree (componentRegistration current.writer tree)
+
 /-- Distinct continuation programs selected by the two reached probes. -/
 structure RegistrationProbeMismatch (beforeLeft beforeRight left right : Config (core3 grow) (HostState sig))
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
-    (leftTicket rightTicket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) : Prop where
-  leftFocus : beforeLeft.ctl = check.control (ComponentCall.resolveTree leftTicket caller tree)
-  rightFocus : beforeRight.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree)
-  leftProgram : left.ctl = check.control (componentRegistrationProgram leftTicket caller tree (componentRegistration left.host.writer tree))
-  rightProgram : right.ctl = canon.control (componentRegistrationProgram rightTicket caller tree (componentRegistration right.host.writer tree))
+    (leftTicket rightTicket : Nat) (caller : Option CallerId) (tree : Stored.OwnedMemory.Tree sig) : Prop where
+  leftFocus : beforeLeft.ctl = check.control (registrationProbeProgram caller leftTicket tree)
+  rightFocus : beforeRight.ctl = canon.control (registrationProbeProgram caller rightTicket tree)
+  leftProgram : left.ctl = check.control (registrationAfterProbe caller leftTicket tree left.host)
+  rightProgram : right.ctl = canon.control (registrationAfterProbe caller rightTicket tree right.host)
   different : componentRegistration left.host.writer tree ≠ componentRegistration right.host.writer tree
 
 open Stored.OwnedMemory.Claims in
@@ -394,6 +427,19 @@ def cancelFinish (subtask : SubtaskId) : Session grow sig (Ret (core3 grow)) := 
     return .flat (← Builtins.subtaskCancelDeliver subtask)
   else return .flat [i32Flat (AsyncRef.subtaskCancelResult none)]
 
+/-- The actual legacy accept import determines the synchronous loader and
+its instance. Both loaders consult the accepted history for child indices. -/
+inductive LinkedCoreAcceptLoader (bindings : List (Binding sig)) (name : String)
+    (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) :
+    InstId → (World grow sig → CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig)) → Prop where
+  | memory (contract : Stored.Endpoints.Core.Contract sig) (memory : Option Nat)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, contract.inst, .accept contract memory⟩) :
+      LinkedCoreAcceptLoader bindings name kind args contract.inst
+        (fun state => Core.load contract memory state (Stored.Endpoints.Core.Scheduled.nodeCall contract state.reference args))
+  | flat (source : FlatSource sig)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩) :
+      LinkedCoreAcceptLoader bindings name kind args source.inst (fun state => source.load state args)
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -402,6 +448,12 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
     (before : Config (core3 grow) (HostState sig)) (label : Label (core3 grow) (HostState sig))
     (next : Config (core3 grow) (HostState sig)) : Prop where
   | give (install : GiveInstall bindings dispatch before label next)
+  | coreAcceptInstall {worker core resume frames rest name kind args inst loader}
+      (focus : before.ctl = ⟨some worker, .core core resume, frames⟩ :: rest)
+      (calling : (core3 grow).status before.store.core core = .callout (.embedder name kind) args)
+      (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+      (caller : Plain.callerInstance before.store (some worker) = .ok (some inst))
+      (mayLeave : (before.store.inst? inst).any (·.mayLeave) = true)
   | componentInstall {active hostId caller resume frames rest}
       (focus : before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
   | pollInstall {thread core resume frames rest mem inst args}
@@ -1136,7 +1188,7 @@ def ReachedRegistrationMismatch (profile : ProfileKind) (ready : HostReady (Host
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (leftTicket rightTicket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) : Prop :=
   ∃ beforeLeft beforeRight,
-    RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket caller tree ∧
+    RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket (some caller) tree ∧
     OccurrenceTransport profile ready base bindings beforeLeft beforeRight [.tau] [.tau] left right ∧
     WriterPath profile ready (specDispatch ready base) beforeLeft [.tau] left [] ∧
     WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) beforeRight [.tau] right []
@@ -1189,6 +1241,14 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] left right)
       (writers : left.host.writer = reached.host.writer ∧ right.host.writer = peer.host.writer) :
       CallbackSliceEnd profile ready base bindings changes reached peer [.tau] left
+  | coreAcceptTerminal {changes reached peer left right leading trailing finish marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish)
+      (ending : trailing = [] ∨ left.host.writer.accepted ≠ right.host.writer.accepted ∨
+        ∃ beforeLeft beforeRight check canon leftTicket rightTicket tree,
+          RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
   | componentEntryPrefix {changes wider reached peer left right labels mark}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (site : PairedComponentSite wider left right check canon)
@@ -5957,27 +6017,6 @@ def LinkedFlatWorkerBody (profile : ProfileKind) (ready : HostReady (HostState s
       PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
         site.start incoming incoming checkEntry canonEntry [] seen actual finish)
 
-/-- The actual legacy accept import determines the synchronous loader and
-its instance. Both loaders consult the accepted history for child indices. -/
-inductive LinkedCoreAcceptLoader (bindings : List (Binding sig)) (name : String)
-    (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) :
-    (World grow sig → CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig)) → Prop where
-  | memory (contract : Stored.Endpoints.Core.Contract sig) (memory : Option Nat)
-      (linked : resolveBinding bindings name kind = .ok ⟨name, contract.inst, .accept contract memory⟩) :
-      LinkedCoreAcceptLoader bindings name kind args
-        (fun state => Core.load contract memory state (Stored.Endpoints.Core.Scheduled.nodeCall contract state.reference args))
-  | flat (source : FlatSource sig)
-      (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩) :
-      LinkedCoreAcceptLoader bindings name kind args (fun state => source.load state args)
-
-/-- Control immediately after the loader's store write. Successful loading
-leaves the registration read pending at the reached writer. -/
-def coreAcceptAfterLoad (ticket : Nat) (result : Except Core.Issue (Stored.OwnedMemory.Tree sig)) :
-    Session grow sig (Ret (core3 grow)) :=
-  .flat <$> ((match result with
-    | .error issue => pure (.error (.accept issue))
-    | .ok tree => publishRoot ticket tree) >>= Scheduled.finish ticket)
-
 /-- The reached synchronous load stops at an actual short prefix or after
 the exact store write, retaining both journals and the actual checked tail. -/
 def CoreAcceptLoadCut (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -5990,10 +6029,34 @@ def CoreAcceptLoadCut (profile : ProfileKind) (ready : HostReady (HostState sig)
   let raw := { right with store := loaded.1, ctl := canon.control (coreAcceptAfterLoad rightTicket loaded.2) }
   FramedComponentEarlyPrefix profile ready base bindings older check canon left right actual finish 3 ∨
     ∃ residual, actual = [.tau, .tau, .tau] ++ residual ∧
-      OccurrenceTransport profile ready base bindings left right [.tau, .tau, .tau] [.tau, .tau, .tau] checked raw ∧
+      (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base)
+        left place [.tau, .tau, .tau] checked place ∧
+        ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+          right place [.tau, .tau, .tau] raw place) ∧
       VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau, .tau, .tau] checked raw ∧
       PairedComponentSite older checked raw check canon ∧
       Steps profile ready (specDispatch ready base) checked residual finish
+
+/-- The completed load's actual journal or registration segment. Agreement
+on the reply words leaves both programs at their original caller frames.
+A conflicting probe retains both branch programs and the checked suffix. -/
+def CoreAcceptCompletionCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (start incoming : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (leftTicket rightTicket : Nat)
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  ∃ leading trailing left right,
+    actual = leading ++ trailing ∧
+    PayloadPrefix.visible leading = [] ∧
+    (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base) start place leading left place ∧
+      ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming place leading right place) ∧
+    VisitorWriterPath profile ready base bindings start incoming leading leading left right ∧
+    Steps profile ready (specDispatch ready base) left trailing finish ∧
+    PairedComponentSite older left right check canon ∧
+    (trailing = [] ∨ (∃ words, left.ctl = check.control (.pure (.flat words)) ∧ right.ctl = canon.control (.pure (.flat words))) ∨
+      ∃ tree, RegistrationProbeMismatch start incoming left right check canon leftTicket rightTicket none tree)
 
 /-- The compiler outcome of the selected request and its classification on
 the actual finite checked run. The callback slice contains the visitor-derived

@@ -283,10 +283,10 @@ private theorem registrationReadOccurrences {atLeft atRight : Config (core3 grow
   constructor
   · intro place
     obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps checked) place
-    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep lhs) (by rw [transitionEdit, site.leftFocus]; rfl) reached⟩
+    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep lhs) (by rw [transitionEdit, site.leftFocus]; cases caller <;> rfl) reached⟩
   · intro place
     obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps canonical) place
-    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) (by rw [transitionEdit, site.rightFocus]; rfl) reached⟩
+    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) (by rw [transitionEdit, site.rightFocus]; cases caller <;> rfl) reached⟩
 
 open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
 theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)

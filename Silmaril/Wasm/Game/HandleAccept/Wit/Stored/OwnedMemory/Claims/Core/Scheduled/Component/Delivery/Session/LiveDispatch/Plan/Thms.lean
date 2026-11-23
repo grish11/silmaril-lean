@@ -2565,8 +2565,8 @@ theorem linked_flat_worker_body {type : Stored.TypeOf} (site : PayloadRoot.Site 
 /-- Compare the actual three-step load of a linked synchronous memory or
 flat accept. An earlier cut tracks all occurrences at both reached endpoints.
 The store write carries the decoded result and leaves publication pending. -/
-theorem cut_core_accept_load {name kind args loader}
-    (source : LinkedCoreAcceptLoader bindings name kind args loader)
+theorem cut_core_accept_load {name kind args inst loader}
+    (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
     (leftFocus : start.ctl = check.control (.flat <$> (do Scheduled.finish leftTicket (← acceptWith leftTicket loader))))
     (rightFocus : incoming.ctl = canon.control (.flat <$> (do Scheduled.finish rightTicket (← acceptWith rightTicket loader))))
@@ -3620,6 +3620,9 @@ theorem classify_give_callbacks
 /-- One finite checked-run fold under the fixed component dispatcher. Parked
 gives, admitted component calls, and public polls, waits and cancels share the
 shorter-run induction, including inside allocator and cancellation callbacks.
+An admitted legacy Core accept follows the reached load, registration read
+and any actual commit and journal. A probe conflict keeps both branch
+programs. A common reply releases the suffix at the original marked pop.
 An unresolved cancel enters the hook after the actual request write and
 installation. Its executed marked pop leads to the reached readiness decision,
 or to the actual trapped or exhausted prefix of that decision.
