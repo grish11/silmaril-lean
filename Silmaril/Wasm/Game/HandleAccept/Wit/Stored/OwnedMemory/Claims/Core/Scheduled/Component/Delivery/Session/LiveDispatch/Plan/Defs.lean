@@ -15,6 +15,7 @@ namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Sch
 open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon Silmaril.Wasm.Component.Engine
   Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine
 open ComponentCall.Delivery.FiniteSession
+open Silmaril.Wasm.Game.HandleAccept.Wit.Async (Channel Element Channel.endKind)
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature}
 
@@ -450,6 +451,75 @@ inductive LegacyAcceptCallAt (before : Config (core3 grow) (HostState sig))
   | program {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op (.call (.hostCallout (.embedder name kind) args)) resume), frames⟩ :: rest)
 
+/-- The four scheduled operations dispatched identically by both hosts.
+The link fixes the resource or endpoint type before any guest argument is read. -/
+inductive SharedGiveAction where
+  | record (destination : RecordDestination)
+  | giveOwner (resource : RtId)
+  | dropOwner (resource : RtId)
+  | endpoint (channel : Channel) (element : Element)
+
+def SharedGiveAction.bindingAction (action : SharedGiveAction) : Action sig :=
+  match action with
+  | .record destination => .giveRecord destination
+  | .giveOwner resource => .giveOwner resource
+  | .dropOwner resource => .dropOwner resource
+  | .endpoint channel element => .giveEndpoint channel element
+
+def SharedGiveAction.selected (action : SharedGiveAction) (inst : InstId)
+    (tree : Stored.OwnedMemory.Tree sig) (position : Nat) : Session grow sig (Except Scheduled.Issue Nat) := do
+  let cx : LiftLowerContext (core3 grow) := { opts := {}, inst }
+  match action with
+  | .record dest =>
+    return (← Stored.OwnedMemory.Claims.Record.lowerRoot recordClaims Limits.spec Quirks.none
+      (dest.context inst) tree (.memory position)).mapError .lowerRecord |>.map (fun _ => 0)
+  | .giveOwner resource =>
+    let some receipt := (rootReceipts tree)[position]? | return .error .badSelection
+    return (← claims.give Limits.spec cx resource (receiptId receipt)).mapError .claim
+  | .dropOwner resource =>
+    let some receipt := (rootReceipts tree)[position]? | return .error .badSelection
+    let result ← claims.drop (destructorCall Limits.spec Quirks.none) resource (receiptId receipt)
+    return result.mapError .claim |>.map (fun _ => 0)
+  | .endpoint channel element =>
+    let some id := (rootEndpoints tree)[position]? | return .error .badSelection
+    return (← claims.giveEndpoint Limits.spec cx channel element ⟨id⟩).mapError .claim
+
+/-- Select the reached tree and position, using a memory destination only for record give. -/
+def SharedGiveAction.selection (action : SharedGiveAction) (args : List FlatValue) :
+    Session grow sig (Except Scheduled.Issue (Stored.OwnedMemory.Tree sig × Nat)) := do
+  match action with
+  | .record dest => selectMemoryDestination dest args
+  | _ =>
+    let [.int .i32 handle, .int .i32 position] := args | return .error .wrongType
+    let some tree ← select handle | return .error .badSelection
+    return .ok (tree, position.toNat)
+
+def SharedGiveAction.run (action : SharedGiveAction) (inst : InstId) (args : List FlatValue) :
+    Session grow sig (Except Scheduled.Issue Nat) := do
+  match ← action.selection args with
+  | .error issue => return .error issue
+  | .ok (tree, position) => action.selected inst tree position
+
+def SharedGiveAction.afterLookup (action : SharedGiveAction) (inst : InstId) (ticket position : Nat)
+    (found : Option (Stored.OwnedMemory.Tree sig)) : Session grow sig (Ret (core3 grow)) := do
+  let some tree := found | return .flat (← Scheduled.finish ticket (.error .badSelection))
+  return .flat (← Scheduled.finish ticket (← action.selected inst tree position))
+
+/-- A shared selector executed the accepted-history lookup on both sides and
+selected different roots at the demanded index. -/
+structure SharedGiveHistoryMismatch (action : SharedGiveAction) (inst : InstId) (leftTicket rightTicket position : Nat)
+    (handle : BitVec IntType.i32.width)
+    (beforeLeft beforeRight left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop where
+  leftRead : beforeLeft.ctl = check.control (select handle >>= action.afterLookup inst leftTicket position)
+  rightRead : beforeRight.ctl = canon.control (select handle >>= action.afterLookup inst rightTicket position)
+  leftReached : left = { beforeLeft with ctl := check.control (action.afterLookup inst leftTicket position
+    (Stored.Endpoints.Core.childFromHistory beforeLeft.host.writer.accepted handle)) }
+  rightReached : right = { beforeRight with ctl := canon.control (action.afterLookup inst rightTicket position
+    (Stored.Endpoints.Core.childFromHistory beforeRight.host.writer.accepted handle)) }
+  different : Stored.Endpoints.Core.childFromHistory beforeLeft.host.writer.accepted handle ≠
+    Stored.Endpoints.Core.childFromHistory beforeRight.host.writer.accepted handle
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -461,6 +531,10 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | coreAcceptInstall {name kind args inst loader}
       (call : LegacyAcceptCallAt before name kind args)
       (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+  | sharedGiveInstall {name kind args inst} {action : SharedGiveAction}
+      (call : LegacyAcceptCallAt before name kind args)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩) :
+      CallbackWorkerBoundary bindings ready dispatch protectedReturn before label next
   | componentInstall {active hostId caller resume frames rest}
       (focus : before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest)
   | pollInstall {thread core resume frames rest mem inst args}
@@ -1257,6 +1331,27 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedGiveSelected {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {name kind inst leftTicket rightTicket position tree} {action : SharedGiveAction}
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+      (checked : left.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
+      (canonical : right.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedGiveSelectionMismatch {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {inst leftTicket rightTicket position handle beforeLeft beforeRight} {action : SharedGiveAction}
+      (mismatch : SharedGiveHistoryMismatch action inst leftTicket rightTicket position handle beforeLeft beforeRight left right check canon)
+      (checked : ReachedReadOccurrences profile ready (specDispatch ready base) reached beforeLeft left leading)
+      (canonical : ReachedReadOccurrences profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        peer beforeRight right leading)
+      (paths : OccurrenceTransport profile ready base bindings reached peer (leading ++ [.tau]) (leading ++ [.tau]) left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer (leading ++ [.tau]) (leading ++ [.tau]) left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer ((leading ++ [.tau]) ++ trailing) finish
   | componentEntryPrefix {changes wider reached peer left right labels mark}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (site : PairedComponentSite wider left right check canon)

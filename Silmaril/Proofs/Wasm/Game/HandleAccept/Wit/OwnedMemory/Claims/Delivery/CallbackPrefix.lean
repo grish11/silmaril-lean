@@ -338,7 +338,7 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
 theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     (run : Steps profile ready (specDispatch ready base) start labels finish) (includeComponentCalls : Bool := false)
     (includePoll : Bool := false) (includeWait : Bool := false) (includeCancelResume : Bool := false)
-    (includeCancel : Bool := false) (includeCoreAccept : Bool := false) :
+    (includeCancel : Bool := false) (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
   classical
   induction run with
@@ -351,6 +351,11 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
         LegacyAcceptCallAt before name kind args ∧ LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
     · obtain ⟨_, _, _, _, _, call, source⟩ := accept.2
       exact stop (.coreAcceptInstall call source)
+    by_cases shared : includeSharedGive = true ∧ ∃ name kind args inst, ∃ action : SharedGiveAction,
+        LegacyAcceptCallAt before name kind args ∧
+          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
+    · obtain ⟨_, _, _, _, _, call, linked⟩ := shared.2
+      exact stop (.sharedGiveInstall call linked)
     by_cases component : includeComponentCalls = true ∧ ∃ active hostId caller resume frames rest,
         before.ctl = ⟨some active, .prog (.op (.call (.hostFunc hostId caller)) resume), frames⟩ :: rest
     · obtain ⟨_, _, _, _, _, _, _, focus⟩ := component
