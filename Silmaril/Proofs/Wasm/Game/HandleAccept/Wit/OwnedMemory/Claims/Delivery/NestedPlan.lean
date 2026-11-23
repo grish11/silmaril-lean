@@ -23702,8 +23702,9 @@ private theorem sourceTaskCancelPrepareEffects :
     (storeEffectTrapIf (decide (reached.numBorrows > 0)) .borrowsRemain).bind fun _ => .pure (task, reached.caller)
 
 /-- The state write is pending below the actual resolution call. -/
-private def sourceTaskCancelResolve (selected : TaskId × CallerId) : Session grow sig (Ret (core3 grow)) := do
-  callUnit (.onResolve selected.2 none)
+private def sourceTaskResolve (selected : TaskId × CallerId) (result : Option (List Value.Val)) :
+    Session grow sig (Ret (core3 grow)) := do
+  callUnit (.onResolve selected.2 result)
   modifyStore (CStore.setTaskState selected.1 .resolved)
   return .flat []
 
@@ -23711,9 +23712,52 @@ private theorem sourceTaskCancelCalloutCode (ready : HostReady (HostState sig))
     (host : HostImpl (core3 grow) (HostState sig)) (store : CStore (core3 grow)) (thread : Option ThreadId)
     (inst : InstId) :
     calloutBody Limits.spec Quirks.none ready host store thread (.builtin .taskCancel inst) [] =
-      ((sourceTaskCancelPrepare : Session grow sig _) >>= sourceTaskCancelResolve) := by
+      ((sourceTaskCancelPrepare : Session grow sig _) >>= fun selected => sourceTaskResolve selected none) := by
   simp [calloutBody, builtinProg, withArgs0, Builtins.taskCancel, Runtime.Task.cancel, sourceTaskCancelPrepare,
-    sourceTaskCancelResolve, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+    sourceTaskResolve, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+
+/-- The type, options and authorized task scope of the actual canonical lift. -/
+private def sourceTaskReturnPrepare (result : Option (WIT.ClosedType RtId)) (opts : CanonOpts (core3 grow)) :
+    Session grow sig (TaskId × Task (core3 grow)) := do
+  let task ← currentTask
+  let reached ← getTask task
+  let inst ← getInst reached.inst
+  trapIf (!inst.mayLeave) .cannotLeave
+  trapIf (!reached.opts.async_) .taskNotAsync
+  trapIf (decide (result ≠ reached.ft.result)) .taskReturnInvalid
+  trapIf (!Builtins.taskReturnOptsOk Quirks.none opts reached.opts) .taskReturnInvalid
+  return (task, reached)
+
+private theorem sourceTaskReturnPrepareEffects (result : Option (WIT.ClosedType RtId)) (opts : CanonOpts (core3 grow)) :
+    StoreEffects (sourceTaskReturnPrepare result opts : Session grow sig _) := by
+  unfold sourceTaskReturnPrepare getTask getInst
+  exact storeEffectCurrentTask.bind fun task => (storeEffectGetObject ArenaField.tasks task).bind fun reached =>
+    (storeEffectGetObject ArenaField.insts reached.inst).bind fun inst =>
+    (storeEffectTrapIf (!inst.mayLeave) .cannotLeave).bind fun _ =>
+    (storeEffectTrapIf (!reached.opts.async_) .taskNotAsync).bind fun _ =>
+    (storeEffectTrapIf (decide (result ≠ reached.ft.result)) .taskReturnInvalid).bind fun _ =>
+    (storeEffectTrapIf (!Builtins.taskReturnOptsOk Quirks.none opts reached.opts) .taskReturnInvalid).bind fun _ =>
+    .pure (task, reached)
+
+/-- Nominal and memory effects of the actual lift precede the task return's
+new caller read. The final state write follows the selected resolution. -/
+private def sourceTaskReturnLift (opts : CanonOpts (core3 grow)) (args : List FlatValue)
+    (selected : TaskId × Task (core3 grow)) : Session grow sig (Ret (core3 grow)) := do
+  let (task, entry) := selected
+  let cx : LiftLowerContext (core3 grow) := { opts, inst := entry.inst, scope := .task task }
+  let (values, _) ← liftFlatValues Limits.spec Quirks.none cx ABI.maxFlatParams (.ofList args) entry.ft.result.toList
+  let reached ← getTask task
+  trapIf (decide (reached.state = .resolved)) .taskReturnTwice
+  trapIf (decide (reached.numBorrows > 0)) .borrowsRemain
+  sourceTaskResolve (task, reached.caller) (some values)
+
+private theorem sourceTaskReturnCalloutCode (ready : HostReady (HostState sig))
+    (host : HostImpl (core3 grow) (HostState sig)) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (inst : InstId) (result : Option (WIT.ClosedType RtId)) (opts : CanonOpts (core3 grow)) (args : List FlatValue) :
+    calloutBody Limits.spec Quirks.none ready host store thread (.builtin (.taskReturn result opts) inst) args =
+      sourceTaskReturnPrepare result opts >>= sourceTaskReturnLift opts args := by
+  simp [calloutBody, builtinProg, Builtins.taskReturn, Runtime.Task.return_, sourceTaskReturnPrepare, sourceTaskReturnLift,
+    sourceTaskResolve, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
 
 /-- Canonical builtins with source callback comparisons. Other builtins
 continue through the common executable dispatch in this fold. -/
@@ -23721,6 +23765,7 @@ private def sourceBuiltinWithCallback : ResolvedBuiltin (core3 grow) → List Fl
   | .resourceDrop _, [_] => true
   | .errorContextDebugMessage _, [_, _] => true
   | .taskCancel, [] => true
+  | .taskReturn .., _ => true
   | _, _ => false
 
 private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
@@ -23771,9 +23816,18 @@ private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
       have rightAt := canonical.trans (congrArg canon.control
         (sourceTaskCancelCalloutCode ready (LiveDispatch.host bindings base) incoming.store canon.thread inst))
       exact crossDestructorRecordStore (check := check) (canon := canon) thread sourceTaskCancelPrepare sourceTaskCancelPrepareEffects
-        sourceTaskCancelResolve sourceTaskCancelResolve (fun selected => compareProgram (sourceTaskCancelResolve selected))
+        (fun selected => sourceTaskResolve selected none) (fun selected => sourceTaskResolve selected none)
+        (fun selected => compareProgram (sourceTaskResolve selected none))
         stores leftAt rightAt scheduler run bounded
     | cons => contradiction
+  | taskReturn result opts =>
+    have leftAt := checked.trans (congrArg check.control
+      (sourceTaskReturnCalloutCode ready base start.store check.thread inst result opts args))
+    have rightAt := canonical.trans (congrArg canon.control
+      (sourceTaskReturnCalloutCode ready (LiveDispatch.host bindings base) incoming.store canon.thread inst result opts args))
+    exact crossDestructorRecordStore (check := check) (canon := canon) thread (sourceTaskReturnPrepare result opts)
+      (sourceTaskReturnPrepareEffects result opts) (sourceTaskReturnLift opts args) (sourceTaskReturnLift opts args)
+      (fun reached => compareProgram (sourceTaskReturnLift opts args reached)) stores leftAt rightAt scheduler run bounded
   | _ => contradiction
 
 private theorem finishSourceBuiltinWithCallbackEntry {limit : Nat}
