@@ -206,6 +206,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   induction path with
   | framed lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | guarded paths =>
     obtain ⟨changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
@@ -225,7 +226,16 @@ theorem checkedSpends (leftPath : WriterPath profile ready (specDispatch ready b
     CheckedSpendFlow start.host.writer incoming.host.writer left.host.writer right.host.writer updates :=
   ⟨spend leftPath spends, spend rightPath (updates := []) .nil⟩
 
-open Stored.OwnedMemory.Claims.Record in
+open Stored.OwnedMemory.Claims in
+theorem registrationProbe_observations {left right : State sig}
+    {tree : Stored.OwnedMemory.Tree sig} (checks : left.RegistrationChecksAgree right tree)
+    (length : left.accepted.length = right.accepted.length) :
+    componentRegistration left tree = componentRegistration right tree := by
+  have observed := register_observations checks length
+  cases lhs : left.register tree <;> cases rhs : right.register tree <;>
+    simp_all only [Except.map, Except.error.injEq, Except.ok.injEq, reduceCtorEq, componentRegistration]
+
+open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
 theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (initial : start.host.writer.ClaimDiscrepancies incoming.host.writer pending) :
@@ -242,6 +252,15 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
       simpa only [List.nil_append, List.append_nil] using
         (WriterDiscrepancyCut.prepareConflict [] (empty (start := start) (incoming := incoming))
           (by simpa only [List.not_mem_nil, or_false] using initial) site lhs rhs (.inl demanded) same conflict empty)
+  | @registrationMismatch start incoming readLeft readRight check canon leftTicket rightTicket caller tree site lhs rhs =>
+    have live (demand : Spend) : (pending demand ∨ demand ∈ []) = pending demand := by simp
+    have related := framedDiscrepancies lhs rhs initial
+    have conflict : RegistrationConflict readLeft.host.writer readRight.host.writer tree pending :=
+      related.registrationConflict (fun checks => site.different
+        (registrationProbe_observations checks (congrArg List.length related.accepted)))
+    simpa only [List.nil_append, List.append_nil] using
+      (WriterDiscrepancyCut.registrationConflict [] (empty (start := start) (incoming := incoming)) site lhs rhs
+        (by simpa only [live] using related) (by simpa only [live] using conflict) empty)
   | guarded paths =>
     obtain ⟨changes, checked, canonical, empty | ⟨change, update, single, _, nominal⟩⟩ := paths
     · subst changes
@@ -274,12 +293,19 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
         simpa only [List.append_assoc] using (WriterDiscrepancyCut.prepareConflict (spends ++ more) (front.append leading)
           (by simpa only [List.mem_append, or_assoc] using related) site lhs rhs
           (by simpa only [List.mem_append, or_assoc] using live) unequal conflict trailing)
+      | registrationConflict more leading site lhs rhs related conflict trailing =>
+        simpa only [List.append_assoc] using (WriterDiscrepancyCut.registrationConflict (spends ++ more) (front.append leading)
+          site lhs rhs (by simpa only [List.mem_append, or_assoc] using related)
+          (by simpa only [RegistrationConflict, List.mem_append, or_assoc] using conflict) trailing)
     | boundary spends leading related site actual trailing =>
       simpa only [List.append_assoc] using
         (WriterDiscrepancyCut.boundary spends leading related site actual (trailing.append tail))
     | prepareConflict spends leading related site lhs rhs live unequal conflict trailing =>
       simpa only [List.append_assoc] using
         (WriterDiscrepancyCut.prepareConflict spends leading related site lhs rhs live unequal conflict (trailing.append tail))
+    | registrationConflict spends leading site lhs rhs related conflict trailing =>
+      simpa only [List.append_assoc] using
+        (WriterDiscrepancyCut.registrationConflict spends leading site lhs rhs related conflict (trailing.append tail))
 
 theorem registration {change : WriterChange sig} {tree : Stored.OwnedMemory.Tree sig}
     (path : WriterPath profile ready dispatch start labels finish [change])

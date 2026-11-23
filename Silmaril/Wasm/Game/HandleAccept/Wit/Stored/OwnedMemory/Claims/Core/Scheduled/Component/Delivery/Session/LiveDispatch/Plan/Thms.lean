@@ -100,8 +100,8 @@ theorem ReachedRegistrationMismatch.conflictingPending {check canon : PayloadPre
       ¬ ((Spend.owner id).Live start.host.writer ↔ (Spend.owner id).Live incoming.host.writer)) ∨
     (∃ id ∈ rootEndpoints tree, pending (.endpoint id) ∧
       ¬ ((Spend.endpoint id).Live start.host.writer ↔ (Spend.endpoint id).Live incoming.host.writer)) := by
-  obtain ⟨_, _, _, _, _, _, _, _, _, different⟩ := mismatch
-  exact related.registrationConflict (fun same => different
+  obtain ⟨_, _, site, _, _, _⟩ := mismatch
+  exact related.registrationConflict (fun same => site.different
     (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.registrationProbe_observations
       same (congrArg List.length related.accepted)))
 
@@ -3639,9 +3639,9 @@ open ReturnFrame.Occurrence in
 /-- Extend the mixed worker comparison through the reached, certified endpoint
 segments. The two traces retain their own journals and all occurrence moves.
 An asymmetric reply or a site missing a paired certificate leaves an actual
-checked residual; it does not extend the raw execution. An executed fresh
-collection prepare can expose a conflict with the pending raw writer, not a
-raw prepare step or an observation at a prefix that has not read it. -/
+checked residual; it does not extend the raw execution. The conflict cases
+retain the actual reads: a checked-only collection prepare with raw pending,
+or paired registration probes with their distinct continuation programs. -/
 theorem classify_mixed_callback_endpoint_discrepancies {callees : List (ComponentCall.Callee sig)}
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)

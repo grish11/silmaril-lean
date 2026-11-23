@@ -5487,10 +5487,8 @@ open Stored.OwnedMemory.Claims in
 theorem registrationProbe_observations {left right : Stored.OwnedMemory.Claims.State sig}
     {tree : Stored.OwnedMemory.Tree sig} (checks : left.RegistrationChecksAgree right tree)
     (length : left.accepted.length = right.accepted.length) :
-    componentRegistration left tree = componentRegistration right tree := by
-  have observed := register_observations checks length
-  cases lhs : left.register tree <;> cases rhs : right.register tree <;>
-    simp_all only [Except.map, Except.error.injEq, Except.ok.injEq, reduceCtorEq, componentRegistration]
+    componentRegistration left tree = componentRegistration right tree :=
+  WriterPaths.registrationProbe_observations checks length
 
 theorem indexedClaims_registrationProbe {left right : Stored.OwnedMemory.Claims.State sig}
     (indexed : left.IndexedClaimsAgree right) (tree : Stored.OwnedMemory.Tree sig) :
@@ -5505,9 +5503,9 @@ theorem registrationMismatch_demandsPending {check canon : PayloadPrefix.Cursor 
     (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
       id ∉ (start.host.writer.accepted.flatMap rootReceipts).map receiptId) ∨
     (∃ id ∈ rootEndpoints tree, pending (.endpoint id)) := by
-  obtain ⟨_, _, _, _, _, _, _, _, _, different⟩ := mismatch
+  obtain ⟨_, _, site, _, _, _⟩ := mismatch
   by_contra absent
-  apply different
+  apply site.different
   refine registrationProbe_observations (related.registrationChecks tree ?_ ?_) (congrArg List.length related.accepted)
   · intro id demand disputed
     by_contra newOwner
@@ -5734,10 +5732,11 @@ theorem cutObservedAcceptance (callee : ComponentCall.Callee sig) (caller : Call
                   (by simpa only [branch, componentRegistrationProgram] using leftProgram)
                   (by simpa only [branch, componentRegistrationProgram] using rightProgram)
               | fresh handle => exact (bothFresh ⟨handle, branch, agrees.symm.trans branch⟩).elim
-            · exact ⟨leading ++ [.tau], remaining, lhs, rhs, actual, whole, afterProbe,
-                .registrationMismatch ⟨reached, peer, leftProbe, rightProbe, probed, checkedWriter, canonicalWriter,
-                  leftProgram, rightProgram, agrees⟩
-                  atProbe (.append (.framed checkedLift canonicalLift) (.framed checkedWriter canonicalWriter))
+            · have mismatch : RegistrationProbeMismatch reached peer lhs rhs check canon leftTicket rightTicket caller tree :=
+                ⟨leftProbe, rightProbe, leftProgram, rightProgram, agrees⟩
+              exact ⟨leading ++ [.tau], remaining, lhs, rhs, actual, whole, afterProbe,
+                .registrationMismatch ⟨reached, peer, mismatch, probed, checkedWriter, canonicalWriter⟩
+                  atProbe (.append (.framed checkedLift canonicalLift) (.registrationMismatch mismatch checkedWriter canonicalWriter))
                   ⟨congrArg HostState.writer leftHost, congrArg HostState.writer rightHost⟩
                   (fun indexed => agrees (indexedClaims_registrationProbe (by rwa [leftHost, rightHost]) tree))⟩
     · rw [rejectPayloadShape callee caller leftTicket shaped] at left

@@ -110,6 +110,45 @@ inductive CallbackWriterBoundary where
   | giveEntry
   | dispatch
 
+/-- A registration probe does not commit the registration, even on a fresh result. -/
+inductive ComponentRegistration where
+  | aliased
+  | exhausted
+  | fresh (handle : Nat)
+
+def componentRegistration (writer : Stored.OwnedMemory.Claims.State sig) (tree : Stored.OwnedMemory.Tree sig) :
+    ComponentRegistration :=
+  match writer.register tree with
+  | .error _ => .aliased
+  | .ok registered => if registered.accepted.length ≥ 2 ^ 32 then .exhausted else .fresh registered.accepted.length
+
+def componentRegistrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
+    ComponentRegistration → Session grow sig (Ret (core3 grow))
+  | .aliased => ComponentCall.resolveRefused ticket caller (.accept (.claims .alias))
+  | .exhausted => ComponentCall.reject ticket (.accept (.boundary .exhaustedHandles))
+  | .fresh handle => do
+    lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))])
+    ComponentCall.completeResolvedTree ticket tree handle
+
+/-- Distinct continuation programs selected by the two reached probes. -/
+structure RegistrationProbeMismatch (beforeLeft beforeRight left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (leftTicket rightTicket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) : Prop where
+  leftFocus : beforeLeft.ctl = check.control (ComponentCall.resolveTree leftTicket caller tree)
+  rightFocus : beforeRight.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree)
+  leftProgram : left.ctl = check.control (componentRegistrationProgram leftTicket caller tree (componentRegistration left.host.writer tree))
+  rightProgram : right.ctl = canon.control (componentRegistrationProgram rightTicket caller tree (componentRegistration right.host.writer tree))
+  different : componentRegistration left.host.writer tree ≠ componentRegistration right.host.writer tree
+
+open Stored.OwnedMemory.Claims in
+/-- A requested live claim differs at the executed probe; history alone is not a disagreement. -/
+def RegistrationConflict (left right : State sig) (tree : Stored.OwnedMemory.Tree sig) (pending : Spend → Prop) : Prop :=
+  (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
+    id ∉ (left.accepted.flatMap rootReceipts).map receiptId ∧
+    ¬ ((Spend.owner id).Live left ↔ (Spend.owner id).Live right)) ∨
+  (∃ id ∈ rootEndpoints tree, pending (.endpoint id) ∧
+    ¬ ((Spend.endpoint id).Live left ↔ (Spend.endpoint id).Live right))
+
 open Stored.OwnedMemory.Claims.Record in
 /-- A checked prepare read compared against the writer of the pending raw
 program. The raw path does not execute a prepare. -/
@@ -140,6 +179,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start (leading ++ [.tau]) left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
       VisitorWriterPath profile ready base bindings start incoming (leading ++ [.tau]) canonical left right
+  | registrationMismatch {start incoming left right check canon leftTicket rightTicket caller tree}
+      (site : RegistrationProbeMismatch start incoming left right check canon leftTicket rightTicket caller tree)
+      (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
   | guarded {start incoming checked canonical left right plan}
       (paths : CompiledLeafWriterPaths profile ready base bindings start incoming checked canonical left right plan) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
@@ -160,7 +204,7 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       VisitorWriterPath profile ready base bindings start incoming (checked ++ leftTail) (canonical ++ rightTail) finish peer
 
 open Stored.OwnedMemory.Claims.Record in
-/-- Interpret the reached writer sites up to the first conflicting prepare
+/-- Interpret the reached writer sites up to the first conflicting read
 or missing source classification. The remaining paths are retained, not replayed. -/
 inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
@@ -182,6 +226,18 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending
         (checked ++ (leading ++ [.tau]) ++ tailChecked) (canonical ++ rawLeading ++ tailCanonical) left right
+  | registrationConflict {checked canonical left right atLeft atRight readLeft readRight tailChecked tailCanonical
+      check canon leftTicket rightTicket caller tree}
+      (spends : List Stored.OwnedMemory.Claims.Spend)
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (site : RegistrationProbeMismatch atLeft atRight readLeft readRight check canon leftTicket rightTicket caller tree)
+      (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] readLeft [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] readRight [])
+      (related : readLeft.host.writer.ClaimDiscrepancies readRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
+      (conflict : RegistrationConflict readLeft.host.writer readRight.host.writer tree (fun demand => pending demand ∨ demand ∈ spends))
+      (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending
+        (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
   | boundary {checked canonical left right atLeft atRight siteChecked siteCanonical siteLeft siteRight tailChecked tailCanonical}
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
@@ -955,27 +1011,6 @@ inductive DirectGivePreparationCut (profile : ProfileKind) (ready : HostReady (H
       DirectGivePreparationCut profile ready base bindings start peer caller resume request ticket selected field
         ([.tau, .tau] ++ trailing) finish
 
-/-- The observation used by the reached registration probe. A refused registration
-does not read a handle, and exhaustion does not use the out-of-range index. -/
-inductive ComponentRegistration where
-  | aliased
-  | exhausted
-  | fresh (handle : Nat)
-
-def componentRegistration (writer : Stored.OwnedMemory.Claims.State sig) (tree : Stored.OwnedMemory.Tree sig) :
-    ComponentRegistration :=
-  match writer.register tree with
-  | .error _ => .aliased
-  | .ok registered => if registered.accepted.length ≥ 2 ^ 32 then .exhausted else .fresh registered.accepted.length
-
-def componentRegistrationProgram (ticket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) :
-    ComponentRegistration → Session grow sig (Ret (core3 grow))
-  | .aliased => ComponentCall.resolveRefused ticket caller (.accept (.claims .alias))
-  | .exhausted => ComponentCall.reject ticket (.accept (.boundary .exhaustedHandles))
-  | .fresh handle => do
-    lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Value.Val.u32 handle))])
-    ComponentCall.completeResolvedTree ticket tree handle
-
 /-- An actual pair of registration reads selected different branches from the two raw
 writers. These are continuation focuses, not executed replies or fabricated traps. -/
 def ReachedRegistrationMismatch (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -984,14 +1019,10 @@ def ReachedRegistrationMismatch (profile : ProfileKind) (ready : HostReady (Host
     (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
     (leftTicket rightTicket : Nat) (caller : CallerId) (tree : Stored.OwnedMemory.Tree sig) : Prop :=
   ∃ beforeLeft beforeRight,
-    beforeLeft.ctl = check.control (ComponentCall.resolveTree leftTicket caller tree) ∧
-    beforeRight.ctl = canon.control (ComponentCall.resolveTree rightTicket caller tree) ∧
+    RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket caller tree ∧
     OccurrenceTransport profile ready base bindings beforeLeft beforeRight [.tau] [.tau] left right ∧
     WriterPath profile ready (specDispatch ready base) beforeLeft [.tau] left [] ∧
-    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) beforeRight [.tau] right [] ∧
-    left.ctl = check.control (componentRegistrationProgram leftTicket caller tree (componentRegistration left.host.writer tree)) ∧
-    right.ctl = canon.control (componentRegistrationProgram rightTicket caller tree (componentRegistration right.host.writer tree)) ∧
-    componentRegistration left.host.writer tree ≠ componentRegistration right.host.writer tree
+    WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) beforeRight [.tau] right []
 
 open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
 /-- The two executed prepare reads frame their actual writers. The discrepancy
