@@ -3009,9 +3009,10 @@ induction. Its trails still identify the removed original occurrences. -/
         Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The original allocator frames popped. The reached collection resumes
-  still have their range, reserve, element and publication operations ahead. -/
-  | sourceOverlayCollectionPointer {changes reached peer trailing finish pointer}
+  /-- The original pointer frames popped and both sides validated the
+  reached range. The checked side also executed the fresh successful reserve
+  reads. The remaining programs visit the selected collection elements. -/
+  | sourceOverlayCollectionElements {changes reached peer trailing finish pointer bytes}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
       (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
@@ -3022,13 +3023,16 @@ induction. Its trails still identify the removed original occurrences. -/
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (matching : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element)
       (source : SourceOverlayFieldSource destination (.dynamic type element entries))
+      (aligned : pointer = ABI.alignTo pointer (ABI.layout destination.width element).alignment)
+      (bounds : pointer + entries.length * (ABI.layout destination.width element).size ≤ bytes)
+      (sized : (core3 grow).memSize? reached.store.core destination.memory = some bytes)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : let area := ABI.layout destination.width element
-        reached.ctl = check.control (PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext (.nat pointer)))
+        reached.ctl = check.control (PayloadPrefix.checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext))
       (canonical : let area := ABI.layout destination.width element
         let mode := Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput destination.width type output
-        peer.ctl = canon.control (PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext mode (.nat pointer)))
+        peer.ctl = canon.control (PayloadPrefix.canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}

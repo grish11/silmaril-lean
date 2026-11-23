@@ -156,11 +156,27 @@ private theorem rangeCheckedRead {checked lhs rhs left right : Config (core3 gro
   | none => exact ⟨(Trail.absent (prefix_survives (read.tracks (.active 0 0))).1).append left, right⟩
   | some place => exact ⟨(read.tracks place).toTrail.append left, right⟩
 
-private theorem rangeTrapBind {Result Next : Type} (reason : TrapReason) (next : Result → Session grow sig Next) :
+theorem rangeTrapBind {Result Next : Type} (reason : TrapReason) (next : Result → Session grow sig Next) :
     (trap reason : Session grow sig Result).bind next = trap reason := by
   apply congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap reason))
   funext impossible
   exact nomatch impossible
+
+@[expose] def collectionRangeRead (destination : RecordDestination) (area : Layout) (count pointer : Nat)
+    (next : Nat → Session grow sig (Ret (core3 grow))) (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+  (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>= fun capacity =>
+    trapIf (decide (pointer + count * area.size > capacity)) .outOfBounds) >>= fun _ => next pointer
+
+theorem collectionRangeReadFocus (destination : RecordDestination) (inst : InstId) (area : Layout) (count pointer : Nat)
+    (next : Nat → Session grow sig (Ret (core3 grow))) (aligned : pointer = alignTo pointer area.alignment) :
+    listRangeResume (destination.context inst) area count next (.nat pointer) =
+      .op .get (collectionRangeRead destination area count pointer next) := by
+  have memoryAt : (destination.context (grow := grow) inst).opts.memory = some destination.memory := rfl
+  unfold collectionRangeRead
+  simp [listRangeResume, validateListRange, trapIf, checkInBounds, memLen, memAddr, orTrap, memoryAt,
+    getStore, Prog.bind_assoc]
+  rw [ite_eq_left aligned]
+  rfl
 
 private theorem collectionRangeSites (destination : RecordDestination) (inst : InstId) (area : Layout)
     (count pointer bytes : Nat) (plan : List Object)
@@ -216,17 +232,10 @@ private theorem collectionRangeSites (destination : RecordDestination) (inst : I
       simp [rightPop, listRangeResume, validateListRange, trapIf, misaligned, Prog.bind_assoc, rangeTrapBind]
     exact pop (trapPair rfl rfl rfl rfl (.trap leftTrap) (.trap rightTrap))
   rw [ite_eq_right misaligned]
-  let readRange := fun (next : Nat → Session grow sig (Ret (core3 grow))) (store : CStore (core3 grow)) =>
-    (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>= fun capacity =>
-      trapIf (decide (pointer + count * area.size > capacity)) .outOfBounds) >>= fun _ => next pointer
+  let readRange := collectionRangeRead (grow := grow) (sig := sig) destination area count pointer
   have rangeFocus (next : Nat → Session grow sig (Ret (core3 grow))) :
-      listRangeResume context area count next (.nat pointer) = .op .get (readRange next) := by
-    have selected : context.opts.memory = some destination.memory := rfl
-    have aligned := not_ne_iff.mp misaligned
-    simp [listRangeResume, validateListRange, trapIf, checkInBounds, memLen, memAddr, orTrap, selected,
-      getStore, readRange, Prog.bind_assoc]
-    rw [ite_eq_left aligned]
-    rfl
+      listRangeResume context area count next (.nat pointer) = .op .get (readRange next) :=
+    collectionRangeReadFocus destination inst area count pointer next (not_ne_iff.mp misaligned)
   let leftRange := { checked with ctl := check.control (readRange recheck checked.store) }
   let rightRange := { canonical with ctl := canon.control (readRange peerFinish canonical.store) }
   have leftRead : leftPop.ctl = check.control (.op .get (readRange recheck)) := congrArg check.control (rangeFocus recheck)
@@ -239,9 +248,9 @@ private theorem collectionRangeSites (destination : RecordDestination) (inst : I
   by_cases fits : pointer + count * area.size ≤ bytes
   · rw [ite_eq_left fits]
     have leftNext : leftRange.ctl = check.control (recheck pointer) := by
-      simp [leftRange, readRange, size, trapIf, Nat.not_lt.mpr fits, orTrap, Prog.bind_eq]
+      simp [leftRange, readRange, collectionRangeRead, size, trapIf, Nat.not_lt.mpr fits, orTrap, Prog.bind_eq]
     have rightNext : rightRange = { canonical with ctl := canon.control (peerFinish pointer) } := by
-      simp [rightRange, readRange, peerSize, trapIf, Nat.not_lt.mpr fits, orTrap, Prog.bind_eq]
+      simp [rightRange, readRange, collectionRangeRead, peerSize, trapIf, Nat.not_lt.mpr fits, orTrap, Prog.bind_eq]
     let continuation := fun (store : CStore (core3 grow)) (host : HostState sig) => finish pointer (Record.prepare store host.writer plan)
     let afterStore := { checked with ctl := check.control (.op .hostGet (continuation checked.store)) }
     have recheckAt : leftRange.ctl = check.control (.op .get fun store => .op .hostGet (continuation store)) := leftNext
@@ -265,9 +274,9 @@ private theorem collectionRangeSites (destination : RecordDestination) (inst : I
       exact ⟨fun mark => (beforeRead.2 mark).1, fun mark => (beforeRead.2 mark).2, rfl, hostGet, rfl, rfl, same⟩
   · rw [ite_eq_right fits]
     have leftTrap : leftRange.ctl = check.control (trap .outOfBounds) := by
-      simp [leftRange, readRange, size, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
+      simp [leftRange, readRange, collectionRangeRead, size, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
     have rightTrap : rightRange.ctl = canon.control (trap .outOfBounds) := by
-      simp [rightRange, readRange, peerSize, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
+      simp [rightRange, readRange, collectionRangeRead, peerSize, trapIf, Nat.lt_of_not_ge fits, orTrap, rangeTrapBind]
     have move : (fun mark => ((mark.bind (Edit.pop : Edit (core3 grow) (HostState sig)).follow).bind
         (Edit.same : Edit (core3 grow) (HostState sig)).follow).bind
         (Edit.clear : Edit (core3 grow) (HostState sig)).follow) = rangeMove grow sig true := by
