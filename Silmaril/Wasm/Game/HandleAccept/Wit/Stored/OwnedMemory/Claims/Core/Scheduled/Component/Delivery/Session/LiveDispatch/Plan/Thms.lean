@@ -2562,6 +2562,22 @@ theorem linked_flat_worker_body {type : Stored.TypeOf} (site : PayloadRoot.Site 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.linkedFlatWorkerBody
     site linked family paired selected embedder run
 
+/-- Compare the actual three-step load of a linked synchronous memory or
+flat accept. An earlier cut tracks all occurrences at both reached endpoints.
+The store write carries the decoded result and leaves publication pending. -/
+theorem cut_core_accept_load {name kind args loader}
+    (source : LinkedCoreAcceptLoader bindings name kind args loader)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
+    (leftFocus : start.ctl = check.control (.flat <$> (do Scheduled.finish leftTicket (← acceptWith leftTicket loader))))
+    (rightFocus : incoming.ctl = canon.control (.flat <$> (do Scheduled.finish rightTicket (← acceptWith rightTicket loader))))
+    (site : PairedComponentSite older start incoming check canon)
+    (history : start.host.writer.accepted = incoming.host.writer.accepted)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CoreAcceptLoadCut profile ready base bindings older start incoming check canon leftTicket rightTicket
+      (loader ⟨start.store, start.host.writer⟩) labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.cutCoreAcceptLoad
+    source leftFocus rightFocus site history run
+
 /-- Classify the selected compiler result and drive its memory or flat visitor
 from the actual checked residual and reached raw peer. Shorter callbacks use
 the fixed mixed worker fold. Terminal prefixes retain their actual endpoints,

@@ -5957,6 +5957,44 @@ def LinkedFlatWorkerBody (profile : ProfileKind) (ready : HostReady (HostState s
       PublicGiveWorkerAlignment profile ready bindings callees older site entered left right (.error issue)
         site.start incoming incoming checkEntry canonEntry [] seen actual finish)
 
+/-- The actual legacy accept import determines the synchronous loader and
+its instance. Both loaders consult the accepted history for child indices. -/
+inductive LinkedCoreAcceptLoader (bindings : List (Binding sig)) (name : String)
+    (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) :
+    (World grow sig → CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig)) → Prop where
+  | memory (contract : Stored.Endpoints.Core.Contract sig) (memory : Option Nat)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, contract.inst, .accept contract memory⟩) :
+      LinkedCoreAcceptLoader bindings name kind args
+        (fun state => Core.load contract memory state (Stored.Endpoints.Core.Scheduled.nodeCall contract state.reference args))
+  | flat (source : FlatSource sig)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩) :
+      LinkedCoreAcceptLoader bindings name kind args (fun state => source.load state args)
+
+/-- Control immediately after the loader's store write. Successful loading
+leaves the registration read pending at the reached writer. -/
+def coreAcceptAfterLoad (ticket : Nat) (result : Except Core.Issue (Stored.OwnedMemory.Tree sig)) :
+    Session grow sig (Ret (core3 grow)) :=
+  .flat <$> ((match result with
+    | .error issue => pure (.error (.accept issue))
+    | .ok tree => publishRoot ticket tree) >>= Scheduled.finish ticket)
+
+/-- The reached synchronous load stops at an actual short prefix or after
+the exact store write, retaining both journals and the actual checked tail. -/
+def CoreAcceptLoadCut (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (leftTicket rightTicket : Nat) (loaded : CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig))
+    (actual : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
+  let checked := { left with store := loaded.1, ctl := check.control (coreAcceptAfterLoad leftTicket loaded.2) }
+  let raw := { right with store := loaded.1, ctl := canon.control (coreAcceptAfterLoad rightTicket loaded.2) }
+  FramedComponentEarlyPrefix profile ready base bindings older check canon left right actual finish 3 ∨
+    ∃ residual, actual = [.tau, .tau, .tau] ++ residual ∧
+      OccurrenceTransport profile ready base bindings left right [.tau, .tau, .tau] [.tau, .tau, .tau] checked raw ∧
+      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau, .tau, .tau] checked raw ∧
+      PairedComponentSite older checked raw check canon ∧
+      Steps profile ready (specDispatch ready base) checked residual finish
+
 /-- The compiler outcome of the selected request and its classification on
 the actual finite checked run. The callback slice contains the visitor-derived
 writer path, exact raw peer, occurrence transport, and checked residual. -/

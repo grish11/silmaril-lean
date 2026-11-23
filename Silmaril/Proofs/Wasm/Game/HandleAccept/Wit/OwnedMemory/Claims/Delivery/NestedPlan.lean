@@ -555,6 +555,56 @@ private theorem compareFramedQuietShort {check canon : PayloadPrefix.Cursor (E :
   exact ⟨short, peer, paths, site, .framed (takeQuietWriterPath left.2 run (Nat.le_of_lt short))
     (takeQuietWriterPath right.2 mate (Nat.le_of_lt short)), checked, canonical⟩
 
+open ReturnFrame.Occurrence in
+private theorem coreAcceptLoadPath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) (ticket : Nat)
+    (loader : World grow sig → CStore (core3 grow) ×
+      Except Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Issue (Stored.OwnedMemory.Tree sig))
+    (atLoad : start.ctl = cursor.control (.flat <$> (do Scheduled.finish ticket (← acceptWith ticket loader))))
+    {loaded} (result : loader ⟨start.store, start.host.writer⟩ = loaded) :
+    FramedQuietPath profile ready dispatch cursor start [id, id, fun _ => loaded.1]
+      { start with store := loaded.1, ctl := cursor.control (coreAcceptAfterLoad ticket loaded.2) } := by
+  refine FramedQuietPath.step (.hostGet atLoad) (by rw [transitionEdit, atLoad]; rfl) rfl ?_
+  refine FramedQuietPath.step (.get rfl) rfl rfl ?_
+  change FramedQuietPath profile ready dispatch cursor
+    { start with ctl := cursor.control (.flat <$> ((do
+        let value := loader ⟨start.store, start.host.writer⟩
+        modifyStore fun _ => value.1
+        match value.2 with
+        | .error issue => pure (.error (.accept issue))
+        | .ok tree => publishRoot ticket tree) >>= Scheduled.finish ticket)) } _ _
+  rw [result]
+  refine FramedQuietPath.step (update := fun _ => loaded.1) ?_ rfl rfl .done
+  exact .modify (th := cursor.thread) (segs := cursor.frames) (rest := cursor.rest)
+    (f := fun _ => loaded.1) (k := fun _ => coreAcceptAfterLoad ticket loaded.2) rfl
+
+theorem cutCoreAcceptLoad {name kind args loader}
+    (source : LinkedCoreAcceptLoader bindings name kind args loader)
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
+    (leftFocus : start.ctl = check.control (.flat <$> (do Scheduled.finish leftTicket (← acceptWith leftTicket loader))))
+    (rightFocus : incoming.ctl = canon.control (.flat <$> (do Scheduled.finish rightTicket (← acceptWith rightTicket loader))))
+    (site : PairedComponentSite older start incoming check canon)
+    (history : start.host.writer.accepted = incoming.host.writer.accepted)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CoreAcceptLoadCut profile ready base bindings older start incoming check canon leftTicket rightTicket
+      (loader ⟨start.store, start.host.writer⟩) labels finish := by
+  have same : start.store = incoming.store := (HostFrame.Related.Paired.data site).1
+  have loaded : loader ⟨incoming.store, incoming.host.writer⟩ = loader ⟨start.store, start.host.writer⟩ := by
+    cases source with
+    | memory contract memory _ =>
+      simp only [Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.load,
+        Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.preflight, same, history]
+    | flat source _ =>
+      simp only [FlatSource.load, FlatSource.preflight, same, history]
+  have left := coreAcceptLoadPath (profile := profile) (ready := ready) (specDispatch ready base)
+    check leftTicket loader leftFocus rfl
+  have right := coreAcceptLoadPath (profile := profile) (ready := ready) (specDispatch ready (LiveDispatch.host bindings base))
+    canon rightTicket loader rightFocus loaded
+  rcases splitSilent (count := 3) (left.1.track (.active 0 0)).toTrail.steps run with ⟨rest, split, tail⟩ | short
+  · refine .inr ⟨rest, split, CallbackPrefix.stationaryTransport left.1.track right.1.track, .framed left.2 right.2, ?_, tail⟩
+    exact site.set_store _
+  · exact .inl (compareFramedQuietShort left right site ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ run short)
+
 open AsyncRef ReturnFrame.Occurrence in
 private theorem refusalResolvePath (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
     (ticket : Nat) (caller : CallerId) (issue : Scheduled.Issue)
