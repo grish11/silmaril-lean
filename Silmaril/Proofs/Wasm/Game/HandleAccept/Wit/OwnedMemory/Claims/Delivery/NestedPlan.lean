@@ -2780,7 +2780,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
-  | sharedDropGiveSelected _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropGiveGuarded _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -2841,7 +2841,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ _ residual => exact residual
-  | sharedDropGiveSelected _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordPrepared _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropGiveGuarded _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -17246,6 +17246,107 @@ private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody 
     (fun same => same) scheduler run bounded compare
   exact stores
 
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem finishDestructorSharedRecord {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {name kind inst ptr leftTicket rightTicket} {tree : Stored.OwnedMemory.Tree sig}
+    (destination : RecordDestination)
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, .giveRecord destination⟩)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control ((SharedGiveAction.record destination).afterLookup inst leftTicket ptr (some tree)))
+    (canonical : incoming.ctl = canon.control ((SharedGiveAction.record destination).afterLookup inst rightTicket ptr (some tree)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  cases tree with
+  | atom impossible => exact impossible.elim
+  | tag payload count children =>
+    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst leftTicket ptr payload count children] at checked
+    rw [sharedRecordCode (grow := grow) (sig := sig) destination inst rightTicket ptr payload count children] at canonical
+    let cx := destination.context (grow := grow) inst
+    let type := sig.payload payload.1
+    let value := payload.2.val.value
+    cases compiled : Record.preflight cx type payload.2 (.memory ptr) with
+    | error issue =>
+      have refused : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
+          (.memory ptr) = .error issue := compiled
+      rw [refused] at checked canonical
+      exact finishDestructorScheduledReply parents thread segments stores (.error (.lowerRecord issue))
+        checked canonical scheduler run bounded compare
+    | ok result =>
+      obtain ⟨fields, objects⟩ := result
+      have compiledAt : Record.preflight (destination.context (grow := grow) inst) (sig.payload payload.1) payload.2
+          (.memory ptr) = .ok (fields, objects) := compiled
+      rw [compiledAt] at checked canonical
+      have emitted := RecordLower.compileRecord_emitted cx type value payload.2.val.owners (.memory ptr)
+        fields objects (by
+          simp only [Record.preflight, bind, Except.bind, Except.mapError] at compiled
+          split at compiled <;> first | contradiction | exact compiled)
+      let plan := RecordLower.Field.listObjects fields
+      let checkedNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr leftTicket
+      let canonicalNext := sharedRecordAfterPrepare (sig := sig) cx type value fields ptr rightTicket
+      let leftRead := { start with ctl := check.control (.op .hostGet
+        (fun state => checkedNext (Record.prepare start.store state.writer plan))) }
+      let rightRead := { incoming with ctl := canon.control (.op .hostGet
+        (fun state => canonicalNext (Record.prepare incoming.store state.writer plan))) }
+      have leftGet : Step profile ready (specDispatch ready base) start .tau leftRead := .get checked
+      have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rightRead :=
+        .get canonical
+      cases run with
+      | refl => exact .exhausted
+      | @cons _ _ _ _ trailing first tail =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet first
+        have got := sharedSchedulerTransport (bindings := bindings) (edit := .same) leftGet rightGet
+          (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl)
+        refine .destructorPrefix got (frameCalloutStep got rfl rfl) (fun aligned => aligned) ?_
+        let lhs := Record.prepare start.store start.host.writer plan
+        let rhs := Record.prepare incoming.store incoming.host.writer plan
+        let left := { leftRead with ctl := check.control (checkedNext lhs) }
+        let right := { rightRead with ctl := canon.control (canonicalNext rhs) }
+        have lread : Step profile ready (specDispatch ready base) leftRead .tau left :=
+          .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+            (k := fun state => checkedNext (Record.prepare start.store state.writer plan)) rfl
+        have rread : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau right :=
+          .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+            (k := fun state => canonicalNext (Record.prepare incoming.store state.writer plan)) rfl
+        rcases splitSilent (count := 1) (.cons lread (.refl _)) tail with ⟨suffix, used, residual⟩ | short
+        · rw [used]
+          rw [used] at bounded
+          have reads := sharedSchedulerTransport (bindings := bindings) (edit := .same) lread rread rfl rfl
+          by_cases agrees : lhs = rhs
+          · refine .destructorPrefix reads (frameCalloutStep reads rfl rfl) (fun aligned => aligned) ?_
+            cases outcome : lhs with
+            | error issue =>
+              refine finishDestructorScheduledReply (check := check) (canon := canon) (start := left) (incoming := right)
+                (leftTicket := leftTicket) (rightTicket := rightTicket) parents thread segments stores (.error (.lowerRecord issue)) ?_ ?_ scheduler residual ?_ compare
+              · change check.control (checkedNext lhs) = _
+                rw [outcome]
+                rfl
+              · change canon.control (canonicalNext rhs) = _
+                rw [← agrees, outcome]
+                rfl
+              · simp only [List.length_cons, List.length_append, List.length_replicate] at bounded
+                omega
+            | ok permit =>
+              cases permit
+              exact .sharedDropRecordPrepared parents thread segments linked compiledAt emitted stores outcome
+                (agrees.symm.trans outcome)
+                (by change check.control (checkedNext lhs) = _; rw [outcome]; rfl)
+                (by change canon.control (canonicalNext rhs) = _; rw [← agrees, outcome]; rfl) residual
+          · have mismatch : SharedRecordPrepareMismatch leftRead rightRead left right plan check canon :=
+              ⟨checkedNext, canonicalNext, stores, rfl, rfl, rfl, rfl, agrees⟩
+            exact .sharedRecordPrepareMismatch mismatch reads
+              (.sharedRecordPrepare mismatch (.same lread rfl (.done _)) (.same rread rfl (.done _))) residual
+        · have empty : trailing = [] := List.length_eq_zero_iff.mp (by omega)
+          have stopped := stepsAtEmpty (empty ▸ tail)
+          rw [empty, stopped]
+          exact .exhausted
+
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -17254,6 +17355,7 @@ private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadB
     (thread : check.thread = canon.thread)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
     (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (present : ¬ missingSharedPosition action tree position)
     (stores : start.store = incoming.store)
     (checked : start.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
     (canonical : incoming.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
@@ -17263,7 +17365,15 @@ private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadB
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   classical
   cases source : action.claimAt tree position with
-  | none => exact .sharedDropGiveSelected parents thread segments linked stores checked canonical run
+  | none =>
+    have record : ∃ destination, action = .record destination := by
+      cases action with
+      | record destination => exact ⟨destination, rfl⟩
+      | giveOwner resource => exact (present (Option.map_eq_none_iff.mp source)).elim
+      | dropOwner resource => exact (present (Option.map_eq_none_iff.mp source)).elim
+      | endpoint channel element => exact (present (Option.map_eq_none_iff.mp source)).elim
+    obtain ⟨destination, rfl⟩ := record
+    exact finishDestructorSharedRecord destination parents thread segments linked stores checked canonical run scheduler bounded compare
   | some claim =>
     rw [sharedClaimProgram action inst _ position tree source] at checked canonical
     cases run with
@@ -17415,7 +17525,7 @@ private theorem finishAdmittedSharedDestructor {limit : Nat}
             exact .comparedPrefix paths writers .exhausted
           · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
             have within : remaining.length ≤ limit := by rw [split, List.length_append] at bounded; omega
-            exact finishDestructorSelectedSharedGive (check := check) (canon := canon) parents rfl (.cons (.same _) segments) linked stores
+            exact finishDestructorSelectedSharedGive (check := check) (canon := canon) parents rfl (.cons (.same _) segments) linked missing stores
               leftAt rightAt tail scheduler within compare
     · obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ := cutSharedQuietWorker lhs rhs run
       rw [split]

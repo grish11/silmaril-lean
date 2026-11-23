@@ -2246,18 +2246,26 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         peer.store thread host args), .core core (sharedDestructorCoreResult task tk) :: peerFrames⟩ :: peerRest)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- A shared scheduled give selected the actual tree and position below
-  the dormant parents. Its authority-sensitive body is still pending. -/
-  | sharedDropGiveSelected {changes reached peer trailing finish body name kind inst position leftTicket rightTicket}
-      {tree : Stored.OwnedMemory.Tree sig}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {action : SharedGiveAction}
+  /-- The compiled shared record has passed both actual root prepares.
+  Its recursive emitter is pending under the original continuations. -/
+  | sharedDropRecordPrepared {changes reached peer trailing finish body name kind inst ptr leftTicket rightTicket}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {destination : RecordDestination} {tag : sig.Tag} {payload : Stored.OwnedMemory.Payload (sig.payload tag)}
+      {fields : List Stored.Endpoints.RecordLower.Field} {objects : List Stored.Endpoints.RecordLower.Object}
       (parents : DestructorParentChain changes body check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, .giveRecord destination⟩)
+      (compiled : Stored.OwnedMemory.Claims.Record.preflight (destination.context (grow := grow) inst)
+        (sig.payload tag) payload (.memory ptr) = .ok (fields, objects))
+      (emitted : ∀ field ∈ fields, Stored.Endpoints.RecordLower.Field.Emitted field)
       (stores : reached.store = peer.store)
-      (checked : reached.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
-      (canonical : peer.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+      (checkedPrepare : Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer
+        (Stored.Endpoints.RecordLower.Field.listObjects fields) = .ok ())
+      (canonicalPrepare : Stored.OwnedMemory.Claims.Record.prepare peer.store peer.host.writer
+        (Stored.Endpoints.RecordLower.Field.listObjects fields) = .ok ())
+      (checked : reached.ctl = check.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr leftTicket))
+      (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Both actual nominal probes selected the same permit. The subsequent
