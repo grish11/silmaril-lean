@@ -216,6 +216,29 @@ private theorem ownerSpendWriter {site : SharedOwnerGive} {rep ticket : Nat}
   rw [unchanged]
   exact List.mem_map.mpr ⟨receipt, held, identity⟩
 
+open Stored.OwnedMemory.Claims in
+private theorem dropSpendWriter {site : SharedOwnerDrop} {rep ticket : Nat} {result} {preparation : Trace grow sig}
+    (executed : ExecutedSharedDropSpend profile ready dispatch site rep ticket result preparation start finish) :
+    finish.host.writer = (Spend.owner site.identity).apply start.host.writer ∧
+    WriterPath profile ready dispatch start (.tau :: (preparation ++ [.tau, .tau])) finish
+      [(start.host.writer, finish.host.writer)] := by
+  obtain ⟨cursor, guarded, prepared, writing, spent, _, admitted, rfl, _, rfl, rfl, first, preparedPath, read, commit⟩ :=
+    executed.executed
+  obtain ⟨receipt, held, identity, _, _⟩ := prepare_provenance admitted
+  have stable := spend preparedPath (updates := []) .nil
+  have unchanged : prepared.host.writer = start.host.writer := stable
+  have applied : (Spend.owner site.identity).apply prepared.host.writer =
+      (Spend.owner site.identity).apply start.host.writer := congrArg _ unchanged
+  have different : (Spend.owner site.identity).apply prepared.host.writer ≠ prepared.host.writer := by
+    intro same
+    apply Spend.not_live (.owner site.identity) prepared.host.writer
+    rw [same, unchanged]
+    exact List.mem_map.mpr ⟨receipt, held, identity⟩
+  refine ⟨applied, .same first rfl ?_⟩
+  have last : WriterPath profile ready dispatch prepared [.tau, .tau] _ [(prepared.host.writer, _)] :=
+    .same read rfl (.changed commit different (.done _))
+  simpa only [List.nil_append, unchanged] using append preparedPath last
+
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
@@ -224,6 +247,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | sharedGiveMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | ownerCommit lhs rhs => exact ⟨_, _, (ownerSpendWriter lhs).2, (ownerSpendWriter rhs).2⟩
+  | dropCommit lhs rhs => exact ⟨_, _, (dropSpendWriter lhs).2, (dropSpendWriter rhs).2⟩
   | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
   | guarded paths =>
     obtain ⟨_, changes, lhs, rhs, _⟩ := paths
@@ -396,6 +420,11 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     have after := initial.spendBoth (.owner site.identity)
     refine .complete [] (.ownerCommit lhs rhs) ?_
     rw [(ownerSpendWriter lhs).1, (ownerSpendWriter rhs).1]
+    exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
+  | @dropCommit start incoming left right site rep leftTicket rightTicket result preparation lhs rhs =>
+    have after := initial.spendBoth (.owner site.identity)
+    refine .complete [] (.dropCommit lhs rhs) ?_
+    rw [(dropSpendWriter lhs).1, (dropSpendWriter rhs).1]
     exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
   | @endpointCommit start incoming left right site leftTicket rightTicket lhs rhs =>
     have after := initial.spendBoth (.endpoint site.identity)

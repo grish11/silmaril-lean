@@ -463,6 +463,57 @@ structure ExecutedSharedOwnerSpend (profile : ProfileKind) (ready : HostReady (H
     Step profile ready dispatch prepared .tau writing ∧
     Step profile ready dispatch writing .tau finish
 
+/-- The linked owner drop and the selected root fix the type and arena identity.
+The representation still comes from the live prepare on each side. -/
+structure SharedOwnerDrop where
+  resource : RtId
+  identity : HandleObjId
+  inst : InstId
+
+def SharedOwnerDrop.claim (site : SharedOwnerDrop) : SharedGiveClaim :=
+  .dropOwner site.resource site.identity
+
+/-- The owning branch of the scheduled drop tail looks up the resource type
+in the reached store and produces the actual destructor request. -/
+def SharedOwnerDrop.prepare (site : SharedOwnerDrop) (rep : Nat) :
+    Session grow sig (InstId × DtorRequest (core3 grow)) := do
+  let caller ← Builtins.resourceEnter
+  let rty ← getResourceType site.resource
+  return (caller, { rt := site.resource, impl := rty.impl, dtor := rty.dtor, rep := rep })
+
+def SharedOwnerDrop.afterSpend (ticket : Nat) (result : InstId × DtorRequest (core3 grow)) :
+    Session grow sig (Ret (core3 grow)) := do
+  destructorCall Limits.spec Quirks.none result.1 result.2
+  scheduledReply ticket (.ok 0)
+
+def SharedOwnerDrop.spend (site : SharedOwnerDrop) (ticket : Nat) (result : InstId × DtorRequest (core3 grow)) :
+    Session grow sig (Ret (core3 grow)) :=
+  claims.spend (.owner site.identity) >>= fun _ => SharedOwnerDrop.afterSpend ticket result
+
+open Stored.OwnedMemory.Claims in
+/-- The nominal prepare, executed store checks and spend read precede the
+actual hostSet. The reached request is retained in the destructor program. -/
+structure ExecutedSharedDropSpend (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (site : SharedOwnerDrop) (rep ticket : Nat) (result : InstId × DtorRequest (core3 grow))
+    (preparation : Trace grow sig) (start finish : Config (core3 grow) (HostState sig)) : Prop where
+  executed : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (guarded prepared writing : Config (core3 grow) (HostState sig)) (spent : Stored.OwnedMemory.Claims.State sig),
+    start.ctl = cursor.control (site.claim.probe site.inst ticket) ∧
+    start.host.writer.prepare site.resource site.identity = .ok (rep, spent) ∧
+    guarded = { start with ctl := cursor.control (site.prepare rep >>= site.spend ticket) } ∧
+    prepared.ctl = cursor.control (site.spend ticket result) ∧
+    writing = { prepared with ctl := cursor.control (.op (.hostSet
+      { prepared.host with writer := (Spend.owner site.identity).apply prepared.host.writer })
+      (fun _ => SharedOwnerDrop.afterSpend ticket result)) } ∧
+    finish = { writing with
+      host := { writing.host with writer := (Spend.owner site.identity).apply writing.host.writer }
+      ctl := cursor.control (SharedOwnerDrop.afterSpend ticket result) } ∧
+    Step profile ready dispatch start .tau guarded ∧
+    WriterPath profile ready dispatch guarded preparation prepared [] ∧
+    Step profile ready dispatch prepared .tau writing ∧
+    Step profile ready dispatch writing .tau finish
+
 /-- Ordered evidence on the actual pair of visited program segments.
 Compiled guards and shared scheduled commits identify the source of nominal spends. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -492,6 +543,12 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
       (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
       VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right
+  | dropCommit {start incoming left right site rep leftTicket rightTicket result preparation}
+      (lhs : ExecutedSharedDropSpend profile ready (specDispatch ready base) site rep leftTicket result preparation start left)
+      (rhs : ExecutedSharedDropSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        site rep rightTicket result preparation incoming right) :
+      VisitorWriterPath profile ready base bindings start incoming
+        (.tau :: (preparation ++ [.tau, .tau])) (.tau :: (preparation ++ [.tau, .tau])) left right
   | endpointCommit {start incoming left right site leftTicket rightTicket}
       (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
       (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
@@ -533,6 +590,12 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
       (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
       ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right []
+  | dropCommit {start incoming left right site rep leftTicket rightTicket result preparation}
+      (lhs : ExecutedSharedDropSpend profile ready (specDispatch ready base) site rep leftTicket result preparation start left)
+      (rhs : ExecutedSharedDropSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        site rep rightTicket result preparation incoming right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming
+        (.tau :: (preparation ++ [.tau, .tau])) (.tau :: (preparation ++ [.tau, .tau])) left right []
   | endpointCommit {start incoming left right site leftTicket rightTicket}
       (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
       (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
@@ -1549,14 +1612,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedGiveProbeTerminal {changes reached peer left right leading trailing finish marks}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {name kind inst leftTicket rightTicket position claim} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
-      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
-      (source : action.claimAt tree position = some claim)
-      (permit : claim.Permit)
-      (checked : left.ctl = check.control (claim.afterRead inst leftTicket (.ok permit)))
-      (canonical : right.ctl = canon.control (claim.afterRead inst rightTicket (.ok permit)))
+  | sharedDropDestructor {changes reached peer left right leading trailing finish marks}
+      {leftEntry rightEntry : Config (core3 grow) (HostState sig)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket result}
+      (checked : leftEntry.ctl = check.control (SharedOwnerDrop.afterSpend leftTicket result))
+      (canonical : rightEntry.ctl = canon.control (SharedOwnerDrop.afterSpend rightTicket result))
+      (frontier : ComponentStoreFrontier (Result := Unit) changes check canon
+        (fun _ => scheduledReply leftTicket (.ok 0)) (fun _ => scheduledReply rightTicket (.ok 0)) left right trailing False)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
