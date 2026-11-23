@@ -101,10 +101,10 @@ theorem parkedAfterAdmission (site : Site grow sig route) (linked : site.Linked 
     simp
   let entered := site.entered
   have entryRun : site.EntryPrefix profile ready impl front entered := entry
-  obtain ⟨_, _, _, ⟨next, focus⟩, started⟩ := site.destination.compiled_payload_effects (profile := profile) (ready := ready)
+  obtain ⟨_, _, _, ⟨next, focus, width⟩, started⟩ := site.destination.compiled_payload_effects (profile := profile) (ready := ready)
     (dispatch := dispatch) entered site.inst site.tag site.payload route.output site.field plan site.reply compiled
     linked.destination rfl
-  have prepare : site.PrepareEntry profile ready impl front next := ⟨entryRun, entryWriter, silent, focus⟩
+  have prepare : site.PrepareEntry profile ready impl front next := ⟨entryRun, entryWriter, silent, focus, width⟩
   have reads (tail : List (Label (core3 grow) (HostState sig))) :
       site.PreparedEntry profile ready impl ((front ++ [.tau, .tau]) ++ tail) := ⟨front, next, tail, rfl, prepare⟩
   cases prepared : Record.prepare entered.store entered.host.writer site.field.objects with

@@ -270,7 +270,8 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
     (∃ next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)),
       reached.ctl = ⟨thread, .prog (.op .get (fun store => .op .hostGet fun current =>
-        next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest) ∧
+        next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest ∧
+      (∃ width, next (.ok ()) = .op .get width)) ∧
     match Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects with
     | .error issue => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
         { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place) ∧
@@ -309,7 +310,10 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
   simp only [Stored.OwnedMemory.Claims.Record.lowerValue, Internal.lowerWithPlan, compiled] at focused
   have read : reached.ctl = ⟨thread, .prog (.op .get (fun store => .op .hostGet fun current =>
       next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest := focused
-  refine ⟨⟨next, read⟩, ?_⟩
+  have readWidthFocus : next (.ok ()) = .op .get (fun store => proceed (ptrTypeIn store cx) >>= finish) := by
+    simp only [next, bind_assoc]
+    rfl
+  refine ⟨⟨next, read, _, readWidthFocus⟩, ?_⟩
   let middle := { reached with ctl := ⟨thread, .prog (next
     (Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects)), segments⟩ :: rest }
   have reads (place : Location) : Prefix profile ready dispatch reached place [.tau, .tau] middle place :=
@@ -327,8 +331,7 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
       simp [ptrTypeIn, CanonOpts.ptrType, cx, RecordDestination.context, check_width _ _ destinationChecked]
     have readWidth : middle.ctl = ⟨thread, .prog (.op .get (fun store =>
       proceed (ptrTypeIn store cx) >>= finish)), segments⟩ :: rest := by
-      simp only [middle, verdict, next, bind_assoc]
-      rfl
+      simp only [middle, verdict, readWidthFocus]
     have step (place : Location) := Prefix.read_at (profile := profile) (ready := ready) (dispatch := dispatch) place readWidth
     change ∀ place, Prefix profile ready dispatch middle place [.tau]
       { reached with ctl := ⟨thread, .prog (proceed (ptrTypeIn reached.store cx) >>= finish), segments⟩ :: rest } place at step

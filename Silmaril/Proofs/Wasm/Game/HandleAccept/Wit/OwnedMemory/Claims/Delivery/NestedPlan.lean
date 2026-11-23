@@ -8479,8 +8479,30 @@ private theorem parkedAdmissionInterior {route : GiveEffectRoute} (site : Payloa
           intro place
           simpa only [List.append_assoc, List.cons_append, List.nil_append] using
             (intoRead place).append (read (site.entryPlace place))
-        exact finishAt (rest := rest) (by rw [split, List.append_assoc]; rfl) through
-          (by rw [visibleAppend, entry.quiet]; rfl) (parkedPrepareWriter site entry frame related.data.1) tail
+        have reached : labels = (front ++ [.tau, .tau]) ++ rest := by rw [split, List.append_assoc]; rfl
+        have silent : visible (front ++ [.tau, .tau]) = [] := by rw [visibleAppend, entry.quiet]; rfl
+        have writers := parkedPrepareWriter site entry frame related.data.1
+        have beforeWidth := finishAt reached through silent writers tail
+        cases verdict : Stored.OwnedMemory.Claims.Record.prepare site.start.store site.entered.host.writer site.field.objects with
+        | error => exact beforeWidth
+        | ok passed =>
+          cases passed
+          rcases inspectReplyStep tail with _ | ⟨_, trailing, _, rfl, actual, residual⟩
+          · exact beforeWidth
+          obtain ⟨width, focus⟩ := entry.widthFocus
+          let measured := site.withBody (width site.start.store)
+          have widthAt : (site.prepared next).ctl = site.cursor.control (.op .get width) := by
+            change site.cursor.control (next (Stored.OwnedMemory.Claims.Record.prepare site.start.store
+              site.entered.host.writer site.field.objects)) = _
+            rw [verdict, focus]
+          have step : Step profile ready (specDispatch ready base) (site.prepared next) .tau measured := .get widthAt
+          obtain ⟨rfl, rfl⟩ := silentStepUnique step actual
+          have tracks : site.EntryPrefix profile ready base ((front ++ [.tau, .tau]) ++ [.tau]) measured :=
+            fun place => (through place).append (Prefix.read_at (site.entryPlace place) widthAt)
+          have divided : labels = ((front ++ [.tau, .tau]) ++ [.tau]) ++ trailing :=
+            reached.trans (List.append_assoc (front ++ [.tau, .tau]) [.tau] trailing).symm
+          exact finishAt divided tracks (by rw [visibleAppend, silent]; rfl)
+            (by simpa only [List.append_nil] using writers.append (.framed (.same step rfl (.done _)) (.done peer))) residual
 
 open ReturnFrame.Occurrence in
 private theorem checkedCoreRefusalPrefix (issue : Stored.Endpoints.RecordLower.Issue) (reply : Event × List FlatValue)

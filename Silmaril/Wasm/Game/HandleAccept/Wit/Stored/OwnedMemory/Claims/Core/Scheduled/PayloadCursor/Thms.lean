@@ -206,7 +206,8 @@ theorem RecordDestination.compiled_payload_start {sig : Stored.Signature} {ready
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
     (∃ next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)),
       reached.ctl = ⟨thread, .prog (.op .get (fun store => .op .hostGet fun current =>
-        next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest) ∧
+        next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest ∧
+      (∃ width, next (.ok ()) = .op .get width)) ∧
     match Record.prepare reached.store reached.host.writer field.objects with
     | .error issue => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
         { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place) ∧
