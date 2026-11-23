@@ -2694,14 +2694,13 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
   programs and the enclosing dormant parents. -/
-  | sharedDropNestedResumed {changes reached peer trailing finish body impl task leftTicket rightTicket worker beforeLeft beforeRight}
+  | sharedDropNestedResumed {changes reached peer trailing finish impl task leftTicket rightTicket worker beforeLeft beforeRight}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {request : InstId × DtorRequest (core3 grow)}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (implementation : request.2.impl = some impl)
-      (tickets : leftTicket ≠ rightTicket)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : SharedDestructorResumed profile ready (specDispatch ready base) (sharedDestructorThread task request.2.dtor)
