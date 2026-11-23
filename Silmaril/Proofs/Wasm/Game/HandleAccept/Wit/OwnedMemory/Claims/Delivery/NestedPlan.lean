@@ -2772,7 +2772,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedDropWorker _ _ _ _ _ _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ residual => exact residual
   | sharedDropParentPop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropCompared _ _ paths _ compared _ ih =>
@@ -2824,7 +2824,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedDropWorker _ _ _ _ _ _ _ _ _ _ _ _ paths _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ residual => exact residual
   | sharedDropParentPop paths _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
   | sharedDropCompared _ _ paths _ compared ending =>
@@ -14701,18 +14701,64 @@ private theorem componentEmitUnique {observation : HostObs}
   obtain rfl := Op.emit.inj op
   exact ⟨rfl, rfl, rfl, rfl, congrFun (eq_of_heq continuation) (), rfl, rfl, rfl⟩
 
+private theorem sharedDestructorProgressEffects (subtask : SubtaskId) :
+    StoreEffects (maybeOnProgress subtask : Session grow sig Unit) := by
+  unfold maybeOnProgress
+  refine (storeEffectGetObject ArenaField.subtasks subtask).bind fun reached => ?_
+  split
+  · exact storeEffectModify (CStore.setPendingSt (.subtask subtask) (.subtask subtask))
+  · exact .pure _
+
+private theorem sharedDestructorLowerResultEffects (cx : LiftLowerContext (core3 grow)) (maxResults : Nat)
+    (types : List (WIT.ClosedType RtId)) (cursor : FlatCursor) :
+    StoreEffects (lowerFlatValues Limits.spec Quirks.none cx maxResults [] types (some cursor) :
+      Session grow sig (List FlatValue)) := by
+  unfold lowerFlatValues
+  refine (storeEffectPtrType cx).bind fun width => ?_
+  split
+  · unfold spillPointer FlatCursor.next
+    have pointer : StoreEffects ((match cursor.values[cursor.pos]? with
+        | some value => pure (value, { cursor with pos := cursor.pos + 1 })
+        | none => internal "CoreValueIter.next: no more flat values") :
+        Session grow sig (FlatValue × FlatCursor)) := by
+      split
+      · exact .pure _
+      · exact storeEffectTrap _
+    refine (pointer.bind fun pair => .pure _).bind fun output => ?_
+    obtain ⟨ptr, flat⟩ := output
+    refine (storeEffectTrapIf _ .unalignedPointer).bind fun _ =>
+      (storeEffectBounds _ _ _).bind fun _ => ?_
+    have tuple : StoreEffects (Canon.store Limits.spec Quirks.none cx (.record []) (.tuple types) ptr :
+        Session grow sig Unit) := by
+      simp only [Canon.store]
+      cases types
+      · simp only [storeTuple]; exact .pure _
+      · simp only [storeTuple]; exact storeEffectTrap _
+    exact tuple.bind fun _ => .pure flat
+  · cases types
+    · exact .pure _
+    · exact storeEffectTrap _
+
+/-- The destructor's actual result carries zero WIT values. The result
+program can read a spill cursor and check memory before rejecting a nonempty
+schema. Successful lowering reaches the original subtask resolution update. -/
+private theorem sharedDestructorLowerResolveEffects (caller : CallerId) :
+    StoreEffects (lowerOnResolve Limits.spec Quirks.none caller (some []) : Session grow sig Unit) := by
+  unfold lowerOnResolve
+  refine (storeEffectGetObject ArenaField.callers caller).bind fun record => ?_
+  cases record with
+  | host | sub => exact storeEffectTrap _
+  | lower subtask cx args pos ft maxParams maxResults =>
+    exact (sharedDestructorProgressEffects subtask).bind fun _ =>
+      (sharedDestructorLowerResultEffects cx maxResults ft.result.toList ⟨args, pos⟩).bind fun flat =>
+        storeEffectModify (CStore.subtaskResolveSt subtask .returned flat)
+
 open ReturnFrame.Occurrence in
 private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (task : TaskId) (caller : CallerId) (threads : check.thread = canon.thread) (stores : start.store = incoming.store)
     (leftAt : start.ctl = check.control (.op (.call (.onResolve caller (some []))) (sharedDestructorResolveReply task)))
     (rightAt : incoming.ctl = canon.control (.op (.call (.onResolve caller (some []))) (sharedDestructorResolveReply task)))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (afterLower : ∀ {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig} {focus frames},
-      SharedDestructorWorkerStage task left.store focus frames → left.store = right.store →
-      left.ctl = ⟨check.thread, focus, frames ++ check.frames⟩ :: check.rest →
-      right.ctl = ⟨canon.thread, focus, frames ++ canon.frames⟩ :: canon.rest →
-      Steps profile ready (specDispatch ready base) left trailing finish →
-      CallbackSliceEnd profile ready base bindings older left right trailing finish)
     (afterPop : ∀ {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig},
       left.store = right.store →
       left.ctl = check.control (sharedDestructorResolveReply task .unit) →
@@ -14799,7 +14845,7 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
             exact (storeEffectModify _).bind fun _ => .pure _
           | _ => exact closed (onResolveProg caller (some [])) (sharedDestructorInnerResolveEffects caller) code
         | lower =>
-          exact afterLower (.lowerResolve callerAt) stores (congrArg checking.control code) (congrArg canonical.control code) residual
+          exact closed _ ((sharedDestructorLowerResolveEffects caller).bind fun _ => .pure _) code
         | host id args depth =>
           by_cases top : depth = 0
           · let observation := HostObs.resolved id (some [])
@@ -14839,12 +14885,6 @@ private theorem crossSharedDestructorCompletion {check canon : PayloadPrefix.Cur
     (leftAt : start.ctl = check.control (sharedDestructorFinish task []))
     (rightAt : incoming.ctl = canon.control (sharedDestructorFinish task []))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (resolve : ∀ {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig} {focus frames},
-      SharedDestructorWorkerStage task left.store focus frames → left.store = right.store →
-      left.ctl = ⟨check.thread, focus, frames ++ check.frames⟩ :: check.rest →
-      right.ctl = ⟨canon.thread, focus, frames ++ canon.frames⟩ :: canon.rest →
-      Steps profile ready (specDispatch ready base) left trailing finish →
-      CallbackSliceEnd profile ready base bindings older left right trailing finish)
     (afterPop : ∀ {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig},
       left.store = right.store →
       left.ctl = check.control (sharedDestructorResolveReply task .unit) →
@@ -14901,7 +14941,7 @@ private theorem crossSharedDestructorCompletion {check canon : PayloadPrefix.Cur
         simp only [read, found, sharedDestructorReturnCall, resolved, borrows, ite_false]
       have atLeft := congrArg check.control code
       have atRight := congrArg canon.control code
-      exact crossSharedDestructorResolve task reached.caller threads stores atLeft atRight tail resolve afterPop
+      exact crossSharedDestructorResolve task reached.caller threads stores atLeft atRight tail afterPop
 
 private def sharedDestructorParentReply (ticket : Nat) : ReturnFrame.Continuation (core3 grow) (HostState sig)
   | .unit => scheduledReply ticket (.ok 0)
@@ -15355,45 +15395,32 @@ private theorem crossSharedDestructorWorker {left right : Config (core3 grow) (H
                 rw [allUsed]
                 exact .comparedPrefix paths writers (crossSharedDestructorOnStart task callee workerSource checked canonical tail
                   (fun tk args width rep typeAt optionsAt integer stores leftPop rightPop leftAt rightAt residual =>
-                    crossSharedDestructorScalars task callee tk width rep args typeAt optionsAt integer stores leftAt rightAt residual
-                      (fun same checkedBody canonicalBody tail => by
-                        let terminal {l r : Config (core3 grow) (HostState sig)} {rest : Trace grow sig}
-                            {focus : Focus (core3 grow) (HostState sig)} {workerFrames : List (Seg (core3 grow) (HostState sig))}
-                            (stage : SharedDestructorWorkerStage task l.store focus workerFrames) (stores : l.store = r.store)
-                            (atLeft : l.ctl = ⟨some worker, focus, workerFrames⟩ :: checkRest)
-                            (atRight : r.ctl = ⟨some worker, focus, workerFrames⟩ :: canonRest)
-                            (run : Steps profile ready (specDispatch ready base) l rest finish) :=
-                          show CallbackSliceEnd profile ready base bindings older l r rest finish from by
-                            simpa only [List.nil_append] using
-                              (CallbackSliceEnd.sharedDropWorker leftCertificate rightCertificate activeCertificate peerCertificate
-                                source workerSource leftPop rightPop stage stores atLeft atRight
-                                (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
-                                WriterPaths.empty tickets run)
-                        have finishWorker {l r : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
-                            (stores : l.store = r.store)
-                            (atLeft : l.ctl = workerCheck.control (sharedDestructorFinish task []))
-                            (atRight : r.ctl = workerCanon.control (sharedDestructorFinish task []))
-                            (run : Steps profile ready (specDispatch ready base) l remaining finish) :
-                            CallbackSliceEnd profile ready base bindings older l r remaining finish :=
-                          crossSharedDestructorCompletion (check := workerCheck) (canon := workerCanon) task rfl stores atLeft atRight run
-                            (fun stage same lAt rAt tail => terminal stage same
-                              (by simpa only [workerCheck, List.append_nil] using lAt)
-                              (by simpa only [workerCanon, List.append_nil] using rAt) tail)
-                            (fun same lAt rAt tail =>
-                              crossSharedDestructorExit task worker same lAt rAt tail
-                                (fun resolved stores leftAt rightAt run =>
-                                  compareDestructorParentLoop body leftTicket rightTicket
-                                    (by
-                                      have taskOfBody : body.task = task := by rw [source]; cases callee <;> rfl
-                                      simpa only [taskOfBody] using resolved)
-                                    stores leftAt rightAt run))
-                        cases callee with
-                        | none => exact finishWorker same checkedBody canonicalBody tail
-                        | some f =>
-                          exact crossSharedDestructorCore task tk same checkedBody canonicalBody tail
-                            (fun stores leftAt rightAt status run => crossSharedDestructorImport task tk stores leftAt rightAt status run)
-                            (fun words stores leftAt rightAt run =>
-                              crossSharedDestructorCoreResult task tk width words typeAt stores leftAt rightAt run finishWorker))))))
+                    CallbackSliceEnd.sharedDropSource leftCertificate rightCertificate activeCertificate peerCertificate
+                      source workerSource leftPop rightPop tickets
+                      (crossSharedDestructorScalars task callee tk width rep args typeAt optionsAt integer stores leftAt rightAt residual
+                        (fun same checkedBody canonicalBody tail => by
+                          have finishWorker {l r : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
+                              (stores : l.store = r.store)
+                              (atLeft : l.ctl = workerCheck.control (sharedDestructorFinish task []))
+                              (atRight : r.ctl = workerCanon.control (sharedDestructorFinish task []))
+                              (run : Steps profile ready (specDispatch ready base) l remaining finish) :
+                              CallbackSliceEnd profile ready base bindings older l r remaining finish :=
+                            crossSharedDestructorCompletion (check := workerCheck) (canon := workerCanon) task rfl stores atLeft atRight run
+                              (fun same lAt rAt tail =>
+                                crossSharedDestructorExit task worker same lAt rAt tail
+                                  (fun resolved stores leftAt rightAt run =>
+                                    compareDestructorParentLoop body leftTicket rightTicket
+                                      (by
+                                        have taskOfBody : body.task = task := by rw [source]; cases callee <;> rfl
+                                        simpa only [taskOfBody] using resolved)
+                                      stores leftAt rightAt run))
+                          cases callee with
+                          | none => exact finishWorker same checkedBody canonicalBody tail
+                          | some f =>
+                            exact crossSharedDestructorCore task tk same checkedBody canonicalBody tail
+                              (fun stores leftAt rightAt status run => crossSharedDestructorImport task tk stores leftAt rightAt status run)
+                              (fun words stores leftAt rightAt run =>
+                                crossSharedDestructorCoreResult task tk width words typeAt stores leftAt rightAt run finishWorker)))))))
             change Steps profile ready (specDispatch ready base) readLeft following finish at remaining
             let reachedTask := { entry with implicitThread := some worker }
             have taskAt : ArenaField.tasks.get? leftStore task = some reachedTask := by

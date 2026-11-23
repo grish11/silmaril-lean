@@ -118,7 +118,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     obtain ⟨checked, canonical⟩ := paths.choose_spec.1 none
     exact terminal paths (.framed (oneFrame checked.steps same.1) (oneFrame canonical.steps same.2)) (.refl _)
   | coreAcceptTerminal paths writers residual _ => exact terminal paths writers residual
-  | sharedDropWorker _ _ _ _ _ _ _ _ _ _ _ _ paths writers _ residual => exact terminal paths writers residual
+  | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ residual => exact stop residual
   | sharedDropParentPop paths writers _ _ residual =>
     simpa only [List.singleton_append] using terminal paths writers residual
