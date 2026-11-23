@@ -413,6 +413,13 @@ def sharedRecordEmit (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
     RecordLower.Internal.emitRecord Limits.spec Quirks.none cx
       (Record.authority recordClaims Limits.spec cx) width type fields (.memory ptr)) >>= sharedRecordReport ticket
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List RecordLower.Field) (ptr ticket : Nat) :
+    Option AddrType → Session grow sig (Ret (core3 grow))
+  | none => sharedRecordReport ticket (.error (.preflight (.abi .allocationPrecondition)))
+  | some width => RecordLower.Internal.runMemory Limits.spec Quirks.none cx
+      (Record.authority recordClaims Limits.spec cx) width fields ptr 0 >>= sharedRecordReport ticket
+
 def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
   site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
 
@@ -1717,11 +1724,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordEmit {changes reached peer left right leading trailing finish marks}
+  | sharedRecordVisitor {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx type value fields ptr leftTicket rightTicket}
-      (checked : left.ctl = check.control (sharedRecordEmit cx type value fields ptr leftTicket))
-      (canonical : right.ctl = canon.control (sharedRecordEmit cx type value fields ptr rightTicket))
+      {cx fields width ptr leftTicket rightTicket}
+      (checked : left.ctl = check.control (sharedRecordVisit cx fields ptr leftTicket (some width)))
+      (canonical : right.ctl = canon.control (sharedRecordVisit cx fields ptr rightTicket (some width)))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :

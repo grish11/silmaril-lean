@@ -122,7 +122,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | sharedDropCompared _ _ paths writers compared _ ih =>
     exact follow paths writers (follow compared.occurrences compared.writers ih)
   | sharedGiveProbeMismatch _ _ _ paths writers residual => exact terminal paths writers residual
-  | sharedRecordEmit _ _ paths writers residual => exact terminal paths writers residual
+  | sharedRecordVisitor _ _ paths writers residual => exact terminal paths writers residual
   | sharedRecordPrepareMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedGiveSelectionMismatch _ _ _ paths writers residual => exact terminal paths writers residual
   | componentEntryPrefix _ _ _ paths writers => simpa only [List.append_nil] using terminal paths writers (.refl _)

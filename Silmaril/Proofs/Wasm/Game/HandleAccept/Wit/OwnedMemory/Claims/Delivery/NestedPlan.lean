@@ -2775,7 +2775,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordEmit _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
@@ -2820,7 +2820,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordEmit _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
@@ -14004,6 +14004,114 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
         rw [used, ← List.cons_append]
         exact .sharedGiveProbeMismatch linked source difference moved extended residual))
 
+private def sharedRecordPlace (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (ptr : Nat) :
+    Session grow sig (Option AddrType) := do
+  let width ← ptrType cx
+  if !Stored.Lower.fits Quirks.none cx.opts.encoding width type value then return none
+  let area := ABI.layout width type
+  checkAligned ptr area.alignment.bytes
+  checkInBounds cx ptr area.size
+  return some width
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordPlacementCode (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val)
+    (fields : List RecordLower.Field) (ptr ticket : Nat) :
+    (sharedRecordEmit cx type value fields ptr ticket : Session grow sig (Ret (core3 grow))) =
+      sharedRecordPlace cx type value ptr >>= sharedRecordVisit cx fields ptr ticket := by
+  simp [sharedRecordEmit, sharedRecordPlace, ptrType, gets, getStore, perform, Prog.lift,
+    bind, Prog.bind]
+  congr 1
+  funext store
+  let width := ptrTypeIn (show CStore (core3 grow) from store) cx
+  cases Stored.Lower.fits Quirks.none cx.opts.encoding width type value with
+  | false => rfl
+  | true =>
+    let aligned : Session grow sig Unit := checkAligned ptr (ABI.layout width type).alignment.bytes
+    let bounded : Session grow sig Unit := checkInBounds cx ptr (ABI.layout width type).size
+    let visit : Session grow sig (Except RecordLower.Issue Unit) :=
+      RecordLower.Internal.runMemory Limits.spec Quirks.none cx (Record.authority recordClaims Limits.spec cx)
+        width fields ptr 0
+    have joined := Prog.bind_assoc aligned (fun _ => bounded.bind (fun _ => visit)) (sharedRecordReport ticket)
+    have inner := Prog.bind_assoc bounded (fun _ => visit) (sharedRecordReport ticket)
+    have onLeft := joined.trans (congrArg (fun next => aligned.bind (fun _ => next)) inner)
+    let returnWidth : Session grow sig (Option AddrType) := .pure (some width)
+    let visitAfter := sharedRecordVisit (sig := sig) cx fields ptr ticket
+    have joined := Prog.bind_assoc aligned (fun _ => bounded.bind (fun _ => returnWidth)) visitAfter
+    have inner := Prog.bind_assoc bounded (fun _ => returnWidth) visitAfter
+    have onRight := joined.trans (congrArg (fun next => aligned.bind (fun _ => next)) inner)
+    exact onLeft.trans onRight.symm
+
+open Stored.Endpoints in
+private theorem sharedRecordPlaceEffects (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf)
+    (value : Value.Val) (ptr : Nat) :
+    StoreEffects (sharedRecordPlace cx type value ptr : Session grow sig (Option AddrType)) := by
+  apply (storeEffectPtrType cx).bind
+  intro width
+  by_cases fits : Stored.Lower.fits Quirks.none cx.opts.encoding width type value
+  · have aligned : StoreEffects (checkAligned ptr (ABI.layout width type).alignment.bytes : Session grow sig Unit) :=
+      storeEffectTrapIf _ _
+    simp only [fits, Bool.not_true, Bool.false_eq_true, ite_false]
+    exact aligned.bind (fun _ => (storeEffectBounds cx ptr (ABI.layout width type).size).bind fun _ => .pure (some width))
+  · have refused : Stored.Lower.fits Quirks.none cx.opts.encoding width type value = false := Bool.eq_false_iff.mpr fits
+    simp only [refused, Bool.not_false, ite_true]
+    exact .pure none
+
+open ReturnFrame.Occurrence Stored.Endpoints in
+private theorem crossSharedRecordEmit {left right : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
+    {leftTicket rightTicket ptr} {leading trailing : Trace grow sig}
+    (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) (value : Value.Val) (fields : List RecordLower.Field)
+    (split : labels = leading ++ trailing)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control
+      (sharedRecordEmit cx type value fields ptr leftTicket))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
+      (sharedRecordEmit cx type value fields ptr rightTicket))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  rw [sharedRecordPlacementCode] at leftFocus rightFocus
+  obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, boundary, _, _, checkedPath, rawPath, stationary⟩ :=
+    cutComponentStoreBodyFramed (bindings := bindings) (closed := True) (sharedRecordPlace cx type value ptr)
+      (sharedRecordVisit cx fields ptr leftTicket) (sharedRecordVisit cx fields ptr rightTicket)
+      (fun _ => sharedRecordPlaceEffects cx type value ptr) (trivialPreserves _) trivial leftFocus rightFocus site run
+  have usedAll : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
+  have traced : VisitorWriterPath profile ready base bindings start incoming (.tau :: (leading ++ used))
+      (.tau :: (leading ++ used)) reached peer := by
+    simpa only [List.cons_append] using writers.append (.framed checkedPath rawPath)
+  obtain ⟨_, through, _⟩ := CallbackPrefix.transportAppend paths localPaths
+  have stop (terminal : suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])) :
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+    exact .inr (callbackTerminalSlice paired (by
+      rw [usedAll, ← List.cons_append]
+      exact .coreAcceptTerminal (by simpa only [List.cons_append] using through) traced residual
+        (terminal.elim Or.inl (fun trapped => .inr (.inr (.inr trapped))))))
+  cases boundary with
+  | pending _ _ _ _ _ normal => exact stop (.inl (normal.resolve_right (fun unsupported => unsupported.1 trivial)))
+  | trapped checked canonical _ => exact stop (.inr ⟨checked, canonical⟩)
+  | returned width checked canonical frame =>
+    have retained := retainComparedOccurrences paths (stationary (by rw [checked]; exact List.cons_ne_nil _ _)).2
+    have allPaths : OccurrenceTransport profile ready base bindings start incoming
+        (.tau :: (leading ++ used)) (.tau :: (leading ++ used)) reached peer [some (.active 0 0)] := by
+      simpa only [List.cons_append] using retained
+    cases width with
+    | none =>
+      exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket)
+        (.error (.lowerRecord (.preflight (.abi .allocationPrecondition)))) usedAll paired allPaths traced
+        frame checked canonical residual
+    | some width =>
+      cases fields with
+      | nil =>
+        exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket)
+          (.ok 0) usedAll paired allPaths traced frame checked canonical residual
+      | cons field fields =>
+        exact .inr (callbackTerminalSlice paired (by
+          rw [usedAll, ← List.cons_append]
+          exact .sharedRecordVisitor checked canonical allPaths traced residual))
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem crossSharedRecord {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14115,9 +14223,10 @@ private theorem crossSharedRecord {left right : Config (core3 grow) (HostState s
                 change canon.control (canonicalNext rightResult) = _
                 rw [← same, outcome]
                 rfl
-              exact .inr (callbackTerminalSlice paired (by
-                rw [used, ← List.cons_append]
-                exact .sharedRecordEmit checked canonical moved traced continuation))
+              exact crossSharedRecordEmit (leftTicket := leftTicket) (rightTicket := rightTicket)
+                cx type value fields used paired moved traced (by
+                  unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
+                  exact site) checked canonical continuation
           · have mismatch : SharedRecordPrepareMismatch leftRead rightRead reached peer plan check canon :=
               ⟨checkedNext, canonicalNext, (HostFrame.Related.Paired.data site).1, rfl, rfl, rfl, rfl, same⟩
             have traced : VisitorWriterPath profile ready base bindings start incoming
