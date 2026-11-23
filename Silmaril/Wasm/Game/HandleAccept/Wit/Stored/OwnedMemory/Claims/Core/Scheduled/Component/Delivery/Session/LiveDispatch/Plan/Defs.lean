@@ -430,13 +430,12 @@ def sharedRecordVisit (cx : LiftLowerContext (core3 grow)) (fields : List Record
   | some width => sharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport ticket)
 
 open Stored.OwnedMemory.Claims Stored.Endpoints in
-/-- The shared collection field after its actual pre-allocation prepare succeeded. -/
-def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat) :
+/-- The shared collection field at the pointer validated against the reached store. -/
+def sharedRecordAllocated (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
   let authority := Record.authority recordClaims Limits.spec cx
   let area := ABI.layout width element
-  let ptr ← ListLower.allocateRange cx area entries.length
   match ← authority.prepare (RecordLower.Field.listObjects entries) with
   | .error (.preflight issue) => return .error (.field index (.afterAllocation issue))
   | .error issue => return .error (.nested index issue)
@@ -444,6 +443,14 @@ def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     match ← RecordLower.Internal.runElements Limits.spec Quirks.none cx authority width entries area.size ptr 0 with
     | .error issue => return .error (.nested index issue)
     | .ok () => return .ok (← ListLower.publish cx width ptr entries.length (.memory dest))
+
+open Stored.Endpoints in
+/-- The shared collection field after its actual pre-allocation prepare succeeded. -/
+def sharedRecordAllocate (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat) :
+    Session grow sig (Except RecordLower.Issue Unit) := do
+  let ptr ← ListLower.allocateRange cx (ABI.layout width element) entries.length
+  sharedRecordAllocated cx width element entries index dest ptr
 
 open Stored.Endpoints in
 def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
@@ -1958,16 +1965,18 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- Internal proof frontier at the actual shared list/map allocator call. -/
-  | sharedRecordAllocation {changes reached peer left right leading trailing finish marks}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx width element entries index dest}
-      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : left.ctl = check.control (sharedRecordAllocate cx width element entries index dest >>= checkedNext))
-      (canonical : right.ctl = canon.control (sharedRecordAllocate cx width element entries index dest >>= canonicalNext))
+  /-- The actual shared allocator is compared under its two installed
+  continuations. The marked callback ending retains the checked suffix. -/
+  | sharedRecordAllocator {changes reached peer left right resumed canonical leading checked canonLabels trailing finish marks}
+      {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)} {mark}
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
-      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+      (marked : AllocatorMark profile ready base bindings changes left right checked canonLabels resumed canonical mark)
+      (compared : ExecutedCallbackSegment profile ready base bindings (ReturnFrame.Extend changes first second)
+        left right checked canonLabels resumed canonical)
+      (ending : CallbackSliceEnd profile ready base bindings (ReturnFrame.Extend changes first second)
+        resumed canonical trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ checked ++ trailing) finish
   | sharedRecordPrepareMismatch {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       {beforeLeft beforeRight plan}

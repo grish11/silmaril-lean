@@ -2775,8 +2775,9 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropCompared _ _ paths _ compared _ ih =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordVisitor _ _ paths _ tail
-  | sharedRecordAllocation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordAllocator paths _ _ compared _ ih =>
+    simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2823,8 +2824,10 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropCompared _ _ paths _ compared ending =>
     exact append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
-  | sharedRecordVisitor _ _ paths _ tail
-  | sharedRecordAllocation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordVisitor _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedRecordAllocator paths _ _ compared ending =>
+    simpa only [List.append_assoc] using
+      append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14561,6 +14564,129 @@ private theorem sharedRecordCollectionCode (cx : LiftLowerContext (core3 grow)) 
   rw [Prog.bind_assoc]
   rfl
 
+open Stored.Endpoints in
+private def sharedRecordAllocationResume (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    ReturnFrame.Continuation (core3 grow) (HostState sig) := fun result => do
+  let area := ABI.layout width element
+  let address ← match result with
+    | .nat ptr => pure ptr
+    | _ => internal "late-bound call: expected Ret.nat"
+  let ptr ← validateListRange cx area entries.length address
+  next (← sharedRecordAllocated cx width element entries index dest ptr)
+
+open Stored.Endpoints in
+private theorem sharedRecordAllocatorCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (sharedRecordAllocate cx width element entries index dest >>= next) =
+      .op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+        (sharedRecordAllocationResume cx width element entries index dest next) := by
+  let area := ABI.layout width element
+  let call : Call (core3 grow) := .reallocate cx 0 0 area.alignment.bytes (entries.length * area.size)
+  let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
+    | .nat ptr => pure ptr
+    | _ => internal "late-bound call: expected Ret.nat"
+  have callCode : (callNat call : Session grow sig Nat) = .op (.call call) read := by
+    simp [callNat, callRet, perform, Prog.lift, bind, Prog.bind, read]
+    refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+    cases result <;> rfl
+  unfold sharedRecordAllocate ListLower.allocateRange allocateListRange allocate reallocate
+  rw [callCode]
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call) (fun result => (read result).bind fun ptr =>
+    (validateListRange cx area entries.length ptr).bind fun address =>
+      (sharedRecordAllocated cx width element entries index dest address).bind next) = _
+  refine congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call)) (funext fun result => ?_)
+  cases result <;> rfl
+
+open ReturnFrame.Occurrence Stored.Endpoints in
+private theorem crossSharedRecordAllocator {left right : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {leading trailing : Trace grow sig}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest : Nat)
+    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (split : labels = leading ++ trailing) (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right ⟨thread, frames, rest⟩ ⟨thread, peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread frames rest).control
+      (sharedRecordAllocate cx width element entries index dest >>= checkNext))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread peerFrames peerRest).control
+      (sharedRecordAllocate cx width element entries index dest >>= canonNext))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  classical
+  rw [sharedRecordAllocatorCode] at leftFocus rightFocus
+  let area := ABI.layout width element
+  let call : Call (core3 grow) := .reallocate cx 0 0 area.alignment.bytes (entries.length * area.size)
+  let first := sharedRecordAllocationResume cx width element entries index dest checkNext
+  let second := sharedRecordAllocationResume cx width element entries index dest canonNext
+  let program := specDispatch ready base call
+  let leftEntered := { left with ctl := ⟨thread, .prog program, .prog first :: frames⟩ :: rest }
+  let rightEntered := { right with ctl := ⟨thread, .prog program, .prog second :: peerFrames⟩ :: peerRest }
+  have leftInstall : Step profile ready (specDispatch ready base) left .tau leftEntered := .call leftFocus
+  have rightInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightEntered :=
+    .call rightFocus
+  cases run with
+  | refl =>
+    exact .inr (callbackTerminalSlice paired (by
+      rw [split, ← List.cons_append]
+      exact .coreAcceptTerminal paths writers (.refl _) (.inl rfl)))
+  | @cons _ _ finish label tail firstStep residual =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique leftInstall firstStep
+    obtain ⟨otherFrames, otherRest, otherFocus, installed⟩ := ReturnFrame.Related.Paired.push site
+      (thread := thread) (frames := frames) (rest := rest) rfl program first second
+    have sameCursor : peerFrames = otherFrames ∧ peerRest = otherRest := by
+      simpa [PayloadPrefix.Cursor.control] using otherFocus
+    obtain ⟨rfl, rfl⟩ := sameCursor
+    have checkEdit : transitionEdit left .tau = .push (.prog first) := by rw [transitionEdit, leftFocus]; rfl
+    have canonEdit : transitionEdit right .tau = .push (.prog second) := by rw [transitionEdit, rightFocus]; rfl
+    have shift (frame : Seg (core3 grow) (HostState sig)) (place : Option Location) :
+        place.bind (Edit.push frame).follow = place.map Location.pushed := by
+      cases place with
+      | none => rfl
+      | some place => cases place with
+        | active activation _ => cases activation <;> rfl
+        | saved => rfl
+    have installedPaths : OccurrenceTransport profile ready base bindings left right [.tau] [.tau]
+        leftEntered rightEntered [some (.active 0 0)] := by
+      refine ⟨(·.map Location.pushed), fun place => ⟨.step leftInstall ?_, .step rightInstall ?_⟩, ?_⟩
+      · rw [checkEdit, shift]; exact .done _ _
+      · rw [canonEdit, shift]; exact .done _ _
+      · intro previous marks outside
+        rw [step_edit leftInstall, step_edit rightInstall, checkEdit, canonEdit]
+        exact outside.push _ _
+    have installedMark : Outside older (segmentStorage leftEntered) (segmentStorage rightEntered) (some (.active 0 0)) := by
+      rw [step_edit leftInstall, step_edit rightInstall, checkEdit, canonEdit]
+      apply outside_push
+      simpa only [segmentStorage, HostFrame.replace, leftFocus, rightFocus, PayloadPrefix.Cursor.control, List.map_cons] using
+        paired_outside (left := HostFrame.replace
+          { left with ctl := (PayloadPrefix.Cursor.mk thread frames rest).control (.pure (.cancel .none)) } right.host) site
+    obtain ⟨_, enteredPaths, _⟩ := CallbackPrefix.transportAppend paths installedPaths
+    have enteredWriters := writers.append (.framed (WriterPaths.frameSingle (.cons leftInstall (.refl _)) rfl)
+      (WriterPaths.frameSingle (.cons rightInstall (.refl _)) rfl))
+    have shorter : tail.length < (.tau :: labels).length := by
+      rw [split]
+      simp only [List.length_cons, List.length_append]
+      omega
+    obtain ⟨checked, canonLabels, remaining, resumed, canonical, divided, segment, ending⟩ :=
+      compare shorter residual (show HostFrame.Related.Paired (ReturnFrame.Extend older first second)
+        leftEntered rightEntered from installed)
+    obtain ⟨move, tracks, outside⟩ := segment.occurrences
+    let top : Option Location := some (.active 0 0)
+    have marked : AllocatorMark profile ready base bindings older leftEntered rightEntered checked canonLabels
+        resumed canonical (move top) := by
+      refine ⟨outsideMarks_singleton.mp (outside older [top] (outsideMarks_singleton.mpr installedMark)),
+        (tracks top).1, (tracks top).2, fun place => ⟨_, tracks place⟩⟩
+    exact .inr (callbackTerminalSlice paired (by
+      rw [split, divided]
+      simpa only [List.cons_append, List.append_assoc, List.singleton_append, List.nil_append] using
+        (CallbackSliceEnd.sharedRecordAllocator enteredPaths enteredWriters marked segment ending)))
+
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints LinkedCallback.MemorySequence in
 private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -14579,7 +14705,8 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
       (sharedRecordMemory mode cx width fields cursor index checkDone))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
       (sharedRecordMemory mode cx width fields cursor index canonDone))
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
   induction fieldSize : sizeOf fields using Nat.strong_induction_on
@@ -14738,9 +14865,8 @@ private theorem crossSharedRecordMemory {left right : Config (core3 grow) (HostS
           split paths writers frame checked canonical residual
       | ok result =>
         cases result
-        exact .inr (callbackTerminalSlice paired (by
-          rw [split, ← List.cons_append]
-          exact .sharedRecordAllocation checked canonical paths writers residual))
+        exact crossSharedRecordAllocator cx width element entries index ptr checkNext canonNext
+          split paired paths writers frame checked canonical residual compare
     by_cases contextField : ∃ identity, field = .context identity
     · obtain ⟨identity, rfl⟩ := contextField
       let body := sharedRecordContextBody (sig := sig) cx identity index ptr
@@ -15096,7 +15222,8 @@ private theorem crossSharedRecordEmit {left right : Config (core3 grow) (HostSta
       (sharedRecordEmit cx type value fields ptr leftTicket))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
       (sharedRecordEmit cx type value fields ptr rightTicket))
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   rw [sharedRecordPlacementCode] at leftFocus rightFocus
   obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, boundary, _, _, checkedPath, rawPath, stationary⟩ :=
@@ -15129,7 +15256,7 @@ private theorem crossSharedRecordEmit {left right : Config (core3 grow) (HostSta
         frame checked canonical residual
     | some width =>
       refine crossSharedRecordMemory .fields cx width fields ptr 0 (sharedRecordReport leftTicket) (sharedRecordReport rightTicket)
-        ?_ usedAll paired allPaths traced frame checked canonical residual
+        ?_ usedAll paired allPaths traced frame checked canonical residual compare
       intro left right leading trailing result split paths writers frame checked canonical residual
       let verdict : Except Scheduled.Issue Nat := (result.mapError Scheduled.Issue.lowerRecord).map (fun _ => 0)
       exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) verdict split paired
@@ -15150,7 +15277,8 @@ private theorem crossSharedRecord {left right : Config (core3 grow) (HostState s
       ((SharedGiveAction.record destination).afterLookup inst leftTicket ptr (some tree)))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control
       ((SharedGiveAction.record destination).afterLookup inst rightTicket ptr (some tree)))
-    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    (run : Steps profile ready (specDispatch ready base) left trailing finish)
+    (compare : ShorterCallbackSlices profile ready base bindings (.tau :: labels).length) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   classical
   let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
@@ -15188,7 +15316,7 @@ private theorem crossSharedRecord {left right : Config (core3 grow) (HostState s
       | ok result =>
         cases result
         exact crossSharedRecordEmit (leftTicket := leftTicket) (rightTicket := rightTicket)
-          cx type value fields split paired paths writers frame checked canonical residual
+          cx type value fields split paired paths writers frame checked canonical residual compare
 
 open ReturnFrame.Occurrence in
 private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest name kind args inst}
@@ -15333,7 +15461,7 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
               exact crossSharedRecord (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
                 destination tree split paired paths writers (by
                   unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
-                  exact pairQuietHost site _) leftFound rightFound residual
+                  exact pairQuietHost site _) leftFound rightFound residual compare
             | some claim =>
               rw [sharedClaimProgram action inst _ position tree source] at leftFound rightFound
               exact crossSharedClaim linked source split paired paths writers (by
