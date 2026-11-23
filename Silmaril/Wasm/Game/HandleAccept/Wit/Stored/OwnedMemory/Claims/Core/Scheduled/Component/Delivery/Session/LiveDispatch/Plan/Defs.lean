@@ -2953,18 +2953,34 @@ induction. Its trails still identify the removed original occurrences. -/
       (different : Stored.Endpoints.Core.childFromHistory beforeLeft.host.writer.accepted handle ≠
         Stored.Endpoints.Core.childFromHistory beforeRight.host.writer.accepted handle) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  /-- Both actual raw-overlay selectors admitted the reached source.
-  Their own lowering programs and the original caller frames are still pending. -/
-  | sourceOverlayGiveSelected {changes reached peer trailing finish ticket}
+  /-- A checked-only root stop actually popped or locked down the original
+  marked occurrence. The raw program remains at its reached pending control. -/
+  | sourceOverlayCheckedTerminal {changes reached peer next label trailing finish}
+      (step : Step profile ready (specDispatch ready base) reached label next)
+      (edit : ReturnFrame.Occurrence.transitionEdit reached label = .pop ∨
+        ReturnFrame.Occurrence.transitionEdit reached label = .clear)
+      (writer : next.host.writer = reached.host.writer)
+      (lost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) reached
+        (some (.active 0 0)) [label] next none)
+      (residual : Steps profile ready (specDispatch ready base) next trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
+  /-- The checked root has completed compilation, prepare and placement.
+  The compiler visitor and its distinct raw body are at their actual entries. -/
+  | sourceOverlayGivePlaced {changes reached peer trailing finish ticket}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {field : Stored.Endpoints.RecordLower.Field} {plan : List Stored.Endpoints.RecordLower.Object}
       (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
       (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (admission : request.Admitted reached check.thread selected)
+      (marked : check.frames ≠ [])
+      (linked : request.destination.check reached.store = .ok ())
+      (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+      (fit : request.selectedFits selected request.destination.width = true)
+      (placed : request.selectedPlacement selected reached.store = .ok ())
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (request.checkedContinuation reached.store check.thread (ticket, .ok selected)))
+      (checked : reached.ctl = check.control (request.fieldContinuation ticket selected field))
       (canonical : peer.ctl = canon.control (request.canonicalContinuation peer.store canon.thread (.ok selected)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish

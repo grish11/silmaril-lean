@@ -2893,7 +2893,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
     exact append front (append completed tail)
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | sourceOverlayGiveSelected _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sourceOverlayCheckedTerminal step _ _ _ tail => exact .cons step tail
+  | sourceOverlayGivePlaced _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
@@ -2969,7 +2970,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | refused install _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
-  | sourceOverlayGiveSelected _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sourceOverlayCheckedTerminal step _ _ _ tail => exact .cons step tail
+  | sourceOverlayGivePlaced _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -21181,13 +21183,15 @@ private theorem crossSourceCheckedJournal
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (next : ∀ {remaining : Trace grow sig},
       Steps profile ready (specDispatch ready base) target remaining finish → remaining.length ≤ labels.length →
-      CallbackSliceEnd profile ready base bindings older target incoming remaining finish) :
+      CallbackSliceEnd profile ready base bindings older target incoming remaining finish)
+    (writers : VisitorWriterPath profile ready base bindings start incoming [.tau, .tau] [] target incoming :=
+      .framed path.2 (.done incoming)) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   rcases splitSilent (count := 2) (path.1.track (.active 0 0)).toTrail.steps run with ⟨remaining, split, residual⟩ | short
   · rw [split]
     exact .comparedPrefix
       (CallbackPrefix.stationaryTransport path.1.track (fun place => .done incoming place))
-      (.framed path.2 (.done incoming))
+      writers
       (next residual (destructorSuffixBound split (Nat.le_refl _)))
   · obtain ⟨_, tracks⟩ := quietCheckedShort path.1 run short
     rw [← List.append_nil labels]
@@ -21195,11 +21199,215 @@ private theorem crossSourceCheckedJournal
       (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
       (.framed (takeQuietWriterPath path.2 run (Nat.le_of_lt short)) (.done incoming)) .exhausted
 
+open ReturnFrame.Occurrence in
+private theorem crossSourceCheckedSinglePrefix {target : Config (core3 grow) (HostState sig)} {planned : Trace grow sig}
+    (short : planned.length ≤ 1) (quiet : PayloadPrefix.visible planned = [])
+    (tracks : ∀ place, Prefix profile ready (specDispatch ready base) start place planned target place)
+    (writer : WriterPath profile ready (specDispatch ready base) start planned target [])
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (next : ∀ {remaining : Trace grow sig}, Steps profile ready (specDispatch ready base) target remaining finish →
+      remaining.length ≤ labels.length → CallbackSliceEnd profile ready base bindings older target incoming remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases alignLocalBody (tracks (.active 0 0)).toTrail.steps run (noBranchOfVisible quiet (by simp)) with
+  | reached split residual =>
+    rw [split]
+    exact .comparedPrefix (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+      (.framed writer (.done incoming)) (next residual (destructorSuffixBound split (Nat.le_refl _)))
+  | inside split _ _ =>
+    have prefixTracks (place : Location) : Prefix profile ready (specDispatch ready base) start place labels finish place :=
+      takeSingleStationaryPrefix (split ▸ short) run (split ▸ tracks place)
+    rw [← List.append_nil labels]
+    exact .comparedPrefix (CallbackPrefix.stationaryTransport prefixTracks (fun place => .done incoming place))
+      (.framed (takeFramedWriterPrefix run (split ▸ writer)) (.done incoming)) .exhausted
+
+open ReturnFrame.Occurrence in
+private theorem finishSourceOverlayPop
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (marked : check.frames ≠ []) (words : List FlatValue)
+    (checked : start.ctl = check.control (.pure (.flat words)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases check with
+  | mk thread frames rest =>
+    cases frames with
+    | nil => exact (marked rfl).elim
+    | cons frame frames =>
+      let reached := match frame with
+        | .prog next => { start with ctl := ⟨thread, .prog (next (.flat words)), frames⟩ :: rest }
+        | .core core next => { start with ctl :=
+            ⟨thread, .core ((core3 grow).resume start.store.core core (.values words)) next, frames⟩ :: rest }
+      have pop : Step profile ready (specDispatch ready base) start .tau reached := by
+        cases frame
+        · exact .popProg checked
+        · exact .popCore checked
+      have unchanged : reached.host.writer = start.host.writer := by cases frame <;> rfl
+      have edited : transitionEdit start .tau = .pop := by rw [transitionEdit, checked]; rfl
+      rcases inspectReplyStep run with ⟨rfl, stopped⟩ | ⟨_, _, _, rfl, actual, tail⟩
+      · exact stopped ▸ .exhausted
+      · obtain ⟨rfl, rfl⟩ := silentStepUnique pop actual
+        have lost : Trail profile ready (specDispatch ready base) start (some (.active 0 0)) [.tau] reached none :=
+          .step pop (by rw [edited]; exact .done _ _)
+        exact .sourceOverlayCheckedTerminal pop (.inl edited) unchanged lost tail
+
+private theorem finishSourceOverlayRefusal
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (marked : check.frames ≠ []) (reply : Event × List FlatValue)
+    (checked : start.ctl = check.control (do return .flat (← writeCompletion reply)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  crossSourceCheckedJournal (checkedCompletionPath reply checked) run
+    (fun residual _ => finishSourceOverlayPop (check := check) marked reply.2 rfl residual)
+
+open ReturnFrame.Occurrence in
+private theorem finishSourceOverlayPlacement
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : Stored.Endpoints.RecordLower.Field) (plan : List Stored.Endpoints.RecordLower.Object)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (marked : check.frames ≠ []) (linked : request.destination.check start.store = .ok ())
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (fit : request.selectedFits selected request.destination.width = true)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (request.placementContinuation ticket selected field request.destination.width))
+    (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have paths := directPlacementPaths (profile := profile) (ready := ready) (base := base) request ticket selected field check checked
+  dsimp only at paths
+  cases placed : request.selectedPlacement selected start.store with
+  | ok done =>
+    cases done
+    rw [placed] at paths
+    obtain ⟨used, shape, quiet, tracks⟩ := paths
+    let reached := { start with ctl := check.control (request.fieldContinuation ticket selected field) }
+    have steps := (tracks (.active 0 0)).toTrail.steps
+    have writer : WriterPath profile ready (specDispatch ready base) start used reached [] := by
+      rcases shape with rfl | rfl
+      · exact WriterPaths.frameNil steps
+      · exact WriterPaths.frameSingle steps rfl
+    have bounded : used.length ≤ 1 := by rcases shape with rfl | rfl <;> simp
+    refine crossSourceCheckedSinglePrefix bounded quiet tracks writer run ?_
+    intro trailing residual _
+    exact .sourceOverlayGivePlaced request selected parents thread segments marked linked compiled fit placed stores scheduler
+      rfl canonical residual
+  | error reason =>
+    rw [placed] at paths
+    obtain ⟨count, fault⟩ := paths
+    let pending := { start with ctl := check.control (trap reason) }
+    have steps := (fault.tracks (.active 0 0)).toTrail.steps
+    have writer : WriterPath profile ready (specDispatch ready base) start (List.replicate count .tau) pending [] := by
+      cases count with
+      | zero => exact WriterPaths.frameNil steps
+      | succ n =>
+        have zero : n = 0 := by have := fault.bounded; omega
+        subst n
+        exact WriterPaths.frameSingle steps fault.host
+    refine crossSourceCheckedSinglePrefix (by simpa using fault.bounded) (visibleTaus count) fault.tracks writer run ?_
+    intro trailing residual _
+    rcases inspectReplyStep residual with ⟨rfl, stopped⟩ | ⟨_, _, _, rfl, actual, tail⟩
+    · exact stopped ▸ .exhausted
+    · obtain ⟨rfl, rfl⟩ := componentTrapUnique (show pending.ctl = check.control (trap reason) from rfl) actual
+      have lost : Trail profile ready (specDispatch ready base) pending (some (.active 0 0)) [.trap reason]
+          (StepDefs.trapCfg start) none :=
+        .step fault.fault (.done _ _)
+      exact .sourceOverlayCheckedTerminal fault.fault (.inr rfl) (congrArg HostState.writer fault.host.symm) lost tail
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem finishSourceOverlayWidth
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : Stored.Endpoints.RecordLower.Field) (plan : List Stored.Endpoints.RecordLower.Object)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (marked : check.frames ≠ []) (linked : request.destination.check start.store = .ok ())
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (request.preparedContinuation ticket selected field (.ok ())))
+    (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let width := ptrTypeIn start.store (request.destination.context request.inst)
+  let after := { start with ctl := check.control (request.measuredContinuation ticket selected field width) }
+  rw [directWidthRead] at checked
+  have read : Step profile ready (specDispatch ready base) start .tau after := .get checked
+  have tracks (place : Location) : Prefix profile ready (specDispatch ready base) start place [.tau] after place :=
+    .step read (by rw [transitionEdit, checked]; rfl) (.done _ _)
+  refine crossSourceCheckedSinglePrefix (by simp : ([.tau] : Trace grow sig).length ≤ 1) rfl tracks
+    (.same read rfl (.done _)) run ?_
+  intro trailing residual _
+  have branch := directFitDecision (grow := grow) request ticket selected field width
+  cases fits : request.selectedFits selected width with
+  | false =>
+    let reply := giveAdmissionReply ticket request.destination request.schema
+      (.lowerPayload (.preflight (.abi .allocationPrecondition)))
+    refine finishSourceOverlayRefusal (check := check) marked reply ?_ residual
+    change check.control (request.measuredContinuation ticket selected field width) = _
+    rw [branch, ite_eq_right (by simp [fits])]
+  | true =>
+    have placedAt : after.ctl = check.control (request.placementContinuation ticket selected field width) := by
+      change check.control (request.measuredContinuation ticket selected field width) = _
+      rw [branch, ite_eq_left fits]
+    have linkedWidth : width = request.destination.width := by
+      dsimp only [width]
+      simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, request.destination.check_width _ linked]
+    exact finishSourceOverlayPlacement (check := check) (canon := canon) request ticket selected field plan
+      parents thread segments marked linked compiled (linkedWidth ▸ fits) stores (linkedWidth ▸ placedAt) canonical scheduler residual
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem finishSourceOverlayRoot
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (marked : check.frames ≠ []) (admission : request.Admitted start check.thread selected)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (request.checkedContinuation start.store check.thread (ticket, .ok selected)))
+    (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases compiled : request.preflight (grow := grow) selected with
+  | error issue =>
+    rw [request.compiler_refused start.store check.thread ticket selected compiled] at checked
+    exact finishSourceOverlayRefusal (check := check) marked _ checked run
+  | ok pair =>
+    obtain ⟨field, plan⟩ := pair
+    rw [request.compiler_accepted start.store check.thread ticket selected admission.unconfined compiled,
+      request.compiled_reads] at checked
+    let next := request.preparedContinuation (grow := grow) ticket selected field
+    let prepared (store : CStore (core3 grow)) (current : HostState sig) := next (Record.prepare store current.writer field.objects)
+    let middle := { start with ctl := check.control (.op .hostGet (prepared start.store)) }
+    let after := { start with ctl := check.control (prepared start.store start.host) }
+    have get : Step profile ready (specDispatch ready base) start .tau middle := .get checked
+    have read : Step profile ready (specDispatch ready base) middle .tau after :=
+      .hostGet (m := middle) (k := prepared start.store) rfl
+    have path : FramedQuietPath profile ready (specDispatch ready base) check start [id, id] after :=
+      .step get (by rw [transitionEdit, checked]; rfl) rfl (.step read rfl rfl .done)
+    have site : ExecutedPrepareRead profile ready base start middle after incoming [.tau] field.objects :=
+      ⟨.cons get (.refl _), ⟨check, next, rfl⟩, read, rfl, stores⟩
+    refine crossSourceCheckedJournal path run ?_ (.prepare site path.2 (.done incoming))
+    intro trailing residual _
+    cases result : Record.prepare start.store start.host.writer field.objects with
+    | error issue =>
+      have atError : after.ctl = check.control (request.preparedContinuation ticket selected field (.error issue)) :=
+        congrArg (fun verdict => check.control (next verdict)) result
+      rw [request.prepare_refused] at atError
+      exact finishSourceOverlayRefusal (check := check) marked _ atError residual
+    | ok done =>
+      cases done
+      exact finishSourceOverlayWidth (check := check) (canon := canon) request ticket selected field plan
+        parents thread segments marked admission.destination compiled stores
+        (congrArg (fun verdict => check.control (next verdict)) result) canonical scheduler residual
+
 private theorem finishSourceOverlayVerdict {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (request : GiveSelector bindings)
     (ticket : Nat) (verdict : Except Scheduled.Issue (SelectionValue sig request.schema))
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (marked : check.frames ≠ [])
     (evaluation : Plain.runBody request.program start.store start.host (some check.thread) =
       (start.store, start.host, .ok verdict))
     (stores : start.store = incoming.store)
@@ -21211,11 +21419,8 @@ private theorem finishSourceOverlayVerdict {limit : Nat}
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   cases verdict with
   | ok selected =>
-    cases run with
-    | refl => exact .exhausted
-    | cons step tail =>
-      exact .sourceOverlayGiveSelected request selected parents thread segments (request.admitted start check.thread evaluation)
-        stores scheduler checked canonical (.cons step tail)
+    exact finishSourceOverlayRoot (check := check) (canon := canon) request ticket selected parents thread segments
+      marked (request.admitted start check.thread evaluation) stores checked canonical scheduler run
   | error issue =>
     let reply := giveAdmissionReply ticket request.destination request.schema issue
     have checkedReply := (selectorRefusalReplies request start.store check.thread ticket issue).1
@@ -21303,7 +21508,7 @@ private theorem finishSourceOverlayGive {limit : Nat}
       exact compareSharedDestructorTrap reason atLeft atRight tail
     | verdict result =>
       exact finishSourceOverlayVerdict (check := check) (canon := canon) request
-        start.host.nextTicket result parents rfl (.cons (.same _) segments)
+        start.host.nextTicket result parents rfl (.cons (.same _) segments) (List.cons_ne_nil _ _)
         evaluated.symm stores rfl rfl scheduler tail bounded resume
     | lookup handle decode demand =>
       let checkedFollow := fun found => checkedNext (decode found)
@@ -21330,7 +21535,7 @@ private theorem finishSourceOverlayGive {limit : Nat}
         by_cases agrees : lhs = rhs
         · refine .destructorPrefix moved (.framed readPath.2 peerPath.2) (fun aligned => aligned) ?_
           exact finishSourceOverlayVerdict (check := check) (canon := canon) request
-            start.host.nextTicket (decode lhs) parents rfl (.cons (.same _) segments)
+            start.host.nextTicket (decode lhs) parents rfl (.cons (.same _) segments) (List.cons_ne_nil _ _)
             evaluated.symm stores rfl (congrArg (fun result => canon.control (canonicalFollow result)) agrees.symm)
             scheduler tail (Nat.le_of_succ_le bounded) resume
         · let checkedRead := { left with ctl := check.control (checkedFollow lhs) }

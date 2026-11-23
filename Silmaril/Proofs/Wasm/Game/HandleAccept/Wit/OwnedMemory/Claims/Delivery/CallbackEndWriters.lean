@@ -174,7 +174,11 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
       (.executed pop (.inl edit) (complete.project_eq.trans framed.project_eq.symm) tail)
   | directGiveTrap body _ _ _ => exact terminal body.paths body.writers body.residual
   | giveLookupMismatch _ body _ _ _ _ _ _ => exact terminal body.paths body.writers body.residual
-  | sourceOverlayGiveSelected _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
+  | sourceOverlayCheckedTerminal step edit same _ tail =>
+    simpa only [List.nil_append] using terminal
+      (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
+      WriterPaths.empty (.cons step tail) (.executed step edit same tail)
+  | sourceOverlayGivePlaced _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
   | directGiveSelected _ _ body _ _ _ _ compiler =>
     apply follow body.paths body.writers
     rcases compiler with ⟨_, _, _, _, preparation⟩ | ⟨_, _, reply⟩
