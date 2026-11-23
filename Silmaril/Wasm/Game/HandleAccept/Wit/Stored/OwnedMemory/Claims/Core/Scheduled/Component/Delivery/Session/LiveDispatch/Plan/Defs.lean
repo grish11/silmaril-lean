@@ -2586,6 +2586,26 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (source : SharedRecordAllocatorSource cx request width task caller reached.store (some (.int kind n)))
       (checked : reached.ctl = check.control (.pure (.nat n.toNat)))
       (canonical : peer.ctl = canon.control (.pure (.nat n.toNat)))
+      (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- Both source allocator return occurrences popped, exposing the compiled
+  visitor resumes with the pointer read from the original allocator caller. -/
+  | sharedDropRecordAllocatorPopped {changes left right reached peer trailing finish body pointer}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {cx : LiftLowerContext (core3 grow)} {site : SharedRecordAllocation}
+      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
+      (parents : DestructorParentChain changes body check.rest canon.rest)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checkedFocus : left.ctl = { check with frames := .prog (site.resume cx leftNext) :: check.frames }.control (.pure (.nat pointer)))
+      (canonicalFocus : right.ctl = { canon with frames := .prog (site.resume cx rightNext) :: canon.frames }.control (.pure (.nat pointer)))
+      (checkedPop : Step profile ready (specDispatch ready base) left .tau reached)
+      (canonicalPop : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer)
+      (checkedLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready base) left (some (.active 0 0)) [.tau] reached none)
+      (canonicalLost : ReturnFrame.Occurrence.Trail profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        right (some (.active 0 0)) [.tau] peer none)
+      (checked : reached.ctl = check.control (site.resume cx leftNext (.nat pointer)))
+      (canonical : peer.ctl = canon.control (site.resume cx rightNext (.nat pointer)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
