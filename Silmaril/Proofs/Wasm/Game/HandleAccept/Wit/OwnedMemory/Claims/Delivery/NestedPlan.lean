@@ -15756,6 +15756,88 @@ private theorem crossDestructorSuspend {worker : ThreadId} {frames peerFrames re
   intro left right remaining _ _ _ same lAt rAt tail
   exact crossDestructorPark parents segments reply same lAt rAt tail
 
+private def sharedDestructorYieldDecision : Session grow sig Bool := do
+  let t ← currentThreadId
+  let now ← Thread.readyNow (fun _ _ => false) .always
+  let early ← (if now then choose (.earlyReturn .yield_) else pure false : Session grow sig Bool)
+  if early then pure true else do
+    Thread.startWaiting t .always
+    pure false
+
+private def sharedDestructorYieldAfter (early : Bool) : Session grow sig (Ret (core3 grow)) :=
+  if early then .pure (.flat [i32Flat 0]) else .op (.block none) fun _ => .pure (.flat [i32Flat 0])
+
+private theorem sharedDestructorYieldCode :
+    (Runtime.Thread.yield_ >>= fun _ => .pure (.flat [i32Flat 0]) : Session grow sig (Ret (core3 grow))) =
+    sharedDestructorYieldDecision >>= sharedDestructorYieldAfter := by
+  unfold Runtime.Thread.yield_ Thread.waitUntilGuest Thread.waitUntil sharedDestructorYieldDecision
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext thread
+  congr 1
+  funext now
+  congr 1
+  funext early
+  cases early <;> simp [sharedDestructorYieldAfter, block, perform, Prog.bind_assoc]
+  change (Prog.bind (Prog.bind (Thread.startWaiting thread .always : Session grow sig Unit)
+    fun _ => (block none : Session grow sig Unit)) fun _ =>
+      Prog.pure (Ret.flat (E := core3 grow) [i32Flat 0])) = _
+  rw [Prog.bind_assoc]
+  rfl
+
+private theorem sharedDestructorYieldSpec :
+    (Builtins.threadYield >>= fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) =
+    ((Builtins.enterThreadBuiltin >>= fun _ => sharedDestructorYieldDecision) >>= sharedDestructorYieldAfter) := by
+  change (Prog.bind (Prog.bind (Builtins.enterThreadBuiltin : Session grow sig _) fun _ =>
+      Prog.bind (Runtime.Thread.yield_ : Session grow sig Unit) fun _ => Prog.pure [i32Flat 0]) fun words =>
+      Prog.pure (Ret.flat (E := core3 grow) words)) = _
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext entry
+  change (Prog.bind (Runtime.Thread.yield_ : Session grow sig Unit) fun _ =>
+    Prog.pure (Ret.flat (E := core3 grow) [i32Flat 0])) = _
+  exact sharedDestructorYieldCode
+
+private theorem crossDestructorYield {worker : ThreadId} {frames peerFrames rest peerRest body}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      (Builtins.threadYield >>= fun words => .pure (.flat words)))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      (Builtins.threadYield >>= fun words => .pure (.flat words)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (returned : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      remaining.length ≤ labels.length → left.store = right.store →
+      left.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control (.pure (.flat [i32Flat 0])) →
+      right.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control (.pure (.flat [i32Flat 0])) →
+      Steps profile ready (specDispatch ready base) left remaining finish →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, peerFrames, peerRest⟩
+  let decision : Session grow sig Bool := Builtins.enterThreadBuiltin >>= fun _ => sharedDestructorYieldDecision
+  have choice (now : Bool) :
+      StoreEffects ((if now then choose (.earlyReturn .yield_) else pure false) : Session grow sig Bool) := by
+    cases now
+    · exact .pure _
+    · exact .op rfl fun _ => .pure _
+  have effects : StoreEffects decision := by
+    unfold decision sharedDestructorYieldDecision
+    refine destructorThreadEntryEffects.bind fun _ => storeEffectCurrentThread.bind fun thread =>
+      (storeEffectGet.bind fun _ => .pure _).bind fun now => (choice now).bind fun early => ?_
+    cases early
+    · exact (storeEffectModify _).bind fun _ => .pure _
+    · exact .pure _
+  refine crossSharedWorkerBody (check := check) (canon := canon) rfl decision sharedDestructorYieldAfter
+    (liftDestructorStoreEffects effects (trivialPreserves _)) trivial stores
+    (congrArg check.control sharedDestructorYieldSpec ▸ leftAt)
+    (congrArg canon.control sharedDestructorYieldSpec ▸ rightAt) run ?_
+  intro left right remaining early bounded _ same lAt rAt tail
+  cases early with
+  | false => exact crossDestructorPark parents segments (.pure (.flat [i32Flat 0])) same lAt rAt tail
+  | true => exact returned bounded same lAt rAt tail
+
 private theorem crossDestructorWait {worker : ThreadId} {frames peerFrames rest peerRest body}
     (parents : DestructorParentChain older body rest peerRest)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
@@ -15952,7 +16034,19 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
                   stores checkAt canonAt residual resumeCore
               · exact compareSharedDestructorTrap reason
                   (checkAt.trans (congrArg check.control (flatImportTrap reason))) (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
-            · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
+            · by_cases yielding : ∃ inst, host = .builtin .threadYield inst
+              · obtain ⟨inst, rfl⟩ := yielding
+                obtain ⟨worker, rfl⟩ := activeThread
+                cases args with
+                | nil =>
+                  exact crossDestructorYield parents (.cons (.same frame) segments) stores checkAt canonAt residual
+                    (resumeCore [i32Flat 0])
+                | cons arg rest =>
+                  let reason := TrapReason.internal "built-in: wrong number of arguments"
+                  exact compareSharedDestructorTrap reason
+                    (checkAt.trans (congrArg check.control (flatImportTrap reason)))
+                    (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
+              · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
 
 private theorem rejoinDestructorParentJournal {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
     {actualLabels : Trace grow sig}
