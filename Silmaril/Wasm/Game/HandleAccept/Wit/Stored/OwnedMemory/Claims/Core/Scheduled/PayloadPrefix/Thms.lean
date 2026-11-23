@@ -1303,6 +1303,23 @@ theorem check_placement_occurrences {World : Type} {placementReady : HostReady W
     destination inst start area ptr cursor finish focused
 
 open ReturnFrame.Occurrence in
+/-- Split a failed root placement at its actual trap focus. -/
+theorem root_placement_prefix (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
+    (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (Record.Effects.root recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width type field output >>= finish)) :
+    let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width field 0 output >>= finish)
+    match rootPlacement destination start.store type output with
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
+        ∀ place, Prefix profile ready dispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count beforeTrap, PlacementFault profile ready dispatch start beforeTrap count reason :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementPrefix destination inst type
+    field output start cursor finish focused
+
+open ReturnFrame.Occurrence in
 /-- Enter the actual compiled root body, or trap before any child runs. A
 flat output has no placement steps; a memory output uses its reached store. -/
 theorem root_placement_tracks (destination : RecordDestination) (inst : InstId) (type : TypeOf)

@@ -9424,18 +9424,23 @@ private theorem directFitDecision (request : GiveSelector bindings) (ticket : Na
       · simp [Bool.eq_false_iff.mpr fit, giveAdmissionReply, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']; rfl
 
 open ReturnFrame.Occurrence in
-private theorem takeLocalTrail {mark reached : Option Location} {rest : Trace grow sig} {target}
+private theorem takeSingleStationaryPrefix {place : Location} {rest : Trace grow sig} {target}
+    (bounded : (labels ++ rest).length ≤ 1)
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (path : Trail profile ready (specDispatch ready base) start mark (labels ++ rest) target reached) :
-    ∃ place, Trail profile ready (specDispatch ready base) start mark labels finish place := by
-  induction run generalizing mark with
-  | refl => exact ⟨mark, .done _ _⟩
-  | cons first tail ih =>
-    cases path with
-    | step planned later =>
-      cases labelledStepUnique first planned
-      obtain ⟨place, prior⟩ := ih later
-      exact ⟨place, .step first prior⟩
+    (path : Prefix profile ready (specDispatch ready base) start place (labels ++ rest) target place) :
+    Prefix profile ready (specDispatch ready base) start place labels finish place := by
+  cases labels with
+  | nil => cases run; exact .done _ _
+  | cons head tail =>
+    have empty : rest = [] := by
+      apply List.length_eq_zero_iff.mp
+      simp only [List.length_append, List.length_cons] at bounded
+      omega
+    subst rest
+    rw [List.append_nil] at path
+    have same := stripExactPrefix (trailing := []) path.toTrail.steps (by simpa only [List.append_nil] using run)
+    cases same
+    exact path
 
 private theorem takeFramedWriterPrefix {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {suffix : Trace grow sig} {target}
@@ -9450,26 +9455,6 @@ private theorem takeFramedWriterPrefix {dispatch : Call (core3 grow) → Session
       cases labelledStepUnique first step
       exact .same first writer (ih remaining)
 
-private theorem framePlacementTrap {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {reason : TrapReason} {count : Nat}
-    (bounded : count ≤ 1)
-    (run : Steps profile ready dispatch start (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)) :
-    WriterPath profile ready dispatch start (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) [] := by
-  have trapHost {before after : Config (core3 grow) (HostState sig)} (step : Step profile ready dispatch before (.trap reason) after) :
-      after.host = before.host := by cases step <;> rfl
-  cases count with
-  | zero => exact WriterPaths.frameSingle run rfl
-  | succ count =>
-    have zero : count = 0 := by omega
-    subst count
-    cases run with
-    | cons read tail =>
-      cases tail with
-      | cons halted nil =>
-        cases nil
-        have host := trapHost halted
-        exact .same read (congrArg HostState.writer host.symm) (.same halted (congrArg HostState.writer host) (.done _))
-
 open ReturnFrame.Occurrence in
 private theorem directPlacementPaths (request : GiveSelector bindings) (ticket : Nat)
     (selected : SelectionValue sig request.schema) (field : Stored.Endpoints.RecordLower.Field)
@@ -9479,9 +9464,8 @@ private theorem directPlacementPaths (request : GiveSelector bindings) (ticket :
     match request.selectedPlacement selected start.store with
     | .ok () => ∃ used, (used = [] ∨ used = [.tau]) ∧ PayloadPrefix.visible used = [] ∧
         ∀ place, Prefix profile ready (specDispatch ready base) start place used child place
-    | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile ready (specDispatch ready base) start (some place)
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
-        ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) := by
+    | .error reason => ∃ count beforeTrap, PayloadPrefix.PlacementFault profile ready (specDispatch ready base)
+        start beforeTrap count reason := by
   rcases request with ⟨name, kind, args, inst, destination, schema, linked⟩
   cases schema with
   | none =>
@@ -9489,14 +9473,14 @@ private theorem directPlacementPaths (request : GiveSelector bindings) (ticket :
     cases tree with
     | atom impossible => exact impossible.elim
     | tag root arity children =>
-      exact PayloadPrefix.root_placement_tracks (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      exact PayloadPrefix.root_placement_prefix (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
         destination inst (sig.payload root.1) field (.memory pointer) start cursor
         (fun verdict => do return .flat (← writeCompletion (completion ticket (verdict.mapError Issue.lowerPayload |>.map (fun _ => 0))))) focus
   | some schema =>
     cases selected with
     | atom impossible => exact impossible.elim
     | tag root arity children =>
-      exact PayloadPrefix.root_placement_tracks (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+      exact PayloadPrefix.root_placement_prefix (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
         destination inst (sig.payload root.1) field .flat start cursor
         (fun verdict => do return .flat (← writeCompletion (flatCompletion ticket (ABI.flatten destination.width schema)
           (verdict.mapError Issue.lowerPayload)))) focus
@@ -9530,26 +9514,47 @@ private theorem cutDirectGivePlacement (request : GiveSelector bindings) (ticket
       exact .reached _ rfl placed track writer quiet residual
     | inside split nonempty pending =>
       refine .prefix (fun mark => ?_) (takeFramedWriterPrefix run (split ▸ writer)) ⟨_, nonempty, _, pending⟩
-      have path (place : Location) := (track place).toTrail
-      cases mark with
-      | none => exact ⟨none, .absent run⟩
-      | some place => exact takeLocalTrail run (split ▸ path place)
+      have bounded : used.length ≤ 1 := by rcases shape with rfl | rfl <;> simp
+      exact takeSingleStationaryPrefix (split ▸ bounded) run (split ▸ track mark)
   | error reason =>
     rw [placed] at paths
-    obtain ⟨count, bounded, track⟩ := paths
+    obtain ⟨count, beforeTrap, fault⟩ := paths
+    have readRun := (fault.tracks (.active 0 0)).toTrail.steps
+    have trapped := append readRun (Steps.cons fault.fault (.refl _))
+    have readWriter : WriterPath profile ready (specDispatch ready base) start (List.replicate count .tau) beforeTrap [] := by
+      cases count with
+      | zero => exact WriterPaths.frameNil readRun
+      | succ count =>
+        have zero : count = 0 := by have := fault.bounded; omega
+        subst count
+        exact WriterPaths.frameSingle readRun fault.host
     have seen : PayloadPrefix.visible (List.replicate count .tau ++ [.trap reason] : Trace grow sig) = [.trap reason] := by
       rw [visibleAppend, visibleTaus]; rfl
     have path (mark : Option Location) : Trail profile ready (specDispatch ready base) start mark
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
         (mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow) := by
       cases mark with
-      | none => exact .absent (track (.active 0 0)).steps
-      | some place => exact track place
-    cases alignLocalBody (path none).steps run (noBranchOfVisible seen (by simp [workerBranchLabel])) with
-    | reached split residual => rw [split]; exact .trapped placed path (framePlacementTrap bounded (path none).steps) residual
+      | none => exact .absent trapped
+      | some place => exact (fault.tracks place).toTrail.append (.step fault.fault (.done _ _))
+    cases alignLocalBody trapped run (noBranchOfVisible seen (by simp [workerBranchLabel])) with
+    | reached split residual =>
+      rw [split]
+      exact .trapped placed fault readWriter path
+        (WriterPaths.append readWriter (.same fault.fault (congrArg HostState.writer fault.host.symm) (.done _))) residual
     | inside split nonempty pending =>
-      exact .prefix (fun mark => takeLocalTrail run (split ▸ path mark))
-        (takeFramedWriterPrefix run (split ▸ framePlacementTrap bounded (path none).steps)) ⟨_, nonempty, _, pending⟩
+      have short : labels.length ≤ count := by
+        have lengths := congrArg List.length split
+        have lengthPos := List.length_pos_iff.mpr nonempty
+        simp only [List.length_append, List.length_replicate, List.length_cons, List.length_nil] at lengths
+        omega
+      have divided := (List.take_append_drop labels.length (List.replicate count (.tau : Label (core3 grow) (HostState sig)))).symm
+      have leading : (List.replicate count (.tau : Label (core3 grow) (HostState sig))).take labels.length = labels := by
+        have both := congrArg (List.take labels.length) split
+        rw [List.take_append_of_le_length (by simpa using short), List.take_left] at both
+        exact both
+      rw [leading] at divided
+      exact .prefix (fun place => takeSingleStationaryPrefix (divided ▸ by simpa using fault.bounded) run (divided ▸ fault.tracks place))
+        (takeFramedWriterPrefix run (divided ▸ readWriter)) ⟨_, nonempty, _, pending⟩
 
 open ReturnFrame.Occurrence in
 private theorem cutDirectGiveWidth (request : GiveSelector bindings) (ticket : Nat)

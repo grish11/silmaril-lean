@@ -936,12 +936,14 @@ inductive DirectGivePlacementCut (profile : ProfileKind) (ready : HostReady (Hos
     (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
     (field : Stored.Endpoints.RecordLower.Field) : Trace grow sig → Config (core3 grow) (HostState sig) → Prop where
   | prefix {actual finish}
-      (paths : ∀ mark, ∃ reached, Trail profile ready (specDispatch ready base) start mark actual finish reached)
+      (paths : ∀ place, Prefix profile ready (specDispatch ready base) start place actual finish place)
       (writers : WriterPath profile ready (specDispatch ready base) start actual finish [])
       (pending : ∃ suffix, suffix ≠ [] ∧ ∃ target, Steps profile ready (specDispatch ready base) finish suffix target) :
       DirectGivePlacementCut profile ready base bindings start peer caller resume request ticket selected field actual finish
-  | trapped {reason count trailing finish}
+  | trapped {reason count beforeTrap trailing finish}
       (placement : request.selectedPlacement selected start.store = .error reason)
+      (preTrap : PayloadPrefix.PlacementFault profile ready (specDispatch ready base) start beforeTrap count reason)
+      (readWriters : WriterPath profile ready (specDispatch ready base) start (List.replicate count .tau) beforeTrap [])
       (paths : ∀ mark, Trail profile ready (specDispatch ready base) start mark (List.replicate count .tau ++ [.trap reason])
         (StepDefs.trapCfg start) (mark.bind (Edit.clear : Edit (core3 grow) (HostState sig)).follow))
       (writers : WriterPath profile ready (specDispatch ready base) start (List.replicate count .tau ++ [.trap reason])

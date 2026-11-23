@@ -97,9 +97,20 @@ private theorem directPreparation {caller resume request ticket selected field}
       | reached _ _ paths writers residual decision =>
         apply follow (CallbackPrefix.stationaryTransport paths (fun place => .done incoming place))
           (.framed writers (.done incoming))
-        rcases decision with ⟨_, reply⟩ | _
+        rcases decision with ⟨_, reply⟩ | ⟨_, _, placement⟩
         · exact directReply reply
-        · exact stop residual
+        · cases placement with
+          | «prefix» tracks writers _ =>
+            simpa only [List.append_nil] using terminal
+              (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+              (.framed writers (.done incoming)) (.refl _)
+          | trapped _ beforeTrap writers _ _ tail =>
+            rw [List.append_assoc]
+            exact terminal (CallbackPrefix.stationaryTransport beforeTrap.tracks (fun place => .done incoming place))
+              (.framed writers (.done incoming)) (.cons beforeTrap.fault tail)
+          | reached _ _ _ tracks writers _ tail =>
+            exact terminal (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+              (.framed writers (.done incoming)) tail
 
 private theorem cut (ending : CallbackSliceEnd profile ready base bindings older start incoming actual finish) :
     PrefixCut profile ready base bindings start incoming actual finish := by

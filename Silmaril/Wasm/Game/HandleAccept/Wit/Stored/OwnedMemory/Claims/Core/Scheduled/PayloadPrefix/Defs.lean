@@ -186,6 +186,18 @@ def rootPlacement {grow : SingleThreaded.GrowOracle} (destination : RecordDestin
   | .flat => .ok ()
   | .memory ptr => placement destination store (layout destination.width type) ptr
 
+open ReturnFrame.Occurrence in
+/-- A failed placement has either zero or one store read before the trap.
+The reached read preserves the store, host, and every occurrence. -/
+structure PlacementFault {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) (start beforeTrap : Config E Host)
+    (count : Nat) (reason : TrapReason) : Prop where
+  bounded : count ≤ 1
+  store : beforeTrap.store = start.store
+  host : beforeTrap.host = start.host
+  tracks : ∀ place, Prefix profile ready dispatch start place (List.replicate count .tau) beforeTrap place
+  fault : Step profile ready dispatch beforeTrap (.trap reason) (StepDefs.trapCfg start)
+
 /-- The canonical result program after the allocating string plan. Memory
 output reads the pointer size again, before the two descriptor writes. -/
 def stringPlanTail {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E) (width : AddrType)
