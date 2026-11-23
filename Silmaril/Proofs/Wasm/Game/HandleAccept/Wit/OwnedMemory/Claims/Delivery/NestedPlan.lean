@@ -17141,6 +17141,71 @@ private theorem finishAdmittedLegacyDestructor {limit : Nat}
           rfl rfl rfl scheduler tail within compare
     · exact .coreAcceptTerminal paths writers residual (.inr (.inl history))
 
+open ReturnFrame.Occurrence in
+private theorem destructorBindingTrapPath (impl : HostImpl (core3 grow) (HostState sig))
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {name kind args issue}
+    (embedder : impl.embedder name kind args = (Scheduled.host (grow := grow) bindings).embedder name kind args)
+    (rejected : resolveBinding bindings name kind = .error issue)
+    (focus : start.ctl = check.control
+      (calloutBody Limits.spec Quirks.none ready impl start.store check.thread (.embedder name kind) args)) :
+    let entered := start.host.enter name kind args
+    FramedQuietPath profile ready (specDispatch ready impl) check start [id, id, id, id]
+      { start with
+        host := entered.record (.bindingTrap start.host.nextTicket issue)
+        ctl := check.control (trap (.hostTrap "invalid mixed acceptor import binding")) } := by
+  let reason := TrapReason.hostTrap "invalid mixed acceptor import binding"
+  let body : Session grow sig (Ret (core3 grow)) := .op .hostGet fun first =>
+    .op (.hostSet (first.enter name kind args)) fun _ =>
+      .op .hostGet fun state =>
+        .op (.hostSet (state.record (.bindingTrap first.nextTicket issue))) fun _ => trap reason
+  have code : calloutBody Limits.spec Quirks.none ready impl start.store check.thread (.embedder name kind) args = body := by
+    simp only [calloutBody, embedder]
+    cases threadMayLeave start.store check.thread <;>
+      simp [Scheduled.host, dispatchImport, route, rejected, rejectBinding, hostGet, hostSet, perform, Prog.lift,
+        bind, Prog.bind, confine, Op.observes, body, trap, reason]
+    all_goals
+      congr 1
+      funext first
+      congr 1
+      funext entered
+      congr 1
+      funext journal
+      congr 1
+      funext recorded
+      congr 1
+      funext impossible
+      cases impossible
+  rw [code] at focus
+  exact .step (.hostGet focus) (by rw [transitionEdit, focus]; rfl) rfl
+    (.step (.hostSet rfl) rfl rfl (.step (.hostGet rfl) rfl rfl (.step (.hostSet rfl) rfl rfl .done)))
+
+private theorem finishDestructorBindingTrap {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {name kind args issue}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (rejected : resolveBinding bindings name kind = .error issue)
+    (checked : start.ctl = check.control (calloutBody Limits.spec Quirks.none ready base start.store check.thread (.embedder name kind) args))
+    (canonical : incoming.ctl = canon.control (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      incoming.store canon.thread (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have raw : (LiveDispatch.host bindings base).embedder name kind args =
+      (Scheduled.host (grow := grow) bindings).embedder name kind args := by
+    simp only [LiveDispatch.host, selectBinding, rejected, embedder]
+  have lhs := destructorBindingTrapPath (profile := profile) (ready := ready) base
+    (congrFun (congrFun (congrFun embedder name) kind) args) rejected checked
+  have rhs := destructorBindingTrapPath (profile := profile) (ready := ready) (LiveDispatch.host bindings base)
+    raw rejected canonical
+  obtain ⟨used, following, reached, peer, split, paths, writers, residual, ending⟩ :=
+    cutSharedQuietWorker lhs rhs run
+  rw [split]
+  rcases ending with empty | ⟨rfl, rfl⟩
+  · subst following
+    cases residual
+    exact .comparedPrefix paths writers .exhausted
+  · exact .comparedPrefix paths writers
+      (compareSharedDestructorTrap (check := check) (canon := canon)
+        (.hostTrap "invalid mixed acceptor import binding") rfl rfl residual)
+
 private theorem finishSharedDestructorImport {limit : Nat}
     {thread frames peerFrames rest peerRest core host args task tk body}
     (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
@@ -17184,7 +17249,13 @@ private theorem finishSharedDestructorImport {limit : Nat}
       · obtain ⟨inst, action, linked, denied⟩ := shared
         exact finishDeniedDestructorImport embedder (sharedGiveRawEmbedder linked embedder) (sharedGiveRoute linked)
           denied parents segments stores checked canonical residual scheduler bounded compare
-      · exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
+      · cases linked : resolveBinding bindings name kind with
+        | error issue =>
+          exact finishDestructorBindingTrap
+            (check := ⟨thread, .core core (sharedDestructorCoreResult task tk) :: frames, rest⟩)
+            (canon := ⟨thread, .core core (sharedDestructorCoreResult task tk) :: peerFrames, peerRest⟩)
+            embedder linked checked canonical residual
+        | ok _ => exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
   | _ => exact follow rfl
 
 /-- Discharge the pending enclosing return after following the source worker
