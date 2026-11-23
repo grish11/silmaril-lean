@@ -561,6 +561,18 @@ def SharedRecordAllocation.call (site : SharedRecordAllocation) (cx : LiftLowerC
   let request := site.request
   .reallocate cx request.oldPtr request.oldSize request.alignment request.newSize
 
+def sharedRecordAllocatorArgs (width : AddrType) (request : ABI.ReallocRequest) : List Value.Val :=
+  let kind := ptrIntKind width
+  [.int kind request.oldPtr, .int kind request.oldSize, .int kind request.alignment, .int kind request.newSize]
+
+/-- These lookups connect the resumed allocator to the caller and task created
+by its own source setup. Later thread registration can update the task. -/
+structure SharedRecordAllocatorSource (cx : LiftLowerContext (core3 grow)) (request : ABI.ReallocRequest)
+    (width : AddrType) (task : TaskId) (caller : CallerId) (store : CStore (core3 grow)) : Prop where
+  taskEntry : ∃ tk, ArenaField.tasks.get? store task = some tk ∧ tk.ft = reallocType width ∧
+    tk.opts = {} ∧ tk.inst = cx.inst ∧ tk.caller = caller
+  callerEntry : ArenaField.callers.get? store caller = some (.sub (.realloc (sharedRecordAllocatorArgs width request) none))
+
 /-- Finish the canonical allocator after the original synchronous lift returns. -/
 def sharedRecordAllocatorResult (cx : LiftLowerContext (core3 grow)) (caller : CallerId) :
     Session grow sig (Ret (core3 grow)) := do
@@ -2383,10 +2395,12 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   synchronous loop, caller lookup and original allocator return segment. -/
   | sharedDropRecordAllocatorResumed {changes left right reached peer trailing finish body callee task caller worker}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
+      {request : ABI.ReallocRequest} {width : AddrType}
       (parents : DestructorParentChain changes body check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (allocatorSource : SharedRecordAllocatorSource cx request width task caller reached.store)
       (workerSource : left.cont? worker =
         some (StepDefs.threadAct (specDispatch ready base) worker (.liftImplicit task callee)))
       (peerSource : right.cont? worker =
