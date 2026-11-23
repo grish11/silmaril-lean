@@ -16135,22 +16135,24 @@ private theorem sharedDestructorNewEnds (kind : AsyncRef.EndKind) (type : Option
     (sharedHandleInsertEffects inst (.waitable (.end_ identities.2))).bind fun writeIndex =>
     (storeEffectModify (HandleSt.setEndIndex identities.2 writeIndex)).bind fun _ => .pure _
 
+private theorem storeEffectExpectEnd (kind : AsyncRef.EndKind) (type : Option (WIT.ClosedType RtId))
+    (handle : HandleEntry) :
+    StoreEffects (Builtins.expectEnd kind type handle : Session grow sig (EndId × End (core3 grow))) := by
+  cases handle with
+  | waitable entry =>
+    cases entry with
+    | end_ identity =>
+      exact (storeEffectGetObject ArenaField.ends identity).bind fun record =>
+        (storeEffectTrapIf (record.kind != kind) .wrongHandleType).bind fun _ =>
+        (storeEffectTrapIf (record.t != type) .wrongHandleType).bind fun _ => .pure _
+    | _ => exact storeEffectTrap _
+  | _ => exact storeEffectTrap _
+
 private theorem sharedDestructorDropEnd (kind : AsyncRef.EndKind) (type : Option (WIT.ClosedType RtId)) (index : Nat) :
     StoreEffects (Builtins.dropEnd Limits.spec kind type index : Session grow sig (List FlatValue)) := by
-  have expect (handle : HandleEntry) :
-      StoreEffects (Builtins.expectEnd kind type handle : Session grow sig (EndId × End (core3 grow))) := by
-    cases handle with
-    | waitable entry =>
-      cases entry with
-      | end_ identity =>
-        exact (storeEffectGetObject ArenaField.ends identity).bind fun record =>
-          (storeEffectTrapIf (record.kind != kind) .wrongHandleType).bind fun _ =>
-          (storeEffectTrapIf (record.t != type) .wrongHandleType).bind fun _ => .pure _
-      | _ => exact storeEffectTrap _
-    | _ => exact storeEffectTrap _
   unfold Builtins.dropEnd endDrop
   exact storeEffectCurrentInst.bind fun inst => (storeEffectEndMayLeave inst).bind fun _ =>
-    (storeEffectHandlesRemove inst index).bind fun handle => (expect handle).bind fun (_, record) =>
+    (storeEffectHandlesRemove inst index).bind fun handle => (storeEffectExpectEnd kind type handle).bind fun (_, record) =>
     (storeEffectTrapIf (record.state == .copying || record.state == .cancellingCopy)
       (.dropBusy (!kind.isStream) kind.isReadable)).bind fun _ =>
     (storeEffectTrapIf (kind == .writableFuture && record.state != .done) .futureNotWritten).bind fun _ =>
@@ -23864,6 +23866,146 @@ private theorem sourceTaskReturnCalloutCode (ready : HostReady (HostState sig))
   simp [calloutBody, builtinProg, Builtins.taskReturn, Runtime.Task.return_, sourceTaskReturnPrepare,
     Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
 
+private structure SourceCopy (grow : SingleThreaded.GrowOracle) where
+  kind : AsyncRef.EndKind
+  type : Option (WIT.ClosedType RtId)
+  opts : CanonOpts (core3 grow)
+  slot : Nat
+  ptr : Nat
+  length : Nat
+
+private def SourceCopy.select : ResolvedBuiltin (core3 grow) → List FlatValue → Option (SourceCopy grow)
+  | .streamRead type opts, [slot, ptr, length] =>
+    some ⟨.readableStream, type, opts, flatNat slot, flatNat ptr, flatNat length⟩
+  | .streamWrite type opts, [slot, ptr, length] =>
+    some ⟨.writableStream, type, opts, flatNat slot, flatNat ptr, flatNat length⟩
+  | .futureRead type opts, [slot, ptr] => some ⟨.readableFuture, type, opts, flatNat slot, flatNat ptr, 1⟩
+  | .futureWrite type opts, [slot, ptr] => some ⟨.writableFuture, type, opts, flatNat slot, flatNat ptr, 1⟩
+  | _, _ => none
+
+private abbrev SourceCopyBuffer (grow : SingleThreaded.GrowOracle) :=
+  LiftLowerContext (core3 grow) × EndId × BufferDesc (core3 grow)
+
+private def SourceCopy.prepare (copy : SourceCopy grow) : Session grow sig (SourceCopyBuffer grow) := do
+  let inst ← currentInst
+  Builtins.endMayLeave inst
+  let entry ← handlesGet inst copy.slot
+  let (identity, endpoint) ← Builtins.expectEnd copy.kind copy.type entry
+  Builtins.checkCopyIdle copy.kind endpoint.state
+  trapIf (endpoint.common.wset.isSome && !copy.opts.async_) .subtaskInSet
+  let cx : LiftLowerContext (core3 grow) := { opts := copy.opts, inst, scope := .none }
+  let buffer ← mkGuestBuffer Limits.spec cx endpoint.t copy.ptr copy.length
+  return (cx, identity, buffer)
+
+private theorem sourceCopyPrepareEffects (copy : SourceCopy grow) :
+    StoreEffects (copy.prepare : Session grow sig (SourceCopyBuffer grow)) := by
+  have idle (state : AsyncRef.EndState) : StoreEffects
+      (Builtins.checkCopyIdle copy.kind state : Session grow sig Unit) := by
+    cases state <;> first | exact .pure _ | exact storeEffectTrap _
+  have guest (cx : LiftLowerContext (core3 grow)) (type : Option (WIT.ClosedType RtId)) :
+      StoreEffects (mkGuestBuffer Limits.spec cx type copy.ptr copy.length : Session grow sig (BufferDesc (core3 grow))) := by
+    unfold mkGuestBuffer checkGuestBuffer
+    refine ((storeEffectTrapIf (decide (copy.length > Limits.spec.maxBufferLength)) .bufferTooLong).bind fun _ => ?_).bind
+      fun _ => .pure _
+    cases type with
+    | none => exact .pure _
+    | some element =>
+      change StoreEffects ((if 0 < copy.length then do
+        let width ← ptrType cx
+        trapIf (decide (copy.ptr ≠ ABI.alignTo copy.ptr (ABI.layout width element).alignment)) .unalignedPointer
+        checkInBounds cx copy.ptr (copy.length * (ABI.layout width element).size)
+        else pure ()) : Session grow sig Unit)
+      split
+      · exact (storeEffectPtrType cx).bind fun width =>
+          (storeEffectTrapIf (decide (copy.ptr ≠ ABI.alignTo copy.ptr (ABI.layout width element).alignment))
+            .unalignedPointer).bind fun _ => storeEffectBounds cx copy.ptr (copy.length * (ABI.layout width element).size)
+      · exact .pure _
+  unfold SourceCopy.prepare
+  exact storeEffectCurrentInst.bind fun inst => (storeEffectEndMayLeave inst).bind fun _ =>
+    (storeEffectHandlesGet inst copy.slot).bind fun entry => (storeEffectExpectEnd copy.kind copy.type entry).bind fun pair =>
+    (idle pair.2.state).bind fun _ => (storeEffectTrapIf (pair.2.common.wset.isSome && !copy.opts.async_) .subtaskInSet).bind fun _ =>
+    (guest _ pair.2.t).bind fun _ => .pure _
+
+private def SourceCopy.reply (copy : SourceCopy grow) (source : SourceCopyBuffer grow) : Session grow sig (Ret (core3 grow)) := do
+  let (cx, identity, _) := source
+  let values ← Builtins.awaitEndEvent .syncCopy copy.opts.async_ identity (Builtins.copyResultFlat copy.kind cx)
+  return .flat values
+
+private def SourceCopy.perform (copy : SourceCopy grow) (source : SourceCopyBuffer grow) : Session grow sig (Ret (core3 grow)) := do
+  endCopy Limits.spec Quirks.none source.2.1 source.2.2 copy.kind.isReadable
+  copy.reply source
+
+private theorem sourceCopyCalloutCode (ready : HostReady (HostState sig))
+    (host : HostImpl (core3 grow) (HostState sig)) (store : CStore (core3 grow)) (thread : Option ThreadId)
+    (inst : InstId) (builtin : ResolvedBuiltin (core3 grow)) (args : List FlatValue) (copy : SourceCopy grow)
+    (selected : SourceCopy.select builtin args = some copy) :
+    calloutBody Limits.spec Quirks.none ready host store thread (.builtin builtin inst) args =
+      copy.prepare >>= copy.perform := by
+  cases builtin <;> try contradiction
+  all_goals
+    rcases args with _ | ⟨slot, _ | ⟨ptr, _ | ⟨length, _ | ⟨extra, tail⟩⟩⟩⟩ <;> try contradiction
+    simp only [SourceCopy.select, Option.some.injEq] at selected
+    subst copy
+    delta SourceCopy.prepare SourceCopy.perform SourceCopy.reply
+    simp [calloutBody, builtinProg, withArgs3, withArgs2, Builtins.streamRead, Builtins.streamWrite,
+      Builtins.futureRead, Builtins.futureWrite, Builtins.copyBuiltin, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+
+private def SourceCopy.afterRead (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+  match copyCore source.2.1 source.2.2 copy.kind.isReadable store with
+  | .error reason => trap reason
+  | .ok (_, action) => do
+    modifyStore (copySt source.2.1 source.2.2 copy.kind.isReadable)
+    performCopy Limits.spec Quirks.none action
+    copy.reply source
+
+private theorem sourceCopyPerformCode (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    (copy.perform source : Session grow sig (Ret (core3 grow))) = getStore >>= copy.afterRead source := by
+  unfold SourceCopy.perform endCopy
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext store
+  unfold SourceCopy.afterRead
+  split
+  · rename_i reason selected
+    rw [selected]
+    change Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap reason) _ =
+      Prog.op (S := Eff (core3 grow) (HostState sig)) (.trap reason) _
+    congr 1
+    funext response
+    exact nomatch response
+  · rename_i committed action selected
+    rw [selected]
+    rfl
+
+/-- Run the guest-side admission and selected bookkeeping before handing the
+reached buffer action and event-wait suffix back to the source induction. -/
+private theorem compareSourceCopy {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (copy : SourceCopy grow)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.prepare >>= copy.perform) (copy.prepare >>= copy.perform) := by
+  refine crossDestructorRecordStore threads copy.prepare (sourceCopyPrepareEffects copy) copy.perform copy.perform ?_
+  intro source
+  rw [sourceCopyPerformCode]
+  refine crossDestructorRecordStore threads getStore storeEffectGet (copy.afterRead source) (copy.afterRead source) ?_
+  intro store
+  unfold SourceCopy.afterRead
+  split
+  · next reason chosen =>
+    intro _ _ _ _ left right _ actual _
+    exact compareSharedDestructorTrap reason left right actual
+  · next committed action chosen =>
+    let update := copySt source.2.1 source.2.2 copy.kind.isReadable
+    let complete := fun (_ : Unit) => (performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source :
+      Session grow sig (Ret (core3 grow)))
+    change DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (modifyStore update >>= complete) (modifyStore update >>= complete)
+    exact crossDestructorRecordStore (check := check) (canon := canon) threads (modifyStore update)
+      (storeEffectModify update) complete complete fun _ => compareProgram (complete ())
+
 /-- Canonical builtins with source callback comparisons. Other builtins
 continue through the common executable dispatch in this fold. -/
 private def sourceBuiltinWithCallback : ResolvedBuiltin (core3 grow) → List FlatValue → Bool
@@ -23871,7 +24013,7 @@ private def sourceBuiltinWithCallback : ResolvedBuiltin (core3 grow) → List Fl
   | .errorContextDebugMessage _, [_, _] => true
   | .taskCancel, [] => true
   | .taskReturn .., _ => true
-  | _, _ => false
+  | builtin, args => (SourceCopy.select builtin args).isSome
 
 private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -23891,6 +24033,13 @@ private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   let resume : SourceCoreReply profile ready base bindings older check canon limit finish :=
     fun words {_ _ _} same aligned lhs rhs tail within => compareProgram (.pure (.flat words)) same lhs rhs aligned tail within
+  cases observed : SourceCopy.select builtin args
+  case some copy =>
+    exact compareSourceCopy thread copy compareProgram stores
+      (checked.trans (congrArg check.control (sourceCopyCalloutCode ready base start.store check.thread inst builtin args copy observed)))
+      (canonical.trans (congrArg canon.control
+        (sourceCopyCalloutCode ready (LiveDispatch.host bindings base) incoming.store canon.thread inst builtin args copy observed)))
+      scheduler run bounded
   cases builtin with
   | resourceDrop resource =>
     rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
@@ -23934,7 +24083,7 @@ private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
     exact crossDestructorRecordStore (check := check) (canon := canon) thread (sourceTaskReturnPrepare result opts)
       (sourceTaskReturnPrepareEffects result opts) (sourceTaskReturnLift opts args) (sourceTaskReturnLift opts args)
       (fun reached => compareSourceTaskReturnLift thread opts args reached compareProgram) stores leftAt rightAt scheduler run bounded
-  | _ => contradiction
+  | _ => simp_all [sourceBuiltinWithCallback]
 
 private theorem finishSourceBuiltinWithCallbackEntry {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
