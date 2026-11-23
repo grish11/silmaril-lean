@@ -2073,6 +2073,16 @@ structure SharedDestructorRegisteredSource (task : TaskId) (checked canonical : 
     ArenaField.tasks.get? checked task = some record ∧ record.ft = dtorType width ∧ record.opts = {} ∧
     ArenaField.callers.get? checked record.caller = some (.sub (.destructor rep))
 
+/-- The source destructor has reached a Core callout or its canonical
+task completion program. These are internal proof cuts. -/
+inductive SharedDestructorWorkerStage (task : TaskId) (record : Task (core3 grow))
+    (store : CStore (core3 grow)) : Focus (core3 grow) (HostState sig) → Prop where
+  | callout {core host args}
+      (status : (core3 grow).status store.core core = .callout host args) :
+      SharedDestructorWorkerStage task record store (.core core (sharedDestructorCoreResult task record))
+  | completion :
+      SharedDestructorWorkerStage task record store (.prog (sharedDestructorFinish task []))
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -2167,10 +2177,10 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading live left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The resumed worker entered its Core destructor or no-op completion with both ticket-specific parents still dormant. -/
+  /-- An internal worker proof cut with both ticket-specific parents still dormant. -/
   | sharedDropWorker {changes reached peer left right leading trailing finish marks}
       {registeredLeft registeredRight startedLeft startedRight leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight activeLeft activeRight : Config (core3 grow) (HostState sig)}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee tk args width rep}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket task callee tk args focus}
       (installed : SharedDestructorInstalled profile ready (specDispatch ready base) body leftTicket thread
         leftInstall installedLeft check)
       (canonical : SharedDestructorInstalled profile ready (specDispatch ready (LiveDispatch.host bindings base)) body rightTicket thread
@@ -2186,9 +2196,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonicalPop : SharedDestructorOnStartPop profile ready (specDispatch ready (LiveDispatch.host bindings base))
         ⟨some thread, [], canon.control (sharedDestructorAfterResume body rightTicket)⟩
         tk.caller (sharedDestructorStartReply task callee tk) args startedRight)
-      (checkedEntry : left.ctl = ⟨some thread, sharedDestructorBodyFocus task callee tk width rep, []⟩ ::
+      (stage : SharedDestructorWorkerStage task tk left.store focus)
+      (stores : left.store = right.store)
+      (checkedEntry : left.ctl = ⟨some thread, focus, []⟩ ::
         check.control (sharedDestructorAfterResume body leftTicket))
-      (canonicalEntry : right.ctl = ⟨some thread, sharedDestructorBodyFocus task callee tk width rep, []⟩ ::
+      (canonicalEntry : right.ctl = ⟨some thread, focus, []⟩ ::
         canon.control (sharedDestructorAfterResume body rightTicket))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
