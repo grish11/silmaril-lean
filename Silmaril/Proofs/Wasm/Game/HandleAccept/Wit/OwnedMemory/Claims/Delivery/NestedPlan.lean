@@ -2895,7 +2895,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | sourceOverlayCheckedTerminal step _ _ _ tail => exact .cons step tail
-  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
@@ -2972,7 +2972,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | sourceOverlayCheckedTerminal step _ _ _ tail => exact .cons step tail
-  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -21593,10 +21593,13 @@ private theorem visitSourceFlatSum {check canon : Cursor (E := core3 grow) (Host
         returned value (grew.trans grown) same scheduled checkAt canonAt tail (bound.trans shorter))
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
-private theorem visitCompiledSourceFlat {check canon : Cursor (E := core3 grow) (HostState sig)} {item : Field}
+private theorem visitCompiledSourceFlat {check canon : Cursor (E := core3 grow) (HostState sig)} {root item : Field} {schema : Stored.TypeOf}
     (destination : RecordDestination) (inst : InstId) (shape : FlatVisitShape item)
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames) :
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (rootLayout : root.LayoutMatches schema) (rootEmitted : root.Emitted)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root) (path : root.Descendant item) :
     SourceFlatVisit profile ready base bindings older destination inst item check canon finish := by
   induction shape with
   | handle item nominal =>
@@ -21608,20 +21611,23 @@ private theorem visitCompiledSourceFlat {check canon : Cursor (E := core3 grow) 
     exact visitSourceOverlayScalar destination inst type data payload index .flat checkNext canonNext stores thread
       (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, width]) rfl checked canonical scheduler run returned
   | aggregate type items children ih =>
-    exact visitSourceFlatAggregate destination inst items ih (fun _ => rfl) rfl
+    exact visitSourceFlatAggregate destination inst items
+      (fun child member => ih child member (path.trans (.aggregate member (.self child)))) (fun _ => rfl) rfl
   | fixed element length items children ih =>
-    exact visitSourceFlatAggregate destination inst items ih (fun _ => rfl) rfl
+    exact visitSourceFlatAggregate destination inst items
+      (fun child member => ih child member (path.trans (.fixed member (.self child)))) (fun _ => rfl) rfl
   | string item matched emitted =>
     intro index checkNext canonNext left right actual stores scheduler width checked canonical run refused returned
     apply CallbackSliceEnd.sourceOverlayField destination inst item index .flat checkNext canonNext parents thread segments
-      _ stores scheduler width rfl checked canonical run
+      _ ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler width rfl checked canonical run
     cases item <;> first | exact ⟨matched, emitted⟩ | cases matched
   | collection type element entries matching children =>
     intro index checkNext canonNext left right actual stores scheduler width checked canonical run refused returned
     exact .sourceOverlayField destination inst (.dynamic type element entries) index .flat checkNext canonNext parents thread segments
-      matching stores scheduler width rfl checked canonical run
+      matching ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler width rfl checked canonical run
   | sum type arms tag selected matched child ih =>
-    exact visitSourceFlatSum destination inst thread matched ih
+    exact visitSourceFlatSum destination inst thread matched
+      (fun child active => ih child active (path.trans (active ▸ .sum (.self child))))
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
 private abbrev SourceMemoryVisit
@@ -21695,11 +21701,14 @@ private theorem visitSourceMemorySequence {origin : CStore (core3 grow)}
             returned value (grew.trans newer) equal scheduled lhs rhs tail (bound.trans shorter))
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence ReturnFrame.Occurrence in
-private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item : Field} {bytes : Nat}
+private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {root item : Field} {schema : Stored.TypeOf} {bytes : Nat}
     {check canon : Cursor (E := core3 grow) (HostState sig)}
     (destination : RecordDestination) (inst : InstId) (address : Nat) (shape : MemoryVisitShape item)
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (rootLayout : root.LayoutMatches schema) (rootEmitted : root.Emitted)
+    (fits : Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true)
+    (allocates : Field.AllocatorFor destination.realloc root) (path : root.Descendant item)
     (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
     (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
     (placed : SlotFits destination.width bytes item address) :
@@ -21728,7 +21737,7 @@ private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item :
     intro remaining residual shorter
     have slots := Track.fields_slots destination.width matched placed.1 placed.2
       (fun item pointer => SourceMemoryVisit profile ready base bindings older origin destination inst item pointer check canon finish)
-      (fun item member slot fits => ih item member slot fits)
+      (fun item member slot fits => ih item member slot (path.trans (.aggregate member (.self item))) fits)
     rw [CanonicalTree.field] at canonical
     exact visitSourceMemorySequence .fields destination inst items 0 address slots width stores scheduler growth rfl canonical residual
       (fun issue {_ _ _} focus tail => refused (.nested index issue) focus tail)
@@ -21743,7 +21752,7 @@ private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item :
     obtain ⟨aligned, bounds⟩ := fixedMemoryInterval destination element length entries count placed
     have slots := Track.elements_slots destination.width matching aligned bounds
       (fun item pointer => SourceMemoryVisit profile ready base bindings older origin destination inst item pointer check canon finish)
-      (fun child member slot fits => ih child member slot fits)
+      (fun child member slot fits => ih child member slot (path.trans (.fixed member (.self child))) fits)
     rw [← List.nil_append actual]
     refine .comparedPrefix (CallbackPrefix.stationaryTransport (fun place => .done left place) focused)
       (.framed (.done _) (WriterPaths.frameSingle (focused (.active 0 0)).toTrail.steps rfl)) ?_
@@ -21754,7 +21763,7 @@ private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item :
   | @string item matched emitted =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run refused returned
     refine .sourceOverlayField destination inst item index (.memory address) checkNext canonNext parents thread segments
-      ?_ stores scheduler (growth.memAddrType width) (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run
+      ?_ ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler (growth.memAddrType width) (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run
     cases item <;> first | exact ⟨matched, emitted⟩ | cases matched
   | @sum type arms tag selected layoutAt member children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run refused returned
@@ -21789,7 +21798,7 @@ private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item :
         (Nat.dvd_of_mod_eq_zero aligned) listed
       rw [List.length_map] at modulo within
       have childFits : SlotFits destination.width bytes child slot := ⟨modulo, within.trans bounds⟩
-      exact ih child rfl slot childFits 0 (aggregateNext index checkNext) canonNext equal (keep scheduler)
+      exact ih child rfl slot (path.trans (.sum (.self child))) childFits 0 (aggregateNext index checkNext) canonNext equal (keep scheduler)
         (growth.trans grew) atLeft atRight residual
         (fun issue {_ _ _} focus tail => refused (.nested index issue) focus tail)
         (fun result {_ _ _} grown same aligned lhs rhs tail bounded =>
@@ -21797,12 +21806,14 @@ private theorem visitCompiledSourceMemory {origin : CStore (core3 grow)} {item :
   | @list element entries matching children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run refused returned
     exact .sourceOverlayField destination inst (.dynamic (.list element) element entries) index (.memory address) checkNext canonNext parents
-      thread segments matching stores scheduler (growth.memAddrType width)
+      thread segments matching
+      ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler (growth.memAddrType width)
       (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run
   | @map key element entries matching emitted children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run refused returned
     exact .sourceOverlayField destination inst (.dynamic (.map key element) (.record (mapEntryFields key element)) entries) index
-      (.memory address) checkNext canonNext parents thread segments matching stores scheduler (growth.memAddrType width)
+      (.memory address) checkNext canonNext parents thread segments matching
+      ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler (growth.memAddrType width)
       (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower in
@@ -21831,6 +21842,7 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
     (marked : check.frames ≠ []) (linked : request.destination.check start.store = .ok ())
     (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (fit : request.selectedFits selected request.destination.width = true)
     (placed : request.selectedPlacement selected start.store = .ok ())
     (stores : start.store = incoming.store)
     (unconfined : threadMayLeave incoming.store canon.thread = true)
@@ -21853,7 +21865,11 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
       let type := sig.payload root.1
       change Record.preflightValue (destination.context (grow := grow) inst) type root.2 (.memory pointer) = .ok (field, plan) at compiled
       have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
-      have shape := (compiledVisitShapes (Record.preflightValue_emitted _ _ _ _ _ plan compiled) matched).2
+      have emitted := Record.preflightValue_emitted _ _ _ _ _ plan compiled
+      have shape := (compiledVisitShapes emitted matched).2
+      change Stored.Lower.fits Quirks.none destination.encoding destination.width type root.2.val.value = true at fit
+      have fieldFit := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fit
+      have allocates := CallbackRange.compiledAllocator destination inst type root.2 (.memory pointer) field plan compiled
       let reply (result : Except Stored.Endpoints.RecordLower.Issue Unit) := completion ticket (result.mapError Scheduled.Issue.lowerPayload |>.map (fun _ => 0))
       let next : Unit → Session grow sig (Ret (core3 grow)) := fun _ => pure (.flat (completion 0 (.ok 0)).2)
       have checkedAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -21868,7 +21884,7 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
       have position : placement destination start.store (layout destination.width field.type) pointer = .ok () :=
         matched.type_eq.symm ▸ placed
       obtain ⟨aligned, bytes, sized, bounds⟩ := CallbackRange.placementInterval destination start.store _ _ position
-      refine visitCompiledSourceMemory destination inst pointer shape parents thread segments
+      refine visitCompiledSourceMemory destination inst pointer shape parents thread segments matched emitted fieldFit allocates (.self _)
         (destination.check_width _ linked) sized ⟨aligned, bounds⟩ 0 _ next stores scheduler
         (Core3.Grows.refl _) checkedAt canonicalAt run ?_ ?_
       · intro issue left right remaining focused residual
@@ -21883,7 +21899,11 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
       let type := sig.payload root.1
       change Record.preflightValue (destination.context (grow := grow) inst) type root.2 .flat = .ok (field, plan) at compiled
       have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
-      have shape := (compiledVisitShapes (Record.preflightValue_emitted _ _ _ _ _ plan compiled) matched).1
+      have emitted := Record.preflightValue_emitted _ _ _ _ _ plan compiled
+      have shape := (compiledVisitShapes emitted matched).1
+      change Stored.Lower.fits Quirks.none destination.encoding destination.width type root.2.val.value = true at fit
+      have fieldFit := Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fit
+      have allocates := CallbackRange.compiledAllocator destination inst type root.2 .flat field plan compiled
       let reply (result : Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) :=
         flatCompletion ticket (ABI.flatten destination.width schema) (result.mapError Scheduled.Issue.lowerPayload)
       let next : List FlatValue → Session grow sig (Ret (core3 grow)) := fun words =>
@@ -21897,7 +21917,7 @@ private theorem visitSourceOverlayPlaced {limit : Nat}
         change incoming.ctl = canon.control (lowerFlatAt Limits.spec Quirks.none (destination.context inst)
           destination.width root.2.val.value type >>= next)
         simpa only [referenceTail, flatBody, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', next, type] using rawAt
-      refine visitCompiledSourceFlat destination inst shape parents thread segments 0 _ next
+      refine visitCompiledSourceFlat destination inst shape parents thread segments matched emitted fieldFit allocates (.self _) 0 _ next
         stores scheduler (destination.check_width _ linked) checkedAt canonicalAt run ?_ ?_
       · intro issue left right remaining focused residual
         exact finishSourceOverlayRefusal marked (reply (.error issue)) focused residual
@@ -21916,6 +21936,7 @@ private theorem finishSourceOverlayPlacement {limit : Nat}
     (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
     (marked : check.frames ≠ []) (linked : request.destination.check start.store = .ok ())
     (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (fit : request.selectedFits selected request.destination.width = true)
     (stores : start.store = incoming.store)
     (checked : start.ctl = check.control (request.placementContinuation ticket selected field request.destination.width))
     (unconfined : threadMayLeave incoming.store canon.thread = true)
@@ -21941,7 +21962,7 @@ private theorem finishSourceOverlayPlacement {limit : Nat}
     refine crossSourceCheckedSinglePrefix bounded quiet tracks writer run ?_
     intro trailing residual shorter
     exact visitSourceOverlayPlaced (check := check) (canon := canon) request ticket selected field plan
-      parents thread segments marked linked compiled placed stores unconfined rfl canonical scheduler residual
+      parents thread segments marked linked compiled fit placed stores unconfined rfl canonical scheduler residual
       (shorter.trans within) resume
   | error reason =>
     rw [placed] at paths
@@ -22007,7 +22028,7 @@ private theorem finishSourceOverlayWidth {limit : Nat}
       dsimp only [width]
       simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, request.destination.check_width _ linked]
     exact finishSourceOverlayPlacement (check := check) (canon := canon) request ticket selected field plan
-      parents thread segments marked linked compiled stores (linkedWidth ▸ placedAt)
+      parents thread segments marked linked compiled (linkedWidth ▸ fits) stores (linkedWidth ▸ placedAt)
       unconfined canonical scheduler residual (shorter.trans within) resume
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in

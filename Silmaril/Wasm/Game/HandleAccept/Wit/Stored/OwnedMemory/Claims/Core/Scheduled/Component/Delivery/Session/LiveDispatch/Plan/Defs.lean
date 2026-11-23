@@ -2979,6 +2979,10 @@ induction. Its trails still identify the removed original occurrences. -/
       (pending : match item with
         | .dynamic _ element entries => Stored.Endpoints.RecordLower.Field.EntriesMatch entries element
         | other => other.LayoutMatches (.prim .string) ∧ other.Emitted)
+      (source : ∃ (root : Stored.Endpoints.RecordLower.Field) (schema : Stored.TypeOf),
+        root.LayoutMatches schema ∧ root.Emitted ∧
+        Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true ∧
+        Stored.Endpoints.RecordLower.Field.AllocatorFor destination.realloc root ∧ root.Descendant item)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (width : (core3 grow).memAddrType? reached.store.core destination.memory = some destination.width)
