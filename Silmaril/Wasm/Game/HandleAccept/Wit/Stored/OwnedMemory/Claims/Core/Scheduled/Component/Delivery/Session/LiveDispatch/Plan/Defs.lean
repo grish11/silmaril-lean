@@ -458,6 +458,30 @@ structure SharedRecordOwnerProbeMismatch
   different : (Record.prepareOwner left.host.writer receipt).map Prod.fst ≠
     (Record.prepareOwner right.host.writer receipt).map Prod.fst
 
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+/-- The owner-field guard and spend read execute before the actual host assignment.
+The canonical handle allocation and publication are still pending at the endpoint. -/
+structure ExecutedSharedRecordOwnerSpend (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (receipt : Stored.OwnedMemory.Receipt) (cx : LiftLowerContext (core3 grow)) (index ptr rep : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (start finish : Config (core3 grow) (HostState sig)) : Prop where
+  executed : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (guarded writing : Config (core3 grow) (HostState sig)) (spent : Stored.OwnedMemory.Claims.State sig),
+    start.ctl = cursor.control (.op .hostGet (fun state =>
+      sharedRecordOwnerAfterProbe cx receipt index ptr ((Record.prepareOwner state.writer receipt).map Prod.fst) >>= next)) ∧
+    Record.prepareOwner start.host.writer receipt = .ok (rep, spent) ∧
+    guarded = { start with ctl := cursor.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= next) } ∧
+    writing = { guarded with ctl := cursor.control (.op (.hostSet
+      { guarded.host with writer := (Spend.owner (receiptId receipt)).apply guarded.host.writer })
+      (fun _ => sharedRecordOwnerTransfer cx receipt.1 rep ptr >>= next)) } ∧
+    finish = { writing with
+      host := { writing.host with writer := (Spend.owner (receiptId receipt)).apply writing.host.writer }
+      ctl := cursor.control (sharedRecordOwnerTransfer cx receipt.1 rep ptr >>= next) } ∧
+    Step profile ready dispatch start .tau guarded ∧
+    Step profile ready dispatch guarded .tau writing ∧
+    Step profile ready dispatch writing .tau finish
+
 def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
   site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
 
@@ -687,6 +711,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
       VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
+  | recordOwnerCommit {start incoming left right receipt cx index ptr rep checkedNext canonicalNext}
+      (lhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready base) receipt cx index ptr rep checkedNext start left)
+      (rhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        receipt cx index ptr rep canonicalNext incoming right) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right
   | ownerCommit {start incoming left right site rep leftTicket rightTicket}
       (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
       (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
@@ -734,6 +763,11 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       (commit : ReachedLeafSpend profile ready (specDispatch ready base) start checked left change update)
       (raw : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
       ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right [update]
+  | recordOwnerCommit {start incoming left right receipt cx index ptr rep checkedNext canonicalNext}
+      (lhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready base) receipt cx index ptr rep checkedNext start left)
+      (rhs : ExecutedSharedRecordOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        receipt cx index ptr rep canonicalNext incoming right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau, .tau] [.tau, .tau, .tau] left right []
   | ownerCommit {start incoming left right site rep leftTicket rightTicket}
       (lhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready base) site rep leftTicket start left)
       (rhs : ExecutedSharedOwnerSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rep rightTicket incoming right) :
@@ -1804,18 +1838,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   | sharedRecordOwnerMismatch {changes reached peer left right leading trailing finish marks}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {beforeLeft beforeRight receipt cx index ptr}
       (site : SharedRecordOwnerProbeMismatch beforeLeft beforeRight left right receipt cx index ptr check canon)
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
-      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
-      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedRecordOwnerPrepared {changes reached peer left right leading trailing finish marks}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {receipt cx index ptr rep}
-      {checkedSpent canonicalSpent : Stored.OwnedMemory.Claims.State sig}
-      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checkedPrepared : Stored.OwnedMemory.Claims.Record.prepareOwner left.host.writer receipt = .ok (rep, checkedSpent))
-      (canonicalPrepared : Stored.OwnedMemory.Claims.Record.prepareOwner right.host.writer receipt = .ok (rep, canonicalSpent))
-      (checked : left.ctl = check.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= checkedNext))
-      (canonical : right.ctl = canon.control (sharedRecordOwnerAfterProbe cx receipt index ptr (.ok rep) >>= canonicalNext))
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :

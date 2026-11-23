@@ -125,7 +125,6 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | sharedRecordVisitor _ _ paths writers residual => exact terminal paths writers residual
   | sharedRecordPrepareMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedRecordOwnerMismatch _ paths writers residual => exact terminal paths writers residual
-  | sharedRecordOwnerPrepared _ _ _ _ paths writers residual => exact terminal paths writers residual
   | sharedGiveSelectionMismatch _ _ _ paths writers residual => exact terminal paths writers residual
   | componentEntryPrefix _ _ _ paths writers => simpa only [List.append_nil] using terminal paths writers (.refl _)
   | componentObserverTerminal _ paths writers tail => exact terminal paths writers tail

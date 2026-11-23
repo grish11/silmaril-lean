@@ -216,6 +216,19 @@ private theorem ownerSpendWriter {site : SharedOwnerGive} {rep ticket : Nat}
   rw [unchanged]
   exact List.mem_map.mpr ⟨receipt, held, identity⟩
 
+open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
+private theorem recordOwnerSpendWriter {receipt cx index ptr rep next}
+    (executed : ExecutedSharedRecordOwnerSpend profile ready dispatch receipt cx index ptr rep next start finish) :
+    finish.host.writer = (Spend.owner (receiptId receipt)).apply start.host.writer ∧
+    WriterPath profile ready dispatch start [.tau, .tau, .tau] finish [(start.host.writer, finish.host.writer)] := by
+  obtain ⟨_, _, _, _, _, admitted, rfl, rfl, rfl, first, read, commit⟩ := executed.executed
+  refine ⟨rfl, .same first rfl (.same read rfl (.changed commit ?_ (.done _)))⟩
+  intro same
+  change (Spend.owner (receiptId receipt)).apply start.host.writer = start.host.writer at same
+  have noClaim := Spend.not_live (.owner (receiptId receipt)) start.host.writer
+  rw [same] at noClaim
+  exact noClaim (owner_prepared admitted).2
+
 open Stored.OwnedMemory.Claims in
 private theorem dropSpendWriter {site : SharedOwnerDrop} {rep ticket : Nat} {result} {preparation : Trace grow sig}
     (executed : ExecutedSharedDropSpend profile ready dispatch site rep ticket result preparation start finish) :
@@ -248,6 +261,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | sharedGiveMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | sharedRecordPrepare _ lhs rhs | recordOwnerMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | ownerCommit lhs rhs => exact ⟨_, _, (ownerSpendWriter lhs).2, (ownerSpendWriter rhs).2⟩
+  | recordOwnerCommit lhs rhs => exact ⟨_, _, (recordOwnerSpendWriter lhs).2, (recordOwnerSpendWriter rhs).2⟩
   | dropCommit lhs rhs => exact ⟨_, _, (dropSpendWriter lhs).2, (dropSpendWriter rhs).2⟩
   | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
   | guarded paths =>
@@ -453,6 +467,11 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.recordOwnerConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
         checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using initial) (.inl exceptional) conflict empty)
+  | @recordOwnerCommit start incoming left right receipt cx index ptr rep checkedNext canonicalNext lhs rhs =>
+    have after := initial.spendBoth (.owner (receiptId receipt))
+    refine .complete [] (.recordOwnerCommit lhs rhs) ?_
+    rw [(recordOwnerSpendWriter lhs).1, (recordOwnerSpendWriter rhs).1]
+    exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
   | @ownerCommit start incoming left right site rep leftTicket rightTicket lhs rhs =>
     have after := initial.spendBoth (.owner site.identity)
     refine .complete [] (.ownerCommit lhs rhs) ?_
