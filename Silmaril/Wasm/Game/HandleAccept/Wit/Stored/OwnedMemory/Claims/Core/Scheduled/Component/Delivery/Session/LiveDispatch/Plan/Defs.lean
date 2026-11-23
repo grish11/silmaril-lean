@@ -2964,47 +2964,32 @@ induction. Its trails still identify the removed original occurrences. -/
         (some (.active 0 0)) [label] next none)
       (residual : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
-  /-- The checked root has completed compilation, prepare and placement.
-  The compiler visitor and its distinct raw body are at their actual entries. -/
-  | sourceOverlayGivePlaced {changes reached peer trailing finish ticket}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {field : Stored.Endpoints.RecordLower.Field} {plan : List Stored.Endpoints.RecordLower.Object}
-      (request : GiveSelector bindings) (selected : SelectionValue sig request.schema)
-      (parents : SourceParentStack changes check.rest canon.rest)
-      (thread : check.thread = canon.thread)
-      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (marked : check.frames ≠ [])
-      (linked : request.destination.check reached.store = .ok ())
-      (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
-      (fit : request.selectedFits selected request.destination.width = true)
-      (placed : request.selectedPlacement selected reached.store = .ok ())
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (request.fieldContinuation ticket selected field))
-      (canonical : peer.ctl = canon.control (request.canonicalContinuation peer.store canon.thread (.ok selected)))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The flat sequence reached a string or collection child. Both
-  compiled programs are focused at that field under the original parents.
-  This is a proof boundary for the next visitor rule. -/
-  | sourceOverlayFlatField {changes reached peer trailing finish}
+  /-- The compiler visitor reached a sum tag or an allocating child under the
+  original recursive parents. The next visitor proof starts at the two actual
+  programs, with the current placement and checked residual. -/
+  | sourceOverlayField {changes reached peer trailing finish}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (destination : RecordDestination) (inst : InstId) (item : Stored.Endpoints.RecordLower.Field)
-      (index : Nat) (checkNext : LinkedCallback.FlatSequenceCheckNext grow sig)
-      (canonNext : LinkedCallback.FlatSequenceCanonNext grow sig)
+      (index : Nat) (output : Stored.Lower.Output)
+      (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+      (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
       (parents : SourceParentStack changes check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (pending : match item with
+        | .sum type arms _ selected =>
+          (∀ width, ABI.layout width type = ABI.variantLayout (arms.map (ABI.layoutOption width))) ∧
+          ∀ child, selected = some child → some child.type ∈ arms
         | .dynamic _ element entries => Stored.Endpoints.RecordLower.Field.EntriesMatch entries element
         | other => other.LayoutMatches (.prim .string) ∧ other.Emitted)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (width : (core3 grow).memAddrType? reached.store.core destination.memory = some destination.width)
+      (placed : PayloadPrefix.rootPlacement destination reached.store item.type output = .ok ())
       (checked : reached.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field
-        recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index .flat >>= checkNext))
+        recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index output >>= checkNext))
       (canonical : peer.ctl = canon.control (Stored.Endpoints.RecordLower.CanonicalTree.field
-        Limits.spec Quirks.none (destination.context inst) destination.width item .flat >>= canonNext))
+        Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
