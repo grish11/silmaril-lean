@@ -530,6 +530,38 @@ def sharedRecordStringResume (cx : LiftLowerContext (core3 grow)) (steps : List 
   | _ => internal "late-bound call: expected Ret.nat"
 
 open Stored.Endpoints in
+/-- The compiler's two initial allocation sites in a shared record visitor. -/
+inductive SharedRecordAllocation where
+  | collection (width : AddrType) (element : Stored.TypeOf) (entries : List RecordLower.Field)
+      (index dest : Nat)
+  | string (width : AddrType) (value : Value.StrVal) (dest : Nat) (alignment : ABI.Alignment)
+      (size : Nat) (remaining : List ABI.StoreStep)
+
+def SharedRecordAllocation.request : SharedRecordAllocation → ABI.ReallocRequest
+  | .collection width element entries _ _ =>
+    let area := ABI.layout width element
+    ⟨0, 0, area.alignment.bytes, entries.length * area.size⟩
+  | .string _ _ _ alignment size _ => ⟨0, 0, alignment.bytes, size⟩
+
+open Stored.Endpoints in
+def SharedRecordAllocation.compiled (cx : LiftLowerContext (core3 grow)) : SharedRecordAllocation → Prop
+  | .collection _ _ entries _ _ => ∀ field ∈ entries, RecordLower.Field.Emitted field
+  | .string width value _ alignment size remaining =>
+    (storePlanFor Quirks.none cx.opts.encoding width value).steps = .allocate alignment size :: remaining
+
+open Stored.Endpoints in
+def SharedRecordAllocation.resume (cx : LiftLowerContext (core3 grow))
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    SharedRecordAllocation → ReturnFrame.Continuation (core3 grow) (HostState sig)
+  | .collection width element entries index dest => sharedRecordAllocationResume cx width element entries index dest next
+  | .string width value dest _ _ remaining =>
+    sharedRecordStringResume cx remaining (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits dest next
+
+def SharedRecordAllocation.call (site : SharedRecordAllocation) (cx : LiftLowerContext (core3 grow)) : Call (core3 grow) :=
+  let request := site.request
+  .reallocate cx request.oldPtr request.oldSize request.alignment request.newSize
+
+open Stored.Endpoints in
 def sharedRecordOwnerTransfer (cx : LiftLowerContext (core3 grow)) (resource : RtId) (rep ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) := do
   let slot ← lowerOwn Limits.spec cx resource rep
@@ -2305,47 +2337,28 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (canonical : peer.ctl = canon.control (sharedRecordEmit (destination.context inst) (sig.payload tag) payload.val.value fields ptr rightTicket))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The compiled visitor reached a nonlocal field under the source sibling joins. -/
-  | sharedDropRecordVisit {changes reached peer trailing finish body mode cursor index leftTicket rightTicket width join}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx : LiftLowerContext (core3 grow)} {fields : List Stored.Endpoints.RecordLower.Field}
-      (parents : DestructorParentChain changes body check.rest canon.rest)
-      (thread : check.thread = canon.thread)
-      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (emitted : ∀ field ∈ fields, Stored.Endpoints.RecordLower.Field.Emitted field)
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (sharedRecordMemory mode cx width fields cursor index (SharedRecordJoin.reply cx width leftTicket join)))
-      (canonical : peer.ctl = canon.control (sharedRecordMemory mode cx width fields cursor index (SharedRecordJoin.reply cx width rightTicket join)))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The actual collection allocation entered the canonical realloc body.
-  Its original return segments retain the source range check and field joins. -/
-  | sharedDropRecordAllocatorBody {changes left right reached peer trailing finish body width element index dest}
+  /-- The compiler's actual allocation instruction entered the canonical
+  realloc body and parked its source-specific return segments. -/
+  | sharedDropRecordAllocatorBody {changes left right reached peer trailing finish body}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx : LiftLowerContext (core3 grow)}
-      {entries : List Stored.Endpoints.RecordLower.Field}
+      {site : SharedRecordAllocation}
       {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
       (parents : DestructorParentChain changes body check.rest canon.rest)
       (thread : check.thread = canon.thread)
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (emitted : ∀ field ∈ entries, Stored.Endpoints.RecordLower.Field.Emitted field)
+      (compiled : site.compiled cx)
       (allocator : ∃ f, cx.opts.realloc = some f)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : left.ctl = check.control
-        (.op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
-          (sharedRecordAllocationResume cx width element entries index dest leftNext)))
-      (canonical : right.ctl = canon.control
-        (.op (.call (.reallocate cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
-          (sharedRecordAllocationResume cx width element entries index dest rightNext)))
+      (checked : left.ctl = check.control (.op (.call (site.call cx)) (site.resume cx leftNext)))
+      (canonical : right.ctl = canon.control (.op (.call (site.call cx)) (site.resume cx rightNext)))
       (installed : Step profile ready (specDispatch ready base) left .tau reached)
       (peerInstalled : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer)
       (checkedBody : reached.ctl = (PayloadPrefix.Cursor.mk check.thread
-          (.prog (sharedRecordAllocationResume cx width element entries index dest leftNext) :: check.frames) check.rest).control
-        (reallocProg Limits.spec Quirks.none cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+          (.prog (site.resume cx leftNext) :: check.frames) check.rest).control (specDispatch ready base (site.call cx)))
       (canonicalBody : peer.ctl = (PayloadPrefix.Cursor.mk canon.thread
-          (.prog (sharedRecordAllocationResume cx width element entries index dest rightNext) :: canon.frames) canon.rest).control
-        (reallocProg Limits.spec Quirks.none cx 0 0 (ABI.layout width element).alignment.bytes (entries.length * (ABI.layout width element).size)))
+          (.prog (site.resume cx rightNext) :: canon.frames) canon.rest).control
+        (specDispatch ready (LiveDispatch.host bindings base) (site.call cx)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
