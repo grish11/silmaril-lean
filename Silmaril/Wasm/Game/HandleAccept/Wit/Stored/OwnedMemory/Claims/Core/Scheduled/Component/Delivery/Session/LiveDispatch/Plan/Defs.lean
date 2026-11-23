@@ -871,6 +871,12 @@ inductive GiveBodyStop (profile : ProfileKind) (ready : HostReady (HostState sig
       (tail : Steps profile ready (specDispatch ready base) next suffix finish)
   | allocatorInstall {count : Nat} (short : trailing.length < count)
   | replyPrefix (refusal : Option Stored.Endpoints.RecordLower.Issue) (short : trailing.length < 3)
+  /-- Actual checked refusal steps through the journal write, with the caller still parked. -/
+  | coreRefusalPrefix (issue : Stored.Endpoints.RecordLower.Issue) (short : trailing.length < 3)
+      (quiet : PayloadPrefix.visible trailing = []) (store : finish.store = left.store)
+      (writers : WriterPath profile ready (specDispatch ready base) left trailing finish [])
+      (paths : ∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready base)
+        left place trailing finish place)
   | callerNotTop (refusal : Option Stored.Endpoints.RecordLower.Issue) (missing : caller ≠ some (.active 0 0))
 
 /-- The part of a give actually compared, rebased through its own entry.
@@ -6101,9 +6107,9 @@ def MemoryVisitRefusedReply (profile : ProfileKind) (ready : HostReady (HostStat
     {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (incoming left right : Config (core3 grow) (HostState sig)) (issue : Stored.Endpoints.RecordLower.Issue)
     (checkLeading canonLeading actual trailing : Trace grow sig) (finish : Config (core3 grow) (HostState sig)) : Prop :=
-  trailing.length < 3 ∨
+  (trailing.length < 3 ∨
     CheckedOnlyGiveReply profile ready base bindings (.memory pointer) site.destination site.start.host.nextTicket issue
-      site.start incoming left right checkLeading canonLeading trailing finish ∧
+      site.start incoming left right checkLeading canonLeading trailing finish) ∧
     ∀ {label next}, GiveInstall bindings (specDispatch ready base) site.start label next →
       CallbackSlice profile ready base bindings older site.start incoming actual finish
 

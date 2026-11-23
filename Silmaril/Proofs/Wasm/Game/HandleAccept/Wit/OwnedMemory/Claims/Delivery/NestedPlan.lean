@@ -8483,6 +8483,35 @@ private theorem parkedAdmissionInterior {route : GiveEffectRoute} (site : Payloa
           (by rw [visibleAppend, entry.quiet]; rfl) (parkedPrepareWriter site entry frame related.data.1) tail
 
 open ReturnFrame.Occurrence in
+private theorem checkedCoreRefusalPrefix (issue : Stored.Endpoints.RecordLower.Issue) (reply : Event × List FlatValue)
+    {thread core resume segments rest} {caller : Option Location}
+    (focus : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)), .core core resume :: segments⟩ :: rest)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (short : labels.length < 3) :
+    GiveBodyStop profile ready base start incoming labels finish caller := by
+  let cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .core core resume :: segments, rest⟩
+  let recorded := start.host.record reply.1
+  let read := { start with ctl := cursor.control (hostSet recorded >>= fun _ => pure (.flat reply.2)) }
+  let written := { start with
+    host := recorded
+    ctl := cursor.control (.pure (.flat reply.2)) }
+  have get : Step profile ready (specDispatch ready base) start .tau read := .hostGet focus
+  have set : Step profile ready (specDispatch ready base) read .tau written :=
+    .hostSet (m := read) (s := recorded) (k := fun _ => .pure (.flat reply.2)) rfl
+  have getEdit : transitionEdit start .tau = .same := by rw [transitionEdit, focus]; rfl
+  rcases inspectReplyStep run with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, first, tail⟩
+  · exact .coreRefusalPrefix issue short rfl rfl (.done _) (fun place => .done _ place)
+  · obtain ⟨rfl, rfl⟩ := silentStepUnique get first
+    rcases inspectReplyStep tail with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, second, rest⟩
+    · exact .coreRefusalPrefix issue short rfl rfl (.same get rfl (.done _))
+        (fun place => .step get (by rw [getEdit]; rfl) (.done _ place))
+    · obtain ⟨rfl, rfl⟩ := silentStepUnique set second
+      rcases inspectReplyStep rest with ⟨rfl, rfl⟩ | ⟨_, _, _, rfl, _, _⟩
+      · exact .coreRefusalPrefix issue short rfl rfl (.same get rfl (.same set rfl (.done _)))
+          (fun place => .step get (by rw [getEdit]; rfl) (.step set rfl (.done _ place)))
+      · simp only [List.length_cons] at short
+        omega
+
+open ReturnFrame.Occurrence in
 private def LinkedMemoryResidualBody (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
     (older : ReturnFrame.Substitutions (core3 grow) (HostState sig)) {pointer : FlatValue}
@@ -8578,10 +8607,13 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
         | some prior =>
           rw [reached] at checkedLead canonicalLead
           exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
-      refine .inr ⟨refused, fun install => ?_⟩
+      refine ⟨.inr refused, fun install => ?_⟩
       rw [split, ← List.append_assoc]
       exact callbackTerminalSlice paired (.refused install observed.symm rebased (.append entryWriters writers) refused)
-    · exact .inl short
+    · refine ⟨.inl short, fun install => ?_⟩
+      rw [split, ← List.append_assoc]
+      exact callbackTerminalSlice paired (.body install
+        ⟨observed, store, rebased, residual, .append entryWriters writers⟩ (checkedCoreRefusalPrefix issue reply atReply residual short))
   refine ⟨checked, canonical, trailing, left, right, marks, move, split, seen, store, paths, outside, residual, endpoint,
     fun active => ⟨fun empty ⟨check, canon, returned, checkAt, canonAt⟩ => common active empty check canon returned checkAt canonAt,
       refusedReply active⟩, fun install => ?_⟩
@@ -8603,9 +8635,7 @@ private theorem linkedMemoryResidualBody {pointer : FlatValue} (site : PayloadRo
     · exact stop (.callerNotTop none active)
   | refused issue check checkAt _ =>
     by_cases active : callerMark = some (.active 0 0)
-    · rcases refusedReply active issue check checkAt with short | ⟨_, compared⟩
-      · exact stop (.replyPrefix (some issue) short)
-      · exact compared install
+    · exact (refusedReply active issue check checkAt).2 install
     · exact stop (.callerNotTop (some issue) active)
   | boundary ending =>
     cases ending with
@@ -8706,29 +8736,27 @@ private theorem rootRefusedCallback {route : GiveEffectRoute} (site : PayloadRoo
   have completed := Plain.give_completion_steps (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
     (start := stopped) reply rfl
   have frontRun := (checked (.active 0 0)).toTrail.steps
-  have silent : PayloadPrefix.visible (checkLeading ++ ([.tau, .tau, .tau] : Trace grow sig)) = [] := by
-    rw [visibleAppend, quiet]
-    rfl
-  cases alignLocalBody (append frontRun completed) run (noBranchOfVisible silent (by simp)) with
+  cases alignLocalBody frontRun run (noBranchOfVisible quiet (by simp)) with
   | inside _ nonempty tail => exact parkedAdmissionInterior site linked install prepare run nonempty tail paired selected
-  | @reached suffix split tail =>
+  | reached split residual =>
     obtain ⟨_, entered, canonQuiet, canonical, related, _, storage, canonFramed⟩ := LiveDispatch.entry_paired_framed_storage
       (profile := profile) (ready := ready) (base := base) site linked paired selected
-    have paths := CallbackRange.publicEntryTransportAt site checked canonical (by
-      simp only [segmentStorage, PayloadRoot.Site.withBody, PayloadRoot.Site.cursor, Cursor.control,
-        linked.parked, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]) storage
-    rw [split, List.append_assoc]
-    refine callbackTerminalSlice paired (.refused (route := route) (destination := site.destination)
-      (ticket := site.start.host.nextTicket) (issue := issue) (left := stopped) (right := entered)
-      install ((silentVisible canonQuiet).trans quiet.symm) paths
-      (parkedAdmissionWriters site prepare framed canonFramed related.data.1) ?_)
-    refine ⟨suffix, _, rfl, frontRun, completed, tail, rfl, rfl, Plain.give_completion_framed reply rfl,
-      ⟨_, Plain.give_completion_write (start := stopped) reply rfl⟩, fun place => ?_⟩
-    cases place with
-    | none => exact ⟨none, none, .absent (append frontRun completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
-    | some place =>
-      exact ⟨_, _, (checked place).toTrail.append (Plain.give_completion_trail (start := stopped) reply (site.entryPlace place) rfl),
-        (canonical place).toTrail⟩
+    have body := parkedEntryCut site linked checked canonical storage (quiet.trans (silentVisible canonQuiet).symm)
+      related.data.1 (parkedAdmissionWriters site prepare framed canonFramed related.data.1) residual
+    rw [split]
+    rcases splitSilent (count := 3) completed residual with ⟨suffix, divided, tail⟩ | short
+    · refine callbackTerminalSlice paired (.refused (route := route) (destination := site.destination)
+        (ticket := site.start.host.nextTicket) (issue := issue) (left := stopped) (right := entered)
+        install body.observed.symm body.paths body.writers ?_)
+      refine ⟨suffix, _, divided, frontRun, completed, tail, rfl, rfl, Plain.give_completion_framed reply rfl,
+        ⟨_, Plain.give_completion_write (start := stopped) reply rfl⟩, fun place => ?_⟩
+      cases place with
+      | none => exact ⟨none, none, .absent (append frontRun completed), .absent (canonical (.active 0 0)).toTrail.steps⟩
+      | some place =>
+        exact ⟨_, _, (checked place).toTrail.append (Plain.give_completion_trail (start := stopped) reply (site.entryPlace place) rfl),
+          (canonical place).toTrail⟩
+    · exact callbackTerminalSlice paired (.body (marks := []) install body
+        (checkedCoreRefusalPrefix issue reply rfl residual short))
 
 theorem actualSelectedMemoryCallback {pointer : FlatValue} {request : CoreGiveRequest bindings start}
     (selection : request.Selected (.memory pointer)) {label next}
@@ -8877,7 +8905,7 @@ private theorem driveFlatGiveBody {schema : Stored.TypeOf} (site : PayloadRoot.S
               exact ⟨_, some prior, checkedLead.append (Plain.give_completion_trail reply prior atReply), canonicalLead⟩
           rw [total]
           exact callbackTerminalSlice paired (.refused install observed.symm rebased (.append entryWriters writers) stopped)
-        · exact stop (.replyPrefix (some issue) short)
+        · exact stop (checkedCoreRefusalPrefix issue reply atReply residual short)
     · cases arrived with
       | returned => exact stop (.callerNotTop none active)
       | refused issue _ => exact stop (.callerNotTop (some issue) active)

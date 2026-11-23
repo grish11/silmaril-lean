@@ -136,7 +136,14 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | placementTrap _ _ _ _ _ _ _ _ _ reached =>
     obtain ⟨_, _, _, split, body⟩ := reached
     exact split.symm ▸ terminal body.paths body.writers body.residual
-  | body _ body _ => exact terminal body.paths body.writers body.residual
+  | body _ body ending =>
+    cases ending with
+    | coreRefusalPrefix _ _ _ _ writers paths =>
+      apply follow body.paths body.writers
+      simpa only [List.append_nil] using terminal
+        (CallbackPrefix.stationaryTransport paths (fun place => .done _ place))
+        (.framed writers (.done _)) (.refl _)
+    | _ => exact terminal body.paths body.writers body.residual
   | directGiveLateReply _ _ body _ reply => exact follow body.paths body.writers (directReply reply)
   | directGiveFinite body => simpa only [List.append_nil] using terminal body.paths body.writers body.residual
   | allocator _ body _ _ _ _ ih => exact follow body.paths body.writers ih
