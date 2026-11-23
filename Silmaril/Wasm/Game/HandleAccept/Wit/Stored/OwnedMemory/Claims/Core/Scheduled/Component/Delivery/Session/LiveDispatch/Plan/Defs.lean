@@ -239,6 +239,133 @@ structure ExecutedPrepareRead (profile : ProfileKind) (ready : HostReady (HostSt
   writer : reader.host.writer = start.host.writer
   store : reader.store = right.store
 
+/-- The four scheduled operations dispatched identically by both hosts.
+The link fixes the resource or endpoint type before any guest argument is read. -/
+inductive SharedGiveAction where
+  | record (destination : RecordDestination)
+  | giveOwner (resource : RtId)
+  | dropOwner (resource : RtId)
+  | endpoint (channel : Channel) (element : Element)
+
+def SharedGiveAction.bindingAction (action : SharedGiveAction) : Action sig :=
+  match action with
+  | .record destination => .giveRecord destination
+  | .giveOwner resource => .giveOwner resource
+  | .dropOwner resource => .dropOwner resource
+  | .endpoint channel element => .giveEndpoint channel element
+
+def SharedGiveAction.selected (action : SharedGiveAction) (inst : InstId)
+    (tree : Stored.OwnedMemory.Tree sig) (position : Nat) : Session grow sig (Except Scheduled.Issue Nat) := do
+  let cx : LiftLowerContext (core3 grow) := { opts := {}, inst }
+  match action with
+  | .record dest =>
+    return (← Stored.OwnedMemory.Claims.Record.lowerRoot recordClaims Limits.spec Quirks.none
+      (dest.context inst) tree (.memory position)).mapError .lowerRecord |>.map (fun _ => 0)
+  | .giveOwner resource =>
+    let some receipt := (rootReceipts tree)[position]? | return .error .badSelection
+    return (← claims.give Limits.spec cx resource (receiptId receipt)).mapError .claim
+  | .dropOwner resource =>
+    let some receipt := (rootReceipts tree)[position]? | return .error .badSelection
+    let result ← claims.drop (destructorCall Limits.spec Quirks.none) resource (receiptId receipt)
+    return result.mapError .claim |>.map (fun _ => 0)
+  | .endpoint channel element =>
+    let some id := (rootEndpoints tree)[position]? | return .error .badSelection
+    return (← claims.giveEndpoint Limits.spec cx channel element ⟨id⟩).mapError .claim
+
+/-- Select the reached tree and position, using a memory destination only for record give. -/
+def SharedGiveAction.selection (action : SharedGiveAction) (args : List FlatValue) :
+    Session grow sig (Except Scheduled.Issue (Stored.OwnedMemory.Tree sig × Nat)) := do
+  match action with
+  | .record dest => selectMemoryDestination dest args
+  | _ =>
+    let [.int .i32 handle, .int .i32 position] := args | return .error .wrongType
+    let some tree ← select handle | return .error .badSelection
+    return .ok (tree, position.toNat)
+
+def SharedGiveAction.run (action : SharedGiveAction) (inst : InstId) (args : List FlatValue) :
+    Session grow sig (Except Scheduled.Issue Nat) := do
+  match ← action.selection args with
+  | .error issue => return .error issue
+  | .ok (tree, position) => action.selected inst tree position
+
+def SharedGiveAction.afterLookup (action : SharedGiveAction) (inst : InstId) (ticket position : Nat)
+    (found : Option (Stored.OwnedMemory.Tree sig)) : Session grow sig (Ret (core3 grow)) := do
+  let some tree := found | return .flat (← Scheduled.finish ticket (.error .badSelection))
+  return .flat (← Scheduled.finish ticket (← action.selected inst tree position))
+
+/-- The linked action and selected root position determine which nominal
+claim the scheduled body reads. The live writer supplies the owner representation. -/
+inductive SharedGiveClaim where
+  | giveOwner (resource : RtId) (identity : HandleObjId)
+  | dropOwner (resource : RtId) (identity : HandleObjId)
+  | endpoint (channel : Channel) (element : Element) (identity : EndId)
+
+open Stored.OwnedMemory.Claims in
+def SharedGiveClaim.demand : SharedGiveClaim → Spend
+  | .giveOwner _ id | .dropOwner _ id => .owner id
+  | .endpoint _ _ id => .endpoint id
+
+def SharedGiveClaim.Permit : SharedGiveClaim → Type
+  | .giveOwner .. | .dropOwner .. => Nat
+  | .endpoint .. => Unit
+
+open Stored.OwnedMemory.Claims in
+def SharedGiveClaim.observe (claim : SharedGiveClaim) (writer : Stored.OwnedMemory.Claims.State sig) : Except Claims.Issue claim.Permit :=
+  match claim with
+  | .giveOwner resource id | .dropOwner resource id => (writer.prepare resource id).map Prod.fst
+  | .endpoint _ _ id => (writer.spendEndpoint id).map (fun _ => ())
+
+def SharedGiveAction.claimAt (action : SharedGiveAction) (tree : Stored.OwnedMemory.Tree sig) (position : Nat) :
+    Option SharedGiveClaim :=
+  match action with
+  | .record _ => none
+  | .giveOwner resource => ((rootReceipts tree)[position]?).map fun receipt => .giveOwner resource (receiptId receipt)
+  | .dropOwner resource => ((rootReceipts tree)[position]?).map fun receipt => .dropOwner resource (receiptId receipt)
+  | .endpoint channel element => ((rootEndpoints tree)[position]?).map fun id => .endpoint channel element id
+
+open Stored.OwnedMemory.Claims in
+def SharedGiveClaim.admitted (claim : SharedGiveClaim) (inst : InstId) (permit : claim.Permit) :
+    Session grow sig (Except Scheduled.Issue Nat) :=
+  let cx : LiftLowerContext (core3 grow) := { opts := {}, inst }
+  match claim with
+  | .giveOwner resource id => do
+    return .ok (← commitOwner (claims.spend (.owner id)) Limits.spec cx resource permit)
+  | .dropOwner resource id => do
+    let caller ← Builtins.resourceEnter
+    let some request ← dropHandleTail resource { rt := resource, rep := permit, own := true }
+      | internal "an owning resource drop must request its destructor"
+    claims.spend (.owner id)
+    destructorCall Limits.spec Quirks.none caller request
+    return .ok 0
+  | .endpoint channel element id => do
+    match Async.Transfer.readyToGive (← getStore) channel element ⟨id⟩ with
+    | .error issue => return .error (.claim (.endpointTransfer issue))
+    | .ok () =>
+      claims.spend (.endpoint id)
+      return .ok (← lowerAsyncValue Limits.spec (channel.endKind .read) cx id)
+
+def SharedGiveClaim.afterRead (claim : SharedGiveClaim) (inst : InstId) (ticket : Nat)
+    (observed : Except Claims.Issue claim.Permit) : Session grow sig (Ret (core3 grow)) := do
+  let result ← match observed with
+    | .error issue => pure (.error (.claim issue))
+    | .ok permit => claim.admitted inst permit
+  return .flat (← Scheduled.finish ticket result)
+
+def SharedGiveClaim.probe (claim : SharedGiveClaim) (inst : InstId) (ticket : Nat) :
+    Session grow sig (Ret (core3 grow)) :=
+  .op .hostGet (fun current => claim.afterRead inst ticket (claim.observe current.writer))
+
+/-- Both scheduled guards execute hostGet. The permit on each side is
+computed from that side's reached live writer. -/
+structure SharedGiveProbeMismatch (claim : SharedGiveClaim) (inst : InstId) (leftTicket rightTicket : Nat)
+    (beforeLeft beforeRight left right : Config (core3 grow) (HostState sig))
+    (check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop where
+  leftFocus : beforeLeft.ctl = check.control (claim.probe inst leftTicket)
+  rightFocus : beforeRight.ctl = canon.control (claim.probe inst rightTicket)
+  leftProgram : left.ctl = check.control (claim.afterRead inst leftTicket (claim.observe left.host.writer))
+  rightProgram : right.ctl = canon.control (claim.afterRead inst rightTicket (claim.observe right.host.writer))
+  different : claim.observe left.host.writer ≠ claim.observe right.host.writer
+
 /-- Ordered evidence on the actual pair of visited program segments. Only
 the guarded case attributes a change to a compiled nominal assignment. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -256,6 +383,11 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       VisitorWriterPath profile ready base bindings start incoming (leading ++ [.tau]) canonical left right
   | registrationMismatch {start incoming left right check canon leftTicket rightTicket caller tree}
       (site : RegistrationProbeMismatch start incoming left right check canon leftTicket rightTicket caller tree)
+      (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
+  | sharedGiveMismatch {start incoming left right check canon leftTicket rightTicket inst claim}
+      (site : SharedGiveProbeMismatch claim inst leftTicket rightTicket start incoming left right check canon)
       (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
       VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
@@ -355,6 +487,23 @@ inductive WriterDiscrepancyCut (profile : ProfileKind) (ready : HostReady (HostS
       (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
       WriterDiscrepancyCut profile ready base bindings start incoming pending
         (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
+  | sharedGiveConflict {checked canonical left right atLeft atRight readLeft readRight tailChecked tailCanonical
+      check canon leftTicket rightTicket inst claim}
+      (spends : List Spend)
+      (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+      (certified : ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical atLeft atRight spends)
+      (site : SharedGiveProbeMismatch claim inst leftTicket rightTicket atLeft atRight readLeft readRight check canon)
+      (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] readLeft [])
+      (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] readRight [])
+      (checkedRead : ReachedReadOccurrences profile ready (specDispatch ready base) start atLeft readLeft checked)
+      (rawRead : ReachedReadOccurrences profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        incoming atRight readRight canonical)
+      (related : readLeft.host.writer.ClaimDiscrepancies readRight.host.writer (fun demand => pending demand ∨ demand ∈ spends))
+      (exceptional : pending claim.demand ∨ claim.demand ∈ spends)
+      (different : ¬ claim.demand.ObservationAgrees readLeft.host.writer readRight.host.writer)
+      (tail : VisitorWriterPath profile ready base bindings readLeft readRight tailChecked tailCanonical left right) :
+      WriterDiscrepancyCut profile ready base bindings start incoming pending
+        (checked ++ [.tau] ++ tailChecked) (canonical ++ [.tau] ++ tailCanonical) left right
   | boundary {checked canonical left right atLeft atRight siteChecked siteCanonical siteLeft siteRight tailChecked tailCanonical}
       (spends : List Stored.OwnedMemory.Claims.Spend)
       (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
@@ -450,60 +599,6 @@ inductive LegacyAcceptCallAt (before : Config (core3 grow) (HostState sig))
       (calling : (core3 grow).status before.store.core core = .callout (.embedder name kind) args)
   | program {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op (.call (.hostCallout (.embedder name kind) args)) resume), frames⟩ :: rest)
-
-/-- The four scheduled operations dispatched identically by both hosts.
-The link fixes the resource or endpoint type before any guest argument is read. -/
-inductive SharedGiveAction where
-  | record (destination : RecordDestination)
-  | giveOwner (resource : RtId)
-  | dropOwner (resource : RtId)
-  | endpoint (channel : Channel) (element : Element)
-
-def SharedGiveAction.bindingAction (action : SharedGiveAction) : Action sig :=
-  match action with
-  | .record destination => .giveRecord destination
-  | .giveOwner resource => .giveOwner resource
-  | .dropOwner resource => .dropOwner resource
-  | .endpoint channel element => .giveEndpoint channel element
-
-def SharedGiveAction.selected (action : SharedGiveAction) (inst : InstId)
-    (tree : Stored.OwnedMemory.Tree sig) (position : Nat) : Session grow sig (Except Scheduled.Issue Nat) := do
-  let cx : LiftLowerContext (core3 grow) := { opts := {}, inst }
-  match action with
-  | .record dest =>
-    return (← Stored.OwnedMemory.Claims.Record.lowerRoot recordClaims Limits.spec Quirks.none
-      (dest.context inst) tree (.memory position)).mapError .lowerRecord |>.map (fun _ => 0)
-  | .giveOwner resource =>
-    let some receipt := (rootReceipts tree)[position]? | return .error .badSelection
-    return (← claims.give Limits.spec cx resource (receiptId receipt)).mapError .claim
-  | .dropOwner resource =>
-    let some receipt := (rootReceipts tree)[position]? | return .error .badSelection
-    let result ← claims.drop (destructorCall Limits.spec Quirks.none) resource (receiptId receipt)
-    return result.mapError .claim |>.map (fun _ => 0)
-  | .endpoint channel element =>
-    let some id := (rootEndpoints tree)[position]? | return .error .badSelection
-    return (← claims.giveEndpoint Limits.spec cx channel element ⟨id⟩).mapError .claim
-
-/-- Select the reached tree and position, using a memory destination only for record give. -/
-def SharedGiveAction.selection (action : SharedGiveAction) (args : List FlatValue) :
-    Session grow sig (Except Scheduled.Issue (Stored.OwnedMemory.Tree sig × Nat)) := do
-  match action with
-  | .record dest => selectMemoryDestination dest args
-  | _ =>
-    let [.int .i32 handle, .int .i32 position] := args | return .error .wrongType
-    let some tree ← select handle | return .error .badSelection
-    return .ok (tree, position.toNat)
-
-def SharedGiveAction.run (action : SharedGiveAction) (inst : InstId) (args : List FlatValue) :
-    Session grow sig (Except Scheduled.Issue Nat) := do
-  match ← action.selection args with
-  | .error issue => return .error issue
-  | .ok (tree, position) => action.selected inst tree position
-
-def SharedGiveAction.afterLookup (action : SharedGiveAction) (inst : InstId) (ticket position : Nat)
-    (found : Option (Stored.OwnedMemory.Tree sig)) : Session grow sig (Ret (core3 grow)) := do
-  let some tree := found | return .flat (← Scheduled.finish ticket (.error .badSelection))
-  return .flat (← Scheduled.finish ticket (← action.selected inst tree position))
 
 /-- A shared selector executed the accepted-history lookup on both sides and
 selected different roots at the demanded index. -/
@@ -1337,6 +1432,29 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
       (checked : left.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
       (canonical : right.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedGiveProbeTerminal {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {name kind inst leftTicket rightTicket position claim} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+      (source : action.claimAt tree position = some claim)
+      (permit : claim.Permit)
+      (checked : left.ctl = check.control (claim.afterRead inst leftTicket (.ok permit)))
+      (canonical : right.ctl = canon.control (claim.afterRead inst rightTicket (.ok permit)))
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
+      (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
+  | sharedGiveProbeMismatch {changes reached peer left right leading trailing finish marks}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      {name kind inst leftTicket rightTicket position claim beforeLeft beforeRight}
+      {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
+      (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+      (source : action.claimAt tree position = some claim)
+      (site : SharedGiveProbeMismatch claim inst leftTicket rightTicket beforeLeft beforeRight left right check canon)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :

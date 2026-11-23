@@ -118,6 +118,8 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     obtain ⟨checked, canonical⟩ := paths.choose_spec.1 none
     exact terminal paths (.framed (oneFrame checked.steps same.1) (oneFrame canonical.steps same.2)) (.refl _)
   | coreAcceptTerminal paths writers residual _ => exact terminal paths writers residual
+  | sharedGiveProbeTerminal _ _ _ _ _ paths writers residual => exact terminal paths writers residual
+  | sharedGiveProbeMismatch _ _ _ paths writers residual => exact terminal paths writers residual
   | sharedGiveSelected _ _ _ paths writers residual => exact terminal paths writers residual
   | sharedGiveSelectionMismatch _ _ _ paths writers residual => exact terminal paths writers residual
   | componentEntryPrefix _ _ _ paths writers => simpa only [List.append_nil] using terminal paths writers (.refl _)

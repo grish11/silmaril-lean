@@ -195,6 +195,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | framed lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | sharedGiveMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | guarded paths =>
     obtain ⟨_, changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
@@ -288,6 +289,39 @@ private theorem registrationReadOccurrences {atLeft atRight : Config (core3 grow
     obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps canonical) place
     exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) (by rw [transitionEdit, site.rightFocus]; cases caller <;> rfl) reached⟩
 
+open Stored.OwnedMemory.Claims in
+private theorem sharedGiveObservation (claim : SharedGiveClaim) {lhs rhs : State sig}
+    (agrees : claim.demand.ObservationAgrees lhs rhs) :
+    claim.observe lhs = claim.observe rhs := by
+  cases claim with
+  | giveOwner resource id | dropOwner resource id =>
+    exact State.prepare_observation_eq resource id agrees
+  | endpoint _ _ id =>
+    change (id ∈ lhs.endpoints ↔ id ∈ rhs.endpoints) at agrees
+    simp only [SharedGiveClaim.observe, State.spendEndpoint]
+    by_cases live : id ∈ lhs.endpoints
+    · simp only [live, agrees.mp live, ite_true, Except.map]
+    · have absent : id ∉ rhs.endpoints := fun found => live (agrees.mpr found)
+      simp only [live, absent, ite_false]
+
+open ReturnFrame.Occurrence in
+private theorem sharedGiveReadOccurrences {atLeft atRight : Config (core3 grow) (HostState sig)}
+    {check canon leftTicket rightTicket inst claim}
+    (front : VisitorWriterPath profile ready base bindings start incoming checked canonical atLeft atRight)
+    (site : SharedGiveProbeMismatch claim inst leftTicket rightTicket atLeft atRight left right check canon)
+    (lhs : WriterPath profile ready (specDispatch ready base) atLeft [.tau] left [])
+    (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) atRight [.tau] right []) :
+    ReachedReadOccurrences profile ready (specDispatch ready base) start atLeft left checked ∧
+    ReachedReadOccurrences profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming atRight right canonical := by
+  obtain ⟨_, _, checked, canonical⟩ := ofVisitor front
+  constructor
+  · intro place
+    obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps checked) place
+    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep lhs) (by rw [transitionEdit, site.leftFocus]; rfl) reached⟩
+  · intro place
+    obtain ⟨reached, leading⟩ := Trail.follow_steps (writerSteps canonical) place
+    exact ⟨reached, leading, stationaryReadTrail (singleWriterStep rhs) (by rw [transitionEdit, site.rightFocus]; rfl) reached⟩
+
 open Stored.OwnedMemory.Claims Stored.OwnedMemory.Claims.Record in
 theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
     {pending : Stored.OwnedMemory.Claims.Spend → Prop}
@@ -320,6 +354,15 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.registrationConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
         checkedRead rawRead (by simpa only [live] using related) (by simpa only [live] using conflict) empty)
+  | @sharedGiveMismatch start incoming readLeft readRight check canon leftTicket rightTicket inst claim site lhs rhs =>
+    have related := framedDiscrepancies lhs rhs initial
+    have conflict : ¬ claim.demand.ObservationAgrees readLeft.host.writer readRight.host.writer :=
+      fun observes => site.different (sharedGiveObservation claim observes)
+    have exceptional : pending claim.demand := Classical.byContradiction fun outside => conflict (related.observe _ outside)
+    obtain ⟨checkedRead, rawRead⟩ := sharedGiveReadOccurrences (empty (start := start) (incoming := incoming)) site lhs rhs
+    simpa only [List.nil_append, List.append_nil] using
+      (WriterDiscrepancyCut.sharedGiveConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
+        checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using related) (.inl exceptional) conflict empty)
   | guarded paths =>
     obtain ⟨source, changes, checked, canonical, empty | ⟨change, update, single, selected, nominal⟩⟩ := paths
     · subst changes
@@ -359,6 +402,12 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
           (certified.append nextCertified)
           site lhs rhs checkedRead rawRead (by simpa only [List.mem_append, or_assoc] using related)
           (by simpa only [RegistrationConflict, List.mem_append, or_assoc] using conflict) trailing)
+      | sharedGiveConflict more leading nextCertified site lhs rhs _ _ related live different trailing =>
+        obtain ⟨checkedRead, rawRead⟩ := sharedGiveReadOccurrences (front.append leading) site lhs rhs
+        simpa only [List.append_assoc] using (WriterDiscrepancyCut.sharedGiveConflict (spends ++ more) (front.append leading)
+          (certified.append nextCertified)
+          site lhs rhs checkedRead rawRead (by simpa only [List.mem_append, or_assoc] using related)
+          (by simpa only [List.mem_append, or_assoc] using live) different trailing)
     | boundary spends leading certified related site actual trailing =>
       simpa only [List.append_assoc] using
         (WriterDiscrepancyCut.boundary spends leading certified related site actual (trailing.append tail))
@@ -369,6 +418,10 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     | registrationConflict spends leading certified site lhs rhs checkedRead rawRead related conflict trailing =>
       simpa only [List.append_assoc] using
         (WriterDiscrepancyCut.registrationConflict spends leading certified site lhs rhs checkedRead rawRead related conflict
+          (trailing.append tail))
+    | sharedGiveConflict spends leading certified site lhs rhs checkedRead rawRead related live different trailing =>
+      simpa only [List.append_assoc] using
+        (WriterDiscrepancyCut.sharedGiveConflict spends leading certified site lhs rhs checkedRead rawRead related live different
           (trailing.append tail))
 
 theorem registration {change : WriterChange sig} {tree : Stored.OwnedMemory.Tree sig}

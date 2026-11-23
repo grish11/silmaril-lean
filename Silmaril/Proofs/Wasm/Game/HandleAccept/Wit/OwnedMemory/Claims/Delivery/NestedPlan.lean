@@ -2769,6 +2769,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedGiveProbeTerminal _ _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelected _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
@@ -2809,6 +2811,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedGiveProbeTerminal _ _ _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | sharedGiveProbeMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelected _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedGiveSelectionMismatch _ _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
@@ -12868,6 +12872,169 @@ private theorem sharedPositionRefusal (action : SharedGiveAction) (inst : InstId
     simp only [missingSharedPosition] at missing
     simp only [SharedGiveAction.afterLookup, SharedGiveAction.selected, missing, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
 
+open Stored.OwnedMemory.Claims in
+private theorem sharedClaimProgram (action : SharedGiveAction) (inst : InstId) (ticket position : Nat)
+    (tree : Stored.OwnedMemory.Tree sig) {claim : SharedGiveClaim} (selected : action.claimAt tree position = some claim) :
+    (action.afterLookup inst ticket position (some tree) : Session grow sig (Ret (core3 grow))) =
+      claim.probe inst ticket := by
+  have read : (claims (grow := grow) (sig := sig)).read = .op .hostGet (fun state => .pure state.writer) := rfl
+  cases action with
+  | record _ => cases selected
+  | giveOwner resource =>
+    cases atPosition : (rootReceipts tree)[position]? with
+    | none => simp [SharedGiveAction.claimAt, atPosition] at selected
+    | some receipt =>
+      have source : SharedGiveClaim.giveOwner resource (receiptId receipt) = claim := by
+        simpa [SharedGiveAction.claimAt, atPosition] using selected
+      subst claim
+      simp only [SharedGiveAction.afterLookup, SharedGiveAction.selected, atPosition, SharedGiveClaim.probe,
+        Access.give, read, Prog.bind_eq, Prog.bind_assoc]
+      simp only [Prog.bind]
+      congr 1
+      funext current
+      simp only [SharedGiveClaim.observe]
+      cases current.writer.prepare resource (receiptId receipt) with
+      | error => rfl
+      | ok value =>
+        cases value
+        simp [Except.map, SharedGiveClaim.afterRead, SharedGiveClaim.admitted, Prog.bind_assoc, Except.mapError]
+  | dropOwner resource =>
+    cases atPosition : (rootReceipts tree)[position]? with
+    | none => simp [SharedGiveAction.claimAt, atPosition] at selected
+    | some receipt =>
+      have source : SharedGiveClaim.dropOwner resource (receiptId receipt) = claim := by
+        simpa [SharedGiveAction.claimAt, atPosition] using selected
+      subst claim
+      simp only [SharedGiveAction.afterLookup, SharedGiveAction.selected, atPosition, SharedGiveClaim.probe,
+        Access.drop, read, Prog.bind_eq, Prog.bind_assoc]
+      simp only [Prog.bind]
+      congr 1
+      funext current
+      simp only [SharedGiveClaim.observe]
+      cases current.writer.prepare resource (receiptId receipt) with
+      | error => rfl
+      | ok value =>
+        cases value
+        simp [Except.map, SharedGiveClaim.afterRead, SharedGiveClaim.admitted, Prog.bind_assoc, Except.mapError]
+        congr 1
+        funext caller
+        congr 1
+        funext request
+        cases request with
+        | none =>
+          simp only [internal, trap, Prog.bind]
+          congr 1
+          funext impossible
+          cases impossible
+        | some request => simp [Prog.bind_assoc]
+  | endpoint channel element =>
+    cases atPosition : (rootEndpoints tree)[position]? with
+    | none => simp [SharedGiveAction.claimAt, atPosition] at selected
+    | some id =>
+      have source : SharedGiveClaim.endpoint channel element id = claim := by
+        simpa [SharedGiveAction.claimAt, atPosition] using selected
+      subst claim
+      simp only [SharedGiveAction.afterLookup, SharedGiveAction.selected, atPosition, SharedGiveClaim.probe,
+        Access.giveEndpoint, read, Prog.bind_eq, Prog.bind_assoc]
+      simp only [Prog.bind]
+      congr 1
+      funext current
+      simp only [SharedGiveClaim.observe]
+      cases current.writer.spendEndpoint id with
+      | error => rfl
+      | ok value =>
+        simp only [SharedGiveClaim.afterRead, SharedGiveClaim.admitted, Except.map, Prog.bind_eq,
+          getStore, perform, Prog.lift]
+        simp only [Prog.bind]
+        congr 1
+        funext store
+        change CStore (core3 grow) at store
+        let next : Session grow sig (Except Scheduled.Issue Nat) := do
+          match Async.Transfer.readyToGive store channel element ⟨id⟩ with
+          | .error issue => return .error (.claim (.endpointTransfer issue))
+          | .ok () =>
+            claims.spend (.endpoint id)
+            return .ok (← lowerAsyncValue Limits.spec (channel.endKind .read) { opts := {}, inst } id)
+        change _ = (do return Ret.flat (← Scheduled.finish ticket (← next)) : Session grow sig (Ret (core3 grow)))
+        dsimp only [next]
+        cases Async.Transfer.readyToGive store channel element ⟨id⟩ with
+        | error => rfl
+        | ok accepted => cases accepted; simp [Prog.bind_assoc, Except.mapError]
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedClaim {left right : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
+    {name kind inst leftTicket rightTicket position} {tree : Stored.OwnedMemory.Tree sig}
+    {action : SharedGiveAction} {claim : SharedGiveClaim}
+    {leading trailing : Trace grow sig}
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (source : action.claimAt tree position = some claim)
+    (split : labels = leading ++ trailing)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control (claim.probe inst leftTicket))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control (claim.probe inst rightTicket))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  classical
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+  cases run with
+  | refl =>
+    exact .inr (callbackTerminalSlice paired (by
+      rw [split, ← List.cons_append]
+      exact .coreAcceptTerminal paths writers (.refl _) (.inl rfl)))
+  | @cons _ _ finish label tail actual residual =>
+    let lhs := claim.observe left.host.writer
+    let rhs := claim.observe right.host.writer
+    let checked := { left with ctl := check.control (claim.afterRead inst leftTicket lhs) }
+    let raw := { right with ctl := canon.control (claim.afterRead inst rightTicket rhs) }
+    have first : Step profile ready (specDispatch ready base) left .tau checked := .hostGet leftFocus
+    have other : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau raw := .hostGet rightFocus
+    obtain ⟨rfl, rfl⟩ := silentStepUnique first actual
+    have moved : OccurrenceTransport profile ready base bindings start incoming
+        (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) checked raw [some (.active 0 0)] := by
+      simpa only [List.cons_append] using retainComparedOccurrences paths (fun place =>
+        ⟨Prefix.step first (by rw [transitionEdit, leftFocus]; cases place <;> rfl) (.done _ _),
+         Prefix.step other (by rw [transitionEdit, rightFocus]; cases place <;> rfl) (.done _ _)⟩)
+    have used : labels = (leading ++ [.tau]) ++ tail := by
+      rw [split]
+      simp only [List.append_assoc, List.singleton_append]
+    have atReads : PairedComponentSite older checked raw check canon := by
+      unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
+      exact site
+    let checkedPath : WriterPath profile ready (specDispatch ready base) left [.tau] checked [] :=
+      .same first rfl (.done _)
+    let rawPath : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) right [.tau] raw [] :=
+      .same other rfl (.done _)
+    by_cases agrees : lhs = rhs
+    · have extended : VisitorWriterPath profile ready base bindings start incoming
+          (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) checked raw := by
+        simpa only [List.cons_append] using writers.append (.framed checkedPath rawPath)
+      cases outcome : lhs with
+      | error issue =>
+        exact finishSharedRefusal (leftTicket := leftTicket) (rightTicket := rightTicket) (.claim issue)
+          used paired moved extended atReads
+          (by show check.control (claim.afterRead inst leftTicket lhs) = _; rw [outcome]; rfl)
+          (by show canon.control (claim.afterRead inst rightTicket rhs) = _; rw [← agrees, outcome]; rfl) residual
+      | ok permit =>
+        exact .inr (callbackTerminalSlice paired (by
+          rw [used, ← List.cons_append]
+          exact .sharedGiveProbeTerminal linked source permit
+            (by show check.control (claim.afterRead inst leftTicket lhs) = _; rw [outcome])
+            (by show canon.control (claim.afterRead inst rightTicket rhs) = _; rw [← agrees, outcome]) moved extended residual))
+    · have difference : SharedGiveProbeMismatch claim inst leftTicket rightTicket left right checked raw check canon :=
+        ⟨leftFocus, rightFocus, rfl, rfl, agrees⟩
+      have extended : VisitorWriterPath profile ready base bindings start incoming
+          (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) checked raw := by
+        simpa only [List.cons_append] using writers.append (.sharedGiveMismatch difference checkedPath rawPath)
+      exact .inr (callbackTerminalSlice paired (by
+        rw [used, ← List.cons_append]
+        exact .sharedGiveProbeMismatch linked source difference moved extended residual))
+
 open ReturnFrame.Occurrence in
 private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest name kind args inst}
     {action : SharedGiveAction} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -12995,10 +13162,17 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
               .badSelection split paired paths writers (by
                 unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
                 exact pairQuietHost site _) leftFound rightFound residual
-          · apply Or.inr
-            apply callbackTerminalSlice paired
-            rw [split, ← List.cons_append]
-            exact .sharedGiveSelected linked leftFound rightFound paths writers residual
+          · cases source : action.claimAt tree position with
+            | none =>
+              apply Or.inr
+              apply callbackTerminalSlice paired
+              rw [split, ← List.cons_append]
+              exact .sharedGiveSelected linked leftFound rightFound paths writers residual
+            | some claim =>
+              rw [sharedClaimProgram action inst _ position tree source] at leftFound rightFound
+              exact crossSharedClaim linked source split paired paths writers (by
+                unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
+                exact pairQuietHost site _) leftFound rightFound residual
       · have mismatch : SharedGiveHistoryMismatch action inst start.host.nextTicket incoming.host.nextTicket position handle
             leftBefore rightBefore left right check canon :=
           ⟨rfl, rfl, rfl, rfl, agrees⟩
