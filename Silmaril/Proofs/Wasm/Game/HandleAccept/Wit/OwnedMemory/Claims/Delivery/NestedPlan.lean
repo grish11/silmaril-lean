@@ -14963,43 +14963,25 @@ private theorem sharedDestructorCompletionCode (task : TaskId) (values : List Va
         all_goals funext response
         all_goals cases response
 
-private def sharedDestructorResolveFromRecord (caller : CallerId) (values : List Value.Val) (record : Caller (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+private def sharedResolveFromRecord (caller : CallerId) (result : Option (List Value.Val)) (record : Caller (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
   match record with
   | .host call _ depth => do
-    if depth = 0 then emit (.resolved call (some values))
+    if depth = 0 then emit (.resolved call result)
     return .unit
   | .lower .. => do
-    lowerOnResolve Limits.spec Quirks.none caller (some values)
+    lowerOnResolve Limits.spec Quirks.none caller result
     return .unit
   | .sub (.invoke _ _) => do
-    modifyObj ArenaField.callers caller (DispatchSt.recordInvokeResult (some values))
+    modifyObj ArenaField.callers caller (DispatchSt.recordInvokeResult result)
     return .unit
-  | .sub _ => onResolveProg caller (some values)
+  | .sub _ => onResolveProg caller result
 
-private theorem sharedDestructorResolveDispatchCode (caller : CallerId) (ready : HostReady (HostState sig))
-    (host : HostImpl (core3 grow) (HostState sig)) (values : List Value.Val := []) :
-    specDispatch ready host (.onResolve caller (some values)) =
-      getObj ArenaField.callers caller >>= sharedDestructorResolveFromRecord caller values := by
-  change (callerOnResolve Limits.spec Quirks.none caller (some values) : Session grow sig (Ret (core3 grow))) = _
+private theorem sharedResolveDispatchCode (caller : CallerId) (ready : HostReady (HostState sig))
+    (host : HostImpl (core3 grow) (HostState sig)) (result : Option (List Value.Val)) :
+    specDispatch ready host (.onResolve caller result) =
+      getObj ArenaField.callers caller >>= sharedResolveFromRecord caller result := by
+  change (callerOnResolve Limits.spec Quirks.none caller result : Session grow sig (Ret (core3 grow))) = _
   unfold callerOnResolve
-  simp only [Prog.bind_eq]
-  congr 1
-  funext record
-  cases record <;> try rfl
-  rename_i tag
-  cases tag <;> rfl
-
-private def sharedDestructorInnerResolve (record : Caller (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
-  match record with
-  | .sub (.realloc _ _) => internal "reallocate: on_resolve expects exactly one result"
-  | .sub (.destructor _) => .pure .unit
-  | .sub .start => .pure .unit
-  | _ => internal "onResolveProg: not an internal caller"
-
-private theorem sharedDestructorInnerResolveCode (caller : CallerId) :
-    (onResolveProg caller (some []) : Session grow sig (Ret (core3 grow))) =
-      getObj ArenaField.callers caller >>= sharedDestructorInnerResolve := by
-  unfold onResolveProg
   simp only [Prog.bind_eq]
   congr 1
   funext record
@@ -15366,14 +15348,25 @@ private theorem compareSharedDestructorTrap {check canon : PayloadPrefix.Cursor 
       (edit := .clear) (.trap leftAt) (.trap rightAt) rfl rfl
     exact .coreAcceptTerminal path (frameCalloutStep path rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
 
-private theorem sharedDestructorInnerResolveEffects (caller : CallerId) :
-    StoreEffects (onResolveProg caller (some []) : Session grow sig (Ret (core3 grow))) := by
-  rw [sharedDestructorInnerResolveCode]
+private theorem sharedInnerResolveEffects (caller : CallerId) (result : Option (List Value.Val)) :
+    StoreEffects (onResolveProg caller result : Session grow sig (Ret (core3 grow))) := by
+  unfold onResolveProg
   refine (storeEffectGetObject ArenaField.callers caller).bind fun record => ?_
   cases record with
-  | host => exact storeEffectTrap _
-  | lower => exact storeEffectTrap _
-  | sub kind => cases kind <;> first | exact storeEffectTrap _ | exact .pure _
+  | host | lower => exact storeEffectTrap _
+  | sub kind =>
+    cases kind with
+    | realloc =>
+      change StoreEffects (match result with
+        | some [value] => do
+          modifyObj ArenaField.callers caller (LiftSt.recordReallocResult value)
+          return .unit
+        | _ => internal "reallocate: on_resolve expects exactly one result" : Session grow sig (Ret (core3 grow)))
+      split
+      · exact (storeEffectModify _).bind fun _ => .pure _
+      · exact storeEffectTrap _
+    | destructor | start => exact .pure _
+    | invoke => exact storeEffectTrap _
 
 private theorem componentEmitUnique {observation : HostObs}
     {cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -15447,21 +15440,22 @@ private theorem sharedDestructorLowerResolveEffects (caller : CallerId) :
         storeEffectModify (CStore.subtaskResolveSt subtask .returned flat)
 
 open ReturnFrame.Occurrence in
-private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (task : TaskId) (caller : CallerId) (threads : check.thread = canon.thread) (stores : start.store = incoming.store)
-    (leftAt : start.ctl = check.control (.op (.call (.onResolve caller (some []))) (sharedDestructorResolveReply task)))
-    (rightAt : incoming.ctl = canon.control (.op (.call (.onResolve caller (some []))) (sharedDestructorResolveReply task)))
+private theorem crossSharedCallerResolve {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (caller : CallerId) (result : Option (List Value.Val)) (resume : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (lowerEffects : StoreEffects (lowerOnResolve Limits.spec Quirks.none caller result : Session grow sig Unit))
+    (threads : check.thread = canon.thread) (stores : start.store = incoming.store)
+    (leftAt : start.ctl = check.control (.op (.call (.onResolve caller result)) resume))
+    (rightAt : incoming.ctl = canon.control (.op (.call (.onResolve caller result)) resume))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (afterPop : ∀ {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig},
+    (afterPop : ∀ (reply : Ret (core3 grow)) {left right : Config (core3 grow) (HostState sig)} {trailing : Trace grow sig},
       left.store = right.store →
-      left.ctl = check.control (sharedDestructorResolveReply task .unit) →
-      right.ctl = canon.control (sharedDestructorResolveReply task .unit) →
+      left.ctl = check.control (resume reply) →
+      right.ctl = canon.control (resume reply) →
       (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
       Steps profile ready (specDispatch ready base) left trailing finish → trailing.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right trailing finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let call : Call (core3 grow) := .onResolve caller (some [])
-  let resume := sharedDestructorResolveReply (grow := grow) (sig := sig) task
+  let call : Call (core3 grow) := .onResolve caller result
   let checking := { check with frames := .prog resume :: check.frames }
   let canonical := { canon with frames := .prog resume :: canon.frames }
   let left := { start with ctl := checking.control (specDispatch ready base call) }
@@ -15477,11 +15471,11 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
     have installed := sharedSchedulerTransport (bindings := bindings) (edit := .push (.prog resume))
       leftCall rightCall (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
     refine .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun scheduler => scheduler) ?_
-    let read := sharedArenaReader ArenaField.callers caller (sharedDestructorResolveFromRecord (grow := grow) (sig := sig) caller [])
+    let read := sharedArenaReader ArenaField.callers caller (sharedResolveFromRecord (grow := grow) (sig := sig) caller result)
     have readCode (impl : HostImpl (core3 grow) (HostState sig)) :
         specDispatch ready impl call = .op .get read := by
-      change specDispatch ready impl (.onResolve caller (some [])) = _
-      rw [sharedDestructorResolveDispatchCode, sharedArenaReaderCode]
+      change specDispatch ready impl (.onResolve caller result) = _
+      rw [sharedResolveDispatchCode, sharedArenaReaderCode]
     have leftReadAt : left.ctl = checking.control (.op .get read) := congrArg checking.control (readCode base)
     have rightReadAt : right.ctl = canonical.control (.op .get read) := congrArg canonical.control (readCode _)
     let readLeft := { left with ctl := checking.control (read start.store) }
@@ -15516,8 +15510,7 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
           have popped := sharedSchedulerTransport (bindings := bindings) (edit := .pop) leftPop rightPop
             (by rw [transitionEdit, lAt]; rfl) (by rw [transitionEdit, rAt]; rfl)
           refine .destructorPrefix popped (frameCalloutStep popped rfl rfl) (fun scheduler => scheduler) ?_
-          cases reply <;> first | exact afterPop same rfl rfl align tail (destructorSuffixBound used (bounded.trans readBound)) |
-            exact compareSharedDestructorTrap (.internal "late-bound call: expected Ret.unit") rfl rfl tail
+          exact afterPop reply same rfl rfl align tail (destructorSuffixBound used (bounded.trans readBound))
         · have empty : remaining = [] := List.length_eq_zero_iff.mp (by omega)
           have stopped := stepsAtEmpty (empty ▸ run)
           exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
@@ -15532,25 +15525,25 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
         exact closed (internal "dangling arena id") (storeEffectTrap _)
           (by simp only [read, sharedArenaReader, callerAt])
       | some record =>
-        have code : read start.store = sharedDestructorResolveFromRecord caller [] record := by
+        have code : read start.store = sharedResolveFromRecord caller result record := by
           simp only [read, sharedArenaReader, callerAt]
         cases record with
         | sub kind =>
           cases kind with
           | invoke =>
             refine closed _ ?_ code
-            unfold sharedDestructorResolveFromRecord modifyObj
+            unfold sharedResolveFromRecord modifyObj
             exact (storeEffectModify _).bind fun _ => .pure _
-          | _ => exact closed (onResolveProg caller (some [])) (sharedDestructorInnerResolveEffects caller) code
+          | _ => exact closed (onResolveProg caller result) (sharedInnerResolveEffects caller result) code
         | lower =>
-          exact closed _ ((sharedDestructorLowerResolveEffects caller).bind fun _ => .pure _) code
+          exact closed _ (lowerEffects.bind fun _ => .pure _) code
         | host id args depth =>
           by_cases top : depth = 0
-          · let observation := HostObs.resolved id (some [])
+          · let observation := HostObs.resolved id result
             let program : Session grow sig (Ret (core3 grow)) := .op (.emit observation) (fun _ => .pure .unit)
             have emits : read start.store = program := by
               rw [code]
-              simp [sharedDestructorResolveFromRecord, top, program, observation, emit, perform, Prog.lift, bind, Prog.bind]
+              simp [sharedResolveFromRecord, top, program, observation, emit, perform, Prog.lift, bind, Prog.bind]
             have leftEmitAt : readLeft.ctl = checking.control program := congrArg checking.control emits
             have rightEmitAt : readRight.ctl = canonical.control program := congrArg canonical.control emits
             have emitLeft : Step profile ready (specDispatch ready base) readLeft (.obs observation)
@@ -15570,11 +15563,11 @@ private theorem crossSharedDestructorResolve {check canon : PayloadPrefix.Cursor
                 obtain ⟨rfl, rfl⟩ := componentEmitUnique (cursor := checking) leftEmitAt step
                 have emitted := sharedSchedulerTransport (bindings := bindings) (edit := .same) emitLeft emitRight rfl rfl
                 exact .destructorPrefix emitted (frameCalloutStep emitted rfl rfl)
-                  (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id (some [])) (pop .unit stores rfl rfl (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id (some []))
+                  (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id result) (pop .unit stores rfl rfl (fun scheduler => DestructorSchedulerAlignment.observeResolved scheduler id result)
                     tail (empty.symm ▸ Nat.le_succ _))
           · exact pop .unit stores
-              (congrArg checking.control (by rw [code]; simp [sharedDestructorResolveFromRecord, top]))
-              (congrArg canonical.control (by rw [code]; simp [sharedDestructorResolveFromRecord, top])) (fun a => a) residual (Nat.le_refl _)
+              (congrArg checking.control (by rw [code]; simp [sharedResolveFromRecord, top]))
+              (congrArg canonical.control (by rw [code]; simp [sharedResolveFromRecord, top])) (fun a => a) residual (Nat.le_refl _)
     · have empty : suffix = [] := List.length_eq_zero_iff.mp (by omega)
       have stopped := stepsAtEmpty (empty ▸ tail)
       exact empty.symm ▸ stopped ▸ CallbackSliceEnd.exhausted
@@ -15642,8 +15635,11 @@ private theorem crossSharedDestructorCompletion {check canon : PayloadPrefix.Cur
         simp only [read, found, sharedDestructorReturnCall, resolved, borrows, ite_false]
       have atLeft := congrArg check.control code
       have atRight := congrArg canon.control code
-      exact crossSharedDestructorResolve task reached.caller threads stores atLeft atRight tail
-        (fun same leftAt rightAt align run shorter => afterPop same leftAt rightAt align run (shorter.trans (Nat.le_succ _)))
+      exact crossSharedCallerResolve reached.caller (some []) (sharedDestructorResolveReply task)
+        (sharedDestructorLowerResolveEffects reached.caller) threads stores atLeft atRight tail (by
+          intro reply left right remaining same leftAt rightAt align run shorter
+          cases reply <;> first | exact afterPop same leftAt rightAt align run (shorter.trans (Nat.le_succ _)) |
+            exact compareSharedDestructorTrap (.internal "late-bound call: expected Ret.unit") leftAt rightAt run)
 
 private theorem sharedDestructorParentCode (body : ThreadBody (core3 grow)) (ticket : Nat) :
     (sharedDestructorAfterResume body ticket : Session grow sig (Ret (core3 grow))) =
@@ -20055,9 +20051,9 @@ private theorem sharedRecordAllocatorResolvePath {impl : HostImpl (core3 grow) (
     FramedQuietPath profile ready (specDispatch ready impl) cursor start [id, id, update]
       { start with store := update start.store, ctl := cursor.control (.pure .unit) } := by
   dsimp only
-  rw [sharedDestructorResolveDispatchCode caller ready impl [value], sharedArenaReaderCode] at focus
+  rw [sharedResolveDispatchCode caller ready impl (some [value]), sharedArenaReaderCode] at focus
   refine .get focus (body := onResolveProg caller (some [value])) ?_ ?_
-  · simp only [sharedArenaReader, found, sharedDestructorResolveFromRecord]
+  · simp only [sharedArenaReader, found, sharedResolveFromRecord]
   have inner : (onResolveProg caller (some [value]) : Session grow sig (Ret (core3 grow))) =
       .op .get (sharedArenaReader ArenaField.callers caller (sharedRecordAllocatorInnerResolve caller value)) := by
     rw [sharedRecordAllocatorInnerResolveCode, sharedArenaReaderCode]
@@ -23708,6 +23704,55 @@ private def sourceTaskResolve (selected : TaskId × CallerId) (result : Option (
   modifyStore (CStore.setTaskState selected.1 .resolved)
   return .flat []
 
+private theorem sourceTaskCancelLowerEffects (caller : CallerId) :
+    StoreEffects (lowerOnResolve Limits.spec Quirks.none caller none : Session grow sig Unit) := by
+  unfold lowerOnResolve
+  refine (storeEffectGetObject ArenaField.callers caller).bind fun record => ?_
+  cases record with
+  | host | sub => exact storeEffectTrap _
+  | lower subtask cx args pos ft maxParams maxResults =>
+    refine (sharedDestructorProgressEffects subtask).bind fun _ => ?_
+    refine (storeEffectGetObject ArenaField.subtasks subtask).bind fun reached => ?_
+    unfold Subtask.resolve
+    split <;> exact storeEffectModify _
+
+private theorem compareSourceTaskResolution {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (task : TaskId) (caller : CallerId) (result : Option (List Value.Val))
+    (lowerEffects : StoreEffects (lowerOnResolve Limits.spec Quirks.none caller result : Session grow sig Unit))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sourceTaskResolve (task, caller) result) (sourceTaskResolve (task, caller) result) := by
+  intro start incoming labels stores checked canonical scheduler run bounded
+  let unitReply : Ret (core3 grow) → Session grow sig Unit
+    | .unit => pure ()
+    | _ => internal "late-bound call: expected Ret.unit"
+  let resume : ReturnFrame.Continuation (core3 grow) (HostState sig) := fun reply => unitReply reply >>= fun _ => do
+    modifyStore (CStore.setTaskState task .resolved)
+    return .flat []
+  have issue : (callUnit (.onResolve caller result) : Session grow sig Unit) =
+      .op (.call (.onResolve caller result)) unitReply := by
+    have called : (callRet (.onResolve caller result) : Session grow sig (Ret (core3 grow))) =
+        .op (.call (.onResolve caller result)) Prog.pure := by
+      unfold callRet perform Prog.lift
+      rfl
+    unfold callUnit
+    rw [called]
+    change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call (.onResolve caller result)) _ = _
+    congr 1
+    funext reply
+    cases reply <;> rfl
+  have code : (sourceTaskResolve (task, caller) result : Session grow sig (Ret (core3 grow))) =
+      .op (.call (.onResolve caller result)) resume := by
+    unfold sourceTaskResolve
+    rw [issue]
+    rfl
+  exact crossSharedCallerResolve caller result resume lowerEffects thread stores
+    (checked.trans (congrArg check.control code)) (canonical.trans (congrArg canon.control code)) run
+    (fun reply {_ _ _} same leftAt rightAt align residual shorter =>
+      compareProgram (resume reply) same leftAt rightAt (align scheduler) residual (shorter.trans bounded))
+
 private theorem sourceTaskCancelCalloutCode (ready : HostReady (HostState sig))
     (host : HostImpl (core3 grow) (HostState sig)) (store : CStore (core3 grow)) (thread : Option ThreadId)
     (inst : InstId) :
@@ -23797,8 +23842,16 @@ private theorem compareSourceTaskReturnLift {limit : Nat}
     afterLift afterLift (sourceValueLiftEffects start.store lifted) ⟨rfl, rfl⟩ stores checked canonical run ?_
   intro left right remaining actual shorter _ same leftAt rightAt aligned tail
   let resolve (caller : CallerId) := sourceTaskResolve (grow := grow) (sig := sig) (selected.1, caller) (some actual.1)
+  have compareResolved (caller : CallerId) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (resolve caller) (resolve caller) := by
+    by_cases empty : actual.1 = []
+    · dsimp only [resolve]
+      rw [empty]
+      exact compareSourceTaskResolution thread selected.1 caller (some [])
+        (sharedDestructorLowerResolveEffects caller) compareProgram
+    · exact compareProgram (resolve caller)
   exact crossDestructorRecordStore (check := check) (canon := canon) thread (sourceTaskReturnCaller selected.1)
-    (sourceTaskReturnCallerEffects selected.1) resolve resolve (fun caller => compareProgram (resolve caller))
+    (sourceTaskReturnCallerEffects selected.1) resolve resolve compareResolved
     same leftAt rightAt (aligned scheduler) tail (shorter.trans bounded)
 
 private theorem sourceTaskReturnCalloutCode (ready : HostReady (HostState sig))
@@ -23869,7 +23922,8 @@ private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
         (sourceTaskCancelCalloutCode ready (LiveDispatch.host bindings base) incoming.store canon.thread inst))
       exact crossDestructorRecordStore (check := check) (canon := canon) thread sourceTaskCancelPrepare sourceTaskCancelPrepareEffects
         (fun selected => sourceTaskResolve selected none) (fun selected => sourceTaskResolve selected none)
-        (fun selected => compareProgram (sourceTaskResolve selected none))
+        (fun selected => compareSourceTaskResolution thread selected.1 selected.2 none
+          (sourceTaskCancelLowerEffects selected.2) compareProgram)
         stores leftAt rightAt scheduler run bounded
     | cons => contradiction
   | taskReturn result opts =>
