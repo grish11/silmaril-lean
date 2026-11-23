@@ -514,6 +514,68 @@ structure ExecutedSharedDropSpend (profile : ProfileKind) (ready : HostReady (Ho
     Step profile ready dispatch prepared .tau writing ∧
     Step profile ready dispatch writing .tau finish
 
+/-- The store-only prefix of the canonical destructor determines the worker
+body and its task. A host resource needs no worker. -/
+def sharedDestructorWorker (result : InstId × DtorRequest (core3 grow)) :
+    Session grow sig (Option (ThreadBody (core3 grow))) := do
+  let req := result.2
+  match req.impl with
+  | none => return none
+  | some impl =>
+    let st ← getInst result.1
+    trapIf (!st.mayLeave) .cannotLeave
+    let rty ← getObj ArenaField.resourceTypes req.rt
+    let caller ← allocObj ArenaField.callers (Caller.sub (.destructor req.rep) : Caller (core3 grow))
+    let task ← allocObj ArenaField.tasks
+      ({ ft := dtorType rty.rep, opts := {}, inst := impl, caller } : Task (core3 grow))
+    return some (match req.dtor with
+      | some dtor => .liftImplicit task dtor
+      | none => .liftNoop task)
+
+/-- The suspended parent runs the same synchronous lift loop with its own
+completion ticket after the actual worker resume. -/
+def sharedDestructorAfterResume (body : ThreadBody (core3 grow)) (ticket : Nat) :
+    Session grow sig (Ret (core3 grow)) := do
+  callUnit (.loop (.syncLiftLoop body.task))
+  scheduledReply ticket (.ok 0)
+
+def sharedDestructorAfterInstall (body : ThreadBody (core3 grow)) (ticket : Nat) (thread : ThreadId) :
+    Session grow sig (Ret (core3 grow)) := do
+  Thread.resume thread
+  sharedDestructorAfterResume body ticket
+
+def sharedDestructorStart (ticket : Nat) (worker : Option (ThreadBody (core3 grow))) :
+    Session grow sig (Ret (core3 grow)) :=
+  match worker with
+  | none => scheduledReply ticket (.ok 0)
+  | some body => .op (.newThread body) (sharedDestructorAfterInstall body ticket)
+
+/-- The actual allocation saves the dispatched worker in the reached arena
+slot. The active parent remains at its own resume program. -/
+structure SharedDestructorInstalled (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (body : ThreadBody (core3 grow)) (ticket : Nat) (thread : ThreadId)
+    (before after : Config (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop where
+  focus : before.ctl = cursor.control (sharedDestructorStart ticket (some body))
+  allocated : ArenaField.threads.alloc before.store { task := body.task } = (after.store, thread)
+  step : Step profile ready dispatch before .tau after
+  saved : after.cont? thread = some (StepDefs.threadAct dispatch thread body)
+  parent : after.ctl = cursor.control (sharedDestructorAfterInstall body ticket thread)
+
+/-- The original reached worker inherits its actual saved activation. The
+left and right paused parents retain their own continuations. -/
+structure SharedDestructorResumed (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (body : ThreadBody (core3 grow)) (ticket : Nat) (thread : ThreadId)
+    (before after : Config (core3 grow) (HostState sig))
+    (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) : Prop where
+  focus : before.ctl = cursor.control (.op (.resumeThread thread) (fun _ => sharedDestructorAfterResume body ticket))
+  saved : before.cont? thread = some (StepDefs.threadAct dispatch thread body)
+  step : Step profile ready dispatch before .tau after
+  active : after.ctl = StepDefs.threadAct dispatch thread body ::
+    cursor.control (sharedDestructorAfterResume body ticket)
+
 /-- Ordered evidence on the actual pair of visited program segments.
 Compiled guards and shared scheduled commits identify the source of nominal spends. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -1612,13 +1674,16 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  | sharedDropDestructor {changes reached peer left right leading trailing finish marks}
-      {leftEntry rightEntry : Config (core3 grow) (HostState sig)}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket result}
-      (checked : leftEntry.ctl = check.control (SharedOwnerDrop.afterSpend leftTicket result))
-      (canonical : rightEntry.ctl = canon.control (SharedOwnerDrop.afterSpend rightTicket result))
-      (frontier : ComponentStoreFrontier (Result := Unit) changes check canon
-        (fun _ => scheduledReply leftTicket (.ok 0)) (fun _ => scheduledReply rightTicket (.ok 0)) left right trailing False)
+  | sharedDropWorker {changes reached peer left right leading trailing finish marks}
+      {leftInstall rightInstall installedLeft installedRight beforeLeft beforeRight : Config (core3 grow) (HostState sig)}
+      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {body thread leftTicket rightTicket}
+      (installed : SharedDestructorInstalled profile ready (specDispatch ready base) body leftTicket thread
+        leftInstall installedLeft check)
+      (canonical : SharedDestructorInstalled profile ready (specDispatch ready (LiveDispatch.host bindings base)) body rightTicket thread
+        rightInstall installedRight canon)
+      (resumed : SharedDestructorResumed profile ready (specDispatch ready base) body leftTicket thread beforeLeft left check)
+      (peerResume : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
+        body rightTicket thread beforeRight right canon)
       (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
