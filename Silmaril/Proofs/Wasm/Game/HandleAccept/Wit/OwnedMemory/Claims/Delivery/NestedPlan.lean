@@ -37,6 +37,7 @@ import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.Re
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
 
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Local.Thms
 
 public section
 
@@ -21258,8 +21259,192 @@ private theorem finishSourceOverlayRefusal
   crossSourceCheckedJournal (checkedCompletionPath reply checked) run
     (fun residual _ => finishSourceOverlayPop (check := check) marked reply.2 rfl residual)
 
+open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
+private theorem visitSourceOverlayHandle {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (destination : RecordDestination) (inst : InstId) (item : Field) (handle : CanonicalHandle item)
+    (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (stores : start.store = incoming.store) (thread : check.thread = canon.thread)
+    (checked : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index output >>= checkNext))
+    (canonical : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width item output >>= canonNext))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (refused : ∀ issue {left : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.ctl = check.control (checkNext (.error issue)) →
+      Steps profile ready (specDispatch ready base) left remaining finish →
+      CallbackSliceEnd profile ready base bindings older left incoming remaining finish)
+    (returned : ∀ value {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → DestructorSchedulerAlignment older left right →
+      left.ctl = check.control (checkNext (.ok value)) → right.ctl = canon.control (canonNext value) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have checkedLeaf : start.ctl = check.control (Record.Effects.checkedLeaf recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index output >>= checkNext) := by
+    cases item <;> first | exact checked | exact False.elim handle
+  have canonicalLeaf : incoming.ctl = canon.control (CanonicalTree.leaf Limits.spec Quirks.none
+      (destination.context inst) destination.width item output >>= canonNext) := by
+    cases item <;> first | exact canonical | exact False.elim handle
+  have leaf := destination.compare_handle_leaf_between (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready base) (reference := specDispatch ready (LiveDispatch.host bindings base))
+    stores inst item handle index output checkNext canonNext
+    (thread := check.thread) (checkFrames := check.frames) (checkRest := check.rest)
+    (canonFrames := canon.frames) (canonRest := canon.rest) checkedLeaf
+    (by simpa only [Cursor.control, thread] using canonicalLeaf)
+  cases decision : liveLeafPlan start.store start.host.writer index item with
+  | error issue =>
+    rw [decision] at leaf
+    obtain ⟨guard, silent, guardRun⟩ := leaf
+    have tracks := guardRun.tracks
+    have steps := (tracks (.active 0 0)).toTrail.steps
+    have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [silent action member]))
+    cases alignLocalBody steps run (noBranchOfVisible quiet (by simp)) with
+    | inside split _ _ =>
+      obtain ⟨_, _, movement, _⟩ := cutRefusedLeaf guardRun split stores run
+      rw [← List.append_nil labels]
+      exact .comparedPrefix movement (refusedGuardWriterPath guardRun split run) .exhausted
+    | reached split residual =>
+      rw [split]
+      exact .comparedPrefix (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+        (refusedGuardWriterPath guardRun (List.append_nil guard).symm steps) (refused issue rfl residual)
+  | ok plan =>
+    rw [decision] at leaf
+    obtain ⟨store, verdict, guard, checked, canonical, _, silent, leftKind, _, steps, _, tracks, _, path, _⟩ := leaf
+    have quiet : visible guard = [] := silentVisible (List.all_eq_true.mpr (fun action member => by rw [silent action member]))
+    have localOnly : ∀ action ∈ visible (guard ++ checked), ¬ workerBranchLabel action := by
+      rw [visibleAppend, quiet, List.nil_append, CallbackPrefix.visibleLeaf leftKind]
+      cases verdict <;> simp [workerBranchLabel]
+    cases alignLocalBody steps run (noBranchOfVisible rfl localOnly) with
+    | inside split _ _ =>
+      obtain ⟨used, peer, _, _, _, movement, _, _, _, writer⟩ := cutGuardedLeaf path split stores run
+      rw [← List.append_nil labels]
+      exact .comparedPrefix movement (.guarded writer) .exhausted
+    | reached split residual =>
+      have suffixBound := destructorSuffixBound split (Nat.le_refl _)
+      rw [split]
+      have movement := CallbackPrefix.localLeafTransport (bindings := bindings)
+        (check := check) (canon := { canon with thread := check.thread })
+        (checkNext := fun value => checkNext (.ok value)) (canonNext := canonNext) tracks
+      have writers := VisitorWriterPath.guarded (fullGuardedWriterPaths path)
+      cases verdict with
+      | error reason => exact .coreAcceptTerminal movement writers residual (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+      | ok value =>
+        exact .comparedPrefix movement writers
+          (returned value rfl scheduler rfl (by simp only [localLeafEnd, Cursor.control, thread])
+            residual suffixBound)
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower in
+private theorem finishSourceOverlayLeafReply {limit : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)} {words : List FlatValue}
+    (reply : Event × List FlatValue) (sameWords : reply.2 = words)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (do return .flat (← writeCompletion reply)))
+    (canonical : incoming.ctl = canon.control (.pure (.flat words)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  crossSourceCheckedJournal (checkedCompletionPath reply checked) run
+    (fun residual shorter => resume reply.2 stores scheduler rfl
+      (canonical.trans (congrArg (fun words => canon.control (.pure (.flat words))) sameWords.symm))
+      residual (shorter.trans within))
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
+private theorem visitSourceOverlayPlaced {limit : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
+    (field : Field) (plan : List Object)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (marked : check.frames ≠ []) (linked : request.destination.check start.store = .ok ())
+    (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
+    (fit : request.selectedFits selected request.destination.width = true)
+    (placed : request.selectedPlacement selected start.store = .ok ())
+    (stores : start.store = incoming.store)
+    (unconfined : threadMayLeave incoming.store canon.thread = true)
+    (checked : start.ctl = check.control (request.fieldContinuation ticket selected field))
+    (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have pending := CallbackSliceEnd.sourceOverlayGivePlaced request selected parents thread segments marked
+    linked compiled fit placed stores scheduler checked canonical run
+  have rawAt : incoming.ctl = canon.control
+      (referenceTail request.inst request.destination request.schema (.ok selected) >>= fun reply => pure (.flat reply)) := by
+    simpa only [GiveSelector.canonicalContinuation, ite_eq_left unconfined] using canonical
+  rcases request with ⟨name, kind, args, inst, destination, schema, binding⟩
+  cases schema with
+  | none =>
+    rcases selected with ⟨tree, pointer⟩
+    cases tree with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      let type := sig.payload root.1
+      change Record.preflightValue (destination.context (grow := grow) inst) type root.2 (.memory pointer) = .ok (field, plan) at compiled
+      have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+      have shape := (compiledVisitShapes (Record.preflightValue_emitted _ _ _ _ _ plan compiled) matched).2
+      let reply (result : Except Stored.Endpoints.RecordLower.Issue Unit) := completion ticket (result.mapError Scheduled.Issue.lowerPayload |>.map (fun _ => 0))
+      let next : Unit → Session grow sig (Ret (core3 grow)) := fun _ => pure (.flat (completion 0 (.ok 0)).2)
+      have checkedAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+          (destination.context inst) destination.width field 0 (.memory pointer) >>= fun result =>
+            do return .flat (← writeCompletion (reply result))) := checked
+      have canonicalAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+          (destination.context inst) destination.width field (.memory pointer) >>= next) := by
+        rw [destination.compiled_payload_reference inst type root.2 (.memory pointer) field plan compiled]
+        change incoming.ctl = canon.control (store Limits.spec Quirks.none (destination.context inst)
+          root.2.val.value type pointer >>= next)
+        simpa only [referenceTail, memoryBody, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', next, type] using rawAt
+      cases shape with
+      | handle handle =>
+        refine visitSourceOverlayHandle destination inst field handle 0 (.memory pointer) _ next stores thread
+          checkedAt canonicalAt scheduler run ?_ ?_
+        · intro issue left remaining focused residual
+          exact finishSourceOverlayRefusal marked (reply (.error issue)) focused residual
+        · intro value left right remaining same aligned focused raw residual bound
+          cases value
+          exact finishSourceOverlayLeafReply (reply (.ok ())) rfl same focused raw aligned residual (bound.trans within) resume
+      | _ => exact pending
+  | some schema =>
+    cases selected with
+    | atom impossible => exact impossible.elim
+    | tag root arity children =>
+      let type := sig.payload root.1
+      change Record.preflightValue (destination.context (grow := grow) inst) type root.2 .flat = .ok (field, plan) at compiled
+      have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
+      have shape := (compiledVisitShapes (Record.preflightValue_emitted _ _ _ _ _ plan compiled) matched).1
+      let reply (result : Except Stored.Endpoints.RecordLower.Issue (List FlatValue)) :=
+        flatCompletion ticket (ABI.flatten destination.width schema) (result.mapError Scheduled.Issue.lowerPayload)
+      let next : List FlatValue → Session grow sig (Ret (core3 grow)) := fun words =>
+        pure (.flat (flatCompletion 0 (ABI.flatten destination.width schema) (.ok words)).2)
+      have checkedAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+          (destination.context inst) destination.width field 0 .flat >>= fun result =>
+            do return .flat (← writeCompletion (reply result))) := checked
+      have canonicalAt : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+          (destination.context inst) destination.width field .flat >>= next) := by
+        rw [destination.compiled_payload_reference inst type root.2 .flat field plan compiled]
+        change incoming.ctl = canon.control (lowerFlatAt Limits.spec Quirks.none (destination.context inst)
+          destination.width root.2.val.value type >>= next)
+        simpa only [referenceTail, flatBody, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', next, type] using rawAt
+      cases shape with
+      | handle item handle =>
+        refine visitSourceOverlayHandle destination inst field handle 0 .flat _ next stores thread
+          checkedAt canonicalAt scheduler run ?_ ?_
+        · intro issue left remaining focused residual
+          exact finishSourceOverlayRefusal marked (reply (.error issue)) focused residual
+        · intro words left right remaining same aligned focused raw residual bound
+          have sameWords : (reply (.ok words)).2 = (flatCompletion 0 (ABI.flatten destination.width schema) (.ok words)).2 := by
+            simp only [reply, Except.mapError, flatCompletion]
+            split <;> rfl
+          exact finishSourceOverlayLeafReply (reply (.ok words)) sameWords same focused raw aligned residual (bound.trans within) resume
+      | _ => exact pending
+
 open ReturnFrame.Occurrence in
-private theorem finishSourceOverlayPlacement
+private theorem finishSourceOverlayPlacement {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
     (field : Stored.Endpoints.RecordLower.Field) (plan : List Stored.Endpoints.RecordLower.Object)
@@ -21270,9 +21455,11 @@ private theorem finishSourceOverlayPlacement
     (fit : request.selectedFits selected request.destination.width = true)
     (stores : start.store = incoming.store)
     (checked : start.ctl = check.control (request.placementContinuation ticket selected field request.destination.width))
+    (unconfined : threadMayLeave incoming.store canon.thread = true)
     (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
     (scheduler : DestructorSchedulerAlignment older start incoming)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   have paths := directPlacementPaths (profile := profile) (ready := ready) (base := base) request ticket selected field check checked
   dsimp only at paths
@@ -21289,9 +21476,10 @@ private theorem finishSourceOverlayPlacement
       · exact WriterPaths.frameSingle steps rfl
     have bounded : used.length ≤ 1 := by rcases shape with rfl | rfl <;> simp
     refine crossSourceCheckedSinglePrefix bounded quiet tracks writer run ?_
-    intro trailing residual _
-    exact .sourceOverlayGivePlaced request selected parents thread segments marked linked compiled fit placed stores scheduler
-      rfl canonical residual
+    intro trailing residual shorter
+    exact visitSourceOverlayPlaced (check := check) (canon := canon) request ticket selected field plan
+      parents thread segments marked linked compiled fit placed stores unconfined rfl canonical scheduler residual
+      (shorter.trans within) resume
   | error reason =>
     rw [placed] at paths
     obtain ⟨count, fault⟩ := paths
@@ -21315,7 +21503,7 @@ private theorem finishSourceOverlayPlacement
       exact .sourceOverlayCheckedTerminal fault.fault (.inr rfl) (congrArg HostState.writer fault.host.symm) lost tail
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
-private theorem finishSourceOverlayWidth
+private theorem finishSourceOverlayWidth {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
     (field : Stored.Endpoints.RecordLower.Field) (plan : List Stored.Endpoints.RecordLower.Object)
@@ -21325,9 +21513,11 @@ private theorem finishSourceOverlayWidth
     (compiled : request.preflight (grow := grow) selected = .ok (field, plan))
     (stores : start.store = incoming.store)
     (checked : start.ctl = check.control (request.preparedContinuation ticket selected field (.ok ())))
+    (unconfined : threadMayLeave incoming.store canon.thread = true)
     (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
     (scheduler : DestructorSchedulerAlignment older start incoming)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   let width := ptrTypeIn start.store (request.destination.context request.inst)
   let after := { start with ctl := check.control (request.measuredContinuation ticket selected field width) }
@@ -21337,7 +21527,7 @@ private theorem finishSourceOverlayWidth
     .step read (by rw [transitionEdit, checked]; rfl) (.done _ _)
   refine crossSourceCheckedSinglePrefix (by simp : ([.tau] : Trace grow sig).length ≤ 1) rfl tracks
     (.same read rfl (.done _)) run ?_
-  intro trailing residual _
+  intro trailing residual shorter
   have branch := directFitDecision (grow := grow) request ticket selected field width
   cases fits : request.selectedFits selected width with
   | false =>
@@ -21354,10 +21544,11 @@ private theorem finishSourceOverlayWidth
       dsimp only [width]
       simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, request.destination.check_width _ linked]
     exact finishSourceOverlayPlacement (check := check) (canon := canon) request ticket selected field plan
-      parents thread segments marked linked compiled (linkedWidth ▸ fits) stores (linkedWidth ▸ placedAt) canonical scheduler residual
+      parents thread segments marked linked compiled (linkedWidth ▸ fits) stores (linkedWidth ▸ placedAt)
+      unconfined canonical scheduler residual (shorter.trans within) resume
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
-private theorem finishSourceOverlayRoot
+private theorem finishSourceOverlayRoot {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (request : GiveSelector bindings) (ticket : Nat) (selected : SelectionValue sig request.schema)
     (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
@@ -21367,7 +21558,8 @@ private theorem finishSourceOverlayRoot
     (checked : start.ctl = check.control (request.checkedContinuation start.store check.thread (ticket, .ok selected)))
     (canonical : incoming.ctl = canon.control (request.canonicalContinuation incoming.store canon.thread (.ok selected)))
     (scheduler : DestructorSchedulerAlignment older start incoming)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   cases compiled : request.preflight (grow := grow) selected with
   | error issue =>
@@ -21389,7 +21581,7 @@ private theorem finishSourceOverlayRoot
     have site : ExecutedPrepareRead profile ready base start middle after incoming [.tau] field.objects :=
       ⟨.cons get (.refl _), ⟨check, next, rfl⟩, read, rfl, stores⟩
     refine crossSourceCheckedJournal path run ?_ (.prepare site path.2 (.done incoming))
-    intro trailing residual _
+    intro trailing residual shorter
     cases result : Record.prepare start.store start.host.writer field.objects with
     | error issue =>
       have atError : after.ctl = check.control (request.preparedContinuation ticket selected field (.error issue)) :=
@@ -21400,7 +21592,8 @@ private theorem finishSourceOverlayRoot
       cases done
       exact finishSourceOverlayWidth (check := check) (canon := canon) request ticket selected field plan
         parents thread segments marked admission.destination compiled stores
-        (congrArg (fun verdict => check.control (next verdict)) result) canonical scheduler residual
+        (congrArg (fun verdict => check.control (next verdict)) result) (by simpa only [← stores, ← thread] using admission.unconfined)
+        canonical scheduler residual (shorter.trans within) resume
 
 private theorem finishSourceOverlayVerdict {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (request : GiveSelector bindings)
@@ -21420,7 +21613,7 @@ private theorem finishSourceOverlayVerdict {limit : Nat}
   cases verdict with
   | ok selected =>
     exact finishSourceOverlayRoot (check := check) (canon := canon) request ticket selected parents thread segments
-      marked (request.admitted start check.thread evaluation) stores checked canonical scheduler run
+      marked (request.admitted start check.thread evaluation) stores checked canonical scheduler run within resume
   | error issue =>
     let reply := giveAdmissionReply ticket request.destination request.schema issue
     have checkedReply := (selectorRefusalReplies request start.store check.thread ticket issue).1
