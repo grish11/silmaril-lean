@@ -2859,7 +2859,6 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropRecordAllocatorLoopPopped _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorReturning _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropRecordStringReallocate _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -2932,7 +2931,6 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropRecordAllocatorLoopPopped _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorReturning _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropRecordStringReallocate _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -18676,55 +18674,6 @@ private theorem sharedRecordStringRequestCode (cx : LiftLowerContext (core3 grow
     rfl
 
 open Stored.Endpoints in
-private theorem crossDestructorRecordStringSteps {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow))
-    (steps : List ABI.StoreStep) (tagged dest pointer : Nat)
-    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
-    (onDone : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (checkNext (.ok ())) (canonNext (.ok ()))) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sharedRecordStringRemaining cx steps tagged dest pointer checkNext)
-      (sharedRecordStringRemaining cx steps tagged dest pointer canonNext) := by
-  induction steps generalizing pointer with
-  | nil =>
-    intro left right remaining stores checked canonical scheduler run bounded
-    exact crossDestructorRecordStore (check := check) (canon := canon) thread
-      (sharedRecordStringDescriptor cx tagged dest pointer) (sharedStringDescriptorEffects cx tagged dest pointer)
-      (fun _ => checkNext (.ok ())) (fun _ => canonNext (.ok ()))
-      (by
-        intro _ reached peer trailing same leftAt rightAt aligned residual within
-        exact onDone same leftAt rightAt aligned residual within)
-      stores checked canonical scheduler run bounded
-  | cons step steps ih =>
-    intro left right remaining stores checked canonical scheduler run bounded
-    rw [sharedRecordStringRemainingCons] at checked canonical
-    by_cases localStep : sharedStringLocalStep step = true
-    · exact crossDestructorRecordStore (check := check) (canon := canon) thread
-        (runStoreStep cx pointer step) (sharedStringStepEffects cx pointer step localStep)
-        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
-        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr canonNext)
-        ih stores checked canonical scheduler run bounded
-    · have reachedCall (old oldLen alignment size : Nat)
-          (leftAt : left.ctl = check.control (.op (.call (.reallocate cx old oldLen alignment size))
-            (sharedRecordStringResume cx steps tagged dest checkNext)))
-          (rightAt : right.ctl = canon.control (.op (.call (.reallocate cx old oldLen alignment size))
-            (sharedRecordStringResume cx steps tagged dest canonNext))) :
-          CallbackSliceEnd profile ready base bindings older left right remaining finish :=
-        .sharedDropRecordStringReallocate (check := check) (canon := canon)
-          stores scheduler leftAt rightAt run
-      cases step
-      case allocate alignment size =>
-        exact reachedCall 0 0 alignment.bytes size
-          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged 0 0 checkNext alignment.bytes size steps)))
-          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged 0 0 canonNext alignment.bytes size steps)))
-      case reallocate oldLen alignment size =>
-        exact reachedCall pointer oldLen alignment.bytes size
-          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen checkNext alignment.bytes size steps)))
-          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen canonNext alignment.bytes size steps)))
-      all_goals exact False.elim (localStep rfl)
-
-open Stored.Endpoints in
 private theorem sharedRecordCollectionResultEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (count index dest ptr : Nat) (result : Except RecordLower.Issue Unit) :
     StoreEffects (sharedRecordCollectionResult cx width count index dest ptr result : Session grow sig _) := by
@@ -19680,6 +19629,65 @@ private theorem crossDestructorRecordAllocator {limit : Nat} {body : ThreadBody 
 
 
 open Stored.Endpoints in
+private theorem crossDestructorRecordStringSteps {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : DestructorParentChain older body check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal)
+    (prior steps : List ABI.StoreStep) (dest pointer : Nat)
+    (compiled : (storePlanFor Quirks.none cx.opts.encoding width value).steps = prior ++ steps)
+    (checkNext canonNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (onDone : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (checkNext (.ok ())) (canonNext (.ok ()))) :
+    let tagged := (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordStringRemaining cx steps tagged dest pointer checkNext)
+      (sharedRecordStringRemaining cx steps tagged dest pointer canonNext) := by
+  dsimp only
+  let plan := storePlanFor Quirks.none cx.opts.encoding width value
+  let tagged := plan.taggedCodeUnits
+  induction steps generalizing prior pointer with
+  | nil =>
+    intro left right remaining stores checked canonical scheduler run bounded
+    exact crossDestructorRecordStore (check := check) (canon := canon) thread
+      (sharedRecordStringDescriptor cx tagged dest pointer) (sharedStringDescriptorEffects cx tagged dest pointer)
+      (fun _ => checkNext (.ok ())) (fun _ => canonNext (.ok ()))
+      (fun _ => onDone) stores checked canonical scheduler run bounded
+  | cons step steps ih =>
+    intro left right remaining stores checked canonical scheduler run bounded
+    rw [sharedRecordStringRemainingCons] at checked canonical
+    have suffix : plan.steps = (prior ++ [step]) ++ steps := by
+      rw [List.append_assoc]
+      exact compiled
+    have resume (ptr : Nat) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
+          (sharedRecordStringRemaining cx steps tagged dest ptr canonNext) :=
+      ih (prior ++ [step]) ptr suffix
+    by_cases localStep : sharedStringLocalStep step = true
+    · exact crossDestructorRecordStore (check := check) (canon := canon) thread
+        (runStoreStep cx pointer step) (sharedStringStepEffects cx pointer step localStep)
+        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr checkNext)
+        (fun ptr => sharedRecordStringRemaining cx steps tagged dest ptr canonNext)
+        resume stores checked canonical scheduler run bounded
+    · cases step
+      case allocate alignment size =>
+        let site := SharedRecordAllocation.string width value dest prior none alignment size steps
+        exact crossDestructorRecordAllocator parents thread segments cx site compiled checkNext canonNext resume
+          stores
+          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged 0 0 checkNext alignment.bytes size steps)))
+          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged 0 0 canonNext alignment.bytes size steps)))
+          scheduler run bounded
+      case reallocate oldLen alignment size =>
+        let site := SharedRecordAllocation.string width value dest prior (some (pointer, oldLen)) alignment size steps
+        exact crossDestructorRecordAllocator parents thread segments cx site compiled checkNext canonNext resume
+          stores
+          (checked.trans (congrArg check.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen checkNext alignment.bytes size steps)))
+          (canonical.trans (congrArg canon.control (sharedRecordStringRequestCode cx dest tagged pointer oldLen canonNext alignment.bytes size steps)))
+          scheduler run bounded
+      all_goals exact False.elim (localStep rfl)
+
+open Stored.Endpoints in
 private def sharedRecordStringPlacement (cx : LiftLowerContext (core3 grow))
     (text : Stored.Payload (.prim .string)) (index ptr : Nat) :
     Session grow sig (Except RecordLower.Issue Unit) :=
@@ -20011,11 +20019,10 @@ private theorem visitDestructorRecordFields {limit : Nat} {body : ThreadBody (co
         intro actualWidth left right remaining stores checked canonical scheduler run bounded
         obtain ⟨alignment, size, tail, steps⟩ := stringPlanInitialAllocation cx.opts.encoding actualWidth
           (storeSource Quirks.none actualWidth value)
-        let site := SharedRecordAllocation.string actualWidth value ptr alignment size tail
+        let site := SharedRecordAllocation.string actualWidth value ptr [] none alignment size tail
         exact crossDestructorRecordAllocator parents thread segments cx site steps (following leftTicket) (following rightTicket)
-          (fun pointer => crossDestructorRecordStringSteps thread cx tail
-            (storePlanFor Quirks.none cx.opts.encoding actualWidth value).taggedCodeUnits ptr pointer
-            (following leftTicket) (following rightTicket) (onField (.ok ())))
+          (fun pointer => crossDestructorRecordStringSteps parents thread segments cx actualWidth value
+            [.allocate alignment size] tail ptr pointer steps (following leftTicket) (following rightTicket) (onField (.ok ())))
           stores
           (checked.trans (congrArg check.control (sharedRecordStringAllocationCode cx actualWidth value ptr
             (following leftTicket) alignment size tail steps)))

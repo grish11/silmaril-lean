@@ -541,31 +541,37 @@ def sharedRecordStringResume (cx : LiftLowerContext (core3 grow)) (steps : List 
   | _ => internal "late-bound call: expected Ret.nat"
 
 open Stored.Endpoints in
-/-- The compiler's two initial allocation sites in a shared record visitor. -/
+/-- The compiler's allocation sites in a shared record visitor. A string
+site records the prefix of its selected encoding plan. -/
 inductive SharedRecordAllocation where
   | collection (width : AddrType) (element : Stored.TypeOf) (entries : List RecordLower.Field)
       (index dest : Nat)
-  | string (width : AddrType) (value : Value.StrVal) (dest : Nat) (alignment : ABI.Alignment)
-      (size : Nat) (remaining : List ABI.StoreStep)
+  | string (width : AddrType) (value : Value.StrVal) (dest : Nat) (prior : List ABI.StoreStep)
+      (old : Option (Nat × Nat)) (alignment : ABI.Alignment) (size : Nat) (remaining : List ABI.StoreStep)
 
 def SharedRecordAllocation.request : SharedRecordAllocation → ABI.ReallocRequest
   | .collection width element entries _ _ =>
     let area := ABI.layout width element
     ⟨0, 0, area.alignment.bytes, entries.length * area.size⟩
-  | .string _ _ _ alignment size _ => ⟨0, 0, alignment.bytes, size⟩
+  | .string _ _ _ _ old alignment size _ =>
+    let (pointer, length) := old.getD (0, 0)
+    ⟨pointer, length, alignment.bytes, size⟩
 
 open Stored.Endpoints in
 def SharedRecordAllocation.compiled (cx : LiftLowerContext (core3 grow)) : SharedRecordAllocation → Prop
   | .collection _ _ entries _ _ => ∀ field ∈ entries, RecordLower.Field.Emitted field
-  | .string width value _ alignment size remaining =>
-    (storePlanFor Quirks.none cx.opts.encoding width value).steps = .allocate alignment size :: remaining
+  | .string width value _ prior old alignment size remaining =>
+    let step := match old with
+      | none => ABI.StoreStep.allocate alignment size
+      | some (_, length) => .reallocate length alignment size
+    (storePlanFor Quirks.none cx.opts.encoding width value).steps = prior ++ step :: remaining
 
 open Stored.Endpoints in
 def SharedRecordAllocation.resume (cx : LiftLowerContext (core3 grow))
     (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
     SharedRecordAllocation → ReturnFrame.Continuation (core3 grow) (HostState sig)
   | .collection width element entries index dest => sharedRecordAllocationResume cx width element entries index dest next
-  | .string width value dest _ _ remaining =>
+  | .string width value dest _ _ _ _ remaining =>
     sharedRecordStringResume cx remaining (storePlanFor Quirks.none cx.opts.encoding width value).taggedCodeUnits dest next
 
 def SharedRecordAllocation.call (site : SharedRecordAllocation) (cx : LiftLowerContext (core3 grow)) : Call (core3 grow) :=
@@ -2618,19 +2624,6 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (checked : reached.ctl = check.control (site.resume cx leftNext (.nat pointer)))
       (canonical : peer.ctl = canon.control (site.resume cx rightNext (.nat pointer)))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The local string loop reached an actual later allocation or reallocation call. -/
-  | sharedDropRecordStringReallocate {changes reached peer trailing finish steps tagged dest old oldLen alignment size}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      {cx : LiftLowerContext (core3 grow)}
-      {leftNext rightNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (.op (.call (.reallocate cx old oldLen alignment size))
-        (sharedRecordStringResume cx steps tagged dest leftNext)))
-      (canonical : peer.ctl = canon.control (.op (.call (.reallocate cx old oldLen alignment size))
-        (sharedRecordStringResume cx steps tagged dest rightNext)))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The actual nested worker is running above two separate source parent
   programs and the enclosing dormant parents. Its body remains pending. -/
