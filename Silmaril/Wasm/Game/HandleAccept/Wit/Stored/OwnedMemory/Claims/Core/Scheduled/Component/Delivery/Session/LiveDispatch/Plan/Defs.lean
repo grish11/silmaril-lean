@@ -2245,6 +2245,29 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         peer.store thread host args), .core core (sharedDestructorCoreResult task tk) :: peerFrames⟩ :: peerRest)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The source switch reached its actual scheduler instruction after the
+  target checks. The target slot is read after saving the current worker. -/
+  | sharedDropSwitch {changes reached peer trailing finish body worker target frames peerFrames rest peerRest reply}
+      (parents : DestructorParentChain changes body rest peerRest)
+      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) frames peerFrames)
+      (stores : reached.store = peer.store)
+      (checked : reached.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+        (.op (.block (some target)) fun _ => reply))
+      (canonical : peer.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+        (.op (.block (some target)) fun _ => reply))
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- The switch has run. The reached target is the actual saved activation
+  and the two source parents are still dormant below it. -/
+  | sharedDropSwitchTarget {changes reached peer trailing finish body left right rest peerRest}
+      (parents : DestructorParentChain changes body rest peerRest)
+      (target : ReturnFrame.Related.Active changes left right)
+      (stores : reached.store = peer.store)
+      (scheduler : DestructorSchedulerAlignment changes reached peer)
+      (checked : reached.ctl = left :: rest)
+      (canonical : peer.ctl = right :: peerRest)
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- A source worker prefix preserving scheduler data through actual steps. -/
   | destructorPrefix {changes reached peer left right leading live trailing finish marks}
       (paths : OccurrenceTransport profile ready base bindings reached peer leading live left right marks)

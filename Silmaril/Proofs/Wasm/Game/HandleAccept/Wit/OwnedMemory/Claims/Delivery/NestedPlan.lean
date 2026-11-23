@@ -2774,6 +2774,8 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
+  | sharedDropSwitch _ _ _ _ _ residual => exact residual
+  | sharedDropSwitchTarget _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentJoined paths _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
@@ -2831,6 +2833,8 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
+  | sharedDropSwitch _ _ _ _ _ residual => exact residual
+  | sharedDropSwitchTarget _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentJoined paths _ _ _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
@@ -13577,6 +13581,21 @@ private theorem relatedSetSlot {α : Type} {relation : Option α → Option α �
     | nil => exact .cons empty (ih .nil)
     | cons first rest => exact .cons first (ih rest)
 
+private theorem relatedContLookup {left right : Config (core3 grow) (HostState sig)}
+    (paired : List.Forall₂ (ReturnFrame.Related.Saved older) left.conts right.conts)
+    (thread : ThreadId) : ReturnFrame.Related.Saved older (left.cont? thread) (right.cont? thread) := by
+  have lookup {left right : List (Option (Activation (core3 grow) (HostState sig)))}
+      (paired : List.Forall₂ (ReturnFrame.Related.Saved older) left right) (index : Nat) :
+      ReturnFrame.Related.Saved older left[index]?.join right[index]?.join := by
+    induction index generalizing left right with
+    | zero => cases paired with
+      | nil => exact .none
+      | cons head _ => exact head
+    | succ _ ih => cases paired with
+      | nil => exact .none
+      | cons _ tail => exact ih tail
+  exact lookup paired thread.idx
+
 private theorem pairedSetContinuation {left right : Config (core3 grow) (HostState sig)}
     (paired : ReturnFrame.Related.Paired older left right)
     (thread : ThreadId) {first second : Option (Activation (core3 grow) (HostState sig))}
@@ -15521,19 +15540,24 @@ private theorem storeEffectWithArgs2 {Result : Type} (args : List FlatValue) (bo
   · exact effects _ _
   · exact storeEffectTrap _
 
+private theorem storeEffectThreadsGet (inst : InstId) (index : Nat) :
+    StoreEffects (threadsGet inst index : Session grow sig ThreadId) := by
+  unfold threadsGet getInst
+  exact (storeEffectGetObject ArenaField.insts inst).bind fun _ => storeEffectOrTrap _ _
+
+private theorem storeEffectUnlessSuspended (thread : ThreadId) :
+    StoreEffects (Builtins.trapUnlessSuspended thread : Session grow sig Unit) := by
+  unfold Builtins.trapUnlessSuspended
+  exact storeEffectGet.bind fun _ => storeEffectTrapIf _ _
+
 private theorem sharedDestructorThreadResumeLater (index : Nat) :
     StoreEffects (Builtins.threadResumeLater index : Session grow sig (List FlatValue)) := by
-  have lookup (inst : InstId) : StoreEffects (threadsGet inst index : Session grow sig ThreadId) := by
-    unfold threadsGet getInst
-    exact (storeEffectGetObject ArenaField.insts inst).bind fun _ => storeEffectOrTrap _ _
-  have suspended (thread : ThreadId) : StoreEffects (Builtins.trapUnlessSuspended thread : Session grow sig Unit) := by
-    unfold Builtins.trapUnlessSuspended
-    exact storeEffectGet.bind fun _ => storeEffectTrapIf _ _
   unfold Builtins.threadResumeLater Runtime.Thread.resumeLater Runtime.Thread.startWaiting getInst
   exact storeEffectCurrentInst.bind fun inst =>
     (storeEffectGetObject ArenaField.insts inst).bind fun record =>
     (storeEffectTrapIf (!record.mayLeave) .cannotLeave).bind fun _ =>
-    (lookup inst).bind fun thread => (suspended thread).bind fun _ => (storeEffectModify _).bind fun _ => .pure []
+    (storeEffectThreadsGet inst index).bind fun thread => (storeEffectUnlessSuspended thread).bind fun _ =>
+    (storeEffectModify _).bind fun _ => .pure []
 
 private theorem storeEffectCurrentTask : StoreEffects (currentTask : Session grow sig TaskId) := by
   have current : StoreEffects (currentTask? : Session grow sig (Option TaskId)) := by
@@ -15907,6 +15931,58 @@ private theorem crossDestructorWait {worker : ThreadId} {frames peerFrames rest 
       (liftDestructorStoreEffects delivered (trivialPreserves _)) trivial same leftDelivery rightDelivery tail
       (fun words shorter _ stores lAt rAt tail => returned words (shorter.trans bounded) stores lAt rAt tail)
 
+private def destructorSwitchTarget (yielding : Bool) (index : Nat) : Session grow sig ThreadId := do
+  let (_, _, task) ← Builtins.enterThreadBuiltin
+  let target ← threadsGet task.inst index
+  Builtins.trapUnlessSuspended target
+  if yielding then
+    let thread ← currentThreadId
+    Thread.startWaiting thread .always
+  pure target
+
+private def destructorSwitchReply (target : ThreadId) : Session grow sig (Ret (core3 grow)) :=
+  .op (.block (some target)) (fun _ => .pure (.flat [i32Flat 0]))
+
+private theorem destructorSwitchSource (yielding : Bool) (index : Nat) :
+    ((if yielding then Builtins.threadYieldThenResume index else Builtins.threadSuspendThenResume index) >>=
+      fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) =
+      destructorSwitchTarget yielding index >>= destructorSwitchReply := by
+  cases yielding <;>
+    simp [Builtins.threadYieldThenResume, Builtins.threadSuspendThenResume, destructorSwitchTarget,
+      destructorSwitchReply, Runtime.Thread.yieldThenResume, Runtime.Thread.suspendThenResume, Prog.bind_assoc] <;>
+    congr 1
+
+private theorem destructorSwitchEffects (yielding : Bool) (index : Nat) :
+    StoreEffects (destructorSwitchTarget yielding index : Session grow sig ThreadId) := by
+  unfold destructorSwitchTarget
+  refine destructorThreadEntryEffects.bind fun (_, _, task) => (storeEffectThreadsGet task.inst index).bind fun target =>
+    (storeEffectUnlessSuspended target).bind fun _ => ?_
+  cases yielding
+  · exact .pure target
+  · exact storeEffectCurrentThread.bind fun thread =>
+      (storeEffectModify (CStore.startWaitingSt thread .always)).bind fun _ => .pure target
+
+private theorem crossDestructorSwitchBuiltin {worker : ThreadId} {frames peerFrames rest peerRest body}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (yielding : Bool) (index : Nat) (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      ((if yielding then Builtins.threadYieldThenResume index else Builtins.threadSuspendThenResume index) >>=
+        fun words => .pure (.flat words)))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      ((if yielding then Builtins.threadYieldThenResume index else Builtins.threadSuspendThenResume index) >>=
+        fun words => .pure (.flat words)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, peerFrames, peerRest⟩
+  have code := destructorSwitchSource (grow := grow) (sig := sig) yielding index
+  refine crossSharedWorkerBody (check := check) (canon := canon) rfl (destructorSwitchTarget yielding index)
+    destructorSwitchReply (liftDestructorStoreEffects (destructorSwitchEffects yielding index) (trivialPreserves _))
+    trivial stores (congrArg check.control code ▸ leftAt) (congrArg canon.control code ▸ rightAt) run ?_
+  intro left right _ target _ _ same lAt rAt tail
+  exact .sharedDropSwitch parents segments same lAt rAt tail
+
 private theorem flatImportTrap (reason : TrapReason) :
     (trap reason >>= fun words => .pure (.flat words) : Session grow sig (Ret (core3 grow))) = trap reason := by
   simp only [trap, Prog.bind_eq, Prog.bind]
@@ -16046,7 +16122,22 @@ private theorem crossSharedDestructorImport {thread frames peerFrames rest peerR
                   exact compareSharedDestructorTrap reason
                     (checkAt.trans (congrArg check.control (flatImportTrap reason)))
                     (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
-              · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
+              · by_cases switched : ∃ (isYield : Bool) (inst : InstId), host =
+                    .builtin (if isYield then .threadYieldThenResume else .threadSuspendThenResume) inst
+                · obtain ⟨isYield, inst, rfl⟩ := switched
+                  obtain ⟨worker, rfl⟩ := activeThread
+                  let reason := TrapReason.internal "built-in: wrong number of arguments"
+                  cases isYield <;> rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+                  all_goals
+                    first
+                    | exact crossDestructorSwitchBuiltin parents (.cons (.same frame) segments)
+                        false (flatNat word) stores checkAt canonAt residual
+                    | exact crossDestructorSwitchBuiltin parents (.cons (.same frame) segments)
+                        true (flatNat word) stores checkAt canonAt residual
+                    | exact compareSharedDestructorTrap reason
+                        (checkAt.trans (congrArg check.control (flatImportTrap reason)))
+                        (canonAt.trans (congrArg canon.control (flatImportTrap reason))) residual
+                · exact .sharedDropWorkerImport parents admitted stores checkAt canonAt residual
 
 private theorem rejoinDestructorParentJournal {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
     {actualLabels : Trace grow sig}
@@ -16181,6 +16272,118 @@ private theorem finishBlockedDestructorLoop {limit leftTicket rightTicket : Nat}
     · exact tail
   · exact tail
 
+private theorem rejoinDestructorLoopEntry {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
+    {actualLabels : Trace grow sig}
+    (ending : CallbackSliceEnd profile ready base bindings older sourceCfg peerCfg actualLabels finish)
+    (scheduler : DestructorSchedulerAlignment older sourceCfg peerCfg)
+    (bounded : actualLabels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older sourceCfg peerCfg actualLabels finish := by
+  match ending with
+  | .sharedDropParentLoop paths writers frames restore residual =>
+    obtain ⟨restored, outside⟩ := restore scheduler
+    exact .sharedDropParentLoopJoined paths writers restored
+      (finishBlockedDestructorLoop frames restored outside residual (Nat.lt_of_succ_le bounded) compare)
+  | other => exact other
+
+open ReturnFrame.Occurrence in
+private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
+    {rest peerRest left right}
+    (parents : DestructorParentChain older body rest peerRest)
+    (target : ReturnFrame.Related.Active older left right)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = left :: rest) (rightAt : incoming.ctl = right :: peerRest)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  cases run with
+  | refl => exact .exhausted
+  | @cons _ _ _ label trailing actual tail =>
+    by_cases exiting : ∃ (thread : ThreadId) (value : Ret (core3 grow)), left = ⟨some thread, .prog (.pure value), []⟩
+    · obtain ⟨thread, value, rfl⟩ := exiting
+      have peerExit : right = ⟨some thread, .prog (.pure value), []⟩ := by
+        cases target with
+        | mk frames => cases frames; rfl
+      have checked : Step profile ready (specDispatch ready base) start .tau
+          { start with store := StepDefs.threadStatusSt thread .exited start.store, ctl := rest } := .threadExit leftAt
+      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau
+          { incoming with store := StepDefs.threadStatusSt thread .exited incoming.store, ctl := peerRest } :=
+        .threadExit (by rw [rightAt, peerExit])
+      obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
+      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) checked canonical
+        (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt, peerExit]; rfl)
+      refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same) ?_
+      exact rejoinDestructorLoopEntry (enterDestructorParentLoop parents
+        (congrArg (StepDefs.threadStatusSt thread .exited) stores) tail) scheduler (by simp only [List.length_cons] at bounded; omega) compare
+    · exact .sharedDropSwitchTarget parents target stores scheduler leftAt rightAt (.cons actual tail)
+
+open ReturnFrame.Occurrence in
+private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}
+    {worker target : ThreadId} {frames peerFrames rest peerRest}
+    {reply : Session grow sig (Ret (core3 grow))}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      (.op (.block (some target)) fun _ => reply))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      (.op (.block (some target)) fun _ => reply))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let left := start.setCont worker (some (StepDefs.blockedAct worker (fun _ => reply) frames))
+  let right := incoming.setCont worker (some (StepDefs.blockedAct worker (fun _ => reply) peerFrames))
+  have saved : List.Forall₂ (ReturnFrame.Related.Saved older) left.conts right.conts :=
+    relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
+  have found := relatedContLookup saved target
+  cases run with
+  | refl => exact .exhausted
+  | @cons _ _ _ label trailing actual tail =>
+    cases present : left.cont? target with
+    | none =>
+      have noneRelated {slot} (related : ReturnFrame.Related.Saved older none slot) : slot = none := by
+        cases related
+        rfl
+      have rawMissing : right.cont? target = none := noneRelated (present ▸ found)
+      have fault := Fault.switchMissing leftAt present
+      let reason := TrapReason.internal "switch to a thread without a saved continuation"
+      have checked : Step profile ready (specDispatch ready base) start (.trap reason) (StepDefs.trapCfg start) :=
+        .fault fault
+      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming
+          (.trap reason) (StepDefs.trapCfg incoming) := .fault (.switchMissing rightAt rawMissing)
+      have equalLabel : label = .trap reason := by
+        by_contra differs
+        exact (differentStepBranch checked actual (Ne.symm differs)).1
+      subst label
+      have equalEnd := labelledStepUnique checked actual
+      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .clear) checked canonical rfl rfl
+      exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) (equalEnd.symm ▸ tail)
+        (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+    | some next =>
+      rw [present] at found
+      have someRelated {slot} (related : ReturnFrame.Related.Saved older (some next) slot) :
+          ∃ peer, slot = some peer ∧ ReturnFrame.Related.Active older next peer := by
+        cases related with
+        | some active => exact ⟨_, rfl, active⟩
+      obtain ⟨peer, rawFound, related⟩ := someRelated found
+      let update (store : CStore (core3 grow)) :=
+        StepDefs.threadStatusSt target .running (StepDefs.threadStatusSt worker .blocked store)
+      let checkedEnd := { left.setCont target none with store := update start.store, ctl := next :: rest }
+      let rawEnd := { right.setCont target none with store := update incoming.store, ctl := peer :: peerRest }
+      have checked : Step profile ready (specDispatch ready base) start .tau checkedEnd := .blockSwitch leftAt present
+      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rawEnd :=
+        .blockSwitch rightAt rawFound
+      obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
+      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .switch worker.idx target.idx) checked canonical
+        (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+      have aligned : DestructorSchedulerAlignment older checkedEnd rawEnd :=
+        ⟨relatedSetSlot .none saved target.idx .none, scheduler.2⟩
+      exact .destructorPrefix paths (frameCalloutStep paths rfl rfl)
+        (fun _ => aligned) (finishDestructorSwitchTarget parents related (congrArg update stores)
+          aligned rfl rfl tail (by simp only [List.length_cons] at bounded; omega) compare)
+
 /-- Discharge the pending enclosing return after following the source worker
 prefix. Every recursive use of the mixed classifier consumes the actual pop. -/
 private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config (core3 grow) (HostState sig)}
@@ -16196,10 +16399,11 @@ private theorem rejoinDestructorSuffix {limit : Nat} {sourceCfg peerCfg : Config
   | .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets tail =>
     exact .sharedDropSource installed canonical resumed peerResume selected source checkPop rawPop tickets
       (rejoinDestructorSuffix tail scheduler bounded compare)
+  | .sharedDropSwitch parents segments stores checked canonical residual =>
+    exact finishDestructorSwitch parents segments stores checked canonical residual scheduler bounded compare
   | .sharedDropParentLoop paths writers frames restore residual =>
-    obtain ⟨restored, outside⟩ := restore scheduler
-    exact .sharedDropParentLoopJoined paths writers restored
-      (finishBlockedDestructorLoop frames restored outside residual (Nat.lt_of_succ_le bounded) compare)
+    exact rejoinDestructorLoopEntry
+      (.sharedDropParentLoop paths writers frames restore residual) scheduler bounded compare
   | .sharedDropParentPop paths writers checkedLost canonicalLost restore residual =>
     exact rejoinDestructorParentJournal
       (.sharedDropParentPop paths writers checkedLost canonicalLost restore residual) scheduler bounded compare
