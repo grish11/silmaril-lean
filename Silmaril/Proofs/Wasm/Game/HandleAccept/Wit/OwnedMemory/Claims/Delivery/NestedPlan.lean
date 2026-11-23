@@ -2858,7 +2858,9 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropRecordAllocatorWorkerExited _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorLoopPopped _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropRecordAllocatorReturning _ _ _ _ _ _ _ _ ih => exact ih
-  | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ _ ih => exact ih
+  | sharedDropRecordCollectionPrepared _ _ _ _ residual => exact residual
+  | sharedDropRecordStringAllocated _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -2930,7 +2932,9 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropRecordAllocatorWorkerExited _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorLoopPopped _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropRecordAllocatorReturning _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
-  | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
+  | sharedDropRecordAllocatorPopped _ _ _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
+  | sharedDropRecordCollectionPrepared _ _ _ _ residual => exact residual
+  | sharedDropRecordStringAllocated _ _ _ _ residual => exact residual
   | sharedDropNestedResumed _ _ _ _ _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
   | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
@@ -18586,10 +18590,67 @@ private abbrev DestructorAllocatorPointer
     Steps profile ready (specDispatch ready base) left remaining finish →
     CallbackSliceEnd profile ready base bindings older left right remaining finish
 
+private theorem sharedRecordRangeEffects (cx : LiftLowerContext (core3 grow)) (area : ABI.Layout) (count : Nat)
+    (result : Ret (core3 grow)) : StoreEffects (sharedRecordRange cx area count result : Session grow sig Nat) := by
+  cases result
+  case nat ptr =>
+    exact (storeEffectTrapIf (decide (ptr ≠ ABI.alignTo ptr area.alignment)) .unalignedPointer).bind fun _ =>
+      (storeEffectBounds cx ptr (count * area.size)).bind fun _ => .pure ptr
+  all_goals exact storeEffectTrap (.internal "late-bound call: expected Ret.nat")
+
+open Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem sharedRecordAllocatedPrepareCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (element : Stored.TypeOf) (entries : List RecordLower.Field) (index dest pointer : Nat)
+    (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    (sharedRecordAllocated cx width element entries index dest pointer >>= next) =
+      .op .get (fun store => .op .hostGet fun state =>
+        sharedRecordAfterAllocationPrepare cx width element entries index dest pointer
+          (Record.prepare store state.writer (RecordLower.Field.listObjects entries)) >>= next) := by
+  rfl
+
+open ReturnFrame.Occurrence Stored.Endpoints in
+private theorem crossDestructorRecordAllocatorResume
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation) (pointer : Nat)
+    (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (site.resume cx leftNext (.nat pointer)))
+    (canonical : incoming.ctl = canon.control (site.resume cx rightNext (.nat pointer)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases site with
+  | string width value dest alignment size steps =>
+    exact .sharedDropRecordStringAllocated (check := check) (canon := canon)
+      stores scheduler checked canonical run
+  | collection width element entries index dest =>
+    let area := ABI.layout width element
+    let range : Session grow sig Nat := sharedRecordRange cx area entries.length (.nat pointer)
+    let afterRange (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) (ptr : Nat) :=
+      sharedRecordAllocated cx width element entries index dest ptr >>= next
+    refine crossDestructorRecordStore (check := check) (canon := canon) thread range
+      (sharedRecordRangeEffects cx area entries.length (.nat pointer)) (afterRange leftNext) (afterRange rightNext)
+      ?_ stores checked canonical scheduler run (Nat.le_refl _)
+    intro ptr left right remaining same leftAt rightAt aligned tail bounded
+    change left.ctl = check.control (sharedRecordAllocated cx width element entries index dest ptr >>= leftNext) at leftAt
+    change right.ctl = canon.control (sharedRecordAllocated cx width element entries index dest ptr >>= rightNext) at rightAt
+    rw [sharedRecordAllocatedPrepareCode] at leftAt rightAt
+    let afterPrepare (next : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+        (result : Except RecordLower.Issue Unit) :=
+      sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= next
+    exact crossDestructorRecordPrepare (check := check) (canon := canon) (RecordLower.Field.listObjects entries)
+      (afterPrepare leftNext) (afterPrepare rightNext)
+      (by
+        intro result reached peer trailing equal checked canonical aligned residual bounded
+        exact .sharedDropRecordCollectionPrepared (check := check) (canon := canon) (result := result)
+          equal aligned checked canonical residual)
+      same leftAt rightAt aligned tail bounded
+
 open ReturnFrame.Occurrence Stored.Endpoints in
 private theorem crossDestructorRecordAllocatorPop {body : ThreadBody (core3 grow)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (parents : DestructorParentChain older body check.rest canon.rest)
+    (parents : DestructorParentChain older body check.rest canon.rest) (thread : check.thread = canon.thread)
     (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation)
     (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
     DestructorAllocatorPointer profile ready base bindings older
@@ -18620,7 +18681,9 @@ private theorem crossDestructorRecordAllocatorPop {body : ThreadBody (core3 grow
       .step peerPop (by rw [rightEdit]; exact .done _ _)
     exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun aligned => aligned)
       (.sharedDropRecordAllocatorPopped (check := check) (canon := canon) (site := site)
-        parents stores scheduler checked canonical pop peerPop leftLoss rightLoss rfl rfl tail)
+        parents stores scheduler checked canonical pop peerPop leftLoss rightLoss rfl rfl
+        (crossDestructorRecordAllocatorResume (check := check) (canon := canon) thread cx site pointer
+          leftNext rightNext stores rfl rfl scheduler tail))
 
 open ReturnFrame.Occurrence in
 private theorem crossDestructorRecordAllocatorEpilogue {body : ThreadBody (core3 grow)}
@@ -19454,7 +19517,7 @@ private theorem crossDestructorRecordAllocator {limit : Nat} {body : ThreadBody 
     have allocatorSource : SharedRecordAllocatorSource cx site.request width fresh.2 caller fresh.1 :=
       ⟨⟨entry, ArenaField.tasks.get?_alloc_self taskStart.store entry, rfl, rfl, rfl, rfl⟩, callerFound⟩
     exact crossDestructorRecordAllocatorWorker (check := checkEntered) (canon := canonEntered)
-      parents thread (crossDestructorRecordAllocatorPop parents cx site leftNext rightNext)
+      parents thread (crossDestructorRecordAllocatorPop parents thread cx site leftNext rightNext)
       cx callee fresh.2 caller allocatorSource rfl rfl rfl
       (afterConfine (aligned scheduler)) afterTask
 
@@ -21628,14 +21691,6 @@ private theorem crossSharedRecordPrepare {left right : Config (core3 grow) (Host
   · exact .inr (callbackTerminalSlice paired (by
       rw [consumed, ← List.cons_append]
       exact .sharedRecordPrepareMismatch conflict moved traced residual))
-
-private theorem sharedRecordRangeEffects (cx : LiftLowerContext (core3 grow)) (area : ABI.Layout) (count : Nat)
-    (result : Ret (core3 grow)) : StoreEffects (sharedRecordRange cx area count result : Session grow sig Nat) := by
-  cases result
-  case nat ptr =>
-    exact (storeEffectTrapIf (decide (ptr ≠ ABI.alignTo ptr area.alignment)) .unalignedPointer).bind fun _ =>
-      (storeEffectBounds cx ptr (count * area.size)).bind fun _ => .pure ptr
-  all_goals exact storeEffectTrap (.internal "late-bound call: expected Ret.nat")
 
 open Stored.Endpoints in
 private def sharedRecordCollectionResult (cx : LiftLowerContext (core3 grow)) (width : AddrType)
