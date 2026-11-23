@@ -12528,6 +12528,50 @@ private theorem coreAcceptRawEmbedder {name kind args inst loader}
   | memory _ _ linked => simp only [LiveDispatch.host, selectBinding, linked, embedder]
   | flat _ linked => simp only [LiveDispatch.host, selectBinding, linked, embedder]
 
+private def LegacyBindingContextMismatch (binding : Binding sig) : Prop :=
+  match binding.action with
+  | .accept contract _ => contract.inst ≠ binding.inst
+  | .acceptFlat source => source.inst ≠ binding.inst
+  | _ => False
+
+private theorem resolvedBindingName {name kind} {selected : Binding sig}
+    (linked : resolveBinding bindings name kind = .ok selected) : selected.name = name := by
+  unfold resolveBinding at linked
+  split at linked
+  next => cases linked
+  next entry found =>
+    split at linked
+    · cases linked
+    · cases linked
+      have member : selected ∈ bindings.filter (·.name == name) := found.symm ▸ List.mem_cons_self ..
+      have equal := (List.mem_filter.mp member).2
+      exact beq_iff_eq.mp equal
+  next => cases linked
+
+private theorem legacyMismatchRoute {name kind args} {selected : Binding sig}
+    (linked : resolveBinding bindings name kind = .ok selected) (mismatch : LegacyBindingContextMismatch selected)
+    (ticket : Nat) :
+    route (grow := grow) ticket bindings name kind args =
+      (do Scheduled.finish ticket (← admit selected.inst (pure (.error .wrongContext)))) := by
+  rcases selected with ⟨label, inst, action⟩
+  cases action with
+  | accept contract memory =>
+    have wrong : (contract.inst != inst) = true := bne_iff_ne.mpr mismatch
+    simp only [route, linked, invoke, admit, wrong, ite_true]
+  | acceptFlat source =>
+    have wrong : (source.inst != inst) = true := bne_iff_ne.mpr mismatch
+    simp only [route, linked, invoke, admit, wrong, ite_true]
+  | _ => exact False.elim mismatch
+
+private theorem legacyMismatchRawEmbedder {name kind args} {selected : Binding sig}
+    (linked : resolveBinding bindings name kind = .ok selected) (mismatch : LegacyBindingContextMismatch selected)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder) :
+    (LiveDispatch.host bindings base).embedder name kind args = (Scheduled.host (grow := grow) bindings).embedder name kind args := by
+  rcases selected with ⟨label, inst, action⟩
+  cases action with
+  | accept | acceptFlat => simp only [LiveDispatch.host, selectBinding, linked, embedder]
+  | _ => exact False.elim mismatch
+
 open ReturnFrame.Occurrence in
 private theorem scheduledEntryPath (impl : HostImpl (core3 grow) (HostState sig))
     {name kind args inst} {body : Nat → Session grow sig (Except Scheduled.Issue Nat)} {worker : ThreadId}
@@ -21305,6 +21349,82 @@ private theorem finishDeniedSourceImport {limit : Nat}
       exact resume words stores scheduler leftReply rawReply tail shorter
 
 open ReturnFrame.Occurrence in
+private theorem finishSourceLegacyMismatch {limit : Nat}
+    {thread frames peerFrames rest peerRest name kind args} {selected : Binding sig}
+    {frame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (linked : resolveBinding bindings name kind = .ok selected) (mismatch : LegacyBindingContextMismatch selected)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store thread (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming) (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older
+      ⟨thread, frame :: frames, rest⟩ ⟨thread, frame :: peerFrames, peerRest⟩ limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have rawEmbedder := legacyMismatchRawEmbedder (args := args) linked mismatch embedder
+  by_cases admitted : Plain.callerInstance start.store thread = .ok (some selected.inst) ∧
+      (start.store.inst? selected.inst).any (·.mayLeave) = true
+  · cases thread with
+    | none => simp [Plain.callerInstance] at admitted
+    | some worker =>
+      let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: frames, rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, frame :: peerFrames, peerRest⟩
+      let rejected := fun ticket => (do return .flat (← Scheduled.finish ticket (.error .wrongContext)) : Session grow sig (Ret (core3 grow)))
+      let left := { start with host := start.host.enter name kind args, ctl := check.control (rejected start.host.nextTicket) }
+      let right := { incoming with host := incoming.host.enter name kind args, ctl := canon.control (rejected incoming.host.nextTicket) }
+      have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start [id, id, id, id, id, id] left :=
+        scheduledEntryPath base (legacyMismatchRoute linked mismatch) (congrFun (congrFun (congrFun embedder name) kind) args)
+          check rfl admitted.1 admitted.2 checked
+      have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
+          [id, id, id, id, id, id] right :=
+        scheduledEntryPath (LiveDispatch.host bindings base) (legacyMismatchRoute linked mismatch) rawEmbedder
+          canon rfl (stores ▸ admitted.1) (stores ▸ admitted.2) canonical
+      obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ := cutSharedQuietWorker leftPath rightPath run
+      rw [split]
+      rcases ending with empty | ⟨rfl, rfl⟩
+      · subst remaining
+        cases tail
+        exact .comparedPrefix paths writers .exhausted
+      · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+        exact finishSourceScheduledReply stores (.error .wrongContext) rfl rfl scheduler tail
+          (destructorSuffixBound split bounded) resume
+  · exact finishDeniedSourceImport embedder rawEmbedder (legacyMismatchRoute linked mismatch) admitted stores
+      checked canonical run scheduler bounded resume
+
+private theorem resolvedLegacyMismatch {name kind args} {selected : Binding sig}
+    (linked : resolveBinding bindings name kind = .ok selected)
+    (legacy : ¬ ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+    (shared : ¬ ∃ (inst : InstId) (action : SharedGiveAction),
+      resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (overlay : ¬ ∃ (inst : InstId) (destination : RecordDestination) (schema : Option Stored.TypeOf),
+      resolveBinding bindings name kind = .ok ⟨name, inst, schema.elim (.givePayload destination) (.giveFlat destination)⟩) :
+    LegacyBindingContextMismatch selected := by
+  have sameName := resolvedBindingName linked
+  rcases selected with ⟨label, inst, action⟩
+  change label = name at sameName
+  subst label
+  cases action with
+  | accept contract memory =>
+    intro same
+    change contract.inst = inst at same
+    subst inst
+    exact legacy ⟨_, _, .memory contract memory linked⟩
+  | acceptFlat source =>
+    intro same
+    change source.inst = inst at same
+    subst inst
+    exact legacy ⟨_, _, .flat source linked⟩
+  | giveOwner resource => exact (shared ⟨inst, .giveOwner resource, linked⟩).elim
+  | dropOwner resource => exact (shared ⟨inst, .dropOwner resource, linked⟩).elim
+  | giveEndpoint channel element => exact (shared ⟨inst, .endpoint channel element, linked⟩).elim
+  | giveRecord destination => exact (shared ⟨inst, .record destination, linked⟩).elim
+  | givePayload destination => exact (overlay ⟨inst, destination, none, linked⟩).elim
+  | giveFlat destination schema => exact (overlay ⟨inst, destination, some schema, linked⟩).elim
+
+open ReturnFrame.Occurrence in
 private theorem crossSourceCheckedJournal
     {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {target : Config (core3 grow) (HostState sig)}
     (path : FramedQuietPath profile ready (specDispatch ready base) check start [id, id] target)
@@ -23251,7 +23371,13 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
                       exact finishSourceOverlayGive request (imports trailing.length (Nat.lt_succ_self _)).1 (.prefixed resumers parents) segments embedder
                         (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
                     · cases binding : resolveBinding bindings name kind with
-                      | ok _ => exact otherwise
+                      | ok selected =>
+                        have mismatch := resolvedLegacyMismatch (args := args) binding legacy shared overlay
+                        refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                        refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                        intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                        exact finishSourceLegacyMismatch embedder binding mismatch (lhs.trans (stores.trans rhs.symm))
+                          leftAt rightAt run aligned bounded resume
                       | error issue =>
                         refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
                         refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
@@ -23875,7 +24001,9 @@ private theorem compareAdmittedSourceLinkedWith {limit cap : Nat}
           exact finishSourceOverlayGive (frames := []) (peerFrames := []) request reentry.1 parents .nil embedder
             stores checked canonical run scheduler within resume
         · cases binding : resolveBinding bindings name kind with
-          | ok _ => exact frontier
+          | ok selected =>
+            exact finishSourceLegacyMismatch (frames := []) (peerFrames := []) embedder binding
+              (resolvedLegacyMismatch binding legacy shared overlay) stores checked canonical run scheduler within resume
           | error issue =>
             exact finishDestructorBindingTrap
               (check := ⟨some worker, [frame], rest⟩) (canon := ⟨some worker, [frame], peerRest⟩)
@@ -24745,7 +24873,11 @@ private theorem finishSharedDestructorImport {limit : Nat}
             (check := ⟨thread, .core core (sharedDestructorCoreResult task tk) :: frames, rest⟩)
             (canon := ⟨thread, .core core (sharedDestructorCoreResult task tk) :: peerFrames, peerRest⟩)
             (congrFun (congrFun (congrFun embedder name) kind) args) linked checked canonical residual
-        | ok _ => exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
+        | ok selected =>
+          by_cases mismatch : LegacyBindingContextMismatch selected
+          · exact finishSourceLegacyMismatch embedder linked mismatch stores checked canonical residual scheduler bounded
+              (finishDestructorCoreReply parents rfl (.cons (.same _) segments) compare)
+          · exact .sharedDropWorkerImport parents segments admitted stores checked canonical residual
   | _ => exact follow rfl
 
 /-- Discharge the pending enclosing return after following the source worker
