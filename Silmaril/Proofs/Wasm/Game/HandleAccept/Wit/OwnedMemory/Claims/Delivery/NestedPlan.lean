@@ -19513,1050 +19513,6 @@ private theorem crossSourceRecordAllocator {limit : Nat}
       (shorterSelection.trans within))))
 
 
-open Stored.Endpoints in
-private theorem finishSourceRecordFields {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
-    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (fields : List RecordLower.Field) (cursor index : Nat)
-    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
-    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket))
-      (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)) := by
-  refine visitSourceRecordFields leftTicket rightTicket cx width .fields fields cursor index .report emitted thread ?_ ?_
-  · intro context site compiled first second _
-    refine crossSourceRecordAllocator parents thread segments context site compiled first second ?_
-    intro cx callee task caller worker _ sourceParents request width left right remaining source same checked canonical scheduler run _
-    cases run with
-    | refl => exact .exhausted
-    | cons step tail =>
-      exact .sharedSourceRecordAllocatorAdmitted sourceParents source same scheduler checked canonical (.cons step tail)
-  · intro result left right remaining same checked canonical scheduler run bounded
-    cases result with
-    | error issue =>
-      exact finishSourceScheduledReply same (.error (.lowerRecord issue)) checked canonical scheduler run bounded resume
-    | ok done =>
-      cases done
-      exact finishSourceScheduledReply same (.ok 0) checked canonical scheduler run bounded resume
-
-private def sourceGiveWithReply : SharedGiveAction → Bool
-  | .giveOwner _ | .endpoint _ _ | .record _ => true
-  | _ => false
-
-open Stored.OwnedMemory.Claims in
-private theorem finishSourceSelectedGive {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {name kind inst position leftTicket rightTicket} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
-    (transfer : sourceGiveWithReply action = true)
-    (parents : SourceParentStack older check.rest canon.rest)
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
-    (present : ¬ missingSharedPosition action tree position)
-    (stores : start.store = incoming.store)
-    (checked : start.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
-    (canonical : incoming.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (bounded : labels.length ≤ limit)
-    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  cases action with
-  | giveOwner resource =>
-    cases selected : (rootReceipts tree)[position]? with
-    | none => exact (present selected).elim
-    | some receipt =>
-      let identity := receiptId receipt
-      have source : (SharedGiveAction.giveOwner resource).claimAt tree position =
-          some (.giveOwner resource identity) := by simp only [SharedGiveAction.claimAt, selected, Option.map_some, identity]
-      rw [sharedClaimProgram _ _ _ _ _ source] at checked canonical
-      exact finishSourceSharedClaim linked source stores checked canonical run scheduler bounded resume
-        (fun _ leftLive rightLive visited => finishSourceOwnerGive ⟨resource, identity, inst⟩ thread stores
-          checked canonical leftLive rightLive visited scheduler bounded resume)
-  | endpoint channel element =>
-    cases selected : (rootEndpoints tree)[position]? with
-    | none => exact (present selected).elim
-    | some identity =>
-      have source : (SharedGiveAction.endpoint channel element).claimAt tree position =
-          some (.endpoint channel element identity) := by simp only [SharedGiveAction.claimAt, selected, Option.map_some]
-      rw [sharedClaimProgram _ _ _ _ _ source] at checked canonical
-      refine finishSourceSharedClaim linked source stores checked canonical run scheduler bounded resume ?_
-      intro permit leftLive rightLive visited
-      cases permit
-      exact finishSourceEndpointGive ⟨channel, element, identity, inst⟩ thread stores
-        checked canonical leftLive rightLive visited scheduler bounded resume
-  | record destination =>
-    exact finishSourceSharedRecord destination parents thread segments linked stores checked canonical run scheduler bounded resume
-      (fun cx width fields emitted => finishSourceRecordFields leftTicket rightTicket cx width fields position 0
-        emitted parents thread segments resume)
-  | dropOwner _ => contradiction
-
-private theorem finishAdmittedSourceSharedGive {limit : Nat}
-    {worker frames peerFrames rest peerRest name kind args inst} {action : SharedGiveAction}
-    {frame : Seg (core3 grow) (HostState sig)}
-    (transfer : sourceGiveWithReply action = true)
-    (parents : SourceParentStack older rest peerRest)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
-    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
-    (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
-    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
-    (stores : start.store = incoming.store)
-    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
-      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
-    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store (some worker) (.embedder name kind) args))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (bounded : labels.length ≤ limit)
-    (resume : SourceCoreReply profile ready base bindings older
-      ⟨some worker, frame :: frames, rest⟩ ⟨some worker, frame :: peerFrames, peerRest⟩ limit finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  finishAdmittedSourceSharedSelector embedder linked caller mayLeave stores checked canonical run scheduler bounded resume
-    (fun _ _ {_ _ _} missing same leftAt rightAt residual aligned within =>
-      finishSourceSelectedGive (check := ⟨some worker, frame :: frames, rest⟩)
-        (canon := ⟨some worker, frame :: peerFrames, peerRest⟩) transfer parents rfl (.cons (.same _) segments)
-        linked missing same leftAt rightAt residual aligned within resume)
-
-private theorem crossSelectedEmbedderAdmission {limit : Nat}
-    {worker frames peerFrames rest peerRest name kind args}
-    {frame : Seg (core3 grow) (HostState sig)}
-    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
-      (specDispatch ready base (.hostCallout (.embedder name kind) args)))
-    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
-      (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ limit)
-    (enter : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = start.store → right.store = incoming.store →
-      left.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
-        (calloutBody Limits.spec Quirks.none ready base left.store (some worker) (.embedder name kind) args) →
-      right.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
-        (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
-          right.store (some worker) (.embedder name kind) args) →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  have checkedReads := sharedDestructorImportReads (profile := profile) base ⟨some worker, frame :: frames, rest⟩ (.embedder name kind) args checked
-  have canonicalReads := sharedDestructorImportReads (profile := profile) (LiveDispatch.host bindings base)
-    ⟨some worker, frame :: peerFrames, peerRest⟩ (.embedder name kind) args canonical
-  obtain ⟨used, remaining, reached, peer, split, paths, writers, residual, ending⟩ :=
-    cutSharedQuietWorker checkedReads canonicalReads run
-  rw [split]
-  rcases ending with empty | ⟨rfl, rfl⟩
-  · subst remaining
-    cases residual
-    exact .comparedPrefix paths writers .exhausted
-  · exact .destructorPrefix paths writers (fun aligned => aligned)
-      (enter rfl rfl rfl rfl scheduler residual (destructorSuffixBound split bounded))
-
-open ReturnFrame.Occurrence in
-private theorem finishSourceSwitchTarget {limit : Nat}
-    {rest peerRest left right active peerActive}
-    (parents : SourceParentStack older rest peerRest) (parentPresent : rest ≠ [] ∧ peerRest ≠ [])
-    (target : ReturnFrame.Related.Active older left right)
-    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
-    (stores : start.store = incoming.store)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ limit)
-    (onParent : ∀ {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
-      lhs.store = rhs.store → DestructorSchedulerAlignment older lhs rhs →
-      lhs.ctl = rest → rhs.ctl = peerRest →
-      Steps profile ready (specDispatch ready base) lhs suffix finish → suffix.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels left right active peerActive with
-  | ind count ih =>
-    cases run with
-    | refl => exact .exhausted
-    | @cons _ _ _ label trailing actual tail =>
-      have frontier := CallbackSliceEnd.sharedDropSwitchTarget (bindings := bindings)
-        parents target resumers stores scheduler leftAt rightAt (.cons actual tail)
-      have shorter : trailing.length ≤ limit := Nat.le_of_succ_le bounded
-      have proceed {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig}
-          {head peerHead activeTail peerTail}
-          (headPaired : ReturnFrame.Related.Active older head peerHead)
-          (tailPaired : List.Forall₂ (ReturnFrame.Related.Active older) activeTail peerTail)
-          (same : lhs.store = rhs.store) (aligned : DestructorSchedulerAlignment older lhs rhs)
-          (lhsAt : lhs.ctl = head :: (activeTail ++ rest))
-          (rhsAt : rhs.ctl = peerHead :: (peerTail ++ peerRest))
-          (residual : Steps profile ready (specDispatch ready base) lhs suffix finish)
-          (atMost : suffix.length ≤ trailing.length) :
-          CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish := by
-        exact ih suffix.length (size ▸ Nat.lt_succ_of_le atMost)
-          headPaired tailPaired same aligned lhsAt rhsAt residual (atMost.trans shorter) rfl
-      have leave {lhs rhs : Config (core3 grow) (HostState sig)}
-          (same : lhs.store = rhs.store) (aligned : DestructorSchedulerAlignment older lhs rhs)
-          (lhsAt : lhs.ctl = active ++ rest) (rhsAt : rhs.ctl = peerActive ++ peerRest)
-          (residual : Steps profile ready (specDispatch ready base) lhs trailing finish) :
-          CallbackSliceEnd profile ready base bindings older lhs rhs trailing finish := by
-        cases resumers with
-        | nil => exact onParent same aligned lhsAt rhsAt residual shorter
-        | cons front others => exact proceed front others same aligned lhsAt rhsAt residual (Nat.le_refl _)
-      cases target with
-      | @mk thread focus frames peerFrames segments =>
-        have advance {lhs rhs : Config (core3 grow) (HostState sig)}
-            {next : Focus (core3 grow) (HostState sig)} {outFrames outPeerFrames}
-            (leftStep : Step profile ready (specDispatch ready base) start label lhs)
-            (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming label rhs)
-            (residual : Steps profile ready (specDispatch ready base) lhs trailing finish)
-            (related : List.Forall₂ (ReturnFrame.Related.Segment older) outFrames outPeerFrames)
-            (leftNext : lhs.ctl = ⟨thread, next, outFrames⟩ :: (active ++ rest))
-            (rightNext : rhs.ctl = ⟨thread, next, outPeerFrames⟩ :: (peerActive ++ peerRest))
-            (same : lhs.store = rhs.store)
-            (aligned : DestructorSchedulerAlignment older lhs rhs)
-            (leftWriter : lhs.host.writer = start.host.writer) (rightWriter : rhs.host.writer = incoming.host.writer)
-            {edit : Edit (core3 grow) (HostState sig)}
-            (leftEdit : transitionEdit start label = edit) (rightEdit : transitionEdit incoming label = edit) :
-            CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
-          have paths := sharedSchedulerTransport (bindings := bindings) leftStep rightStep leftEdit rightEdit
-          exact .destructorPrefix paths (.framed (.same leftStep leftWriter (.done _)) (.same rightStep rightWriter (.done _)))
-            (fun _ => aligned) (proceed (.mk related) resumers same aligned leftNext rightNext residual (Nat.le_refl _))
-        have crossLinked (host : CanonHost (core3 grow)) (args : List FlatValue) (mark : Seg (core3 grow) (HostState sig))
-            (checked : Step profile ready (specDispatch ready base) start label
-              { start with ctl := ⟨thread, .prog (specDispatch ready base (.hostCallout host args)), mark :: frames⟩ ::
-                (active ++ rest) })
-            (canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming label
-              { incoming with ctl := ⟨thread, .prog (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout host args)),
-                mark :: peerFrames⟩ :: (peerActive ++ peerRest) })
-            (leftEdit : transitionEdit start label = .push mark) (rightEdit : transitionEdit incoming label = .push mark)
-            (tail : Steps profile ready (specDispatch ready base)
-              { start with ctl := ⟨thread, .prog (specDispatch ready base (.hostCallout host args)), mark :: frames⟩ ::
-                (active ++ rest) } trailing finish)
-            (otherwise : CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish) :
-            CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
-          cases host with
-          | embedder name kind =>
-            cases thread with
-            | none => exact otherwise
-            | some worker =>
-              classical
-              by_cases embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder
-              · have moved := sharedSchedulerTransport (bindings := bindings) checked canonical leftEdit rightEdit
-                let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, mark :: frames, active ++ rest⟩
-                let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, mark :: peerFrames, peerActive ++ peerRest⟩
-                have resume : SourceCoreReply profile ready base bindings older check canon trailing.length finish :=
-                  fun _ {_ _ _} same aligned lhs rhs run bound =>
-                    proceed (.mk (.cons (.same _) segments)) resumers same aligned lhs rhs run bound
-                by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
-                · obtain ⟨inst, loader, linked⟩ := legacy
-                  by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
-                      (start.store.inst? inst).any (·.mayLeave) = true
-                  · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
-                    refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
-                    intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
-                    exact finishAdmittedSourceLegacy embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
-                      (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
-                  · exact otherwise
-                · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
-                      resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
-                  · obtain ⟨inst, action, transfer, linked⟩ := shared
-                    by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
-                        (start.store.inst? inst).any (·.mayLeave) = true
-                    · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
-                      refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
-                      intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
-                      exact finishAdmittedSourceSharedGive transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
-                        (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
-                    · exact otherwise
-                  · exact otherwise
-              · exact otherwise
-          | _ => exact otherwise
-        cases actual with
-        | @call _ request resume _ _ atCall =>
-          rw [leftAt] at atCall
-          cases atCall
-          have ordinary : CallbackSliceEnd profile ready base bindings older start incoming (.tau :: trailing) finish := by
-            by_cases shared : LiveDispatch.Unchanged bindings request
-            · have code := LiveDispatch.unchanged_dispatch (ready := ready) (base := base) shared
-              have raw := Step.call (prof := profile) (hr := ready)
-                (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-              rw [← code] at raw
-              exact advance (edit := .push (.prog resume)) (.call leftAt) raw tail (.cons (.same _) segments) rfl rfl
-                stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-            · exact frontier
-          cases request with
-          | hostCallout host args =>
-            exact crossLinked host args (.prog resume) (.call leftAt) (.call rightAt)
-              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]) tail ordinary
-          | _ => exact ordinary
-        | callCore atCall =>
-          rw [leftAt] at atCall
-          cases atCall
-          exact advance (.callCore leftAt) (.callCore rightAt) tail segments rfl rfl stores scheduler rfl rfl
-            (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-        | coreInternal atCore status internal =>
-          rw [leftAt] at atCore
-          cases atCore
-          rename_i coreStore coreStep
-          have raw := Step.coreInternal (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ status) (stores ▸ internal)
-          exact advance (.coreInternal leftAt status internal) raw tail segments rfl rfl
-            (by change { start.store with core := coreStore } = { incoming.store with core := coreStore }; rw [stores])
-            scheduler rfl rfl rfl rfl
-        | coreReturned atCore status =>
-          rw [leftAt] at atCore
-          cases atCore
-          have raw := Step.coreReturned (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ status)
-          exact advance (edit := .same) (.coreReturned leftAt status) raw tail segments rfl rfl stores scheduler rfl rfl
-            (by simp only [transitionEdit, leftAt, status]) (by simp only [transitionEdit, rightAt, ← stores, status])
-        | @coreCallout _ core resume _ _ host args atCall status =>
-          rw [leftAt] at atCall
-          cases atCall
-          have ordinary : CallbackSliceEnd profile ready base bindings older start incoming (.tau :: trailing) finish := by
-            by_cases shared : LiveDispatch.Unchanged bindings (.hostCallout host args)
-            · have code := LiveDispatch.unchanged_dispatch (ready := ready) (base := base) shared
-              have rawStatus := stores ▸ status
-              have raw := Step.coreCallout (prof := profile) (hr := ready)
-                (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt rawStatus
-              rw [← code] at raw
-              exact advance (edit := .push (.core core resume)) (.coreCallout leftAt status) raw tail
-                (.cons (.same _) segments) rfl rfl stores scheduler rfl rfl
-                (by simp only [transitionEdit, leftAt, status])
-                (by simp only [transitionEdit, rightAt, rawStatus])
-            · exact frontier
-          have rawStatus := stores ▸ status
-          exact crossLinked host args (.core core resume) (.coreCallout leftAt status) (.coreCallout rightAt rawStatus)
-            (by simp only [transitionEdit, leftAt, status]) (by simp only [transitionEdit, rightAt, rawStatus]) tail ordinary
-        | coreTrap atCore status =>
-          rw [leftAt] at atCore
-          cases atCore
-          have raw := Step.coreTrap (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ status)
-          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .clear) (.coreTrap leftAt status) raw rfl rfl
-          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
-        | @get _ read _ _ atGet =>
-          rw [leftAt] at atGet
-          cases atGet
-          have raw := Step.get (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-          exact advance (.get leftAt) raw tail segments rfl
-            (by change ⟨thread, .prog (read incoming.store), peerFrames⟩ :: (peerActive ++ peerRest) = _; rw [stores])
-            stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-        | @modify _ update _ _ _ atWrite =>
-          rw [leftAt] at atWrite
-          cases atWrite
-          exact advance (.modify leftAt) (.modify rightAt) tail segments rfl rfl (congrArg update stores) scheduler rfl rfl
-            (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-        | currentThread atThread =>
-          rw [leftAt] at atThread
-          cases atThread
-          exact advance (.currentThread leftAt) (.currentThread rightAt) tail segments rfl rfl stores scheduler rfl rfl
-            (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-        | choose answer atChoice allowed =>
-          rw [leftAt] at atChoice
-          cases atChoice
-          exact advance (.choose answer leftAt allowed) (.choose answer rightAt allowed) tail
-            segments rfl rfl stores scheduler rfl rfl rfl rfl
-        | @hostGet _ read _ _ atRead =>
-          rw [leftAt] at atRead
-          cases atRead
-          have raw := Step.hostGet (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-          classical
-          by_cases agrees : read start.host = read incoming.host
-          · exact advance (.hostGet leftAt) raw tail segments rfl
-              (by change ⟨thread, .prog (read incoming.host), peerFrames⟩ :: (peerActive ++ peerRest) = _; rw [agrees])
-              stores scheduler rfl rfl
-              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-          · have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) (.hostGet leftAt) raw
-              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-            exact .observation leftAt agrees paths (frameCalloutStep paths rfl rfl) tail
-        | @emit _ notice _ _ _ atEmit =>
-          rw [leftAt] at atEmit
-          cases atEmit
-          have aligned : DestructorSchedulerAlignment older (StepDefs.observe start notice)
-              (StepDefs.observe incoming notice) := by
-            cases notice with
-            | resolved call values => exact DestructorSchedulerAlignment.observeResolved scheduler call values
-            | _ => exact scheduler
-          exact advance (.emit leftAt) (.emit rightAt) tail segments rfl rfl
-            (by cases notice <;> exact stores) aligned (by cases notice <;> rfl) (by cases notice <;> rfl) rfl rfl
-        | @newThread _ bodyCode resume _ _ store threadId atNew allocated =>
-          rw [leftAt] at atNew
-          cases atNew
-          have dispatchCode := LiveDispatch.unchanged_dispatch (ready := ready) (base := base)
-            (bindings := bindings) (call := .threadBody bodyCode) trivial
-          let saved := StepDefs.threadAct (specDispatch ready base) threadId bodyCode
-          have sameBody : StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) threadId bodyCode =
-              saved := by
-            change Activation.ofProg (some threadId) (specDispatch ready (LiveDispatch.host bindings base) (.threadBody bodyCode)) =
-              Activation.ofProg (some threadId) (specDispatch ready base (.threadBody bodyCode))
-            rw [← dispatchCode]
-          have raw := Step.newThread (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ allocated)
-          rw [sameBody] at raw
-          exact advance (edit := .write threadId.idx []) (.newThread leftAt allocated) raw tail segments
-            rfl rfl rfl ⟨relatedSetSlot .none scheduler.1 threadId.idx (.some (.mk .nil)), scheduler.2⟩ rfl rfl
-            (by simp only [transitionEdit, leftAt, allocated])
-            (by simp only [transitionEdit, rightAt, ← stores, allocated])
-        | trap atTrap =>
-          rw [leftAt] at atTrap
-          cases atTrap
-          have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base)
-            (bindings := bindings) (edit := .clear)
-            (.trap leftAt) (.trap rightAt) rfl rfl
-          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
-        | popCore atPop =>
-          rw [leftAt] at atPop
-          cases atPop
-          cases segments with
-          | cons head tails =>
-            cases head
-            have raw := Step.popCore (prof := profile) (hr := ready)
-              (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-            rw [congrArg CStore.core stores.symm] at raw
-            exact advance (.popCore leftAt) raw tail tails rfl rfl stores scheduler rfl rfl
-              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
-        | @popProg _ result resume _ _ atPop =>
-          rw [leftAt] at atPop
-          cases atPop
-          cases segments with
-          | cons head tails =>
-            cases head with
-            | same _ =>
-              exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl rfl stores scheduler rfl rfl
-                (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
-            | @swap _ second source =>
-              classical
-              by_cases agrees : resume result = second result
-              · exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl
-                  (by change ⟨thread, .prog (second result), _⟩ :: (peerActive ++ peerRest) = _; rw [← agrees])
-                  stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
-              · exact .boundary (.protectedPop ⟨second, source⟩ leftAt) (.popProg leftAt) tail
-        | threadExit atExit =>
-          rw [leftAt] at atExit
-          cases atExit
-          cases segments
-          have raw := Step.threadExit (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) (.threadExit leftAt) raw
-            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-          refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same) ?_
-          exact leave (congrArg (StepDefs.threadStatusSt _ .exited) stores) scheduler rfl rfl tail
-        | @hostDone value _ atDone =>
-          rw [leftAt] at atDone
-          cases atDone
-          cases segments
-          have leftTail : active ++ rest ≠ [] := fun empty =>
-            parentPresent.1 (List.append_eq_nil_iff.mp empty).2
-          have rightTail : peerActive ++ peerRest ≠ [] := fun empty =>
-            parentPresent.2 (List.append_eq_nil_iff.mp empty).2
-          have finishes (cfg : Config (core3 grow) (HostState sig))
-              (stack : List (Activation (core3 grow) (HostState sig))) (present : stack ≠ []) :
-              StepDefs.hostFinish value stack cfg = { cfg with ctl := stack } := by
-            cases stack with
-            | nil => exact (present rfl).elim
-            | cons => rfl
-          have checked := Step.hostDone (prof := profile) (hr := ready) (dispatch := specDispatch ready base) leftAt
-          have raw := Step.hostDone (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-          rw [finishes _ _ leftTail] at checked tail
-          rw [finishes _ _ rightTail] at raw
-          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) checked raw
-            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-          exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same)
-            (leave stores scheduler rfl rfl tail)
-        | @block worker reply _ _ atBlock =>
-          rw [leftAt] at atBlock
-          cases atBlock
-          have raw := Step.block (prof := profile) (hr := ready)
-            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
-          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .block _) (.block leftAt) raw
-            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-          let savedLeft := StepDefs.blockedAct (E := core3 grow) worker reply frames
-          let savedRight := StepDefs.blockedAct (E := core3 grow) worker reply peerFrames
-          let blockedLeft := { start.setCont worker (some savedLeft) with
-            store := StepDefs.threadStatusSt worker .blocked start.store, ctl := active ++ rest }
-          let blockedRight := { incoming.setCont worker (some savedRight) with
-            store := StepDefs.threadStatusSt worker .blocked incoming.store, ctl := peerActive ++ peerRest }
-          have save (before : DestructorSchedulerAlignment older start incoming) :
-              DestructorSchedulerAlignment older blockedLeft blockedRight :=
-            ⟨relatedSetSlot .none before.1 worker.idx (.some (.mk segments)), before.2⟩
-          refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) save ?_
-          exact leave (congrArg (StepDefs.threadStatusSt _ .blocked) stores) (save scheduler) rfl rfl tail
-        | @blockSwitch worker switched reply _ _ next atSwitch found =>
-          rw [leftAt] at atSwitch
-          cases atSwitch
-          let savedLeft := start.setCont worker (some (StepDefs.blockedAct worker reply frames))
-          let savedRight := incoming.setCont worker (some (StepDefs.blockedAct worker reply peerFrames))
-          have saved : List.Forall₂ (ReturnFrame.Related.Saved older) savedLeft.conts savedRight.conts :=
-            relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
-          have slot := relatedContLookup saved switched
-          rw [found] at slot
-          obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
-          let update (store : CStore (core3 grow)) :=
-            StepDefs.threadStatusSt switched .running (StepDefs.threadStatusSt worker .blocked store)
-          let lhs := { savedLeft.setCont switched none with store := update start.store, ctl := next :: (active ++ rest) }
-          let rhs := { savedRight.setCont switched none with store := update incoming.store, ctl := peer :: (peerActive ++ peerRest) }
-          have checked : Step profile ready (specDispatch ready base) start .tau lhs := .blockSwitch leftAt found
-          have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
-            .blockSwitch rightAt rawFound
-          have moved := sharedSchedulerTransport (bindings := bindings) (edit := .switch worker.idx switched.idx)
-            checked raw (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-          have aligned : DestructorSchedulerAlignment older lhs rhs :=
-            ⟨relatedSetSlot .none saved switched.idx .none, scheduler.2⟩
-          exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
-            (proceed selected resumers (congrArg update stores) aligned rfl rfl tail (Nat.le_refl _))
-        | @resumeThread _ resumed resume _ _ next atResume found =>
-          rw [leftAt] at atResume
-          cases atResume
-          have slot := relatedContLookup scheduler.1 resumed
-          rw [found] at slot
-          obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
-          let update := StepDefs.threadStatusSt (E := core3 grow) resumed .running
-          let lhs := { start.setCont resumed none with
-            store := update start.store, ctl := next :: ⟨thread, .prog (resume ()), frames⟩ :: (active ++ rest) }
-          let rhs := { incoming.setCont resumed none with
-            store := update incoming.store, ctl := peer :: ⟨thread, .prog (resume ()), peerFrames⟩ :: (peerActive ++ peerRest) }
-          have checked : Step profile ready (specDispatch ready base) start .tau lhs := .resumeThread leftAt found
-          have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
-            .resumeThread rightAt rawFound
-          have moved := sharedSchedulerTransport (bindings := bindings) (edit := .resume resumed.idx)
-            checked raw (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-          have aligned : DestructorSchedulerAlignment older lhs rhs :=
-            ⟨relatedSetSlot .none scheduler.1 resumed.idx .none, scheduler.2⟩
-          exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
-            (proceed selected (.cons (.mk segments) resumers) (congrArg update stores) aligned rfl rfl tail (Nat.le_refl _))
-        | @fault msg fault =>
-          have rawFault : Fault incoming msg := by
-            cases fault with
-            | blockNoThread atBlock =>
-              rw [leftAt] at atBlock
-              cases atBlock
-              exact .blockNoThread rightAt
-            | @switchMissing worker switched reply _ _ atSwitch missing =>
-              rw [leftAt] at atSwitch
-              cases atSwitch
-              have saved : List.Forall₂ (ReturnFrame.Related.Saved older)
-                  (start.setCont worker (some (StepDefs.blockedAct worker reply frames))).conts
-                  (incoming.setCont worker (some (StepDefs.blockedAct worker reply peerFrames))).conts :=
-                relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
-              have slot := relatedContLookup saved switched
-              rw [missing] at slot
-              exact .switchMissing rightAt (relatedSavedNone slot)
-            | @resumeMissing _ resumed _ _ _ atResume missing =>
-              rw [leftAt] at atResume
-              cases atResume
-              have slot := relatedContLookup scheduler.1 resumed
-              rw [missing] at slot
-              exact .resumeMissing rightAt (relatedSavedNone slot)
-            | calloutBadRet atReturn bad =>
-              rw [leftAt] at atReturn
-              cases atReturn
-              cases segments with
-              | cons head tails =>
-                cases head
-                exact .calloutBadRet rightAt bad
-          have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base)
-            (bindings := bindings) (edit := .clear) (.fault fault) (.fault rawFault) rfl rfl
-          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
-        | hostInvoke ready _ | hostTick ready | hostCancel ready _ _ | hostRun ready =>
-          have empty := ready.1
-          rw [leftAt] at empty
-          contradiction
-        | @hostSet _ state _ _ _ atWrite =>
-          rw [leftAt] at atWrite
-          cases atWrite
-          classical
-          by_cases same : state.writer = start.host.writer ∧ state.writer = incoming.host.writer
-          · exact advance (.hostSet leftAt) (.hostSet rightAt) tail segments rfl rfl stores scheduler same.1 same.2
-              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
-          · exact .boundary (.write leftAt) (.hostSet leftAt) tail
-
-private theorem sourceResumeMissingUnique
-    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    {worker : ThreadId} {after : Session grow sig (Ret (core3 grow))}
-    (focused : start.ctl = check.control (.op (.resumeThread worker) (fun _ => after)))
-    (missing : start.cont? worker = none)
-    {label next} (actual : Step profile ready (specDispatch ready base) start label next) :
-    label = .trap (.internal "resume of a thread without a saved continuation") ∧ next = StepDefs.trapCfg start := by
-  cases check
-  cases actual
-  all_goals try (cases (show Fault start _ from by assumption))
-  all_goals simp_all [PayloadPrefix.Cursor.control, StepDefs.HostReadyCfg]
-  all_goals
-    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
-      from by assumption)
-    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
-    obtain ⟨operation, _⟩ := progOpEq programs
-    injection operation
-  simp_all
-
-open ReturnFrame.Occurrence in
-private theorem crossSourceSelectedResume
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (worker : ThreadId) (task : TaskId)
-    (threads : check.thread = canon.thread)
-    (frames : SourceLiftLoopFrames older check.frames canon.frames)
-    (parents : SourceParentStack older check.rest canon.rest)
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (leftAt : start.ctl = check.control (Thread.resume worker >>= fun _ => callRet (.loop (.syncLiftLoop task))))
-    (rightAt : incoming.ctl = canon.control (Thread.resume worker >>= fun _ => callRet (.loop (.syncLiftLoop task))))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (restart : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
-      left.store = right.store → DestructorSchedulerAlignment older left right →
-      left.ctl = check.control (callRet (.loop (.syncLiftLoop task))) →
-      right.ctl = canon.control (callRet (.loop (.syncLiftLoop task))) →
-      Steps profile ready (specDispatch ready base) left suffix finish → suffix.length ≤ labels.length →
-      CallbackSliceEnd profile ready base bindings older left right suffix finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let again : Session grow sig (Ret (core3 grow)) := callRet (.loop (.syncLiftLoop task))
-  have body := sharedThreadResumePath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-    worker check again leftAt
-  have peerBody := sharedThreadResumePath (profile := profile) (ready := ready)
-    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) worker canon again rightAt
-  rw [← congrArg (destructorResumeEdits worker) stores] at peerBody
-  obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ :=
-    cutSharedQuietWorker body peerBody run
-  rw [split]
-  rcases ending with empty | ⟨rfl, rfl⟩
-  · subst remaining
-    cases tail
-    exact .comparedPrefix paths writers .exhausted
-  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
-    let lhs := { start with store := destructorResumeStore worker start.store
-                            ctl := check.control (.op (.resumeThread worker) (fun _ => again)) }
-    let rhs := { incoming with store := destructorResumeStore worker incoming.store
-                               ctl := canon.control (.op (.resumeThread worker) (fun _ => again)) }
-    have checkAt : lhs.ctl = check.control (.op (.resumeThread worker) (fun _ => again)) := rfl
-    have canonAt : rhs.ctl = canon.control (.op (.resumeThread worker) (fun _ => again)) := rfl
-    have related := relatedContLookup (left := lhs) (right := rhs) scheduler.1 worker
-    have bound : remaining.length ≤ labels.length := by rw [split, List.length_append]; omega
-    cases found : lhs.cont? worker with
-    | none =>
-      have peerFound : rhs.cont? worker = none := relatedSavedNone (found ▸ related)
-      cases tail with
-      | refl => exact .exhausted
-      | cons actual residual =>
-        obtain ⟨rfl, rfl⟩ := sourceResumeMissingUnique checkAt found actual
-        have rawFault : Fault rhs "resume of a thread without a saved continuation" :=
-          .resumeMissing canonAt peerFound
-        have checkedFault : Fault lhs "resume of a thread without a saved continuation" :=
-          .resumeMissing checkAt found
-        have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base) (bindings := bindings)
-          (edit := .clear) (.fault checkedFault) (.fault rawFault) rfl rfl
-        exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) residual (.inr (.inr (.inr ⟨rfl, rfl⟩)))
-    | some selected =>
-      obtain ⟨peer, peerFound, active⟩ := relatedSavedSome (found ▸ related)
-      let advance := StepDefs.threadStatusSt (E := core3 grow) worker .running
-      let left := { lhs.setCont worker none with store := advance lhs.store, ctl := selected :: check.control again }
-      let right := { rhs.setCont worker none with store := advance rhs.store, ctl := peer :: canon.control again }
-      have checked : Step profile ready (specDispatch ready base) lhs .tau left := .resumeThread checkAt found
-      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rhs .tau right :=
-        .resumeThread canonAt peerFound
-      cases tail with
-      | refl => exact .exhausted
-      | cons actual residual =>
-        obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
-        have resumed := sharedSchedulerTransport (bindings := bindings) (edit := .resume worker.idx) checked canonical rfl rfl
-        have preserve (before : DestructorSchedulerAlignment older lhs rhs) : DestructorSchedulerAlignment older left right :=
-          ⟨relatedSetSlot .none before.1 worker.idx .none, before.2⟩
-        refine .destructorPrefix resumed (frameCalloutStep resumed rfl rfl) preserve ?_
-        refine finishSourceSwitchTarget (.syncLift task threads frames parents) ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
-          active .nil (congrArg (advance ∘ destructorResumeStore worker) stores) (preserve scheduler)
-          rfl rfl residual (Nat.le_of_succ_le bound) ?_
-        intro reached peer trailing same aligned leftAt rightAt residual shorter
-        exact restart same aligned leftAt rightAt residual shorter
-
-private theorem crossSourceLiftCandidates
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (task : TaskId) (choices : List ThreadId)
-    (threads : check.thread = canon.thread)
-    (frames : SourceLiftLoopFrames older check.frames canon.frames)
-    (parents : SourceParentStack older check.rest canon.rest)
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (leftAt : start.ctl = check.control (syncLiftCandidates task choices))
-    (rightAt : incoming.ctl = canon.control (syncLiftCandidates task choices))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (restart : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
-      left.store = right.store → DestructorSchedulerAlignment older left right →
-      left.ctl = check.control (callRet (.loop (.syncLiftLoop task))) →
-      right.ctl = canon.control (callRet (.loop (.syncLiftLoop task))) →
-      Steps profile ready (specDispatch ready base) left suffix finish → suffix.length ≤ labels.length →
-      CallbackSliceEnd profile ready base bindings older left right suffix finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  cases choices with
-  | nil => exact compareSharedDestructorTrap .cannotBlockSync leftAt rightAt run
-  | cons head tail =>
-    let decide : Session grow sig ThreadId := pickSyncLoop head tail
-    let resume (thread : ThreadId) : Session grow sig (Ret (core3 grow)) :=
-      Thread.resume thread >>= fun _ => callRet (.loop (.syncLiftLoop task))
-    have program : (syncLiftCandidates task (head :: tail) : Session grow sig (Ret (core3 grow))) = decide >>= resume := by
-      simp only [syncLiftCandidates, decide, resume, Prog.bind_eq]
-    have pick : StoreEffects decide := .op rfl (fun _ => .pure _)
-    refine crossSharedWorkerBodyWith threads decide resume resume (liftDestructorStoreEffects pick (trivialPreserves _))
-      trivial stores (congrArg check.control program ▸ leftAt) (congrArg canon.control program ▸ rightAt) run ?_
-    intro left right trailing worker shorter _ same checked canonical align tail
-    exact crossSourceSelectedResume worker task threads frames parents same (align scheduler) checked canonical tail
-      (fun same aligned leftAt rightAt actual within => restart same aligned leftAt rightAt actual (within.trans shorter))
-
-private theorem finishSourceLiftLoop
-    {start incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (task : TaskId) (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
-    (threads : check.thread = canon.thread)
-    (frames : SourceLiftLoopFrames older (.prog first :: check.frames) (.prog second :: canon.frames))
-    (parents : SourceParentStack older check.rest canon.rest)
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (leftAt : start.ctl = check.control (.op (.call (.loop (.syncLiftLoop task))) first))
-    (rightAt : incoming.ctl = canon.control (.op (.call (.loop (.syncLiftLoop task))) second))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (onReply : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → DestructorSchedulerAlignment older left right →
-      left.ctl = check.control (first .unit) → right.ctl = canon.control (second .unit) →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  refine crossSourceSyncLiftIteration task first second stores leftAt rightAt run ?_ ?_
-  · intro left right remaining lhs rhs leftAt rightAt align tail shorter
-    exact onReply (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail (Nat.le_of_lt shorter)
-  · intro left right remaining _ candidates _ _ lhs rhs leftAt rightAt align tail within
-    let checking := { check with frames := .prog first :: check.frames }
-    let canonical := { canon with frames := .prog second :: canon.frames }
-    refine crossSourceLiftCandidates (check := checking) (canon := canonical) task candidates threads frames parents
-      (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail ?_
-    intro next peer trailing same aligned checked raw residual afterWorker
-    have shorter : trailing.length < labels.length := Nat.lt_of_le_of_lt afterWorker within
-    refine finishSourceLiftLoop (start := next) (incoming := peer) (labels := trailing)
-      (check := checking) (canon := canonical) task .pure .pure threads (.common .pure frames)
-      parents same aligned checked raw residual ?_
-    intro left right suffix equal saved leftAt rightAt tail afterLoop
-    refine crossSourceLiftUnitPop first second leftAt rightAt tail ?_
-    intro returned peer remaining lhs rhs checked raw align tail afterPop
-    exact onReply (lhs.trans (equal.trans rhs.symm)) (align saved) checked raw tail
-      (afterPop.trans (afterLoop.trans (Nat.le_of_lt shorter)))
-termination_by labels.length
-decreasing_by exact shorter
-
-private def sourceSchedulerBuiltin : ResolvedBuiltin (core3 grow) → Bool
-  | .threadSuspend | .threadYield | .threadSuspendThenResume | .threadYieldThenResume
-  | .threadSuspendThenPromote | .threadYieldThenPromote | .waitableSetWait _ => true
-  | _ => false
-
-private theorem crossAdmittedSourceScheduler {limit : Nat}
-    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
-    {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
-    {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
-    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
-    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (checked : start.ctl = ⟨some worker, .prog
-      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.builtin builtin inst) args),
-      [.core core ret]⟩ :: rest)
-    (canonical : incoming.ctl = ⟨some worker, .prog
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
-        incoming.store (some worker) (.builtin builtin inst) args),
-      [.core core ret]⟩ :: peerRest)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
-    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  finishSourceSwitchTarget parents present (.mk (.cons (.same _) .nil)) .nil stores scheduler checked canonical run within
-    (fun same aligned lhs rhs tail bound => exposed same lhs rhs aligned tail bound)
-
-open ReturnFrame.Occurrence in
-private theorem finishReachedDestructorParentLoop {limit : Nat} {body : ThreadBody (core3 grow)}
-    (parents : DestructorParentChain older body start.ctl incoming.ctl)
-    (stores : start.store = incoming.store)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  obtain ⟨thread, frame, frames, peerFrames, rest, peerRest, leftTicket, rightTicket,
-    framesPaired, restPaired, leftAt, rightAt⟩ := destructorParentCoordinates parents
-  rw [sharedDestructorParentCode] at leftAt rightAt
-  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
-  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
-  let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
-  let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
-  refine crossSourceSyncLiftIteration (check := check) (canon := canon) body.task first second
-    stores leftAt rightAt run ?_ ?_
-  · intro left right remaining checkStore canonStore checked canonical align residual shorter
-    have journal := compareDestructorParentJournal (bindings := bindings) leftTicket rightTicket
-      (checkStore.trans (stores.trans canonStore.symm)) framesPaired restPaired checked canonical residual
-    exact rejoinDestructorParentJournal journal (align scheduler) ((Nat.le_of_lt shorter).trans bounded) compare
-  · intro left right remaining _ candidates _ _ checkStore canonStore checked canonical align residual shorter
-    let program := syncLiftCandidates (E := core3 grow) (σ := HostState sig) body.task candidates
-    have same := checkStore.trans (stores.trans canonStore.symm)
-    let idle : Session grow sig (Ret (core3 grow)) := .pure .unit
-    have peeled : HostFrame.Related.Paired older
-        { left with ctl := check.control idle } { right with ctl := canon.control idle } :=
-      destructorSchedulerPair (align scheduler) same (.cons (.mk (.cons (.same _) framesPaired)) restPaired)
-    obtain ⟨otherFrames, otherRest, atPeer, expanded⟩ :=
-      peeled.push (show ({ left with ctl := check.control idle }).ctl = _ from rfl) program first second
-    change ⟨thread, .prog idle, frame :: peerFrames⟩ :: peerRest = _ at atPeer
-    rw [List.cons.injEq, Activation.mk.injEq] at atPeer
-    obtain ⟨⟨_, _, rfl⟩, rfl⟩ := atPeer
-    have paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) left right := by
-      have leftEq : { left with ctl := { check with frames := .prog first :: check.frames }.control program } = left := by
-        cases left
-        simp only [Config.mk.injEq, true_and, and_true]
-        exact checked.symm
-      have rightEq : { right with ctl := { canon with frames := .prog second :: canon.frames }.control program } = right := by
-        cases right
-        simp only [Config.mk.injEq, true_and, and_true]
-        exact canonical.symm
-      exact leftEq ▸ rightEq ▸ expanded
-    have frames : DestructorParentLoopFrames first second frame left right := by
-      constructor <;> simp only [segmentStorage, checked, canonical] <;> rfl
-    have related := paired_outside (show ReturnFrame.Related.Paired older
-      (HostFrame.replace { left with ctl := check.control idle } right.host) { right with ctl := canon.control idle }
-      from peeled)
-    have outside : Outside older (segmentStorage left) (segmentStorage right) (some (.active 0 0)) := by
-      simp only [segmentStorage, checked, canonical, PayloadPrefix.Cursor.control]
-      exact outside_push (.prog first) (.prog second) related
-    exact .sharedDropParentLoopJoined frames paired outside
-      (finishBlockedDestructorLoop frames paired outside residual (Nat.lt_of_lt_of_le shorter bounded) compare)
-
-open ReturnFrame.Occurrence in
-private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
-    {rest peerRest left right active peerActive}
-    (parents : DestructorParentChain older body rest peerRest)
-    (target : ReturnFrame.Related.Active older left right)
-    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
-    (stores : start.store = incoming.store)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  have parentPresent : rest ≠ [] ∧ peerRest ≠ [] := by
-    cases parents
-    exact ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
-  refine finishSourceSwitchTarget (destructorParentStack parents) parentPresent target resumers
-    stores scheduler leftAt rightAt run bounded ?_
-  intro lhs rhs suffix same aligned lhsAt rhsAt residual shorter
-  have reached : DestructorParentChain older body lhs.ctl rhs.ctl := by
-    rw [lhsAt, rhsAt]
-    exact parents
-  exact finishReachedDestructorParentLoop reached same aligned residual shorter compare
-
-open ReturnFrame.Occurrence in
-private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}
-    {worker target : ThreadId} {frames peerFrames rest peerRest}
-    {reply : Session grow sig (Ret (core3 grow))}
-    (parents : DestructorParentChain older body rest peerRest)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
-    (stores : start.store = incoming.store)
-    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
-      (.op (.block (some target)) fun _ => reply))
-    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
-      (.op (.block (some target)) fun _ => reply))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let left := start.setCont worker (some (StepDefs.blockedAct worker (fun _ => reply) frames))
-  let right := incoming.setCont worker (some (StepDefs.blockedAct worker (fun _ => reply) peerFrames))
-  have saved : List.Forall₂ (ReturnFrame.Related.Saved older) left.conts right.conts :=
-    relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
-  have found := relatedContLookup saved target
-  cases run with
-  | refl => exact .exhausted
-  | @cons _ _ _ label trailing actual tail =>
-    cases present : left.cont? target with
-    | none =>
-      have rawMissing : right.cont? target = none := relatedSavedNone (present ▸ found)
-      have fault := Fault.switchMissing leftAt present
-      let reason := TrapReason.internal "switch to a thread without a saved continuation"
-      have checked : Step profile ready (specDispatch ready base) start (.trap reason) (StepDefs.trapCfg start) :=
-        .fault fault
-      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming
-          (.trap reason) (StepDefs.trapCfg incoming) := .fault (.switchMissing rightAt rawMissing)
-      have equalLabel : label = .trap reason := by
-        by_contra differs
-        exact (differentStepBranch checked actual (Ne.symm differs)).1
-      subst label
-      have equalEnd := labelledStepUnique checked actual
-      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .clear) checked canonical rfl rfl
-      exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) (equalEnd.symm ▸ tail)
-        (.inr (.inr (.inr ⟨rfl, rfl⟩)))
-    | some next =>
-      rw [present] at found
-      obtain ⟨peer, rawFound, related⟩ := relatedSavedSome found
-      let update (store : CStore (core3 grow)) :=
-        StepDefs.threadStatusSt target .running (StepDefs.threadStatusSt worker .blocked store)
-      let checkedEnd := { left.setCont target none with store := update start.store, ctl := next :: rest }
-      let rawEnd := { right.setCont target none with store := update incoming.store, ctl := peer :: peerRest }
-      have checked : Step profile ready (specDispatch ready base) start .tau checkedEnd := .blockSwitch leftAt present
-      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rawEnd :=
-        .blockSwitch rightAt rawFound
-      obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
-      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .switch worker.idx target.idx) checked canonical
-        (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
-      have aligned : DestructorSchedulerAlignment older checkedEnd rawEnd :=
-        ⟨relatedSetSlot .none saved target.idx .none, scheduler.2⟩
-      exact .destructorPrefix paths (frameCalloutStep paths rfl rfl)
-        (fun _ => aligned) (finishDestructorSwitchTarget parents related .nil (congrArg update stores)
-          aligned rfl rfl tail (by simp only [List.length_cons] at bounded; omega) compare)
-
-private theorem finishDeniedDestructorImport {limit : Nat}
-    {thread frames peerFrames rest peerRest name kind args inst parentBody}
-    {frame : Seg (core3 grow) (HostState sig)} {body : Nat → Session grow sig (Except Scheduled.Issue Nat)}
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
-    (rawEmbedder : (LiveDispatch.host bindings base).embedder name kind args =
-      (Scheduled.host (grow := grow) bindings).embedder name kind args)
-    (routed : ∀ ticket, route (grow := grow) ticket bindings name kind args =
-      (do Scheduled.finish ticket (← admit inst (body ticket))))
-    (denied : ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
-      (start.store.inst? inst).any (·.mayLeave) = true))
-    (parents : DestructorParentChain older parentBody rest peerRest)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
-    (stores : start.store = incoming.store)
-    (checked : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control
-      (calloutBody Limits.spec Quirks.none ready base start.store thread (.embedder name kind) args))
-    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread (.embedder name kind) args))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
-  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
-  let verdict := scheduledDenial start.store thread
-  let ending (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :=
-    let entered := state.host.enter name kind args
-    let reply := completion state.host.nextTicket (.error .wrongContext)
-    { state with
-      host := if verdict.2 then entered else entered.record reply.1
-      ctl := cursor.control (if verdict.2 then trap (.internal "dangling arena id") else .pure (.flat reply.2)) }
-  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start
-      (List.replicate verdict.1 id) (ending start check) :=
-    scheduledDenialPath base routed (congrFun (congrFun (congrFun embedder name) kind) args) check denied checked
-  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
-      (List.replicate verdict.1 id) (ending incoming canon) := by
-    have path := scheduledDenialPath (profile := profile) (ready := ready) (start := incoming)
-      (LiveDispatch.host bindings base) routed rawEmbedder canon (stores ▸ denied) canonical
-    have same : scheduledDenial incoming.store thread = verdict := by rw [← stores]
-    simpa only [ending, canon, same] using path
-  obtain ⟨used, leftOver, reached, peer, split, paths, writers, tail, completed⟩ :=
-    cutSharedQuietWorker leftPath rightPath run
-  rw [split]
-  rcases completed with empty | ⟨rfl, rfl⟩
-  · subst leftOver
-    cases tail
-    exact .comparedPrefix paths writers .exhausted
-  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
-    cases dangling : verdict.2 with
-    | true =>
-      exact compareSharedDestructorTrap (check := check) (canon := canon) (.internal "dangling arena id")
-        (by simp only [ending, dangling, ite_true]) (by simp only [ending, dangling, ite_true]) tail
-    | false =>
-      let words := (completion 0 (.error .wrongContext)).2
-      have leftReply : (ending start check).ctl = check.control (.pure (.flat words)) := by
-        simp only [ending, dangling, Bool.false_eq_true, ite_false]
-        rfl
-      have rawReply : (ending incoming canon).ctl = canon.control (.pure (.flat words)) := by
-        simp only [ending, dangling, Bool.false_eq_true, ite_false]
-        rfl
-      have shorter : leftOver.length ≤ limit := by
-        rw [split, List.length_append] at bounded
-        omega
-      exact finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil stores scheduler
-        leftReply rawReply tail shorter compare
-
-private theorem finishSourceCoreReply {limit : Nat}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (parents : SourceParentStack older check.rest canon.rest)
-    (present : check.rest ≠ [] ∧ canon.rest ≠ [])
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → left.ctl = check.rest → right.ctl = canon.rest →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    SourceCoreReply profile ready base bindings older check canon limit finish := by
-  intro words left right remaining stores scheduler lhs rhs tail bounded
-  cases check
-  cases canon
-  cases thread
-  exact finishSourceSwitchTarget parents present (.mk segments) .nil stores scheduler lhs rhs tail bounded
-    (fun same aligned checked canonical run shorter => exposed same checked canonical aligned run shorter)
-
-private theorem finishDestructorCoreReply {limit : Nat} {body : ThreadBody (core3 grow)}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (parents : DestructorParentChain older body check.rest canon.rest)
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    SourceCoreReply profile ready base bindings older check canon limit finish := by
-  intro words left right remaining stores scheduler lhs rhs tail bounded
-  cases check
-  cases canon
-  cases thread
-  exact finishDestructorSwitchTarget parents (.mk segments) .nil stores scheduler lhs rhs tail bounded compare
-
-private theorem finishAdmittedLegacyDestructor {limit : Nat}
-    {worker frames peerFrames rest peerRest name kind args inst parentBody loader}
-    {frame : Seg (core3 grow) (HostState sig)}
-    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
-    (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
-    (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
-    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
-    (parents : DestructorParentChain older parentBody rest peerRest)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
-    (stores : start.store = incoming.store)
-    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
-      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
-    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store (some worker) (.embedder name kind) args))
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  finishAdmittedSourceLegacy embedder source caller mayLeave stores checked canonical run scheduler bounded
-    (finishDestructorCoreReply parents rfl (.cons (.same _) segments) compare)
-
-private theorem compareAdmittedSourceLinked {limit : Nat}
-    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
-    {worker : ThreadId} {name kind args} {frame : Seg (core3 grow) (HostState sig)}
-    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) [frame] rest).control
-      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
-    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) [frame] peerRest).control
-      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
-        incoming.store (some worker) (.embedder name kind) args))
-    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
-    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish)
-    (frontier : CallbackSliceEnd profile ready base bindings older start incoming labels finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  classical
-  by_cases embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder
-  · by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
-    · obtain ⟨inst, loader, selected⟩ := legacy
-      by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
-          (start.store.inst? inst).any (·.mayLeave) = true
-      · exact finishAdmittedSourceLegacy (frames := []) (peerFrames := []) embedder selected context.1 context.2
-          stores checked canonical run scheduler within
-          (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
-      · exact frontier
-    · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
-          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
-      · obtain ⟨inst, action, transfer, linked⟩ := shared
-        by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
-            (start.store.inst? inst).any (·.mayLeave) = true
-        · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := []) transfer parents .nil embedder linked context.1 context.2
-            stores checked canonical run scheduler within
-            (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
-        · exact frontier
-      · exact frontier
-  · exact frontier
-
 open ReturnFrame.Occurrence in
 private theorem destructorBindingTrapPath (impl : HostImpl (core3 grow) (HostState sig))
     {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {name kind args issue}
@@ -20621,22 +19577,6 @@ private theorem finishDestructorBindingTrap {check canon : PayloadPrefix.Cursor 
   · exact .comparedPrefix paths writers
       (compareSharedDestructorTrap (check := check) (canon := canon)
         (.hostTrap "invalid mixed acceptor import binding") rfl rfl residual)
-
-private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody (core3 grow)}
-    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
-    (parents : DestructorParentChain older body check.rest canon.rest)
-    (thread : check.thread = canon.thread)
-    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
-    (stores : start.store = incoming.store)
-    (result : Except Scheduled.Issue Nat)
-    (checked : start.ctl = check.control (do return .flat (← Scheduled.finish leftTicket result)))
-    (canonical : incoming.ctl = canon.control (do return .flat (← Scheduled.finish rightTicket result)))
-    (scheduler : DestructorSchedulerAlignment older start incoming)
-    (run : Steps profile ready (specDispatch ready base) start labels finish)
-    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
-  finishSourceScheduledReply stores result checked canonical scheduler run bounded
-    (finishDestructorCoreReply parents thread segments compare)
 
 open ReturnFrame.Occurrence in
 private theorem sharedRecordAllocatorOnStartPath {impl : HostImpl (core3 grow) (HostState sig)}
@@ -21874,6 +20814,1066 @@ private theorem crossSourceWorkerCoreImport
               · exact admittedImport stores scheduler source checkAt canonAt admitted shorter residual
             | ok _ => exact admittedImport stores scheduler source checkAt canonAt admitted shorter residual
           | _ => exact admittedImport stores scheduler source checkAt canonAt admitted shorter residual
+
+open Stored.Endpoints in
+private theorem finishSourceRecordFields {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} (leftTicket rightTicket : Nat)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (fields : List RecordLower.Field) (cursor index : Nat)
+    (emitted : ∀ field ∈ fields, RecordLower.Field.Emitted field)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport leftTicket))
+      (sharedRecordMemory .fields cx width fields cursor index (sharedRecordReport rightTicket)) := by
+  refine visitSourceRecordFields leftTicket rightTicket cx width .fields fields cursor index .report emitted thread ?_ ?_
+  · intro context site compiled first second _
+    refine crossSourceRecordAllocator parents thread segments context site compiled first second ?_
+    intro cx callee task caller worker _ sourceParents request width left right remaining source same checked canonical scheduler run _
+    cases run with
+    | refl => exact .exhausted
+    | cons step tail =>
+      exact .sharedSourceRecordAllocatorAdmitted sourceParents source same scheduler checked canonical (.cons step tail)
+  · intro result left right remaining same checked canonical scheduler run bounded
+    cases result with
+    | error issue =>
+      exact finishSourceScheduledReply same (.error (.lowerRecord issue)) checked canonical scheduler run bounded resume
+    | ok done =>
+      cases done
+      exact finishSourceScheduledReply same (.ok 0) checked canonical scheduler run bounded resume
+
+private def sourceGiveWithReply : SharedGiveAction → Bool
+  | .giveOwner _ | .endpoint _ _ | .record _ => true
+  | _ => false
+
+open Stored.OwnedMemory.Claims in
+private theorem finishSourceSelectedGive {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {name kind inst position leftTicket rightTicket} {action : SharedGiveAction} {tree : Stored.OwnedMemory.Tree sig}
+    (transfer : sourceGiveWithReply action = true)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (present : ¬ missingSharedPosition action tree position)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (action.afterLookup inst leftTicket position (some tree)))
+    (canonical : incoming.ctl = canon.control (action.afterLookup inst rightTicket position (some tree)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases action with
+  | giveOwner resource =>
+    cases selected : (rootReceipts tree)[position]? with
+    | none => exact (present selected).elim
+    | some receipt =>
+      let identity := receiptId receipt
+      have source : (SharedGiveAction.giveOwner resource).claimAt tree position =
+          some (.giveOwner resource identity) := by simp only [SharedGiveAction.claimAt, selected, Option.map_some, identity]
+      rw [sharedClaimProgram _ _ _ _ _ source] at checked canonical
+      exact finishSourceSharedClaim linked source stores checked canonical run scheduler bounded resume
+        (fun _ leftLive rightLive visited => finishSourceOwnerGive ⟨resource, identity, inst⟩ thread stores
+          checked canonical leftLive rightLive visited scheduler bounded resume)
+  | endpoint channel element =>
+    cases selected : (rootEndpoints tree)[position]? with
+    | none => exact (present selected).elim
+    | some identity =>
+      have source : (SharedGiveAction.endpoint channel element).claimAt tree position =
+          some (.endpoint channel element identity) := by simp only [SharedGiveAction.claimAt, selected, Option.map_some]
+      rw [sharedClaimProgram _ _ _ _ _ source] at checked canonical
+      refine finishSourceSharedClaim linked source stores checked canonical run scheduler bounded resume ?_
+      intro permit leftLive rightLive visited
+      cases permit
+      exact finishSourceEndpointGive ⟨channel, element, identity, inst⟩ thread stores
+        checked canonical leftLive rightLive visited scheduler bounded resume
+  | record destination =>
+    exact finishSourceSharedRecord destination parents thread segments linked stores checked canonical run scheduler bounded resume
+      (fun cx width fields emitted => finishSourceRecordFields leftTicket rightTicket cx width fields position 0
+        emitted parents thread segments resume)
+  | dropOwner _ => contradiction
+
+private theorem finishAdmittedSourceSharedGive {limit : Nat}
+    {worker frames peerFrames rest peerRest name kind args inst} {action : SharedGiveAction}
+    {frame : Seg (core3 grow) (HostState sig)}
+    (transfer : sourceGiveWithReply action = true)
+    (parents : SourceParentStack older rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (linked : resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩)
+    (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
+    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store (some worker) (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older
+      ⟨some worker, frame :: frames, rest⟩ ⟨some worker, frame :: peerFrames, peerRest⟩ limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishAdmittedSourceSharedSelector embedder linked caller mayLeave stores checked canonical run scheduler bounded resume
+    (fun _ _ {_ _ _} missing same leftAt rightAt residual aligned within =>
+      finishSourceSelectedGive (check := ⟨some worker, frame :: frames, rest⟩)
+        (canon := ⟨some worker, frame :: peerFrames, peerRest⟩) transfer parents rfl (.cons (.same _) segments)
+        linked missing same leftAt rightAt residual aligned within resume)
+
+private theorem crossSelectedEmbedderAdmission {limit : Nat}
+    {worker frames peerFrames rest peerRest name kind args}
+    {frame : Seg (core3 grow) (HostState sig)}
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
+      (specDispatch ready base (.hostCallout (.embedder name kind) args)))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
+      (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout (.embedder name kind) args)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (bounded : labels.length ≤ limit)
+    (enter : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = start.store → right.store = incoming.store →
+      left.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
+        (calloutBody Limits.spec Quirks.none ready base left.store (some worker) (.embedder name kind) args) →
+      right.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
+        (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+          right.store (some worker) (.embedder name kind) args) →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have checkedReads := sharedDestructorImportReads (profile := profile) base ⟨some worker, frame :: frames, rest⟩ (.embedder name kind) args checked
+  have canonicalReads := sharedDestructorImportReads (profile := profile) (LiveDispatch.host bindings base)
+    ⟨some worker, frame :: peerFrames, peerRest⟩ (.embedder name kind) args canonical
+  obtain ⟨used, remaining, reached, peer, split, paths, writers, residual, ending⟩ :=
+    cutSharedQuietWorker checkedReads canonicalReads run
+  rw [split]
+  rcases ending with empty | ⟨rfl, rfl⟩
+  · subst remaining
+    cases residual
+    exact .comparedPrefix paths writers .exhausted
+  · exact .destructorPrefix paths writers (fun aligned => aligned)
+      (enter rfl rfl rfl rfl scheduler residual (destructorSuffixBound split bounded))
+
+open ReturnFrame.Occurrence in
+private theorem finishSourceSwitchTarget {limit : Nat}
+    {rest peerRest left right active peerActive}
+    (parents : SourceParentStack older rest peerRest) (parentPresent : rest ≠ [] ∧ peerRest ≠ [])
+    (target : ReturnFrame.Related.Active older left right)
+    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit)
+    (onParent : ∀ {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
+      lhs.store = rhs.store → DestructorSchedulerAlignment older lhs rhs →
+      lhs.ctl = rest → rhs.ctl = peerRest →
+      Steps profile ready (specDispatch ready base) lhs suffix finish → suffix.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels left right active peerActive with
+  | ind count ih =>
+    cases run with
+    | refl => exact .exhausted
+    | @cons _ _ _ label trailing actual tail =>
+      have frontier := CallbackSliceEnd.sharedDropSwitchTarget (bindings := bindings)
+        parents target resumers stores scheduler leftAt rightAt (.cons actual tail)
+      have shorter : trailing.length ≤ limit := Nat.le_of_succ_le bounded
+      have proceed {lhs rhs : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig}
+          {head peerHead activeTail peerTail}
+          (headPaired : ReturnFrame.Related.Active older head peerHead)
+          (tailPaired : List.Forall₂ (ReturnFrame.Related.Active older) activeTail peerTail)
+          (same : lhs.store = rhs.store) (aligned : DestructorSchedulerAlignment older lhs rhs)
+          (lhsAt : lhs.ctl = head :: (activeTail ++ rest))
+          (rhsAt : rhs.ctl = peerHead :: (peerTail ++ peerRest))
+          (residual : Steps profile ready (specDispatch ready base) lhs suffix finish)
+          (atMost : suffix.length ≤ trailing.length) :
+          CallbackSliceEnd profile ready base bindings older lhs rhs suffix finish := by
+        exact ih suffix.length (size ▸ Nat.lt_succ_of_le atMost)
+          headPaired tailPaired same aligned lhsAt rhsAt residual (atMost.trans shorter) rfl
+      have leave {lhs rhs : Config (core3 grow) (HostState sig)}
+          (same : lhs.store = rhs.store) (aligned : DestructorSchedulerAlignment older lhs rhs)
+          (lhsAt : lhs.ctl = active ++ rest) (rhsAt : rhs.ctl = peerActive ++ peerRest)
+          (residual : Steps profile ready (specDispatch ready base) lhs trailing finish) :
+          CallbackSliceEnd profile ready base bindings older lhs rhs trailing finish := by
+        cases resumers with
+        | nil => exact onParent same aligned lhsAt rhsAt residual shorter
+        | cons front others => exact proceed front others same aligned lhsAt rhsAt residual (Nat.le_refl _)
+      cases target with
+      | @mk thread focus frames peerFrames segments =>
+        have advance {lhs rhs : Config (core3 grow) (HostState sig)}
+            {next : Focus (core3 grow) (HostState sig)} {outFrames outPeerFrames}
+            (leftStep : Step profile ready (specDispatch ready base) start label lhs)
+            (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming label rhs)
+            (residual : Steps profile ready (specDispatch ready base) lhs trailing finish)
+            (related : List.Forall₂ (ReturnFrame.Related.Segment older) outFrames outPeerFrames)
+            (leftNext : lhs.ctl = ⟨thread, next, outFrames⟩ :: (active ++ rest))
+            (rightNext : rhs.ctl = ⟨thread, next, outPeerFrames⟩ :: (peerActive ++ peerRest))
+            (same : lhs.store = rhs.store)
+            (aligned : DestructorSchedulerAlignment older lhs rhs)
+            (leftWriter : lhs.host.writer = start.host.writer) (rightWriter : rhs.host.writer = incoming.host.writer)
+            {edit : Edit (core3 grow) (HostState sig)}
+            (leftEdit : transitionEdit start label = edit) (rightEdit : transitionEdit incoming label = edit) :
+            CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
+          have paths := sharedSchedulerTransport (bindings := bindings) leftStep rightStep leftEdit rightEdit
+          exact .destructorPrefix paths (.framed (.same leftStep leftWriter (.done _)) (.same rightStep rightWriter (.done _)))
+            (fun _ => aligned) (proceed (.mk related) resumers same aligned leftNext rightNext residual (Nat.le_refl _))
+        have crossLinked (host : CanonHost (core3 grow)) (args : List FlatValue) (mark : Seg (core3 grow) (HostState sig))
+            (checked : Step profile ready (specDispatch ready base) start label
+              { start with ctl := ⟨thread, .prog (specDispatch ready base (.hostCallout host args)), mark :: frames⟩ ::
+                (active ++ rest) })
+            (canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming label
+              { incoming with ctl := ⟨thread, .prog (specDispatch ready (LiveDispatch.host bindings base) (.hostCallout host args)),
+                mark :: peerFrames⟩ :: (peerActive ++ peerRest) })
+            (leftEdit : transitionEdit start label = .push mark) (rightEdit : transitionEdit incoming label = .push mark)
+            (tail : Steps profile ready (specDispatch ready base)
+              { start with ctl := ⟨thread, .prog (specDispatch ready base (.hostCallout host args)), mark :: frames⟩ ::
+                (active ++ rest) } trailing finish)
+            (otherwise : CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish) :
+            CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
+          cases host with
+          | embedder name kind =>
+            cases thread with
+            | none => exact otherwise
+            | some worker =>
+              classical
+              by_cases embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder
+              · have moved := sharedSchedulerTransport (bindings := bindings) checked canonical leftEdit rightEdit
+                let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, mark :: frames, active ++ rest⟩
+                let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, mark :: peerFrames, peerActive ++ peerRest⟩
+                have resume : SourceCoreReply profile ready base bindings older check canon trailing.length finish :=
+                  fun _ {_ _ _} same aligned lhs rhs run bound =>
+                    proceed (.mk (.cons (.same _) segments)) resumers same aligned lhs rhs run bound
+                by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
+                · obtain ⟨inst, loader, linked⟩ := legacy
+                  by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
+                      (start.store.inst? inst).any (·.mayLeave) = true
+                  · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                    refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                    intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                    exact finishAdmittedSourceLegacy embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
+                      (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
+                  · exact otherwise
+                · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
+                      resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
+                  · obtain ⟨inst, action, transfer, linked⟩ := shared
+                    by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
+                        (start.store.inst? inst).any (·.mayLeave) = true
+                    · refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun aligned => aligned) ?_
+                      refine crossSelectedEmbedderAdmission rfl rfl scheduler tail (Nat.le_refl trailing.length) ?_
+                      intro reached peer remaining lhs rhs leftAt rightAt aligned run bounded
+                      exact finishAdmittedSourceSharedGive transfer (.prefixed resumers parents) segments embedder linked (lhs.symm ▸ context.1) (lhs.symm ▸ context.2)
+                        (lhs.trans (stores.trans rhs.symm)) leftAt rightAt run aligned bounded resume
+                    · exact otherwise
+                  · exact otherwise
+              · exact otherwise
+          | _ => exact otherwise
+        cases actual with
+        | @call _ request resume _ _ atCall =>
+          rw [leftAt] at atCall
+          cases atCall
+          have ordinary : CallbackSliceEnd profile ready base bindings older start incoming (.tau :: trailing) finish := by
+            by_cases shared : LiveDispatch.Unchanged bindings request
+            · have code := LiveDispatch.unchanged_dispatch (ready := ready) (base := base) shared
+              have raw := Step.call (prof := profile) (hr := ready)
+                (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+              rw [← code] at raw
+              exact advance (edit := .push (.prog resume)) (.call leftAt) raw tail (.cons (.same _) segments) rfl rfl
+                stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+            · exact frontier
+          cases request with
+          | hostCallout host args =>
+            exact crossLinked host args (.prog resume) (.call leftAt) (.call rightAt)
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]) tail ordinary
+          | _ => exact ordinary
+        | callCore atCall =>
+          rw [leftAt] at atCall
+          cases atCall
+          exact advance (.callCore leftAt) (.callCore rightAt) tail segments rfl rfl stores scheduler rfl rfl
+            (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+        | coreInternal atCore status internal =>
+          rw [leftAt] at atCore
+          cases atCore
+          rename_i coreStore coreStep
+          have raw := Step.coreInternal (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ status) (stores ▸ internal)
+          exact advance (.coreInternal leftAt status internal) raw tail segments rfl rfl
+            (by change { start.store with core := coreStore } = { incoming.store with core := coreStore }; rw [stores])
+            scheduler rfl rfl rfl rfl
+        | coreReturned atCore status =>
+          rw [leftAt] at atCore
+          cases atCore
+          have raw := Step.coreReturned (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ status)
+          exact advance (edit := .same) (.coreReturned leftAt status) raw tail segments rfl rfl stores scheduler rfl rfl
+            (by simp only [transitionEdit, leftAt, status]) (by simp only [transitionEdit, rightAt, ← stores, status])
+        | @coreCallout _ core resume _ _ host args atCall status =>
+          rw [leftAt] at atCall
+          cases atCall
+          have ordinary : CallbackSliceEnd profile ready base bindings older start incoming (.tau :: trailing) finish := by
+            by_cases shared : LiveDispatch.Unchanged bindings (.hostCallout host args)
+            · have code := LiveDispatch.unchanged_dispatch (ready := ready) (base := base) shared
+              have rawStatus := stores ▸ status
+              have raw := Step.coreCallout (prof := profile) (hr := ready)
+                (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt rawStatus
+              rw [← code] at raw
+              exact advance (edit := .push (.core core resume)) (.coreCallout leftAt status) raw tail
+                (.cons (.same _) segments) rfl rfl stores scheduler rfl rfl
+                (by simp only [transitionEdit, leftAt, status])
+                (by simp only [transitionEdit, rightAt, rawStatus])
+            · exact frontier
+          have rawStatus := stores ▸ status
+          exact crossLinked host args (.core core resume) (.coreCallout leftAt status) (.coreCallout rightAt rawStatus)
+            (by simp only [transitionEdit, leftAt, status]) (by simp only [transitionEdit, rightAt, rawStatus]) tail ordinary
+        | coreTrap atCore status =>
+          rw [leftAt] at atCore
+          cases atCore
+          have raw := Step.coreTrap (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ status)
+          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .clear) (.coreTrap leftAt status) raw rfl rfl
+          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+        | @get _ read _ _ atGet =>
+          rw [leftAt] at atGet
+          cases atGet
+          have raw := Step.get (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+          exact advance (.get leftAt) raw tail segments rfl
+            (by change ⟨thread, .prog (read incoming.store), peerFrames⟩ :: (peerActive ++ peerRest) = _; rw [stores])
+            stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+        | @modify _ update _ _ _ atWrite =>
+          rw [leftAt] at atWrite
+          cases atWrite
+          exact advance (.modify leftAt) (.modify rightAt) tail segments rfl rfl (congrArg update stores) scheduler rfl rfl
+            (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+        | currentThread atThread =>
+          rw [leftAt] at atThread
+          cases atThread
+          exact advance (.currentThread leftAt) (.currentThread rightAt) tail segments rfl rfl stores scheduler rfl rfl
+            (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+        | choose answer atChoice allowed =>
+          rw [leftAt] at atChoice
+          cases atChoice
+          exact advance (.choose answer leftAt allowed) (.choose answer rightAt allowed) tail
+            segments rfl rfl stores scheduler rfl rfl rfl rfl
+        | @hostGet _ read _ _ atRead =>
+          rw [leftAt] at atRead
+          cases atRead
+          have raw := Step.hostGet (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+          classical
+          by_cases agrees : read start.host = read incoming.host
+          · exact advance (.hostGet leftAt) raw tail segments rfl
+              (by change ⟨thread, .prog (read incoming.host), peerFrames⟩ :: (peerActive ++ peerRest) = _; rw [agrees])
+              stores scheduler rfl rfl
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+          · have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) (.hostGet leftAt) raw
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+            exact .observation leftAt agrees paths (frameCalloutStep paths rfl rfl) tail
+        | @emit _ notice _ _ _ atEmit =>
+          rw [leftAt] at atEmit
+          cases atEmit
+          have aligned : DestructorSchedulerAlignment older (StepDefs.observe start notice)
+              (StepDefs.observe incoming notice) := by
+            cases notice with
+            | resolved call values => exact DestructorSchedulerAlignment.observeResolved scheduler call values
+            | _ => exact scheduler
+          exact advance (.emit leftAt) (.emit rightAt) tail segments rfl rfl
+            (by cases notice <;> exact stores) aligned (by cases notice <;> rfl) (by cases notice <;> rfl) rfl rfl
+        | @newThread _ bodyCode resume _ _ store threadId atNew allocated =>
+          rw [leftAt] at atNew
+          cases atNew
+          have dispatchCode := LiveDispatch.unchanged_dispatch (ready := ready) (base := base)
+            (bindings := bindings) (call := .threadBody bodyCode) trivial
+          let saved := StepDefs.threadAct (specDispatch ready base) threadId bodyCode
+          have sameBody : StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) threadId bodyCode =
+              saved := by
+            change Activation.ofProg (some threadId) (specDispatch ready (LiveDispatch.host bindings base) (.threadBody bodyCode)) =
+              Activation.ofProg (some threadId) (specDispatch ready base (.threadBody bodyCode))
+            rw [← dispatchCode]
+          have raw := Step.newThread (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt (stores ▸ allocated)
+          rw [sameBody] at raw
+          exact advance (edit := .write threadId.idx []) (.newThread leftAt allocated) raw tail segments
+            rfl rfl rfl ⟨relatedSetSlot .none scheduler.1 threadId.idx (.some (.mk .nil)), scheduler.2⟩ rfl rfl
+            (by simp only [transitionEdit, leftAt, allocated])
+            (by simp only [transitionEdit, rightAt, ← stores, allocated])
+        | trap atTrap =>
+          rw [leftAt] at atTrap
+          cases atTrap
+          have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base)
+            (bindings := bindings) (edit := .clear)
+            (.trap leftAt) (.trap rightAt) rfl rfl
+          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+        | popCore atPop =>
+          rw [leftAt] at atPop
+          cases atPop
+          cases segments with
+          | cons head tails =>
+            cases head
+            have raw := Step.popCore (prof := profile) (hr := ready)
+              (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+            rw [congrArg CStore.core stores.symm] at raw
+            exact advance (.popCore leftAt) raw tail tails rfl rfl stores scheduler rfl rfl
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
+        | @popProg _ result resume _ _ atPop =>
+          rw [leftAt] at atPop
+          cases atPop
+          cases segments with
+          | cons head tails =>
+            cases head with
+            | same _ =>
+              exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl rfl stores scheduler rfl rfl
+                (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
+            | @swap _ second source =>
+              classical
+              by_cases agrees : resume result = second result
+              · exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl
+                  (by change ⟨thread, .prog (second result), _⟩ :: (peerActive ++ peerRest) = _; rw [← agrees])
+                  stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
+              · exact .boundary (.protectedPop ⟨second, source⟩ leftAt) (.popProg leftAt) tail
+        | threadExit atExit =>
+          rw [leftAt] at atExit
+          cases atExit
+          cases segments
+          have raw := Step.threadExit (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) (.threadExit leftAt) raw
+            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same) ?_
+          exact leave (congrArg (StepDefs.threadStatusSt _ .exited) stores) scheduler rfl rfl tail
+        | @hostDone value _ atDone =>
+          rw [leftAt] at atDone
+          cases atDone
+          cases segments
+          have leftTail : active ++ rest ≠ [] := fun empty =>
+            parentPresent.1 (List.append_eq_nil_iff.mp empty).2
+          have rightTail : peerActive ++ peerRest ≠ [] := fun empty =>
+            parentPresent.2 (List.append_eq_nil_iff.mp empty).2
+          have finishes (cfg : Config (core3 grow) (HostState sig))
+              (stack : List (Activation (core3 grow) (HostState sig))) (present : stack ≠ []) :
+              StepDefs.hostFinish value stack cfg = { cfg with ctl := stack } := by
+            cases stack with
+            | nil => exact (present rfl).elim
+            | cons => rfl
+          have checked := Step.hostDone (prof := profile) (hr := ready) (dispatch := specDispatch ready base) leftAt
+          have raw := Step.hostDone (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+          rw [finishes _ _ leftTail] at checked tail
+          rw [finishes _ _ rightTail] at raw
+          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) checked raw
+            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same)
+            (leave stores scheduler rfl rfl tail)
+        | @block worker reply _ _ atBlock =>
+          rw [leftAt] at atBlock
+          cases atBlock
+          have raw := Step.block (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .block _) (.block leftAt) raw
+            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          let savedLeft := StepDefs.blockedAct (E := core3 grow) worker reply frames
+          let savedRight := StepDefs.blockedAct (E := core3 grow) worker reply peerFrames
+          let blockedLeft := { start.setCont worker (some savedLeft) with
+            store := StepDefs.threadStatusSt worker .blocked start.store, ctl := active ++ rest }
+          let blockedRight := { incoming.setCont worker (some savedRight) with
+            store := StepDefs.threadStatusSt worker .blocked incoming.store, ctl := peerActive ++ peerRest }
+          have save (before : DestructorSchedulerAlignment older start incoming) :
+              DestructorSchedulerAlignment older blockedLeft blockedRight :=
+            ⟨relatedSetSlot .none before.1 worker.idx (.some (.mk segments)), before.2⟩
+          refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) save ?_
+          exact leave (congrArg (StepDefs.threadStatusSt _ .blocked) stores) (save scheduler) rfl rfl tail
+        | @blockSwitch worker switched reply _ _ next atSwitch found =>
+          rw [leftAt] at atSwitch
+          cases atSwitch
+          let savedLeft := start.setCont worker (some (StepDefs.blockedAct worker reply frames))
+          let savedRight := incoming.setCont worker (some (StepDefs.blockedAct worker reply peerFrames))
+          have saved : List.Forall₂ (ReturnFrame.Related.Saved older) savedLeft.conts savedRight.conts :=
+            relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
+          have slot := relatedContLookup saved switched
+          rw [found] at slot
+          obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
+          let update (store : CStore (core3 grow)) :=
+            StepDefs.threadStatusSt switched .running (StepDefs.threadStatusSt worker .blocked store)
+          let lhs := { savedLeft.setCont switched none with store := update start.store, ctl := next :: (active ++ rest) }
+          let rhs := { savedRight.setCont switched none with store := update incoming.store, ctl := peer :: (peerActive ++ peerRest) }
+          have checked : Step profile ready (specDispatch ready base) start .tau lhs := .blockSwitch leftAt found
+          have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
+            .blockSwitch rightAt rawFound
+          have moved := sharedSchedulerTransport (bindings := bindings) (edit := .switch worker.idx switched.idx)
+            checked raw (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          have aligned : DestructorSchedulerAlignment older lhs rhs :=
+            ⟨relatedSetSlot .none saved switched.idx .none, scheduler.2⟩
+          exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
+            (proceed selected resumers (congrArg update stores) aligned rfl rfl tail (Nat.le_refl _))
+        | @resumeThread _ resumed resume _ _ next atResume found =>
+          rw [leftAt] at atResume
+          cases atResume
+          have slot := relatedContLookup scheduler.1 resumed
+          rw [found] at slot
+          obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
+          let update := StepDefs.threadStatusSt (E := core3 grow) resumed .running
+          let lhs := { start.setCont resumed none with
+            store := update start.store, ctl := next :: ⟨thread, .prog (resume ()), frames⟩ :: (active ++ rest) }
+          let rhs := { incoming.setCont resumed none with
+            store := update incoming.store, ctl := peer :: ⟨thread, .prog (resume ()), peerFrames⟩ :: (peerActive ++ peerRest) }
+          have checked : Step profile ready (specDispatch ready base) start .tau lhs := .resumeThread leftAt found
+          have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
+            .resumeThread rightAt rawFound
+          have moved := sharedSchedulerTransport (bindings := bindings) (edit := .resume resumed.idx)
+            checked raw (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+          have aligned : DestructorSchedulerAlignment older lhs rhs :=
+            ⟨relatedSetSlot .none scheduler.1 resumed.idx .none, scheduler.2⟩
+          exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
+            (proceed selected (.cons (.mk segments) resumers) (congrArg update stores) aligned rfl rfl tail (Nat.le_refl _))
+        | @fault msg fault =>
+          have rawFault : Fault incoming msg := by
+            cases fault with
+            | blockNoThread atBlock =>
+              rw [leftAt] at atBlock
+              cases atBlock
+              exact .blockNoThread rightAt
+            | @switchMissing worker switched reply _ _ atSwitch missing =>
+              rw [leftAt] at atSwitch
+              cases atSwitch
+              have saved : List.Forall₂ (ReturnFrame.Related.Saved older)
+                  (start.setCont worker (some (StepDefs.blockedAct worker reply frames))).conts
+                  (incoming.setCont worker (some (StepDefs.blockedAct worker reply peerFrames))).conts :=
+                relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
+              have slot := relatedContLookup saved switched
+              rw [missing] at slot
+              exact .switchMissing rightAt (relatedSavedNone slot)
+            | @resumeMissing _ resumed _ _ _ atResume missing =>
+              rw [leftAt] at atResume
+              cases atResume
+              have slot := relatedContLookup scheduler.1 resumed
+              rw [missing] at slot
+              exact .resumeMissing rightAt (relatedSavedNone slot)
+            | calloutBadRet atReturn bad =>
+              rw [leftAt] at atReturn
+              cases atReturn
+              cases segments with
+              | cons head tails =>
+                cases head
+                exact .calloutBadRet rightAt bad
+          have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base)
+            (bindings := bindings) (edit := .clear) (.fault fault) (.fault rawFault) rfl rfl
+          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+        | hostInvoke ready _ | hostTick ready | hostCancel ready _ _ | hostRun ready =>
+          have empty := ready.1
+          rw [leftAt] at empty
+          contradiction
+        | @hostSet _ state _ _ _ atWrite =>
+          rw [leftAt] at atWrite
+          cases atWrite
+          classical
+          by_cases same : state.writer = start.host.writer ∧ state.writer = incoming.host.writer
+          · exact advance (.hostSet leftAt) (.hostSet rightAt) tail segments rfl rfl stores scheduler same.1 same.2
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+          · exact .boundary (.write leftAt) (.hostSet leftAt) tail
+
+private theorem sourceResumeMissingUnique
+    {check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {worker : ThreadId} {after : Session grow sig (Ret (core3 grow))}
+    (focused : start.ctl = check.control (.op (.resumeThread worker) (fun _ => after)))
+    (missing : start.cont? worker = none)
+    {label next} (actual : Step profile ready (specDispatch ready base) start label next) :
+    label = .trap (.internal "resume of a thread without a saved continuation") ∧ next = StepDefs.trapCfg start := by
+  cases check
+  cases actual
+  all_goals try (cases (show Fault start _ from by assumption))
+  all_goals simp_all [PayloadPrefix.Cursor.control, StepDefs.HostReadyCfg]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    obtain ⟨operation, _⟩ := progOpEq programs
+    injection operation
+  simp_all
+
+open ReturnFrame.Occurrence in
+private theorem crossSourceSelectedResume
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (worker : ThreadId) (task : TaskId)
+    (threads : check.thread = canon.thread)
+    (frames : SourceLiftLoopFrames older check.frames canon.frames)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = check.control (Thread.resume worker >>= fun _ => callRet (.loop (.syncLiftLoop task))))
+    (rightAt : incoming.ctl = canon.control (Thread.resume worker >>= fun _ => callRet (.loop (.syncLiftLoop task))))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (restart : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
+      left.store = right.store → DestructorSchedulerAlignment older left right →
+      left.ctl = check.control (callRet (.loop (.syncLiftLoop task))) →
+      right.ctl = canon.control (callRet (.loop (.syncLiftLoop task))) →
+      Steps profile ready (specDispatch ready base) left suffix finish → suffix.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right suffix finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let again : Session grow sig (Ret (core3 grow)) := callRet (.loop (.syncLiftLoop task))
+  have body := sharedThreadResumePath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    worker check again leftAt
+  have peerBody := sharedThreadResumePath (profile := profile) (ready := ready)
+    (dispatch := specDispatch ready (LiveDispatch.host bindings base)) worker canon again rightAt
+  rw [← congrArg (destructorResumeEdits worker) stores] at peerBody
+  obtain ⟨used, remaining, reached, peer, split, paths, writers, tail, ending⟩ :=
+    cutSharedQuietWorker body peerBody run
+  rw [split]
+  rcases ending with empty | ⟨rfl, rfl⟩
+  · subst remaining
+    cases tail
+    exact .comparedPrefix paths writers .exhausted
+  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+    let lhs := { start with store := destructorResumeStore worker start.store
+                            ctl := check.control (.op (.resumeThread worker) (fun _ => again)) }
+    let rhs := { incoming with store := destructorResumeStore worker incoming.store
+                               ctl := canon.control (.op (.resumeThread worker) (fun _ => again)) }
+    have checkAt : lhs.ctl = check.control (.op (.resumeThread worker) (fun _ => again)) := rfl
+    have canonAt : rhs.ctl = canon.control (.op (.resumeThread worker) (fun _ => again)) := rfl
+    have related := relatedContLookup (left := lhs) (right := rhs) scheduler.1 worker
+    have bound : remaining.length ≤ labels.length := by rw [split, List.length_append]; omega
+    cases found : lhs.cont? worker with
+    | none =>
+      have peerFound : rhs.cont? worker = none := relatedSavedNone (found ▸ related)
+      cases tail with
+      | refl => exact .exhausted
+      | cons actual residual =>
+        obtain ⟨rfl, rfl⟩ := sourceResumeMissingUnique checkAt found actual
+        have rawFault : Fault rhs "resume of a thread without a saved continuation" :=
+          .resumeMissing canonAt peerFound
+        have checkedFault : Fault lhs "resume of a thread without a saved continuation" :=
+          .resumeMissing checkAt found
+        have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base) (bindings := bindings)
+          (edit := .clear) (.fault checkedFault) (.fault rawFault) rfl rfl
+        exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) residual (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+    | some selected =>
+      obtain ⟨peer, peerFound, active⟩ := relatedSavedSome (found ▸ related)
+      let advance := StepDefs.threadStatusSt (E := core3 grow) worker .running
+      let left := { lhs.setCont worker none with store := advance lhs.store, ctl := selected :: check.control again }
+      let right := { rhs.setCont worker none with store := advance rhs.store, ctl := peer :: canon.control again }
+      have checked : Step profile ready (specDispatch ready base) lhs .tau left := .resumeThread checkAt found
+      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rhs .tau right :=
+        .resumeThread canonAt peerFound
+      cases tail with
+      | refl => exact .exhausted
+      | cons actual residual =>
+        obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
+        have resumed := sharedSchedulerTransport (bindings := bindings) (edit := .resume worker.idx) checked canonical rfl rfl
+        have preserve (before : DestructorSchedulerAlignment older lhs rhs) : DestructorSchedulerAlignment older left right :=
+          ⟨relatedSetSlot .none before.1 worker.idx .none, before.2⟩
+        refine .destructorPrefix resumed (frameCalloutStep resumed rfl rfl) preserve ?_
+        refine finishSourceSwitchTarget (.syncLift task threads frames parents) ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+          active .nil (congrArg (advance ∘ destructorResumeStore worker) stores) (preserve scheduler)
+          rfl rfl residual (Nat.le_of_succ_le bound) ?_
+        intro reached peer trailing same aligned leftAt rightAt residual shorter
+        exact restart same aligned leftAt rightAt residual shorter
+
+private theorem crossSourceLiftCandidates
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (task : TaskId) (choices : List ThreadId)
+    (threads : check.thread = canon.thread)
+    (frames : SourceLiftLoopFrames older check.frames canon.frames)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = check.control (syncLiftCandidates task choices))
+    (rightAt : incoming.ctl = canon.control (syncLiftCandidates task choices))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (restart : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
+      left.store = right.store → DestructorSchedulerAlignment older left right →
+      left.ctl = check.control (callRet (.loop (.syncLiftLoop task))) →
+      right.ctl = canon.control (callRet (.loop (.syncLiftLoop task))) →
+      Steps profile ready (specDispatch ready base) left suffix finish → suffix.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right suffix finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases choices with
+  | nil => exact compareSharedDestructorTrap .cannotBlockSync leftAt rightAt run
+  | cons head tail =>
+    let decide : Session grow sig ThreadId := pickSyncLoop head tail
+    let resume (thread : ThreadId) : Session grow sig (Ret (core3 grow)) :=
+      Thread.resume thread >>= fun _ => callRet (.loop (.syncLiftLoop task))
+    have program : (syncLiftCandidates task (head :: tail) : Session grow sig (Ret (core3 grow))) = decide >>= resume := by
+      simp only [syncLiftCandidates, decide, resume, Prog.bind_eq]
+    have pick : StoreEffects decide := .op rfl (fun _ => .pure _)
+    refine crossSharedWorkerBodyWith threads decide resume resume (liftDestructorStoreEffects pick (trivialPreserves _))
+      trivial stores (congrArg check.control program ▸ leftAt) (congrArg canon.control program ▸ rightAt) run ?_
+    intro left right trailing worker shorter _ same checked canonical align tail
+    exact crossSourceSelectedResume worker task threads frames parents same (align scheduler) checked canonical tail
+      (fun same aligned leftAt rightAt actual within => restart same aligned leftAt rightAt actual (within.trans shorter))
+
+private theorem finishSourceLiftLoop
+    {start incoming : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (task : TaskId) (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (threads : check.thread = canon.thread)
+    (frames : SourceLiftLoopFrames older (.prog first :: check.frames) (.prog second :: canon.frames))
+    (parents : SourceParentStack older check.rest canon.rest)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = check.control (.op (.call (.loop (.syncLiftLoop task))) first))
+    (rightAt : incoming.ctl = canon.control (.op (.call (.loop (.syncLiftLoop task))) second))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (onReply : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → DestructorSchedulerAlignment older left right →
+      left.ctl = check.control (first .unit) → right.ctl = canon.control (second .unit) →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ labels.length →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  refine crossSourceSyncLiftIteration task first second stores leftAt rightAt run ?_ ?_
+  · intro left right remaining lhs rhs leftAt rightAt align tail shorter
+    exact onReply (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail (Nat.le_of_lt shorter)
+  · intro left right remaining _ candidates _ _ lhs rhs leftAt rightAt align tail within
+    let checking := { check with frames := .prog first :: check.frames }
+    let canonical := { canon with frames := .prog second :: canon.frames }
+    refine crossSourceLiftCandidates (check := checking) (canon := canonical) task candidates threads frames parents
+      (lhs.trans (stores.trans rhs.symm)) (align scheduler) leftAt rightAt tail ?_
+    intro next peer trailing same aligned checked raw residual afterWorker
+    have shorter : trailing.length < labels.length := Nat.lt_of_le_of_lt afterWorker within
+    refine finishSourceLiftLoop (start := next) (incoming := peer) (labels := trailing)
+      (check := checking) (canon := canonical) task .pure .pure threads (.common .pure frames)
+      parents same aligned checked raw residual ?_
+    intro left right suffix equal saved leftAt rightAt tail afterLoop
+    refine crossSourceLiftUnitPop first second leftAt rightAt tail ?_
+    intro returned peer remaining lhs rhs checked raw align tail afterPop
+    exact onReply (lhs.trans (equal.trans rhs.symm)) (align saved) checked raw tail
+      (afterPop.trans (afterLoop.trans (Nat.le_of_lt shorter)))
+termination_by labels.length
+decreasing_by exact shorter
+
+private def sourceSchedulerBuiltin : ResolvedBuiltin (core3 grow) → Bool
+  | .threadSuspend | .threadYield | .threadSuspendThenResume | .threadYieldThenResume
+  | .threadSuspendThenPromote | .threadYieldThenPromote | .waitableSetWait _ => true
+  | _ => false
+
+private theorem crossAdmittedSourceScheduler {limit : Nat}
+    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
+    {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
+    {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
+    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
+    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = ⟨some worker, .prog
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.builtin builtin inst) args),
+      [.core core ret]⟩ :: rest)
+    (canonical : incoming.ctl = ⟨some worker, .prog
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        incoming.store (some worker) (.builtin builtin inst) args),
+      [.core core ret]⟩ :: peerRest)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishSourceSwitchTarget parents present (.mk (.cons (.same _) .nil)) .nil stores scheduler checked canonical run within
+    (fun same aligned lhs rhs tail bound => exposed same lhs rhs aligned tail bound)
+
+open ReturnFrame.Occurrence in
+private theorem finishReachedDestructorParentLoop {limit : Nat} {body : ThreadBody (core3 grow)}
+    (parents : DestructorParentChain older body start.ctl incoming.ctl)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  obtain ⟨thread, frame, frames, peerFrames, rest, peerRest, leftTicket, rightTicket,
+    framesPaired, restPaired, leftAt, rightAt⟩ := destructorParentCoordinates parents
+  rw [sharedDestructorParentCode] at leftAt rightAt
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let first := sharedDestructorParentReply (grow := grow) (sig := sig) leftTicket
+  let second := sharedDestructorParentReply (grow := grow) (sig := sig) rightTicket
+  refine crossSourceSyncLiftIteration (check := check) (canon := canon) body.task first second
+    stores leftAt rightAt run ?_ ?_
+  · intro left right remaining checkStore canonStore checked canonical align residual shorter
+    have journal := compareDestructorParentJournal (bindings := bindings) leftTicket rightTicket
+      (checkStore.trans (stores.trans canonStore.symm)) framesPaired restPaired checked canonical residual
+    exact rejoinDestructorParentJournal journal (align scheduler) ((Nat.le_of_lt shorter).trans bounded) compare
+  · intro left right remaining _ candidates _ _ checkStore canonStore checked canonical align residual shorter
+    let program := syncLiftCandidates (E := core3 grow) (σ := HostState sig) body.task candidates
+    have same := checkStore.trans (stores.trans canonStore.symm)
+    let idle : Session grow sig (Ret (core3 grow)) := .pure .unit
+    have peeled : HostFrame.Related.Paired older
+        { left with ctl := check.control idle } { right with ctl := canon.control idle } :=
+      destructorSchedulerPair (align scheduler) same (.cons (.mk (.cons (.same _) framesPaired)) restPaired)
+    obtain ⟨otherFrames, otherRest, atPeer, expanded⟩ :=
+      peeled.push (show ({ left with ctl := check.control idle }).ctl = _ from rfl) program first second
+    change ⟨thread, .prog idle, frame :: peerFrames⟩ :: peerRest = _ at atPeer
+    rw [List.cons.injEq, Activation.mk.injEq] at atPeer
+    obtain ⟨⟨_, _, rfl⟩, rfl⟩ := atPeer
+    have paired : HostFrame.Related.Paired (ReturnFrame.Extend older first second) left right := by
+      have leftEq : { left with ctl := { check with frames := .prog first :: check.frames }.control program } = left := by
+        cases left
+        simp only [Config.mk.injEq, true_and, and_true]
+        exact checked.symm
+      have rightEq : { right with ctl := { canon with frames := .prog second :: canon.frames }.control program } = right := by
+        cases right
+        simp only [Config.mk.injEq, true_and, and_true]
+        exact canonical.symm
+      exact leftEq ▸ rightEq ▸ expanded
+    have frames : DestructorParentLoopFrames first second frame left right := by
+      constructor <;> simp only [segmentStorage, checked, canonical] <;> rfl
+    have related := paired_outside (show ReturnFrame.Related.Paired older
+      (HostFrame.replace { left with ctl := check.control idle } right.host) { right with ctl := canon.control idle }
+      from peeled)
+    have outside : Outside older (segmentStorage left) (segmentStorage right) (some (.active 0 0)) := by
+      simp only [segmentStorage, checked, canonical, PayloadPrefix.Cursor.control]
+      exact outside_push (.prog first) (.prog second) related
+    exact .sharedDropParentLoopJoined frames paired outside
+      (finishBlockedDestructorLoop frames paired outside residual (Nat.lt_of_lt_of_le shorter bounded) compare)
+
+open ReturnFrame.Occurrence in
+private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
+    {rest peerRest left right active peerActive}
+    (parents : DestructorParentChain older body rest peerRest)
+    (target : ReturnFrame.Related.Active older left right)
+    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
+    (stores : start.store = incoming.store)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  have parentPresent : rest ≠ [] ∧ peerRest ≠ [] := by
+    cases parents
+    exact ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+  refine finishSourceSwitchTarget (destructorParentStack parents) parentPresent target resumers
+    stores scheduler leftAt rightAt run bounded ?_
+  intro lhs rhs suffix same aligned lhsAt rhsAt residual shorter
+  have reached : DestructorParentChain older body lhs.ctl rhs.ctl := by
+    rw [lhsAt, rhsAt]
+    exact parents
+  exact finishReachedDestructorParentLoop reached same aligned residual shorter compare
+
+open ReturnFrame.Occurrence in
+private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}
+    {worker target : ThreadId} {frames peerFrames rest peerRest}
+    {reply : Session grow sig (Ret (core3 grow))}
+    (parents : DestructorParentChain older body rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = (PayloadPrefix.Cursor.mk (some worker) frames rest).control
+      (.op (.block (some target)) fun _ => reply))
+    (rightAt : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) peerFrames peerRest).control
+      (.op (.block (some target)) fun _ => reply))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let left := start.setCont worker (some (StepDefs.blockedAct worker (fun _ => reply) frames))
+  let right := incoming.setCont worker (some (StepDefs.blockedAct worker (fun _ => reply) peerFrames))
+  have saved : List.Forall₂ (ReturnFrame.Related.Saved older) left.conts right.conts :=
+    relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
+  have found := relatedContLookup saved target
+  cases run with
+  | refl => exact .exhausted
+  | @cons _ _ _ label trailing actual tail =>
+    cases present : left.cont? target with
+    | none =>
+      have rawMissing : right.cont? target = none := relatedSavedNone (present ▸ found)
+      have fault := Fault.switchMissing leftAt present
+      let reason := TrapReason.internal "switch to a thread without a saved continuation"
+      have checked : Step profile ready (specDispatch ready base) start (.trap reason) (StepDefs.trapCfg start) :=
+        .fault fault
+      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming
+          (.trap reason) (StepDefs.trapCfg incoming) := .fault (.switchMissing rightAt rawMissing)
+      have equalLabel : label = .trap reason := by
+        by_contra differs
+        exact (differentStepBranch checked actual (Ne.symm differs)).1
+      subst label
+      have equalEnd := labelledStepUnique checked actual
+      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .clear) checked canonical rfl rfl
+      exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) (equalEnd.symm ▸ tail)
+        (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+    | some next =>
+      rw [present] at found
+      obtain ⟨peer, rawFound, related⟩ := relatedSavedSome found
+      let update (store : CStore (core3 grow)) :=
+        StepDefs.threadStatusSt target .running (StepDefs.threadStatusSt worker .blocked store)
+      let checkedEnd := { left.setCont target none with store := update start.store, ctl := next :: rest }
+      let rawEnd := { right.setCont target none with store := update incoming.store, ctl := peer :: peerRest }
+      have checked : Step profile ready (specDispatch ready base) start .tau checkedEnd := .blockSwitch leftAt present
+      have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rawEnd :=
+        .blockSwitch rightAt rawFound
+      obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
+      have paths := sharedSchedulerTransport (bindings := bindings) (edit := .switch worker.idx target.idx) checked canonical
+        (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+      have aligned : DestructorSchedulerAlignment older checkedEnd rawEnd :=
+        ⟨relatedSetSlot .none saved target.idx .none, scheduler.2⟩
+      exact .destructorPrefix paths (frameCalloutStep paths rfl rfl)
+        (fun _ => aligned) (finishDestructorSwitchTarget parents related .nil (congrArg update stores)
+          aligned rfl rfl tail (by simp only [List.length_cons] at bounded; omega) compare)
+
+private theorem finishDeniedDestructorImport {limit : Nat}
+    {thread frames peerFrames rest peerRest name kind args inst parentBody}
+    {frame : Seg (core3 grow) (HostState sig)} {body : Nat → Session grow sig (Except Scheduled.Issue Nat)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (rawEmbedder : (LiveDispatch.host bindings base).embedder name kind args =
+      (Scheduled.host (grow := grow) bindings).embedder name kind args)
+    (routed : ∀ ticket, route (grow := grow) ticket bindings name kind args =
+      (do Scheduled.finish ticket (← admit inst (body ticket))))
+    (denied : ¬ (Plain.callerInstance start.store thread = .ok (some inst) ∧
+      (start.store.inst? inst).any (·.mayLeave) = true))
+    (parents : DestructorParentChain older parentBody rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store thread (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store thread (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frame :: peerFrames, peerRest⟩
+  let verdict := scheduledDenial start.store thread
+  let ending (state : Config (core3 grow) (HostState sig)) (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)) :=
+    let entered := state.host.enter name kind args
+    let reply := completion state.host.nextTicket (.error .wrongContext)
+    { state with
+      host := if verdict.2 then entered else entered.record reply.1
+      ctl := cursor.control (if verdict.2 then trap (.internal "dangling arena id") else .pure (.flat reply.2)) }
+  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check start
+      (List.replicate verdict.1 id) (ending start check) :=
+    scheduledDenialPath base routed (congrFun (congrFun (congrFun embedder name) kind) args) check denied checked
+  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon incoming
+      (List.replicate verdict.1 id) (ending incoming canon) := by
+    have path := scheduledDenialPath (profile := profile) (ready := ready) (start := incoming)
+      (LiveDispatch.host bindings base) routed rawEmbedder canon (stores ▸ denied) canonical
+    have same : scheduledDenial incoming.store thread = verdict := by rw [← stores]
+    simpa only [ending, canon, same] using path
+  obtain ⟨used, leftOver, reached, peer, split, paths, writers, tail, completed⟩ :=
+    cutSharedQuietWorker leftPath rightPath run
+  rw [split]
+  rcases completed with empty | ⟨rfl, rfl⟩
+  · subst leftOver
+    cases tail
+    exact .comparedPrefix paths writers .exhausted
+  · refine .destructorPrefix paths writers (fun aligned => aligned) ?_
+    cases dangling : verdict.2 with
+    | true =>
+      exact compareSharedDestructorTrap (check := check) (canon := canon) (.internal "dangling arena id")
+        (by simp only [ending, dangling, ite_true]) (by simp only [ending, dangling, ite_true]) tail
+    | false =>
+      let words := (completion 0 (.error .wrongContext)).2
+      have leftReply : (ending start check).ctl = check.control (.pure (.flat words)) := by
+        simp only [ending, dangling, Bool.false_eq_true, ite_false]
+        rfl
+      have rawReply : (ending incoming canon).ctl = canon.control (.pure (.flat words)) := by
+        simp only [ending, dangling, Bool.false_eq_true, ite_false]
+        rfl
+      have shorter : leftOver.length ≤ limit := by
+        rw [split, List.length_append] at bounded
+        omega
+      exact finishDestructorSwitchTarget parents (.mk (.cons (.same _) segments)) .nil stores scheduler
+        leftReply rawReply tail shorter compare
+
+private theorem finishSourceCoreReply {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : SourceParentStack older check.rest canon.rest)
+    (present : check.rest ≠ [] ∧ canon.rest ≠ [])
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = check.rest → right.ctl = canon.rest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    SourceCoreReply profile ready base bindings older check canon limit finish := by
+  intro words left right remaining stores scheduler lhs rhs tail bounded
+  cases check
+  cases canon
+  cases thread
+  exact finishSourceSwitchTarget parents present (.mk segments) .nil stores scheduler lhs rhs tail bounded
+    (fun same aligned checked canonical run shorter => exposed same checked canonical aligned run shorter)
+
+private theorem finishDestructorCoreReply {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    SourceCoreReply profile ready base bindings older check canon limit finish := by
+  intro words left right remaining stores scheduler lhs rhs tail bounded
+  cases check
+  cases canon
+  cases thread
+  exact finishDestructorSwitchTarget parents (.mk segments) .nil stores scheduler lhs rhs tail bounded compare
+
+private theorem finishAdmittedLegacyDestructor {limit : Nat}
+    {worker frames peerFrames rest peerRest name kind args inst parentBody loader}
+    {frame : Seg (core3 grow) (HostState sig)}
+    (embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder)
+    (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+    (caller : Plain.callerInstance start.store (some worker) = .ok (some inst))
+    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
+    (parents : DestructorParentChain older parentBody rest peerRest)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: frames) rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) (frame :: peerFrames) peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base) incoming.store (some worker) (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishAdmittedSourceLegacy embedder source caller mayLeave stores checked canonical run scheduler bounded
+    (finishDestructorCoreReply parents rfl (.cons (.same _) segments) compare)
+
+private theorem compareAdmittedSourceLinked {limit : Nat}
+    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
+    {worker : ThreadId} {name kind args} {frame : Seg (core3 grow) (HostState sig)}
+    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = (PayloadPrefix.Cursor.mk (some worker) [frame] rest).control
+      (calloutBody Limits.spec Quirks.none ready base start.store (some worker) (.embedder name kind) args))
+    (canonical : incoming.ctl = (PayloadPrefix.Cursor.mk (some worker) [frame] peerRest).control
+      (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+        incoming.store (some worker) (.embedder name kind) args))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish)
+    (frontier : CallbackSliceEnd profile ready base bindings older start incoming labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  classical
+  by_cases embedder : base.embedder = (Scheduled.host (grow := grow) bindings).embedder
+  · by_cases legacy : ∃ inst loader, LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader
+    · obtain ⟨inst, loader, selected⟩ := legacy
+      by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
+          (start.store.inst? inst).any (·.mayLeave) = true
+      · exact finishAdmittedSourceLegacy (frames := []) (peerFrames := []) embedder selected context.1 context.2
+          stores checked canonical run scheduler within
+          (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
+      · exact frontier
+    · by_cases shared : ∃ inst action, sourceGiveWithReply action = true ∧
+          resolveBinding bindings name kind = .ok ⟨name, inst, action.bindingAction⟩
+      · obtain ⟨inst, action, transfer, linked⟩ := shared
+        by_cases context : Plain.callerInstance start.store (some worker) = .ok (some inst) ∧
+            (start.store.inst? inst).any (·.mayLeave) = true
+        · exact finishAdmittedSourceSharedGive (frames := []) (peerFrames := []) transfer parents .nil embedder linked context.1 context.2
+            stores checked canonical run scheduler within
+            (finishSourceCoreReply parents present rfl (.cons (.same _) .nil) exposed)
+        · exact frontier
+      · exact frontier
+  · exact frontier
+
+private theorem finishDestructorScheduledReply {limit : Nat} {body : ThreadBody (core3 grow)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
+    (parents : DestructorParentChain older body check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (stores : start.store = incoming.store)
+    (result : Except Scheduled.Issue Nat)
+    (checked : start.ctl = check.control (do return .flat (← Scheduled.finish leftTicket result)))
+    (canonical : incoming.ctl = canon.control (do return .flat (← Scheduled.finish rightTicket result)))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishSourceScheduledReply stores result checked canonical scheduler run bounded
+    (finishDestructorCoreReply parents thread segments compare)
 
 open ReturnFrame.Occurrence in
 private theorem crossDestructorAllocatorCoreImport {limit : Nat} {body : ThreadBody (core3 grow)}
