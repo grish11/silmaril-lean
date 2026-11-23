@@ -1224,7 +1224,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (quiet : PayloadPrefix.visible canonLabels = [])
       (pending : HostFrame.Related.Paired changes selection.canonicalPending entered)
       (host : entered.host = peer.host)
-      (residual : Steps profile ready (specDispatch ready base) (selection.compilerRefused issue) trailing finish) :
+      (residual : Steps profile ready (specDispatch ready base) (selection.compilerRefused issue) trailing finish)
+      (writerCut : ∃ used rest left, List.replicate count .tau ++ trailing = used ++ rest ∧
+        GiveBodyCut profile ready base bindings reached peer left entered used canonLabels rest finish [some (.active 0 0)]) :
       CallbackSliceEnd profile ready base bindings changes reached peer (List.replicate count .tau ++ trailing) finish
   | placementTrap {changes peer label next count canonLabels entered reason trailing finish route}
       (site : PayloadRoot.Site grow sig route)

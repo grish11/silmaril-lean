@@ -354,6 +354,24 @@ theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal {request : LiveDi
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.compilerRefusal selection refused impl embedder
 
 open ReturnFrame.Occurrence in
+/-- The actual compiler refusal entry preserves the writer and reaches the original reply program. -/
+theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal_entry {request : LiveDispatch.CoreGiveRequest bindings start} (selection : request.Selected route)
+    {issue : Stored.Endpoints.RecordLower.Issue} (refused : selection.preflight = .error issue)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
+    let reply := route.reply request.destination start.host.nextTicket (.error issue)
+    let entered := { start with
+      host := start.host.enter request.name request.kind (route.args selection.handle)
+      ctl := ⟨request.thread, .prog (do return .flat (← writeCompletion reply)),
+        .core request.core request.next :: request.frames⟩ :: request.rest }
+    ∃ front, front.all (· matches .tau) = true ∧
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place front entered
+        (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start front entered :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.compilerRefusalEntry
+    selection refused impl embedder
+
+open ReturnFrame.Occurrence in
 /-- Older checked occurrences pass through the real compiler refusal reply
 and its Core pop, which undo the entry's coordinate shift. -/
 theorem LiveDispatch.CoreGiveRequest.Selected.compiler_refusal_tracks {request : LiveDispatch.CoreGiveRequest bindings start}
@@ -511,6 +529,24 @@ theorem LiveDispatch.CoreGiveRequest.Selected.paired_canonical_pending_tracks {r
         (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
       entered.host = other.host ∧ HostFrame.Related.Paired older selection.canonicalPending entered :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pendingPairedTracks
+    (profile := profile) (ready := ready) (base := base) selection paired reads
+
+open ReturnFrame.Occurrence in
+/-- Canonical selection preserves the writer through entry and the original Core frame push. -/
+theorem LiveDispatch.CoreGiveRequest.Selected.paired_canonical_pending_framed {request : LiveDispatch.CoreGiveRequest bindings start} (selection : request.Selected route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older start other)
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    ∃ labels entered, labels.all (· matches .tau) = true ∧
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
+        (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
+      entered.host = other.host ∧
+      HostFrame.Related.Paired older selection.canonicalPending entered ∧
+      segmentStorage entered = (Edit.push (.core request.core request.next)).apply (segmentStorage other) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base)) other labels entered :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LiveDispatch.pendingPairedFramedStorage
     (profile := profile) (ready := ready) (base := base) selection paired reads
 
 /-- Successful compilation's recursive comparison starts at the same

@@ -48,6 +48,19 @@ private theorem admitAt {Result : Type} (site : Site grow sig route) (linked : s
   simp only [admit, Prog.bind_eq, Plain.runBody_currentInst, linked.caller, readStore,
     bne_self_eq_false, linked.mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
 
+private theorem framesAdmit {Result : Type} (selection : Session grow sig (Except Issue Result))
+    (store : CStore (core3 grow)) (other : HostState sig) (thread : Option ThreadId) (inst : InstId)
+    (caller : Plain.callerInstance store thread = .ok (some inst))
+    (mayLeave : (store.inst? inst).any (·.mayLeave) = true)
+    (frame : Plain.FramesHost HostState.writer selection store other (some thread)) :
+    Plain.FramesHost HostState.writer (admit inst selection) store other (some thread) := by
+  simp only [admit, Prog.bind_eq, Plain.framesHost_currentInst, caller]
+  have storeFrame (rest : CStore (core3 grow) → Session grow sig (Except Issue Result)) :
+      Plain.FramesHost HostState.writer (getStore.bind rest) store other (some thread) =
+        Plain.FramesHost HostState.writer (rest store) store other (some thread) := rfl
+  simp only [storeFrame, bne_self_eq_false, mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
+  exact frame
+
 private theorem entryWith {Result : Type} (site : Site grow sig route) (linked : site.Linked bindings)
     (other : HostState sig) (selection : Session grow sig (Except Issue Result)) (selected : Result)
     (next : Except Issue Result → Session grow sig (List FlatValue))
@@ -68,13 +81,7 @@ private theorem entryWith {Result : Type} (site : Site grow sig route) (linked :
     fun result => next result >>= fun reply => pure (.flat reply)
   let start := HostFrame.replace site.start other
   let active := { start with ctl := site.cursor.control (admit site.inst selection >>= finish) }
-  have admitFrame : Plain.FramesHost HostState.writer (admit site.inst selection) site.start.store other (some site.thread) := by
-    simp only [admit, Prog.bind_eq, Plain.framesHost_currentInst, linked.caller]
-    have storeFrame (rest : CStore (core3 grow) → Session grow sig (Except Issue Result)) :
-        Plain.FramesHost HostState.writer (getStore.bind rest) site.start.store other (some site.thread) =
-          Plain.FramesHost HostState.writer (rest site.start.store) site.start.store other (some site.thread) := rfl
-    simp only [storeFrame, bne_self_eq_false, linked.mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
-    exact selectionFrame
+  have admitFrame := framesAdmit selection site.start.store other site.thread site.inst linked.caller linked.mayLeave selectionFrame
   obtain ⟨labels, silent, run, framed⟩ := Plain.runBody_thread_tracks_framed (admit site.inst selection) active site.start.store other
     (.ok selected) finish site.thread _ site.rest profile ready (specDispatch ready impl) rfl
     ((admitAt site linked other selection).trans evaluation) HostState.writer admitFrame
@@ -642,15 +649,22 @@ theorem compilerSuccess {request : CoreGiveRequest bindings start} (selection : 
     simp only [CoreGiveRequest.Selected.preflight, picked] at compiled
     exact ⟨tag, payload, arity, children, rfl, selectionLinked selection picked compiled⟩
 
-theorem compilerRefusalTracks {request : CoreGiveRequest bindings start} (selection : request.Selected route)
+theorem compilerRefusalEntry {request : CoreGiveRequest bindings start} (selection : request.Selected route)
     {issue : Stored.Endpoints.RecordLower.Issue} (refused : selection.preflight = .error issue)
     (impl : HostImpl (core3 grow) (HostState sig))
     (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
-    ∃ count, ∀ place, Trail profile ready (specDispatch ready impl) start (some place) (List.replicate count .tau)
-      (selection.compilerRefused issue) (some place) := by
+    let reply := route.reply request.destination start.host.nextTicket (.error issue)
+    let entered := { start with
+      host := start.host.enter request.name request.kind (route.args selection.handle)
+      ctl := ⟨request.thread, .prog (do return .flat (← writeCompletion reply)),
+        .core request.core request.next :: request.frames⟩ :: request.rest }
+    ∃ front, front.all (· matches .tau) = true ∧
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place front entered
+        (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start front entered := by
   have calling := request.calling
   rw [selection.args] at calling
-  obtain ⟨front, silent, entry⟩ := GiveEffectRoute.parked_tracks bindings request.name request.kind selection.handle route request.inst
+  obtain ⟨front, silent, entry, framed⟩ := GiveEffectRoute.parked_framed_tracks bindings request.name request.kind selection.handle route request.inst
     request.destination selection.tree start request.thread profile ready request.focused calling selection.linked
     selection.caller selection.mayLeave selection.destination selection.selected selection.admitted impl embedder
   have replyOnly : route.run (grow := grow) request.destination request.inst selection.tree start.host.nextTicket =
@@ -661,7 +675,20 @@ theorem compilerRefusalTracks {request : CoreGiveRequest bindings start} (select
       simp only [CoreGiveRequest.Selected.preflight, chosen] at refused
       simp only [GiveEffectRoute.run, Stored.OwnedMemory.Claims.Record.Effects.lowerTree,
         Stored.Endpoints.RecordLower.Internal.lowerWithPlan, refused, Prog.pure_eq, Prog.bind_eq, Prog.pure_bind']
-  rw [replyOnly] at entry
+  rw [replyOnly] at entry framed
+  refine ⟨front, ?_, entry, framed⟩
+  apply List.all_eq_true.mpr
+  intro label member
+  have tau := List.all_eq_true.mp silent label member
+  cases label <;> first | rfl | contradiction
+
+theorem compilerRefusalTracks {request : CoreGiveRequest bindings start} (selection : request.Selected route)
+    {issue : Stored.Endpoints.RecordLower.Issue} (refused : selection.preflight = .error issue)
+    (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (Stored.OwnedMemory.Claims.Core.Scheduled.host (grow := grow) bindings).embedder) :
+    ∃ count, ∀ place, Trail profile ready (specDispatch ready impl) start (some place) (List.replicate count .tau)
+      (selection.compilerRefused issue) (some place) := by
+  obtain ⟨front, silent, entry, _⟩ := compilerRefusalEntry (profile := profile) (ready := ready) selection refused impl embedder
   have replicated : front = List.replicate front.length .tau := List.eq_replicate_length.mpr (fun label member => by
     have tau := List.all_eq_true.mp silent label member
     cases label <;> first | rfl | contradiction)
@@ -1442,25 +1469,33 @@ private theorem installSelected {request : CoreGiveRequest bindings start} {othe
     {Value : Type} (program : Session grow sig Value) (verdict : Value)
     (tail : Value → Session grow sig (List FlatValue))
     (installed : (LiveDispatch.host bindings base).embedder request.name request.kind request.args = program >>= tail)
-    (evaluated : Plain.runBody program start.store other.host (some request.thread) = (start.store, other.host, .ok verdict)) :
+    (evaluated : Plain.runBody program start.store other.host (some request.thread) = (start.store, other.host, .ok verdict))
+    (frame : Plain.FramesHost HostState.writer program start.store other.host (some request.thread)) :
     ∃ labels entered, labels.all (· matches .tau) = true ∧
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
         (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
       entered.host = other.host ∧
       HostFrame.Related.Paired older
         { start with ctl := ⟨request.thread, .prog (tail verdict >>= fun words => pure (.flat words)),
-          .core request.core request.next :: request.frames⟩ :: request.rest } entered := by
+          .core request.core request.next :: request.frames⟩ :: request.rest } entered ∧
+      segmentStorage entered = (Edit.push (.core request.core request.next)).apply (segmentStorage other) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base)) other labels entered := by
   let impl := LiveDispatch.host bindings base
   let next : Value → Session grow sig (Ret (core3 grow)) := fun result => tail result >>= fun words => pure (.flat words)
   have shared := paired.data.1
   have aligned : ReturnFrame.Related.Paired older (HostFrame.replace start other.host) other := paired
   obtain ⟨frames, rest, focused, entered⟩ := aligned.push_shared request.focused (.prog (next verdict)) (.core request.core request.next)
   let active := { other with ctl := ⟨request.thread, .prog (program >>= next), .core request.core request.next :: frames⟩ :: rest }
-  obtain ⟨labels, silent, localRun⟩ := Plain.runBody_thread_tracks_all program active other.store other.host verdict next
-    request.thread _ rest profile ready (specDispatch ready impl) rfl (shared ▸ evaluated)
+  obtain ⟨labels, silent, localRun, framed⟩ := Plain.runBody_thread_tracks_framed program active other.store other.host verdict next
+    request.thread _ rest profile ready (specDispatch ready impl) rfl (shared ▸ evaluated) HostState.writer (shared ▸ frame)
   have leaves : threadMayLeave other.store request.thread = true := shared ▸ Plain.thread_may_leave caller mayLeave
   let reached := { other with ctl := ⟨request.thread, .prog (next verdict), .core request.core request.next :: frames⟩ :: rest }
-  refine ⟨.tau :: .tau :: .tau :: labels, reached, ?_, ?_, rfl, ?_⟩
+  have calling : (core3 grow).status other.store.core request.core = .callout (.embedder request.name request.kind) request.args :=
+    shared ▸ request.calling
+  have body : calloutBody Limits.spec Quirks.none ready impl other.store request.thread (.embedder request.name request.kind) request.args =
+      program >>= next := by
+    simp only [next, calloutBody, leaves, ite_true, impl, installed, Prog.bind_eq, Prog.bind_assoc]
+  refine ⟨.tau :: .tau :: .tau :: labels, reached, ?_, ?_, rfl, ?_, ?_, ?_⟩
   · apply List.all_eq_true.mpr
     intro label member
     simp only [List.mem_cons] at member
@@ -1469,16 +1504,11 @@ private theorem installSelected {request : CoreGiveRequest bindings start} {othe
     cases label <;> first | rfl | contradiction
   · intro place
     let pushed := ((Edit.push (.core request.core request.next)).follow place).getD place
-    have calling : (core3 grow).status other.store.core request.core = .callout (.embedder request.name request.kind) request.args :=
-      shared ▸ request.calling
     have push : (transitionEdit other .tau).follow place = some pushed := by
       simp only [transitionEdit, focused, calling, pushed]
       cases place with
       | active activation _ => cases activation <;> rfl
       | saved _ _ => rfl
-    have body : calloutBody Limits.spec Quirks.none ready impl other.store request.thread (.embedder request.name request.kind) request.args =
-        program >>= next := by
-      simp only [next, calloutBody, leaves, ite_true, impl, installed, Prog.bind_eq, Prog.bind_assoc]
     have tail : Prefix profile ready (specDispatch ready impl)
         { other with ctl := ⟨request.thread, .prog (calloutBody Limits.spec Quirks.none ready impl other.store request.thread
           (.embedder request.name request.kind) request.args), .core request.core request.next :: frames⟩ :: rest }
@@ -1489,8 +1519,15 @@ private theorem installSelected {request : CoreGiveRequest bindings start} {othe
     refine Prefix.step (middle := pushed) (.currentThread rfl) (by cases pushed <;> rfl) ?_
     exact .step (.get rfl) (by cases pushed <;> rfl) tail
   · simpa only [HostFrame.Related.Paired, HostFrame.replace, reached, next, Prog.bind_eq] using entered
+  · simp only [reached, segmentStorage, focused, Edit.apply, front, List.map_cons, List.headD_cons, List.tail_cons]
+  · have localFrames : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl)
+        { other with ctl := ⟨request.thread, .prog (calloutBody Limits.spec Quirks.none ready impl other.store request.thread
+          (.embedder request.name request.kind) request.args), .core request.core request.next :: frames⟩ :: rest } labels reached := by
+      rw [body]
+      exact framed
+    exact .next (.coreCallout focused calling) rfl (.next (.currentThread rfl) rfl (.next (.get rfl) rfl localFrames))
 
-theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selection : request.Selected route)
+theorem pendingPairedFramedStorage {request : CoreGiveRequest bindings start} (selection : request.Selected route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
     (paired : HostFrame.Related.Paired older start other)
     (reads : ∀ handle, request.lookupDemand = some handle →
@@ -1500,7 +1537,9 @@ theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selectio
       (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
         (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
       entered.host = other.host ∧
-      HostFrame.Related.Paired older selection.canonicalPending entered := by
+      HostFrame.Related.Paired older selection.canonicalPending entered ∧
+      segmentStorage entered = (Edit.push (.core request.core request.next)).apply (segmentStorage other) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base)) other labels entered := by
   have selected := (reads selection.handle (selectedDemand selection)).symm.trans selection.selected
   have caller := selection.caller
   have mayLeave := selection.mayLeave
@@ -1516,7 +1555,7 @@ theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selectio
       | .ok (tree, ptr) => memoryBody request.inst request.destination tree ptr
     have width := selection.admitted
     change Stored.flatType pointer = ABI.pointerType request.destination.width at width
-    refine installSelected paired caller mayLeave program (.ok (selection.tree, flatNat pointer)) tail ?_ ?_
+    refine installSelected paired caller mayLeave program (.ok (selection.tree, flatNat pointer)) tail ?_ ?_ ?_
     · simp only [LiveDispatch.host, selectBinding, GiveEffectRoute.action] at linked ⊢
       simp only [linked, memoryWords, program, tail]
       rfl
@@ -1525,6 +1564,9 @@ theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selectio
       simp only [args, GiveEffectRoute.args, selectMemoryDestination, Execution.Runtime.Value.int, Prog.bind_eq,
         width, bne_self_eq_false, Bool.false_eq_true, ite_false, readStore, checked, readSelection, selected]
       rfl
+    · apply framesAdmit _ _ _ _ _ caller mayLeave
+      rw [args]
+      exact Plain.framesHost_memorySelection _ pointer selection.handle _ _ _ width checked
   | flat schema =>
     let program : Session grow sig (Except Issue (Stored.OwnedMemory.Tree sig)) :=
       admit request.inst (selectFlatDestination request.destination schema request.args)
@@ -1533,7 +1575,7 @@ theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selectio
       | .ok tree => flatBody request.inst request.destination schema tree
     have schemaMatches := selection.admitted
     change rootHasSchema selection.tree schema = true at schemaMatches
-    refine installSelected paired caller mayLeave program (.ok selection.tree) tail ?_ ?_
+    refine installSelected paired caller mayLeave program (.ok selection.tree) tail ?_ ?_ ?_
     · simp only [LiveDispatch.host, selectBinding, GiveEffectRoute.action] at linked ⊢
       simp only [linked, flatWords, program, tail]
       rfl
@@ -1542,6 +1584,23 @@ theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selectio
       simp only [args, GiveEffectRoute.args, selectFlatDestination, Execution.Runtime.Value.int, Prog.bind_eq,
         readStore, checked, readSelection, selected, schemaMatches, Bool.not_true, Bool.false_eq_true, ite_false]
       rfl
+    · apply framesAdmit _ _ _ _ _ caller mayLeave
+      rw [args]
+      exact Plain.framesHost_flatSelection _ schema selection.handle _ _ _ checked
+
+theorem pendingPairedTracks {request : CoreGiveRequest bindings start} (selection : request.Selected route)
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}
+    (paired : HostFrame.Related.Paired older start other)
+    (reads : ∀ handle, request.lookupDemand = some handle →
+      Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle =
+        Stored.Endpoints.Core.childFromHistory other.host.writer.accepted handle) :
+    ∃ labels entered, labels.all (· matches .tau) = true ∧
+      (∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) other place labels entered
+        (((Edit.push (.core request.core request.next)).follow place).getD place)) ∧
+      entered.host = other.host ∧ HostFrame.Related.Paired older selection.canonicalPending entered := by
+  obtain ⟨labels, entered, silent, paths, host, pending, _, _⟩ :=
+    pendingPairedFramedStorage (profile := profile) (ready := ready) (base := base) selection paired reads
+  exact ⟨labels, entered, silent, paths, host, pending⟩
 
 theorem pendingPaired {request : CoreGiveRequest bindings start} (selection : request.Selected route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {other : Config (core3 grow) (HostState sig)}

@@ -132,7 +132,9 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     rcases compiler with ⟨_, _, _, _, preparation⟩ | ⟨_, _, reply⟩
     · exact directPreparation preparation
     · exact directReply reply
-  | compilerRefused _ _ _ checked _ _ _ _ tail => exact stop (appendSteps (checked (.active 0 0)).steps tail)
+  | compilerRefused _ _ _ _ _ _ _ _ _ reached =>
+    obtain ⟨_, _, _, split, body⟩ := reached
+    exact split.symm ▸ terminal body.paths body.writers body.residual
   | placementTrap _ _ _ _ _ _ _ _ _ reached =>
     obtain ⟨_, _, _, split, body⟩ := reached
     exact split.symm ▸ terminal body.paths body.writers body.residual

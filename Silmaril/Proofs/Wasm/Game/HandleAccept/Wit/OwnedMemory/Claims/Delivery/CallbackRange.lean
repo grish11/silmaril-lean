@@ -4509,6 +4509,32 @@ theorem linkedMemoryOccurrenceBody {pointer : FlatValue} (site : PayloadRoot.Sit
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ tracks _ ⟨paired, checkAt, canonicalAt⟩ =>
         publicOccurrenceRejoin site () tracks paired checkAt canonicalAt)
 
+theorem pushedEntryTransport (frame : Seg (core3 grow) (HostState sig))
+    {start reached incoming entered : Config (core3 grow) (HostState sig)}
+    {checkEntry canonEntry : Trace grow sig}
+    (checked : ∀ place, Prefix profile ready (specDispatch ready base)
+      start place checkEntry reached (((Edit.push frame).follow place).getD place))
+    (reference : ∀ place, Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming place canonEntry entered (((Edit.push frame).follow place).getD place))
+    (pushed : segmentStorage reached = (Edit.push frame).apply (segmentStorage start))
+    (storage : segmentStorage entered = (Edit.push frame).apply (segmentStorage incoming)) :
+    OccurrenceTransport profile ready base bindings start incoming checkEntry canonEntry reached entered
+      [some (.active 0 0)] := by
+  refine ⟨Option.map Location.pushed, ?_, ?_⟩
+  · intro mark
+    cases mark with
+    | none => exact ⟨.absent (checked (.active 0 0)).toTrail.steps, .absent (reference (.active 0 0)).toTrail.steps⟩
+    | some place =>
+      have pushed : ((Edit.push frame).follow place).getD place = place.pushed := by
+        cases place with
+        | active activation segment => cases activation <;> rfl
+        | saved slot segment => rfl
+      exact ⟨by simpa only [Option.map_some, pushed] using (checked place).toTrail,
+        by simpa only [Option.map_some, pushed] using (reference place).toTrail⟩
+  · intro retained marks previous
+    rw [pushed, storage]
+    exact previous.push _ _
+
 theorem publicEntryTransportAt {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {reached incoming entered : Config (core3 grow) (HostState sig)}
     {checkEntry canonEntry : Trace grow sig}
@@ -4518,21 +4544,8 @@ theorem publicEntryTransportAt {route : GiveEffectRoute} (site : PayloadRoot.Sit
     (pushed : segmentStorage reached = (Edit.push (.core site.core site.resume)).apply (segmentStorage site.start))
     (storage : segmentStorage entered = (Edit.push (.core site.core site.resume)).apply (segmentStorage incoming)) :
     OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry reached entered
-      [some (.active 0 0)] := by
-  refine ⟨Option.map Location.pushed, ?_, ?_⟩
-  · intro mark
-    cases mark with
-    | none => exact ⟨.absent (checked (.active 0 0)).toTrail.steps, .absent (reference (.active 0 0)).toTrail.steps⟩
-    | some place =>
-      have pushed : site.entryPlace place = place.pushed := by
-        cases place with
-        | active activation segment => cases activation <;> rfl
-        | saved slot segment => rfl
-      exact ⟨by simpa only [Option.map_some, pushed] using (checked place).toTrail,
-        by simpa only [Option.map_some, pushed] using (reference place).toTrail⟩
-  · intro retained marks previous
-    rw [pushed, storage]
-    exact previous.push _ _
+      [some (.active 0 0)] :=
+  pushedEntryTransport (.core site.core site.resume) checked reference pushed storage
 
 theorem publicEntryTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     (linked : site.Linked bindings) {incoming entered : Config (core3 grow) (HostState sig)}
