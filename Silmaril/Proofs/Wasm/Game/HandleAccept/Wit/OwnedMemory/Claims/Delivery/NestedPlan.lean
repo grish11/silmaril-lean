@@ -16213,30 +16213,58 @@ private theorem storeEffectCurrentTask : StoreEffects (currentTask : Session gro
   · exact storeEffectTrap _
   · exact .pure _
 
+private theorem allocatorTrapIfPreserves (invariant : CStore (core3 grow) → Prop)
+    (denied : Bool) (reason : TrapReason) :
+    Prog.Every (storePreserves invariant) (trapIf denied reason : Session grow sig Unit) := by
+  cases denied
+  · exact .pure ()
+  · exact .op trivial fun impossible => nomatch impossible
+
 private theorem sharedDestructorThreadNewIndirect (table : (core3 grow).TableAddr) (type : V1.FuncType)
-    (index : Nat) (arg : FlatValue) :
-    DestructorWorkerEffects (fun _ => True) (Builtins.threadNewIndirect table type index arg : Session grow sig (List FlatValue)) := by
-  have closed {Result : Type} {body : Session grow sig Result} (effects : StoreEffects body) :
-      DestructorWorkerEffects (fun _ => True) body := liftDestructorStoreEffects effects (trivialPreserves body)
-  have register (task : TaskId) (thread : ThreadId) : StoreEffects (Task.registerThread task thread : Session grow sig Nat) := by
+    (index : Nat) (arg : FlatValue) {invariant : CStore (core3 grow) → Prop}
+    (allocated : ∀ store task, invariant store → invariant (ArenaField.threads.alloc store { task := task }).1)
+    (registered : ∀ store task thread, invariant store → invariant (store.registerThreadSt task thread)) :
+    DestructorWorkerEffects invariant (Builtins.threadNewIndirect table type index arg : Session grow sig (List FlatValue)) := by
+  have read {Id Data} (field : ArenaField (core3 grow) Id Data) (id : Id) :
+      DestructorWorkerEffects invariant (getObj field id : Session grow sig Data) :=
+    liftDestructorStoreEffects (storeEffectGetObject field id) (sharedWorkerGetPreserves invariant field id)
+  have guard (denied : Bool) (reason : TrapReason) :
+      DestructorWorkerEffects invariant (trapIf denied reason : Session grow sig Unit) :=
+    liftDestructorStoreEffects (storeEffectTrapIf denied reason) (allocatorTrapIfPreserves invariant denied reason)
+  have current : Prog.Every (storePreserves invariant) (currentTask : Session grow sig TaskId) := by
+    have lookup : Prog.Every (storePreserves invariant) (currentTask? : Session grow sig (Option TaskId)) := by
+      unfold currentTask? getThread
+      refine .op trivial fun thread => ?_
+      cases thread with
+      | none => exact .pure none
+      | some thread => exact (sharedWorkerGetPreserves invariant ArenaField.threads thread).bind fun record => .pure (some record.task)
+    unfold currentTask
+    refine lookup.bind fun task => ?_
+    cases task with
+    | none => exact .op trivial fun impossible => nomatch impossible
+    | some task => exact .pure task
+  have register (task : TaskId) (thread : ThreadId) :
+      DestructorWorkerEffects invariant (Task.registerThread task thread : Session grow sig Nat) := by
     unfold Task.registerThread getTask getInst
-    refine (storeEffectGetObject ArenaField.tasks task).bind fun record =>
-      (storeEffectGetObject ArenaField.insts record.inst).bind fun inst => ?_
+    refine (read ArenaField.tasks task).bind fun record => (read ArenaField.insts record.inst).bind fun inst => ?_
     split
-    · exact storeEffectTrap _
-    · exact (storeEffectModify _).bind fun _ => .pure _
+    · exact .op ⟨rfl, trivial⟩ fun impossible => nomatch impossible
+    · exact .op ⟨rfl, fun store => registered store task thread⟩ fun _ => .pure _
   unfold Builtins.threadNewIndirect getTask getInst
-  exact (closed storeEffectCurrentTask).bind fun task =>
-    (closed (storeEffectGetObject ArenaField.tasks task)).bind fun entry =>
-    (closed (storeEffectGetObject ArenaField.insts entry.inst)).bind fun inst =>
-    (closed (storeEffectTrapIf (!inst.mayLeave) .cannotLeave)).bind fun _ =>
-    (closed storeEffectGet).bind fun store =>
-    (closed (storeEffectOrTrap .threadNewIndirectNull (((core3 grow).tableFunc? store.core table index).join))).bind fun function =>
-    (closed (storeEffectTrapIf ((core3 grow).funcType? store.core function != some ((core3 grow).ofFlatType type))
-      .threadNewIndirectType)).bind fun _ =>
-    (show DestructorWorkerEffects (fun _ => True) (newThread (.newIndirect task function arg) : Session grow sig ThreadId) from
-      .op (fun _ _ => trivial) fun thread => .pure thread).bind fun thread =>
-    (closed (register task thread)).bind fun index => .pure [i32Flat index]
+  exact (liftDestructorStoreEffects storeEffectCurrentTask current).bind fun task =>
+    (read ArenaField.tasks task).bind fun entry =>
+    (read ArenaField.insts entry.inst).bind fun inst =>
+    (guard (!inst.mayLeave) .cannotLeave).bind fun _ =>
+    (show DestructorWorkerEffects invariant (getStore : Session grow sig (CStore (core3 grow))) from
+      .op ⟨rfl, trivial⟩ fun store => .pure store).bind fun store =>
+    let found := ((core3 grow).tableFunc? store.core table index).join
+    (liftDestructorStoreEffects (storeEffectOrTrap .threadNewIndirectNull found)
+      (sharedWorkerOrTrapPreserves invariant .threadNewIndirectNull found)).bind fun function =>
+    (guard ((core3 grow).funcType? store.core function != some ((core3 grow).ofFlatType type))
+      .threadNewIndirectType).bind fun _ =>
+    (show DestructorWorkerEffects invariant (newThread (.newIndirect task function arg) : Session grow sig ThreadId) from
+      .op (fun store => allocated store task) fun thread => .pure thread).bind fun thread =>
+    (register task thread).bind fun index => .pure [i32Flat index]
 
 private def sharedDestructorLocalImport : CanonHost (core3 grow) → Bool
   | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
@@ -16359,7 +16387,7 @@ private theorem sharedDestructorLocalProgram (host : CanonHost (core3 grow)) (ar
       rcases args with _ | ⟨first, _ | ⟨second, _ | ⟨extra, tail⟩⟩⟩
       · exact closed (storeEffectTrap _)
       · exact closed (storeEffectTrap _)
-      · exact sharedDestructorThreadNewIndirect _ _ _ _
+      · exact sharedDestructorThreadNewIndirect _ _ _ _ (fun _ _ _ => trivial) (fun _ _ _ _ => trivial)
       · exact closed (storeEffectTrap _)
     | _ => contradiction
   | _ => contradiction
@@ -20542,13 +20570,6 @@ private theorem allocatorCurrentThreadPreserves (invariant : CStore (core3 grow)
   | none => exact .op trivial fun impossible => nomatch impossible
   | some thread => exact .pure thread
 
-private theorem allocatorTrapIfPreserves (invariant : CStore (core3 grow) → Prop)
-    (denied : Bool) (reason : TrapReason) :
-    Prog.Every (storePreserves invariant) (trapIf denied reason : Session grow sig Unit) := by
-  cases denied
-  · exact .pure ()
-  · exact .op trivial fun impossible => nomatch impossible
-
 private theorem allocatorThreadIndexEffects (invariant : CStore (core3 grow) → Prop)
     (args : List FlatValue) :
     DestructorWorkerEffects invariant (withArgs0 args Builtins.threadIndex : Session grow sig (List FlatValue)) := by
@@ -20639,6 +20660,55 @@ private theorem destructorWorkerRecordPreservation (task : TaskId) :
   obtain ⟨entry, width, rep, found, typeAt, optionsAt, callerAt⟩ := source
   exact ⟨entry, width, rep, (congrArg (·.get? task.idx) tasks).trans found, typeAt, optionsAt,
     (congrArg (·.get? entry.caller.idx) callers).trans callerAt⟩
+
+private abbrev WorkerThreadRegistrationPreserves (invariant : CStore (core3 grow) → Prop) : Prop :=
+  ∀ store task thread, invariant store → invariant (store.registerThreadSt task thread)
+
+/-- Registration changes the current task's thread list. The source call
+metadata survives on the actual returned record at every existing task. -/
+private theorem sourceRegisterThreadTask {store : CStore (core3 grow)} {subject : TaskId} {record : Task (core3 grow)}
+    (registered : TaskId) (worker : ThreadId) (found : ArenaField.tasks.get? store subject = some record) :
+    ∃ next, ArenaField.tasks.get? (store.registerThreadSt registered worker) subject = some next ∧
+      next.ft = record.ft ∧ next.opts = record.opts ∧ next.inst = record.inst ∧ next.caller = record.caller := by
+  unfold CStore.registerThreadSt
+  split
+  · exact ⟨record, found, rfl, rfl, rfl, rfl⟩
+  split
+  · exact ⟨record, found, rfl, rfl, rfl, rfl⟩
+  · let addWorker : Task (core3 grow) → Task (core3 grow) := fun task => { task with threads := task.threads ++ [worker] }
+    by_cases same : registered = subject
+    · subst registered
+      refine ⟨addWorker record, ?_, rfl, rfl, rfl, rfl⟩
+      change ArenaField.tasks.get? (ArenaField.tasks.modify store subject addWorker) subject = some (addWorker record)
+      rw [ArenaField.get?_modify_self, found]
+      rfl
+    · refine ⟨record, ?_, rfl, rfl, rfl, rfl⟩
+      change ArenaField.tasks.get? (ArenaField.tasks.modify store registered addWorker) subject = some record
+      rw [ArenaField.get?_modify_ne _ _ _ same, found]
+
+private theorem sourceRegisterThreadCallers (store : CStore (core3 grow)) (task : TaskId) (thread : ThreadId) :
+    (store.registerThreadSt task thread).callers = store.callers := by
+  unfold CStore.registerThreadSt
+  split
+  · rfl
+  · split <;> rfl
+
+private theorem sourceAllocatorThreadRegistration {cx : LiftLowerContext (core3 grow)} {request width task caller} :
+    WorkerThreadRegistrationPreserves (fun store => SharedRecordAllocatorSource cx request width task caller store) := by
+  intro store registered worker source
+  obtain ⟨record, found, ft, opts, inst, callerAt⟩ := source.taskEntry
+  obtain ⟨next, reached, sameType, sameOpts, sameInst, sameCaller⟩ := sourceRegisterThreadTask registered worker found
+  exact ⟨⟨next, reached, sameType.trans ft, sameOpts.trans opts, sameInst.trans inst, sameCaller.trans callerAt⟩,
+    (congrArg (·.get? caller.idx) (sourceRegisterThreadCallers store registered worker)).trans source.callerEntry⟩
+
+private theorem sourceDestructorThreadRegistration (task : TaskId) :
+    WorkerThreadRegistrationPreserves (SharedDestructorTaskSource (grow := grow) task) := by
+  intro store registered worker source
+  obtain ⟨record, width, rep, found, ft, opts, callerAt⟩ := source
+  obtain ⟨next, reached, sameType, sameOpts, _, sameCaller⟩ := sourceRegisterThreadTask registered worker found
+  refine ⟨next, width, rep, reached, sameType.trans ft, sameOpts.trans opts, ?_⟩
+  rw [sameCaller]
+  exact (congrArg (·.get? record.caller.idx) (sourceRegisterThreadCallers store registered worker)).trans callerAt
 
 private theorem sourceAllocPreserves {Id Data : Type} (field : ArenaField (core3 grow) Id Data) (entry : Data)
     {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant)
@@ -20992,14 +21062,14 @@ private def sourceLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin (.resourceRep ..) _
   | .builtin (.resourceNew ..) _ | .builtin .waitableSetNew _ | .builtin .waitableSetDrop _
   | .builtin .waitableJoin _ | .builtin .subtaskDrop _ | .builtin .errorContextDrop _
-  | .builtin (.waitableSetPoll ..) _ | .builtin .threadResumeLater _
+  | .builtin (.waitableSetPoll ..) _ | .builtin .threadResumeLater _ | .builtin (.threadNewIndirect ..) _
   | .builtin (.streamNew ..) _ | .builtin (.futureNew ..) _
   | .builtin (.streamDropReadable ..) _ | .builtin (.streamDropWritable ..) _
   | .builtin (.futureDropReadable ..) _ | .builtin (.futureDropWritable ..) _ => true
   | _ => false
 
 private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Prop)
-    (records : WorkerRecordPreservation retained)
+    (records : WorkerRecordPreservation retained) (registers : WorkerThreadRegistrationPreserves retained)
     (host : CanonHost (core3 grow)) (args : List FlatValue) (selected : sourceLocalImport host = true) :
     ∃ program : Session grow sig (List FlatValue),
       DestructorWorkerEffects retained program ∧
@@ -21080,6 +21150,15 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
       · exact trapOnly _
       · exact sourceErrorContextDropEffects (flatNat word) records
       · exact trapOnly _
+    | threadNewIndirect table type =>
+      refine ⟨builtinProg Limits.spec Quirks.none (fun _ _ => false) (.threadNewIndirect table type) args,
+        ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨index, _ | ⟨arg, _ | ⟨extra, tail⟩⟩⟩
+      · exact trapOnly _
+      · exact trapOnly _
+      · exact sharedDestructorThreadNewIndirect table type (flatNat index) arg
+          (fun store _ => records store _ rfl rfl) registers
+      · exact trapOnly _
     | threadResumeLater =>
       refine ⟨withArgs1 args Builtins.threadResumeLater, ?_, fun _ _ _ _ => rfl⟩
       rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
@@ -21156,6 +21235,7 @@ private theorem crossSourceWorkerCoreImport
     (leftRest rightRest : List (Activation (core3 grow) (HostState sig)))
     (invariant : CStore (core3 grow) → Prop)
     (records : WorkerRecordPreservation invariant)
+    (registers : WorkerThreadRegistrationPreserves invariant)
     (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
     (source : invariant start.store)
     (checked : start.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ :: leftRest)
@@ -21222,7 +21302,7 @@ private theorem crossSourceWorkerCoreImport
         have checkAt := congrArg lhs.control checkCode
         have canonAt := congrArg rhs.control canonCode
         by_cases localImport : sourceLocalImport host = true
-        · obtain ⟨program, effects, compiled⟩ := sourceLocalImportProgram invariant records host args localImport
+        · obtain ⟨program, effects, compiled⟩ := sourceLocalImportProgram invariant records registers host args localImport
           let result (words : List FlatValue) : Session grow sig (Ret (core3 grow)) := .pure (.flat words)
           have localCheck := checkAt.trans (congrArg lhs.control (compiled ready base start.store (some worker)))
           have localCanon := canonAt.trans (congrArg rhs.control
@@ -21324,7 +21404,7 @@ private theorem crossSourceAllocatorCoreImport {limit : Nat}
   let parent := sharedRecordAllocatorAfterResume (sig := sig) cx task caller
   exact crossSourceWorkerCoreImport (check.control parent) (canon.control parent)
     (fun store => SharedRecordAllocatorSource cx request width task caller store)
-    allocatorWorkerRecordPreservation
+    allocatorWorkerRecordPreservation sourceAllocatorThreadRegistration
     stores scheduler source checked canonical status run reenter
     (fun same aligned reachedSource leftAt rightAt admitted shorter tail => by
       have frontier := CallbackSliceEnd.sharedDropRecordAllocatorCoreCallout (check := check) (canon := canon)
@@ -24389,7 +24469,7 @@ private theorem finishSourceDestructorWorkerWith {limit : Nat} {task : TaskId} {
       (fun aligned _ _ _ _ => aligned) same ⟨atBody, reachedSource⟩ checkBody canonBody actual bounded
       (fun {_ _ _ _ host args} stores aligned leftAt rightAt status coreBound residual reenter =>
         crossSourceWorkerCoreImport leftRest rightRest (SharedDestructorTaskSource task)
-          (destructorWorkerRecordPreservation task)
+          (destructorWorkerRecordPreservation task) (sourceDestructorThreadRegistration task)
           stores aligned.1 aligned.2 leftAt rightAt status residual reenter
           (fun same aligned source checked canonical admitted shorter residual => by
             have frontier := CallbackSliceEnd.sharedDropNestedCoreCallout (worker := worker) parents
