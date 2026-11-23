@@ -2242,6 +2242,35 @@ inductive DestructorParentChain (changes : ReturnFrame.Substitutions (core3 grow
         ((PayloadPrefix.Cursor.mk thread (frame :: frames) rest).control (sharedDestructorAfterResume body leftTicket))
         ((PayloadPrefix.Cursor.mk thread (frame :: peerFrames) peerRest).control (sharedDestructorAfterResume body rightTicket))
 
+open Stored.Endpoints in
+/-- Source-indexed dormant controls. Each layer keeps its own continuation
+and encloses further source layers or ordinary paired activations. Lookup
+facts about the task and caller belong to the reached store, outside this
+control relation. -/
+inductive SourceParentStack (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)) :
+    List (Activation (core3 grow) (HostState sig)) → List (Activation (core3 grow) (HostState sig)) → Prop where
+  | paired {left right} (active : List.Forall₂ (ReturnFrame.Related.Active changes) left right) :
+      SourceParentStack changes left right
+  | destructor {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (body : ThreadBody (core3 grow)) (leftTicket rightTicket : Nat)
+      (thread : check.thread = canon.thread)
+      (frames : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (below : SourceParentStack changes check.rest canon.rest) :
+      SourceParentStack changes (check.control (sharedDestructorAfterResume body leftTicket))
+        (canon.control (sharedDestructorAfterResume body rightTicket))
+  | allocator {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+      (cx : LiftLowerContext (core3 grow)) (site : SharedRecordAllocation) (task : TaskId) (caller : CallerId)
+      (leftNext rightNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+      (compiled : site.compiled cx)
+      (thread : check.thread = canon.thread)
+      (frames : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
+      (below : SourceParentStack changes check.rest canon.rest) :
+      SourceParentStack changes
+        ({ check with frames := .prog (site.resume cx leftNext) :: check.frames }.control
+          (sharedRecordAllocatorAfterResume cx task caller))
+        ({ canon with frames := .prog (site.resume cx rightNext) :: canon.frames }.control
+          (sharedRecordAllocatorAfterResume cx task caller))
+
 /-- Data shared by the two schedulers independently of the active worker
 and its ticket-specific dormant parents. -/
 abbrev DestructorSchedulerAlignment (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
@@ -2455,6 +2484,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         check.control (sharedRecordAllocatorAfterResume cx task caller))
       (canonicalAt : peer.ctl = StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) worker (.liftImplicit task callee) ::
         canon.control (sharedRecordAllocatorAfterResume cx task caller))
+      (sourceParents : SourceParentStack changes (check.control (sharedRecordAllocatorAfterResume cx task caller))
+        (canon.control (sharedRecordAllocatorAfterResume cx task caller)))
       (ending : CallbackSliceEnd profile ready base bindings changes reached peer trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The reached allocator worker has executed its synchronous registration.
@@ -2645,6 +2676,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         leftTicket worker beforeLeft reached check)
       (canonical : SharedDestructorResumed profile ready (specDispatch ready (LiveDispatch.host bindings base))
         (sharedDestructorThread task request.2.dtor) rightTicket worker beforeRight peer canon)
+      (sourceParents : SourceParentStack changes (check.control (sharedDestructorAfterResume (sharedDestructorThread task request.2.dtor) leftTicket))
+        (canon.control (sharedDestructorAfterResume (sharedDestructorThread task request.2.dtor) rightTicket)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- The source switch reached its actual scheduler instruction after the
