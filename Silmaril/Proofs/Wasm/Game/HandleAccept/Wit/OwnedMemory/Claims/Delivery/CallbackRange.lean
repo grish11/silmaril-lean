@@ -4633,9 +4633,7 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
   obtain ⟨_, same, original⟩ := checkMark.survives
   cases same
   simp only [List.nil_append, List.map_cons, List.map_nil, atTop] at combined
-  obtain ⟨completed, rejoined, recorded, unchanged, paired, paths, _⟩ :=
-    completePublicTransport site value combined original frame checkAt canonAt
-  exact ⟨completed, rejoined, recorded, unchanged, paired, paths⟩
+  exact completePublicTransport site value combined original frame checkAt canonAt
 
 theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.Site grow sig (.flat type))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))

@@ -4424,7 +4424,8 @@ def PublicSuccessTransport (profile : ProfileKind) (ready : HostReady (HostState
       checked.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
       canonical.host = right.host ∧ HostFrame.Related.Paired older checked canonical ∧
       OccurrenceTransport profile ready base bindings site.start incoming
-        ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical)
+        ((checkEntry ++ checkBody) ++ [.tau, .tau, .tau]) ((canonEntry ++ canonBody) ++ [.tau]) checked canonical ∧
+      VisitorWriterPath profile ready base bindings left right [.tau, .tau, .tau] [.tau] checked canonical)
 
 /-- The terminal observation is inside the recursive visitor, so it is
 applied only at a reached success, not at a trap, refusal or suspension. -/

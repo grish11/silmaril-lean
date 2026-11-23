@@ -679,16 +679,6 @@ theorem replay {protectedReturn}
       (paired_outside (left := HostFrame.replace start incoming.host) paired)
   exact ⟨checkedLabels, canonLabels, reached, checked, canonical, final, checkSeen, canonSeen, growth, checkRoots, canonRoots⟩
 
-theorem executedAtWriterBoundary {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
-    {checked canonical : Trace grow sig} {peer : Config (core3 grow) (HostState sig)}
-    (boundary : CallbackWriterBoundary profile ready base bindings start incoming checked canonical finish peer)
-    (run : CoreGrowthSteps profile ready (specDispatch ready base) start checked finish)
-    (seen : PayloadPrefix.visible canonical = PayloadPrefix.visible checked)
-    (paired : HostFrame.Related.Paired changes finish peer)
-    (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical finish peer) :
-    ExecutedCallbackSegment profile ready base bindings changes start incoming checked canonical finish peer :=
-  ⟨run, seen, paired, paths, .callbackBoundary boundary (WriterPaths.ofTransport paths)⟩
-
 theorem appendExecutedCallbacks {middle peer last : Config (core3 grow) (HostState sig)}
     {checkLeading canonLeading checkTrailing canonTrailing : Trace grow sig}
     {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}

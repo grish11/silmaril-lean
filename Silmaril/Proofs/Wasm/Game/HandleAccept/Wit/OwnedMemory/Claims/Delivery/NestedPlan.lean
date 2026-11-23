@@ -5008,11 +5008,12 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
     PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen labels finish := by
   obtain ⟨checkBody, canonBody, mark, checkSeen, canonSeen, transport, _, _, complete⟩ := body
+  have bodyWriters := VisitorWriterPath.callbackBoundary .giveEntry (WriterPaths.ofTransport transport)
   obtain ⟨moveBody, through, outsideBody⟩ := transport
   refine ⟨checkBody, canonBody, mark, checkSeen, canonSeen, ⟨moveBody, through, outsideBody⟩,
     alignWorkerBody (through none).1.steps run, ?_⟩
   intro tail split actualTail active
-  obtain ⟨checked, canonical, _, _, paired, returned⟩ := complete active
+  obtain ⟨checked, canonical, _, _, paired, returned, replyWriters⟩ := complete active
   obtain ⟨move, tracks, outside⟩ := returned
   let dispatch := specDispatch ready (ComponentCall.hostWithComponent (grow := grow) bindings callees)
   have reply : Steps profile ready dispatch left (List.replicate 3 .tau) checked :=
@@ -5025,7 +5026,7 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
       replayRejoinedCallback (fun cursor => ⟨move cursor, tracks cursor⟩) paired suffixRun, ?_, ?_⟩
     · intro entrySeen
       rcases classifyReachedGrowth (tracks none).1.steps with certified | openUpdate
-      · refine .inl (CallbackPrefix.executedAtWriterBoundary .giveEntry certified ?_ paired ⟨move, tracks, outside⟩)
+      · refine .inl ⟨certified, ?_, paired, ⟨move, tracks, outside⟩, bodyWriters.append replyWriters⟩
         rw [visibleAppend, visibleAppend, visibleAppend, visibleAppend, checkSeen, canonSeen, entrySeen]
         have silentCanon : PayloadPrefix.visible ([.tau] : Trace grow sig) = [] := visibleTaus 1
         have silentCheck : PayloadPrefix.visible ([.tau, .tau, .tau] : Trace grow sig) = [] := visibleTaus 3
