@@ -151,7 +151,7 @@ inductive CallbackWriterBoundary (profile : ProfileKind) (ready : HostReady (Hos
       (rhs : ReachedHostAssignment profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming right)
       (changed : left.host.writer ≠ start.host.writer ∨ right.host.writer ≠ incoming.host.writer) :
       CallbackWriterBoundary profile ready base bindings start incoming [.tau] [.tau] left right
-  | giveEntry {start incoming checked canonical left right} :
+  | giveBody {start incoming checked canonical left right} :
       CallbackWriterBoundary profile ready base bindings start incoming checked canonical left right
 
 /-- A registration probe does not commit the registration, even on a fresh result. -/
@@ -4420,6 +4420,7 @@ def PublicSuccessTransport (profile : ProfileKind) (ready : HostReady (HostState
       left right [mark] ∧
     Trail profile ready (specDispatch ready base) site.checked (some (.active 0 0)) checkBody left mark ∧
     Trail profile ready (specDispatch ready (LiveDispatch.host bindings base)) entered (some (.active 0 0)) canonBody right mark ∧
+    VisitorWriterPath profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered ∧
     (mark = some (.active 0 0) → ∃ checked canonical,
       checked.host = left.host.record (route.reply site.destination site.start.host.nextTicket (.ok value)).1 ∧
       canonical.host = right.host ∧ HostFrame.Related.Paired older checked canonical ∧
@@ -4442,6 +4443,8 @@ def LinkedMemoryTransportBodyWith (profile : ProfileKind) (ready : HostReady (Ho
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
     ∀ checkLabels, site.EntryPrefix profile ready base checkLabels site.checked →
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start checkLabels site.checked →
+      site.PreparedEntry profile ready base checkLabels →
       recursiveAllocatingTransportPaths profile ready base bindings older site.destination site.inst site.checked entered
         (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels canonLabels entered)) (sig.payload site.tag)
         site.field 0 (flatNat pointer) site.reply site.referenceReply
@@ -4474,6 +4477,8 @@ def LinkedFlatTransportBodyWith (profile : ProfileKind) (ready : HostReady (Host
     (∀ place, ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base))
       incoming place canonLabels entered (site.entryPlace place)) ∧ entered.host = incoming.host ∧
     ∀ checkLabels, site.EntryPrefix profile ready base checkLabels site.checked →
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start checkLabels site.checked →
+      site.PreparedEntry profile ready base checkLabels →
       structuralFlatTransportPaths profile ready base bindings older site.destination site.inst site.checked entered
         (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels canonLabels entered)) (sig.payload site.tag)
         site.field 0 site.reply site.referenceReply

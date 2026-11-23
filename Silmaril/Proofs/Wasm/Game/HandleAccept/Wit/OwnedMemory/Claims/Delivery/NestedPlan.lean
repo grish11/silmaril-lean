@@ -49,6 +49,7 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored (Signature)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 open LiveDispatch ComponentCall.Delivery.FiniteSession
+open CallbackRange (progOpEq labelledStepUnique parkedPrepareRead parkedPrepareSteps parkedPrepareWriter parkedAdmissionWriters)
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : ProfileKind} {ready : HostReady (HostState sig)}
   {bindings : List (Binding sig)} {base : HostImpl (core3 grow) (HostState sig)}
@@ -62,13 +63,6 @@ private theorem append {dispatch : Call (core3 grow) → Session grow sig (Ret (
   induction front with
   | refl => exact back
   | cons step _ ih => exact .cons step (ih back)
-
-private theorem progOpEq {S : Sig} {Result : Type} {first second : S.Op}
-    {left : S.Resp first → Prog S Result} {right : S.Resp second → Prog S Result} :
-    Prog.op first left = Prog.op second right → first = second ∧ HEq left right := by
-  intro same
-  injection same with operation continuation
-  exact ⟨operation, continuation⟩
 
 set_option maxHeartbeats 1000000 in
 private theorem silentStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -2449,23 +2443,6 @@ theorem cutSuccessfulPublication (callee : ComponentCall.Callee sig) (caller : C
     obtain ⟨checked, canonical⟩ := writers peer moved
     exact ⟨labels, [], finish, peer, (List.append_nil _).symm, moved, .refl _, .pending endpoint rfl,
       .framed checked canonical, fun _ => WriterPaths.framedDiscrepancies checked canonical⟩
-
-set_option maxHeartbeats 2000000 in
-private theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {before left right : Config (core3 grow) (HostState sig)} {label}
-    (first : Step profile ready dispatch before label left) (second : Step profile ready dispatch before label right) :
-    left = right := by
-  cases first <;> cases second
-  all_goals try (cases (show Fault before _ from by assumption))
-  all_goals simp_all
-  case coreInternal.coreInternal => grind only [Core3.core3_internal_iff]
-  all_goals
-    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
-      from by assumption)
-    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
-    obtain ⟨operation, continuation⟩ := progOpEq programs
-    simp_all
-  all_goals (injection operation; subst_vars; simp_all)
 
 private theorem stripExactPrefix {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {before middle after : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
@@ -5007,8 +4984,8 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
       site incoming entered checkEntry canonEntry value seen left right)
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) site.start labels finish) :
     PublicTransportWorkerAlignment profile ready bindings callees older site incoming left right checkEntry canonEntry seen labels finish := by
-  obtain ⟨checkBody, canonBody, mark, checkSeen, canonSeen, transport, _, _, complete⟩ := body
-  have bodyWriters := VisitorWriterPath.callbackBoundary .giveEntry (WriterPaths.ofTransport transport)
+  obtain ⟨checkBody, canonBody, mark, checkSeen, canonSeen, transport, checkedBody, rawBody, entryWriters, complete⟩ := body
+  have bodyWriters := VisitorWriterPath.callbackBoundary .giveBody (WriterPaths.ofRuns checkedBody.steps rawBody.steps)
   obtain ⟨moveBody, through, outsideBody⟩ := transport
   refine ⟨checkBody, canonBody, mark, checkSeen, canonSeen, ⟨moveBody, through, outsideBody⟩,
     alignWorkerBody (through none).1.steps run, ?_⟩
@@ -5026,7 +5003,7 @@ theorem alignPublicTransportWorker {route : GiveEffectRoute} (site : PayloadRoot
       replayRejoinedCallback (fun cursor => ⟨move cursor, tracks cursor⟩) paired suffixRun, ?_, ?_⟩
     · intro entrySeen
       rcases classifyReachedGrowth (tracks none).1.steps with certified | openUpdate
-      · refine .inl ⟨certified, ?_, paired, ⟨move, tracks, outside⟩, bodyWriters.append replyWriters⟩
+      · refine .inl ⟨certified, ?_, paired, ⟨move, tracks, outside⟩, (entryWriters.append bodyWriters).append replyWriters⟩
         rw [visibleAppend, visibleAppend, visibleAppend, visibleAppend, checkSeen, canonSeen, entrySeen]
         have silentCanon : PayloadPrefix.visible ([.tau] : Trace grow sig) = [] := visibleTaus 1
         have silentCheck : PayloadPrefix.visible ([.tau, .tau, .tau] : Trace grow sig) = [] := visibleTaus 3
@@ -8461,68 +8438,6 @@ private theorem consumeGiveCommonReply {route : GiveEffectRoute} (site : Payload
         .core site.core site.resume :: segments⟩ :: check.rest := by
       simpa only [Cursor.control, PayloadRoot.Site.reply, frames, reply] using checkAt
     exact .inl (checkedCoreReplyPrefix reply focus residual short)
-
-open Stored.OwnedMemory.Claims in
-private theorem parkedPrepareRead {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    (next : site.PrepareNext) :
-    Step profile ready (specDispatch ready base) (site.prepareReader next) .tau (site.prepared next) :=
-  .hostGet (m := site.prepareReader next)
-    (k := fun current => next (Record.prepare site.start.store current.writer site.field.objects)) rfl
-
-open PayloadPrefix ReturnFrame.Occurrence in
-private theorem parkedPrepareSteps {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    {front next} (entry : site.PrepareEntry profile ready base front next) :
-    (∀ place, Prefix profile ready (specDispatch ready base) site.entered place [.tau] (site.prepareReader next) place) ∧
-    (∀ place, Prefix profile ready (specDispatch ready base) (site.prepareReader next) place [.tau] (site.prepared next) place) := by
-  refine ⟨fun place => Prefix.read_at place entry.getFocus, fun place => ?_⟩
-  exact .step (parkedPrepareRead site next) (by cases place <;> rfl) (.done _ _)
-
-private theorem stripFramedWriterPrefix {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
-    {middle : Config (core3 grow) (HostState sig)} {front tail : Trace grow sig}
-    (leading : Steps profile ready dispatch start front middle)
-    (framed : WriterPath profile ready dispatch start (front ++ tail) finish []) :
-    WriterPath profile ready dispatch middle tail finish [] := by
-  induction leading with
-  | refl => exact framed
-  | cons first _ ih =>
-    cases framed with
-    | same step _ remaining =>
-      cases labelledStepUnique first step
-      exact ih remaining
-
-private theorem parkedPrepareWriter {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    {front raw : Trace grow sig} {next : site.PrepareNext} {peer : Config (core3 grow) (HostState sig)}
-    (entry : site.PrepareEntry profile ready base front next)
-    (canonical : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming raw peer [])
-    (shared : site.start.store = peer.store) :
-    VisitorWriterPath profile ready base bindings site.start incoming (front ++ [.tau, .tau]) raw (site.prepared next) peer := by
-  let reader := site.prepareReader next
-  let reached := site.prepared next
-  have get : Step profile ready (specDispatch ready base) site.entered .tau reader := .get entry.getFocus
-  have read : Step profile ready (specDispatch ready base) reader .tau reached := parkedPrepareRead site next
-  have before := append (entry.entry.steps) (Steps.cons get (.refl _))
-  have preserved : reader.host.writer = site.start.host.writer := entry.framed.project_eq
-  have checked := WriterPaths.append (WriterPaths.ofHostFrames entry.framed)
-    (WriterPath.same get rfl (.same read rfl (.done _)))
-  have focused : ExecutedPrepareRead profile ready base site.start reader reached peer (front ++ [.tau]) site.field.objects :=
-    ⟨before, ⟨site.cursor, next, rfl⟩, read, preserved, shared⟩
-  simpa only [List.append_assoc, List.cons_append, List.nil_append] using
-    (VisitorWriterPath.prepare focused (by simpa only [List.append_assoc, List.cons_append, List.nil_append] using checked) canonical)
-
-private theorem parkedAdmissionWriters {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
-    {used raw : Trace grow sig} {left peer : Config (core3 grow) (HostState sig)}
-    (prepared : site.PreparedEntry profile ready base used)
-    (checked : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start used left)
-    (canonical : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base))
-      incoming raw peer) (shared : site.start.store = peer.store) :
-    VisitorWriterPath profile ready base bindings site.start incoming used raw left peer := by
-  obtain ⟨front, next, tail, rfl, entry⟩ := prepared
-  obtain ⟨get, read⟩ := parkedPrepareSteps site entry
-  have reads := append (get (.active 0 0)).toTrail.steps (read (.active 0 0)).toTrail.steps
-  have leading := append entry.entry.steps reads
-  have remaining := stripFramedWriterPrefix leading (WriterPaths.ofHostFrames checked)
-  simpa only [List.append_nil] using
-    (parkedPrepareWriter site entry (WriterPaths.ofHostFrames canonical) shared).append (.framed remaining (.done peer))
 
 open PayloadPrefix ReturnFrame.Occurrence in
 private theorem parkedEntryCut {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)

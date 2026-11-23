@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Plan.Defs
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.WriterPaths
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.RecursiveTrails
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FlatTrails
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Thms
@@ -4613,12 +4614,99 @@ theorem completePublicTransport {route : GiveEffectRoute} (site : PayloadRoot.Si
   rw [frame.store]
   exact .cons (.mk tails) frame.rest
 
+theorem progOpEq {S : Sig} {Result : Type} {first second : S.Op}
+    {left : S.Resp first → Prog S Result} {right : S.Resp second → Prog S Result} :
+    Prog.op first left = Prog.op second right → first = second ∧ HEq left right := by
+  intro same
+  injection same with operation continuation
+  exact ⟨operation, continuation⟩
+
+set_option maxHeartbeats 2000000 in
+theorem labelledStepUnique {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {before left right : Config (core3 grow) (HostState sig)} {label}
+    (first : Step profile ready dispatch before label left) (second : Step profile ready dispatch before label right) :
+    left = right := by
+  cases first <;> cases second
+  all_goals try (cases (show Fault before _ from by assumption))
+  all_goals simp_all
+  case coreInternal.coreInternal => grind only [Core3.core3_internal_iff]
+  all_goals
+    have heads := (show (_ ∧ Prog.op (S := Eff (core3 grow) (HostState sig)) (α := Ret (core3 grow)) _ _ = Prog.op _ _ ∧ _) ∧ _
+      from by assumption)
+    obtain ⟨⟨_, programs, _⟩, _⟩ := heads
+    obtain ⟨operation, continuation⟩ := progOpEq programs
+    simp_all
+  all_goals (injection operation; subst_vars; simp_all)
+
+open Stored.OwnedMemory.Claims in
+theorem parkedPrepareRead {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    (next : site.PrepareNext) :
+    Step profile ready (specDispatch ready base) (site.prepareReader next) .tau (site.prepared next) :=
+  .hostGet (m := site.prepareReader next)
+    (k := fun current => next (Record.prepare site.start.store current.writer site.field.objects)) rfl
+
+open PayloadPrefix ReturnFrame.Occurrence in
+theorem parkedPrepareSteps {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {front next} (entry : site.PrepareEntry profile ready base front next) :
+    (∀ place, Prefix profile ready (specDispatch ready base) site.entered place [.tau] (site.prepareReader next) place) ∧
+    (∀ place, Prefix profile ready (specDispatch ready base) (site.prepareReader next) place [.tau] (site.prepared next) place) := by
+  refine ⟨fun place => Prefix.read_at place entry.getFocus, fun place => ?_⟩
+  exact .step (parkedPrepareRead site next) (by cases place <;> rfl) (.done _ _)
+
+private theorem stripFramedWriterPrefix {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {start middle finish : Config (core3 grow) (HostState sig)} {front tail : Trace grow sig}
+    (leading : Steps profile ready dispatch start front middle)
+    (framed : WriterPath profile ready dispatch start (front ++ tail) finish []) :
+    WriterPath profile ready dispatch middle tail finish [] := by
+  induction leading with
+  | refl => exact framed
+  | cons first _ ih =>
+    cases framed with
+    | same step _ remaining =>
+      cases labelledStepUnique first step
+      exact ih remaining
+
+theorem parkedPrepareWriter {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {front raw : Trace grow sig} {next : site.PrepareNext} {incoming peer : Config (core3 grow) (HostState sig)}
+    (entry : site.PrepareEntry profile ready base front next)
+    (canonical : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming raw peer [])
+    (shared : site.start.store = peer.store) :
+    VisitorWriterPath profile ready base bindings site.start incoming (front ++ [.tau, .tau]) raw (site.prepared next) peer := by
+  let reader := site.prepareReader next
+  let reached := site.prepared next
+  have get : Step profile ready (specDispatch ready base) site.entered .tau reader := .get entry.getFocus
+  have read : Step profile ready (specDispatch ready base) reader .tau reached := parkedPrepareRead site next
+  have before := appendRun entry.entry.steps (Steps.cons get (.refl _))
+  have preserved : reader.host.writer = site.start.host.writer := entry.framed.project_eq
+  have checked := WriterPaths.append (WriterPaths.ofHostFrames entry.framed)
+    (WriterPath.same get rfl (.same read rfl (.done _)))
+  have focused : ExecutedPrepareRead profile ready base site.start reader reached peer (front ++ [.tau]) site.field.objects :=
+    ⟨before, ⟨site.cursor, next, rfl⟩, read, preserved, shared⟩
+  simpa only [List.append_assoc, List.cons_append, List.nil_append] using
+    (VisitorWriterPath.prepare focused (by simpa only [List.append_assoc, List.cons_append, List.nil_append] using checked) canonical)
+
+theorem parkedAdmissionWriters {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
+    {used raw : Trace grow sig} {incoming left peer : Config (core3 grow) (HostState sig)}
+    (prepared : site.PreparedEntry profile ready base used)
+    (checked : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready base) site.start used left)
+    (canonical : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready (LiveDispatch.host bindings base))
+      incoming raw peer) (shared : site.start.store = peer.store) :
+    VisitorWriterPath profile ready base bindings site.start incoming used raw left peer := by
+  obtain ⟨front, next, tail, rfl, entry⟩ := prepared
+  obtain ⟨get, read⟩ := parkedPrepareSteps site entry
+  have reads := appendRun (get (.active 0 0)).toTrail.steps (read (.active 0 0)).toTrail.steps
+  have leading := appendRun entry.entry.steps reads
+  have remaining := stripFramedWriterPrefix leading (WriterPaths.ofHostFrames checked)
+  simpa only [List.append_nil] using
+    (parkedPrepareWriter site entry (WriterPaths.ofHostFrames canonical) shared).append (.framed remaining (.done peer))
+
 private theorem publicSuccessTransport {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route)
     {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {incoming entered left right : Config (core3 grow) (HostState sig)} {check canon : Cursor (E := core3 grow) (HostState sig)}
     {checkEntry canonEntry observed : Trace grow sig} (value : route.output.Result)
     (entry : OccurrenceTransport profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered
       [some (.active 0 0)])
+    (entryWriters : VisitorWriterPath profile ready base bindings site.start incoming checkEntry canonEntry site.checked entered)
     (history : ComparedOccurrenceTransport profile ready base bindings site.checked entered observed left right)
     (frame : LinkedCallback.ChildFrameOver older left right check canon)
     (checkAt : left.ctl = check.control (site.reply (.ok value)))
@@ -4627,7 +4715,7 @@ private theorem publicSuccessTransport {route : GiveEffectRoute} (site : Payload
   obtain ⟨checkBody, canonBody, body, checkSeen, canonSeen, _⟩ := history
   obtain ⟨move, combined, tracks⟩ := CallbackPrefix.transportAppend entry body
   obtain ⟨checkMark, canonMark⟩ := tracks (some (.active 0 0))
-  refine ⟨checkBody, canonBody, move (some (.active 0 0)), checkSeen, canonSeen, combined, checkMark, canonMark, ?_⟩
+  refine ⟨checkBody, canonBody, move (some (.active 0 0)), checkSeen, canonSeen, combined, checkMark, canonMark, entryWriters, ?_⟩
   intro atTop
   rw [atTop] at checkMark
   obtain ⟨_, same, original⟩ := checkMark.survives
@@ -4661,8 +4749,8 @@ theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.S
   have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
   have source : CollectionSource site.destination site.field (sig.payload site.tag) :=
     ⟨matched, Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits, preflightAllocator site linked⟩
-  obtain ⟨labels, entered, quiet, installed, aligned, hostSame, storage⟩ :=
-    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨labels, entered, quiet, installed, aligned, hostSame, storage, rawFramed⟩ :=
+    LiveDispatch.entry_paired_framed_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
   obtain ⟨peer, frame, canonAt⟩ := referenceFrame site (site.reference_at linked site.referenceReply) aligned
   have width := site.destination.check_width site.start.store linked.destination
   have canonQuiet : PayloadPrefix.visible labels = [] := silent (by
@@ -4670,8 +4758,9 @@ theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.S
     have tau := List.all_eq_true.mp quiet label member
     cases label <;> simp_all)
   refine ⟨labels, entered, peer, canonQuiet, installed, hostSame, ?_⟩
-  intro checkLabels checked
+  intro checkLabels checked checkFramed prepared
   have entry := publicEntryTransport site linked checked installed storage
+  have entryWriters := parkedAdmissionWriters site prepared checkFramed rawFramed aligned.data.1
   have covers : (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels labels entered)).CoversOccurrences
       profile ready base bindings site.checked entered := by
     intro next admitted issue seen left right check focus paths
@@ -4682,7 +4771,7 @@ theorem linkedFlatTransportBodyWith {type : Stored.TypeOf} (site : PayloadRoot.S
     ⟨[], [], CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), rfl, rfl, frame.store⟩
     (fun issue => ⟨issue, rfl⟩) rfl canonAt
     (fun words _ _ _ _ _ paired _ tracks lhs rhs =>
-      observe _ _ _ words _ _ _ (publicSuccessTransport site words entry tracks paired lhs rhs))
+      observe _ _ _ words _ _ _ (publicSuccessTransport site words entry entryWriters tracks paired lhs rhs))
 
 theorem linkedMemoryTransportBodyWith {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
@@ -4710,8 +4799,8 @@ theorem linkedMemoryTransportBodyWith {pointer : FlatValue} (site : PayloadRoot.
   have matched := Record.preflightValue_layout _ _ _ _ _ plan compiled
   have source : CollectionSource site.destination site.field (sig.payload site.tag) :=
     ⟨matched, Record.preflightValue_value _ _ _ _ _ plan compiled ▸ fits, preflightAllocator site linked⟩
-  obtain ⟨labels, entered, quiet, installed, aligned, hostSame, storage⟩ :=
-    LiveDispatch.entry_paired_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
+  obtain ⟨labels, entered, quiet, installed, aligned, hostSame, storage, rawFramed⟩ :=
+    LiveDispatch.entry_paired_framed_storage (profile := profile) (ready := ready) (base := base) site linked paired selected
   obtain ⟨peer, frame, canonAt⟩ := referenceFrame site (site.reference_at linked site.referenceReply) aligned
   have width := site.destination.check_width site.start.store linked.destination
   have position : placement site.destination site.checked.store (layout site.destination.width site.field.type) (flatNat pointer) = .ok () :=
@@ -4727,8 +4816,9 @@ theorem linkedMemoryTransportBodyWith {pointer : FlatValue} (site : PayloadRoot.
     have tau := List.all_eq_true.mp quiet label member
     cases label <;> simp_all)
   refine ⟨labels, entered, peer, canonQuiet, installed, hostSame, ?_⟩
-  intro checkLabels checked
+  intro checkLabels checked checkFramed prepared
   have entry := publicEntryTransport site linked checked installed storage
+  have entryWriters := parkedAdmissionWriters site prepared checkFramed rawFramed aligned.data.1
   have covers : (publicOccurrenceSinkWith profile ready base bindings older site entered (refused checkLabels labels entered)).CoversOccurrences
       profile ready base bindings site.checked entered := by
     intro next admitted issue seen left right check focus paths
@@ -4738,7 +4828,7 @@ theorem linkedMemoryTransportBodyWith {pointer : FlatValue} (site : PayloadRoot.
       site.field 0 (flatNat pointer) _ _ _ _ site.reply site.referenceReply _ _ [] body
       ⟨[], [], CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), rfl, rfl, frame.store⟩ frame.store
       (fun issue => ⟨issue, rfl⟩) (fun _ _ _ _ _ reached _ ⟨endFrame, checkAt, referenceAt⟩ =>
-        observe _ _ _ _ _ _ (publicSuccessTransport site () entry reached endFrame checkAt referenceAt))
+        observe _ _ _ _ _ _ (publicSuccessTransport site () entry entryWriters reached endFrame checkAt referenceAt))
 
 theorem linkedMemoryTransportBody {pointer : FlatValue} (site : PayloadRoot.Site grow sig (.memory pointer))
     (linked : site.Linked bindings) (family : RecursiveCollectionType (sig.payload site.tag))
