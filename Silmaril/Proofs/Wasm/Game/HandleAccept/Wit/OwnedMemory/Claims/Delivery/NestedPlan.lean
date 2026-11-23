@@ -7928,6 +7928,44 @@ private theorem driveMemoryElements {origin : CStore (core3 grow)} {budget bytes
     (driveMemorySequence (.elements area.size) destination inst entries 0 pointer slots width frame (Core3.Grows.refl _)
       leftAt rightAt actual bounded)
 
+open ABI Stored.Endpoints.RecordLower in
+private theorem emittedMapPairs {key : WIT.KeyType} {element : Stored.TypeOf} {entries : List Field}
+    (emitted : Field.Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries)) :
+    ∀ item ∈ entries, ∃ keyField value, item = .aggregate (.record (mapEntryFields key element)) [keyField, value] := by
+  cases emitted with
+  | map shapes _ =>
+    intro item member
+    obtain ⟨payload, value, shape⟩ := shapes item member
+    exact ⟨.data (.prim key.toPrimitive) payload, value, shape⟩
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+private theorem memoryMapPairFocus (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType)
+    (element : Stored.TypeOf) (keyField value : Field) (rest : List Field) (pointer : Nat)
+    (canonNext : CanonNext grow sig) {canon : Cursor (E := core3 grow) (HostState sig)} :
+    let mapStride := (layout destination.width (.record (mapEntryFields key element))).size
+    incoming.ctl = canon.control (CanonicalTree.elements Limits.spec Quirks.none (destination.context inst) destination.width
+      (.aggregate (.record (mapEntryFields key element)) [keyField, value] :: rest)
+      (.memoryMap destination.width key element) mapStride pointer >>= canonNext) →
+    incoming.ctl = canon.control (Track.placedFields.canonical destination inst [keyField, value] pointer >>= fun () =>
+      CanonicalTree.elements Limits.spec Quirks.none (destination.context inst) destination.width rest
+        (.memoryMap destination.width key element) mapStride (pointer + mapStride) >>= canonNext) := by
+  intro mapStride canonical
+  rw [canonical]
+  congr 1
+  simp only [CanonicalTree.elements, Track.canonical, canonicalPlacedFields, Track.slot, Prog.bind_eq, Prog.bind_assoc,
+    Prog.pure_eq, Prog.pure_bind', mapStride]
+  let keyPtr := alignTo pointer (layout destination.width keyField.type).alignment
+  let valuePtr := alignTo (keyPtr + (layout destination.width keyField.type).size) (layout destination.width value.type).alignment
+  let keyProgram : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+    destination.width keyField (.memory keyPtr)
+  let valueProgram : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
+    destination.width value (.memory valuePtr)
+  let restProgram : Session grow sig Unit := CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
+    destination.width rest (.memoryMap destination.width key element) mapStride (pointer + mapStride)
+  change (keyProgram.bind (fun _ => valueProgram.bind (fun _ => restProgram))).bind canonNext =
+    keyProgram.bind (fun _ => valueProgram.bind (fun _ => restProgram.bind canonNext))
+  simp only [Prog.bind_assoc]
+
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
 private theorem driveMemoryMapEntries {origin : CStore (core3 grow)} {budget bytes : Nat}
     (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf)
@@ -7966,15 +8004,8 @@ private theorem driveMemoryMapEntries {origin : CStore (core3 grow)} {budget byt
       let afterCanon : CanonNext grow sig := fun () => CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
         destination.width rest (.memoryMap destination.width key element) stride (address + stride) >>= canonNext
       have headAt : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst)
-          destination.width (.aggregate type [keyField, value]) index (.memory address) >>= afterCheck) := by
-        rw [checkAt, Record.Effects.elements]
-        congr 1
-        simp only [Prog.bind_eq, Prog.bind_assoc]
-        congr 1
-        funext verdict
-        cases verdict with
-        | error _ => rfl
-        | ok result => cases result; rfl
+          destination.width (.aggregate type [keyField, value]) index (.memory address) >>= afterCheck) :=
+        memorySequenceCheckedFocus (.elements stride) destination inst (.aggregate type [keyField, value]) rest index address checkNext checkAt
       have fits : SlotFits destination.width bytes (.aggregate type [keyField, value]) address ∧
           (Track.elements stride).Slots destination.width (SlotFits destination.width bytes) rest (address + stride) := slots
       let entered := enterAggregate destination inst [keyField, value] index address start check afterCheck
@@ -7991,22 +8022,8 @@ private theorem driveMemoryMapEntries {origin : CStore (core3 grow)} {budget byt
             (MemoryVisitField profile ready base bindings older origin destination inst budget) [keyField, value] address := childSlots
         have paired : LinkedCallback.ChildFrameOver older entered incoming check canon :=
           ⟨frame.store, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩
-        have headCanon : incoming.ctl = canon.control (Track.placedFields.canonical destination inst [keyField, value] address >>= afterCanon) := by
-          rw [canonAt]
-          congr 1
-          simp only [CanonicalTree.elements, Track.canonical, canonicalPlacedFields, Track.slot, Prog.bind_eq, Prog.bind_assoc,
-            Prog.pure_eq, Prog.pure_bind', afterCanon, stride, type]
-          let keyPtr := alignTo address (layout destination.width keyField.type).alignment
-          let valuePtr := alignTo (keyPtr + (layout destination.width keyField.type).size) (layout destination.width value.type).alignment
-          let keyProgram : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
-            destination.width keyField (.memory keyPtr)
-          let valueProgram : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none (destination.context inst)
-            destination.width value (.memory valuePtr)
-          let restProgram : Session grow sig Unit := CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
-            destination.width rest (.memoryMap destination.width key element) stride (address + stride)
-          change (keyProgram.bind (fun _ => valueProgram.bind (fun _ => restProgram))).bind canonNext =
-            keyProgram.bind (fun _ => valueProgram.bind (fun _ => restProgram.bind canonNext))
-          simp only [Prog.bind_assoc]
+        have headCanon : incoming.ctl = canon.control (Track.placedFields.canonical destination inst [keyField, value] address >>= afterCanon) :=
+          memoryMapPairFocus destination inst key element keyField value rest address canonNext canonAt
         have body := wrapMemoryVisit index (driveMemorySequence .placedFields destination inst [keyField, value] 0 address
           placedSlots width paired growth rfl headCanon guardTail remainingBudget)
         obtain ⟨checked, canonical, residual, lhs, rhs, marks, split, seen, same, movement, tail, writer, ending⟩ := body
@@ -8379,12 +8396,7 @@ theorem driveCompiledMemory {origin : CStore (core3 grow)} {root item : Field} {
   | @map key element entries matching emitted _ ih =>
     intro index checkNext canonNext left right check canon frame growth checkAt canonAt actual finish run bounded
     let entryType : Stored.TypeOf := .record (mapEntryFields key element)
-    have pairs : ∀ item ∈ entries, ∃ keyField value, item = .aggregate entryType [keyField, value] := by
-      cases emitted with
-      | map shapes _ =>
-        intro item member
-        obtain ⟨payload, value, shape⟩ := shapes item member
-        exact ⟨.data (.prim key.toPrimitive) payload, value, shape⟩
+    have pairs := emittedMapPairs emitted
     refine driveCollection destination inst (.map key element) entryType entries index (.memory address) embedder
       (growth.memAddrType width) frame growth checkAt canonAt run bounded compare
       (.field canon (.dynamic (.map key element) entryType entries) address canonNext canonAt)
@@ -21565,11 +21577,11 @@ private theorem finishSourceOverlayCollectionPublish
         (.sourceOverlayCollectionPublished output value checkNext canonNext rfl scheduler rfl rfl residual)
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
-private abbrev SourceOverlayValueEntries
+private abbrev SourceOverlayCollectionEntries
     (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
     (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (destination : RecordDestination) (inst : InstId) (element : Stored.TypeOf) (entries : List Field)
-    (index : Nat) (output : Stored.Lower.Output) (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    (index : Nat) (mode : CanonicalTree.EntryMode) (output : Stored.Lower.Output) (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
     (check canon : Cursor (E := core3 grow) (HostState sig)) (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
   ∀ (pointer bytes : Nat) {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
     pointer = alignTo pointer (layout destination.width element).alignment →
@@ -21580,7 +21592,7 @@ private abbrev SourceOverlayValueEntries
     left.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width element)
       index output pointer (.ok ()) >>= checkNext) →
     right.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width element)
-      output pointer .value >>= canonNext) →
+      output pointer mode >>= canonNext) →
     Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
     CallbackSliceEnd profile ready base bindings older left right remaining finish
 
@@ -21732,9 +21744,8 @@ private theorem visitSourceOverlayCollection {limit : Nat}
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (within : labels.length ≤ limit)
     (refused : SourceOverlayRefusal output.Result profile ready base bindings older check checkNext finish)
-    (visitValues : CanonicalTree.EntryMode.forOutput destination.width type output = .value →
-      SourceOverlayValueEntries profile ready base bindings older destination inst element entries index output
-        checkNext canonNext check canon limit finish) :
+    (visitEntries : SourceOverlayCollectionEntries profile ready base bindings older destination inst element entries index
+      (CanonicalTree.EntryMode.forOutput destination.width type output) output checkNext canonNext check canon limit finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
   let cx := destination.context (grow := grow) inst
   let area := ABI.layout destination.width element
@@ -21822,10 +21833,8 @@ private theorem visitSourceOverlayCollection {limit : Nat}
                     Prog.pure_bind', Prog.bind_assoc, LinkedCallback.MemorySequence.publishChecked] using checked
                 · simpa only [empty, List.length_nil, canonicalCollectionTail, CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq,
                     Prog.pure_bind', LinkedCallback.MemorySequence.publishCanonical, Prog.bind_assoc] using canonical
-              by_cases valueLayout : mode = .value ∧
-                  (core3 grow).memAddrType? left.store.core destination.memory = some destination.width
-              · rw [show CanonicalTree.EntryMode.forOutput destination.width type output = .value from valueLayout.1] at canonical
-                exact visitValues valueLayout.1 pointer bytes aligned bounds sized valueLayout.2 same scheduler checked canonical
+              by_cases liveWidth : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width
+              · exact visitEntries pointer bytes aligned bounds sized liveWidth same scheduler checked canonical
                   residual (shorter.trans bounded)
               exact .sourceOverlayCollectionElements (pointer := pointer) (bytes := bytes) destination inst type element entries index
                 output checkNext canonNext parents thread segments matching source aligned bounds sized same scheduler checked canonical residual))
@@ -22057,7 +22066,7 @@ private theorem visitSourceCollectionValueElements {limit : Nat}
       ∀ address, SlotFits destination.width bytes child address →
       SourceMemoryVisit profile ready base bindings older origin destination inst child address check canon limit finish)
     (refused : SourceOverlayRefusal output.Result profile ready base bindings older check checkNext finish) :
-    SourceOverlayValueEntries profile ready base bindings older destination inst element entries index output
+    SourceOverlayCollectionEntries profile ready base bindings older destination inst element entries index .value output
       checkNext canonNext check canon limit finish := by
   intro pointer bytes left right remaining aligned bounds sized width same scheduler checked canonical actual shorter
   let area := layout destination.width element
@@ -22073,6 +22082,109 @@ private theorem visitSourceCollectionValueElements {limit : Nat}
   · intro value reached peer residual _ equal scheduled atLeft atRight tail _
     cases value
     exact finishSourceOverlayCollectionPublish destination inst pointer entries.length output checkNext canonNext
+      equal scheduled atLeft atRight tail
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence ReturnFrame.Occurrence in
+private theorem visitSourceMemoryMapSequence {limit : Nat} {origin : CStore (core3 grow)} {bytes : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf)
+    (entries : List Field) (index pointer : Nat)
+    (matching : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (pairs : ∀ item ∈ entries, ∃ keyField value, item = .aggregate (.record (mapEntryFields key element)) [keyField, value])
+    (children : ∀ keyField value, Field.aggregate (.record (mapEntryFields key element)) [keyField, value] ∈ entries →
+      ∀ child ∈ [keyField, value], ∀ address, SlotFits destination.width bytes child address →
+        SourceMemoryVisit profile ready base bindings older origin destination inst child address check canon limit finish)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (slots : (Track.elements (layout destination.width (.record (mapEntryFields key element))).size).Slots
+      destination.width (SlotFits destination.width bytes) entries pointer)
+    {checkNext : CheckNext grow sig} {canonNext : CanonNext grow sig}
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (growth : Core3.Grows origin.core start.store.core)
+    (checked : start.ctl = check.control (Track.checked (.elements (layout destination.width (.record (mapEntryFields key element))).size)
+      destination inst entries index pointer >>= checkNext))
+    (canonical : incoming.ctl = canon.control (CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
+      destination.width entries (.memoryMap destination.width key element)
+      (layout destination.width (.record (mapEntryFields key element))).size pointer >>= canonNext))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (refused : SourceOverlayRefusal Unit profile ready base bindings older check checkNext finish)
+    (returned : SourceOverlayReturn Unit profile ready base bindings older start.store check canon checkNext canonNext labels.length finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let type : Stored.TypeOf := .record (mapEntryFields key element)
+  let stride := (layout destination.width type).size
+  induction entries generalizing index pointer start incoming labels with
+  | nil =>
+    exact returned () (Core3.Grows.refl _) stores scheduler
+      (by simpa only [Track.checked, Record.Effects.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using checked)
+      (by simpa only [CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using canonical)
+      run (Nat.le_refl _)
+  | cons item rest ih =>
+    obtain ⟨keyField, value, rfl⟩ := pairs item (.head _)
+    cases matching with
+    | cons matched restMatch =>
+      let afterCheck := checkTail (.elements stride) destination inst rest (index + 1) (pointer + stride) checkNext
+      let afterCanon : CanonNext grow sig := fun () => CanonicalTree.elements Limits.spec Quirks.none (destination.context inst)
+        destination.width rest (.memoryMap destination.width key element) stride (pointer + stride) >>= canonNext
+      have headAt := memorySequenceCheckedFocus (.elements stride) destination inst (.aggregate type [keyField, value])
+        rest index pointer checkNext checked
+      have fits : SlotFits destination.width bytes (.aggregate type [keyField, value]) pointer ∧
+          (Track.elements stride).Slots destination.width (SlotFits destination.width bytes) rest (pointer + stride) := slots
+      let entered := enterAggregate destination inst [keyField, value] index pointer start check afterCheck
+      have guard := aggregate_entry_prefix (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+        destination inst type [keyField, value] index pointer start check afterCheck growth sized fits.1.1 fits.1.2 headAt
+      have writer := WriterPaths.frameSingle (guard (.active 0 0)).toTrail.steps (rfl : entered.host = start.host)
+      refine crossSourceCheckedSinglePrefix (by simp : ([.tau] : Trace grow sig).length ≤ 1) rfl guard writer run ?_
+      intro remaining residual shorter
+      have placedSlots : Track.placedFields.Slots destination.width
+          (fun child slot => SourceMemoryVisit profile ready base bindings older origin destination inst child slot check canon limit finish)
+          [keyField, value] pointer := Track.fields_slots destination.width matched fits.1.1 fits.1.2 _
+        (children keyField value (.head _))
+      have headCanon := memoryMapPairFocus destination inst key element keyField value rest pointer canonNext canonical
+      refine visitSourceMemorySequence .placedFields destination inst [keyField, value] 0 pointer placedSlots
+        width stores scheduler growth (checkNext := aggregateNext index afterCheck) (canonNext := afterCanon)
+        rfl headCanon residual (shorter.trans within) ?_ ?_
+      · intro issue left right following focus tail
+        exact refused (.nested index issue) focus tail
+      · intro done left right following grew same scheduled lhs rhs tail bounded
+        cases done
+        exact ih (index + 1) (pointer + stride) restMatch
+          (fun item member => pairs item (.tail _ member)) (fun k v member => children k v (.tail _ member))
+          fits.2 same scheduled (growth.trans grew) lhs rhs tail (bounded.trans (shorter.trans within))
+          (fun result {_ _ _} after equal aligned atLeft atRight actual length =>
+            returned result (grew.trans after) equal aligned atLeft atRight actual (length.trans (bounded.trans shorter)))
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence in
+private theorem visitSourceCollectionMemoryMap {limit : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : Stored.TypeOf)
+    (entries : List Field) (index address : Nat) (checkNext : CheckNext grow sig) (canonNext : CanonNext grow sig)
+    (matching : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (pairs : ∀ item ∈ entries, ∃ keyField value, item = .aggregate (.record (mapEntryFields key element)) [keyField, value])
+    (children : ∀ (origin : CStore (core3 grow)) (bytes : Nat) keyField value,
+      Field.aggregate (.record (mapEntryFields key element)) [keyField, value] ∈ entries →
+      (core3 grow).memAddrType? origin.core destination.memory = some destination.width →
+      (core3 grow).memSize? origin.core destination.memory = some bytes →
+      ∀ child ∈ [keyField, value], ∀ address, SlotFits destination.width bytes child address →
+        SourceMemoryVisit profile ready base bindings older origin destination inst child address check canon limit finish)
+    (refused : SourceOverlayRefusal Unit profile ready base bindings older check checkNext finish) :
+    SourceOverlayCollectionEntries profile ready base bindings older destination inst (.record (mapEntryFields key element))
+      entries index (.memoryMap destination.width key element) (.memory address) checkNext canonNext check canon limit finish := by
+  intro pointer bytes left right remaining aligned bounds sized width same scheduler checked canonical actual shorter
+  let type : Stored.TypeOf := .record (mapEntryFields key element)
+  let area := layout destination.width type
+  let mode := CanonicalTree.EntryMode.memoryMap destination.width key element
+  have slots := Track.elements_slots destination.width matching aligned bounds (SlotFits destination.width bytes)
+    (fun _ _ _ placed => placed)
+  obtain ⟨lhs, rhs⟩ := CallbackRange.collectionElementFoci destination inst entries area mode (.memory address)
+    pointer index checkNext canonNext checked canonical
+  refine visitSourceMemoryMapSequence destination inst key element entries 0 pointer matching pairs
+    (fun k v member => children left.store bytes k v member width sized) width sized slots
+    same scheduler (Core3.Grows.refl _) lhs rhs actual shorter ?_ ?_
+  · intro issue reached peer residual focus tail
+    exact refused (.nested index issue) focus tail
+  · intro value reached peer residual _ equal scheduled atLeft atRight tail _
+    cases value
+    exact finishSourceOverlayCollectionPublish destination inst pointer entries.length (.memory address) checkNext canonNext
       equal scheduled atLeft atRight tail
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback.MemorySequence ReturnFrame.Occurrence in
@@ -22183,16 +22295,22 @@ private theorem visitCompiledSourceMemory {limit : Nat} {origin : CStore (core3 
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run within refused returned
     exact visitSourceOverlayCollection destination inst (.list element) element entries index (.memory address) checkNext canonNext
       imports parents thread segments matching ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler
-      (stores ▸ growth.memAddrType width) checked canonical run within refused (fun _ =>
-        visitSourceCollectionValueElements destination inst element entries index (.memory address) checkNext canonNext matching
+      (stores ▸ growth.memAddrType width) checked canonical run within refused
+        (visitSourceCollectionValueElements destination inst element entries index (.memory address) checkNext canonNext matching
           (fun initial bytes child member liveWidth liveSize slot placed =>
             ih child member (origin := initial) (bytes := bytes) slot
               (path.trans (.dynamic member (.self child))) liveWidth liveSize placed) refused)
   | @map key element entries matching emitted children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run within refused returned
-    exact visitSourceOverlayCollection destination inst (.map key element) (.record (mapEntryFields key element)) entries index
+    let entryType : Stored.TypeOf := .record (mapEntryFields key element)
+    have pairs := emittedMapPairs emitted
+    exact visitSourceOverlayCollection destination inst (.map key element) entryType entries index
       (.memory address) checkNext canonNext imports parents thread segments matching ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩
-      stores scheduler (stores ▸ growth.memAddrType width) checked canonical run within refused (fun mode => nomatch mode)
+      stores scheduler (stores ▸ growth.memAddrType width) checked canonical run within refused
+      (visitSourceCollectionMemoryMap destination inst key element entries index address checkNext canonNext matching pairs
+        (fun initial bytes keyField value member liveWidth liveSize child fieldMember slot placed =>
+          ih keyField value member child fieldMember (origin := initial) (bytes := bytes) slot
+            (path.trans (.dynamic member (.aggregate fieldMember (.self child)))) liveWidth liveSize placed) refused)
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
 private theorem visitCompiledSourceFlat {limit : Nat} {check canon : Cursor (E := core3 grow) (HostState sig)} {root item : Field} {schema : Stored.TypeOf}
@@ -22225,13 +22343,15 @@ private theorem visitCompiledSourceFlat {limit : Nat} {check canon : Cursor (E :
       ⟨matched, emitted⟩ ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler width rfl checked canonical run
   | collection type element entries matching children =>
     intro index checkNext canonNext left right actual stores scheduler width checked canonical run within refused returned
-    exact visitSourceOverlayCollection destination inst type element entries index .flat checkNext canonNext imports parents thread segments
+    refine visitSourceOverlayCollection destination inst type element entries index .flat checkNext canonNext imports parents thread segments
       matching ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler (stores ▸ width)
-      checked canonical run within refused (fun _ =>
-        visitSourceCollectionValueElements destination inst element entries index .flat checkNext canonNext matching
-          (fun _ _ child member liveWidth liveSize address placed => visitCompiledSourceMemory destination inst address
-            (children child member) imports parents thread segments rootLayout rootEmitted fits allocates
-            (path.trans (.dynamic member (.self child))) liveWidth liveSize placed) refused)
+      checked canonical run within refused ?_
+    have mode : CanonicalTree.EntryMode.forOutput destination.width type .flat = .value := by cases type <;> rfl
+    rw [mode]
+    exact visitSourceCollectionValueElements destination inst element entries index .flat checkNext canonNext matching
+      (fun _ _ child member liveWidth liveSize address placed => visitCompiledSourceMemory destination inst address
+        (children child member) imports parents thread segments rootLayout rootEmitted fits allocates
+        (path.trans (.dynamic member (.self child))) liveWidth liveSize placed) refused
   | sum type arms tag selected matched child ih =>
     exact visitSourceFlatSum destination inst thread matched
       (fun child active => ih child active (path.trans (active ▸ .sum (.self child))))
