@@ -19327,15 +19327,95 @@ private theorem allocatorResourceRepEffects (invariant : CStore (core3 grow) →
     .pure record.rep).bind fun rep =>
     (sharedWorkerGetPreserves invariant ArenaField.resourceTypes resource).bind fun rty => .pure [ptrFlat rty.rep rep]
 
-private def allocatorLocalImport : CanonHost (core3 grow) → Bool
+private abbrev WorkerRecordPreservation (invariant : CStore (core3 grow) → Prop) : Prop :=
+  ∀ previous reached : CStore (core3 grow), reached.tasks = previous.tasks → reached.callers = previous.callers →
+    invariant previous → invariant reached
+
+private theorem allocatorWorkerRecordPreservation {cx : LiftLowerContext (core3 grow)} {request width task caller} :
+    WorkerRecordPreservation (fun store => SharedRecordAllocatorSource cx request width task caller store) := by
+  intro previous reached tasks callers source
+  exact sharedRecordAllocatorSourceFrame source (congrArg (·.get? task.idx) tasks) (congrArg (·.get? caller.idx) callers)
+
+private theorem destructorWorkerRecordPreservation (task : TaskId) :
+    WorkerRecordPreservation (SharedDestructorTaskSource (grow := grow) task) := by
+  intro previous reached tasks callers source
+  obtain ⟨entry, width, rep, found, typeAt, optionsAt, callerAt⟩ := source
+  exact ⟨entry, width, rep, (congrArg (·.get? task.idx) tasks).trans found, typeAt, optionsAt,
+    (congrArg (·.get? entry.caller.idx) callers).trans callerAt⟩
+
+private theorem sourceAllocPreserves {Id Data : Type} (field : ArenaField (core3 grow) Id Data) (entry : Data)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant)
+    (fields : ∀ store, (ArenaOps.allocSt field entry store).tasks = store.tasks ∧
+      (ArenaOps.allocSt field entry store).callers = store.callers) :
+    Prog.Every (storePreserves invariant) (allocObj field entry : Session grow sig Id) := by
+  unfold allocObj
+  exact .op trivial fun _ => .op (fun store => records store _ (fields store).1 (fields store).2) fun _ => .pure _
+
+private theorem sourceHandleInsertPreserves (inst : InstId) (entry : HandleEntry)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    Prog.Every (storePreserves invariant) (handlesAdd inst entry : Session grow sig Nat) := by
+  unfold handlesAdd getInst
+  refine (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record => ?_
+  split
+  · exact .op trivial fun impossible => nomatch impossible
+  · exact .op (fun store => records store _ rfl rfl) fun _ => .pure _
+
+private theorem sourceEnterWaitablePreserves (invariant : CStore (core3 grow) → Prop) :
+    Prog.Every (storePreserves invariant) (Builtins.enterWaitableBuiltin : Session grow sig InstId) := by
+  unfold Builtins.enterWaitableBuiltin getInst
+  exact (allocatorCurrentInstPreserves invariant).bind fun inst =>
+    (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record =>
+    (allocatorTrapIfPreserves invariant (!record.mayLeave) .cannotLeave).bind fun _ => .pure inst
+
+private theorem sourceResourceNewEffects (resource : RtId) (rep : Nat)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.resourceNew Limits.spec resource rep : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects (sharedDestructorResourceNew resource rep) ?_
+  unfold Builtins.resourceNew resourceNewCore addResHandle
+  exact (sourceEnterWaitablePreserves invariant).bind fun inst =>
+    (sourceAllocPreserves ArenaField.resHandles { rt := resource, rep := rep, own := true } records (fun _ => ⟨rfl, rfl⟩)).bind
+      fun identity => (sourceHandleInsertPreserves inst (.resource identity) records).bind fun index => .pure [i32Flat index]
+
+private theorem sourceWaitableSetNewEffects
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.waitableSetNew Limits.spec : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects sharedDestructorWaitableSetNew ?_
+  unfold Builtins.waitableSetNew
+  exact (sourceEnterWaitablePreserves invariant).bind fun inst =>
+    (sourceAllocPreserves ArenaField.wsets ({} : WaitableSet) records (fun _ => ⟨rfl, rfl⟩)).bind
+      fun identity => (sourceHandleInsertPreserves inst (.wset identity) records).bind fun index => .pure [i32Flat index]
+
+private theorem sourceWaitableSetDropEffects (index : Nat)
+    {invariant : CStore (core3 grow) → Prop} (records : WorkerRecordPreservation invariant) :
+    DestructorWorkerEffects invariant (Builtins.waitableSetDrop Limits.spec index : Session grow sig (List FlatValue)) := by
+  refine liftDestructorStoreEffects (sharedDestructorWaitableSetDrop index) ?_
+  have remove (inst : InstId) : Prog.Every (storePreserves invariant) (handlesRemove inst index : Session grow sig HandleEntry) := by
+    unfold handlesRemove getInst
+    refine (sharedWorkerGetPreserves invariant ArenaField.insts inst).bind fun record => ?_
+    split
+    · exact .op trivial fun impossible => nomatch impossible
+    · exact .op (fun store => records store _ rfl rfl) fun _ => .pure _
+  have expect (entry : HandleEntry) :
+      Prog.Every (storePreserves invariant) (Builtins.expectWset entry : Session grow sig WsetId) := by
+    cases entry <;> first | exact .pure _ | exact .op trivial (fun impossible => nomatch impossible)
+  have drop (identity : WsetId) : Prog.Every (storePreserves invariant) (Runtime.wsetDrop identity : Session grow sig Unit) := by
+    unfold Runtime.wsetDrop
+    exact (sharedWorkerGetPreserves invariant ArenaField.wsets identity).bind fun record =>
+      (allocatorTrapIfPreserves invariant (!record.elems.isEmpty) .setNotEmpty).bind fun _ =>
+      allocatorTrapIfPreserves invariant (decide (record.numWaiting > 0)) .setHasWaiters
+  unfold Builtins.waitableSetDrop
+  exact (sourceEnterWaitablePreserves invariant).bind fun inst =>
+    (remove inst).bind fun entry => (expect entry).bind fun identity => (drop identity).bind fun _ => .pure []
+
+private def sourceLocalImport : CanonHost (core3 grow) → Bool
   | .builtin .threadIndex _ | .builtin (.contextGet ..) _ | .builtin (.contextSet ..) _
-  | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin (.resourceRep ..) _ => true
+  | .builtin .backpressureInc _ | .builtin .backpressureDec _ | .builtin (.resourceRep ..) _
+  | .builtin (.resourceNew ..) _ | .builtin .waitableSetNew _ | .builtin .waitableSetDrop _ => true
   | _ => false
 
 private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Prop)
-    (instanceUpdate : ∀ store inst update, retained store → retained (ArenaOps.updateSt ArenaField.insts inst update store))
-    (contextUpdate : ∀ store worker index value, retained store → retained (Builtins.setContextSt worker index value store))
-    (host : CanonHost (core3 grow)) (args : List FlatValue) (selected : allocatorLocalImport host = true) :
+    (records : WorkerRecordPreservation retained)
+    (host : CanonHost (core3 grow)) (args : List FlatValue) (selected : sourceLocalImport host = true) :
     ∃ program : Session grow sig (List FlatValue),
       DestructorWorkerEffects retained program ∧
       ∀ (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig))
@@ -19357,7 +19437,7 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
       | nil =>
         exact sourceInstanceUpdateEffects retained
           (fun record => (AsyncRef.backpressureInc? record.backpressure).isNone) .backpressureOverflow
-          Builtins.incBackpressureSt (fun store inst => instanceUpdate store inst _)
+          Builtins.incBackpressureSt (fun store _ => records store _ rfl rfl)
     | backpressureDec =>
       refine ⟨withArgs0 args Builtins.backpressureDec, ?_, fun _ _ _ _ => rfl⟩
       cases args with
@@ -19365,12 +19445,29 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
       | nil =>
         exact sourceInstanceUpdateEffects retained
           (fun record => (AsyncRef.backpressureDec? record.backpressure).isNone) .backpressureUnderflow
-          Builtins.decBackpressureSt (fun store inst => instanceUpdate store inst _)
+          Builtins.decBackpressureSt (fun store _ => records store _ rfl rfl)
     | resourceRep resource _ =>
       refine ⟨withArgs1 args (Builtins.resourceRep Limits.spec resource), ?_, fun _ _ _ _ => rfl⟩
       rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
       · exact trapOnly _
       · exact allocatorResourceRepEffects retained resource (flatNat word)
+      · exact trapOnly _
+    | resourceNew resource _ =>
+      refine ⟨withArgs1 args (Builtins.resourceNew Limits.spec resource), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceResourceNewEffects resource (flatNat word) records
+      · exact trapOnly _
+    | waitableSetNew =>
+      refine ⟨withArgs0 args (Builtins.waitableSetNew Limits.spec), ?_, fun _ _ _ _ => rfl⟩
+      cases args with
+      | nil => exact sourceWaitableSetNewEffects records
+      | cons => exact trapOnly _
+    | waitableSetDrop =>
+      refine ⟨withArgs1 args (Builtins.waitableSetDrop Limits.spec), ?_, fun _ _ _ _ => rfl⟩
+      rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+      · exact trapOnly _
+      · exact sourceWaitableSetDropEffects (flatNat word) records
       · exact trapOnly _
     | contextGet addressSize index =>
       refine ⟨withArgs0 args (Builtins.contextGet addressSize index), ?_, fun _ _ _ _ => rfl⟩
@@ -19397,7 +19494,7 @@ private theorem sourceLocalImportProgram (retained : CStore (core3 grow) → Pro
         refine (allocatorCurrentThreadPreserves retained).bind fun thread =>
           (sharedWorkerGetPreserves retained ArenaField.threads thread).bind fun record =>
           (allocatorTrapIfPreserves retained (decide (record.storage.length ≤ index)) .contextIndex).bind fun _ => ?_
-        exact .op (fun store source => contextUpdate store thread index (flatNat word) source) (fun _ => .pure _)
+        exact .op (fun store => records store _ rfl rfl) (fun _ => .pure _)
       · exact trapOnly _
     | _ => contradiction
   | _ => contradiction
@@ -19407,8 +19504,7 @@ private theorem crossSourceWorkerCoreImport
     {core : (core3 grow).Thread (CanonHost (core3 grow))} {host args task worker entry}
     (leftRest rightRest : List (Activation (core3 grow) (HostState sig)))
     (invariant : CStore (core3 grow) → Prop)
-    (instanceUpdate : ∀ store inst update, invariant store → invariant (ArenaOps.updateSt ArenaField.insts inst update store))
-    (contextUpdate : ∀ store thread index value, invariant store → invariant (Builtins.setContextSt thread index value store))
+    (records : WorkerRecordPreservation invariant)
     (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
     (source : invariant start.store)
     (checked : start.ctl = ⟨some worker, .core core (sharedDestructorCoreResult task entry), []⟩ :: leftRest)
@@ -19473,8 +19569,8 @@ private theorem crossSourceWorkerCoreImport
           simp only [sharedDestructorImportProgram, ← stores, admitted]
         have checkAt := congrArg lhs.control checkCode
         have canonAt := congrArg rhs.control canonCode
-        by_cases localImport : allocatorLocalImport host = true
-        · obtain ⟨program, effects, compiled⟩ := sourceLocalImportProgram invariant instanceUpdate contextUpdate host args localImport
+        by_cases localImport : sourceLocalImport host = true
+        · obtain ⟨program, effects, compiled⟩ := sourceLocalImportProgram invariant records host args localImport
           let result (words : List FlatValue) : Session grow sig (Ret (core3 grow)) := .pure (.flat words)
           have localCheck := checkAt.trans (congrArg lhs.control (compiled ready base start.store (some worker)))
           have localCanon := canonAt.trans (congrArg rhs.control
@@ -19530,8 +19626,7 @@ private theorem crossDestructorAllocatorCoreImport {body : ThreadBody (core3 gro
   let parent := sharedRecordAllocatorAfterResume (sig := sig) cx task caller
   exact crossSourceWorkerCoreImport (check.control parent) (canon.control parent)
     (fun store => SharedRecordAllocatorSource cx request width task caller store)
-    (fun _ _ _ source => sharedRecordAllocatorSourceFrame source rfl rfl)
-    (fun _ _ _ _ source => sharedRecordAllocatorSourceFrame source rfl rfl)
+    allocatorWorkerRecordPreservation
     stores scheduler source checked canonical status run reenter
     (fun same aligned reachedSource leftAt rightAt admitted tail =>
       .sharedDropRecordAllocatorCoreCallout (check := check) (canon := canon)
@@ -20928,7 +21023,7 @@ private theorem finishSourceDestructorWorker {limit : Nat} {task : TaskId} {work
       (fun aligned _ _ _ _ => aligned) same ⟨atBody, reachedSource⟩ checkBody canonBody actual bounded
       (fun stores aligned leftAt rightAt status residual reenter =>
         crossSourceWorkerCoreImport leftRest rightRest (SharedDestructorTaskSource task)
-          (fun _ _ _ source => source) (fun _ _ _ _ source => source)
+          (destructorWorkerRecordPreservation task)
           stores aligned.1 aligned.2 leftAt rightAt status residual reenter
           (fun same aligned source checked canonical admitted residual =>
             .sharedDropNestedCoreCallout (worker := worker) parents same aligned source checked canonical admitted residual))
