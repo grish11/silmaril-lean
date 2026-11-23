@@ -2779,7 +2779,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedRecordAllocator paths _ _ compared _ ih =>
     simpa only [List.append_assoc] using append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps ih)
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
-  | sharedRecordAfterRange _ _ paths _ tail
+  | sharedRecordAfterPrepare _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2832,7 +2832,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
       append (paths.choose_spec.1 none).1.steps (append compared.checkedRun.steps (callbackEndSteps ending))
   | sharedRecordAllocatorPop _ _ _ _ _ paths _ ending =>
     exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
-  | sharedRecordAfterRange _ _ paths _ tail
+  | sharedRecordAfterPrepare _ _ paths _ tail
   | sharedRecordPrepareMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordOwnerMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | sharedRecordEndpointMismatch _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -14386,6 +14386,76 @@ private def SharedRecordContinuation (profile : ProfileKind) (ready : HostReady 
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish
 
 open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
+private theorem cutSharedRecordPrepare {left right : Config (core3 grow) (HostState sig)}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (plan : List RecordLower.Object)
+    (checkedNext canonicalNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (site : PairedComponentSite older left right check canon)
+    (leftFocus : left.ctl = check.control
+      (.op .get (fun store => .op .hostGet (fun state => checkedNext (Record.prepare store state.writer plan)))))
+    (rightFocus : right.ctl = canon.control
+      (.op .get (fun store => .op .hostGet (fun state => canonicalNext (Record.prepare store state.writer plan)))))
+    (run : Steps profile ready (specDispatch ready base) left labels finish) :
+    ∃ used trailing reached peer, labels = used ++ trailing ∧
+      (∀ place, Prefix profile ready (specDispatch ready base) left place used reached place ∧
+        Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place used peer place) ∧
+      VisitorWriterPath profile ready base bindings left right used used reached peer ∧
+      Steps profile ready (specDispatch ready base) reached trailing finish ∧
+      (trailing = [] ∨
+        (∃ result, reached.ctl = check.control (checkedNext result) ∧
+          peer.ctl = canon.control (canonicalNext result) ∧ PairedComponentSite older reached peer check canon) ∨
+        ∃ beforeLeft beforeRight, Nonempty (SharedRecordPrepareMismatch beforeLeft beforeRight reached peer plan check canon)) := by
+  classical
+  let leftRead := { left with ctl := check.control (.op .hostGet
+    (fun state => checkedNext (Record.prepare left.store state.writer plan))) }
+  let rightRead := { right with ctl := canon.control (.op .hostGet
+    (fun state => canonicalNext (Record.prepare right.store state.writer plan))) }
+  have leftGet : Step profile ready (specDispatch ready base) left .tau leftRead := .get leftFocus
+  have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead := .get rightFocus
+  have got (place : Location) : Prefix profile ready (specDispatch ready base) left place [.tau] leftRead place ∧
+      Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau] rightRead place :=
+    ⟨.step leftGet (by rw [transitionEdit, leftFocus]; rfl) (.done _ _),
+      .step rightGet (by rw [transitionEdit, rightFocus]; rfl) (.done _ _)⟩
+  have readStore := VisitorWriterPath.framed (bindings := bindings)
+    (WriterPaths.frameSingle (.cons leftGet (.refl _)) rfl) (WriterPaths.frameSingle (.cons rightGet (.refl _)) rfl)
+  cases run with
+  | refl => exact ⟨[], [], _, right, rfl, fun place => ⟨.done _ _, .done _ _⟩,
+      WriterPaths.empty, .refl _, .inl rfl⟩
+  | @cons _ _ _ _ tail first residual =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet first
+    let leftResult := Record.prepare left.store left.host.writer plan
+    let rightResult := Record.prepare right.store right.host.writer plan
+    let reached := { leftRead with ctl := check.control (checkedNext leftResult) }
+    let peer := { rightRead with ctl := canon.control (canonicalNext rightResult) }
+    have checkedRead : Step profile ready (specDispatch ready base) leftRead .tau reached :=
+      .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
+        (k := fun state => checkedNext (Record.prepare left.store state.writer plan)) rfl
+    have canonicalRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau peer :=
+      .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+        (k := fun state => canonicalNext (Record.prepare right.store state.writer plan)) rfl
+    rcases splitSilent (count := 1) (.cons checkedRead (.refl _)) residual with ⟨suffix, divided, continuation⟩ | short
+    · have used : .tau :: tail = [.tau, .tau] ++ suffix := congrArg (List.cons .tau) divided
+      have paths (place : Location) :
+          Prefix profile ready (specDispatch ready base) left place [.tau, .tau] reached place ∧
+          Prefix profile ready (specDispatch ready (LiveDispatch.host bindings base)) right place [.tau, .tau] peer place :=
+        ⟨(got place).1.append (.step checkedRead (by cases place <;> rfl) (.done _ _)),
+          (got place).2.append (.step canonicalRead (by cases place <;> rfl) (.done _ _))⟩
+      have lhs := WriterPaths.frameSingle (.cons checkedRead (.refl _)) rfl
+      have rhs := WriterPaths.frameSingle (.cons canonicalRead (.refl _)) rfl
+      by_cases same : leftResult = rightResult
+      · have canonAt : peer.ctl = canon.control (canonicalNext leftResult) := by
+          change canon.control (canonicalNext rightResult) = _
+          rw [same]
+        exact ⟨[.tau, .tau], suffix, reached, peer, used, paths, readStore.append (.framed lhs rhs),
+          continuation, .inr (.inl ⟨leftResult, rfl, canonAt, site⟩)⟩
+      · have mismatch : SharedRecordPrepareMismatch leftRead rightRead reached peer plan check canon :=
+          ⟨checkedNext, canonicalNext, (HostFrame.Related.Paired.data site).1, rfl, rfl, rfl, rfl, same⟩
+        exact ⟨[.tau, .tau], suffix, reached, peer, used, paths,
+          readStore.append (.sharedRecordPrepare mismatch lhs rhs), continuation, .inr (.inr ⟨_, _, ⟨mismatch⟩⟩)⟩
+    · have empty : tail = [] := List.length_eq_zero_iff.mp (by omega)
+      exact ⟨[.tau], [], leftRead, rightRead, congrArg (List.cons .tau) empty, got, readStore, empty ▸ residual, .inl rfl⟩
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem crossSharedRecordPrepare {left right : Config (core3 grow) (HostState sig)}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leading trailing : Trace grow sig}
     (plan : List RecordLower.Object)
@@ -14403,70 +14473,20 @@ private theorem crossSharedRecordPrepare {left right : Config (core3 grow) (Host
       (.op .get (fun store => .op .hostGet (fun state => canonicalNext (Record.prepare store state.writer plan)))))
     (run : Steps profile ready (specDispatch ready base) left trailing finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
-  classical
-  let leftRead := { left with ctl := check.control (.op .hostGet (fun state => checkedNext (Record.prepare left.store state.writer plan))) }
-  let rightRead := { right with ctl := canon.control (.op .hostGet (fun state => canonicalNext (Record.prepare right.store state.writer plan))) }
-  have leftGet : Step profile ready (specDispatch ready base) left .tau leftRead := .get leftFocus
-  have rightGet : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau rightRead := .get rightFocus
-  have leftGetEdit : transitionEdit left .tau = .same := by rw [transitionEdit, leftFocus]; rfl
-  have rightGetEdit : transitionEdit right .tau = .same := by rw [transitionEdit, rightFocus]; rfl
-  cases run with
-  | refl =>
-    exact .inr (callbackTerminalSlice paired (by
-      rw [split, ← List.cons_append]
-      exact .coreAcceptTerminal paths writers (.refl _) (.inl rfl)))
-  | @cons _ _ finish label tail first residual =>
-    obtain ⟨rfl, rfl⟩ := silentStepUnique leftGet first
-    have got := retainComparedOccurrences paths (fun place =>
-      ⟨Prefix.step leftGet (by rw [leftGetEdit]; rfl) (.done _ _),
-        Prefix.step rightGet (by rw [rightGetEdit]; rfl) (.done _ _)⟩)
-    have throughGet := writers.append (.framed (WriterPaths.frameSingle (.cons leftGet (.refl _)) rfl)
-      (WriterPaths.frameSingle (.cons rightGet (.refl _)) rfl))
-    let leftResult := Record.prepare left.store left.host.writer plan
-    let rightResult := Record.prepare right.store right.host.writer plan
-    let reached := { leftRead with ctl := check.control (checkedNext leftResult) }
-    let peer := { rightRead with ctl := canon.control (canonicalNext rightResult) }
-    have checkedRead : Step profile ready (specDispatch ready base) leftRead .tau reached :=
-      .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest)
-        (k := fun state => checkedNext (Record.prepare left.store state.writer plan)) rfl
-    have canonicalRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rightRead .tau peer :=
-      .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
-        (k := fun state => canonicalNext (Record.prepare right.store state.writer plan)) rfl
-    rcases splitSilent (count := 1) (.cons checkedRead (.refl _)) residual with ⟨remaining, readUsed, continuation⟩ | short
-    · have lhs := WriterPaths.frameSingle (.cons checkedRead (.refl _)) rfl
-      have rhs := WriterPaths.frameSingle (.cons canonicalRead (.refl _)) rfl
-      have through := retainComparedOccurrences got (fun place =>
-        ⟨Prefix.step checkedRead (by cases place <;> rfl) (.done _ _),
-          Prefix.step canonicalRead (by cases place <;> rfl) (.done _ _)⟩)
-      have used : labels = (leading ++ [.tau, .tau]) ++ remaining := by
-        rw [split, readUsed]
-        simp only [List.append_assoc, List.cons_append, List.nil_append, List.replicate_succ, List.replicate_zero]
-      have moved : OccurrenceTransport profile ready base bindings start incoming
-          (.tau :: (leading ++ [.tau, .tau])) (.tau :: (leading ++ [.tau, .tau]))
-          reached peer [some (.active 0 0)] := by
-        simpa only [List.cons_append, List.append_assoc, List.nil_append] using through
-      by_cases same : leftResult = rightResult
-      · have traced : VisitorWriterPath profile ready base bindings start incoming
-            (.tau :: (leading ++ [.tau, .tau])) (.tau :: (leading ++ [.tau, .tau])) reached peer := by
-          simpa only [List.cons_append, List.append_assoc, List.nil_append] using throughGet.append (.framed lhs rhs)
-        have peerResult : rightResult = leftResult := same.symm
-        exact onRead leftResult used moved traced site rfl (by
-          change canon.control (canonicalNext rightResult) = _
-          rw [peerResult]) continuation
-      · have mismatch : SharedRecordPrepareMismatch leftRead rightRead reached peer plan check canon :=
-          ⟨checkedNext, canonicalNext, (HostFrame.Related.Paired.data site).1, rfl, rfl, rfl, rfl, same⟩
-        have traced : VisitorWriterPath profile ready base bindings start incoming
-            (.tau :: (leading ++ [.tau, .tau])) (.tau :: (leading ++ [.tau, .tau])) reached peer := by
-          simpa only [List.cons_append, List.append_assoc, List.nil_append] using throughGet.append (.sharedRecordPrepare mismatch lhs rhs)
-        exact .inr (callbackTerminalSlice paired (by
-          rw [used, ← List.cons_append]
-          exact .sharedRecordPrepareMismatch mismatch moved traced continuation))
-    · have empty : tail = [] := List.length_eq_zero_iff.mp (by omega)
-      have stopped : finish = leftRead := stepsAtEmpty (empty ▸ residual)
-      exact .inr (callbackTerminalSlice paired (by
-        rw [split, empty, stopped]
-        simpa only [List.cons_append, List.append_nil, List.singleton_append] using
-          (CallbackSliceEnd.coreAcceptTerminal (changes := older) got throughGet (.refl _) (.inl rfl))))
+  obtain ⟨used, suffix, reached, peer, divided, localPaths, localWriters, residual, ending⟩ :=
+    cutSharedRecordPrepare (bindings := bindings) plan checkedNext canonicalNext site leftFocus rightFocus run
+  have consumed : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
+  have moved := retainComparedOccurrences paths localPaths
+  have traced := writers.append localWriters
+  rcases ending with empty | ⟨result, checked, canonical, frame⟩ | ⟨_, _, ⟨conflict⟩⟩
+  · exact .inr (callbackTerminalSlice paired (by
+      rw [consumed, ← List.cons_append]
+      exact .coreAcceptTerminal moved traced residual (.inl empty)))
+  · exact onRead result consumed (by simpa only [List.cons_append] using moved)
+      (by simpa only [List.cons_append] using traced) frame checked canonical residual
+  · exact .inr (callbackTerminalSlice paired (by
+      rw [consumed, ← List.cons_append]
+      exact .sharedRecordPrepareMismatch conflict moved traced residual))
 
 open Stored.OwnedMemory.Claims Stored.Endpoints in
 private theorem sharedRecordAggregateCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
@@ -14626,8 +14646,29 @@ private theorem classifySharedRecordRange {beforeLeft beforeRight : Config (core
     exact .coreAcceptTerminal paths (.framed lhs rhs) residual (.inl (normal.resolve_right (fun unsupported => unsupported.1 trivial)))
   | trapped leftAt rightAt _ =>
     exact .coreAcceptTerminal paths (.framed lhs rhs) residual (.inr (.inr (.inr ⟨leftAt, rightAt⟩)))
-  | returned ptr checkAt canonAt _ =>
-    exact .sharedRecordAfterRange checkAt canonAt paths (.framed lhs rhs) residual
+  | returned ptr checkedAt canonicalAt frame =>
+    let plan := RecordLower.Field.listObjects entries
+    let nextCheck (result : Except RecordLower.Issue Unit) :=
+      sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= checkNext
+    let nextCanon (result : Except RecordLower.Issue Unit) :=
+      sharedRecordAfterAllocationPrepare cx width element entries index dest ptr result >>= canonNext
+    have checkedFocus : reached.ctl = check.control
+        (.op .get (fun store => .op .hostGet (fun state =>
+          nextCheck (Stored.OwnedMemory.Claims.Record.prepare store state.writer plan)))) := checkedAt
+    have canonicalFocus : peer.ctl = canon.control
+        (.op .get (fun store => .op .hostGet (fun state =>
+          nextCanon (Stored.OwnedMemory.Claims.Record.prepare store state.writer plan)))) := canonicalAt
+    obtain ⟨read, suffix, left, right, divided, localPaths, localWriters, after, ending⟩ :=
+      cutSharedRecordPrepare (bindings := bindings) plan nextCheck nextCanon frame checkedFocus canonicalFocus residual
+    have moved := retainComparedOccurrences paths localPaths
+    have traced := (VisitorWriterPath.framed lhs rhs).append localWriters
+    rw [divided, ← List.append_assoc]
+    rcases ending with empty | ⟨result, checked, canonical, _⟩ | ⟨_, _, ⟨conflict⟩⟩
+    · exact .coreAcceptTerminal moved traced after (.inl empty)
+    · by_cases empty : suffix = []
+      · exact .coreAcceptTerminal moved traced after (.inl empty)
+      · exact .sharedRecordAfterPrepare checked canonical moved traced after
+    · exact .sharedRecordPrepareMismatch conflict moved traced after
 
 open Stored.Endpoints in
 private theorem sharedRecordAllocatorCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
