@@ -1995,17 +1995,9 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
           RegistrationProbeMismatch beforeLeft beforeRight left right check canon leftTicket rightTicket none tree) ∨
         (left.ctl = [] ∧ right.ctl = [])) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
-  /-- The actual next string realloc, after the preceding local steps. -/
-  | sharedRecordString {changes reached peer finish trailing}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {cx steps tagged dest pointer}
-      {checkedNext canonicalNext : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))}
-      (checked : reached.ctl = check.control (sharedRecordStringRemaining cx steps tagged dest pointer checkedNext))
-      (canonical : peer.ctl = canon.control (sharedRecordStringRemaining cx steps tagged dest pointer canonicalNext))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- A compared local string instruction, followed by the actual remaining run. -/
-  | sharedRecordStringCompared {changes reached peer left right leading trailing finish}
-      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right)
+  /-- A compared shared record prefix, followed by the actual remaining run. -/
+  | sharedRecordCompared {changes reached peer left right leading trailing finish marks}
+      (paths : OccurrenceTransport profile ready base bindings reached peer leading leading left right marks)
       (writers : VisitorWriterPath profile ready base bindings reached peer leading leading left right)
       (ending : CallbackSliceEnd profile ready base bindings changes left right trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (leading ++ trailing) finish
