@@ -503,6 +503,7 @@ theorem local_data_entry {ready : HostReady (HostState sig)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
     (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (origin : CStore (core3 grow))
     (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
     (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (width : ptrTypeIn start.store (destination.context inst) = destination.width)
@@ -514,12 +515,13 @@ theorem local_data_entry {ready : HostReady (HostState sig)}
     let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
     Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) => match operation with
       | .choose _ => True
+      | .modify update => ∀ store, Core3.Grows origin.core store.core → Core3.Grows origin.core (update store).core
       | other => LocalStoreOp other) program ∧
     (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch start place
       (List.replicate reads .tau) reached place) ∧
       SilentLocalPath profile ready dispatch start (List.replicate reads .tau) reached) :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataEntry
-    destination inst type data payload index output start cursor finish width placed focused
+    destination inst type data payload index output origin start cursor finish width placed focused
 
 theorem local_data_leaf_frame_between {ready : HostReady (HostState sig)}
     {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}

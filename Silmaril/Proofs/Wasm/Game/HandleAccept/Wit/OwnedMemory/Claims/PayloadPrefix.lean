@@ -2136,6 +2136,7 @@ private theorem dataEntryOfType
 theorem localDataEntry
     (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
     (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (origin : CStore (core3 grow))
     (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
     (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
     (width : ptrTypeIn start.store (destination.context inst) = destination.width)
@@ -2147,18 +2148,22 @@ theorem localDataEntry
     let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
     Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) => match operation with
       | .choose _ => True
+      | .modify update => ∀ store, Core3.Grows origin.core store.core → Core3.Grows origin.core (update store).core
       | other => LocalStoreOp other) program ∧
     (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start place
       (List.replicate reads .tau) reached place) ∧
       SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached) := by
   dsimp only
   refine ⟨?_, dataEntryOfType destination inst type data payload index output start cursor finish width placed focused⟩
-  have localProgram := localDataProgram (profile := profile) (grow := grow) (sig := sig) (keep := fun _ => True)
-    (fun _ _ _ _ _ => trivial) destination inst type data payload output
+  let keep (store : CStore (core3 grow)) := Core3.Grows origin.core store.core
+  have localProgram := localDataProgram (profile := profile) (sig := sig) (growthWrites origin) destination inst type data payload output
   have localEffects {body : Session grow sig output.Result}
-      (closed : Prog.Every (ClosedOp profile (fun _ => True)) body) :
+      (closed : Prog.Every (ClosedOp profile keep) body) :
       Prog.Every (fun (operation : Op (core3 grow) (HostState sig)) =>
-        match operation with | .choose _ => True | other => LocalStoreOp other) body := by
+        match operation with
+        | .choose _ => True
+        | .modify update => ∀ store, keep store → keep (update store)
+        | other => LocalStoreOp other) body := by
     induction closed with
     | pure value => exact .pure value
     | @op operation _ _ _ ih =>
