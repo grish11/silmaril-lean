@@ -2995,9 +2995,10 @@ induction. Its trails still identify the removed original occurrences. -/
         Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- Both collection allocators were installed by actual call steps. Each
-  original return occurrence contains its own source-derived visitor. -/
-  | sourceOverlayCollectionInstalled {changes reached peer trailing finish}
+  /-- The paired allocator programs have run selection, caller allocation,
+  confinement and task allocation. Their original return occurrences still
+  hold the two source visitors at the reached worker-creation operation. -/
+  | sourceOverlayCollectionWorker {changes reached peer trailing finish callee task caller width}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
       (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
@@ -3008,17 +3009,20 @@ induction. Its trails still identify the removed original occurrences. -/
       (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
       (matching : Stored.Endpoints.RecordLower.Field.EntriesMatch entries element)
       (source : SourceOverlayFieldSource destination (.dynamic type element entries))
+      (allocator : let area := ABI.layout destination.width element
+        SharedRecordAllocatorSource (destination.context inst) ⟨0, 0, area.alignment.bytes, entries.length * area.size⟩
+          width task caller reached.store)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : let area := ABI.layout destination.width element
         let first := PayloadPrefix.checkedCollectionResume destination inst entries area index output checkNext
-        reached.ctl = (PayloadPrefix.collectionEntry destination inst area entries.length
-          (specDispatch ready base) reached check first).ctl)
+        reached.ctl = ({ check with frames := .prog first :: check.frames }).control
+          (.op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread (destination.context inst) task caller)))
       (canonical : let area := ABI.layout destination.width element
         let mode := Stored.Endpoints.RecordLower.CanonicalTree.EntryMode.forOutput destination.width type output
         let second := PayloadPrefix.canonicalCollectionResume destination inst entries area output canonNext mode
-        peer.ctl = (PayloadPrefix.collectionEntry destination inst area entries.length
-          (specDispatch ready (LiveDispatch.host bindings base)) peer canon second).ctl)
+        peer.ctl = ({ canon with frames := .prog second :: canon.frames }).control
+          (.op (.newThread (.liftImplicit task callee)) (sharedRecordAllocatorAfterThread (destination.context inst) task caller)))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}

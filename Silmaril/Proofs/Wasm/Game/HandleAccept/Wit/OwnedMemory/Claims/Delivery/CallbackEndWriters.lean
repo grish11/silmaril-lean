@@ -179,7 +179,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
       (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
       WriterPaths.empty (.cons step tail) (.executed step edit same tail)
   | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
-  | sourceOverlayCollectionInstalled _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
+  | sourceOverlayCollectionWorker _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
   | directGiveSelected _ _ body _ _ _ _ compiler =>
     apply follow body.paths body.writers
     rcases compiler with ⟨_, _, _, _, preparation⟩ | ⟨_, _, reply⟩
