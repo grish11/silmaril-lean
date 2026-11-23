@@ -23471,12 +23471,49 @@ private abbrev SourceOwnerDropAt
       SourceCoreReply profile ready base bindings older check canon limit finish →
       CallbackSliceEnd profile ready base bindings older left right remaining finish
 
+/-- The executable resource drop first removes and validates the handle, then
+selects the result of the owned or borrowed tail in the reached store. -/
+private def canonicalResourceDropPrepare (resource : RtId) (index : Nat) :
+    Session grow sig (Option (InstId × DtorRequest (core3 grow))) := do
+  let inst ← Builtins.resourceEnter
+  let request ← resourceDropCore Limits.spec inst resource index
+  return request.map (inst, ·)
+
+private def canonicalResourceDropStart : Option (ThreadBody (core3 grow)) → Session grow sig (Ret (core3 grow))
+  | none => .pure (.flat [])
+  | some body => .op (.newThread body) fun worker => do
+    Thread.resume worker
+    callUnit (.loop (.syncLiftLoop body.task))
+    return .flat []
+
+private def canonicalResourceDropReply : Option (InstId × DtorRequest (core3 grow)) → Session grow sig (Ret (core3 grow))
+  | none => .pure (.flat [])
+  | some request => sharedDestructorWorker request >>= canonicalResourceDropStart
+
+private abbrev SourceCanonicalDropAt
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
+  ∀ {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {left right : Config (core3 grow) (HostState sig)} {labels : Trace grow sig}
+    (resource : RtId) (index : Nat),
+    SourceParentStack older check.rest canon.rest → check.thread = canon.thread →
+    List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames →
+    left.store = right.store →
+    left.ctl = check.control (canonicalResourceDropPrepare resource index >>= canonicalResourceDropReply) →
+    right.ctl = canon.control (canonicalResourceDropPrepare resource index >>= canonicalResourceDropReply) →
+    Steps profile ready (specDispatch ready base) left labels finish →
+    DestructorSchedulerAlignment older left right → labels.length ≤ limit →
+    SourceCoreReply profile ready base bindings older check canon limit finish →
+    CallbackSliceEnd profile ready base bindings older left right labels finish
+
 private abbrev SourceReentryAt
     (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
     (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
   SourceAllocatorImportsAt profile ready base bindings older limit finish ∧
-  SourceOwnerDropAt profile ready base bindings older limit finish
+  SourceOwnerDropAt profile ready base bindings older limit finish ∧
+  SourceCanonicalDropAt profile ready base bindings older limit finish
 
 open Stored.OwnedMemory.Claims in
 private theorem finishSourceSelectedGive {limit : Nat}
@@ -23533,7 +23570,7 @@ private theorem finishSourceSelectedGive {limit : Nat}
           some (.dropOwner resource identity) := by simp only [SharedGiveAction.claimAt, selected, Option.map_some, identity]
       rw [sharedClaimProgram _ _ _ _ _ source] at checked canonical
       exact finishSourceSharedClaim linked source stores checked canonical run scheduler bounded resume
-        (fun _ leftLive rightLive visited => reentry.2 ⟨resource, identity, inst⟩ parents thread segments stores
+        (fun _ leftLive rightLive visited => reentry.2.1 ⟨resource, identity, inst⟩ parents thread segments stores
           checked canonical leftLive rightLive visited scheduler bounded resume)
 
 private theorem finishAdmittedSourceSharedGive {limit : Nat}
@@ -24261,14 +24298,6 @@ private theorem crossAdmittedSourceProgram {limit cap : Nat}
   compare parents present (.mk (.cons (.same _) .nil)) .nil stores scheduler checked canonical run within withinCap
     (fun same aligned lhs rhs tail bound => exposed same lhs rhs aligned tail bound)
 
-/-- The executable resource drop first removes and validates the handle, then
-selects the result of the owned or borrowed tail in the reached store. -/
-private def canonicalResourceDropPrepare (resource : RtId) (index : Nat) :
-    Session grow sig (Option (InstId × DtorRequest (core3 grow))) := do
-  let inst ← Builtins.resourceEnter
-  let request ← resourceDropCore Limits.spec inst resource index
-  return request.map (inst, ·)
-
 private theorem canonicalResourceDropPrepareEffects (resource : RtId) (index : Nat) :
     StoreEffects (canonicalResourceDropPrepare resource index : Session grow sig _) := by
   have enter : StoreEffects (Builtins.resourceEnter : Session grow sig InstId) := by
@@ -24292,17 +24321,6 @@ private theorem canonicalResourceDropPrepareEffects (resource : RtId) (index : N
     (storeEffectTrapIf (handle.rt != resource) .resourceTypeMismatch).bind fun _ =>
     (storeEffectTrapIf (handle.numLends != 0) .ownLent).bind fun _ =>
     (select handle).bind fun request => .pure (request.map (inst, ·))
-
-private def canonicalResourceDropStart : Option (ThreadBody (core3 grow)) → Session grow sig (Ret (core3 grow))
-  | none => .pure (.flat [])
-  | some body => .op (.newThread body) fun worker => do
-    Thread.resume worker
-    callUnit (.loop (.syncLiftLoop body.task))
-    return .flat []
-
-private def canonicalResourceDropReply : Option (InstId × DtorRequest (core3 grow)) → Session grow sig (Ret (core3 grow))
-  | none => .pure (.flat [])
-  | some request => sharedDestructorWorker request >>= canonicalResourceDropStart
 
 private theorem canonicalResourceDropWorkerCode (request : InstId × DtorRequest (core3 grow)) :
     (destructorCall Limits.spec Quirks.none request.1 request.2 >>= fun _ => .pure (.flat []) :
@@ -24333,71 +24351,6 @@ private theorem canonicalResourceDropCalloutCode (ready : HostReady (HostState s
   | some req =>
     simpa only [Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', Option.map_some] using
       canonicalResourceDropWorkerCode (current, req)
-
-private theorem canonicalResourceDropWorkerEffects (request : InstId × DtorRequest (core3 grow)) :
-    StoreEffects (sharedDestructorWorker request : Session grow sig _) := by
-  have allocate {Id Data : Type} (field : ArenaField (core3 grow) Id Data) (entry : Data) :
-      StoreEffects (allocObj field entry : Session grow sig Id) := by
-    unfold allocObj
-    exact storeEffectGet.bind fun _ => (storeEffectModify _).bind fun _ => .pure _
-  unfold sharedDestructorWorker
-  split
-  · exact .pure _
-  · unfold sharedDestructorTask sharedDestructorTaskDescription
-    exact (((sharedDestructorResourceRepEffects request).bind fun width =>
-      (allocate ArenaField.callers (.sub (.destructor request.2.rep))).bind fun caller =>
-      .pure (sharedDestructorTaskRecord _ width caller)).bind fun entry =>
-      allocate ArenaField.tasks entry.val).bind fun _ => .pure _
-
-private theorem crossAdmittedSourceBuiltin {limit cap : Nat}
-    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
-    {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
-    {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
-    (compare : SourceSwitchAt profile ready base bindings older cap finish)
-    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
-    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (checked : start.ctl = ⟨some worker, .prog (calloutBody Limits.spec Quirks.none ready base start.store (some worker)
-      (.builtin builtin inst) args), [.core core ret]⟩ :: rest)
-    (canonical : incoming.ctl = ⟨some worker, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
-      incoming.store (some worker) (.builtin builtin inst) args), [.core core ret]⟩ :: peerRest)
-    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
-    (withinCap : labels.length ≤ cap)
-    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
-      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
-      DestructorSchedulerAlignment older left right →
-      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
-      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
-    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  cases builtin with
-  | resourceDrop resource =>
-    rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
-    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
-    · let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], rest⟩
-      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], peerRest⟩
-      have leftAt := checked.trans (congrArg check.control
-        (canonicalResourceDropCalloutCode ready base start.store (some worker) inst resource word))
-      have rightAt := canonical.trans (congrArg canon.control
-        (canonicalResourceDropCalloutCode ready (LiveDispatch.host bindings base) incoming.store (some worker) inst resource word))
-      refine crossSharedWorkerBodyWith (check := check) (canon := canon) rfl
-        (canonicalResourceDropPrepare resource (flatNat word)) canonicalResourceDropReply canonicalResourceDropReply
-        (liftDestructorStoreEffects (canonicalResourceDropPrepareEffects resource (flatNat word)) (trivialPreserves _))
-        trivial stores leftAt rightAt run ?_
-      intro left right remaining request shorter _ same leftAt rightAt align tail
-      cases request with
-      | none =>
-        exact crossAdmittedSourceProgram compare _ parents present same (align scheduler) leftAt rightAt tail
-          (shorter.trans within) (shorter.trans withinCap) exposed
-      | some request =>
-        refine crossSharedWorkerBodyWith (check := check) (canon := canon) rfl (sharedDestructorWorker request)
-          canonicalResourceDropStart canonicalResourceDropStart
-          (liftDestructorStoreEffects (canonicalResourceDropWorkerEffects request) (trivialPreserves _))
-          trivial same leftAt rightAt tail ?_
-        intro entered peer suffix body suffixBound _ stores checked canonical moved actual
-        exact crossAdmittedSourceProgram compare _ parents present stores (moved (align scheduler)) checked canonical actual
-          (suffixBound.trans (shorter.trans within)) (suffixBound.trans (shorter.trans withinCap)) exposed
-    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
-  | _ => exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
 
 private theorem finishSourceAllocatorParent {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -24443,6 +24396,45 @@ private theorem finishSourceCoreReplyWith {limit cap : Nat}
   cases thread
   exact compare parents present (.mk segments) .nil stores scheduler lhs rhs tail bounded (bounded.trans limitWithin)
     (fun same aligned checked canonical run shorter => exposed same checked canonical aligned run shorter)
+
+private theorem crossAdmittedSourceBuiltin {limit cap : Nat}
+    {rest peerRest : List (Activation (core3 grow) (HostState sig))}
+    {worker : ThreadId} {core : (core3 grow).Thread (CanonHost (core3 grow))}
+    {ret : List FlatValue → Session grow sig (Ret (core3 grow))}
+    (compare : SourceSwitchAt profile ready base bindings older cap finish)
+    (onDrop : SourceCanonicalDropAt profile ready base bindings older labels.length finish)
+    (builtin : ResolvedBuiltin (core3 grow)) (inst : InstId) (args : List FlatValue)
+    (parents : SourceParentStack older rest peerRest) (present : rest ≠ [] ∧ peerRest ≠ [])
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = ⟨some worker, .prog (calloutBody Limits.spec Quirks.none ready base start.store (some worker)
+      (.builtin builtin inst) args), [.core core ret]⟩ :: rest)
+    (canonical : incoming.ctl = ⟨some worker, .prog (calloutBody Limits.spec Quirks.none ready (LiveDispatch.host bindings base)
+      incoming.store (some worker) (.builtin builtin inst) args), [.core core ret]⟩ :: peerRest)
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (withinCap : labels.length ≤ cap)
+    (exposed : ∀ {left right : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig},
+      left.store = right.store → left.ctl = rest → right.ctl = peerRest →
+      DestructorSchedulerAlignment older left right →
+      Steps profile ready (specDispatch ready base) left remaining finish → remaining.length ≤ limit →
+      CallbackSliceEnd profile ready base bindings older left right remaining finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases builtin with
+  | resourceDrop resource =>
+    rcases args with _ | ⟨word, _ | ⟨extra, tail⟩⟩
+    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
+    · let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], rest⟩
+      let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨some worker, [.core core ret], peerRest⟩
+      have leftAt := checked.trans (congrArg check.control
+        (canonicalResourceDropCalloutCode ready base start.store (some worker) inst resource word))
+      have rightAt := canonical.trans (congrArg canon.control
+        (canonicalResourceDropCalloutCode ready (LiveDispatch.host bindings base) incoming.store (some worker) inst resource word))
+      let segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames := .cons (.same _) .nil
+      have resume := finishSourceCoreReplyWith (limit := labels.length) (check := check) (canon := canon)
+        compare withinCap parents present rfl segments
+        (fun stores checked canonical aligned run bounded => exposed stores checked canonical aligned run (bounded.trans within))
+      exact onDrop (check := check) (canon := canon) resource (flatNat word) parents rfl segments stores leftAt rightAt run scheduler (Nat.le_refl _) resume
+    · exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
+  | _ => exact crossAdmittedSourceProgram compare _ parents present stores scheduler checked canonical run within withinCap exposed
 
 private theorem compareAdmittedSourceLinkedWith {limit cap : Nat}
     {rest peerRest : List (Activation (core3 grow) (HostState sig))}
@@ -24614,8 +24606,9 @@ private theorem finishSourceDestructorWorkerWith {limit : Nat} {task : TaskId} {
               same aligned source checked canonical admitted residual
             cases host with
             | builtin builtin inst =>
-              have within := shorter.trans ((Nat.le_succ _).trans coreBound)
-              exact crossAdmittedSourceBuiltin compare builtin inst args parents parentPresent same aligned
+              have smaller := Nat.lt_of_le_of_lt shorter (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) coreBound)
+              have within := Nat.le_of_lt smaller
+              exact crossAdmittedSourceBuiltin compare (reentry _ smaller).2.2 builtin inst args parents parentPresent same aligned
                 checked canonical residual within within returned
             | lowered _ _ _ _ =>
               have within := shorter.trans ((Nat.le_succ _).trans coreBound)
@@ -24633,6 +24626,146 @@ private theorem finishSourceDestructorWorkerWith {limit : Nat} {task : TaskId} {
           (fun same checked canonical align tail shorter => complete same checked canonical (align aligned.1) tail (shorter.trans within)))
 
 open ReturnFrame.Occurrence in
+private def canonicalResourceDropLoopReply : ReturnFrame.Continuation (core3 grow) (HostState sig)
+  | .unit => .pure (.flat [])
+  | _ => internal "late-bound call: expected Ret.unit"
+
+private theorem canonicalResourceDropParentCode (task : TaskId) :
+    (do callUnit (.loop (.syncLiftLoop task)); return .flat [] : Session grow sig (Ret (core3 grow))) =
+      .op (.call (.loop (.syncLiftLoop task))) canonicalResourceDropLoopReply := by
+  simp [callUnit, callRet, Prog.lift, perform, bind, Prog.bind]
+  congr 1
+  funext reply
+  cases reply <;> try rfl
+  all_goals simp [canonicalResourceDropLoopReply, internal, trap, Prog.bind]
+  all_goals congr 1
+  all_goals funext response
+  all_goals cases response
+
+private theorem finishSourceCanonicalDropStart {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (request : InstId × DtorRequest (core3 grow)) (task : TaskId)
+    (compare : SourceSwitchAt profile ready base bindings older limit finish)
+    (reentry : ∀ bound, bound < limit → SourceReentryAt profile ready base bindings older bound finish)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (source : SharedDestructorTaskSource task start.store)
+    (stores : start.store = incoming.store)
+    (leftAt : start.ctl = check.control (canonicalResourceDropStart (some (sharedDestructorThread task request.2.dtor))))
+    (rightAt : incoming.ctl = canon.control (canonicalResourceDropStart (some (sharedDestructorThread task request.2.dtor))))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let body := sharedDestructorThread task request.2.dtor
+  have bodyTask : body.task = task := by unfold body sharedDestructorThread; split <;> rfl
+  let parent : Session grow sig (Ret (core3 grow)) := do
+    callUnit (.loop (.syncLiftLoop body.task))
+    return .flat []
+  refine crossSourceWorkerResume (check := check) (canon := canon) body parent parent
+    stores leftAt rightAt scheduler run ?_
+  intro worker beforeLeft beforeRight left right suffix storeAt equal aligned _ _ _ _ _ _ checked canonical shorter tail
+  have sourceParents : SourceParentStack older (check.control parent) (canon.control parent) := by
+    have active : ReturnFrame.Related.Active older ⟨check.thread, .prog parent, check.frames⟩
+        ⟨canon.thread, .prog parent, canon.frames⟩ := by
+      rw [thread]
+      exact .mk segments
+    exact .prefixed (.cons active .nil) parents
+  have reachedSource : SharedDestructorTaskSource task left.store := by
+    apply destructorWorkerRecordPreservation task start.store left.store ?_ ?_ source <;>
+      rw [storeAt] <;> unfold destructorResumeStore <;> split <;> rfl
+  obtain ⟨entry, width, rep, found, typeAt, optionsAt, callerAt⟩ := reachedSource
+  have sync : entry.ft.async_ = false := by rw [typeAt]; rfl
+  refine crossSourceWorkerAdmission task request.2.dtor worker (check.control parent) (canon.control parent)
+    entry found sync equal checked canonical tail ?_
+  intro reached peer remaining applied same leftAt rightAt align residual admittedLength
+  let admitted := sharedDestructorSourceAtAdmission worker ⟨entry, width, rep, found, typeAt, optionsAt, callerAt⟩ applied same
+  refine finishSourceDestructorWorkerWith (worker := worker) compare reentry sourceParents
+    ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩ admitted (align aligned) leftAt rightAt residual
+    (admittedLength.trans ((Nat.le_of_lt shorter).trans bounded)) ?_
+  intro finished peer trailing stores checked canonical scheduler run within
+  have parentCode : parent = .op (.call (.loop (.syncLiftLoop task))) canonicalResourceDropLoopReply := by
+    exact (canonicalResourceDropParentCode body.task).trans
+      (congrArg (fun task => (.op (.call (.loop (.syncLiftLoop task))) canonicalResourceDropLoopReply :
+        Session grow sig (Ret (core3 grow)))) bodyTask)
+  rw [parentCode] at checked canonical
+  refine finishSourceLiftLoopWith compare task canonicalResourceDropLoopReply canonicalResourceDropLoopReply
+    thread (.common _ (.paired segments)) parents stores scheduler checked canonical run within ?_
+  intro left right remaining stores aligned checked canonical tail shorter
+  exact resume [] stores aligned checked canonical tail (shorter.trans within)
+
+open ReturnFrame.Occurrence in
+private theorem finishSourceCanonicalDropSetup {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (request : InstId × DtorRequest (core3 grow))
+    (compare : SourceSwitchAt profile ready base bindings older limit finish)
+    (reentry : ∀ bound, bound < limit → SourceReentryAt profile ready base bindings older bound finish)
+    (parents : SourceParentStack older check.rest canon.rest)
+    (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (canonicalResourceDropReply (some request)))
+    (canonical : incoming.ctl = canon.control (canonicalResourceDropReply (some request)))
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (bounded : labels.length ≤ limit)
+    (resume : SourceCoreReply profile ready base bindings older check canon limit finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  cases implementation : request.2.impl with
+  | none =>
+    simp only [canonicalResourceDropReply, sharedDestructorWorker, implementation, Prog.pure_eq,
+      Prog.bind_eq, Prog.pure_bind', canonicalResourceDropStart] at checked canonical
+    exact resume [] stores scheduler checked canonical run bounded
+  | some impl =>
+    let next (task : TaskId) := canonicalResourceDropStart (sig := sig) (some (sharedDestructorThread task request.2.dtor))
+    let callerEntry : Caller (core3 grow) := .sub (.destructor request.2.rep)
+    let afterCaller (width : AddrType) (caller : CallerId) :=
+      allocObj ArenaField.tasks (sharedDestructorTaskRecord impl width caller).val >>= next
+    let setup (width : AddrType) := allocObj ArenaField.callers callerEntry >>= afterCaller width
+    have code : canonicalResourceDropReply (some request) = sharedDestructorResourceRep request >>= setup := by
+      simp [canonicalResourceDropReply, sharedDestructorWorker, implementation, sharedDestructorTask,
+        sharedDestructorTaskDescription, setup, afterCaller, next, callerEntry, bind, Prog.bind_assoc, Prog.bind]
+    refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread (sharedDestructorResourceRep request) setup setup
+      (liftDestructorStoreEffects (sharedDestructorResourceRepEffects request) (trivialPreserves _)) trivial
+      stores (checked.trans (congrArg check.control code)) (canonical.trans (congrArg canon.control code)) run ?_
+    intro before beforePeer remaining width shorter _ same leftAt rightAt aligned tail
+    refine crossSharedRecordArenaAlloc (check := check) (canon := canon) ArenaField.callers callerEntry
+      (afterCaller width) (afterCaller width) same leftAt rightAt tail ?_
+    intro afterCallerLabels
+    dsimp only
+    intro callerRun shorterCaller
+    let caller := ArenaField.callers.alloc before.store callerEntry
+    let entry := sharedDestructorTaskRecord (grow := grow) impl width caller.2
+    refine crossSharedRecordArenaAlloc (check := check) (canon := canon) ArenaField.tasks entry.val
+      next next rfl rfl rfl callerRun ?_
+    intro afterTaskLabels
+    dsimp only
+    intro taskRun shorterTask
+    let allocation := ArenaField.tasks.alloc caller.1 entry.val
+    have source : SharedDestructorTaskSource allocation.2 allocation.1 :=
+      ⟨entry.val, width, request.2.rep, ArenaField.tasks.get?_alloc_self caller.1 entry.val,
+        rfl, rfl, ArenaField.callers.get?_alloc_self before.store callerEntry⟩
+    exact finishSourceCanonicalDropStart (check := check) (canon := canon) request allocation.2 compare reentry parents thread segments
+      source rfl rfl rfl taskRun (aligned scheduler) (shorterTask.trans (shorterCaller.trans (shorter.trans bounded))) resume
+
+private theorem finishSourceCanonicalDrop {limit : Nat}
+    (compare : SourceSwitchAt profile ready base bindings older limit finish)
+    (reentry : ∀ bound, bound < limit → SourceReentryAt profile ready base bindings older bound finish) :
+    SourceCanonicalDropAt profile ready base bindings older limit finish := by
+  intro check canon start incoming labels resource index parents thread segments stores checked canonical run scheduler bounded resume
+  refine crossSharedWorkerBodyWith (check := check) (canon := canon) thread
+    (canonicalResourceDropPrepare resource index) canonicalResourceDropReply canonicalResourceDropReply
+    (liftDestructorStoreEffects (canonicalResourceDropPrepareEffects resource index) (trivialPreserves _))
+    trivial stores checked canonical run ?_
+  intro left right remaining request shorter _ same leftAt rightAt align tail
+  cases request with
+  | none => exact resume [] same (align scheduler) leftAt rightAt tail (shorter.trans bounded)
+  | some request =>
+    exact finishSourceCanonicalDropSetup request compare reentry parents thread segments same leftAt rightAt tail
+      (align scheduler) (shorter.trans bounded) resume
+
 private theorem finishSourceNestedDestructorStart {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     {request : InstId × DtorRequest (core3 grow)} {impl task leftTicket rightTicket}
@@ -24903,8 +25036,8 @@ private theorem finishSourceReentry {limit : Nat} :
           equal checked canonical scheduler residual bounded
       cases host with
       | builtin builtin inst =>
-        exact crossAdmittedSourceBuiltin compare builtin inst args sourceParents present same aligned
-          leftAt rightAt tail within within onParent
+        exact crossAdmittedSourceBuiltin compare (ih _ shorter (narrowSourceSwitch compare within)).2.2
+          builtin inst args sourceParents present same aligned leftAt rightAt tail within within onParent
       | lowered _ _ _ _ =>
         exact crossAdmittedSourceProgram compare _ sourceParents present same aligned
           leftAt rightAt tail within within onParent
@@ -24913,11 +25046,14 @@ private theorem finishSourceReentry {limit : Nat} :
           sourceParents present same aligned leftAt rightAt tail (Nat.le_refl _)
           (fun stores checked canonical aligned run bound => onParent stores checked canonical aligned run (bound.trans within))
           frontier
-    · intro check canon rep leftTicket rightTicket drop parents thread segments left right remaining
-        same checked canonical liveLeft liveRight run aligned within resume
-      exact finishSourceOwnerDrop drop compare (fun bound smaller => ih bound smaller
-          (narrowSourceSwitch compare (Nat.le_of_lt smaller))) parents thread segments
-        same checked canonical liveLeft liveRight run aligned within resume
+    · constructor
+      · intro check canon rep leftTicket rightTicket drop parents thread segments left right remaining
+          same checked canonical liveLeft liveRight run aligned within resume
+        exact finishSourceOwnerDrop drop compare (fun bound smaller => ih bound smaller
+            (narrowSourceSwitch compare (Nat.le_of_lt smaller))) parents thread segments
+          same checked canonical liveLeft liveRight run aligned within resume
+      · exact finishSourceCanonicalDrop compare (fun bound smaller => ih bound smaller
+          (narrowSourceSwitch compare (Nat.le_of_lt smaller)))
 
 private theorem classifySourceSwitch {profile : ProfileKind} {ready : HostReady (HostState sig)}
     {base : HostImpl (core3 grow) (HostState sig)} {bindings : List (Binding sig)}
@@ -25295,7 +25431,7 @@ private theorem finishDestructorSelectedSharedGive {limit : Nat} {body : ThreadB
       exact finishSourceEndpointGive ⟨channel, element, identity, inst⟩ thread stores checked canonical
         leftLive rightLive visited scheduler bounded resume
     | dropOwner resource identity =>
-      exact (finishSourceReentry (classifySourceSwitch limit)).2 ⟨resource, identity, inst⟩
+      exact (finishSourceReentry (classifySourceSwitch limit)).2.1 ⟨resource, identity, inst⟩
         (destructorParentStack parents) thread segments stores checked canonical leftLive rightLive visited scheduler bounded resume
 
 open ReturnFrame.Occurrence in
