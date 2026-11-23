@@ -117,7 +117,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   induction ending with
   | exhausted => exact stop (.refl _)
   | boundary _ step tail => exact stop (.cons step tail)
-  | observation _ _ paths tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)
+  | observation _ _ paths writers tail => exact terminal paths writers tail
   | pendingAssignment _ _ _ _ paths same =>
     obtain ⟨checked, canonical⟩ := paths.choose_spec.1 none
     exact terminal paths (.framed (oneFrame checked.steps same.1) (oneFrame canonical.steps same.2)) (.refl _)

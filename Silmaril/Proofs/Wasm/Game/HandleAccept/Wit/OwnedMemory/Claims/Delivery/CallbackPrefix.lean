@@ -882,14 +882,17 @@ theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 gro
     CallbackSliceEnd profile ready base bindings changes start incoming (label :: trailing) finish := by
   obtain ⟨rfl, rfl⟩ := actualHostGet focus step
   obtain ⟨peerFrames, peerRest, atPeer, _⟩ := paired.retarget focus (.prog (resume start.host)) start.host incoming.host
-  refine .observation (otherNext := { incoming with ctl := ⟨thread, .prog (resume incoming.host), peerFrames⟩ :: peerRest })
-    focus different (stationaryTransport ?_ ?_) tail
+  let peerNext := { incoming with ctl := ⟨thread, .prog (resume incoming.host), peerFrames⟩ :: peerRest }
+  have observed : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peerNext :=
+    .hostGet atPeer
+  refine .observation (otherNext := peerNext)
+    focus different (stationaryTransport ?_ ?_) (.framed (.same step rfl (.done _)) (.same observed rfl (.done _))) tail
   · intro place
     refine .step (.hostGet focus) ?_ (.done _ _)
     rw [transitionEdit, focus]
     cases place <;> rfl
   · intro place
-    refine .step (.hostGet atPeer) ?_ (.done _ _)
+    refine .step observed ?_ (.done _ _)
     rw [transitionEdit, atPeer]
     cases place <;> rfl
 

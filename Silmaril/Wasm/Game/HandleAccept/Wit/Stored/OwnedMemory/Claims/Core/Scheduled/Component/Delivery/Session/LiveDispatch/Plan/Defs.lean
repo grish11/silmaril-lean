@@ -1075,6 +1075,7 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (focus : reached.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (different : resume reached.host ≠ resume peer.host)
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] next otherNext)
+      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] next otherNext)
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | pendingAssignment {changes reached peer left right leftTarget rightTarget next}

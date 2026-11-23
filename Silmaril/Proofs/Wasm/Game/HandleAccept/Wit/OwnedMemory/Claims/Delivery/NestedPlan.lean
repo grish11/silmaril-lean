@@ -2691,7 +2691,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   induction ending with
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
-  | observation _ _ paths tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
@@ -2730,7 +2730,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   cases ending with
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
-  | observation read _ _ _ => simp_all [PayloadPrefix.Cursor.control]
+  | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentEntryPrefix _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | componentObserverTerminal _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
