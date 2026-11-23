@@ -1404,6 +1404,79 @@ inductive LinkedCoreAcceptLoader (bindings : List (Binding sig)) (name : String)
       (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩) :
       LinkedCoreAcceptLoader bindings name kind args source.inst (fun state => source.load state args)
 
+section LegacyChildHistory
+
+open Silmaril.Wasm.Game (UCall)
+open Silmaril.Wasm.Game.Accept (Callout)
+open Silmaril.Wasm.Game.HandleAccept.Memory (le32s)
+open Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst (checkNodeMode checkedCallout nodeOperands)
+open Stored.Endpoints.Core (childFromHistory checkChildren Contract)
+
+/-- The first differing child lookup after a shared successful prefix of the
+handle words actually decoded by the loader. -/
+inductive VisitedChildMismatch {Value : Type} (left right : List Value) : List (BitVec 32) → Prop where
+  | first {handle tail} (different : childFromHistory left handle ≠ childFromHistory right handle) :
+      VisitedChildMismatch left right (handle :: tail)
+  | next {handle tail child} (checked : childFromHistory left handle = some child)
+      (canonical : childFromHistory right handle = some child) (later : VisitedChildMismatch left right tail) :
+      VisitedChildMismatch left right (handle :: tail)
+
+/-- The history demand made by two already admitted loaders. -/
+inductive ChildHistoryDemand {sig : Signature} {Value : Type}
+    (left right : List Value) (tag : sig.Tag) (observed : Callout) (pointer count : Nat)
+    (beforeLookup : Prop) : Prop where
+  | capacity (different : checkChildren sig tag left.length pointer count ≠
+      checkChildren sig tag right.length pointer count) : ChildHistoryDemand left right tag observed pointer count beforeLookup
+  | child {bytes handles} (admitted : beforeLookup)
+      (checked : checkChildren sig tag left.length pointer count = .ok ())
+      (canonical : checkChildren sig tag right.length pointer count = .ok ())
+      (range : observed.segment pointer (4 * count) = some bytes) (decoded : le32s bytes = some handles)
+      (different : VisitedChildMismatch left right handles) : ChildHistoryDemand left right tag observed pointer count beforeLookup
+
+/-- History demand after the shared executable memory preflight inputs check. -/
+def LegacyMemoryChildDemand {Value : Type} (contract : Contract sig)
+    (check : Stored.TypeOf → Except Stored.Issue Unit) (memory : Option Nat)
+    (left right : List Value) (call : UCall Nat) : Prop :=
+  ∃ mem observed rawTag payload pointer count tag,
+    checkNodeMode contract.mode = .ok () ∧ memory = some mem ∧
+    checkedCallout contract.name mem call contract.mode.address = .ok observed ∧
+    nodeOperands contract.mode.address observed.args = some (rawTag, payload, pointer, count) ∧
+    contract.tagOf rawTag = some tag ∧ check (sig.payload tag) = .ok () ∧
+    ChildHistoryDemand left right tag observed pointer count
+      (let layout := ABI.layout contract.mode.address (sig.payload tag)
+       payload % layout.alignment.bytes = 0 ∧ ∃ bytes, observed.segment payload layout.size = some bytes)
+
+/-- History demand after the shared executable flat preflight inputs check. -/
+def LegacyFlatChildDemand (source : FlatSource sig) (store : CStore (core3 grow))
+    (left right : Stored.OwnedMemory.Claims.State sig) (args : List FlatValue) : Prop :=
+  ∃ observed pointer count payload,
+    Core.checkFlatSchema (sig.payload source.tag) = .ok () ∧
+    checkedCallout source.name source.memory ⟨0, { mems := store.core.mems }, []⟩ source.width = .ok observed ∧
+    args = pointer :: count :: payload ∧
+    (Stored.flatType pointer != ABI.pointerType source.width || Stored.flatType count != ABI.pointerType source.width) = false ∧
+    (payload.map Stored.flatType != ABI.flatten source.width (sig.payload source.tag)) = false ∧
+    ChildHistoryDemand left.accepted right.accepted source.tag observed (flatNat pointer) (flatNat count) True
+
+/-- History evidence at a linked source loader whose two reads use the same
+reached canonical store. No lookup in this certificate confers nominal authority. -/
+inductive LinkedCoreAcceptHistoryDemand (bindings : List (Binding sig)) (name : String)
+    (kind : Silmaril.Wasm.V1.FuncType) (args : List FlatValue) (left right : World grow sig) :
+    InstId → (World grow sig → CStore (core3 grow) × Except Core.Issue (Stored.OwnedMemory.Tree sig)) → Prop where
+  | memory (contract : Contract sig) (memory : Option Nat)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, contract.inst, .accept contract memory⟩)
+      (stores : left.reference = right.reference)
+      (demand : LegacyMemoryChildDemand contract Stored.OwnedMemory.checkSchema memory left.writer.accepted
+        right.writer.accepted (Stored.Endpoints.Core.Scheduled.nodeCall contract left.reference args)) :
+      LinkedCoreAcceptHistoryDemand bindings name kind args left right contract.inst
+        (fun state => Core.load contract memory state (Stored.Endpoints.Core.Scheduled.nodeCall contract state.reference args))
+  | flat (source : FlatSource sig)
+      (linked : resolveBinding bindings name kind = .ok ⟨name, source.inst, .acceptFlat source⟩)
+      (stores : left.reference = right.reference)
+      (demand : LegacyFlatChildDemand source left.reference left.writer right.writer args) :
+      LinkedCoreAcceptHistoryDemand bindings name kind args left right source.inst (fun state => source.load state args)
+
+end LegacyChildHistory
+
 /-- A resolved legacy action can carry an instance different from the
 binding's instance. The executable handler returns a typed context error. -/
 def LegacyBindingContextMismatch (binding : Binding sig) : Prop :=
@@ -2498,7 +2571,8 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
   updates or results. Registration and the loader store writes are still pending. -/
   | legacyLoadMismatch {changes reached peer finish trailing beforeLeft beforeRight check canon leftTicket rightTicket
       name kind args inst loader}
-      (source : LinkedCoreAcceptLoader (grow := grow) bindings name kind args inst loader)
+      (source : LinkedCoreAcceptHistoryDemand bindings name kind args
+        ⟨beforeLeft.store, beforeLeft.host.writer⟩ ⟨beforeRight.store, beforeRight.host.writer⟩ inst loader)
       (checked : CoreAcceptLoaderRead profile ready (specDispatch ready base) check leftTicket loader beforeLeft reached)
       (canonical : CoreAcceptLoaderRead profile ready (specDispatch ready (LiveDispatch.host bindings base))
         canon rightTicket loader beforeRight peer)

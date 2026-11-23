@@ -31,6 +31,7 @@ import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
+import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.LegacyLoaderDemand
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackEndWriters
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackRange
@@ -12889,7 +12890,9 @@ private theorem crossAdmittedAcceptBody {worker frames rest peerFrames peerRest 
         refine .comparedPrefix paths writers ?_
         rw [readSplit]
         exact .comparedPrefix (CallbackPrefix.stationaryTransport lhs.1.track rhs.1.track) (.framed lhs.2 rhs.2)
-          (.legacyLoadMismatch source ⟨rfl, rfl, reads⟩ ⟨rfl, rfl, peerReads⟩ (Ne.symm loaded) tail)
+          (.legacyLoadMismatch (beforeLeft := leftLoad) (beforeRight := rightLoad)
+            (LegacyLoaderDemand.ofLoaderDifference source same (Ne.symm loaded))
+            ⟨rfl, rfl, reads⟩ ⟨rfl, rfl, peerReads⟩ (Ne.symm loaded) tail)
       · obtain ⟨_, peer, moved, _, framed, _, _⟩ := compareFramedQuietShort lhs rhs entrySite ⟨_, rfl⟩ ⟨_, rfl⟩ residual short
         obtain ⟨_, whole, _⟩ := CallbackPrefix.transportAppend paths moved
         exact stop (by rw [split, List.append_nil])
@@ -17314,7 +17317,9 @@ private theorem finishAdmittedSourceLegacy {limit : Nat}
         cases tail
         exact .comparedPrefix moved effects .exhausted
       · exact .comparedPrefix moved effects
-          (.legacyLoadMismatch source ⟨rfl, rfl, reads⟩ ⟨rfl, rfl, peerReads⟩ (Ne.symm same) tail)
+          (.legacyLoadMismatch (beforeLeft := left) (beforeRight := right)
+            (LegacyLoaderDemand.ofLoaderDifference source stores (Ne.symm same))
+            ⟨rfl, rfl, reads⟩ ⟨rfl, rfl, peerReads⟩ (Ne.symm same) tail)
 
 private theorem finishSourceScheduledReply {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
