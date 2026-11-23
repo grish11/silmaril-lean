@@ -160,7 +160,7 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
   | directGiveLateReply _ _ body _ reply => exact follow body.paths body.writers (directReply reply)
   | directGiveFinite body => simpa only [List.append_nil] using terminal body.paths body.writers body.residual
   | allocator _ body _ _ _ _ ih => exact follow body.paths body.writers ih
-  | uncertified _ _ _ paths tail => exact stop (appendSteps (paths.choose_spec.1 none).1.steps tail)
+  | nonGrowing _ _ paths writers tail => exact terminal paths writers tail
   | pollTerminal paths writers _ _ _ tail => exact terminal paths writers tail
   | waitTerminal paths writers _ _ tail => exact terminal paths writers tail
   | cancelTerminal paths writers _ _ _ tail => exact terminal paths writers tail

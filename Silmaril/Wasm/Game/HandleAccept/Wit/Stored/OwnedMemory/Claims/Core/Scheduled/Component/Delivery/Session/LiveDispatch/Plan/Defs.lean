@@ -1273,11 +1273,11 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)),
         left.ctl = { cursor with frames := .prog first :: cursor.frames }.control (.pure (.nat pointer))) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
-  | uncertified {changes reached peer label next left right checked canonical trailing finish}
-      (install : GiveInstall bindings (specDispatch ready base) reached label next)
+  | nonGrowing {changes reached peer left right checked canonical trailing finish marks}
       (update : ReachedNonGrowingUpdate profile ready (specDispatch ready base) reached checked left)
       (paired : HostFrame.Related.Paired changes left right)
-      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right)
+      (paths : OccurrenceTransport profile ready base bindings reached peer checked canonical left right marks)
+      (writers : VisitorWriterPath profile ready base bindings reached peer checked canonical left right)
       (residual : Steps profile ready (specDispatch ready base) left trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (checked ++ trailing) finish
   | pollTerminal {changes reached peer left right checked trailing finish mark check canon}
@@ -6136,7 +6136,8 @@ def GiveVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState s
       CallbackSlice profile ready base bindings older site.start incoming (checkEntry ++ actual) finish) ∨
       (ReachedNonGrowingUpdate profile ready (specDispatch ready base) site.start checkFull checked ∧
         HostFrame.Related.Paired older checked canonical ∧
-        OccurrenceTransport profile ready base bindings site.start incoming checkFull canonFull checked canonical)
+        OccurrenceTransport profile ready base bindings site.start incoming checkFull canonFull checked canonical ∧
+        VisitorWriterPath profile ready base bindings site.start incoming checkFull canonFull checked canonical)
 
 abbrev MemoryVisitCommonReply (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
