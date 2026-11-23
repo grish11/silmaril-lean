@@ -24,35 +24,56 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
   {actual checked canonical trailing : Trace grow sig} {marks : List (Option Location)}
   {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
 
+private inductive PrefixEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) (trailing : Trace grow sig)
+    (finish : Config (core3 grow) (HostState sig)) : Type where
+  | terminal (tail : CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish)
+  | published {continuation} (publication : ReachedSourcePublication continuation changes left right)
+      (tail : Steps profile ready (specDispatch ready base) left trailing finish)
+
+private theorem PrefixEnd.writerTail (ending : PrefixEnd profile ready base older left right trailing finish) :
+    CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish := by
+  cases ending with
+  | terminal tail => exact tail
+  | published _ tail => exact .residual tail
+
 private def PrefixCut (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig))
+    (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (start incoming : Config (core3 grow) (HostState sig)) (actual : Trace grow sig)
     (finish : Config (core3 grow) (HostState sig)) : Prop :=
   ∃ checked canonical trailing left right marks, actual = checked ++ trailing ∧
     OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks ∧
     VisitorWriterPath profile ready base bindings start incoming checked canonical left right ∧
-    CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish
+    Nonempty (PrefixEnd profile ready base changes left right trailing finish)
 
 private theorem stop (run : Steps profile ready (specDispatch ready base) start actual finish) :
-    PrefixCut profile ready base bindings start incoming actual finish :=
+    PrefixCut profile ready base bindings older start incoming actual finish :=
   ⟨[], [], actual, start, incoming, [], rfl,
-    CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), WriterPaths.empty, .residual run⟩
+    CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place), WriterPaths.empty, ⟨.terminal (.residual run)⟩⟩
 
 private theorem terminal (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)
     (writers : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
     (run : Steps profile ready (specDispatch ready base) left trailing finish)
     (ending : CheckedTerminalWriterTail profile ready (specDispatch ready base) left trailing finish := .residual run) :
-    PrefixCut profile ready base bindings start incoming (checked ++ trailing) finish :=
-  ⟨checked, canonical, trailing, left, right, marks, rfl, paths, writers, ending⟩
+    PrefixCut profile ready base bindings older start incoming (checked ++ trailing) finish :=
+  ⟨checked, canonical, trailing, left, right, marks, rfl, paths, writers, ⟨.terminal ending⟩⟩
 
 private theorem follow (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)
     (writers : VisitorWriterPath profile ready base bindings start incoming checked canonical left right)
-    (tail : PrefixCut profile ready base bindings left right trailing finish) :
-    PrefixCut profile ready base bindings start incoming (checked ++ trailing) finish := by
+    (tail : PrefixCut profile ready base bindings older left right trailing finish) :
+    PrefixCut profile ready base bindings older start incoming (checked ++ trailing) finish := by
   obtain ⟨moreChecked, moreCanonical, rest, lhs, rhs, _, rfl, movement, effects, run⟩ := tail
   obtain ⟨_, transport, _⟩ := CallbackPrefix.transportAppend paths movement
   exact ⟨checked ++ moreChecked, canonical ++ moreCanonical, rest, lhs, rhs, _,
     (List.append_assoc ..).symm, transport, writers.append effects, run⟩
+
+private theorem PrefixCut.closePublication {scope : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    (cut : PrefixCut profile ready base bindings scope start incoming actual finish) :
+    PrefixCut profile ready base bindings older start incoming actual finish := by
+  obtain ⟨checked, canonical, trailing, left, right, marks, split, movement, writers, ⟨last⟩⟩ := cut
+  exact ⟨checked, canonical, trailing, left, right, marks, split, movement, writers, ⟨.terminal last.writerTail⟩⟩
 
 private theorem oneFrame {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))} {label}
     (run : Steps profile ready dispatch start [label] left) (writer : left.host.writer = start.host.writer) :
@@ -62,7 +83,7 @@ private theorem oneFrame {dispatch : Call (core3 grow) → Session grow sig (Ret
 
 private theorem directReply {caller resume reply}
     (cut : CheckedProgramReplyCut profile ready (specDispatch ready base) start caller resume reply actual finish) :
-    PrefixCut profile ready base bindings start incoming actual finish := by
+    PrefixCut profile ready base bindings older start incoming actual finish := by
   cases cut with
   | «prefix» _ _ _ writers paths =>
     simpa only [List.append_nil] using terminal
@@ -76,7 +97,7 @@ private theorem directReply {caller resume reply}
 
 private theorem directPreparation {caller resume request ticket selected field}
     (cut : DirectGivePreparationCut profile ready base bindings start incoming caller resume request ticket selected field actual finish) :
-    PrefixCut profile ready base bindings start incoming actual finish := by
+    PrefixCut profile ready base bindings older start incoming actual finish := by
   cases cut with
   | «prefix» _ paths writers =>
     simpa only [List.append_nil] using terminal paths (.framed writers (.done _)) (.refl _)
@@ -109,7 +130,7 @@ private theorem directPreparation {caller resume request ticket selected field}
               (.framed writers (.done incoming)) tail
 
 private theorem cut (ending : CallbackSliceEnd profile ready base bindings older start incoming actual finish) :
-    PrefixCut profile ready base bindings start incoming actual finish := by
+    PrefixCut profile ready base bindings older start incoming actual finish := by
   induction ending with
   | exhausted => exact stop (.refl _)
   | boundary _ step tail => exact stop (.cons step tail)
@@ -144,15 +165,15 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     simpa only [List.singleton_append] using terminal paths writers residual
   | sharedDropParentLoop paths writers _ _ residual =>
     simpa only [List.singleton_append] using terminal paths writers residual
-  | sharedDropParentLoopJoined _ _ _ _ ih => exact ih
+  | sharedDropParentLoopJoined _ _ _ _ ih => exact ih.closePublication
   | sharedDropLoopReturn paths writers _ _ _ _ _ ih =>
-    simpa only [List.singleton_append] using follow paths writers ih
+    simpa only [List.singleton_append] using follow paths writers ih.closePublication
   | sharedDropCompared _ _ paths writers compared _ ih =>
     exact follow paths writers (follow compared.occurrences compared.writers ih)
   | sharedGiveProbeMismatch _ _ _ paths writers residual => exact terminal paths writers residual
   | comparedPrefix paths writers _ ih => exact follow paths writers ih
   | sharedRecordAllocator paths writers _ compared _ ih =>
-    simpa only [List.append_assoc] using follow paths writers (follow compared.occurrences compared.writers ih)
+    simpa only [List.append_assoc] using follow paths writers (follow compared.occurrences compared.writers ih.closePublication)
   | sharedRecordAllocatorPop _ _ _ _ _ paths writers _ ih => exact follow paths writers ih
   | sharedRecordPrepareMismatch _ paths writers residual => exact terminal paths writers residual
   | sharedRecordOwnerMismatch _ paths writers residual => exact terminal paths writers residual
@@ -179,8 +200,12 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
       (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
       WriterPaths.empty (.cons step tail) (.executed step edit same tail)
   | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
-  | sourceOverlayCollectionElements _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
-  | sourceOverlayCollectionPublished _ _ _ _ _ _ _ _ residual => exact stop residual
+  | sourceOverlayCollectionLayoutChanged _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
+  | sourceOverlayCollectionPublished publication residual =>
+    exact ⟨[], [], _, _, _, [], rfl,
+      CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
+      WriterPaths.empty, ⟨.published publication residual⟩⟩
+  | sourceOverlayCollectionNonGrowing _ _ residual => exact stop residual
   | directGiveSelected _ _ body _ _ _ _ compiler =>
     apply follow body.paths body.writers
     rcases compiler with ⟨_, _, _, _, preparation⟩ | ⟨_, _, reply⟩
@@ -202,14 +227,35 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     | _ => exact terminal body.paths body.writers body.residual
   | directGiveLateReply _ _ body _ reply => exact follow body.paths body.writers (directReply reply)
   | directGiveFinite body => simpa only [List.append_nil] using terminal body.paths body.writers body.residual
-  | allocator _ body _ _ _ _ ih => exact follow body.paths body.writers ih
+  | allocator _ body _ _ _ _ ih => exact follow body.paths body.writers ih.closePublication
   | nonGrowing _ _ paths writers tail => exact terminal paths writers tail
   | pollTerminal paths writers _ _ _ tail => exact terminal paths writers tail
   | waitTerminal paths writers _ _ tail => exact terminal paths writers tail
   | cancelTerminal paths writers _ _ _ tail => exact terminal paths writers tail
-  | cancelHookBody paths writers _ _ _ ih => exact follow paths writers ih
+  | cancelHookBody paths writers _ _ _ ih => exact follow paths writers ih.closePublication
   | cancelDecisionTerminal paths writers _ _ _ tail => exact terminal paths writers tail
   | cancelParked paths writers _ _ ih => exact follow paths writers ih
+
+/-- Resume just the reached publication of this source field. The segmented
+writer path and all occurrence trails come from the executed comparison. -/
+theorem rejoinSourcePublication (continuation : SourcePublicationContinuation grow sig)
+    (resume : ∀ {left right : Config (core3 grow) (HostState sig)} {leading trailing : Trace grow sig},
+      Steps profile ready (specDispatch ready base) start leading left →
+      actual = leading ++ trailing → ReachedSourcePublication continuation older left right →
+      Steps profile ready (specDispatch ready base) left trailing finish →
+      CallbackSliceEnd profile ready base bindings older left right trailing finish)
+    (ending : CallbackSliceEnd profile ready base bindings older start incoming actual finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming actual finish := by
+  classical
+  obtain ⟨checked, canonical, trailing, reached, peer, _, split, movement, writers, ⟨last⟩⟩ := cut ending
+  cases last with
+  | terminal _ => exact ending
+  | @published found publication tail =>
+    by_cases owner : found = continuation
+    · subst found
+      have executed := (CallbackPrefix.transportPaths movement none).choose_spec.1.steps
+      exact split.symm ▸ .comparedPrefix movement writers (resume executed split publication tail)
+    · exact ending
 
 theorem extend {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (segment : ExecutedCallbackSegment profile ready base bindings older start incoming checked canonical left right)
@@ -220,11 +266,11 @@ theorem extend {pending : Stored.OwnedMemory.Claims.Spend → Prop}
       VisitorWriterPath profile ready base bindings start incoming (checked ++ compared) (canonical ++ raw) reached peer ∧
       WriterDiscrepancyCut profile ready base bindings start incoming pending (checked ++ compared) (canonical ++ raw) reached peer ∧
       CheckedTerminalWriterTail profile ready (specDispatch ready base) reached residual finish := by
-  obtain ⟨compared, raw, residual, reached, peer, _, split, endingPaths, endingWriters, tail⟩ := cut ending
+  obtain ⟨compared, raw, residual, reached, peer, _, split, endingPaths, endingWriters, ⟨tail⟩⟩ := cut ending
   obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend segment.occurrences endingPaths
   have writers := segment.writers.append endingWriters
   exact ⟨compared, raw, residual, reached, peer, _, split, paths, writers,
-    WriterPaths.discrepancyCut writers initial, tail⟩
+    WriterPaths.discrepancyCut writers initial, tail.writerTail⟩
 
 theorem complete {pending : Stored.OwnedMemory.Claims.Spend → Prop}
     (paths : OccurrenceTransport profile ready base bindings start incoming checked canonical left right marks)

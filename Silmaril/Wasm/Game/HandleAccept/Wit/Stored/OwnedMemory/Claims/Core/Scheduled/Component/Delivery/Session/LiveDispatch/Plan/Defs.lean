@@ -2342,6 +2342,25 @@ structure DestructorParentLoopFrames (first second : ReturnFrame.Continuation (c
   checkedEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage left) (.active 0 1) = some enclosing
   canonicalEnclosing : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 1) = some enclosing
 
+/-- A source visit's original entry and the two programs it must enter
+on publication. Nested visits carry their own entry and continuations. -/
+structure SourcePublicationContinuation (grow : SingleThreaded.GrowOracle) (sig : Signature) where
+  entry : Config (core3 grow) (HostState sig)
+  check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)
+  canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)
+  output : Stored.Lower.Output
+  checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow))
+  canonNext : output.Result → Session grow sig (Ret (core3 grow))
+
+structure ReachedSourcePublication (continuation : SourcePublicationContinuation grow sig)
+    (changes : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig)) where
+  value : continuation.output.Result
+  stores : left.store = right.store
+  scheduler : DestructorSchedulerAlignment changes left right
+  checked : left.ctl = continuation.check.control (continuation.checkNext (.ok value))
+  canonical : right.ctl = continuation.canon.control (continuation.canonNext value)
+
 /-- The terminal cut of a compared callback. In-body cuts keep the exact
 give prefix before a residual; an inner allocator cut can itself diverge. -/
 inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -3009,10 +3028,10 @@ induction. Its trails still identify the removed original occurrences. -/
         Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The original pointer frames popped and both sides validated the
-  reached range. The checked side also executed the fresh successful reserve
-  reads. The remaining programs visit the selected collection elements. -/
-  | sourceOverlayCollectionElements {changes reached peer trailing finish pointer bytes}
+  /-- Range validation and fresh checked reserve succeeded. The reached
+  memory width differs from the width used to allocate and place these elements.
+  Both element programs retain their actual controls. -/
+  | sourceOverlayCollectionLayoutChanged {changes reached peer trailing finish pointer bytes}
       {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
       (destination : RecordDestination) (inst : InstId) (type element : Stored.TypeOf)
       (entries : List Stored.Endpoints.RecordLower.Field) (index : Nat) (output : Stored.Lower.Output)
@@ -3026,6 +3045,7 @@ induction. Its trails still identify the removed original occurrences. -/
       (aligned : pointer = ABI.alignTo pointer (ABI.layout destination.width element).alignment)
       (bounds : pointer + entries.length * (ABI.layout destination.width element).size ≤ bytes)
       (sized : (core3 grow).memSize? reached.store.core destination.memory = some bytes)
+      (widthChanged : (core3 grow).memAddrType? reached.store.core destination.memory ≠ some destination.width)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
       (checked : let area := ABI.layout destination.width element
@@ -3035,17 +3055,16 @@ induction. Its trails still identify the removed original occurrences. -/
         peer.ctl = canon.control (PayloadPrefix.canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The actual descriptor finished. The remaining controls are precisely
-  the containing field's two continuations. -/
-  | sourceOverlayCollectionPublished {changes reached peer trailing finish}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      (output : Stored.Lower.Output) (value : output.Result)
-      (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
-      (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = check.control (checkNext (.ok value)))
-      (canonical : peer.ctl = canon.control (canonNext value))
+  /-- Publication reached the two enclosing source controls. -/
+  | sourceOverlayCollectionPublished {changes reached peer trailing finish continuation}
+      (publication : ReachedSourcePublication continuation changes reached peer)
+      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
+  /-- A reached update on the path to publication fails the growth relation
+  required by the enclosing visitor. The update and actual residual remain available. -/
+  | sourceOverlayCollectionNonGrowing {changes reached peer trailing finish continuation leading}
+      (publication : ReachedSourcePublication continuation changes reached peer)
+      (update : ReachedNonGrowingUpdate profile ready (specDispatch ready base) continuation.entry leading reached)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   | directGiveSelected {changes reached peer left right checked canonical trailing finish resume ticket}
