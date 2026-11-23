@@ -24037,17 +24037,209 @@ private theorem sourceGuestCopyRead (cx : LiftLowerContext (core3 grow)) (type :
     unfold readBuffer loadListFromValidRange loadListFromValidRangeWith
     exact width.bind fun _ => width.bind fun _ => Prog.Every.mapM fun _ _ => loadAt_scoped _ _ _ _ _ _
 
+private def SourceCopy.flatReply (copy : SourceCopy grow) (source : SourceCopyBuffer grow) (payload : Nat) :
+    Session grow sig (Ret (core3 grow)) := do
+  let values ← Builtins.copyResultFlat copy.kind source.1 payload
+  return .flat values
+
+private def SourceCopy.deliver (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    Session grow sig (Ret (core3 grow)) := do
+  let event ← Waitable.getPendingEvent (.end_ source.2.1)
+  copy.flatReply source event.payload
+
+private def SourceCopy.afterPending (copy : SourceCopy grow) (source : SourceCopyBuffer grow) (pending : Bool) :
+    Session grow sig (Ret (core3 grow)) :=
+  if pending then copy.deliver source
+  else if copy.opts.async_ then copy.flatReply source AsyncRef.blocked
+  else Waitable.waitForPendingEvent .syncCopy (.end_ source.2.1) >>= fun _ => copy.deliver source
+
+private theorem sourceCopyReplyCode (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    (copy.reply source : Session grow sig (Ret (core3 grow))) =
+    Waitable.hasPendingEvent (.end_ source.2.1) >>= copy.afterPending source := by
+  unfold SourceCopy.reply Builtins.awaitEndEvent
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext pending
+  cases pending <;> cases async_ : copy.opts.async_ <;>
+    simp [SourceCopy.afterPending, SourceCopy.deliver, SourceCopy.flatReply, async_, Prog.bind_eq,
+      Prog.bind_assoc, Prog.pure_eq]
+
+private theorem sourceCopyFlatEffects (copy : SourceCopy grow) (source : SourceCopyBuffer grow) (payload : Nat) :
+    StoreEffects (copy.flatReply source payload : Session grow sig (Ret (core3 grow))) := by
+  unfold SourceCopy.flatReply Builtins.copyResultFlat
+  refine (show StoreEffects (if copy.kind.isStream then do
+    let width ← ptrType source.1
+    return [ptrFlat width payload]
+    else pure [i32Flat payload] : Session grow sig (List FlatValue)) from ?_).bind fun _ => .pure _
+  split
+  · exact (storeEffectPtrType _).bind fun _ => .pure _
+  · exact .pure _
+
+private theorem compareSourceCopyFlat {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow) (payload : Nat)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.flatReply source payload) (copy.flatReply source payload) := by
+  have compared : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.flatReply source payload >>= Prog.pure) (copy.flatReply source payload >>= Prog.pure) :=
+    crossDestructorRecordStore (check := check) (canon := canon) threads (copy.flatReply source payload)
+      (sourceCopyFlatEffects copy source payload) Prog.pure Prog.pure (fun reply => compareProgram (.pure reply))
+  intro left right remaining stores lhs rhs scheduler run bounded
+  exact compared stores (by simpa only [Prog.bind_eq, Prog.bind_pure] using lhs)
+    (by simpa only [Prog.bind_eq, Prog.bind_pure] using rhs) scheduler run bounded
+
+private theorem compareSourceCopyDelivery {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.deliver source) (copy.deliver source) := by
+  let reply (event : AsyncRef.EventTuple) := copy.flatReply (sig := sig) source event.payload
+  intro left right remaining same lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) threads (Waitable.getPendingEvent (.end_ source.2.1))
+    (takeWaitableEffects _) reply reply (fun event => compareSourceCopyFlat threads copy source event.payload compareProgram)
+    same lhs rhs scheduler run bounded
+
+private def SourceCopy.waiting (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    Session grow sig (Ret (core3 grow)) := do
+  Thread.waitUntilGuest .syncCopy (.waitableHasEvent (.end_ source.2.1))
+  modifyStore (CStore.setSyncWaiterSt (.end_ source.2.1) none)
+  copy.deliver source
+
+private theorem sourceCopyWaitCode (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (sync : copy.opts.async_ = false) :
+    (copy.afterPending source false : Session grow sig (Ret (core3 grow))) = (do
+      let thread ← currentThreadId
+      modifyStore (CStore.setSyncWaiterSt (.end_ source.2.1) (some thread))
+      copy.waiting source) := by
+  simp [SourceCopy.afterPending, sync, Waitable.waitForPendingEvent, SourceCopy.waiting, Prog.bind_eq, Prog.bind_assoc]
+
+private def sourceGuestWaitDecision (site : WaitSite) (condition : ReadyCond) : Session grow sig (Option ThreadId) := do
+  let thread ← currentThreadId
+  let now ← Thread.readyNow (fun _ _ => false) condition
+  let early ← (if now then choose (.earlyReturn site) else pure false : Session grow sig Bool)
+  if early then pure none else do
+    Thread.startWaiting thread condition
+    pure (some thread)
+
+private def sourceAfterGuestWait (next : Session grow sig (Ret (core3 grow))) :
+    Option ThreadId → Session grow sig (Ret (core3 grow))
+  | none => next
+  | some _ => block none >>= fun _ => next
+
+private theorem sourceGuestWaitCode (site : WaitSite) (condition : ReadyCond)
+    (next : Session grow sig (Ret (core3 grow))) :
+    (Thread.waitUntilGuest site condition >>= fun _ => next) =
+      sourceGuestWaitDecision site condition >>= sourceAfterGuestWait next := by
+  unfold Thread.waitUntilGuest Thread.waitUntil sourceGuestWaitDecision
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext thread
+  congr 1
+  funext ready
+  congr 1
+  funext early
+  cases early <;> simp [sourceAfterGuestWait, Prog.bind_assoc]
+
+private theorem sourceEndWaitDecisionEffects (site : WaitSite) (identity : EndId) :
+    StoreEffects (sourceGuestWaitDecision site (.waitableHasEvent (.end_ identity)) : Session grow sig (Option ThreadId)) := by
+  have choice (now : Bool) :
+      StoreEffects ((if now then choose (.earlyReturn site) else pure false) : Session grow sig Bool) := by
+    cases now
+    · exact .pure _
+    · exact .op rfl fun _ => .pure _
+  unfold sourceGuestWaitDecision
+  refine storeEffectCurrentThread.bind fun thread => (storeEffectGet.bind fun _ => .pure _).bind fun now =>
+    (choice now).bind fun early => ?_
+  cases early
+  · exact (storeEffectModify _).bind fun _ => .pure _
+  · exact .pure _
+
+private def SourceCopy.clearWaiter (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    Session grow sig (Ret (core3 grow)) := do
+  modifyStore (CStore.setSyncWaiterSt (.end_ source.2.1) none)
+  copy.deliver source
+
+private theorem compareSourceCopyWaiting {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.waiting source) (copy.waiting source) := by
+  let decision : Session grow sig (Option ThreadId) :=
+    sourceGuestWaitDecision .syncCopy (.waitableHasEvent (.end_ source.2.1))
+  let next := sourceAfterGuestWait (copy.clearWaiter (sig := sig) source)
+  have code : (copy.waiting source : Session grow sig (Ret (core3 grow))) = decision >>= next :=
+    sourceGuestWaitCode .syncCopy (.waitableHasEvent (.end_ source.2.1)) (copy.clearWaiter source)
+  rw [code]
+  have after (result : Option ThreadId) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (next result) (next result) := by
+    cases result with
+    | none =>
+      intro left right remaining stores lhs rhs scheduler run bounded
+      exact crossDestructorRecordStore (check := check) (canon := canon) threads
+        (modifyStore (CStore.setSyncWaiterSt (.end_ source.2.1) none)) (storeEffectModify _)
+        (fun _ => copy.deliver source) (fun _ => copy.deliver source)
+        (fun _ => compareSourceCopyDelivery threads copy source compareProgram) stores lhs rhs scheduler run bounded
+    | some => exact compareProgram _
+  intro left right remaining stores lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) threads decision (sourceEndWaitDecisionEffects _ _)
+    next next after stores lhs rhs scheduler run bounded
+
+private theorem compareSourceCopyReply {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (copy.reply source) (copy.reply source) := by
+  rw [sourceCopyReplyCode]
+  have pending : StoreEffects (Waitable.hasPendingEvent (.end_ source.2.1) : Session grow sig Bool) :=
+    storeEffectGet.bind fun _ => .pure _
+  have after (observed : Bool) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (copy.afterPending source observed) (copy.afterPending source observed) := by
+    cases observed with
+    | true => exact compareSourceCopyDelivery threads copy source compareProgram
+    | false =>
+      cases async_ : copy.opts.async_ with
+      | true =>
+        simp only [SourceCopy.afterPending, Bool.false_eq_true, ite_false, async_, ite_true]
+        exact compareSourceCopyFlat threads copy source AsyncRef.blocked compareProgram
+      | false =>
+        rw [sourceCopyWaitCode copy source async_]
+        let waiting := copy.waiting (sig := sig) source
+        let install (thread : ThreadId) : Session grow sig (Ret (core3 grow)) := do
+          modifyStore (CStore.setSyncWaiterSt (.end_ source.2.1) (some thread))
+          waiting
+        have installed (thread : ThreadId) : DestructorRecordAt (check := check) (canon := canon)
+            profile ready base bindings older limit finish (install thread) (install thread) :=
+          crossDestructorRecordStore (check := check) (canon := canon) threads
+            (modifyStore (CStore.setSyncWaiterSt (.end_ source.2.1) (some thread))) (storeEffectModify _)
+            (fun _ => waiting) (fun _ => waiting) (fun _ => compareSourceCopyWaiting threads copy source compareProgram)
+        intro left right remaining same lhs rhs scheduler run bounded
+        exact crossDestructorRecordStore (check := check) (canon := canon) threads currentThreadId storeEffectCurrentThread
+          install install installed same lhs rhs scheduler run bounded
+  intro left right remaining same lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) threads
+    (Waitable.hasPendingEvent (.end_ source.2.1)) pending (copy.afterPending source) (copy.afterPending source) after
+    same lhs rhs scheduler run bounded
+
 private theorem compareSourceCopyMove {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (action : CopyAction (core3 grow))
     (next : Session grow sig (Ret (core3 grow)))
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
-      profile ready base bindings older limit finish program program) :
+      profile ready base bindings older limit finish program program)
+    (compareNext : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
       (performCopy Limits.spec Quirks.none action >>= fun _ => next)
       (performCopy Limits.spec Quirks.none action >>= fun _ => next) := by
   cases action with
-  | none => exact compareProgram next
+  | none => exact compareNext
   | transfer writer reader count writerBuffer readerBuffer =>
     cases writerBuffer with
     | host => exact compareProgram _
@@ -24064,7 +24256,15 @@ private theorem compareSourceCopyMove {limit : Nat}
         (sourceValueLiftEffects start.store (sourceGuestCopyRead cx type ptr length progress count)) ⟨rfl, rfl⟩ stores
         (leftAt.trans (congrArg check.control code)) (rightAt.trans (congrArg canon.control code)) run ?_
       intro left right remaining values shorter _ same lhs rhs scheduler residual
-      exact compareProgram (resume values) same lhs rhs (scheduler aligned) residual (shorter.trans bounded)
+      have following : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (resume values) (resume values) := by
+        cases readerBuffer with
+        | host => exact compareProgram _
+        | guest context element address length progress =>
+          cases element with
+          | none => exact compareNext
+          | some => exact compareProgram _
+      exact following same lhs rhs (scheduler aligned) residual (shorter.trans bounded)
 
 open ReturnFrame.Occurrence in
 private theorem compareSourceCopyTransfer {limit : Nat}
@@ -24099,7 +24299,8 @@ private theorem compareSourceCopyTransfer {limit : Nat}
       have writes := sharedSchedulerTransport (bindings := bindings) lhs.commit rhs.commit (by rfl) (by rfl)
       obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend reads writes
       exact .destructorPrefix paths (.copyTransfer lhs rhs) (fun same => same)
-        (compareSourceCopyMove threads action (copy.reply source) compareProgram rfl rfl rfl scheduler residual
+        (compareSourceCopyMove threads action (copy.reply source) compareProgram
+          (compareSourceCopyReply threads copy source compareProgram) rfl rfl rfl scheduler residual
           ((Nat.le_succ _).trans ((Nat.le_succ _).trans bounded)))
 
 /-- Run the guest-side admission and selected bookkeeping before handing the
@@ -24130,7 +24331,9 @@ private theorem compareSourceCopy {limit : Nat}
       change DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
         (modifyStore update >>= complete) (modifyStore update >>= complete)
       exact crossDestructorRecordStore (check := check) (canon := canon) threads (modifyStore update)
-        (storeEffectModify update) complete complete fun _ => compareProgram (complete ())
+        (storeEffectModify update) complete complete fun _ =>
+          compareSourceCopyMove threads action (copy.reply source) compareProgram
+            (compareSourceCopyReply threads copy source compareProgram)
   intro start incoming labels stores lhs rhs scheduler run bounded
   cases chosen : copyCore source.2.1 source.2.2 copy.kind.isReadable start.store with
   | error => exact other stores lhs rhs scheduler run bounded
