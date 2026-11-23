@@ -2896,10 +2896,9 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | sourceOverlayCheckedTerminal step _ _ _ tail => exact .cons step tail
-  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sourceOverlayCollectionLayoutChanged _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
-  | sourceOverlayCollectionPublished _ residual => exact residual
-  | sourceOverlayCollectionNonGrowing _ _ residual => exact residual
+  | sourceOverlayPublished _ residual => exact residual
+  | sourceOverlayNonGrowing _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
   | placementTrap _ _ _ checked _ _ _ _ tail _ => exact append (checked (.active 0 0)).steps tail
@@ -2976,10 +2975,9 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | directGiveTrap cut _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | giveLookupMismatch _ cut _ _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | sourceOverlayCheckedTerminal step _ _ _ tail => exact .cons step tail
-  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
   | sourceOverlayCollectionLayoutChanged _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact residual
-  | sourceOverlayCollectionPublished _ residual => exact residual
-  | sourceOverlayCollectionNonGrowing _ _ residual => exact residual
+  | sourceOverlayPublished _ residual => exact residual
+  | sourceOverlayNonGrowing _ _ residual => exact residual
   | directGiveSelected _ _ cut _ _ _ _ _ => exact append (cut.paths.choose_spec.1 none).1.steps cut.residual
   | compilerRefused _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
   | placementTrap _ install _ _ _ _ _ _ _ _ => cases install <;> simp_all [PayloadPrefix.Cursor.control]
@@ -21547,20 +21545,16 @@ private abbrev SourceOverlayReturn (Value : Type)
     CallbackSliceEnd profile ready base bindings older left right remaining finish
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
-private theorem finishSourceOverlayCollectionPublish
+private theorem finishSourceOverlayPublication
     {check canon : Cursor (E := core3 grow) (HostState sig)}
-    (entry : Config (core3 grow) (HostState sig))
-    (destination : RecordDestination) (inst : InstId) (pointer count : Nat) (output : Stored.Lower.Output)
+    (entry : Config (core3 grow) (HostState sig)) (output : Stored.Lower.Output)
     (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
-    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
-    (checked : start.ctl = check.control (publishChecked destination inst pointer count 0 output checkNext (.ok ())))
-    (canonical : incoming.ctl = canon.control (publishCanonical destination inst pointer count output canonNext ()))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (cut : StringLocalCutBetween profile ready (specDispatch ready base) (specDispatch ready (LiveDispatch.host bindings base))
+      start incoming check canon (fun value => checkNext (.ok value)) canonNext true)
     (run : Steps profile ready (specDispatch ready base) start labels finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  obtain ⟨store, verdict, effects, shape, left, _, _, path, occurrences⟩ := collection_descriptor_occurrences_between
-    (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-    (reference := specDispatch ready (LiveDispatch.host bindings base)) (destination.context inst) destination.width
-    output pointer count start incoming check canon (fun value => checkNext (.ok value)) canonNext stores checked canonical
+  obtain ⟨store, verdict, effects, shape, left, _, _, path, occurrences⟩ := cut
   have localOnly : ∀ action ∈ visible effects, ¬ workerBranchLabel action := by
     rw [CallbackPrefix.visibleLeaf shape]
     cases verdict <;> simp [workerBranchLabel]
@@ -21578,8 +21572,40 @@ private theorem finishSourceOverlayCollectionPublish
       exact .coreAcceptTerminal moved (.framed lhs rhs) residual (.inr (.inr (.inr ⟨rfl, rfl⟩)))
     | ok value =>
       exact .comparedPrefix moved (.framed lhs rhs)
-        (.sourceOverlayCollectionPublished (continuation := ⟨entry, check, canon, output, checkNext, canonNext⟩)
+        (.sourceOverlayPublished (continuation := ⟨entry, check, canon, output, checkNext, canonNext⟩)
           ⟨value, rfl, scheduler, rfl, rfl⟩ residual)
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
+private theorem finishSourceOverlayCollectionPublish
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (entry : Config (core3 grow) (HostState sig))
+    (destination : RecordDestination) (inst : InstId) (pointer count : Nat) (output : Stored.Lower.Output)
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (checked : start.ctl = check.control (publishChecked destination inst pointer count 0 output checkNext (.ok ())))
+    (canonical : incoming.ctl = canon.control (publishCanonical destination inst pointer count output canonNext ()))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish :=
+  finishSourceOverlayPublication entry output checkNext canonNext scheduler
+    (collection_descriptor_occurrences_between (destination.context inst) destination.width output pointer count
+      start incoming check canon (fun value => checkNext (.ok value)) canonNext stores checked canonical) run
+
+open PayloadPrefix LinkedCallback.MemorySequence in
+private theorem rejoinSourceOverlayPublication
+    {check canon : Cursor (E := core3 grow) (HostState sig)} (output : Stored.Lower.Output)
+    (checkNext : ValueCheckNext grow sig output) (canonNext : ValueCanonNext grow sig output)
+    (returned : SourceOverlayReturn output.Result profile ready base bindings older start.store
+      check canon checkNext canonNext labels.length finish)
+    (ending : CallbackSliceEnd profile ready base bindings older start incoming labels finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  let continuation : SourcePublicationContinuation grow sig := ⟨start, check, canon, output, checkNext, canonNext⟩
+  refine CallbackEndWriters.rejoinSourcePublication continuation ?_ ending
+  intro left right leading trailing executed split publication residual
+  have within := destructorSuffixBound split (Nat.le_refl _)
+  rcases classifyReachedGrowth executed with growing | update
+  · exact returned publication.value growing.grows publication.stores publication.scheduler
+      publication.checked publication.canonical residual within
+  · exact .sourceOverlayNonGrowing publication update residual
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback.MemorySequence in
 private abbrev SourceOverlayCollectionEntries
@@ -21704,7 +21730,7 @@ private theorem finishSourceOverlayCollectionRange
       (by simpa [listRangeResume, validateListRange, trapIf, aligned, Prog.bind_assoc, CallbackRange.rangeTrapBind] using rightAt) run
 
 open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims in
-private theorem sourceOverlayCollectionInstallTransport
+private theorem sourceOverlayAllocatorInstallTransport
     {left right : Config (core3 grow) (HostState sig)}
     {first second : Seg (core3 grow) (HostState sig)}
     (checked : Step profile ready (specDispatch ready base) start .tau left)
@@ -21754,111 +21780,272 @@ private theorem visitSourceOverlayCollection {limit : Nat}
     (visitEntries : SourceOverlayCollectionEntries profile ready base bindings older destination inst element entries index
       (CanonicalTree.EntryMode.forOutput destination.width type output) output checkNext canonNext check canon limit finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let continuation : SourcePublicationContinuation grow sig := ⟨start, check, canon, output, checkNext, canonNext⟩
-  refine CallbackEndWriters.rejoinSourcePublication continuation ?_ ?_
-  · intro left right leading trailing executed split publication residual
-    have within := destructorSuffixBound split (Nat.le_refl _)
-    rcases classifyReachedGrowth executed with growing | update
-    · exact returned publication.value growing.grows publication.stores publication.scheduler
-        publication.checked publication.canonical residual within
-    · exact .sourceOverlayCollectionNonGrowing publication update residual
-  · let cx := destination.context (grow := grow) inst
-    let area := ABI.layout destination.width element
-    let mode := CanonicalTree.EntryMode.forOutput destination.width type output
-    let objects := Field.listObjects entries
-    let prepareNext := collectionPrepareContinuation destination inst element entries index output checkNext
-    let reached := { start with ctl := check.control (prepareNext (Record.prepare start.store start.host.writer objects)) }
-    obtain ⟨path, _, _, site⟩ :=
-      collectionPreparePath (profile := profile) (ready := ready) (base := base) stores checked
-    refine crossSourceCheckedJournal (target := reached) path run ?_ (.prepare site path.2 (.done incoming))
-    intro trailing residual shorterPrepare
-    cases prepared : Record.prepare start.store start.host.writer objects with
-    | error issue =>
-      let refusal := match issue with
-        | .preflight reason => Issue.field index (.beforeAllocation reason)
-        | reason => Issue.nested index reason
-      have focus : reached.ctl = check.control (checkNext (.error refusal)) := by
-        change check.control (prepareNext (Record.prepare start.store start.host.writer objects)) = _
-        rw [prepared]
-        cases issue <;> rfl
-      exact refused refusal focus residual
-    | ok done =>
-      cases done
-      let checkedTail : Nat → Session grow sig (Ret (core3 grow)) := fun pointer => do
-        let live ← Record.Effects.reserve recordClaims objects
-        checkedCollectionTail destination inst entries area index output pointer live >>= checkNext
-      let rawTail : Nat → Session grow sig (Ret (core3 grow)) := fun pointer =>
-        canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext
-      let raw := { incoming with
-        ctl := canon.control (collectionCanonicalProgram destination inst type element entries output
-          (ptrTypeIn incoming.store cx) >>= canonNext) }
-      have frame : reached.ctl = check.control (allocateListRange cx area entries.length >>= checkedTail) := by
-        change check.control (prepareNext (Record.prepare start.store start.host.writer objects)) = _
-        simp only [prepared, prepareNext, collectionPrepareContinuation, cx, area, objects, checkedTail, Prog.bind_eq, Prog.bind_assoc]
-      have widthAt : ptrTypeIn incoming.store cx = destination.width := by
-        simp [ptrTypeIn, cx, CanonOpts.ptrType, RecordDestination.context, width]
-      have rawFrame : raw.ctl = canon.control (allocateListRange cx area entries.length >>= rawTail) := by
-        simp only [raw, collectionCanonicalProgram, widthAt, cx, area, mode, rawTail, canonicalCollectionTail,
-          Prog.bind_eq, Prog.bind_assoc]
-      let first := checkedCollectionResume destination inst entries area index output checkNext
-      let second := canonicalCollectionResume destination inst entries area output canonNext mode
-      let installed := collectionEntry destination inst area entries.length (specDispatch ready base) reached check first
-      let peer := collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base)) raw canon second
-      have install : Step profile ready (specDispatch ready base) reached .tau installed :=
-        listRange_install cx area entries.length checkedTail frame
-      rcases inspectReplyStep residual with ⟨rfl, stopped⟩ | ⟨_, _, _, rfl, actual, tail⟩
-      · exact stopped ▸ .exhausted
-      · obtain ⟨rfl, rfl⟩ := silentStepUnique install actual
-        have rawRead : SilentLocalStep profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming raw :=
-          collectionWidthPath canonical
-        have canonicalInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) raw .tau peer :=
-          listRange_install cx area entries.length rawTail rawFrame
-        have leftEdit : transitionEdit reached .tau = .push (.prog first) := by
-          rw [transitionEdit, frame, listRange_focus]; rfl
-        have rightEdit : transitionEdit raw .tau = .push (.prog second) := by
-          rw [transitionEdit, rawFrame, listRange_focus]; rfl
-        refine .comparedPrefix (CallbackPrefix.stationaryTransport (fun place => .done reached place) rawRead.tracks)
-          (.framed (.done reached) (WriterPaths.frameRead rawRead)) ?_
-        refine .comparedPrefix
-          (sourceOverlayCollectionInstallTransport (bindings := bindings) install canonicalInstall leftEdit rightEdit)
-          (.framed (.same install rfl (.done _)) (.same canonicalInstall rfl (.done _))) ?_
-        let request : ABI.ReallocRequest := ⟨0, 0, area.alignment.bytes, entries.length * area.size⟩
-        let checkEntered := { check with frames := .prog first :: check.frames }
-        let canonEntered := { canon with frames := .prog second :: canon.frames }
-        refine crossSourceAllocatorSetup (check := checkEntered) (canon := canonEntered)
-          thread cx request stores rfl rfl scheduler tail ?_
-        intro width callee task caller left right remaining allocatorSource same lhs rhs aligned actual shorterSetup
-        have withinWorker := shorterSetup.trans ((Nat.le_succ _).trans (shorterPrepare.trans within))
-        let sourceReturn : SourceAllocatorReturn first second :=
-          .collection destination inst type element entries index output checkNext canonNext matching source
-        let frames : SourceLiftLoopFrames older checkEntered.frames canonEntered.frames :=
-          .allocator sourceReturn (.paired segments)
-        have workerParents : SourceParentStack older (checkEntered.control (sharedRecordAllocatorAfterResume cx task caller))
-            (canonEntered.control (sharedRecordAllocatorAfterResume cx task caller)) :=
-          .allocator cx task caller thread frames parents
-        have onPointer : DestructorAllocatorPointer profile ready base bindings older checkEntered canonEntered limit finish :=
-          crossSourceAllocatorPop parents sourceReturn (fun pointer {_ _ _} stores checked canonical scheduler run bounded =>
-            finishSourceOverlayCollectionRange destination inst type element entries index pointer output checkNext canonNext
-              stores scheduler checked canonical run refused (by
-                intro bytes left right remaining aligned bounds sized same scheduler checked canonical residual shorter
-                by_cases empty : entries = []
-                · refine finishSourceOverlayCollectionPublish (check := check) (canon := canon)
-                    start destination inst pointer 0 output checkNext canonNext same scheduler ?_ ?_ residual
-                  · simpa only [empty, List.length_nil, checkedCollectionTail, Record.Effects.elements, Prog.bind_eq, Prog.pure_eq,
-                      Prog.pure_bind', Prog.bind_assoc, LinkedCallback.MemorySequence.publishChecked] using checked
-                  · simpa only [empty, List.length_nil, canonicalCollectionTail, CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq,
-                      Prog.pure_bind', LinkedCallback.MemorySequence.publishCanonical, Prog.bind_assoc] using canonical
-                by_cases liveWidth : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width
-                · exact visitEntries start pointer bytes aligned bounds sized liveWidth same scheduler checked canonical
-                    residual (shorter.trans bounded)
-                exact .sourceOverlayCollectionLayoutChanged (pointer := pointer) (bytes := bytes) destination inst type element entries index
-                  output checkNext canonNext parents thread segments matching source aligned bounds sized liveWidth same scheduler checked canonical residual))
-        exact crossSourceRecordAllocatorWorker (check := checkEntered) (canon := canonEntered)
-          parents thread (fun context fn task caller worker frames sourceParents
-              {_ _ _ _ _} source stores checked canonical scheduler run bounded =>
-            crossSourceRecordAllocatorOnStart (check := checkEntered) (canon := canonEntered)
-              parents thread onPointer (imports parents thread) context fn task caller worker frames sourceParents source stores checked canonical scheduler run bounded)
-          cx callee task caller frames workerParents allocatorSource same lhs rhs aligned actual withinWorker
+  refine rejoinSourceOverlayPublication output checkNext canonNext returned ?_
+  let cx := destination.context (grow := grow) inst
+  let area := ABI.layout destination.width element
+  let mode := CanonicalTree.EntryMode.forOutput destination.width type output
+  let objects := Field.listObjects entries
+  let prepareNext := collectionPrepareContinuation destination inst element entries index output checkNext
+  let reached := { start with ctl := check.control (prepareNext (Record.prepare start.store start.host.writer objects)) }
+  obtain ⟨path, _, _, site⟩ :=
+    collectionPreparePath (profile := profile) (ready := ready) (base := base) stores checked
+  refine crossSourceCheckedJournal (target := reached) path run ?_ (.prepare site path.2 (.done incoming))
+  intro trailing residual shorterPrepare
+  cases prepared : Record.prepare start.store start.host.writer objects with
+  | error issue =>
+    let refusal := match issue with
+      | .preflight reason => Issue.field index (.beforeAllocation reason)
+      | reason => Issue.nested index reason
+    have focus : reached.ctl = check.control (checkNext (.error refusal)) := by
+      change check.control (prepareNext (Record.prepare start.store start.host.writer objects)) = _
+      rw [prepared]
+      cases issue <;> rfl
+    exact refused refusal focus residual
+  | ok done =>
+    cases done
+    let checkedTail : Nat → Session grow sig (Ret (core3 grow)) := fun pointer => do
+      let live ← Record.Effects.reserve recordClaims objects
+      checkedCollectionTail destination inst entries area index output pointer live >>= checkNext
+    let rawTail : Nat → Session grow sig (Ret (core3 grow)) := fun pointer =>
+      canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext
+    let raw := { incoming with
+      ctl := canon.control (collectionCanonicalProgram destination inst type element entries output
+        (ptrTypeIn incoming.store cx) >>= canonNext) }
+    have frame : reached.ctl = check.control (allocateListRange cx area entries.length >>= checkedTail) := by
+      change check.control (prepareNext (Record.prepare start.store start.host.writer objects)) = _
+      simp only [prepared, prepareNext, collectionPrepareContinuation, cx, area, objects, checkedTail, Prog.bind_eq, Prog.bind_assoc]
+    have widthAt : ptrTypeIn incoming.store cx = destination.width := by
+      simp [ptrTypeIn, cx, CanonOpts.ptrType, RecordDestination.context, width]
+    have rawFrame : raw.ctl = canon.control (allocateListRange cx area entries.length >>= rawTail) := by
+      simp only [raw, collectionCanonicalProgram, widthAt, cx, area, mode, rawTail, canonicalCollectionTail,
+        Prog.bind_eq, Prog.bind_assoc]
+    let first := checkedCollectionResume destination inst entries area index output checkNext
+    let second := canonicalCollectionResume destination inst entries area output canonNext mode
+    let installed := collectionEntry destination inst area entries.length (specDispatch ready base) reached check first
+    let peer := collectionEntry destination inst area entries.length (specDispatch ready (LiveDispatch.host bindings base)) raw canon second
+    have install : Step profile ready (specDispatch ready base) reached .tau installed :=
+      listRange_install cx area entries.length checkedTail frame
+    rcases inspectReplyStep residual with ⟨rfl, stopped⟩ | ⟨_, _, _, rfl, actual, tail⟩
+    · exact stopped ▸ .exhausted
+    · obtain ⟨rfl, rfl⟩ := silentStepUnique install actual
+      have rawRead : SilentLocalStep profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming raw :=
+        collectionWidthPath canonical
+      have canonicalInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) raw .tau peer :=
+        listRange_install cx area entries.length rawTail rawFrame
+      have leftEdit : transitionEdit reached .tau = .push (.prog first) := by
+        rw [transitionEdit, frame, listRange_focus]; rfl
+      have rightEdit : transitionEdit raw .tau = .push (.prog second) := by
+        rw [transitionEdit, rawFrame, listRange_focus]; rfl
+      refine .comparedPrefix (CallbackPrefix.stationaryTransport (fun place => .done reached place) rawRead.tracks)
+        (.framed (.done reached) (WriterPaths.frameRead rawRead)) ?_
+      refine .comparedPrefix
+        (sourceOverlayAllocatorInstallTransport (bindings := bindings) install canonicalInstall leftEdit rightEdit)
+        (.framed (.same install rfl (.done _)) (.same canonicalInstall rfl (.done _))) ?_
+      let request : ABI.ReallocRequest := ⟨0, 0, area.alignment.bytes, entries.length * area.size⟩
+      let checkEntered := { check with frames := .prog first :: check.frames }
+      let canonEntered := { canon with frames := .prog second :: canon.frames }
+      refine crossSourceAllocatorSetup (check := checkEntered) (canon := canonEntered)
+        thread cx request stores rfl rfl scheduler tail ?_
+      intro width callee task caller left right remaining allocatorSource same lhs rhs aligned actual shorterSetup
+      have withinWorker := shorterSetup.trans ((Nat.le_succ _).trans (shorterPrepare.trans within))
+      let sourceReturn : SourceAllocatorReturn first second :=
+        .collection destination inst type element entries index output checkNext canonNext matching source
+      let frames : SourceLiftLoopFrames older checkEntered.frames canonEntered.frames :=
+        .allocator sourceReturn (.paired segments)
+      have workerParents : SourceParentStack older (checkEntered.control (sharedRecordAllocatorAfterResume cx task caller))
+          (canonEntered.control (sharedRecordAllocatorAfterResume cx task caller)) :=
+        .allocator cx task caller thread frames parents
+      have onPointer : DestructorAllocatorPointer profile ready base bindings older checkEntered canonEntered limit finish :=
+        crossSourceAllocatorPop parents sourceReturn (fun pointer {_ _ _} stores checked canonical scheduler run bounded =>
+          finishSourceOverlayCollectionRange destination inst type element entries index pointer output checkNext canonNext
+            stores scheduler checked canonical run refused (by
+              intro bytes left right remaining aligned bounds sized same scheduler checked canonical residual shorter
+              by_cases empty : entries = []
+              · refine finishSourceOverlayCollectionPublish (check := check) (canon := canon)
+                  start destination inst pointer 0 output checkNext canonNext same scheduler ?_ ?_ residual
+                · simpa only [empty, List.length_nil, checkedCollectionTail, Record.Effects.elements, Prog.bind_eq, Prog.pure_eq,
+                    Prog.pure_bind', Prog.bind_assoc, LinkedCallback.MemorySequence.publishChecked] using checked
+                · simpa only [empty, List.length_nil, canonicalCollectionTail, CanonicalTree.elements, Prog.bind_eq, Prog.pure_eq,
+                    Prog.pure_bind', LinkedCallback.MemorySequence.publishCanonical, Prog.bind_assoc] using canonical
+              by_cases liveWidth : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width
+              · exact visitEntries start pointer bytes aligned bounds sized liveWidth same scheduler checked canonical
+                  residual (shorter.trans bounded)
+              exact .sourceOverlayCollectionLayoutChanged (pointer := pointer) (bytes := bytes) destination inst type element entries index
+                output checkNext canonNext parents thread segments matching source aligned bounds sized liveWidth same scheduler checked canonical residual))
+      exact crossSourceRecordAllocatorWorker (check := checkEntered) (canon := canonEntered)
+        parents thread (fun context fn task caller worker frames sourceParents
+            {_ _ _ _ _} source stores checked canonical scheduler run bounded =>
+          crossSourceRecordAllocatorOnStart (check := checkEntered) (canon := canonEntered)
+            parents thread onPointer (imports parents thread) context fn task caller worker frames sourceParents source stores checked canonical scheduler run bounded)
+        cx callee task caller frames workerParents allocatorSource same lhs rhs aligned actual withinWorker
+
+open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower LinkedCallback in
+private theorem crossSourceStringAllocator {limit : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (cx : LiftLowerContext (core3 grow)) (request : ABI.ReallocRequest)
+    (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
+    (source : SourceAllocatorReturn first second)
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (onResume : ∀ pointer, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (first (.nat pointer)) (second (.nat pointer))) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op (.call (.reallocate cx request.oldPtr request.oldSize request.alignment request.newSize)) first)
+      (.op (.call (.reallocate cx request.oldPtr request.oldSize request.alignment request.newSize)) second) := by
+  intro left right remaining stores checked canonical scheduler run bounded
+  let call : Call (core3 grow) := .reallocate cx request.oldPtr request.oldSize request.alignment request.newSize
+  let checkEntered := { check with frames := .prog first :: check.frames }
+  let canonEntered := { canon with frames := .prog second :: canon.frames }
+  let entered := { left with ctl := checkEntered.control (specDispatch ready base call) }
+  let peer := { right with ctl := canonEntered.control (specDispatch ready (LiveDispatch.host bindings base) call) }
+  have install : Step profile ready (specDispatch ready base) left .tau entered := .call checked
+  have peerInstall : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau peer := .call canonical
+  cases run with
+  | refl => exact .exhausted
+  | cons actual tail =>
+    obtain ⟨rfl, rfl⟩ := silentStepUnique install actual
+    refine .comparedPrefix (sourceOverlayAllocatorInstallTransport (bindings := bindings) install peerInstall
+      (by rw [transitionEdit, checked]; rfl) (by rw [transitionEdit, canonical]; rfl))
+      (.framed (.same install rfl (.done _)) (.same peerInstall rfl (.done _))) ?_
+    refine crossSourceAllocatorSetup (check := checkEntered) (canon := canonEntered)
+      thread cx request stores rfl rfl scheduler tail ?_
+    intro width callee task caller reached raw suffix allocated same lhs rhs aligned actual shorter
+    let frames : SourceLiftLoopFrames older checkEntered.frames canonEntered.frames := .allocator source (.paired segments)
+    have workerParents : SourceParentStack older (checkEntered.control (sharedRecordAllocatorAfterResume cx task caller))
+        (canonEntered.control (sharedRecordAllocatorAfterResume cx task caller)) :=
+      .allocator cx task caller thread frames parents
+    have onPointer : DestructorAllocatorPointer profile ready base bindings older checkEntered canonEntered limit finish :=
+      crossSourceAllocatorPop parents source onResume
+    exact crossSourceRecordAllocatorWorker (check := checkEntered) (canon := canonEntered) parents thread
+      (fun context fn task caller worker frames sourceParents {_ _ _ _ _} source stores checked canonical scheduler run bounded =>
+        crossSourceRecordAllocatorOnStart (check := checkEntered) (canon := canonEntered)
+          parents thread onPointer (imports parents thread) context fn task caller worker frames sourceParents
+          source stores checked canonical scheduler run bounded)
+      cx callee task caller frames workerParents allocated same lhs rhs aligned actual
+      (shorter.trans (Nat.le_of_succ_le bounded))
+
+open ABI PayloadPrefix Stored.Endpoints.RecordLower LinkedCallback in
+private theorem crossSourceOverlayStringSteps {limit : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
+    (source : SourceOverlayFieldSource destination str.field)
+    (entry : Config (core3 grow) (HostState sig))
+    (output : Stored.Lower.Output)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
+    (prior steps : List ABI.StoreStep) (pointer : Nat) :
+    let cx := destination.context (grow := grow) inst
+    let plan := storePlanFor Quirks.none destination.encoding destination.width str.value
+    let first := fun ptr => stringPlanTail cx destination.width output plan ptr >>= fun value => checkNext (.ok value)
+    let second := fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext
+    plan.steps = prior ++ steps →
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (runStoreSteps cx pointer steps >>= first) (runStoreSteps cx pointer steps >>= second) := by
+  intro cx plan first second compiled
+  induction steps generalizing prior pointer with
+  | nil =>
+    intro left right remaining same checked canonical scheduled run _
+    have lhs : left.ctl = check.control (first pointer) := by
+      simpa only [runStoreSteps, Prog.foldlM, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using checked
+    have rhs : right.ctl = canon.control (second pointer) := by
+      simpa only [runStoreSteps, Prog.foldlM, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using canonical
+    exact finishSourceOverlayPublication entry output checkNext canonNext scheduled
+      (string_descriptor_occurrences cx destination.width output plan pointer left right check canon
+        (fun value => checkNext (.ok value)) canonNext same lhs rhs) run
+  | cons step steps ih =>
+    intro left right remaining same checked canonical scheduled run bounded
+    have suffix : plan.steps = (prior ++ [step]) ++ steps := by
+      rw [List.append_assoc]
+      exact compiled
+    by_cases localStep : sharedStringLocalStep step = true
+    · have code (finish : Nat → Session grow sig (Ret (core3 grow))) :
+          (runStoreSteps cx pointer (step :: steps) >>= finish) =
+            (runStoreStep cx pointer step >>= fun ptr => runStoreSteps cx ptr steps >>= finish) := by
+        simp only [runStoreSteps, Prog.foldlM, Prog.bind_eq, Prog.bind_assoc]
+      exact crossDestructorRecordStore thread (runStoreStep cx pointer step) (sharedStringStepEffects cx pointer step localStep)
+        (fun ptr => runStoreSteps cx ptr steps >>= first) (fun ptr => runStoreSteps cx ptr steps >>= second)
+        (fun ptr => ih (prior ++ [step]) ptr suffix) same
+        (checked.trans (congrArg check.control (code first))) (canonical.trans (congrArg canon.control (code second)))
+        scheduled run bounded
+    · have allocate (old : Option Nat) (alignment : ABI.Alignment) (size : Nat)
+          (isStep : step = old.elim (.allocate alignment size) (fun oldSize => .reallocate oldSize alignment size)) :
+          CallbackSliceEnd profile ready base bindings older left right remaining finish := by
+        let request : ABI.ReallocRequest := ⟨old.elim 0 (fun _ => pointer), old.getD 0, alignment.bytes, size⟩
+        let checkResume := stringPlanResume cx steps first
+        let canonResume := stringPlanResume cx steps second
+        have focus (finish : Nat → Session grow sig (Ret (core3 grow))) :
+            (runStoreSteps cx pointer (step :: steps) >>= finish) =
+              .op (.call (.reallocate cx request.oldPtr request.oldSize request.alignment request.newSize))
+                (stringPlanResume cx steps finish) := by
+          rw [isStep]
+          exact string_realloc_focus cx pointer old alignment size steps finish
+        have resumes : SourceAllocatorReturn checkResume canonResume :=
+          .string destination inst str source prior steps old alignment size (isStep ▸ compiled) first second
+        have continued (ptr : Nat) : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+            (checkResume (.nat ptr)) (canonResume (.nat ptr)) := by
+          intro reached peer trailing stores lhs rhs aligned actual within
+          exact ih (prior ++ [step]) ptr suffix stores
+            (by simpa only [checkResume, stringPlanResume, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using lhs)
+            (by simpa only [canonResume, stringPlanResume, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using rhs)
+            aligned actual within
+        exact crossSourceStringAllocator cx request checkResume canonResume resumes imports parents thread segments continued same
+          (checked.trans (congrArg check.control (focus first))) (canonical.trans (congrArg canon.control (focus second)))
+          scheduled run bounded
+      cases step with
+      | allocate alignment size => exact allocate none alignment size rfl
+      | reallocate oldSize alignment size => exact allocate (some oldSize) alignment size rfl
+      | _ => exact False.elim (localStep rfl)
+
+open ABI PayloadPrefix ReturnFrame.Occurrence Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
+private theorem visitSourceOverlayString {limit : Nat}
+    {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (destination : RecordDestination) (inst : InstId) (item : Field) (matched : item.LayoutMatches (.prim .string))
+    (emitted : item.Emitted) (source : SourceOverlayFieldSource destination item)
+    (index : Nat) (output : Stored.Lower.Output)
+    (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
+    (stores : start.store = incoming.store) (scheduler : DestructorSchedulerAlignment older start incoming)
+    (width : (core3 grow).memAddrType? start.store.core destination.memory = some destination.width)
+    (placed : rootPlacement destination start.store item.type output = .ok ())
+    (checked : start.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width item index output >>= checkNext))
+    (canonical : incoming.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width item output >>= canonNext))
+    (run : Steps profile ready (specDispatch ready base) start labels finish) (within : labels.length ≤ limit)
+    (returned : SourceOverlayReturn output.Result profile ready base bindings older start.store
+      check canon checkNext canonNext labels.length finish) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  obtain ⟨str, rfl⟩ := CallbackRange.stringCompiled matched emitted
+  have compiler := source
+  obtain ⟨root, schema, layout, _, fits, allocates, path⟩ := compiler
+  let payload : Stored.Payload (.prim .string) := ⟨.string str.value, .string str.valid⟩
+  have fit := Field.Descendant.string_pre payload rfl path layout Quirks.none destination.encoding destination.width fits
+  obtain ⟨addr, realloc⟩ := allocates str.field path rfl
+  obtain ⟨reads, checkTracks, canonTracks, checkReads, canonReads⟩ := string_plan_entry_occurrences
+    (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
+    (reference := specDispatch ready (LiveDispatch.host bindings base)) destination inst str.value str.valid
+    index output start incoming check canon checkNext canonNext stores (stores ▸ width) realloc fit placed checked canonical
+  refine rejoinSourceOverlayPublication output checkNext canonNext returned ?_
+  cases alignLocalBody (checkTracks (.active 0 0)).toTrail.steps run (noBranchOfVisible (visibleTaus reads) (by simp)) with
+  | inside split _ _ =>
+    obtain ⟨_, _, tracks, writer⟩ := prefixReadWriters checkReads split run
+    rw [← List.append_nil labels]
+    exact .comparedPrefix (CallbackPrefix.stationaryTransport tracks (fun place => .done incoming place))
+      (.framed writer (.done _)) .exhausted
+  | reached split residual =>
+    have remaining := destructorSuffixBound split within
+    rw [split]
+    refine .comparedPrefix (CallbackPrefix.stationaryTransport checkTracks canonTracks)
+      (.framed (WriterPaths.frameReads checkReads) (WriterPaths.frameReads canonReads)) ?_
+    exact crossSourceOverlayStringSteps destination inst str source start output checkNext canonNext parents thread segments
+      imports [] _ 0 rfl stores rfl rfl scheduler residual remaining
 
 open ABI PayloadPrefix Stored.Endpoints.RecordLower Stored.OwnedMemory.Claims LinkedCallback in
 private abbrev SourceFlatVisit
@@ -22265,9 +22452,10 @@ private theorem visitCompiledSourceMemory {limit : Nat} {origin : CStore (core3 
       (fun value {_ _ _} grew same aligned lhs rhs tail bounded => returned value grew same aligned lhs rhs tail bounded)
   | @string item matched emitted =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run within refused returned
-    exact .sourceOverlayField destination inst item index (.memory address) checkNext canonNext parents thread segments
-      ⟨matched, emitted⟩ ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler (growth.memAddrType width)
-      (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run
+    exact visitSourceOverlayString destination inst item matched emitted
+      ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ index (.memory address) checkNext canonNext
+      parents thread segments imports stores scheduler (growth.memAddrType width)
+      (memoryPlacementGrows destination growth sized placed.1 placed.2) checked canonical run within returned
   | @sum type arms tag selected layoutAt member children ih =>
     intro index checkNext canonNext left right actual stores scheduler growth checked canonical run within refused returned
     let slot := sumPayloadAddress destination.width arms address
@@ -22354,8 +22542,9 @@ private theorem visitCompiledSourceFlat {limit : Nat} {check canon : Cursor (E :
       (fun child member => ih child member (path.trans (.fixed member (.self child)))) (fun _ => rfl) rfl
   | string item matched emitted =>
     intro index checkNext canonNext left right actual stores scheduler width checked canonical run within refused returned
-    exact .sourceOverlayField destination inst item index .flat checkNext canonNext parents thread segments
-      ⟨matched, emitted⟩ ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ stores scheduler width rfl checked canonical run
+    exact visitSourceOverlayString destination inst item matched emitted
+      ⟨root, schema, rootLayout, rootEmitted, fits, allocates, path⟩ index .flat checkNext canonNext
+      parents thread segments imports stores scheduler width rfl checked canonical run within returned
   | collection type element entries matching children =>
     intro index checkNext canonNext left right actual stores scheduler width checked canonical run within refused returned
     refine visitSourceOverlayCollection destination inst type element entries index .flat checkNext canonNext imports parents thread segments

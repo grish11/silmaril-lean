@@ -2318,7 +2318,7 @@ private theorem localFieldThen (destination : RecordDestination) (inst : InstId)
     exact ⟨checkTracks, canonTracks, ends _ _ check canon
       ⟨rfl, frame.pending, frame.results, frame.cancels, frame.blocked, frame.thread, frame.frames, frame.rest⟩ grew rfl rfl⟩
 
-private theorem stringCompiled {item : Field} (matched : item.LayoutMatches (.prim .string)) (emitted : item.Emitted) :
+theorem stringCompiled {item : Field} (matched : item.LayoutMatches (.prim .string)) (emitted : item.Emitted) :
     ∃ str : LinkedCallback.StringField, item = str.field := by
   cases emitted with
   | primitive payload =>

@@ -199,13 +199,12 @@ private theorem cut (ending : CallbackSliceEnd profile ready base bindings older
     simpa only [List.nil_append] using terminal
       (CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place))
       WriterPaths.empty (.cons step tail) (.executed step edit same tail)
-  | sourceOverlayField _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
   | sourceOverlayCollectionLayoutChanged _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ residual => exact stop residual
-  | sourceOverlayCollectionPublished publication residual =>
+  | sourceOverlayPublished publication residual =>
     exact ⟨[], [], _, _, _, [], rfl,
       CallbackPrefix.stationaryTransport (fun place => .done _ place) (fun place => .done _ place),
       WriterPaths.empty, ⟨.published publication residual⟩⟩
-  | sourceOverlayCollectionNonGrowing _ _ residual => exact stop residual
+  | sourceOverlayNonGrowing _ _ residual => exact stop residual
   | directGiveSelected _ _ body _ _ _ _ compiler =>
     apply follow body.paths body.writers
     rcases compiler with ⟨_, _, _, _, preparation⟩ | ⟨_, _, reply⟩

@@ -2272,6 +2272,14 @@ inductive SourceAllocatorReturn :
         (PayloadPrefix.checkedCollectionResume destination inst entries (ABI.layout destination.width element) index output checkNext)
         (PayloadPrefix.canonicalCollectionResume destination inst entries (ABI.layout destination.width element) output canonNext
           (RecordLower.CanonicalTree.EntryMode.forOutput destination.width type output))
+  | string (destination : RecordDestination) (inst : InstId) (str : LinkedCallback.StringField)
+      (source : SourceOverlayFieldSource destination str.field) (prior steps : List ABI.StoreStep)
+      (old : Option Nat) (alignment : ABI.Alignment) (size : Nat)
+      (compiled : (storePlanFor Quirks.none destination.encoding destination.width str.value).steps =
+        prior ++ (old.elim (.allocate alignment size) (fun oldSize => .reallocate oldSize alignment size) :: steps))
+      (first second : Nat → Session grow sig (Ret (core3 grow))) :
+      SourceAllocatorReturn (PayloadPrefix.stringPlanResume (destination.context inst) steps first)
+        (PayloadPrefix.stringPlanResume (destination.context inst) steps second)
 
 open Stored.Endpoints in
 /-- Frames beneath a selected synchronous worker. Common loop tail calls
@@ -3004,30 +3012,6 @@ induction. Its trails still identify the removed original occurrences. -/
         (some (.active 0 0)) [label] next none)
       (residual : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (label :: trailing) finish
-  /-- The compiler visitor reached an allocating string under the
-  original recursive parents. The next visitor proof starts at the two actual
-  programs, with the current placement and checked residual. -/
-  | sourceOverlayField {changes reached peer trailing finish}
-      {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-      (destination : RecordDestination) (inst : InstId) (item : Stored.Endpoints.RecordLower.Field)
-      (index : Nat) (output : Stored.Lower.Output)
-      (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
-      (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
-      (parents : SourceParentStack changes check.rest canon.rest)
-      (thread : check.thread = canon.thread)
-      (segments : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames)
-      (pending : item.LayoutMatches (.prim .string) ∧ item.Emitted)
-      (source : SourceOverlayFieldSource destination item)
-      (stores : reached.store = peer.store)
-      (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (width : (core3 grow).memAddrType? reached.store.core destination.memory = some destination.width)
-      (placed : PayloadPrefix.rootPlacement destination reached.store item.type output = .ok ())
-      (checked : reached.ctl = check.control (Stored.OwnedMemory.Claims.Record.Effects.field
-        recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index output >>= checkNext))
-      (canonical : peer.ctl = canon.control (Stored.Endpoints.RecordLower.CanonicalTree.field
-        Limits.spec Quirks.none (destination.context inst) destination.width item output >>= canonNext))
-      (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
-      CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Range validation and fresh checked reserve succeeded. The reached
   memory width differs from the width used to allocate and place these elements.
   Both element programs retain their actual controls. -/
@@ -3056,13 +3040,13 @@ induction. Its trails still identify the removed original occurrences. -/
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- Publication reached the two enclosing source controls. -/
-  | sourceOverlayCollectionPublished {changes reached peer trailing finish continuation}
+  | sourceOverlayPublished {changes reached peer trailing finish continuation}
       (publication : ReachedSourcePublication continuation changes reached peer)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- A reached update on the path to publication fails the growth relation
   required by the enclosing visitor. The update and actual residual remain available. -/
-  | sourceOverlayCollectionNonGrowing {changes reached peer trailing finish continuation leading}
+  | sourceOverlayNonGrowing {changes reached peer trailing finish continuation leading}
       (publication : ReachedSourcePublication continuation changes reached peer)
       (update : ReachedNonGrowingUpdate profile ready (specDispatch ready base) continuation.entry leading reached)
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
