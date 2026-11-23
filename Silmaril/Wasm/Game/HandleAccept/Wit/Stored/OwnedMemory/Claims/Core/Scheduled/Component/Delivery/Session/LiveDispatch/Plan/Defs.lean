@@ -2257,15 +2257,16 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
         (.op (.block (some target)) fun _ => reply))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
-  /-- The switch has run. The reached target is the actual saved activation
-  and the two source parents are still dormant below it. -/
-  | sharedDropSwitchTarget {changes reached peer trailing finish body left right rest peerRest}
+  /-- The reached activation and its resumers run above the two dormant
+  source parents. The checked suffix starts at this actual scheduler state. -/
+  | sharedDropSwitchTarget {changes reached peer trailing finish body left right active peerActive rest peerRest}
       (parents : DestructorParentChain changes body rest peerRest)
       (target : ReturnFrame.Related.Active changes left right)
+      (resumers : List.Forall₂ (ReturnFrame.Related.Active changes) active peerActive)
       (stores : reached.store = peer.store)
       (scheduler : DestructorSchedulerAlignment changes reached peer)
-      (checked : reached.ctl = left :: rest)
-      (canonical : peer.ctl = right :: peerRest)
+      (checked : reached.ctl = left :: (active ++ rest))
+      (canonical : peer.ctl = right :: (peerActive ++ peerRest))
       (residual : Steps profile ready (specDispatch ready base) reached trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer trailing finish
   /-- A source worker prefix preserving scheduler data through actual steps. -/

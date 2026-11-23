@@ -2775,7 +2775,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | sharedDropSource _ _ _ _ _ _ _ _ _ _ ih => exact ih
   | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
-  | sharedDropSwitchTarget _ _ _ _ _ _ residual => exact residual
+  | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentJoined paths _ _ _ _ _ ih => exact append (paths.choose_spec.1 none).1.steps ih
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
@@ -2834,7 +2834,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | sharedDropSource _ _ _ _ _ _ _ _ _ ending => exact callbackEndSteps ending
   | sharedDropWorkerImport _ _ _ _ _ residual => exact residual
   | sharedDropSwitch _ _ _ _ _ residual => exact residual
-  | sharedDropSwitchTarget _ _ _ _ _ _ residual => exact residual
+  | sharedDropSwitchTarget _ _ _ _ _ _ _ residual => exact residual
   | destructorPrefix paths _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentJoined paths _ _ _ _ ending => exact append (paths.choose_spec.1 none).1.steps (callbackEndSteps ending)
   | sharedDropParentPop paths _ _ _ _ residual => exact append (paths.choose_spec.1 none).1.steps residual
@@ -13596,6 +13596,11 @@ private theorem relatedContLookup {left right : Config (core3 grow) (HostState s
       | cons _ tail => exact ih tail
   exact lookup paired thread.idx
 
+private theorem relatedSavedNone {slot : Option (Activation (core3 grow) (HostState sig))}
+    (related : ReturnFrame.Related.Saved older none slot) : slot = none := by
+  cases related
+  rfl
+
 private theorem relatedSavedSome {left : Activation (core3 grow) (HostState sig)}
     {right : Option (Activation (core3 grow) (HostState sig))}
     (related : ReturnFrame.Related.Saved older (some left) right) :
@@ -16481,16 +16486,17 @@ private theorem rejoinDestructorLoopEntry {limit : Nat} {sourceCfg peerCfg : Con
 
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (core3 grow)}
-    {rest peerRest left right}
+    {rest peerRest left right active peerActive}
     (parents : DestructorParentChain older body rest peerRest)
     (target : ReturnFrame.Related.Active older left right)
+    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) active peerActive)
     (stores : start.store = incoming.store)
     (scheduler : DestructorSchedulerAlignment older start incoming)
-    (leftAt : start.ctl = left :: rest) (rightAt : incoming.ctl = right :: peerRest)
+    (leftAt : start.ctl = left :: (active ++ rest)) (rightAt : incoming.ctl = right :: (peerActive ++ peerRest))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (bounded : labels.length ≤ limit) (compare : ShorterCallbackSlices profile ready base bindings limit) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  induction labels generalizing start incoming left right finish with
+  induction labels generalizing start incoming left right active peerActive finish with
   | nil =>
     cases run
     exact .exhausted
@@ -16498,8 +16504,23 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
     cases run with
     | cons actual tail =>
       have frontier := CallbackSliceEnd.sharedDropSwitchTarget (bindings := bindings)
-        parents target stores scheduler leftAt rightAt (.cons actual tail)
+        parents target resumers stores scheduler leftAt rightAt (.cons actual tail)
       have shorter : trailing.length ≤ limit := by simp only [List.length_cons] at bounded; omega
+      have leave {lhs rhs : Config (core3 grow) (HostState sig)}
+          (same : lhs.store = rhs.store) (aligned : DestructorSchedulerAlignment older lhs rhs)
+          (lhsAt : lhs.ctl = active ++ rest) (rhsAt : rhs.ctl = peerActive ++ peerRest)
+          (residual : Steps profile ready (specDispatch ready base) lhs trailing finish) :
+          CallbackSliceEnd profile ready base bindings older lhs rhs trailing finish := by
+        cases resumers with
+        | nil =>
+          have reached : DestructorParentChain older body lhs.ctl rhs.ctl := by
+            rw [lhsAt, rhsAt]
+            exact parents
+          exact rejoinDestructorLoopEntry (enterDestructorParentLoop reached same residual) aligned shorter compare
+        | cons front others => exact ih front others same aligned lhsAt rhsAt residual shorter
+      have parentPresent : rest ≠ [] ∧ peerRest ≠ [] := by
+        cases parents
+        exact ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
       cases target with
       | @mk thread focus frames peerFrames segments =>
         have advance {lhs rhs : Config (core3 grow) (HostState sig)}
@@ -16508,8 +16529,8 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
             (rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming label rhs)
             (residual : Steps profile ready (specDispatch ready base) lhs trailing finish)
             (related : List.Forall₂ (ReturnFrame.Related.Segment older) outFrames outPeerFrames)
-            (leftNext : lhs.ctl = ⟨thread, next, outFrames⟩ :: rest)
-            (rightNext : rhs.ctl = ⟨thread, next, outPeerFrames⟩ :: peerRest)
+            (leftNext : lhs.ctl = ⟨thread, next, outFrames⟩ :: (active ++ rest))
+            (rightNext : rhs.ctl = ⟨thread, next, outPeerFrames⟩ :: (peerActive ++ peerRest))
             (same : lhs.store = rhs.store)
             (aligned : DestructorSchedulerAlignment older lhs rhs)
             (leftHost : lhs.host = start.host) (rightHost : rhs.host = incoming.host)
@@ -16518,7 +16539,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
             CallbackSliceEnd profile ready base bindings older start incoming (label :: trailing) finish := by
           have paths := sharedSchedulerTransport (bindings := bindings) leftStep rightStep leftEdit rightEdit
           exact .destructorPrefix paths (frameCalloutStep paths leftHost rightHost) (fun _ => aligned)
-            (ih (.mk related) same aligned leftNext rightNext residual shorter)
+            (ih (.mk related) resumers same aligned leftNext rightNext residual shorter)
         cases actual with
         | @call _ request resume _ _ atCall =>
           rw [leftAt] at atCall
@@ -16579,7 +16600,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           have raw := Step.get (prof := profile) (hr := ready)
             (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
           exact advance (.get leftAt) raw tail segments rfl
-            (by change ⟨thread, .prog (read incoming.store), peerFrames⟩ :: peerRest = _; rw [stores])
+            (by change ⟨thread, .prog (read incoming.store), peerFrames⟩ :: (peerActive ++ peerRest) = _; rw [stores])
             stores scheduler rfl rfl (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
         | @modify _ update _ _ _ atWrite =>
           rw [leftAt] at atWrite
@@ -16604,7 +16625,7 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           classical
           by_cases agrees : read start.host = read incoming.host
           · exact advance (.hostGet leftAt) raw tail segments rfl
-              (by change ⟨thread, .prog (read incoming.host), peerFrames⟩ :: peerRest = _; rw [agrees])
+              (by change ⟨thread, .prog (read incoming.host), peerFrames⟩ :: (peerActive ++ peerRest) = _; rw [agrees])
               stores scheduler rfl rfl
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
           · have paths := sharedSchedulerTransport (bindings := bindings) (edit := .same) (.hostGet leftAt) raw
@@ -16675,9 +16696,30 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) (.threadExit leftAt) raw
             (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
           refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same) ?_
-          exact rejoinDestructorLoopEntry
-            (enterDestructorParentLoop parents (congrArg (StepDefs.threadStatusSt _ .exited) stores) tail)
-            scheduler shorter compare
+          exact leave (congrArg (StepDefs.threadStatusSt _ .exited) stores) scheduler rfl rfl tail
+        | @hostDone value _ atDone =>
+          rw [leftAt] at atDone
+          cases atDone
+          cases segments
+          have leftTail : active ++ rest ≠ [] := fun empty =>
+            parentPresent.1 (List.append_eq_nil_iff.mp empty).2
+          have rightTail : peerActive ++ peerRest ≠ [] := fun empty =>
+            parentPresent.2 (List.append_eq_nil_iff.mp empty).2
+          have finishes (cfg : Config (core3 grow) (HostState sig))
+              (stack : List (Activation (core3 grow) (HostState sig))) (present : stack ≠ []) :
+              StepDefs.hostFinish value stack cfg = { cfg with ctl := stack } := by
+            cases stack with
+            | nil => exact (present rfl).elim
+            | cons => rfl
+          have checked := Step.hostDone (prof := profile) (hr := ready) (dispatch := specDispatch ready base) leftAt
+          have raw := Step.hostDone (prof := profile) (hr := ready)
+            (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+          rw [finishes _ _ leftTail] at checked tail
+          rw [finishes _ _ rightTail] at raw
+          have paths := sharedSchedulerTransport (bindings := bindings) (edit := .exit) checked raw
+            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          exact .destructorPrefix paths (frameCalloutStep paths rfl rfl) (fun same => same)
+            (leave stores scheduler rfl rfl tail)
         | @block worker reply _ _ atBlock =>
           rw [leftAt] at atBlock
           cases atBlock
@@ -16688,16 +16730,14 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           let savedLeft := StepDefs.blockedAct (E := core3 grow) worker reply frames
           let savedRight := StepDefs.blockedAct (E := core3 grow) worker reply peerFrames
           let blockedLeft := { start.setCont worker (some savedLeft) with
-            store := StepDefs.threadStatusSt worker .blocked start.store, ctl := rest }
+            store := StepDefs.threadStatusSt worker .blocked start.store, ctl := active ++ rest }
           let blockedRight := { incoming.setCont worker (some savedRight) with
-            store := StepDefs.threadStatusSt worker .blocked incoming.store, ctl := peerRest }
+            store := StepDefs.threadStatusSt worker .blocked incoming.store, ctl := peerActive ++ peerRest }
           have save (before : DestructorSchedulerAlignment older start incoming) :
               DestructorSchedulerAlignment older blockedLeft blockedRight :=
             ⟨relatedSetSlot .none before.1 worker.idx (.some (.mk segments)), before.2⟩
           refine .destructorPrefix paths (frameCalloutStep paths rfl rfl) save ?_
-          exact rejoinDestructorLoopEntry
-            (enterDestructorParentLoop parents (congrArg (StepDefs.threadStatusSt _ .blocked) stores) tail)
-            (save scheduler) shorter compare
+          exact leave (congrArg (StepDefs.threadStatusSt _ .blocked) stores) (save scheduler) rfl rfl tail
         | @blockSwitch worker switched reply _ _ next atSwitch found =>
           rw [leftAt] at atSwitch
           cases atSwitch
@@ -16710,8 +16750,8 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
           let update (store : CStore (core3 grow)) :=
             StepDefs.threadStatusSt switched .running (StepDefs.threadStatusSt worker .blocked store)
-          let lhs := { savedLeft.setCont switched none with store := update start.store, ctl := next :: rest }
-          let rhs := { savedRight.setCont switched none with store := update incoming.store, ctl := peer :: peerRest }
+          let lhs := { savedLeft.setCont switched none with store := update start.store, ctl := next :: (active ++ rest) }
+          let rhs := { savedRight.setCont switched none with store := update incoming.store, ctl := peer :: (peerActive ++ peerRest) }
           have checked : Step profile ready (specDispatch ready base) start .tau lhs := .blockSwitch leftAt found
           have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
             .blockSwitch rightAt rawFound
@@ -16720,8 +16760,65 @@ private theorem finishDestructorSwitchTarget {limit : Nat} {body : ThreadBody (c
           have aligned : DestructorSchedulerAlignment older lhs rhs :=
             ⟨relatedSetSlot .none saved switched.idx .none, scheduler.2⟩
           exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
-            (ih selected (congrArg update stores) aligned rfl rfl tail shorter)
-        | _ => exact frontier
+            (ih selected resumers (congrArg update stores) aligned rfl rfl tail shorter)
+        | @resumeThread _ resumed resume _ _ next atResume found =>
+          rw [leftAt] at atResume
+          cases atResume
+          have slot := relatedContLookup scheduler.1 resumed
+          rw [found] at slot
+          obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome slot
+          let update := StepDefs.threadStatusSt (E := core3 grow) resumed .running
+          let lhs := { start.setCont resumed none with
+            store := update start.store, ctl := next :: ⟨thread, .prog (resume ()), frames⟩ :: (active ++ rest) }
+          let rhs := { incoming.setCont resumed none with
+            store := update incoming.store, ctl := peer :: ⟨thread, .prog (resume ()), peerFrames⟩ :: (peerActive ++ peerRest) }
+          have checked : Step profile ready (specDispatch ready base) start .tau lhs := .resumeThread leftAt found
+          have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau rhs :=
+            .resumeThread rightAt rawFound
+          have moved := sharedSchedulerTransport (bindings := bindings) (edit := .resume resumed.idx)
+            checked raw (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+          have aligned : DestructorSchedulerAlignment older lhs rhs :=
+            ⟨relatedSetSlot .none scheduler.1 resumed.idx .none, scheduler.2⟩
+          exact .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun _ => aligned)
+            (ih selected (.cons (.mk segments) resumers) (congrArg update stores) aligned rfl rfl tail shorter)
+        | @fault msg fault =>
+          have rawFault : Fault incoming msg := by
+            cases fault with
+            | blockNoThread atBlock =>
+              rw [leftAt] at atBlock
+              cases atBlock
+              exact .blockNoThread rightAt
+            | @switchMissing worker switched reply _ _ atSwitch missing =>
+              rw [leftAt] at atSwitch
+              cases atSwitch
+              have saved : List.Forall₂ (ReturnFrame.Related.Saved older)
+                  (start.setCont worker (some (StepDefs.blockedAct worker reply frames))).conts
+                  (incoming.setCont worker (some (StepDefs.blockedAct worker reply peerFrames))).conts :=
+                relatedSetSlot .none scheduler.1 worker.idx (.some (.mk segments))
+              have slot := relatedContLookup saved switched
+              rw [missing] at slot
+              exact .switchMissing rightAt (relatedSavedNone slot)
+            | @resumeMissing _ resumed _ _ _ atResume missing =>
+              rw [leftAt] at atResume
+              cases atResume
+              have slot := relatedContLookup scheduler.1 resumed
+              rw [missing] at slot
+              exact .resumeMissing rightAt (relatedSavedNone slot)
+            | calloutBadRet atReturn bad =>
+              rw [leftAt] at atReturn
+              cases atReturn
+              cases segments with
+              | cons head tails =>
+                cases head
+                exact .calloutBadRet rightAt bad
+          have paths := sharedSchedulerTransport (profile := profile) (ready := ready) (base := base)
+            (bindings := bindings) (edit := .clear) (.fault fault) (.fault rawFault) rfl rfl
+          exact .coreAcceptTerminal paths (frameCalloutStep paths rfl rfl) tail (.inr (.inr (.inr ⟨rfl, rfl⟩)))
+        | hostInvoke ready _ | hostTick ready | hostCancel ready _ _ | hostRun ready =>
+          have empty := ready.1
+          rw [leftAt] at empty
+          contradiction
+        | hostSet _ => exact frontier
 
 open ReturnFrame.Occurrence in
 private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 grow)}
@@ -16748,10 +16845,7 @@ private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 g
   | @cons _ _ _ label trailing actual tail =>
     cases present : left.cont? target with
     | none =>
-      have noneRelated {slot} (related : ReturnFrame.Related.Saved older none slot) : slot = none := by
-        cases related
-        rfl
-      have rawMissing : right.cont? target = none := noneRelated (present ▸ found)
+      have rawMissing : right.cont? target = none := relatedSavedNone (present ▸ found)
       have fault := Fault.switchMissing leftAt present
       let reason := TrapReason.internal "switch to a thread without a saved continuation"
       have checked : Step profile ready (specDispatch ready base) start (.trap reason) (StepDefs.trapCfg start) :=
@@ -16782,7 +16876,7 @@ private theorem finishDestructorSwitch {limit : Nat} {body : ThreadBody (core3 g
       have aligned : DestructorSchedulerAlignment older checkedEnd rawEnd :=
         ⟨relatedSetSlot .none saved target.idx .none, scheduler.2⟩
       exact .destructorPrefix paths (frameCalloutStep paths rfl rfl)
-        (fun _ => aligned) (finishDestructorSwitchTarget parents related (congrArg update stores)
+        (fun _ => aligned) (finishDestructorSwitchTarget parents related .nil (congrArg update stores)
           aligned rfl rfl tail (by simp only [List.length_cons] at bounded; omega) compare)
 
 /-- Discharge the pending enclosing return after following the source worker
