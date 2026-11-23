@@ -12831,9 +12831,9 @@ private theorem sharedSelectionFinishLookup (action : SharedGiveAction) (inst : 
   cases found <;> rfl
 
 open ReturnFrame.Occurrence in
-private theorem finishSharedRefusal {left right : Config (core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
+private theorem finishSharedResult {left right : Config (core3 grow) (HostState sig)} {leftTicket rightTicket : Nat}
     {thread frames rest peerFrames peerRest} {caller : Seg (core3 grow) (HostState sig)}
-    {leading trailing : Trace grow sig} (issue : Scheduled.Issue)
+    {leading trailing : Trace grow sig} (result : Except Scheduled.Issue Nat)
     (split : labels = leading ++ trailing)
     (paired : HostFrame.Related.Paired older start incoming)
     (path : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
@@ -12841,17 +12841,17 @@ private theorem finishSharedRefusal {left right : Config (core3 grow) (HostState
     (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
     (site : PairedComponentSite older left right ⟨thread, caller :: frames, rest⟩ ⟨thread, caller :: peerFrames, peerRest⟩)
     (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (caller :: frames) rest).control
-      (do return .flat (← Scheduled.finish leftTicket (.error issue))))
+      (do return .flat (← Scheduled.finish leftTicket result)))
     (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (caller :: peerFrames) peerRest).control
-      (do return .flat (← Scheduled.finish rightTicket (.error issue))))
+      (do return .flat (← Scheduled.finish rightTicket result)))
     (run : Steps profile ready (specDispatch ready base) left trailing finish) :
     CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
   have checked := checkedCompletionPath (profile := profile) (ready := ready) (dispatch := specDispatch ready base)
-    (completion leftTicket (.error issue)) leftFocus
+    (completion leftTicket result) leftFocus
   have raw := checkedCompletionPath (profile := profile) (ready := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
-    (completion rightTicket (.error issue)) rightFocus
+    (completion rightTicket result) rightFocus
   exact finishCoreAcceptCrossing split paired path writers (compareCoreAcceptFramed (leftTicket := leftTicket)
-    (rightTicket := rightTicket) site checked raw ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ rfl rfl (by
+    (rightTicket := rightTicket) site checked raw ⟨_, leftFocus⟩ ⟨_, rightFocus⟩ rfl (by cases result <;> rfl) (by
       unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at site ⊢
       exact pairQuietHost site _) run)
 
@@ -12961,6 +12961,249 @@ private theorem sharedClaimProgram (action : SharedGiveAction) (inst : InstId) (
         | error => rfl
         | ok accepted => cases accepted; simp [Prog.bind_assoc, Except.mapError]
 
+private theorem sharedHandleInsertEffects (inst : InstId) (entry : HandleEntry) :
+    StoreEffects (handlesAdd inst entry : Session grow sig Nat) := by
+  unfold handlesAdd getInst
+  refine (storeEffectGetObject ArenaField.insts inst).bind fun state => ?_
+  cases state.addHandle? entry with
+  | none => exact storeEffectTrap _
+  | some result => exact (storeEffectModify _).bind fun _ => .pure _
+
+private theorem sharedEndpointTransferEffects (site : SharedEndpointGive) :
+    StoreEffects (site.transfer : Session grow sig Nat) := by
+  unfold SharedEndpointGive.transfer lowerAsyncValue
+  exact (storeEffectModify _).bind fun _ => (sharedHandleInsertEffects _ _).bind fun _ =>
+    (storeEffectModify _).bind fun _ => .pure _
+
+open ReturnFrame.Occurrence in
+private theorem crossSharedEndpointTransfer {left right : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
+    {leftTicket rightTicket} {leading trailing : Trace grow sig} (endpoint : SharedEndpointGive)
+    (split : labels = leading ++ trailing)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (site : PairedComponentSite older left right ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control (endpoint.afterSpend leftTicket))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control (endpoint.afterSpend rightTicket))
+    (run : Steps profile ready (specDispatch ready base) left trailing finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+  obtain ⟨used, suffix, reached, peer, divided, localPaths, residual, boundary, _, _, checkedPath, rawPath, stationary⟩ :=
+    cutComponentStoreBodyFramed (bindings := bindings) (closed := True) endpoint.transfer
+      (fun slot => scheduledReply leftTicket (.ok slot)) (fun slot => scheduledReply rightTicket (.ok slot))
+      (fun _ => sharedEndpointTransferEffects endpoint) (trivialPreserves _) trivial leftFocus rightFocus site run
+  have usedAll : labels = (leading ++ used) ++ suffix := by rw [split, divided, List.append_assoc]
+  have traced : VisitorWriterPath profile ready base bindings start incoming (.tau :: (leading ++ used))
+      (.tau :: (leading ++ used)) reached peer := by
+    simpa only [List.cons_append] using writers.append (.framed checkedPath rawPath)
+  have stop (terminal : suffix = [] ∨ (reached.ctl = [] ∧ peer.ctl = [])) :
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+    obtain ⟨_, transported, _⟩ := CallbackPrefix.transportAppend paths localPaths
+    exact .inr (callbackTerminalSlice paired (by
+      rw [usedAll, ← List.cons_append]
+      exact .coreAcceptTerminal (by simpa only [List.cons_append] using transported) traced residual
+        (terminal.elim Or.inl (fun trapped => .inr (.inr (.inr trapped))))))
+  cases boundary with
+  | pending op next checked raw frame normal =>
+    exact stop (.inl (normal.resolve_right (fun unsupported => unsupported.1 trivial)))
+  | trapped checked raw frame => exact stop (.inr ⟨checked, raw⟩)
+  | returned slot checked raw frame =>
+    have retained := retainComparedOccurrences paths (stationary (by
+      rw [checked]
+      cases check
+      exact List.cons_ne_nil _ _)).2
+    exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) (.ok slot) usedAll
+      paired (by simpa only [List.cons_append] using retained) traced frame checked raw residual
+
+private theorem sharedEndpointReadyCode (endpoint : SharedEndpointGive) (ticket : Nat) :
+    (endpoint.claim.afterRead endpoint.inst ticket (.ok ()) : Session grow sig (Ret (core3 grow))) =
+      endpoint.checkedStore ticket := by
+  let execute (store : CStore (core3 grow)) : Session grow sig (Except Scheduled.Issue Nat) :=
+    match Async.Transfer.readyToGive store endpoint.channel endpoint.element ⟨endpoint.identity⟩ with
+    | .error issue => pure (.error (.claim (.endpointTransfer issue)))
+    | .ok () => do
+      claims.spend (.endpoint endpoint.identity)
+      return .ok (← endpoint.transfer)
+  let follow (store : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+    execute store >>= scheduledReply ticket
+  change (.op .get follow : Session grow sig (Ret (core3 grow))) = endpoint.checkedStore ticket
+  unfold SharedEndpointGive.checkedStore
+  congr 1
+  funext store
+  change CStore (core3 grow) at store
+  unfold follow execute SharedEndpointGive.afterReady
+  cases Async.Transfer.readyToGive store endpoint.channel endpoint.element ⟨endpoint.identity⟩ with
+  | error issue => rfl
+  | ok allowed =>
+    cases allowed
+    simp [SharedEndpointGive.spend, SharedEndpointGive.afterSpend, Prog.bind_assoc]
+
+open Stored.OwnedMemory.Claims in
+private theorem sharedEndpointLive {writer : Stored.OwnedMemory.Claims.State sig} (endpoint : SharedEndpointGive)
+    (admitted : endpoint.claim.observe writer = .ok ()) :
+    endpoint.identity ∈ writer.endpoints := by
+  by_contra absent
+  simp [SharedEndpointGive.claim, SharedGiveClaim.observe, State.spendEndpoint, absent, Except.map] at admitted
+
+open ReturnFrame.Occurrence Stored.OwnedMemory.Claims in
+private theorem crossSharedEndpointReady {left right checked raw : Config (core3 grow) (HostState sig)}
+    {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
+    {leftTicket rightTicket} {leading remaining : Trace grow sig}
+    (endpoint : SharedEndpointGive)
+    (split : labels = leading ++ .tau :: remaining)
+    (paired : HostFrame.Related.Paired older start incoming)
+    (paths : OccurrenceTransport profile ready base bindings start incoming (.tau :: leading) (.tau :: leading)
+      left right [some (.active 0 0)])
+    (writers : VisitorWriterPath profile ready base bindings start incoming (.tau :: leading) (.tau :: leading) left right)
+    (before : PairedComponentSite older left right ⟨thread, callerFrame :: frames, rest⟩ ⟨thread, callerFrame :: peerFrames, peerRest⟩)
+    (leftFocus : left.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control (endpoint.claim.probe endpoint.inst leftTicket))
+    (rightFocus : right.ctl = (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control (endpoint.claim.probe endpoint.inst rightTicket))
+    (leftLive : endpoint.claim.observe left.host.writer = .ok ())
+    (rightLive : endpoint.claim.observe right.host.writer = .ok ())
+    (leftGuard : checked = { left with
+      ctl := (PayloadPrefix.Cursor.mk thread (callerFrame :: frames) rest).control (endpoint.checkedStore leftTicket) })
+    (rightGuard : raw = { right with
+      ctl := (PayloadPrefix.Cursor.mk thread (callerFrame :: peerFrames) peerRest).control (endpoint.checkedStore rightTicket) })
+    (guard : Step profile ready (specDispatch ready base) left .tau checked)
+    (peerGuard : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right .tau raw)
+    (run : Steps profile ready (specDispatch ready base) checked remaining finish) :
+    CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, callerFrame :: peerFrames, peerRest⟩
+  subst checked
+  subst raw
+  let checked := { left with ctl := check.control (endpoint.checkedStore leftTicket) }
+  let raw := { right with ctl := canon.control (endpoint.checkedStore rightTicket) }
+  have same : left.store = right.store := (HostFrame.Related.Paired.data before).1
+  have frame : PairedComponentSite older checked raw check canon := by
+    unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at before ⊢
+    exact before
+  have guards : OccurrenceTransport profile ready base bindings start incoming
+      (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) checked raw [some (.active 0 0)] := by
+    simpa only [List.cons_append] using retainComparedOccurrences paths (fun place =>
+      ⟨Prefix.step guard (by rw [transitionEdit, leftFocus]; cases place <;> rfl) (.done _ _),
+       Prefix.step peerGuard (by rw [transitionEdit, rightFocus]; cases place <;> rfl) (.done _ _)⟩)
+  have guardedWriters : VisitorWriterPath profile ready base bindings start incoming
+      (.tau :: (leading ++ [.tau])) (.tau :: (leading ++ [.tau])) checked raw := by
+    simpa only [List.cons_append] using writers.append (.framed (.same guard rfl (.done _)) (.same peerGuard rfl (.done _)))
+  let leftReady := { checked with ctl := check.control (endpoint.afterReady leftTicket left.store) }
+  let rightReady := { raw with ctl := canon.control (endpoint.afterReady rightTicket right.store) }
+  have readiness : Step profile ready (specDispatch ready base) checked .tau leftReady := .get rfl
+  have peerReadiness : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) raw .tau rightReady := .get rfl
+  have early {edits : List (ComponentStoreEdit grow)} {reached peer}
+      (lhs : FramedQuietPath profile ready (specDispatch ready base) check checked edits reached)
+      (rhs : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon raw edits peer)
+      (short : remaining.length < edits.length) :
+      CallbackCrossingAt profile ready base bindings older start incoming .tau labels finish := by
+    obtain ⟨_, _, moved, _, pairedWriters, _, _⟩ :=
+      compareFramedQuietShort lhs rhs frame ⟨_, rfl⟩ ⟨_, rfl⟩ run short
+    obtain ⟨_, through, _⟩ := CallbackPrefix.transportAppend guards moved
+    exact .inr (callbackTerminalSlice paired (by
+      rw [split]
+      simpa only [List.cons_append, List.singleton_append, List.append_assoc, List.append_nil, List.nil_append] using
+        (CallbackSliceEnd.coreAcceptTerminal (changes := older) through (guardedWriters.append pairedWriters)
+          (.refl _) (.inl rfl))))
+  cases verdict : Async.Transfer.readyToGive left.store endpoint.channel endpoint.element ⟨endpoint.identity⟩ with
+  | error issue =>
+    have leftPath : FramedQuietPath profile ready (specDispatch ready base) check checked [id] leftReady :=
+      .step readiness rfl rfl .done
+    have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon raw [id] rightReady :=
+      .step peerReadiness rfl rfl .done
+    rcases splitSilent (leftPath.1.track (.active 0 0)).toTrail.steps run with ⟨suffix, crossed, residual⟩ | short
+    · have used : labels = ((leading ++ [.tau]) ++ [.tau]) ++ suffix := by
+        rw [split, crossed]
+        simp only [List.append_assoc, List.length_cons, List.length_nil, List.replicate_succ,
+          List.replicate_zero, List.cons_append, List.nil_append]
+      have moved := retainComparedOccurrences guards (fun place => ⟨leftPath.1.track place, rightPath.1.track place⟩)
+      have traced := guardedWriters.append (.framed leftPath.2 rightPath.2)
+      exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) (.error (.claim (.endpointTransfer issue)))
+        used paired moved traced
+        (by unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at frame ⊢; exact frame)
+        (by simp only [leftReady, SharedEndpointGive.afterReady, verdict]; rfl)
+        (by simp only [rightReady, SharedEndpointGive.afterReady, ← same, verdict]; rfl) residual
+    · exact early leftPath rightPath short
+  | ok valid =>
+    cases valid
+    let lhsSpend := { checked with ctl := check.control (endpoint.spend leftTicket) }
+    let rhsSpend := { raw with ctl := canon.control (endpoint.spend rightTicket) }
+    have lhsReady : leftReady = lhsSpend := by simp only [leftReady, lhsSpend, SharedEndpointGive.afterReady, verdict]
+    have rhsReady : rightReady = rhsSpend := by simp only [rightReady, rhsSpend, SharedEndpointGive.afterReady, ← same, verdict]
+    let lhsWrite := { lhsSpend with ctl := check.control (.op (.hostSet
+      { lhsSpend.host with writer := (Spend.endpoint endpoint.identity).apply lhsSpend.host.writer })
+      (fun _ => endpoint.afterSpend leftTicket)) }
+    let rhsWrite := { rhsSpend with ctl := canon.control (.op (.hostSet
+      { rhsSpend.host with writer := (Spend.endpoint endpoint.identity).apply rhsSpend.host.writer })
+      (fun _ => endpoint.afterSpend rightTicket)) }
+    let writeAfter (ticket : Nat) (state : HostState sig) : Session grow sig (Ret (core3 grow)) :=
+      .op (.hostSet { state with writer := (Spend.endpoint endpoint.identity).apply state.writer })
+        (fun _ => endpoint.afterSpend ticket)
+    have read : Step profile ready (specDispatch ready base) lhsSpend .tau lhsWrite :=
+      .hostGet (th := check.thread) (segs := check.frames) (rest := check.rest) (k := writeAfter leftTicket) rfl
+    have rawRead : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rhsSpend .tau rhsWrite :=
+      .hostGet (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := writeAfter rightTicket) rfl
+    have checkedReady : Step profile ready (specDispatch ready base) checked .tau lhsSpend := lhsReady ▸ readiness
+    have rawReady : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) raw .tau rhsSpend :=
+      rhsReady ▸ peerReadiness
+    have leftPath : FramedQuietPath profile ready (specDispatch ready base) check checked [id, id] lhsWrite :=
+      .step checkedReady rfl rfl (.step read rfl rfl .done)
+    have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon raw [id, id] rhsWrite :=
+      .step rawReady rfl rfl (.step rawRead rfl rfl .done)
+    rcases splitSilent (count := 2) (leftPath.1.track (.active 0 0)).toTrail.steps run with ⟨suffix, crossed, residual⟩ | short
+    · have beforeCommit := retainComparedOccurrences guards (fun place => ⟨leftPath.1.track place, rightPath.1.track place⟩)
+      have view {beforeState afterState : Config (core3 grow) (HostState sig)} {remaining : Trace grow sig}
+          (ran : Steps profile ready (specDispatch ready base) beforeState remaining afterState) :
+          (remaining = [] ∧ afterState = beforeState) ∨ ∃ action tail reached,
+            remaining = action :: tail ∧ Step profile ready (specDispatch ready base) beforeState action reached ∧
+              Steps profile ready (specDispatch ready base) reached tail afterState := by
+        cases ran with
+        | refl => exact .inl ⟨rfl, rfl⟩
+        | cons first later => exact .inr ⟨_, _, _, rfl, first, later⟩
+      rcases view residual with ⟨finite, stopped⟩ | ⟨action, tail, _, used, step, residual⟩
+      · exact .inr (callbackTerminalSlice paired (by
+          rw [split, crossed, finite, stopped]
+          simpa only [List.append_nil, List.cons_append, List.singleton_append, List.append_assoc, List.replicate_succ,
+            List.replicate_zero, List.length_cons, List.length_nil, List.nil_append] using
+            (CallbackSliceEnd.coreAcceptTerminal (changes := older) beforeCommit
+              (guardedWriters.append (.framed leftPath.2 rightPath.2)) (.refl _) (.inl rfl))))
+      · let leftDone := { lhsWrite with
+          host := { lhsWrite.host with writer := (Spend.endpoint endpoint.identity).apply lhsWrite.host.writer }
+          ctl := check.control (endpoint.afterSpend leftTicket) }
+        let rightDone := { rhsWrite with
+          host := { rhsWrite.host with writer := (Spend.endpoint endpoint.identity).apply rhsWrite.host.writer }
+          ctl := canon.control (endpoint.afterSpend rightTicket) }
+        have commit : Step profile ready (specDispatch ready base) lhsWrite .tau leftDone :=
+          .hostSet (th := check.thread) (segs := check.frames) (rest := check.rest)
+            (s := leftDone.host) (k := fun _ => endpoint.afterSpend leftTicket) rfl
+        have peerCommit : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) rhsWrite .tau rightDone :=
+          .hostSet (th := canon.thread) (segs := canon.frames) (rest := canon.rest)
+            (s := rightDone.host) (k := fun _ => endpoint.afterSpend rightTicket) rfl
+        obtain ⟨rfl, rfl⟩ := silentStepUnique commit step
+        have certified : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) endpoint leftTicket left leftDone :=
+          ⟨check, checked, lhsSpend, lhsWrite, leftFocus, sharedEndpointLive endpoint leftLive, verdict,
+            rfl, rfl, rfl, rfl, guard, checkedReady, read, commit⟩
+        have rawCertified : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base))
+            endpoint rightTicket right rightDone :=
+          ⟨canon, raw, rhsSpend, rhsWrite, rightFocus, sharedEndpointLive endpoint rightLive, same ▸ verdict,
+            rfl, rfl, rfl, rfl, peerGuard, rawReady, rawRead, peerCommit⟩
+        have leadingUsed : labels = (leading ++ [.tau, .tau, .tau, .tau]) ++ tail := by
+          rw [split, crossed, used]
+          simp only [List.replicate_succ, List.replicate_zero, List.nil_append, List.append_assoc, List.cons_append]
+        have moved := retainComparedOccurrences beforeCommit (fun place =>
+          ⟨Prefix.step commit (by cases place <;> rfl) (.done _ _),
+           Prefix.step peerCommit (by cases place <;> rfl) (.done _ _)⟩)
+        have traced := writers.append (.endpointCommit certified rawCertified)
+        exact crossSharedEndpointTransfer (leftTicket := leftTicket) (rightTicket := rightTicket) endpoint leadingUsed paired
+          (by simpa only [List.cons_append, List.length_cons, List.length_nil, List.replicate_succ, List.replicate_zero,
+            List.singleton_append, List.append_assoc, List.nil_append] using moved)
+          (by simpa only [List.cons_append] using traced)
+          (by
+            unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace at frame ⊢
+            exact pairQuietHost frame _) rfl rfl residual
+    · exact early leftPath rightPath short
+
 open ReturnFrame.Occurrence in
 private theorem crossSharedClaim {left right : Config (core3 grow) (HostState sig)}
     {thread frames rest peerFrames peerRest} {callerFrame : Seg (core3 grow) (HostState sig)}
@@ -13016,16 +13259,35 @@ private theorem crossSharedClaim {left right : Config (core3 grow) (HostState si
         simpa only [List.cons_append] using writers.append (.framed checkedPath rawPath)
       cases outcome : lhs with
       | error issue =>
-        exact finishSharedRefusal (leftTicket := leftTicket) (rightTicket := rightTicket) (.claim issue)
+        exact finishSharedResult (leftTicket := leftTicket) (rightTicket := rightTicket) (.error (.claim issue))
           used paired moved extended atReads
           (by show check.control (claim.afterRead inst leftTicket lhs) = _; rw [outcome]; rfl)
           (by show canon.control (claim.afterRead inst rightTicket rhs) = _; rw [← agrees, outcome]; rfl) residual
       | ok permit =>
-        exact .inr (callbackTerminalSlice paired (by
-          rw [used, ← List.cons_append]
-          exact .sharedGiveProbeTerminal linked source permit
-            (by show check.control (claim.afterRead inst leftTicket lhs) = _; rw [outcome])
-            (by show canon.control (claim.afterRead inst rightTicket rhs) = _; rw [← agrees, outcome]) moved extended residual))
+        cases claim with
+        | endpoint channel element identity =>
+          cases permit
+          let endpoint : SharedEndpointGive := ⟨channel, element, identity, inst⟩
+          have leftObserved : endpoint.claim.observe left.host.writer = .ok () := outcome
+          have rightObserved : endpoint.claim.observe right.host.writer = .ok () := by
+            change rhs = .ok ()
+            rw [← agrees, outcome]
+          exact crossSharedEndpointReady (leftTicket := leftTicket) (rightTicket := rightTicket) endpoint split paired paths writers
+            site leftFocus rightFocus leftObserved rightObserved
+            (by change { left with ctl := check.control (endpoint.claim.afterRead inst leftTicket lhs) } = _
+                rw [outcome]
+                exact congrArg (fun program => { left with ctl := check.control program })
+                  (sharedEndpointReadyCode endpoint leftTicket))
+            (by change { right with ctl := canon.control (endpoint.claim.afterRead inst rightTicket rhs) } = _
+                rw [← agrees, outcome]
+                exact congrArg (fun program => { right with ctl := canon.control program })
+                  (sharedEndpointReadyCode endpoint rightTicket)) first other residual
+        | giveOwner _ _ | dropOwner _ _ =>
+          exact .inr (callbackTerminalSlice paired (by
+            rw [used, ← List.cons_append]
+            exact .sharedGiveProbeTerminal linked source permit
+              (by show check.control (SharedGiveClaim.afterRead _ inst leftTicket lhs) = _; rw [outcome])
+              (by show canon.control (SharedGiveClaim.afterRead _ inst rightTicket rhs) = _; rw [← agrees, outcome]) moved extended residual))
     · have difference : SharedGiveProbeMismatch claim inst leftTicket rightTicket left right checked raw check canon :=
         ⟨leftFocus, rightFocus, rfl, rfl, agrees⟩
       have extended : VisitorWriterPath profile ready base bindings start incoming
@@ -13113,7 +13375,7 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
     rcases splitSilent (lhs.1.track (.active 0 0)).toTrail.steps run with ⟨suffix, split, residual⟩ | short
     · have paths := retainInstalledWaitable installed (fun place => ⟨lhs.1.track place, rhs.1.track place⟩)
       have writers := installedWriters.append (.framed lhs.2 rhs.2)
-      exact finishSharedRefusal issue split paired paths writers (by
+      exact finishSharedResult (.error issue) split paired paths writers (by
         unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
         exact pairQuietHost site _) rfl rfl residual
     · exact early lhs rhs short
@@ -13145,8 +13407,8 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
       by_cases agrees : leftRoot = rightRoot
       · cases chosen : leftRoot with
         | none =>
-          exact finishSharedRefusal (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
-            .badSelection split paired paths writers (by
+          exact finishSharedResult (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
+            (.error .badSelection) split paired paths writers (by
             unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
             exact pairQuietHost site _)
             (by change _ = check.control _; simp only [left, chosen, SharedGiveAction.afterLookup])
@@ -13158,8 +13420,8 @@ private theorem crossAdmittedSharedGive {worker frames rest peerFrames peerRest 
             rw [← chosen, agrees]
           by_cases missing : missingSharedPosition action tree position
           · rw [sharedPositionRefusal _ _ _ _ _ missing] at leftFound rightFound
-            exact finishSharedRefusal (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
-              .badSelection split paired paths writers (by
+            exact finishSharedResult (leftTicket := start.host.nextTicket) (rightTicket := incoming.host.nextTicket)
+              (.error .badSelection) split paired paths writers (by
                 unfold PairedComponentSite HostFrame.Related.Paired HostFrame.replace
                 exact pairQuietHost site _) leftFound rightFound residual
           · cases source : action.claimAt tree position with

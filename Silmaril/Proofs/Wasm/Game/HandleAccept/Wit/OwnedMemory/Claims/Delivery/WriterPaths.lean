@@ -189,6 +189,19 @@ theorem publicationDiscrepancies {tree : Stored.OwnedMemory.Tree sig} {pending :
   · simp [PairedPublicationWriterPrefix, ComponentPublicationWriterPrefix, early] at paths
     exact related.register paths.1.2.1 paths.2.2.1
 
+open Stored.OwnedMemory.Claims in
+private theorem endpointSpendWriter {site : SharedEndpointGive} {ticket : Nat}
+    (executed : ExecutedSharedEndpointSpend profile ready dispatch site ticket start finish) :
+    finish.host.writer = (Spend.endpoint site.identity).apply start.host.writer ∧
+    WriterPath profile ready dispatch start [.tau, .tau, .tau, .tau] finish [(start.host.writer, finish.host.writer)] := by
+  obtain ⟨cursor, guarded, prepared, writing, _, live, _, rfl, rfl, rfl, rfl, first, second, read, commit⟩ := executed.executed
+  refine ⟨rfl, .same first rfl (.same second rfl (.same read rfl (.changed commit ?_ (.done _))))⟩
+  intro unchanged
+  apply Spend.not_live (.endpoint site.identity) start.host.writer
+  change (Spend.endpoint site.identity).apply start.host.writer = start.host.writer at unchanged
+  rw [unchanged]
+  exact live
+
 theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start incoming checked canonical left right) :
     PairedWriterPaths profile ready base bindings start incoming checked canonical left right := by
   induction path with
@@ -196,6 +209,7 @@ theorem ofVisitor (path : VisitorWriterPath profile ready base bindings start in
   | prepare _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | registrationMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
   | sharedGiveMismatch _ lhs rhs => exact ⟨[], [], lhs, rhs⟩
+  | endpointCommit lhs rhs => exact ⟨_, _, (endpointSpendWriter lhs).2, (endpointSpendWriter rhs).2⟩
   | guarded paths =>
     obtain ⟨_, changes, lhs, rhs, _⟩ := paths
     exact ⟨changes, [], lhs, rhs⟩
@@ -363,6 +377,11 @@ theorem discrepancyCut (path : VisitorWriterPath profile ready base bindings sta
     simpa only [List.nil_append, List.append_nil] using
       (WriterDiscrepancyCut.sharedGiveConflict [] (empty (start := start) (incoming := incoming)) noSteps site lhs rhs
         checkedRead rawRead (by simpa only [List.not_mem_nil, or_false] using related) (.inl exceptional) conflict empty)
+  | @endpointCommit start incoming left right site leftTicket rightTicket lhs rhs =>
+    have after := initial.spendBoth (.endpoint site.identity)
+    refine .complete [] (.endpointCommit lhs rhs) ?_
+    rw [(endpointSpendWriter lhs).1, (endpointSpendWriter rhs).1]
+    exact ⟨after.accepted, fun probe outside => after.observe probe (fun smaller => outside (.inl smaller.1))⟩
   | guarded paths =>
     obtain ⟨source, changes, checked, canonical, empty | ⟨change, update, single, selected, nominal⟩⟩ := paths
     · subst changes

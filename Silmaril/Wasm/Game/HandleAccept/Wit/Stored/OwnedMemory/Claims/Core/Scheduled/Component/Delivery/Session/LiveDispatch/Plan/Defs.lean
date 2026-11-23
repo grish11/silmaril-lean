@@ -366,6 +366,62 @@ structure SharedGiveProbeMismatch (claim : SharedGiveClaim) (inst : InstId) (lef
   rightProgram : right.ctl = canon.control (claim.afterRead inst rightTicket (claim.observe right.host.writer))
   different : claim.observe left.host.writer ≠ claim.observe right.host.writer
 
+/-- Parameters fixed by the shared endpoint link and selected accepted root. -/
+structure SharedEndpointGive where
+  channel : Channel
+  element : Element
+  identity : EndId
+  inst : InstId
+
+def SharedEndpointGive.claim (site : SharedEndpointGive) : SharedGiveClaim :=
+  .endpoint site.channel site.element site.identity
+
+def SharedEndpointGive.transfer (site : SharedEndpointGive) : Session grow sig Nat :=
+  lowerAsyncValue Limits.spec (site.channel.endKind .read) { opts := {}, inst := site.inst } site.identity
+
+def scheduledReply (ticket : Nat) (verdict : Except Scheduled.Issue Nat) : Session grow sig (Ret (core3 grow)) := do
+  return .flat (← Scheduled.finish ticket verdict)
+
+def SharedEndpointGive.afterSpend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  site.transfer >>= fun idx => scheduledReply ticket (.ok idx)
+
+def SharedEndpointGive.spend (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  claims.spend (.endpoint site.identity) >>= fun _ => site.afterSpend ticket
+
+def SharedEndpointGive.afterReady (site : SharedEndpointGive) (ticket : Nat) (store : CStore (core3 grow)) :
+    Session grow sig (Ret (core3 grow)) :=
+  match Async.Transfer.readyToGive store site.channel site.element ⟨site.identity⟩ with
+  | .error issue => scheduledReply ticket (.error (.claim (.endpointTransfer issue)))
+  | .ok () => site.spend ticket
+
+def SharedEndpointGive.checkedStore (site : SharedEndpointGive) (ticket : Nat) : Session grow sig (Ret (core3 grow)) :=
+  .op .get (site.afterReady ticket)
+
+open Stored.OwnedMemory.Claims in
+/-- The scheduled endpoint transfer follows the reached live guard and
+readiness read, then commits the spend with the real hostSet. -/
+structure ExecutedSharedEndpointSpend (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow)))
+    (site : SharedEndpointGive) (ticket : Nat)
+    (start finish : Config (core3 grow) (HostState sig)) : Prop where
+  executed : ∃ (cursor : PayloadPrefix.Cursor (E := core3 grow) (HostState sig))
+    (guarded prepared writing : Config (core3 grow) (HostState sig)),
+    start.ctl = cursor.control (site.claim.probe site.inst ticket) ∧
+    site.identity ∈ start.host.writer.endpoints ∧
+    Async.Transfer.readyToGive start.store site.channel site.element ⟨site.identity⟩ = .ok () ∧
+    guarded = { start with ctl := cursor.control (site.checkedStore ticket) } ∧
+    prepared = { guarded with ctl := cursor.control (site.spend ticket) } ∧
+    writing = { prepared with ctl := cursor.control (.op (.hostSet
+      { prepared.host with writer := (Spend.endpoint site.identity).apply prepared.host.writer })
+      (fun _ => site.afterSpend ticket)) } ∧
+    finish = { writing with
+      host := { writing.host with writer := (Spend.endpoint site.identity).apply writing.host.writer }
+      ctl := cursor.control (site.afterSpend ticket) } ∧
+    Step profile ready dispatch start .tau guarded ∧
+    Step profile ready dispatch guarded .tau prepared ∧
+    Step profile ready dispatch prepared .tau writing ∧
+    Step profile ready dispatch writing .tau finish
+
 /-- Ordered evidence on the actual pair of visited program segments. Only
 the guarded case attributes a change to a compiled nominal assignment. -/
 inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostState sig))
@@ -391,6 +447,10 @@ inductive VisitorWriterPath (profile : ProfileKind) (ready : HostReady (HostStat
       (lhs : WriterPath profile ready (specDispatch ready base) start [.tau] left [])
       (rhs : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming [.tau] right []) :
       VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] left right
+  | endpointCommit {start incoming left right site leftTicket rightTicket}
+      (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
+      (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
+      VisitorWriterPath profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau] left right
   | guarded {start incoming checked canonical left right plan}
       (paths : CompiledLeafWriterPaths profile ready base bindings start incoming checked canonical left right plan) :
       VisitorWriterPath profile ready base bindings start incoming checked canonical left right
@@ -424,6 +484,10 @@ inductive ClassifiedWriterPrefix (profile : ProfileKind) (ready : HostReady (Hos
       (commit : ReachedLeafSpend profile ready (specDispatch ready base) start checked left change update)
       (raw : WriterPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming canonical right []) :
       ClassifiedWriterPrefix profile ready base bindings start incoming checked canonical left right [update]
+  | endpointCommit {start incoming left right site leftTicket rightTicket}
+      (lhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready base) site leftTicket start left)
+      (rhs : ExecutedSharedEndpointSpend profile ready (specDispatch ready (LiveDispatch.host bindings base)) site rightTicket incoming right) :
+      ClassifiedWriterPrefix profile ready base bindings start incoming [.tau, .tau, .tau, .tau] [.tau, .tau, .tau, .tau] left right []
   | publication {start incoming labels left right tree}
       (paths : PairedPublicationWriterPrefix profile ready base bindings tree start incoming labels left right) :
       ClassifiedWriterPrefix profile ready base bindings start incoming labels labels left right []
