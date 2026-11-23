@@ -10943,7 +10943,9 @@ private theorem crossActiveDirectGive (request : GiveSelector bindings) (worker 
           exact .inr (used.symm ▸ callbackTerminalSlice paired
             (terminal (.inr ⟨issue, checked,
               cutCheckedProgramReply (start := checkedEntry) (check := check) (resume := resume) _ reply residual⟩)))
-      · exact .inr boundary
+      · have total : .tau :: labels = [.tau, .tau, .tau] ++ bodyLabels := by rw [entered]; rfl
+        exact .inr (cutGiveQuietPrefix total paths entryWriters paired journal checked canonical sameStore rfl run
+          (by dsimp [checkCount] at short; omega))
     · push Not at reads
       obtain ⟨handle, demand, different⟩ := reads
       exact lookupMismatch handle demand different
