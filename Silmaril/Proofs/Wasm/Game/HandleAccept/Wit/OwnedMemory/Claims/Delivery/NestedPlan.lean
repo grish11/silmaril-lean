@@ -26014,6 +26014,77 @@ private theorem crossSelectedEmbedderAdmission {limit : Nat}
       (enter rfl rfl rfl rfl scheduler residual (destructorSuffixBound split bounded))
 
 open ReturnFrame.Occurrence in
+private theorem compareSourceResolveHost {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (call : CallId) (values : Option (List Value.Val))
+    (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.pure .unit) (.pure .unit)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.op (.emit (.resolved call values)) (fun _ => .pure .unit))
+      (.op (.emit (.resolved call values)) (fun _ => .pure .unit)) := by
+  intro left right remaining stores lhs rhs scheduler run bounded
+  let observation := HostObs.resolved call values
+  let published := { StepDefs.observe left observation with ctl := check.control (.pure .unit) }
+  let peer := { StepDefs.observe right observation with ctl := canon.control (.pure .unit) }
+  have checked : Step profile ready (specDispatch ready base) left (.obs observation) published := .emit lhs
+  have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right (.obs observation) peer := .emit rhs
+  cases run with
+  | refl => exact .exhausted
+  | cons actual tail =>
+    obtain ⟨rfl, rfl⟩ := componentEmitUnique (cursor := check) lhs actual
+    have moved := sharedSchedulerTransport (bindings := bindings) (edit := .same) checked canonical rfl rfl
+    exact .destructorPrefix moved (frameCalloutStep moved rfl rfl)
+      (fun aligned => DestructorSchedulerAlignment.observeResolved aligned call values)
+      (returned stores rfl rfl (DestructorSchedulerAlignment.observeResolved scheduler call values) tail (Nat.le_of_succ_le bounded))
+
+/-- The first on-resolve read chooses the actual caller route under the installed
+return frame. The lower route retains its own later caller read. -/
+private theorem compareSourceResolveAt {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (caller : CallerId) (result : Option (List Value.Val))
+    (lowered : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerOnResolve Limits.spec Quirks.none caller result >>= fun _ => .pure .unit)
+      (lowerOnResolve Limits.spec Quirks.none caller result >>= fun _ => .pure .unit))
+    (returned : ∀ reply, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.pure reply) (.pure reply)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (specDispatch ready base (.onResolve caller result))
+      (specDispatch ready (LiveDispatch.host bindings base) (.onResolve caller result)) := by
+  rw [sharedResolveDispatchCode, sharedResolveDispatchCode]
+  let route := sharedResolveFromRecord (grow := grow) (sig := sig) caller result
+  have after (record : Caller (core3 grow)) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (route record) (route record) := by
+    intro left right remaining stores lhs rhs scheduler run bounded
+    have closed (body : Session grow sig (Ret (core3 grow))) (effects : StoreEffects body)
+        (code : route record = body) : CallbackSliceEnd profile ready base bindings older left right remaining finish := by
+      have plain : (body >>= Prog.pure) = body := Prog.bind_pure _
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread body effects Prog.pure Prog.pure returned
+        stores (lhs.trans (congrArg check.control (code.trans plain.symm)))
+        (rhs.trans (congrArg canon.control (code.trans plain.symm))) scheduler run bounded
+    cases record with
+    | lower => exact lowered stores lhs rhs scheduler run bounded
+    | sub kind =>
+      cases kind with
+      | invoke =>
+        refine closed _ ?_ rfl
+        unfold route sharedResolveFromRecord modifyObj
+        exact (storeEffectModify _).bind fun _ => .pure _
+      | _ => exact closed (onResolveProg caller result) (sharedInnerResolveEffects caller result) rfl
+    | host call args depth =>
+      by_cases top : depth = 0
+      · have code : route (.host call args depth) = .op (.emit (.resolved call result)) (fun _ => .pure .unit) := by
+          simp [route, sharedResolveFromRecord, top, emit, perform, Prog.lift, bind, Prog.bind]
+        exact compareSourceResolveHost (check := check) (canon := canon) call result (returned .unit) stores
+          (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
+      · have code : route (.host call args depth) = .pure .unit := by
+          simp [route, sharedResolveFromRecord, top]
+        exact returned .unit stores (lhs.trans (congrArg check.control code))
+          (rhs.trans (congrArg canon.control code)) scheduler run bounded
+  intro left right remaining stores lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (getObj ArenaField.callers caller)
+    (storeEffectGetObject ArenaField.callers caller) route route after stores lhs rhs scheduler run bounded
+
+open ReturnFrame.Occurrence in
 private theorem finishSourceSwitchTargetWith {limit : Nat}
     {rest peerRest left right active peerActive}
     (parents : SourceParentStack older rest peerRest) (parentPresent : rest ≠ [] ∧ peerRest ≠ [])
@@ -26243,6 +26314,41 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
           | hostCallout host args =>
             exact crossLinked host args (.prog resume) (.call leftAt) (.call rightAt)
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]) tail ordinary
+          | onResolve caller result =>
+            let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) :=
+              ⟨thread, .prog resume :: frames, active ++ rest⟩
+            let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) :=
+              ⟨thread, .prog resume :: peerFrames, peerActive ++ peerRest⟩
+            have checked := Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) leftAt
+            have canonical := Step.call (prof := profile) (hr := ready)
+              (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+            have installed := sharedSchedulerTransport (bindings := bindings) (edit := .push (.prog resume)) checked canonical
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+            have pushed := List.Forall₂.cons (ReturnFrame.Related.Segment.same (.prog resume)) segments
+            have next (program : Session grow sig (Ret (core3 grow))) :
+                DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older trailing.length finish program program := by
+              intro left right remaining same lhs rhs aligned residual bounded
+              exact proceed (.mk pushed) resumers same aligned lhs rhs residual bounded
+            have closedLower (result : Option (List Value.Val))
+                (effects : StoreEffects (lowerOnResolve Limits.spec Quirks.none caller result : Session grow sig Unit)) :
+                DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older trailing.length finish
+                  (lowerOnResolve Limits.spec Quirks.none caller result >>= fun _ => .pure .unit)
+                  (lowerOnResolve Limits.spec Quirks.none caller result >>= fun _ => .pure .unit) :=
+              crossDestructorRecordStore (check := check) (canon := canon) rfl (lowerOnResolve Limits.spec Quirks.none caller result)
+                effects (fun _ => .pure .unit) (fun _ => .pure .unit) (fun _ => next (.pure .unit))
+            have lowered :
+                DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older trailing.length finish
+                  (lowerOnResolve Limits.spec Quirks.none caller result >>= fun _ => .pure .unit)
+                  (lowerOnResolve Limits.spec Quirks.none caller result >>= fun _ => .pure .unit) := by
+              cases result with
+              | none => exact closedLower none (sourceTaskCancelLowerEffects caller)
+              | some values =>
+                cases values with
+                | nil => exact closedLower (some []) (sharedDestructorLowerResolveEffects caller)
+                | cons _ _ => exact next _
+            exact .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun same => same)
+              (compareSourceResolveAt (check := check) (canon := canon) rfl caller result lowered
+                (fun reply => next (.pure reply)) stores rfl rfl scheduler tail (Nat.le_refl _))
           | _ => exact ordinary
         | callCore atCall =>
           rw [leftAt] at atCall
