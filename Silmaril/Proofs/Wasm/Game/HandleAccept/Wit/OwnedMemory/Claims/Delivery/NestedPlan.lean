@@ -24874,24 +24874,133 @@ private theorem compareSourceGuestWriteBuffer {limit : Nat}
           values.zipIdx next returned))
     same (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
 
+private inductive SourceCopyHostReturn (grow : SingleThreaded.GrowOracle) where
+  | read (count : Nat) (dest : BufferDesc (core3 grow)) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+  | write (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+
+private def SourceCopyHostReturn.resume (site : SourceCopyHostReturn grow) :
+    ReturnFrame.Continuation (core3 grow) (HostState sig) :=
+  match site with
+  | .read count dest copy source => fun
+    | .vals values =>
+      if values.length = count then writeBuffer Limits.spec Quirks.none dest values >>= fun _ => copy.reply source
+      else internal "host buffer read: wrong number of values"
+    | _ => internal "late-bound call: expected Ret.vals"
+  | .write copy source => fun
+    | .unit => copy.reply source
+    | _ => internal "late-bound call: expected Ret.unit"
+
+private theorem sourceCopyHostReadCode (writer reader : EndId) (count : Nat) (host : HostBufId) (length progress : Nat)
+    (dest : BufferDesc (core3 grow)) (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    (performCopy Limits.spec Quirks.none (.transfer writer reader count (.host host length progress) dest)
+      >>= fun _ => copy.reply (sig := sig) source) =
+      .op (.call (.hostBuffer (.read host count))) (SourceCopyHostReturn.read count dest copy source).resume := by
+  unfold performCopy readBuffer callVals callRet perform Prog.lift
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call (.hostBuffer (.read host count))) _ = _
+  congr 1
+  funext reply
+  cases reply
+  case vals values =>
+    change (Prog.bind (if values.length = count then Prog.pure values
+      else (internal "host buffer read: wrong number of values" : Session grow sig (List Value.Val)))
+      (fun selected => writeBuffer Limits.spec Quirks.none dest selected >>= fun _ => copy.reply source)) = _
+    simp only [SourceCopyHostReturn.resume]
+    split
+    · rfl
+    · rw [internalBind]
+  all_goals
+    change Prog.bind (internal "late-bound call: expected Ret.vals" : Session grow sig (List Value.Val)) _ = _
+    rw [internalBind]
+    rfl
+
+private theorem sourceCopyHostWriteCode (host : HostBufId) (length progress : Nat) (values : List Value.Val)
+    (copy : SourceCopy grow) (source : SourceCopyBuffer grow) :
+    (writeBuffer Limits.spec Quirks.none (.host host length progress) values >>= fun _ => copy.reply (sig := sig) source) =
+      .op (.call (.hostBuffer (.write host values))) (SourceCopyHostReturn.write copy source).resume := by
+  unfold writeBuffer callUnit callRet perform Prog.lift
+  simp only [Prog.bind_eq]
+  change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call (.hostBuffer (.write host values))) _ = _
+  congr 1
+  funext reply
+  cases reply
+  case unit => rfl
+  all_goals
+    change Prog.bind (internal "late-bound call: expected Ret.unit" : Session grow sig Unit) _ = _
+    rw [internalBind]
+    rfl
+
+private theorem compareSourceCopyDestination {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (dest : BufferDesc (core3 grow)) (values : List Value.Val) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (writeBuffer Limits.spec Quirks.none dest values >>= fun _ => copy.reply source)
+      (writeBuffer Limits.spec Quirks.none dest values >>= fun _ => copy.reply source) := by
+  cases dest with
+  | host id length progress =>
+    rw [sourceCopyHostWriteCode id length progress values copy source]
+    exact compareProgram _
+  | guest cx type ptr length progress =>
+    cases type with
+    | none => exact compareSourceCopyReply threads copy source compareProgram
+    | some type =>
+      exact compareSourceGuestWriteBuffer threads allocate cx type ptr length progress values (copy.reply source)
+        (compareSourceCopyReply threads copy source compareProgram)
+
+private theorem compareSourceCopyHostReturn {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (threads : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (site : SourceCopyHostReturn grow) (result : Ret (core3 grow))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (site.resume result) (site.resume result) := by
+  have stopped (message : String) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (internal message) (internal message) := by
+    intro left right remaining same lhs rhs aligned run bounded
+    exact compareSharedDestructorTrap (.internal message) lhs rhs run
+  cases site with
+  | read count dest copy source =>
+    cases result with
+    | vals values =>
+      simp only [SourceCopyHostReturn.resume]
+      split
+      · intro left right remaining same lhs rhs aligned run bounded
+        exact compareSourceCopyDestination threads allocate dest values copy source compareProgram same lhs rhs aligned run bounded
+      · exact @stopped "host buffer read: wrong number of values"
+    | _ => exact @stopped "late-bound call: expected Ret.vals"
+  | write copy source =>
+    cases result with
+    | unit =>
+      intro left right remaining same lhs rhs aligned run bounded
+      exact compareSourceCopyReply threads copy source compareProgram same lhs rhs aligned run bounded
+    | _ => exact @stopped "late-bound call: expected Ret.unit"
+
 private theorem compareSourceCopyMove {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (action : CopyAction (core3 grow))
     (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
-    (next : Session grow sig (Ret (core3 grow)))
+    (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
-      profile ready base bindings older limit finish program program)
-    (compareNext : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
+      profile ready base bindings older limit finish program program) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (performCopy Limits.spec Quirks.none action >>= fun _ => next)
-      (performCopy Limits.spec Quirks.none action >>= fun _ => next) := by
+      (performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source)
+      (performCopy Limits.spec Quirks.none action >>= fun _ => copy.reply source) := by
   cases action with
-  | none => exact compareNext
+  | none => exact compareSourceCopyReply threads copy source compareProgram
   | transfer writer reader count writerBuffer readerBuffer =>
     cases writerBuffer with
-    | host => exact compareProgram _
+    | host id length progress =>
+      rw [sourceCopyHostReadCode writer reader count id length progress readerBuffer copy source]
+      exact compareProgram _
     | guest cx type ptr length progress =>
       intro start incoming labels stores leftAt rightAt aligned run bounded
+      let next := copy.reply (sig := sig) source
       let body : Session grow sig (List Value.Val) :=
         readBuffer Limits.spec Quirks.none (.guest cx type ptr length progress) count
       let resume (values : List Value.Val) := writeBuffer Limits.spec Quirks.none readerBuffer values >>= fun _ => next
@@ -24903,16 +25012,8 @@ private theorem compareSourceCopyMove {limit : Nat}
         (sourceValueLiftEffects start.store (sourceGuestCopyRead cx type ptr length progress count)) ⟨rfl, rfl⟩ stores
         (leftAt.trans (congrArg check.control code)) (rightAt.trans (congrArg canon.control code)) run ?_
       intro left right remaining values shorter _ same lhs rhs scheduler residual
-      have following : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-          (resume values) (resume values) := by
-        cases readerBuffer with
-        | host => exact compareProgram _
-        | guest context element address length progress =>
-          cases element with
-          | none => exact compareNext
-          | some element =>
-            exact compareSourceGuestWriteBuffer threads allocate context element address length progress values next compareNext
-      exact following same lhs rhs (scheduler aligned) residual (shorter.trans bounded)
+      exact compareSourceCopyDestination threads allocate readerBuffer values copy source compareProgram
+        same lhs rhs (scheduler aligned) residual (shorter.trans bounded)
 
 open ReturnFrame.Occurrence in
 private theorem compareSourceCopyTransfer {limit : Nat}
@@ -24948,8 +25049,7 @@ private theorem compareSourceCopyTransfer {limit : Nat}
       have writes := sharedSchedulerTransport (bindings := bindings) lhs.commit rhs.commit (by rfl) (by rfl)
       obtain ⟨_, paths, _⟩ := CallbackPrefix.transportAppend reads writes
       exact .destructorPrefix paths (.copyTransfer lhs rhs) (fun same => same)
-        (compareSourceCopyMove threads action allocate (copy.reply source) compareProgram
-          (compareSourceCopyReply threads copy source compareProgram) rfl rfl rfl scheduler residual
+        (compareSourceCopyMove threads action allocate copy source compareProgram rfl rfl rfl scheduler residual
           ((Nat.le_succ _).trans ((Nat.le_succ _).trans bounded)))
 
 /-- Run the guest-side admission and selected bookkeeping before handing the
@@ -24982,8 +25082,7 @@ private theorem compareSourceCopy {limit : Nat}
         (modifyStore update >>= complete) (modifyStore update >>= complete)
       exact crossDestructorRecordStore (check := check) (canon := canon) threads (modifyStore update)
         (storeEffectModify update) complete complete fun _ =>
-          compareSourceCopyMove threads action allocate (copy.reply source) compareProgram
-            (compareSourceCopyReply threads copy source compareProgram)
+          compareSourceCopyMove threads action allocate copy source compareProgram
   intro start incoming labels stores lhs rhs scheduler run bounded
   cases chosen : copyCore source.2.1 source.2.2 copy.kind.isReadable start.store with
   | error => exact other stores lhs rhs scheduler run bounded
@@ -25755,13 +25854,30 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
             rw [congrArg CStore.core stores.symm] at raw
             exact advance (.popCore leftAt) raw tail tails rfl rfl stores scheduler rfl rfl
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
-        | @popProg _ result resume _ _ atPop =>
+        | @popProg _ result resume leftFrames _ atPop =>
           rw [leftAt] at atPop
           cases atPop
           cases segments with
-          | cons head tails =>
+          | @cons _ _ _ rightFrames head tails =>
             cases head with
             | same _ =>
+              by_cases hostReturn : ∃ site : SourceCopyHostReturn grow, resume = site.resume
+              · obtain ⟨site, rfl⟩ := hostReturn
+                let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, leftFrames, active ++ rest⟩
+                let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, rightFrames, peerActive ++ peerRest⟩
+                have pop := Step.popProg (prof := profile) (hr := ready)
+                  (dispatch := specDispatch ready base) leftAt
+                have peerPop := Step.popProg (prof := profile) (hr := ready)
+                  (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+                have moved := sharedSchedulerTransport (bindings := bindings) (edit := .pop) pop peerPop
+                  (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+                refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) (fun same => same) ?_
+                have allocate := sourceValueAllocationAt (check := check) (canon := canon)
+                  (imports trailing.length (Nat.lt_succ_self _)).1 (.prefixed resumers parents) rfl tails
+                refine compareSourceCopyHostReturn (check := check) (canon := canon) rfl allocate site result ?_
+                  stores rfl rfl scheduler tail (Nat.le_refl _)
+                intro program lhs rhs suffix same lAt rAt aligned residual within
+                exact proceed (.mk tails) resumers same aligned lAt rAt residual within
               exact advance (.popProg leftAt) (.popProg rightAt) tail tails rfl rfl stores scheduler rfl rfl
                 (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]; rfl)
             | @swap _ second source =>
