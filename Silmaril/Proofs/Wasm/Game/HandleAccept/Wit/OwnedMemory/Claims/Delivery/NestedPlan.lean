@@ -2630,12 +2630,12 @@ theorem cutExecutedCallback
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) (includePoll : Bool := false)
     (includeWait : Bool := false) (includeCancelResume : Bool := false) (includeCancel : Bool := false)
-    (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeTickResume : Bool := false) :
+    (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeHostResume : Bool := false) :
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
   let protectedReturn := fun resume => ∃ rhs, older resume rhs
   have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
   cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run
-      includeComponentCalls includePoll includeWait includeCancelResume includeCancel includeCoreAccept includeSharedGive includeTickResume with
+      includeComponentCalls includePoll includeWait includeCancelResume includeCancel includeCoreAccept includeSharedGive includeHostResume with
   | complete _ replay growing =>
     obtain ⟨_, prefixRun, writers⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     exact .complete prefixRun writers
@@ -2758,11 +2758,11 @@ private theorem compareNonGrowingUpdate {changes : ReturnFrame.Substitutions (co
       aligned path (.framed (.same (.modify focus) rfl (.done _)) (.same live rfl (.done _))) tail
   next => simp at failed
 
-private def CallbackTickResumeCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
+private def CallbackHostResumeCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
     (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
   ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
-    {worker saved},
-    checked.ctl = [⟨none, .prog (.op (.resumeThread worker) (fun _ => sourceTickReturn)), []⟩] →
+    {worker saved resume frames},
+    checked.ctl = [⟨none, .prog (.op (.resumeThread worker) resume), frames⟩] →
     checked.cont? worker = some saved →
     Step profile ready (specDispatch ready base) checked label next →
     Steps profile ready (specDispatch ready base) next trailing finish →
@@ -2779,14 +2779,14 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
     (cancel : Option (PLift (CallbackCancelCrossing profile ready base bindings)))
     (accept : Option (PLift (CallbackCoreAcceptCrossing profile ready base bindings)))
     (shared : Option (PLift (CallbackSharedGiveCrossing profile ready base bindings)))
-    (tickResume : Option (PLift (CallbackTickResumeCrossing profile ready base bindings)))
+    (hostResume : Option (PLift (CallbackHostResumeCrossing profile ready base bindings)))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish := by
   induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels finish older with
   | ind budget ih =>
     cases cutExecutedCallback run paired component.isSome poll.isSome (wait.isSome || waitResume.isSome) cancelResume.isSome
-        cancel.isSome accept.isSome shared.isSome tickResume.isSome with
+        cancel.isSome accept.isSome shared.isSome hostResume.isSome with
     | complete segment _ => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
     | @boundary leading label trailing reached peer next split front _ kind step tail smaller =>
       have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
@@ -2878,9 +2878,9 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
         cases cancelResume with
         | none => exact stop (.boundary (.cancelResume focus found) step tail)
         | some rule => exact advance (rule.down focus found step tail front.paired)
-      | tickResume focus found =>
-        cases tickResume with
-        | none => exact stop (.boundary (.tickResume focus found) step tail)
+      | hostResume focus found =>
+        cases hostResume with
+        | none => exact stop (.boundary (.hostResume focus found) step tail)
         | some rule => exact advance (rule.down focus found step tail front.paired available)
       | cancelInstall focus calling =>
         cases cancel with
@@ -26037,28 +26037,94 @@ private theorem crossSelectedEmbedderAdmission {limit : Nat}
       (enter rfl rfl rfl rfl scheduler residual (destructorSuffixBound split bounded))
 
 open ReturnFrame.Occurrence in
-private theorem compareSourceResolveHost {limit : Nat}
+private theorem compareSourceCallerObservation {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (call : CallId) (values : Option (List Value.Val))
+    (observation : HostObs) (reply : Ret (core3 grow))
     (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (.pure .unit) (.pure .unit)) :
+      (.pure reply) (.pure reply)) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (.op (.emit (.resolved call values)) (fun _ => .pure .unit))
-      (.op (.emit (.resolved call values)) (fun _ => .pure .unit)) := by
+      (.op (.emit observation) (fun _ => .pure reply))
+      (.op (.emit observation) (fun _ => .pure reply)) := by
   intro left right remaining stores lhs rhs scheduler run bounded
-  let observation := HostObs.resolved call values
-  let published := { StepDefs.observe left observation with ctl := check.control (.pure .unit) }
-  let peer := { StepDefs.observe right observation with ctl := canon.control (.pure .unit) }
+  let published := { StepDefs.observe left observation with ctl := check.control (.pure reply) }
+  let peer := { StepDefs.observe right observation with ctl := canon.control (.pure reply) }
   have checked : Step profile ready (specDispatch ready base) left (.obs observation) published := .emit lhs
   have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) right (.obs observation) peer := .emit rhs
+  have aligned : DestructorSchedulerAlignment older left right → DestructorSchedulerAlignment older published peer := by
+    intro before
+    cases observation with
+    | resolved call values => exact DestructorSchedulerAlignment.observeResolved before call values
+    | _ => exact before
+  have same : published.store = peer.store := by cases observation <;> exact stores
+  have leftHost : published.host = left.host := by cases observation <;> rfl
+  have rightHost : peer.host = right.host := by cases observation <;> rfl
   cases run with
   | refl => exact .exhausted
   | cons actual tail =>
     obtain ⟨rfl, rfl⟩ := componentEmitUnique (cursor := check) lhs actual
     have moved := sharedSchedulerTransport (bindings := bindings) (edit := .same) checked canonical rfl rfl
-    exact .destructorPrefix moved (frameCalloutStep moved rfl rfl)
-      (fun aligned => DestructorSchedulerAlignment.observeResolved aligned call values)
-      (returned stores rfl rfl (DestructorSchedulerAlignment.observeResolved scheduler call values) tail (Nat.le_of_succ_le bounded))
+    exact .destructorPrefix moved (frameCalloutStep moved leftHost rightHost) aligned
+      (returned same rfl rfl (aligned scheduler) tail (Nat.le_of_succ_le bounded))
+
+private theorem sourceInnerStartEffects (caller : CallerId) :
+    StoreEffects (onStartProg caller : Session grow sig (Ret (core3 grow))) := by
+  rw [sharedDestructorInnerStartSource]
+  apply (storeEffectGetObject ArenaField.callers caller).bind
+  intro record
+  cases record with
+  | host | lower => exact storeEffectTrap _
+  | sub kind =>
+    cases kind with
+    | realloc | start => exact .pure _
+    | destructor => exact .op rfl fun _ => .pure _
+    | invoke => exact storeEffectTrap _
+
+/-- Compare the reached caller record's executable on-start route under its
+installed return frame. Canonical lower runs its own reread and scoped lift. -/
+private theorem compareSourceStartAt {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (caller : CallerId)
+    (returned : ∀ reply, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (.pure reply) (.pure reply)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (specDispatch ready base (.onStart caller))
+      (specDispatch ready (LiveDispatch.host bindings base) (.onStart caller)) := by
+  rw [sharedDestructorCallerStartSource, sharedDestructorCallerStartSource]
+  let route := sharedDestructorCallerStartFromRecord (grow := grow) (sig := sig) caller
+  have after (record : Caller (core3 grow)) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (route record) (route record) := by
+    intro left right remaining stores lhs rhs scheduler run bounded
+    cases record with
+    | lower =>
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread
+        (lowerOnStart Limits.spec Quirks.none caller) (lowerOnStart_every _ _ _ rfl (fun _ => rfl) (fun _ => rfl))
+        (fun values => .pure (.vals values)) (fun values => .pure (.vals values)) (fun values => returned (.vals values))
+        stores lhs rhs scheduler run bounded
+    | sub kind =>
+      have inner (code : route (.sub kind) = onStartProg caller) :
+          CallbackSliceEnd profile ready base bindings older left right remaining finish := by
+        have normalized := code.trans (Prog.bind_pure (onStartProg caller)).symm
+        exact crossDestructorRecordStore (check := check) (canon := canon) thread (onStartProg caller)
+          (sourceInnerStartEffects caller) Prog.pure Prog.pure returned
+          stores (lhs.trans (congrArg check.control normalized)) (rhs.trans (congrArg canon.control normalized))
+          scheduler run bounded
+      cases kind with
+      | invoke args _ => exact returned (.vals args) stores lhs rhs scheduler run bounded
+      | _ => exact inner rfl
+    | host call args depth =>
+      by_cases top : depth = 0
+      · have code : route (.host call args depth) = .op (.emit (.started call)) (fun _ => .pure (.vals args)) := by
+          simp [route, sharedDestructorCallerStartFromRecord, top, emit, perform, Prog.lift, bind, Prog.bind]
+        exact compareSourceCallerObservation (check := check) (canon := canon) (.started call) (.vals args)
+          (returned (.vals args)) stores (lhs.trans (congrArg check.control code))
+          (rhs.trans (congrArg canon.control code)) scheduler run bounded
+      · have code : route (.host call args depth) = .pure (.vals args) := by
+          simp [route, sharedDestructorCallerStartFromRecord, top]
+        exact returned (.vals args) stores (lhs.trans (congrArg check.control code))
+          (rhs.trans (congrArg canon.control code)) scheduler run bounded
+  intro left right remaining stores lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (getObj ArenaField.callers caller)
+    (storeEffectGetObject ArenaField.callers caller) route route after stores lhs rhs scheduler run bounded
 
 /-- The first on-resolve read chooses the actual caller route under the installed
 return frame. The lower route retains its own later caller read. -/
@@ -26097,7 +26163,7 @@ private theorem compareSourceResolveAt {limit : Nat}
       by_cases top : depth = 0
       · have code : route (.host call args depth) = .op (.emit (.resolved call result)) (fun _ => .pure .unit) := by
           simp [route, sharedResolveFromRecord, top, emit, perform, Prog.lift, bind, Prog.bind]
-        exact compareSourceResolveHost (check := check) (canon := canon) call result (returned .unit) stores
+        exact compareSourceCallerObservation (check := check) (canon := canon) (.resolved call result) .unit (returned .unit) stores
           (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
       · have code : route (.host call args depth) = .pure .unit := by
           simp [route, sharedResolveFromRecord, top]
@@ -26337,6 +26403,22 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
           | hostCallout host args =>
             exact crossLinked host args (.prog resume) (.call leftAt) (.call rightAt)
               (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt]) tail ordinary
+          | onStart caller =>
+            let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) :=
+              ⟨thread, .prog resume :: frames, active ++ rest⟩
+            let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) :=
+              ⟨thread, .prog resume :: peerFrames, peerActive ++ peerRest⟩
+            have checked := Step.call (prof := profile) (hr := ready) (dispatch := specDispatch ready base) leftAt
+            have canonical := Step.call (prof := profile) (hr := ready)
+              (dispatch := specDispatch ready (LiveDispatch.host bindings base)) rightAt
+            have installed := sharedSchedulerTransport (bindings := bindings) (edit := .push (.prog resume)) checked canonical
+              (by rw [transitionEdit, leftAt]) (by rw [transitionEdit, rightAt])
+            have pushed := List.Forall₂.cons (ReturnFrame.Related.Segment.same (.prog resume)) segments
+            exact .destructorPrefix installed (frameCalloutStep installed rfl rfl) (fun aligned => aligned)
+              (compareSourceStartAt (check := check) (canon := canon) rfl caller
+                (fun _ {_ _ _} same lhs rhs aligned residual bounded =>
+                  proceed (.mk pushed) resumers same aligned lhs rhs residual bounded)
+                stores rfl rfl scheduler tail (Nat.le_refl _))
           | onResolve caller result =>
             let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) :=
               ⟨thread, .prog resume :: frames, active ++ rest⟩
@@ -30344,34 +30426,35 @@ private theorem pairOfSourceScheduler {left right : Config (core3 grow) (HostSta
   exact .mk active saved
 
 open ReturnFrame.Occurrence in
-private theorem classifiedTickResumeCrossing :
-    CallbackTickResumeCrossing profile ready base bindings := by
-  intro changes checked canonical next finish label trailing worker saved focus found actual tail paired compare
-  have frames {left right : Config (core3 grow) (HostState sig)} (paired : ReturnFrame.Related.Paired changes left right) :
+private theorem classifiedHostResumeCrossing :
+    CallbackHostResumeCrossing profile ready base bindings := by
+  intro changes checked canonical next finish label trailing worker saved resume frames focus found actual tail paired compare
+  have controls {left right : Config (core3 grow) (HostState sig)} (paired : ReturnFrame.Related.Paired changes left right) :
       List.Forall₂ (ReturnFrame.Related.Active changes) left.ctl right.ctl ∧
       List.Forall₂ (ReturnFrame.Related.Saved changes) left.conts right.conts := by
     cases paired with
     | mk active saved => exact ⟨active, saved⟩
-  obtain ⟨active, blocked⟩ := frames (left := HostFrame.replace checked canonical.host) paired
-  let resuming : Session grow sig (Ret (core3 grow)) := .op (.resumeThread worker) (fun _ => sourceTickReturn)
-  have sameSingleton {control : List (Activation (core3 grow) (HostState sig))}
-      (related : List.Forall₂ (ReturnFrame.Related.Active changes) [⟨none, .prog resuming, []⟩] control) :
-      control = [⟨none, .prog resuming, []⟩] := by
+  obtain ⟨active, blocked⟩ := controls (left := HostFrame.replace checked canonical.host) paired
+  let resuming : Session grow sig (Ret (core3 grow)) := .op (.resumeThread worker) resume
+  let parent : Activation (core3 grow) (HostState sig) := ⟨none, .prog (resume ()), frames⟩
+  have resumer {control : List (Activation (core3 grow) (HostState sig))}
+      (related : List.Forall₂ (ReturnFrame.Related.Active changes) [⟨none, .prog resuming, frames⟩] control) :
+      ∃ peerFrames, control = [⟨none, .prog resuming, peerFrames⟩] ∧
+        List.Forall₂ (ReturnFrame.Related.Active changes) [parent] [⟨none, .prog (resume ()), peerFrames⟩] := by
     cases related with
     | cons head tail =>
       cases tail
       cases head with
-      | mk segments => cases segments; rfl
-  have rawFocus : canonical.ctl = [⟨none, .prog resuming, []⟩] := by
-    change List.Forall₂ (ReturnFrame.Related.Active changes) checked.ctl canonical.ctl at active
-    rw [focus] at active
-    exact sameSingleton active
+      | mk segments => exact ⟨_, rfl, .cons (.mk segments) .nil⟩
+  change List.Forall₂ (ReturnFrame.Related.Active changes) checked.ctl canonical.ctl at active
+  rw [focus] at active
+  obtain ⟨peerFrames, rawFocus, parents⟩ := resumer active
   have stores := paired.data.1
   obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome (found ▸ relatedContLookup blocked worker)
-  let parent : Activation (core3 grow) (HostState sig) := .ofProg none sourceTickReturn
+  let peerParent : Activation (core3 grow) (HostState sig) := ⟨none, .prog (resume ()), peerFrames⟩
   let update := StepDefs.threadStatusSt (E := core3 grow) worker .running
   let left := { checked.setCont worker none with store := update checked.store, ctl := saved :: [parent] }
-  let right := { canonical.setCont worker none with store := update canonical.store, ctl := peer :: [parent] }
+  let right := { canonical.setCont worker none with store := update canonical.store, ctl := peer :: [peerParent] }
   have leftStep : Step profile ready (specDispatch ready base) checked .tau left := .resumeThread focus found
   have rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical .tau right :=
     .resumeThread rawFocus rawFound
@@ -30382,8 +30465,6 @@ private theorem classifiedTickResumeCrossing :
     ⟨blocked, paired.data.2⟩
   have aligned (before : DestructorSchedulerAlignment changes checked canonical) : DestructorSchedulerAlignment changes left right :=
     ⟨relatedSetSlot .none before.1 worker.idx .none, before.2⟩
-  have parents : List.Forall₂ (ReturnFrame.Related.Active changes) [parent] [parent] :=
-    .cons (.mk .nil) .nil
   apply Or.inr
   apply callbackTerminalSlice paired
   refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) aligned ?_
@@ -30407,7 +30488,7 @@ private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (some ⟨classifiedWaitResumeCrossing⟩) (some ⟨classifiedCancelResumeCrossing⟩)
     (some ⟨classifiedCancelCrossing⟩) (some ⟨classifiedCoreAcceptCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩)
     (some ⟨classifiedSharedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩)
-    (some ⟨classifiedTickResumeCrossing⟩) run paired
+    (some ⟨classifiedHostResumeCrossing⟩) run paired
 
 theorem actualSelectedGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {label next}

@@ -341,7 +341,7 @@ private theorem actualReplayCons {before next after : Config (core3 grow) (HostS
 theorem classifyActual {protectedReturn} {labels : Trace grow sig}
     (run : Steps profile ready (specDispatch ready base) start labels finish) (includeComponentCalls : Bool := false)
     (includePoll : Bool := false) (includeWait : Bool := false) (includeCancelResume : Bool := false)
-    (includeCancel : Bool := false) (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeTickResume : Bool := false) :
+    (includeCancel : Bool := false) (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeHostResume : Bool := false) :
     ClassifiedCallbackRun bindings profile ready base protectedReturn start labels finish := by
   classical
   induction run with
@@ -390,11 +390,11 @@ theorem classifyActual {protectedReturn} {labels : Trace grow sig}
           before.cont? waiter = some ⟨some waiter, .prog (cancelFinish subtask), .core core resume :: savedFrames⟩
     · obtain ⟨_, _, _, _, _, _, _, _, _, _, focus, saved⟩ := resumedCancel
       exact stop (.cancelResume focus saved)
-    by_cases resumedTick : includeTickResume = true ∧ ∃ worker saved,
-        before.ctl = [⟨none, .prog (.op (.resumeThread worker) (fun _ => sourceTickReturn)), []⟩] ∧
+    by_cases resumedHost : includeHostResume = true ∧ ∃ worker saved resume frames,
+        before.ctl = [⟨none, .prog (.op (.resumeThread worker) resume), frames⟩] ∧
         before.cont? worker = some saved
-    · obtain ⟨_, _, _, focused, found⟩ := resumedTick
-      exact stop (.tickResume focused found)
+    · obtain ⟨_, _, _, _, _, focused, found⟩ := resumedHost
+      exact stop (.hostResume focused found)
     by_cases closedRead : ClosedHostRead before
     · obtain ⟨thread, resume, frames, rest, focus, agrees⟩ := closedRead
       obtain ⟨rfl, rfl⟩ := actualHostGet focus step

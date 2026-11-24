@@ -3617,27 +3617,12 @@ theorem classify_give_callbacks
     CallbackSlice profile ready base bindings older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyGiveCallbacks embedder run paired
 
-/-- One finite checked-run fold under the fixed component dispatcher. Parked
-gives, admitted component calls, and public polls, waits and cancels share the
-shorter-run induction, including inside allocator and cancellation callbacks.
-A legacy accept starts at the executed Core or program call, which pushes its
-own caller occurrence. On admission it follows the reached load, registration
-read and any actual commit and journal. A probe conflict keeps both branch
-programs. An admission refusal journals its own result before the reply.
-A dangling caller traps only at the executed fault, clearing active marks
-while keeping saved ones. A common reply releases the suffix at the original
-marked pop.
-An unresolved cancel enters the hook after the actual request write and
-installation. Its executed marked pop leads to the reached readiness decision,
-or to the actual trapped or exhausted prefix of that decision.
-When the original Core caller is active at that decision, compare its live
-finish and executed reply, or follow its executed park through the mixed suffix.
-A direct give follows the actual thread and store reads to the two live callout
-bodies, with the marked program continuation; admission remains a proof cut.
-A non-early wait with an active caller follows the reached park instruction.
-The scheduler fold continues from the actual parked configuration. An exhausted
-decision or trapped delivery retains its own reached endpoint. Other
-component sites remain at their exact install cut with the reached outcome. -/
+/-- Compare the actual finite checked run with the reached fixed-raw peer.
+The mixed fold follows linked visitors, callbacks and scheduler reentry,
+including the selected saved activation under a host resumer with its own
+return frames. The result retains separate writer traces, active and saved
+occurrence trails and the actual checked residual at a demanded conflict,
+readiness observation, asymmetric stop or remaining source proof cut. -/
 theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
@@ -3672,6 +3657,18 @@ theorem classify_host_tick_callbacks {callees : List (ComponentCall.Callee sig)}
     (paired : HostFrame.Related.Paired older start incoming) :
     MixedCallbackSlice profile ready bindings callees older start incoming (.host .tick :: labels) finish :=
   classify_mixed_callbacks (.cons (.hostTick initial) run) paired
+
+/-- Install the executable top-level invoke and compare its actual finite
+suffix with the incoming peer. The new host call id is checked at the source
+machine's pending table. -/
+theorem classify_host_invoke_callbacks {callees : List (ComponentCall.Callee sig)} {call func args}
+    (initial : StepDefs.HostReadyCfg start) (fresh : ∀ entry ∈ start.pending, entry.1 ≠ call)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      { start with pending := start.pending ++ [(call, func, args)]
+                   ctl := [.ofProg none (StepDefs.invokeProg call func args)] } labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    MixedCallbackSlice profile ready bindings callees older start incoming (.host (.invoke call func args) :: labels) finish :=
+  classify_mixed_callbacks (.cons (.hostInvoke initial fresh) run) paired
 
 /-- Accumulate the certified nominal discrepancies on the same segment as the
 actual finite mixed fold. Classify only executed sites and keep any missing
