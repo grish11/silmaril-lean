@@ -1566,6 +1566,12 @@ structure SharedGiveHistoryMismatch (action : SharedGiveAction) (inst : InstId) 
   different : Stored.Endpoints.Core.childFromHistory beforeLeft.host.writer.accepted handle ≠
     Stored.Endpoints.Core.childFromHistory beforeRight.host.writer.accepted handle
 
+/-- The host frame left to run after the thread selected by Store.tick
+returns to its resumer. -/
+def sourceTickReturn : Session grow sig (Ret (core3 grow)) := do
+  modifyStore StepDefs.leaveHostSt
+  pure .unit
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -1598,6 +1604,9 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | cancelResume {waiter resumer afterResume frames rest core resume savedFrames subtask}
       (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
       (found : before.cont? waiter = some ⟨some waiter, .prog (cancelFinish subtask), .core core resume :: savedFrames⟩)
+  | tickResume {worker saved}
+      (focus : before.ctl = [⟨none, .prog (.op (.resumeThread worker) (fun _ => sourceTickReturn)), []⟩])
+      (found : before.cont? worker = some saved)
   | read {thread resume frames rest}
       (focus : before.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
       (openRead : ¬ ClosedHostRead before)

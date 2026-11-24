@@ -2630,12 +2630,12 @@ theorem cutExecutedCallback
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) (includePoll : Bool := false)
     (includeWait : Bool := false) (includeCancelResume : Bool := false) (includeCancel : Bool := false)
-    (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) :
+    (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeTickResume : Bool := false) :
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
   let protectedReturn := fun resume => ∃ rhs, older resume rhs
   have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
   cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run
-      includeComponentCalls includePoll includeWait includeCancelResume includeCancel includeCoreAccept includeSharedGive with
+      includeComponentCalls includePoll includeWait includeCancelResume includeCancel includeCoreAccept includeSharedGive includeTickResume with
   | complete _ replay growing =>
     obtain ⟨_, prefixRun, writers⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     exact .complete prefixRun writers
@@ -2758,6 +2758,18 @@ private theorem compareNonGrowingUpdate {changes : ReturnFrame.Substitutions (co
       aligned path (.framed (.same (.modify focus) rfl (.done _)) (.same live rfl (.done _))) tail
   next => simp at failed
 
+private def CallbackTickResumeCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
+  ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
+    {worker saved},
+    checked.ctl = [⟨none, .prog (.op (.resumeThread worker) (fun _ => sourceTickReturn)), []⟩] →
+    checked.cont? worker = some saved →
+    Step profile ready (specDispatch ready base) checked label next →
+    Steps profile ready (specDispatch ready base) next trailing finish →
+    HostFrame.Related.Paired changes checked canonical →
+    ShorterCallbackSlices profile ready base bindings (label :: trailing).length →
+    CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
+
 private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile ready base bindings)
     (component : Option (PLift (CallbackComponentCrossing profile ready base bindings)))
     (poll : Option (PLift (CallbackWaitableCrossing profile ready base bindings true)))
@@ -2767,13 +2779,14 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
     (cancel : Option (PLift (CallbackCancelCrossing profile ready base bindings)))
     (accept : Option (PLift (CallbackCoreAcceptCrossing profile ready base bindings)))
     (shared : Option (PLift (CallbackSharedGiveCrossing profile ready base bindings)))
+    (tickResume : Option (PLift (CallbackTickResumeCrossing profile ready base bindings)))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish := by
   induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels finish older with
   | ind budget ih =>
     cases cutExecutedCallback run paired component.isSome poll.isSome (wait.isSome || waitResume.isSome) cancelResume.isSome
-        cancel.isSome accept.isSome shared.isSome with
+        cancel.isSome accept.isSome shared.isSome tickResume.isSome with
     | complete segment _ => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
     | @boundary leading label trailing reached peer next split front _ kind step tail smaller =>
       have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
@@ -2861,6 +2874,10 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
         cases cancelResume with
         | none => exact stop (.boundary (.cancelResume focus found) step tail)
         | some rule => exact advance (rule.down focus found step tail front.paired)
+      | tickResume focus found =>
+        cases tickResume with
+        | none => exact stop (.boundary (.tickResume focus found) step tail)
+        | some rule => exact advance (rule.down focus found step tail front.paired available)
       | cancelInstall focus calling =>
         cases cancel with
         | none => exact stop (.boundary (.cancelInstall focus calling) step tail)
@@ -2879,7 +2896,7 @@ theorem foldCallbackSlices (cross : CallbackGiveCrossing profile ready base bind
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish :=
-  foldCallbackSlicesWith cross none none none none none none none none run paired
+  foldCallbackSlicesWith cross none none none none none none none none none run paired
 
 private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     (ending : CallbackSliceEnd profile ready base bindings changes start incoming labels finish) :
@@ -30308,6 +30325,73 @@ private theorem classifiedSharedGiveCrossing
       cutProgramCallInstall (.prog (.pure (.cancel .none))) focus step paired
     exact crossInstalledSharedGive embedder linked paired site installed run compare
 
+private theorem pairOfSourceScheduler {left right : Config (core3 grow) (HostState sig)}
+    (stores : left.store = right.store)
+    (active : List.Forall₂ (ReturnFrame.Related.Active older) left.ctl right.ctl)
+    (scheduler : DestructorSchedulerAlignment older left right) :
+    HostFrame.Related.Paired older left right := by
+  obtain ⟨leftStore, leftHost, leftSaved, leftCtl, leftPending, leftResults, leftCancels⟩ := left
+  obtain ⟨rightStore, rightHost, rightSaved, rightCtl, rightPending, rightResults, rightCancels⟩ := right
+  obtain ⟨saved, pending, results, cancels⟩ := scheduler
+  dsimp only at stores pending results cancels
+  subst rightStore rightPending rightResults rightCancels
+  exact .mk active saved
+
+open ReturnFrame.Occurrence in
+private theorem classifiedTickResumeCrossing :
+    CallbackTickResumeCrossing profile ready base bindings := by
+  intro changes checked canonical next finish label trailing worker saved focus found actual tail paired compare
+  have frames {left right : Config (core3 grow) (HostState sig)} (paired : ReturnFrame.Related.Paired changes left right) :
+      List.Forall₂ (ReturnFrame.Related.Active changes) left.ctl right.ctl ∧
+      List.Forall₂ (ReturnFrame.Related.Saved changes) left.conts right.conts := by
+    cases paired with
+    | mk active saved => exact ⟨active, saved⟩
+  obtain ⟨active, blocked⟩ := frames (left := HostFrame.replace checked canonical.host) paired
+  let resuming : Session grow sig (Ret (core3 grow)) := .op (.resumeThread worker) (fun _ => sourceTickReturn)
+  have sameSingleton {control : List (Activation (core3 grow) (HostState sig))}
+      (related : List.Forall₂ (ReturnFrame.Related.Active changes) [⟨none, .prog resuming, []⟩] control) :
+      control = [⟨none, .prog resuming, []⟩] := by
+    cases related with
+    | cons head tail =>
+      cases tail
+      cases head with
+      | mk segments => cases segments; rfl
+  have rawFocus : canonical.ctl = [⟨none, .prog resuming, []⟩] := by
+    change List.Forall₂ (ReturnFrame.Related.Active changes) checked.ctl canonical.ctl at active
+    rw [focus] at active
+    exact sameSingleton active
+  have stores := paired.data.1
+  obtain ⟨peer, rawFound, selected⟩ := relatedSavedSome (found ▸ relatedContLookup blocked worker)
+  let parent : Activation (core3 grow) (HostState sig) := .ofProg none sourceTickReturn
+  let update := StepDefs.threadStatusSt (E := core3 grow) worker .running
+  let left := { checked.setCont worker none with store := update checked.store, ctl := saved :: [parent] }
+  let right := { canonical.setCont worker none with store := update canonical.store, ctl := peer :: [parent] }
+  have leftStep : Step profile ready (specDispatch ready base) checked .tau left := .resumeThread focus found
+  have rightStep : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) canonical .tau right :=
+    .resumeThread rawFocus rawFound
+  obtain ⟨rfl, rfl⟩ := silentStepUnique leftStep actual
+  have moved := sharedSchedulerTransport (bindings := bindings) (edit := .resume worker.idx) leftStep rightStep
+    (by rw [transitionEdit, focus]) (by rw [transitionEdit, rawFocus])
+  have initial : DestructorSchedulerAlignment changes checked canonical :=
+    ⟨blocked, paired.data.2⟩
+  have aligned (before : DestructorSchedulerAlignment changes checked canonical) : DestructorSchedulerAlignment changes left right :=
+    ⟨relatedSetSlot .none before.1 worker.idx .none, before.2⟩
+  have parents : List.Forall₂ (ReturnFrame.Related.Active changes) [parent] [parent] :=
+    .cons (.mk .nil) .nil
+  apply Or.inr
+  apply callbackTerminalSlice paired
+  refine .destructorPrefix moved (frameCalloutStep moved rfl rfl) aligned ?_
+  refine finishSourceSwitchTarget (.paired parents) ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+    selected .nil (congrArg update stores) (aligned initial) rfl rfl tail (Nat.le_refl _) ?_
+  intro lhs rhs remaining same sched leftAt rightAt residual bounded
+  have controls : List.Forall₂ (ReturnFrame.Related.Active changes) lhs.ctl rhs.ctl := by
+    rw [leftAt, rightAt]
+    exact parents
+  obtain ⟨used, live, rest, reached, raw, split, compared, ending⟩ :=
+    compare (Nat.lt_succ_of_le bounded) residual (pairOfSourceScheduler same controls sched)
+  rw [split]
+  exact .comparedPrefix compared.occurrences compared.writers ending
+
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
@@ -30316,7 +30400,8 @@ private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (some ⟨classifiedComponentCrossing⟩) (some ⟨classifiedPollCrossing⟩) (some ⟨classifiedWaitCrossing⟩)
     (some ⟨classifiedWaitResumeCrossing⟩) (some ⟨classifiedCancelResumeCrossing⟩)
     (some ⟨classifiedCancelCrossing⟩) (some ⟨classifiedCoreAcceptCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩)
-    (some ⟨classifiedSharedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩) run paired
+    (some ⟨classifiedSharedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩)
+    (some ⟨classifiedTickResumeCrossing⟩) run paired
 
 theorem actualSelectedGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {label next}

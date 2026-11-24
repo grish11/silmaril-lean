@@ -3644,6 +3644,26 @@ theorem classify_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
     MixedCallbackSlice profile ready bindings callees older start incoming labels finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.NestedPlan.classifyMixedCallbacks run paired
 
+/-- The executable initial machines have empty active and saved stacks,
+so the finite mixed comparison starts without return substitutions. -/
+theorem classify_initial_mixed_callbacks {callees : List (ComponentCall.Callee sig)}
+    (store : CStore (core3 grow)) (checkedHost canonicalHost : HostState sig)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      (Config.init store checkedHost) labels finish) :
+    MixedCallbackSlice profile ready bindings callees (fun _ _ => False)
+      (Config.init store checkedHost) (Config.init store canonicalHost) labels finish :=
+  classify_mixed_callbacks run (.mk .nil .nil)
+
+/-- Start the mixed comparison at the executable host tick from its idle
+host frame. The checked suffix starts at the actual tick installation. -/
+theorem classify_host_tick_callbacks {callees : List (ComponentCall.Callee sig)}
+    (initial : StepDefs.HostReadyCfg start)
+    (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees))
+      { start with ctl := [.ofProg none (StepDefs.tickProg ready)] } labels finish)
+    (paired : HostFrame.Related.Paired older start incoming) :
+    MixedCallbackSlice profile ready bindings callees older start incoming (.host .tick :: labels) finish :=
+  classify_mixed_callbacks (.cons (.hostTick initial) run) paired
+
 /-- Accumulate the certified nominal discrepancies on the same segment as the
 actual finite mixed fold. Classify only executed sites and keep any missing
 source classification separate from the worker's runtime endpoint. -/
