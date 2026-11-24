@@ -2470,6 +2470,25 @@ def canonicalListStoreCall (cx : LiftLowerContext (core3 grow)) (width : AddrTyp
   .op (.call (.reallocate cx request.oldPtr request.oldSize request.alignment request.newSize))
     (canonicalListStoreResume cx width site values output)
 
+/-- The completed string range is packed at the enclosing flat lowering
+width, which is independent of the width used to select the encoding plan. -/
+def canonicalFlatStringWords (cx : LiftLowerContext (core3 grow)) (sourceWidth resultWidth : AddrType)
+    (value : Value.StrVal) (pointer : Nat) : List FlatValue :=
+  let plan := storePlanFor Quirks.none cx.opts.encoding sourceWidth value
+  [ptrFlat resultWidth pointer, ptrFlat resultWidth plan.taggedCodeUnits]
+
+def canonicalFlatStringResume (cx : LiftLowerContext (core3 grow)) (sourceWidth resultWidth : AddrType)
+    (value : Value.StrVal) (steps : List ABI.StoreStep) (next : List FlatValue → Session grow sig (Ret (core3 grow))) :
+    ReturnFrame.Continuation (core3 grow) (HostState sig) :=
+  PayloadPrefix.stringPlanResume cx steps (fun pointer => next (canonicalFlatStringWords cx sourceWidth resultWidth value pointer))
+
+def canonicalFlatStringCall (cx : LiftLowerContext (core3 grow)) (sourceWidth resultWidth : AddrType)
+    (value : Value.StrVal) (steps : List ABI.StoreStep) (old : Option Nat) (pointer : Nat)
+    (alignment : ABI.Alignment) (size : Nat) (next : List FlatValue → Session grow sig (Ret (core3 grow))) :
+    Session grow sig (Ret (core3 grow)) :=
+  .op (.call (.reallocate cx (old.elim 0 (fun _ => pointer)) (old.getD 0) alignment.bytes size))
+    (canonicalFlatStringResume cx sourceWidth resultWidth value steps next)
+
 open Stored.Endpoints in
 /-- The return programs installed by a source allocator call. -/
 inductive SourceAllocatorReturn :
@@ -2501,6 +2520,15 @@ inductive SourceAllocatorReturn :
       (values : List Value.Val) (output : CanonicalListOutput grow sig) :
       SourceAllocatorReturn (canonicalListStoreResume cx width site values output)
         (canonicalListStoreResume cx width site values output)
+
+  | canonicalFlatString (cx : LiftLowerContext (core3 grow)) (sourceWidth resultWidth : AddrType)
+      (value : Value.StrVal) (prior steps : List ABI.StoreStep) (old : Option Nat)
+      (alignment : ABI.Alignment) (size : Nat)
+      (compiled : (storePlanFor Quirks.none cx.opts.encoding sourceWidth value).steps =
+        prior ++ (old.elim (.allocate alignment size) (fun oldSize => .reallocate oldSize alignment size) :: steps))
+      (next : List FlatValue → Session grow sig (Ret (core3 grow))) :
+      SourceAllocatorReturn (canonicalFlatStringResume cx sourceWidth resultWidth value steps next)
+        (canonicalFlatStringResume cx sourceWidth resultWidth value steps next)
 
 open Stored.Endpoints in
 /-- Frames beneath a selected synchronous worker. Common loop tail calls
