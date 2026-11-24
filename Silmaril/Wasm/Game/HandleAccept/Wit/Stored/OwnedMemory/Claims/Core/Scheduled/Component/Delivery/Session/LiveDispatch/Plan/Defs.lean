@@ -1632,6 +1632,8 @@ inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostRe
   | cancelResume {waiter resumer afterResume frames rest core resume savedFrames subtask}
       (focus : before.ctl = ⟨resumer, .prog (.op (.resumeThread waiter) afterResume), frames⟩ :: rest)
       (found : before.cont? waiter = some ⟨some waiter, .prog (cancelFinish subtask), .core core resume :: savedFrames⟩)
+  | funcInst {func caller thread resume frames rest}
+      (focus : before.ctl = ⟨thread, .prog (.op (.call (.funcInst func caller)) resume), frames⟩ :: rest)
   | hostResume {worker saved resume frames}
       (focus : before.ctl = [⟨none, .prog (.op (.resumeThread worker) resume), frames⟩])
       (found : before.cont? worker = some saved)

@@ -2630,12 +2630,12 @@ theorem cutExecutedCallback
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) (includeComponentCalls : Bool := false) (includePoll : Bool := false)
     (includeWait : Bool := false) (includeCancelResume : Bool := false) (includeCancel : Bool := false)
-    (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeHostResume : Bool := false) :
+    (includeCoreAccept : Bool := false) (includeSharedGive : Bool := false) (includeHostSource : Bool := false) :
     ExecutedCallbackCut profile ready base bindings older start incoming labels finish := by
   let protectedReturn := fun resume => ∃ rhs, older resume rhs
   have covers : ∀ lhs rhs, older lhs rhs → protectedReturn lhs := fun _ rhs edge => ⟨rhs, edge⟩
   cases CallbackPrefix.classifyActual (bindings := bindings) (protectedReturn := protectedReturn) run
-      includeComponentCalls includePoll includeWait includeCancelResume includeCancel includeCoreAccept includeSharedGive includeHostResume with
+      includeComponentCalls includePoll includeWait includeCancelResume includeCancel includeCoreAccept includeSharedGive includeHostSource with
   | complete _ replay growing =>
     obtain ⟨_, prefixRun, writers⟩ := CallbackPrefix.executeClassifiedPrefix growing replay covers paired
     exact .complete prefixRun writers
@@ -2770,6 +2770,22 @@ private def CallbackHostResumeCrossing (profile : ProfileKind) (ready : HostRead
     ShorterCallbackSlices profile ready base bindings (label :: trailing).length →
     CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
 
+private def CallbackFuncInstCrossing (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop :=
+  ∀ {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)} {checked canonical next finish label trailing}
+    {func caller thread resume frames rest},
+    checked.ctl = ⟨thread, .prog (.op (.call (.funcInst func caller)) resume), frames⟩ :: rest →
+    Step profile ready (specDispatch ready base) checked label next →
+    Steps profile ready (specDispatch ready base) next trailing finish →
+    HostFrame.Related.Paired changes checked canonical →
+    ShorterCallbackSlices profile ready base bindings (label :: trailing).length →
+    CallbackCrossingAt profile ready base bindings changes checked canonical label trailing finish
+
+private structure CallbackHostCrossings (profile : ProfileKind) (ready : HostReady (HostState sig))
+    (base : HostImpl (core3 grow) (HostState sig)) (bindings : List (Binding sig)) : Prop where
+  funcInst : CallbackFuncInstCrossing profile ready base bindings
+  resume : CallbackHostResumeCrossing profile ready base bindings
+
 private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile ready base bindings)
     (component : Option (PLift (CallbackComponentCrossing profile ready base bindings)))
     (poll : Option (PLift (CallbackWaitableCrossing profile ready base bindings true)))
@@ -2779,14 +2795,14 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
     (cancel : Option (PLift (CallbackCancelCrossing profile ready base bindings)))
     (accept : Option (PLift (CallbackCoreAcceptCrossing profile ready base bindings)))
     (shared : Option (PLift (CallbackSharedGiveCrossing profile ready base bindings)))
-    (hostResume : Option (PLift (CallbackHostResumeCrossing profile ready base bindings)))
+    (host : Option (PLift (CallbackHostCrossings profile ready base bindings)))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
     CallbackSlice profile ready base bindings older start incoming labels finish := by
   induction size : labels.length using Nat.strong_induction_on generalizing start incoming labels finish older with
   | ind budget ih =>
     cases cutExecutedCallback run paired component.isSome poll.isSome (wait.isSome || waitResume.isSome) cancelResume.isSome
-        cancel.isSome accept.isSome shared.isSome hostResume.isSome with
+        cancel.isSome accept.isSome shared.isSome host.isSome with
     | complete segment _ => exact ⟨labels, labels, [], finish, _, (List.append_nil _).symm, segment, .exhausted⟩
     | @boundary leading label trailing reached peer next split front _ kind step tail smaller =>
       have stop (ending : CallbackSliceEnd profile ready base bindings older reached peer (label :: trailing) finish) :
@@ -2878,10 +2894,14 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
         cases cancelResume with
         | none => exact stop (.boundary (.cancelResume focus found) step tail)
         | some rule => exact advance (rule.down focus found step tail front.paired)
+      | funcInst focus =>
+        cases host with
+        | none => exact stop (.boundary (.funcInst focus) step tail)
+        | some rules => exact advance (rules.down.funcInst focus step tail front.paired available)
       | hostResume focus found =>
-        cases hostResume with
+        cases host with
         | none => exact stop (.boundary (.hostResume focus found) step tail)
-        | some rule => exact advance (rule.down focus found step tail front.paired available)
+        | some rules => exact advance (rules.down.resume focus found step tail front.paired available)
       | cancelInstall focus calling =>
         cases cancel with
         | none => exact stop (.boundary (.cancelInstall focus calling) step tail)
@@ -30479,6 +30499,62 @@ private theorem classifiedHostResumeCrossing :
   rw [split]
   exact .comparedPrefix compared.occurrences compared.writers ending
 
+private def sourceFuncInstRoute (base : HostImpl (core3 grow) (HostState sig)) (caller : CallerId) :
+    CFuncInst (core3 grow) → Session grow sig (Ret (core3 grow))
+  | .lifted core ft opts inst => canonLift Limits.spec Quirks.none core ft opts inst caller
+  | CFuncInst.host _ hostId => base.funcs hostId caller
+
+private theorem sourceFuncInstCode (base : HostImpl (core3 grow) (HostState sig)) (func : FuncId) (caller : CallerId) :
+    specDispatch ready base (.funcInst func caller) =
+      .op .get (sharedArenaReader ArenaField.funcs func (sourceFuncInstRoute base caller)) := by
+  rw [← sharedArenaReaderCode]
+  change funcInstProg Limits.spec Quirks.none base func caller = _
+  unfold funcInstProg
+  simp only [Prog.bind_eq]
+  congr 1
+  funext record
+  cases record <;> rfl
+
+open ReturnFrame.Occurrence in
+private theorem classifiedFuncInstCrossing : CallbackFuncInstCrossing profile ready base bindings := by
+  intro changes checked canonical next finish label trailing func caller thread resume frames rest focus actual tail paired compare
+  let read := sharedArenaReader ArenaField.funcs func (sourceFuncInstRoute base caller)
+  let body := read checked.store
+  obtain ⟨peerFrames, peerRest, rfl, rfl, afterRead, installed, _, _, _⟩ :=
+    cutProgramCallInstall (bindings := bindings) (.prog body) focus actual paired
+  let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: frames, rest⟩
+  let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, .prog resume :: peerFrames, peerRest⟩
+  let left := { checked with ctl := check.control (specDispatch ready base (.funcInst func caller)) }
+  let right := { canonical with ctl := canon.control (specDispatch ready (LiveDispatch.host bindings base) (.funcInst func caller)) }
+  have leftPath : FramedQuietPath profile ready (specDispatch ready base) check left [id] { left with ctl := check.control body } := by
+    have leftAt : left.ctl = check.control (.op .get read) :=
+      congrArg check.control (sourceFuncInstCode base func caller)
+    exact .get leftAt rfl .done
+  have rightPath : FramedQuietPath profile ready (specDispatch ready (LiveDispatch.host bindings base)) canon right [id]
+      { right with ctl := canon.control body } := by
+    have code := LiveDispatch.unchanged_dispatch (ready := ready) (base := base)
+      (show LiveDispatch.Unchanged bindings (.funcInst func caller) from trivial)
+    have rightAt : right.ctl = canon.control (.op .get read) :=
+      congrArg canon.control (code.symm.trans (sourceFuncInstCode base func caller))
+    exact .get rightAt (congrArg read paired.data.1.symm) .done
+  obtain ⟨used, remaining, reached, peer, split, paths, writers, residual, ending⟩ :=
+    cutSharedQuietWorker (bindings := bindings) leftPath rightPath tail
+  apply Or.inr
+  apply callbackTerminalSlice paired
+  refine .comparedPrefix installed (frameGiveInstall installed rfl rfl) ?_
+  rw [split]
+  refine .comparedPrefix paths writers ?_
+  rcases ending with empty | ⟨rfl, rfl⟩
+  · subst remaining
+    cases residual
+    exact .exhausted
+  · have shorter : remaining.length < (.tau :: trailing).length := by
+      rw [split, List.length_cons, List.length_append]
+      omega
+    obtain ⟨_, _, _, _, _, used, compared, last⟩ := compare shorter residual afterRead
+    rw [used]
+    exact .comparedPrefix compared.occurrences compared.writers last
+
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
     (paired : HostFrame.Related.Paired older start incoming) :
@@ -30488,7 +30564,7 @@ private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (some ⟨classifiedWaitResumeCrossing⟩) (some ⟨classifiedCancelResumeCrossing⟩)
     (some ⟨classifiedCancelCrossing⟩) (some ⟨classifiedCoreAcceptCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩)
     (some ⟨classifiedSharedGiveCrossing (base := ComponentCall.hostWithComponent bindings callees) rfl⟩)
-    (some ⟨classifiedHostResumeCrossing⟩) run paired
+    (some ⟨⟨classifiedFuncInstCrossing, classifiedHostResumeCrossing⟩⟩) run paired
 
 theorem actualSelectedGive {route : GiveEffectRoute} {request : CoreGiveRequest bindings start}
     (selection : request.Selected route) {callees : List (ComponentCall.Callee sig)} {label next}
