@@ -17851,14 +17851,16 @@ private theorem sharedRecordPlaceEffects (cx : LiftLowerContext (core3 grow)) (t
     simp only [refused, Bool.not_false, ite_true]
     exact .pure none
 
+private theorem storeEffectLowerFloat (type : FloatType) (bits : BitVec type.width) :
+    StoreEffects (lowerFloat type bits : Session grow sig (BitVec type.width)) := by
+  unfold lowerFloat
+  split
+  · exact .op rfl fun result => .pure result
+  · exact .pure bits
+
 private theorem storeEffectEncodeFloat (type : FloatType) (bits : BitVec type.width) :
-    StoreEffects (encodeFloat type bits : Session grow sig (BitVec (ABI.floatIntType type).width)) := by
-  have lowered : StoreEffects (lowerFloat type bits : Session grow sig (BitVec type.width)) := by
-    unfold lowerFloat
-    split
-    · exact .op rfl fun result => .pure result
-    · exact .pure bits
-  exact lowered.bind fun _ => .pure _
+    StoreEffects (encodeFloat type bits : Session grow sig (BitVec (ABI.floatIntType type).width)) :=
+  (storeEffectLowerFloat type bits).bind fun _ => .pure _
 
 private theorem storeEffectPrimitive (cx : LiftLowerContext (core3 grow)) (ptr : Nat)
     (value : Value.Val) (primitive : WIT.Primitive) (nonString : primitive ≠ .string) :
@@ -25094,6 +25096,198 @@ private theorem compareSourceCopy {limit : Nat}
       exact compareSourceCopyTransfer threads copy source allocate compareProgram chosen (copyTransferOrigin chosen)
         stores lhs rhs scheduler run bounded
 
+private theorem storeEffectSourceFlatLeaf (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    {type : Stored.TypeOf} (leaf : SourceStoreLeaf type) (value : Value.Val) :
+    StoreEffects (lowerFlatAt Limits.spec Quirks.none cx width value type : Session grow sig (List FlatValue)) := by
+  cases leaf with
+  | @primitive primitive nonString =>
+    simp only [lowerFlatAt]
+    unfold lowerFlatPrim
+    split
+    · exact .pure _
+    · exact (storeEffectLowerFloat .f32 _).bind fun _ => .pure _
+    · exact (storeEffectLowerFloat .f64 _).bind fun _ => .pure _
+    · exact .pure _
+    · contradiction
+    · split
+      · exact .pure _
+      · exact storeEffectTrap _
+    · exact storeEffectTrap _
+  | enum labels =>
+    cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
+    unfold lowerFlatVariantWith
+    split
+    · exact .pure _
+    · exact storeEffectTrap _
+  | flags =>
+    cases value <;> simp only [lowerFlatAt] <;> first | exact .pure _ | exact storeEffectTrap _
+  | own resource =>
+    cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalResource cx { rt := resource, rep := _, own := true }).bind fun _ => .pure _
+  | borrow resource =>
+    cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalBorrow cx resource _).bind fun _ => .pure _
+  | stream =>
+    cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalEndpoint .readableStream cx _).bind fun _ => .pure _
+  | future =>
+    cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
+    exact (storeEffectCanonicalEndpoint .readableFuture cx _).bind fun _ => .pure _
+  | errorContext =>
+    cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
+    exact (sharedHandleInsertEffects cx.inst (.errCtx _)).bind fun _ => .pure _
+
+private abbrev CompareSourceFlatAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig)) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type : Stored.TypeOf) :=
+  ∀ (value : Value.Val) (next : List FlatValue → Session grow sig (Ret (core3 grow))),
+    (∀ flat, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish (next flat) (next flat)) →
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next)
+      (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next)
+
+private theorem sourceFlatFieldsTuple (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (fields : List (String × Stored.TypeOf)) (values : List Value.Val) :
+    (lowerFlatFields Limits.spec Quirks.none cx width values fields : Session grow sig (List FlatValue)) =
+      lowerFlatTypes Limits.spec Quirks.none cx width values (fields.map Prod.snd) := by
+  induction fields generalizing values with
+  | nil => cases values <;> simp only [lowerFlatFields, lowerFlatTypes, List.map_nil]
+  | cons field fields ih =>
+    obtain ⟨name, type⟩ := field
+    cases values with
+    | nil => simp only [lowerFlatFields, lowerFlatTypes, List.map_cons]
+    | cons value values => simp only [lowerFlatFields, lowerFlatTypes, List.map_cons, ih]
+
+private theorem compareSourceFlatTypes {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (types : List Stored.TypeOf)
+    (children : ∀ type ∈ types, CompareSourceFlatAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish cx width type)
+    (values : List Value.Val) (next : List FlatValue → Session grow sig (Ret (core3 grow)))
+    (returned : ∀ flat, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (next flat) (next flat)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerFlatTypes Limits.spec Quirks.none cx width values types >>= next)
+      (lowerFlatTypes Limits.spec Quirks.none cx width values types >>= next) := by
+  have mismatch (next : List FlatValue → Session grow sig (Ret (core3 grow)))
+      (returned : ∀ flat, DestructorRecordAt (check := check) (canon := canon)
+        profile ready base bindings older limit finish (next flat) (next flat)) :
+      DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (flatMismatch >>= next) (flatMismatch >>= next) :=
+    crossDestructorRecordStore (check := check) (canon := canon) thread flatMismatch (storeEffectTrap _) next next returned
+  induction types generalizing values next with
+  | nil =>
+    cases values with
+    | nil =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      simp only [lowerFlatTypes, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] at lhs rhs
+      exact returned [] stores lhs rhs aligned run bounded
+    | cons _ _ =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      simp only [lowerFlatTypes] at lhs rhs
+      exact mismatch next returned stores lhs rhs aligned run bounded
+  | cons type types ih =>
+    cases values with
+    | nil =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      simp only [lowerFlatTypes] at lhs rhs
+      exact mismatch next returned stores lhs rhs aligned run bounded
+    | cons value values =>
+      intro left right remaining stores lhs rhs aligned run bounded
+      simp only [lowerFlatTypes, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] at lhs rhs
+      exact children type (List.mem_cons_self ..) value _ (fun front =>
+        ih (fun child member => children child (List.mem_cons_of_mem type member)) values
+          (fun tail => next (front ++ tail)) (fun flat => returned (front ++ flat))) stores lhs rhs aligned run bounded
+
+private theorem compareSourceFlatFixedList {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (type : Stored.TypeOf)
+    (child : CompareSourceFlatAt (check := check) (canon := canon) profile ready base bindings older limit finish cx width type)
+    (values : List Value.Val) (next : List FlatValue → Session grow sig (Ret (core3 grow)))
+    (returned : ∀ flat, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (next flat) (next flat)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (Prog.mapM (fun value => lowerFlatAt Limits.spec Quirks.none cx width value type) values >>= fun parts => next parts.flatten)
+      (Prog.mapM (fun value => lowerFlatAt Limits.spec Quirks.none cx width value type) values >>= fun parts => next parts.flatten) := by
+  induction values generalizing next with
+  | nil => exact returned []
+  | cons value values ih =>
+    simp only [Prog.mapM, Prog.bind_eq, Prog.bind_assoc, Prog.pure_bind', List.flatten_cons]
+    exact child value _ (fun flat => ih (fun tail => next (flat ++ tail)) (fun tail => returned (flat ++ tail)))
+
+private theorem compareRecursiveSourceFlat {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (type : Stored.TypeOf)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    CompareSourceFlatAt (check := check) (canon := canon) profile ready base bindings older limit finish cx width type := by
+  induction type using (measure (fun ty : Stored.TypeOf => sizeOf ty)).wf.induction with
+  | h type ih =>
+    intro value next returned left right remaining same lhs rhs aligned run bounded
+    have leaf (type : Stored.TypeOf) (certified : SourceStoreLeaf type) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+        (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next)
+        (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next) :=
+      crossDestructorRecordStore (check := check) (canon := canon) thread _ (storeEffectSourceFlatLeaf cx width certified value)
+        next next returned
+    have mismatch (type : Stored.TypeOf) (value : Value.Val)
+        (code : (lowerFlatAt Limits.spec Quirks.none cx width value type : Session grow sig (List FlatValue)) = flatMismatch) :
+        DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+          (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next)
+          (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next) := by
+      rw [code]
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread flatMismatch (storeEffectTrap _) next next returned
+    cases type with
+    | prim primitive =>
+      by_cases string : primitive = .string
+      · exact compareProgram _ same lhs rhs aligned run bounded
+      · exact leaf _ (.primitive string) same lhs rhs aligned run bounded
+    | enum labels => exact leaf _ (.enum labels) same lhs rhs aligned run bounded
+    | flags labels => exact leaf _ (.flags labels) same lhs rhs aligned run bounded
+    | own resource => exact leaf _ (.own resource) same lhs rhs aligned run bounded
+    | borrow resource => exact leaf _ (.borrow resource) same lhs rhs aligned run bounded
+    | stream element => exact leaf _ (.stream element) same lhs rhs aligned run bounded
+    | future element => exact leaf _ (.future element) same lhs rhs aligned run bounded
+    | errorContext => exact leaf _ .errorContext same lhs rhs aligned run bounded
+    | record fields =>
+      cases value with
+      | record values =>
+        simp only [lowerFlatAt, sourceFlatFieldsTuple] at lhs rhs
+        refine compareSourceFlatTypes thread cx width (fields.map Prod.snd) (fun type member => ?_) values next returned
+          same lhs rhs aligned run bounded
+        obtain ⟨field, present, rfl⟩ := List.mem_map.mp member
+        apply ih
+        have memberSize := List.sizeOf_lt_of_mem present
+        obtain ⟨name, element⟩ := field
+        change 1 + sizeOf name + sizeOf element < sizeOf fields at memberSize
+        simp_wf
+        omega
+      | _ => exact mismatch (.record fields) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | tuple types =>
+      cases value with
+      | record values =>
+        simp only [lowerFlatAt] at lhs rhs
+        refine compareSourceFlatTypes thread cx width types (fun type member => ?_) values next returned
+          same lhs rhs aligned run bounded
+        apply ih
+        have memberSize := List.sizeOf_lt_of_mem member
+        simp_wf
+        omega
+      | _ => exact mismatch (.tuple types) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | fixedList element count =>
+      cases value with
+      | list values =>
+        simp only [lowerFlatAt, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] at lhs rhs
+        exact compareSourceFlatFixedList cx width element (ih element (by simp_wf; omega)) values next returned
+          same lhs rhs aligned run bounded
+      | _ => exact mismatch (.fixedList element count) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | ref impossible => nomatch impossible
+    | _ => exact compareProgram _ same lhs rhs aligned run bounded
+
 private def sourceTaskResultPublish (subtask : SubtaskId) (flat : List FlatValue) :
     Session grow sig (Ret (core3 grow)) := do
   Subtask.resolve subtask .returned flat
@@ -25210,7 +25404,10 @@ private theorem compareSourceTaskResultValues {limit : Nat}
     unfold afterWidth
     split
     · exact compareSourceTaskResultSpill thread allocate cx width values types cursor subtask compareProgram
-    · exact compareProgram _
+    · exact compareSourceFlatTypes thread cx width types
+        (fun type _ => compareRecursiveSourceFlat thread cx width type compareProgram) values (sourceTaskResultPublish subtask)
+        (fun flat => crossDestructorRecordStore (check := check) (canon := canon) thread (Subtask.resolve subtask .returned flat)
+          (storeEffectModify _) (fun _ => .pure .unit) (fun _ => .pure .unit) (fun _ => compareProgram (.pure .unit)))
   have code : (lowerFlatValues Limits.spec Quirks.none cx maxResults values types (some cursor) >>= sourceTaskResultPublish subtask) =
       ptrType cx >>= afterWidth := by simp only [lowerFlatValues, afterWidth, Prog.bind_eq, Prog.bind_assoc]
   rw [code]
