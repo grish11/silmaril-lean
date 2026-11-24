@@ -24450,7 +24450,7 @@ private theorem compareSourceStoreSequence {limit : Nat}
     simp only [sourceStoreSequence, Prog.forM, Prog.bind_eq, Prog.bind_assoc]
     exact child value (ptr + index * stride) _ ih
 
-private abbrev SourceCopyAllocationAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+private abbrev SourceValueAllocationAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
     (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
@@ -24461,6 +24461,22 @@ private abbrev SourceCopyAllocationAt {check canon : PayloadPrefix.Cursor (E := 
       (canonicalListStoreResume cx width site values dest next (.nat pointer))) →
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
       (canonicalListStoreCall cx width site values dest next) (canonicalListStoreCall cx width site values dest next)
+
+private theorem sourceValueAllocationAt {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (imports : SourceAllocatorImportsAt profile ready base bindings older limit finish)
+    (parents : SourceParentStack older check.rest canon.rest) (thread : check.thread = canon.thread)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames) :
+    SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish := by
+  constructor
+  · exact fun cx site compiled leftNext rightNext onResume =>
+      finishSourceRecordAllocator parents thread segments cx site compiled leftNext rightNext onResume (imports parents thread)
+  · intro cx width site values dest next onResume
+    let resume := canonicalListStoreResume cx width site values dest next
+    intro left right remaining same lhs rhs aligned residual within
+    exact crossSourceAllocatorCall cx (canonicalListStoreRequest width site values.length) resume resume
+      (.canonicalList cx width site values dest next) imports parents thread segments onResume
+      same lhs rhs aligned residual within
 
 private theorem canonicalListAllocationCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (site : CanonicalListStore) (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) :
@@ -24642,7 +24658,7 @@ private theorem compareSourceMapEntry {limit : Nat}
 private theorem compareRecursiveSourceStore {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (thread : check.thread = canon.thread)
-    (allocate : SourceCopyAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (cx : LiftLowerContext (core3 grow)) (type : Stored.TypeOf) :
     CompareSourceStoreAt (check := check) (canon := canon) profile ready base bindings older limit finish cx type := by
   induction type using (measure (fun ty : Stored.TypeOf => sizeOf ty)).wf.induction with
@@ -24835,7 +24851,7 @@ private theorem compareRecursiveSourceStore {limit : Nat}
 private theorem compareSourceGuestWriteBuffer {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (thread : check.thread = canon.thread)
-    (allocate : SourceCopyAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (cx : LiftLowerContext (core3 grow)) (element : Stored.TypeOf) (ptr length progress : Nat)
     (values : List Value.Val) (next : Session grow sig (Ret (core3 grow)))
     (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
@@ -24861,7 +24877,7 @@ private theorem compareSourceGuestWriteBuffer {limit : Nat}
 private theorem compareSourceCopyMove {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (action : CopyAction (core3 grow))
-    (allocate : SourceCopyAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (next : Session grow sig (Ret (core3 grow)))
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program)
@@ -24902,7 +24918,7 @@ open ReturnFrame.Occurrence in
 private theorem compareSourceCopyTransfer {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (copy : SourceCopy grow) (source : SourceCopyBuffer grow)
-    (allocate : SourceCopyAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program)
     {committed : CStore (core3 grow)} {action : CopyAction (core3 grow)}
@@ -24941,7 +24957,7 @@ reached buffer action and event-wait suffix back to the source induction. -/
 private theorem compareSourceCopy {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (threads : check.thread = canon.thread) (copy : SourceCopy grow)
-    (allocate : SourceCopyAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
@@ -24979,6 +24995,160 @@ private theorem compareSourceCopy {limit : Nat}
       exact compareSourceCopyTransfer threads copy source allocate compareProgram chosen (copyTransferOrigin chosen)
         stores lhs rhs scheduler run bounded
 
+private def sourceTaskResultPublish (subtask : SubtaskId) (flat : List FlatValue) :
+    Session grow sig (Ret (core3 grow)) := do
+  Subtask.resolve subtask .returned flat
+  return .unit
+
+private def sourceTaskResultFromCaller (values : List Value.Val) :
+    Caller (core3 grow) → Session grow sig (Ret (core3 grow))
+  | .lower subtask cx args pos ft _ maxResults => do
+    maybeOnProgress subtask
+    let flat ← lowerFlatValues Limits.spec Quirks.none cx maxResults values ft.result.toList (some ⟨args, pos⟩)
+    sourceTaskResultPublish subtask flat
+  | _ => internal "lowerOnResolve: not a canon_lower caller record"
+
+private theorem sourceTaskResultReadCode (caller : CallerId) (values : List Value.Val) :
+    ((lowerOnResolve Limits.spec Quirks.none caller (some values) >>= fun _ => .pure .unit) :
+      Session grow sig (Ret (core3 grow))) =
+      .op .get (sharedArenaReader ArenaField.callers caller (sourceTaskResultFromCaller values)) := by
+  rw [← sharedArenaReaderCode]
+  unfold lowerOnResolve
+  simp only [Prog.bind_eq, Prog.bind_assoc]
+  congr 1
+  funext record
+  cases record <;> simp [sourceTaskResultFromCaller, sourceTaskResultPublish, Quirks.none,
+    Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind', internalBind]
+
+private theorem sourceTaskResultOutputEffects (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (layout : ABI.Layout) (cursor : FlatCursor) :
+    StoreEffects (spillPointer cx width layout (some cursor) : Session grow sig (Nat × List FlatValue)) := by
+  unfold spillPointer FlatCursor.next
+  have pointer : StoreEffects ((match cursor.values[cursor.pos]? with
+    | some value => pure (value, {cursor with pos := cursor.pos + 1})
+    | none => internal "CoreValueIter.next: no more flat values") : Session grow sig (FlatValue × FlatCursor)) := by
+    split
+    · exact .pure _
+    · exact storeEffectTrap _
+  exact pointer.bind fun _ => .pure _
+
+private theorem compareSourceTaskResultSpill {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (values : List Value.Val) (types : List Stored.TypeOf)
+    (cursor : FlatCursor) (subtask : SubtaskId)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      ((do
+        let l := ABI.layout width (.tuple types : Stored.TypeOf)
+        let (ptr, flat) ← spillPointer cx width l (some cursor)
+        trapIf (decide (ptr ≠ ABI.alignTo ptr l.alignment)) .unalignedPointer
+        checkInBounds cx ptr l.size
+        Canon.store Limits.spec Quirks.none cx (.record values) (.tuple types) ptr
+        pure flat) >>= sourceTaskResultPublish subtask)
+      ((do
+        let l := ABI.layout width (.tuple types : Stored.TypeOf)
+        let (ptr, flat) ← spillPointer cx width l (some cursor)
+        trapIf (decide (ptr ≠ ABI.alignTo ptr l.alignment)) .unalignedPointer
+        checkInBounds cx ptr l.size
+        Canon.store Limits.spec Quirks.none cx (.record values) (.tuple types) ptr
+        pure flat) >>= sourceTaskResultPublish subtask) := by
+  let layout := ABI.layout width (.tuple types : Stored.TypeOf)
+  let validate (ptr : Nat) : Session grow sig Unit := do
+    trapIf (decide (ptr ≠ ABI.alignTo ptr layout.alignment)) .unalignedPointer
+    checkInBounds cx ptr layout.size
+  let emit (ptr : Nat) (flat : List FlatValue) : Session grow sig (Ret (core3 grow)) :=
+    Canon.store Limits.spec Quirks.none cx (.record values) (.tuple types) ptr >>= fun _ =>
+      sourceTaskResultPublish subtask flat
+  let after (output : Nat × List FlatValue) := validate output.1 >>= fun _ => emit output.1 output.2
+  have atOutput : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (spillPointer cx width layout (some cursor) >>= after) (spillPointer cx width layout (some cursor) >>= after) :=
+    crossDestructorRecordStore (check := check) (canon := canon) thread _ (sourceTaskResultOutputEffects cx width layout cursor)
+      after after fun (ptr, flat) =>
+        crossDestructorRecordStore (check := check) (canon := canon) thread (validate ptr)
+          ((storeEffectTrapIf _ _).bind fun _ => storeEffectBounds cx ptr layout.size)
+          (fun _ => emit ptr flat) (fun _ => emit ptr flat) fun _ =>
+            compareRecursiveSourceStore thread allocate cx (.tuple types) (.record values) ptr (sourceTaskResultPublish subtask flat)
+              (crossDestructorRecordStore (check := check) (canon := canon) thread (Subtask.resolve subtask .returned flat)
+                (storeEffectModify _) (fun _ => .pure .unit) (fun _ => .pure .unit) (fun _ => compareProgram (.pure .unit)))
+  intro left right remaining same lhs rhs scheduler run bounded
+  have code : ((do
+        let (ptr, flat) ← spillPointer cx width layout (some cursor)
+        trapIf (decide (ptr ≠ ABI.alignTo ptr layout.alignment)) .unalignedPointer
+        checkInBounds cx ptr layout.size
+        Canon.store Limits.spec Quirks.none cx (.record values) (.tuple types) ptr
+        pure flat) >>= sourceTaskResultPublish subtask) = spillPointer cx width layout (some cursor) >>= after := by
+    simp only [Prog.bind_eq, Prog.bind_assoc]
+    congr 1
+    funext output
+    rcases output with ⟨ptr, flat⟩
+    simp only [after, validate, emit, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+  exact atOutput same (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
+
+private theorem compareSourceTaskResultValues {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (maxResults : Nat) (values : List Value.Val) (types : List Stored.TypeOf)
+    (cursor : FlatCursor) (subtask : SubtaskId)
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerFlatValues Limits.spec Quirks.none cx maxResults values types (some cursor) >>= sourceTaskResultPublish subtask)
+      (lowerFlatValues Limits.spec Quirks.none cx maxResults values types (some cursor) >>= sourceTaskResultPublish subtask) := by
+  let afterWidth (width : AddrType) : Session grow sig (Ret (core3 grow)) := (if (ABI.flattenTypes width types).length > maxResults then do
+        let layout := ABI.layout width (.tuple types : Stored.TypeOf)
+        let (ptr, flat) ← spillPointer cx width layout (some cursor)
+        trapIf (decide (ptr ≠ ABI.alignTo ptr layout.alignment)) .unalignedPointer
+        checkInBounds cx ptr layout.size
+        Canon.store Limits.spec Quirks.none cx (.record values) (.tuple types) ptr
+        pure flat
+      else lowerFlatTypes Limits.spec Quirks.none cx width values types) >>= sourceTaskResultPublish subtask
+  have compare (width : AddrType) : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (afterWidth width) (afterWidth width) := by
+    unfold afterWidth
+    split
+    · exact compareSourceTaskResultSpill thread allocate cx width values types cursor subtask compareProgram
+    · exact compareProgram _
+  have code : (lowerFlatValues Limits.spec Quirks.none cx maxResults values types (some cursor) >>= sourceTaskResultPublish subtask) =
+      ptrType cx >>= afterWidth := by simp only [lowerFlatValues, afterWidth, Prog.bind_eq, Prog.bind_assoc]
+  rw [code]
+  intro left right remaining same lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
+    afterWidth afterWidth compare same lhs rhs scheduler run bounded
+
+private theorem compareSourceTaskResultFromCaller {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (caller : CallerId) (values : List Value.Val) (store : CStore (core3 grow))
+    (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish program program) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (sharedArenaReader ArenaField.callers caller (sourceTaskResultFromCaller values) store)
+      (sharedArenaReader ArenaField.callers caller (sourceTaskResultFromCaller values) store) := by
+  have trapped (message : String) : DestructorRecordAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish (internal message) (internal message) := by
+    intro left right remaining same lhs rhs scheduler run bounded
+    exact compareSharedDestructorTrap (.internal message) lhs rhs run
+  unfold sharedArenaReader
+  split
+  · exact @trapped "dangling arena id"
+  · rename_i record _
+    cases record with
+    | host | sub => exact @trapped "lowerOnResolve: not a canon_lower caller record"
+    | lower subtask cx args pos ft maxParams maxResults =>
+      let after (_ : Unit) :=
+        lowerFlatValues Limits.spec Quirks.none cx maxResults values ft.result.toList (some ⟨args, pos⟩) >>=
+          sourceTaskResultPublish (sig := sig) subtask
+      intro left right remaining same lhs rhs scheduler run bounded
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread (maybeOnProgress subtask)
+        (sharedDestructorProgressEffects subtask) after after (fun _ =>
+          compareSourceTaskResultValues thread allocate cx maxResults values ft.result.toList ⟨args, pos⟩ subtask compareProgram)
+        same lhs rhs scheduler run bounded
+
 /-- Canonical builtins with source callback comparisons. Other builtins
 continue through the common executable dispatch in this fold. -/
 private def sourceBuiltinWithCallback : ResolvedBuiltin (core3 grow) → List FlatValue → Bool
@@ -25008,16 +25178,7 @@ private theorem finishAdmittedSourceBuiltinWithCallback {limit : Nat}
     fun words {_ _ _} same aligned lhs rhs tail within => compareProgram (.pure (.flat words)) same lhs rhs aligned tail within
   cases observed : SourceCopy.select builtin args
   case some copy =>
-    have allocate : SourceCopyAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish := by
-      constructor
-      · exact fun cx site compiled leftNext rightNext onResume =>
-          finishSourceRecordAllocator parents thread segments cx site compiled leftNext rightNext onResume (reentry.1 parents thread)
-      · intro cx width site values dest next onResume
-        let resume := canonicalListStoreResume cx width site values dest next
-        intro left right remaining same lhs rhs aligned residual within
-        exact crossSourceAllocatorCall cx (canonicalListStoreRequest width site values.length) resume resume
-          (.canonicalList cx width site values dest next) reentry.1 parents thread segments onResume
-          same lhs rhs aligned residual within
+    have allocate := sourceValueAllocationAt reentry.1 parents thread segments
     exact compareSourceCopy thread copy allocate compareProgram stores
       (checked.trans (congrArg check.control (sourceCopyCalloutCode ready base start.store check.thread inst builtin args copy observed)))
       (canonical.trans (congrArg canon.control
@@ -25417,6 +25578,34 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
           refine .destructorPrefix cleared (frameCalloutStep cleared rfl rfl) (fun same => same) ?_
           refine compareSourceCopyDelivery (check := check) (canon := canon) (limit := trailing.length)
             rfl copy source ?_ (congrArg update stores) rfl rfl scheduler tail (Nat.le_refl _)
+          intro program lhs rhs suffix same lAt rAt aligned residual within
+          exact proceed (.mk segments) resumers same aligned lAt rAt residual within
+        by_cases lowering : ∃ (caller : CallerId) (value : Value.Val) (values : List Value.Val),
+            focus = .prog (lowerOnResolve Limits.spec Quirks.none caller (some (value :: values)) >>= fun _ => .pure .unit)
+        · obtain ⟨caller, value, values, rfl⟩ := lowering
+          let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frames, active ++ rest⟩
+          let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, peerFrames, peerActive ++ peerRest⟩
+          let read := sharedArenaReader ArenaField.callers caller (sourceTaskResultFromCaller (grow := grow) (sig := sig) (value :: values))
+          have leftRead : start.ctl = check.control (.op .get read) :=
+            leftAt.trans (congrArg check.control (sourceTaskResultReadCode caller (value :: values)))
+          have rightRead : incoming.ctl = canon.control (.op .get read) :=
+            rightAt.trans (congrArg canon.control (sourceTaskResultReadCode caller (value :: values)))
+          let left := { start with ctl := check.control (read start.store) }
+          let right := { incoming with ctl := canon.control (read start.store) }
+          have checked : Step profile ready (specDispatch ready base) start .tau left := .get leftRead
+          have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right := by
+            have step := Step.get (prof := profile) (hr := ready) (dispatch := specDispatch ready (LiveDispatch.host bindings base))
+              (th := canon.thread) (segs := canon.frames) (rest := canon.rest) (k := read) rightRead
+            rw [← congrArg read stores] at step
+            exact step
+          obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
+          have visited := sharedSchedulerTransport (bindings := bindings) (edit := .same) checked canonical
+            (by rw [transitionEdit, leftRead]; rfl) (by rw [transitionEdit, rightRead]; rfl)
+          refine .destructorPrefix visited (frameCalloutStep visited rfl rfl) (fun same => same) ?_
+          have allocate := sourceValueAllocationAt (check := check) (canon := canon)
+            (imports trailing.length (Nat.lt_succ_self _)).1 (.prefixed resumers parents) rfl segments
+          refine compareSourceTaskResultFromCaller (check := check) (canon := canon) rfl allocate caller (value :: values) start.store ?_
+            stores rfl rfl scheduler tail (Nat.le_refl _)
           intro program lhs rhs suffix same lAt rAt aligned residual within
           exact proceed (.mk segments) resumers same aligned lAt rAt residual within
         cases actual with
