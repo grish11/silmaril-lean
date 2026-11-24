@@ -186,6 +186,18 @@ def rootPlacement {grow : SingleThreaded.GrowOracle} (destination : RecordDestin
   | .flat => .ok ()
   | .memory ptr => placement destination store (layout destination.width type) ptr
 
+open ReturnFrame.Occurrence in
+/-- A failed placement has either zero or one store read before the trap.
+The reached read preserves the store, host, and every occurrence. -/
+structure PlacementFault {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) (start beforeTrap : Config E Host)
+    (count : Nat) (reason : TrapReason) : Prop where
+  bounded : count ≤ 1
+  store : beforeTrap.store = start.store
+  host : beforeTrap.host = start.host
+  tracks : ∀ place, Prefix profile ready dispatch start place (List.replicate count .tau) beforeTrap place
+  fault : Step profile ready dispatch beforeTrap (.trap reason) (StepDefs.trapCfg start)
+
 /-- The canonical result program after the allocating string plan. Memory
 output reads the pointer size again, before the two descriptor writes. -/
 def stringPlanTail {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E) (width : AddrType)
@@ -239,21 +251,36 @@ def stringFront {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E) (ptr : 
 /-- Both sides execute the same local effects up to a returned cursor or
 trap. On return the original active and blocked frame tails are intact; a
 trap locks down the reached store without undoing its writes. -/
-def StringLocalCut {grow : SingleThreaded.GrowOracle} {Host Result : Type} (profile : ProfileKind)
-    (ready : HostReady Host) (dispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
+def StringLocalCutBetween {grow : SingleThreaded.GrowOracle} {Host Result : Type} (profile : ProfileKind)
+    (ready : HostReady Host) (dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
     (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
-    (checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))) : Prop :=
+    (checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))) (trackOccurrences : Bool := false) : Prop :=
   ∃ (store : CStore (core3 grow)) (result : Except TrapReason Result) (labels : List (Label (core3 grow) Host)),
     LocalLeafLabels result labels ∧
     CoreGrowthSteps profile ready dispatch left labels
       (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
-    CoreGrowthSteps profile ready dispatch right labels
+    CoreGrowthSteps profile ready reference right labels
       (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
-    ∀ value, result = .ok value → ∀ depth,
+    let active := ∀ value, result = .ok value → ∀ depth,
       ReturnFrame.Occurrence.Prefix profile ready dispatch left (.active 0 depth) labels
         (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) (.active 0 depth) ∧
-      ReturnFrame.Occurrence.Prefix profile ready dispatch right (.active 0 depth) labels
+      ReturnFrame.Occurrence.Prefix profile ready reference right (.active 0 depth) labels
         (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) (.active 0 depth)
+    if trackOccurrences then active ∧
+      PairedLeafSteps profile ready dispatch reference left right labels
+        (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result)
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧ ∀ mark,
+      ReturnFrame.Occurrence.Trail profile ready dispatch left mark labels
+        (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) (localOccurrenceEnd result mark) ∧
+      ReturnFrame.Occurrence.Trail profile ready reference right mark labels
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) (localOccurrenceEnd result mark)
+    else active
+
+abbrev StringLocalCut {grow : SingleThreaded.GrowOracle} {Host Result : Type} (profile : ProfileKind)
+    (ready : HostReady Host) (dispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : Result → P (core3 grow) Host (Ret (core3 grow))) : Prop :=
+  StringLocalCutBetween profile ready dispatch dispatch left right check canon checkNext canonNext
 
 def MemoryReaches {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
     (dispatch : Call E → P E Host (Ret E)) (left right : Config E Host)
@@ -264,33 +291,112 @@ def MemoryReaches {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready 
       Steps profile ready dispatch left (List.replicate count .tau ++ [.trap reason]) reached ∧
       reached.ctl = [] ∧ reached.store = StepDefs.lockdownSt left.store
 
+/-- Focus at a local operation, or at the reply to a saved Core caller. No
+direct or Core callout is about to install a program, no host query is run,
+and the pure reply cannot pop a substituted program continuation. -/
+def LocalFocus {E : CoreEngine} {Host : Type} (cfg : Config E Host) : Prop :=
+  match cfg.ctl with
+  | ⟨_, .prog (.op operation _), _⟩ :: _ =>
+    match operation with
+    | .get | .modify _ | .currentThread | .trap _ | .choose _ => True
+    | _ => False
+  | ⟨_, .prog (.pure _), .core .. :: _⟩ :: _ => True
+  | _ => False
+
+/-- Local programs can replay the response at an actual choice. Their store
+writes must preserve the invariant supplied by the current visitor. -/
+def LocalProgramOp {E : CoreEngine} {Host : Type} (keep : CStore E → Prop) : Op E Host → Prop
+  | .choose _ => True
+  | .modify update => ∀ store, keep store → keep (update store)
+  | other => LocalStoreOp other
+
+/-- Actual scheduler steps confined to local foci. The endpoint can be an
+open callback or a new callout; it need not be local until another step runs. -/
+inductive LocalSteps {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) : Config E Host → List (Label E Host) → Config E Host → Prop where
+  | refl (state : Config E Host) : LocalSteps profile ready dispatch state [] state
+  | cons {before next finish label labels} (focus : LocalFocus before) (step : Step profile ready dispatch before label next)
+      (tail : LocalSteps profile ready dispatch next labels finish) :
+      LocalSteps profile ready dispatch before (label :: labels) finish
+
+/-- A single silent local read with unchanged store, host, and occurrence
+locations. The proof is about this edge, not just its enclosing segment. -/
+structure SilentLocalStep {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) (before after : Config E Host) : Prop where
+  tracks : ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch before place [.tau] after place
+  store : before.store = after.store
+  host : after.host = before.host
+
+inductive SilentLocalPath {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) : Config E Host → List (Label E Host) → Config E Host → Prop where
+  | done (state : Config E Host) : SilentLocalPath profile ready dispatch state [] state
+  | read {before middle after labels} (step : SilentLocalStep profile ready dispatch before middle)
+      (tail : SilentLocalPath profile ready dispatch middle labels after) :
+      SilentLocalPath profile ready dispatch before (.tau :: labels) after
+
+/-- The compiled local operation runs under both dispatchers. Placement and
+width reads may occur on just one side; shared writes, choices and traps
+have the same actual label and edit, and leave each host unchanged. -/
+inductive PairedLocalPath {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch reference : Call E → P E Host (Ret E)) :
+    Config E Host → Config E Host → List (Label E Host) → List (Label E Host) → Config E Host → Config E Host → Prop where
+  | done {left right} (store : left.store = right.store) :
+      PairedLocalPath profile ready dispatch reference left right [] [] left right
+  | checkedRead {left middle right checked canonical after peer}
+      (read : SilentLocalStep profile ready dispatch left middle)
+      (tail : PairedLocalPath profile ready dispatch reference middle right checked canonical after peer) :
+      PairedLocalPath profile ready dispatch reference left right (.tau :: checked) canonical after peer
+  | canonicalRead {left right middle checked canonical after peer}
+      (read : SilentLocalStep profile ready reference right middle)
+      (tail : PairedLocalPath profile ready dispatch reference left middle checked canonical after peer) :
+      PairedLocalPath profile ready dispatch reference left right checked (.tau :: canonical) after peer
+  | step {left right middle peer after reached label checked canonical}
+      (store : left.store = right.store)
+      (lhs : Step profile ready dispatch left label middle) (rhs : Step profile ready reference right label peer)
+      (leftHost : middle.host = left.host) (rightHost : peer.host = right.host)
+      (edit : ReturnFrame.Occurrence.transitionEdit right label = ReturnFrame.Occurrence.transitionEdit left label)
+      (tail : PairedLocalPath profile ready dispatch reference middle peer checked canonical after reached) :
+      PairedLocalPath profile ready dispatch reference left right (label :: checked) (label :: canonical) after reached
+
 /-- A local comparison with exact reached configurations. Unlike the
 handle-only cut, it permits synchronized observations such as NaN choices. -/
-def LocalCutKeeping {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
+def LocalCutKeepingBetween {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch reference : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
+    (check canon : Cursor (E := E) Host) (checkNext canonNext : Result → P E Host (Ret E))
+    (trackOccurrences : Bool := false) : Prop :=
+  ∃ (store : CStore E) (result : Except TrapReason Result) (checked canonical : List (Label E Host)),
+    let lhs := localLeafEnd left left.host store check.thread check.frames check.rest checkNext result
+    let rhs := localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result
+    Steps profile ready dispatch left checked lhs ∧ LocalSteps profile ready reference right canonical rhs ∧
+    visible checked = visible canonical ∧
+    let outcome := match result with
+      | .ok _ => keep store ∧ ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left checked lhs ∧
+          ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right canonical rhs
+      | .error reason => ∃ leading, visible canonical = leading ++ [.trap reason]
+    if trackOccurrences then outcome ∧ PairedLocalPath profile ready dispatch reference left right checked canonical lhs rhs ∧ ∀ mark,
+      ReturnFrame.Occurrence.Trail profile ready dispatch left mark checked lhs (localOccurrenceEnd result mark) ∧
+      ReturnFrame.Occurrence.Trail profile ready reference right mark canonical rhs (localOccurrenceEnd result mark)
+    else outcome
+
+abbrev LocalCutKeeping {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
     (dispatch : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
     (check canon : Cursor (E := E) Host) (checkNext canonNext : Result → P E Host (Ret E)) : Prop :=
-  ∃ (store : CStore E) (result : Except TrapReason Result) (checked canonical : List (Label E Host)),
-    Steps profile ready dispatch left checked
-      (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
-    Steps profile ready dispatch right canonical
-      (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result) ∧
-    visible checked = visible canonical ∧
-    match result with
-    | .ok _ => keep store ∧
-        ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left checked
-          (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
-        ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right canonical
-          (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result)
-    | .error reason => ∃ leading, visible canonical = leading ++ [.trap reason]
+  LocalCutKeepingBetween profile ready dispatch dispatch keep left right check canon checkNext canonNext
 
-def CompareLocalKeepingAt {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
-    (dispatch : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
-    (checked : P E Host (Except RecordLower.Issue Result)) (canonical : P E Host Result) : Prop :=
+def CompareLocalKeepingBetween {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch reference : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
+    (checked : P E Host (Except RecordLower.Issue Result)) (canonical : P E Host Result) (trackOccurrences : Bool := false) : Prop :=
   left.store = right.store →
     ∀ (check canon : Cursor (E := E) Host), check.thread = canon.thread →
       ∀ (checkNext : Except RecordLower.Issue Result → P E Host (Ret E)) (canonNext : Result → P E Host (Ret E)),
         left.ctl = check.control (checked >>= checkNext) → right.ctl = canon.control (canonical >>= canonNext) →
-        LocalCutKeeping profile ready dispatch keep left right check canon (fun value => checkNext (.ok value)) canonNext
+        LocalCutKeepingBetween profile ready dispatch reference keep left right check canon
+          (fun value => checkNext (.ok value)) canonNext trackOccurrences
+
+abbrev CompareLocalKeepingAt {E : CoreEngine} {Host Result : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) (keep : CStore E → Prop) (left right : Config E Host)
+    (checked : P E Host (Except RecordLower.Issue Result)) (canonical : P E Host Result) : Prop :=
+  CompareLocalKeepingBetween profile ready dispatch dispatch keep left right checked canonical
 
 def sumPayloadAddress (width : AddrType) (arms : List (Option TypeOf)) (base : Nat) : Nat :=
   alignTo (base + discSize arms.length) (maxCaseAlignment (arms.map (layoutOption width)))

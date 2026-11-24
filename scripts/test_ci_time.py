@@ -50,6 +50,20 @@ class TimeBudgetTests(unittest.TestCase):
         self.assertIn("586.7s counts against the 300s limit", out)
         self.assertIn("::error::CI exceeded 300 seconds", out)
 
+    def test_full_suite_budget_applies_only_when_selected(self):
+        jobs = [job("lean", "2026-01-01T00:00:00Z", "2026-01-01T00:05:50Z")]
+        self.assertEqual(quiet(ci_time.check, self.attempt, jobs, self.now)[0], 1)
+        status, out = quiet(ci_time.check, self.attempt, jobs, self.now, (), True)
+        self.assertEqual(status, 0)
+        self.assertIn("350.0s counts against the 600s limit", out)
+
+    def test_full_suite_budget_still_fails_over_its_limit(self):
+        jobs = [job("lean", "2026-01-01T00:00:00Z", "2026-01-01T00:10:00.001Z")]
+        now = self.now + timedelta(seconds=1)
+        status, out = quiet(ci_time.check, self.attempt, jobs, now, (), True)
+        self.assertEqual(status, 1)
+        self.assertIn("::error::CI exceeded 600 seconds", out)
+
     def test_waiting_for_a_runner_does_not_count(self):
         # main after #93 (run 43357817902): `lean / check` waited 213 s for a 16-vCPU runner.
         run = {"run_started_at": "2026-11-13T03:16:11Z"}

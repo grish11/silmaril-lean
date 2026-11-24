@@ -50,6 +50,11 @@ def Spend.apply {sig : Signature} (spend : Spend) (state : State sig) : State si
   | .owner id => { state with held := state.held.filter (fun entry => receiptId entry != id) }
   | .endpoint id => { state with endpoints := state.endpoints.filter (· != id) }
 
+def Spend.Live {sig : Signature} (update : Spend) (state : State sig) : Prop :=
+  match update with
+  | .owner id => id ∈ state.held.map receiptId
+  | .endpoint id => id ∈ state.endpoints
+
 /-- Validate all the root's claims together before publishing either class of claim or the
 tree. Endpoints can come back through a new legitimate lift; a past observation is not a claim. -/
 def State.register {sig : Signature} (state : State sig) (tree : Tree sig) : Except Issue (State sig) :=
@@ -61,6 +66,56 @@ def State.register {sig : Signature} (state : State sig) (tree : Tree sig) : Exc
       endpoints.Nodup ∧ !(endpoints.any state.endpoints.contains) then
     .ok ⟨tree :: state.accepted, receipts ++ state.held, endpoints ++ state.endpoints⟩
   else .error .alias
+
+/-- Registration reads only conflicts with the new root's claims. The journals,
+unrelated claims, and representations need not agree. Handle selection separately
+reads the number of accepted roots. -/
+structure State.RegistrationChecksAgree {sig : Signature} (left right : State sig) (tree : Tree sig) : Prop where
+  owners : ∀ id ∈ (rootReceipts tree).map receiptId,
+    (id ∈ ((left.accepted.flatMap rootReceipts ++ left.held).map receiptId) ↔
+      id ∈ ((right.accepted.flatMap rootReceipts ++ right.held).map receiptId))
+  endpoints : ∀ id ∈ rootEndpoints tree, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
+
+/-- A spend frames the next root's conflict probes if it cannot remove any
+requested conflict. An accepted owner remains a conflict after its spend. -/
+def Spend.FramesRegistration {sig : Signature} (update : Spend) (state : State sig) (tree : Tree sig) : Prop :=
+  match update with
+  | .owner id => id ∉ (rootReceipts tree).map receiptId ∨ id ∈ (state.accepted.flatMap rootReceipts).map receiptId
+  | .endpoint id => id ∉ rootEndpoints tree
+
+/-- The ordered acceptance history fixes handle lookup and the next registration
+index. Live claims are compared by nominal identity, not by list representation.
+This does not compare owner representations used by `State.prepare`. -/
+structure State.IndexedClaimsAgree {sig : Signature} (left right : State sig) : Prop where
+  accepted : left.accepted = right.accepted
+  held : ∀ id, (id ∈ left.held.map receiptId ↔ id ∈ right.held.map receiptId)
+  endpoints : ∀ id, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
+
+/-- The held-owner information consulted by `prepare`, indexed by arena
+identity. Even on states with duplicate entries the first match matters. -/
+def State.ownerObservation {sig : Signature} (state : State sig) (id : HandleObjId) : Option (RtId × Nat) :=
+  (state.held.find? (fun receipt => receiptId receipt == id)).map (fun receipt =>
+    (receipt.1, receipt.2.representation))
+
+/-- Live equality at one nominal claim. A different owner or endpoint may have
+been consumed, and the two acceptance histories need not agree. -/
+def Spend.ObservationAgrees {sig : Signature} (probe : Spend) (left right : State sig) : Prop :=
+  match probe with
+  | .owner id => left.ownerObservation id = right.ownerObservation id
+  | .endpoint id => id ∈ left.endpoints ↔ id ∈ right.endpoints
+
+/-- Ordered accepted observations and live authority agree; the underlying
+claim lists (and any surrounding host journals) need not be equal. -/
+structure State.LiveClaimsAgree {sig : Signature} (left right : State sig) : Prop where
+  accepted : left.accepted = right.accepted
+  owners : ∀ id, left.ownerObservation id = right.ownerObservation id
+  endpoints : ∀ id, (id ∈ left.endpoints ↔ id ∈ right.endpoints)
+
+/-- Cap the possible disagreements of the two actual writers by nominal identity.
+Accepted indices still agree. An exceptional claim is not necessarily live on either side. -/
+structure State.ClaimDiscrepancies {sig : Signature} (left right : State sig) (pending : Spend → Prop) : Prop where
+  accepted : left.accepted = right.accepted
+  observe : ∀ probe, ¬ pending probe → probe.ObservationAgrees left right
 
 /-- Look up the nominal type and representation from the held receipt, not from the caller.
 The result is a prospective update; the caller chooses when to commit it. -/

@@ -16,6 +16,8 @@ import Silmaril.Wasm.Component.Reference.Canon.Prog.Thms
 import Silmaril.Wasm.Component.Reference.ABI.Layout.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Lower.Thms
 
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+
 public section
 
 namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix
@@ -29,6 +31,7 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadPrefix
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims
+open ReturnFrame.Occurrence (Edit Location Prefix RetainsActiveSlots Trail prefix_survives)
 
 variable {E : CoreEngine} {Host Result Next : Type}
   {profile : ProfileKind} {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
@@ -144,6 +147,14 @@ private def ClosedOp (profile : ProfileKind) (keep : CStore E → Prop := fun _ 
   | .get | .currentThread | .trap _ => True
   | _ => False
 
+private theorem closedLocalProgram {body : P E Host Result} {keep : CStore E → Prop}
+    (closed : Prog.Every (ClosedOp profile keep) body) : Prog.Every (LocalProgramOp keep) body := by
+  induction closed with
+  | pure value => exact .pure value
+  | @op operation _ _ _ ih =>
+    refine .op ?_ ih
+    cases operation <;> trivial
+
 theorem forgetKeeping {left right : Config E Host} {keep : CStore E → Prop}
     {checkCursor canonCursor : Cursor (E := E) Host}
     {checkNext : Except RecordLower.Issue Result → P E Host (Ret E)} {canonNext : Result → P E Host (Ret E)}
@@ -218,13 +229,27 @@ private theorem sequentialKeeping {keep : CStore E → Prop} {left right : Confi
       convert checkAt using 3)
     (by simpa only [Prog.bind_eq, Prog.bind_assoc] using canonAt)) rest
 
-private theorem closedCut {body : P E Host Result} {keep : CStore E → Prop}
+theorem localSteps {before finish labels} (run : LocalSteps profile ready dispatch before labels finish) :
+    Steps profile ready dispatch before labels finish := by
+  induction run with
+  | refl => exact .refl _
+  | cons _ step _ ih => exact .cons step ih
+
+theorem localAppend {before middle finish leading trailing}
+    (front : LocalSteps profile ready dispatch before leading middle)
+    (back : LocalSteps profile ready dispatch middle trailing finish) :
+    LocalSteps profile ready dispatch before (leading ++ trailing) finish := by
+  induction front with
+  | refl => exact back
+  | cons focus step _ ih => exact .cons focus step (ih back)
+
+private theorem closedCutOccurrencesBetween {body : P E Host Result} {keep : CStore E → Prop} {reference : Call E → P E Host (Ret E)}
     (closed : Prog.Every (ClosedOp profile keep) body) :
     ∀ (left right : Config E Host) (check canon : Cursor (E := E) Host)
       (checkNext canonNext : Result → P E Host (Ret E)),
       keep right.store → left.store = right.store → check.thread = canon.thread →
       left.ctl = check.control (body >>= checkNext) → right.ctl = canon.control (body >>= canonNext) →
-      LocalCutKeeping profile ready dispatch keep left right check canon checkNext canonNext := by
+      LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext true := by
   induction closed with
   | pure value =>
     intro left right check canon checkNext canonNext kept same _ checkAt canonAt
@@ -234,35 +259,41 @@ private theorem closedCut {body : P E Host Result} {keep : CStore E → Prop}
     have canonEnd : localLeafEnd right right.host right.store canon.thread canon.frames canon.rest canonNext (.ok value) = right := by
       cases right
       simp_all only [localLeafEnd, Cursor.control, Prog.bind_eq, Prog.pure_bind']
-    refine ⟨right.store, .ok value, [], [], by rw [checkEnd]; exact .refl _, by rw [canonEnd]; exact .refl _, rfl, kept, ?_, ?_⟩
+    refine ⟨right.store, .ok value, [], [], by rw [checkEnd]; exact .refl _, by rw [canonEnd]; exact .refl _, rfl, ⟨kept, ?_, ?_⟩, ?_, ?_⟩
     · intro depth
       rw [checkEnd]
       exact .done _ (.active 0 depth)
     · intro depth
       rw [canonEnd]
       exact .done _ (.active 0 depth)
+    · rw [checkEnd, canonEnd]
+      exact .done same
+    · intro mark
+      rw [checkEnd, canonEnd]
+      exact ⟨.done _ mark, .done _ mark⟩
   | @op operation next admitted _ ih =>
     intro left right check canon checkNext canonNext kept same thread checkAt canonAt
     have advance (label : Label E Host) (response : (Eff E Host).Resp operation)
-        (leftStore rightStore : CStore E) (kept : keep rightStore) (same : leftStore = rightStore)
+        (leftStore rightStore : CStore E) (kept : keep rightStore) (sameNext : leftStore = rightStore)
         (checked : Step profile ready dispatch left label
           { left with store := leftStore, ctl := check.control (next response >>= checkNext) })
-        (canonical : Step profile ready dispatch right label
+        (canonical : Step profile ready reference right label
           { right with store := rightStore, ctl := canon.control (next response >>= canonNext) })
+        (localFocus : LocalFocus right)
         (checkEdit : ReturnFrame.Occurrence.transitionEdit left label = .same)
         (canonEdit : ReturnFrame.Occurrence.transitionEdit right label = .same) :
-        LocalCutKeeping profile ready dispatch keep left right check canon checkNext canonNext := by
-      obtain ⟨store, result, chk, ref, runChk, runRef, labels, outcome⟩ :=
+        LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext true := by
+      obtain ⟨store, result, chk, ref, runChk, runRef, labels, outcome, path, trails⟩ :=
         ih response { left with store := leftStore, ctl := check.control (next response >>= checkNext) }
           { right with store := rightStore, ctl := canon.control (next response >>= canonNext) }
-          check canon checkNext canonNext kept same thread rfl rfl
+          check canon checkNext canonNext kept sameNext thread rfl rfl
       have final : ∀ (start : Config E Host) (localStore : CStore E) ctl (cursor : Cursor (E := E) Host) finish,
           localLeafEnd { start with store := localStore, ctl } start.host store cursor.thread cursor.frames cursor.rest finish result =
           localLeafEnd start start.host store cursor.thread cursor.frames cursor.rest finish result := by
         intro start localStore ctl cursor finish
         cases result <;> rfl
       rw [final] at runChk runRef
-      refine ⟨store, result, label :: chk, label :: ref, .cons checked runChk, .cons canonical runRef, ?_, ?_⟩
+      refine ⟨store, result, label :: chk, label :: ref, .cons checked runChk, .cons localFocus canonical runRef, ?_, ?_, ?_, ?_⟩
       · change visible ([label] ++ chk) = visible ([label] ++ ref)
         rw [visible_append, visible_append, labels]
       · cases result with
@@ -282,31 +313,83 @@ private theorem closedCut {body : P E Host Result} {keep : CStore E → Prop}
           refine ⟨visible [label] ++ leading, ?_⟩
           change visible ([label] ++ ref) = _
           rw [visible_append, last, List.append_assoc]
+      · rw [final, final] at path
+        exact .step same checked canonical rfl rfl (canonEdit.trans checkEdit.symm) path
+      · intro mark
+        obtain ⟨lhs, rhs⟩ := trails mark
+        rw [final] at lhs rhs
+        exact ⟨.step checked (by rw [checkEdit]; cases mark <;> exact lhs),
+          .step canonical (by rw [canonEdit]; cases mark <;> exact rhs)⟩
     cases operation with
     | get =>
       exact advance .tau right.store left.store right.store kept same
         (by simpa only [same, Cursor.control, Prog.bind_eq] using
           (Step.get (prof := profile) (hr := ready) (dispatch := dispatch) checkAt)) (.get canonAt)
+        (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind])
         (by rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl) (by rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl)
     | modify update =>
       exact advance .tau () (update left.store) (update right.store) (admitted right.store kept)
         (congrArg update same) (.modify checkAt) (.modify canonAt)
+        (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind])
         (by rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl) (by rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl)
     | currentThread =>
       exact advance .tau canon.thread left.store right.store kept same
         (by simpa only [thread, Cursor.control, Prog.bind_eq] using
           (Step.currentThread (prof := profile) (hr := ready) (dispatch := dispatch) checkAt))
-        (.currentThread canonAt)
+        (.currentThread canonAt) (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind])
         (by rw [ReturnFrame.Occurrence.transitionEdit, checkAt]; rfl) (by rw [ReturnFrame.Occurrence.transitionEdit, canonAt]; rfl)
     | trap reason =>
-      refine ⟨right.store, .error reason, [.trap reason], [.trap reason], ?_, .cons (.trap canonAt) (.refl _), rfl, [], rfl⟩
-      rw [← same]
-      exact .cons (.trap checkAt) (.refl _)
+      refine ⟨right.store, .error reason, [.trap reason], [.trap reason], ?_,
+        .cons (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) (.trap canonAt) (.refl _), rfl, ⟨[], rfl⟩, ?_, ?_⟩
+      · rw [← same]
+        exact .cons (.trap checkAt) (.refl _)
+      · have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
+            StepDefs.trapCfg left := by rw [← same]; rfl
+        rw [leftEnd]
+        exact .step same (.trap checkAt) (.trap canonAt) rfl rfl rfl (.done (congrArg StepDefs.lockdownSt same))
+      · intro mark
+        have leftEnd : localLeafEnd left left.host right.store check.thread check.frames check.rest checkNext (.error reason) =
+            StepDefs.trapCfg left := by rw [← same]; rfl
+        have cleared (state : Config E Host) : mark.bind (ReturnFrame.Occurrence.transitionEdit state (.trap reason)).follow =
+            localOccurrenceEnd (.error (α := Result) reason) mark := by
+          rcases mark with _ | ⟨place⟩
+          · rfl
+          · cases place <;> rfl
+        rw [leftEnd, ← cleared left]
+        exact ⟨.step (.trap checkAt) (.done _ _), .step (.trap canonAt) (.done _ _)⟩
     | choose choice =>
       obtain ⟨answer, allowed⟩ := admitted
       exact advance (.choice choice answer) answer left.store right.store kept same
-        (.choose answer checkAt allowed) (.choose answer canonAt allowed) rfl rfl
+        (.choose answer checkAt allowed) (.choose answer canonAt allowed)
+        (by simp only [LocalFocus, canonAt, Cursor.control, Prog.bind_eq, Prog.bind]) rfl rfl
     | _ => contradiction
+
+private theorem closedCutBetween {body : P E Host Result} {keep : CStore E → Prop} {reference : Call E → P E Host (Ret E)}
+    (closed : Prog.Every (ClosedOp profile keep) body)
+    (left right : Config E Host) (check canon : Cursor (E := E) Host)
+    (checkNext canonNext : Result → P E Host (Ret E))
+    (kept : keep right.store) (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (checkAt : left.ctl = check.control (body >>= checkNext)) (canonAt : right.ctl = canon.control (body >>= canonNext))
+    (trackOccurrences : Bool := false) :
+    LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext trackOccurrences := by
+  cases trackOccurrences
+  · exact closedCutSlots
+  · exact closedCutOccurrencesBetween closed left right check canon checkNext canonNext kept same thread checkAt canonAt
+where
+  closedCutSlots : LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext := by
+    obtain ⟨store, result, lhs, rhs, checkRun, canonRun, seen, outcome, _⟩ :=
+      closedCutOccurrencesBetween closed left right check canon checkNext canonNext kept same thread checkAt canonAt
+    exact ⟨store, result, lhs, rhs, checkRun, canonRun, seen, outcome⟩
+
+private theorem closedCut {body : P E Host Result} {keep : CStore E → Prop}
+    (closed : Prog.Every (ClosedOp profile keep) body) :
+    ∀ (left right : Config E Host) (check canon : Cursor (E := E) Host)
+      (checkNext canonNext : Result → P E Host (Ret E)),
+      keep right.store → left.store = right.store → check.thread = canon.thread →
+      left.ctl = check.control (body >>= checkNext) → right.ctl = canon.control (body >>= canonNext) →
+      LocalCutKeeping profile ready dispatch keep left right check canon checkNext canonNext :=
+  fun left right check canon checkNext canonNext kept same thread checkAt canonAt =>
+    closedCutBetween closed left right check canon checkNext canonNext kept same thread checkAt canonAt
 
 private theorem localCutReaches {keep : CStore E → Prop} {left right : Config E Host} {check canon : Cursor (E := E) Host}
     {checkNext : Except RecordLower.Issue Result → P E Host (Ret E)} {canonNext : Result → P E Host (Ret E)}
@@ -314,8 +397,8 @@ private theorem localCutReaches {keep : CStore E → Prop} {left right : Config 
     ReachesKeeping profile ready dispatch keep left right check canon checkNext canonNext := by
   obtain ⟨store, result, chk, ref, runChk, runRef, labels, status⟩ := cut
   cases result with
-  | ok value => exact ⟨.returned value, chk, ref, _, _, runChk, runRef, rfl, labels, status.1, rfl, rfl⟩
-  | error reason => exact ⟨.trapped reason, chk, ref, _, _, runChk, runRef, rfl, labels, trivial, rfl, rfl, status⟩
+  | ok value => exact ⟨.returned value, chk, ref, _, _, runChk, localSteps runRef, rfl, labels, status.1, rfl, rfl⟩
+  | error reason => exact ⟨.trapped reason, chk, ref, _, _, runChk, localSteps runRef, rfl, labels, trivial, rfl, rfl, status⟩
 
 private theorem compareClosedKeeping {body : P E Host Result} {keep : CStore E → Prop}
     (closed : Prog.Every (ClosedOp profile keep) body) :
@@ -379,6 +462,11 @@ private theorem variantTailClosed (count : Nat) (wanted : List CoreType) (tag : 
   · exact (coerceWords profile haves wanted words).bind (fun _ => .pure _)
   · exact .op trivial (fun impossible => nomatch impossible)
 
+theorem variantTailLocalOps {profile : ProfileKind} (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} :
+    Prog.Every (LocalProgramOp keep) (lowerFlatVariantWith count wanted tag haves (pure words) : P E Host (List FlatValue)) :=
+  closedLocalProgram (variantTailClosed (profile := profile) count wanted tag haves words)
+
 private theorem variantTail (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
     (words : List FlatValue) :
     Compare profile ready dispatch
@@ -386,15 +474,19 @@ private theorem variantTail (count : Nat) (wanted : List CoreType) (tag : Nat) (
       (lowerFlatVariantWith count wanted tag haves (pure words)) :=
   compareClosed (variantTailClosed count wanted tag haves words)
 
-theorem variantTailFrame (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
-    (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store) :
-    CompareLocalKeepingAt profile ready dispatch keep left right
+theorem variantTailFrameBetween {reference : Call E → P E Host (Ret E)}
+    (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store)
+    (trackOccurrences : Bool := false) :
+    CompareLocalKeepingBetween profile ready dispatch reference keep left right
       (do return .ok (← lowerFlatVariantWith count wanted tag haves (pure words)))
-      (lowerFlatVariantWith count wanted tag haves (pure words)) := by
+      (lowerFlatVariantWith count wanted tag haves (pure words)) trackOccurrences := by
   intro same check canon thread checkNext canonNext checkAt canonAt
-  refine closedCut (variantTailClosed count wanted tag haves words) left right check canon
-    (fun value => checkNext (.ok value)) canonNext kept same thread ?_ canonAt
+  refine closedCutBetween (variantTailClosed count wanted tag haves words) left right check canon
+    (fun value => checkNext (.ok value)) canonNext kept same thread ?_ canonAt trackOccurrences
   simpa only [Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using checkAt
+
+abbrev variantTailFrame := @variantTailFrameBetween E Host profile ready dispatch dispatch
 
 private theorem localGet {keep : CStore E → Prop} :
     Prog.Every (ClosedOp (E := E) (Host := Host) profile keep) getStore := .op trivial (fun _ => .pure _)
@@ -543,12 +635,13 @@ private theorem handleKeeping (destination : RecordDestination) (inst : InstId) 
   cases verdict : liveLeafPlan left.store left.host.writer index item with
   | error issue =>
     rw [verdict] at paired
-    obtain ⟨labels, allTau, tracks⟩ := paired
-    exact ⟨.refused issue, labels, [], _, right, (ReturnFrame.Occurrence.prefix_survives (tracks 0)).1,
+    obtain ⟨labels, allTau, steps⟩ := paired
+    have tracks := steps.tracks
+    exact ⟨.refused issue, labels, [], _, right, (ReturnFrame.Occurrence.prefix_survives (tracks (.active 0 0))).1,
       .refl right, same, silent allTau, trivial, rfl⟩
   | ok plan =>
     rw [verdict] at paired
-    obtain ⟨reached, outcome, leading, chk, ref, grown, allTau, checkTrace, canonTrace, checkRun, canonRun, _⟩ := paired
+    obtain ⟨reached, outcome, leading, chk, ref, grown, allTau, checkTrace, canonTrace, checkRun, canonRun, _, _, _⟩ := paired
     have labels : visible (leading ++ chk) = visible ref := by
       cases outcome <;> rw [visible_append, silent allTau, List.nil_append, trace checkTrace, trace canonTrace]
     cases outcome with
@@ -644,23 +737,24 @@ theorem memorySum (destination : RecordDestination) (inst : InstId) (type : Type
       (fun address => mapIssue (child active address rfl) (.nested index))
     simpa only [Lower.Output.Result, head, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind'] using composed
 
-theorem memorySumTag (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+private theorem memorySumTagFoci {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
-    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (left right : Config (core3 grow) (HostState sig))
     (check canon : Cursor (E := core3 grow) (HostState sig))
     (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
     (canonNext : Unit → Session grow sig (Ret (core3 grow)))
-    (same : left.store = right.store) (thread : check.thread = canon.thread)
     (width : ptrTypeIn right.store (destination.context inst) = destination.width)
-    (growth : Core3.Grows origin.core right.store.core)
     (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
     (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
       (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
     let address := sumPayloadAddress destination.width arms base
-    LocalCutKeeping profile scheduledReady scheduledDispatch (fun store => Core3.Grows origin.core store.core) left right check canon
-      (sumCheckedNext destination inst selected index address checkNext)
-      (sumCanonicalNext destination inst selected address canonNext) := by
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag base (discSize arms.length)
+    let entered := { right with ctl := canon.control (body >>= sumCanonicalNext destination inst selected address canonNext) }
+    left.ctl = check.control (body >>= sumCheckedNext destination inst selected index address checkNext) ∧
+    Step profile scheduledReady reference right .tau entered ∧
+    ReturnFrame.Occurrence.transitionEdit right .tau = .same ∧ LocalFocus right := by
   intro address
   let cx := destination.context (grow := grow) inst
   let body : Session grow sig Unit := storeInt cx tag base (discSize arms.length)
@@ -699,29 +793,109 @@ theorem memorySumTag (destination : RecordDestination) (inst : InstId) (type : T
       change (((body.bind fun () => Prog.pure ptr).bind field).bind canonNext) = _
       simp only [Prog.bind_assoc, Prog.pure_bind']
       rfl
-  have read : Step profile scheduledReady scheduledDispatch right .tau entered := by
+  have read : Step profile scheduledReady reference right .tau entered := by
     simpa only [entered, Cursor.control, show ptrTypeIn right.store cx = destination.width from width] using
-      (Step.get (prof := profile) (hr := scheduledReady) (dispatch := scheduledDispatch) focus)
+      (Step.get (prof := profile) (hr := scheduledReady) (dispatch := reference) focus)
+  exact ⟨checkBody, read, by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl,
+    by simp only [LocalFocus, focus, Cursor.control]⟩
+
+theorem memorySumTagEntry {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+    let address := sumPayloadAddress destination.width arms base
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag base (discSize arms.length)
+    let entered := { right with ctl := canon.control (body >>= sumCanonicalNext destination inst selected address canonNext) }
+    left.ctl = check.control (body >>= sumCheckedNext destination inst selected index address checkNext) ∧
+    SilentLocalStep profile scheduledReady reference right entered ∧
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) body := by
+  dsimp only
+  obtain ⟨checked, read, edit, _⟩ := memorySumTagFoci (profile := profile) (scheduledReady := scheduledReady)
+    (reference := reference) destination inst type arms tag index base selected left right check canon
+    checkNext canonNext width checkAt canonAt
+  exact ⟨checked, ⟨fun place => .step read (by rw [edit]; rfl) (.done _ _), rfl, rfl⟩,
+    closedLocalProgram (closedIntKeeping (profile := profile) (keep := fun store => Core3.Grows origin.core store.core)
+      (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
+      (destination.context inst) tag base (discSize arms.length))⟩
+
+theorem memorySumTagBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (growth : Core3.Grows origin.core right.store.core)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext))
+    (trackOccurrences : Bool := false) :
+    let address := sumPayloadAddress destination.width arms base
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right check canon
+      (sumCheckedNext destination inst selected index address checkNext)
+      (sumCanonicalNext destination inst selected address canonNext) trackOccurrences := by
+  intro address
+  let cx := destination.context (grow := grow) inst
+  let body : Session grow sig Unit := storeInt cx tag base (discSize arms.length)
+  let checked := sumCheckedNext destination inst selected index address checkNext
+  let resumed := fun reached => sumCanonicalNext destination inst selected (sumPayloadAddress reached arms base) canonNext
+  let entered := { right with ctl := canon.control (body.bind (resumed destination.width)) }
+  obtain ⟨checkBody, read, edit, localFocus⟩ := memorySumTagFoci
+    (profile := profile) (scheduledReady := scheduledReady) (reference := reference)
+    destination inst type arms tag index base selected left right check canon checkNext canonNext width checkAt canonAt
   have localBody := closedIntKeeping (profile := profile) (Host := HostState sig)
     (keep := fun store => Core3.Grows origin.core store.core)
     (fun store memory ptr data growing => growing.trans (writeMemSt_grows store memory ptr data))
     cx tag base (discSize arms.length)
-  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status⟩ := closedCut (profile := profile)
-    (ready := scheduledReady) (dispatch := scheduledDispatch) localBody left entered check canon checked (resumed destination.width)
+  obtain ⟨store, result, chk, ref, runChk, runRef, labels, status, path, trails⟩ := closedCutOccurrencesBetween (profile := profile)
+    (ready := scheduledReady) (dispatch := scheduledDispatch) (reference := reference) localBody
+    left entered check canon checked (resumed destination.width)
     growth same thread checkBody rfl
   have final : localLeafEnd entered entered.host store canon.thread canon.frames canon.rest (resumed destination.width) result =
       localLeafEnd right right.host store canon.thread canon.frames canon.rest (resumed destination.width) result := by cases result <;> rfl
   rw [final] at runRef
-  refine ⟨store, result, chk, .tau :: ref, runChk, .cons read runRef, labels, ?_⟩
-  cases result with
-  | error _ => exact status
-  | ok _ =>
-    obtain ⟨kept, checkTrack, canonTrack⟩ := status
-    refine ⟨kept, checkTrack, ?_⟩
-    intro depth
-    have tracked := canonTrack depth
-    rw [final] at tracked
-    exact .step read (by rw [ReturnFrame.Occurrence.transitionEdit, focus]; rfl) tracked
+  refine ⟨store, result, chk, .tau :: ref, runChk, .cons ?_ read runRef, labels, ?_⟩
+  · exact localFocus
+  · have observed : match result with
+        | .ok value => Core3.Grows origin.core store.core ∧
+            RetainsActiveSlots profile scheduledReady scheduledDispatch left chk
+              (localLeafEnd left left.host store check.thread check.frames check.rest checked (.ok value)) ∧
+            RetainsActiveSlots profile scheduledReady reference right (.tau :: ref)
+              (localLeafEnd right right.host store canon.thread canon.frames canon.rest (resumed destination.width) (.ok value))
+        | .error reason => ∃ leading, visible ref = leading ++ [.trap reason] := by
+      cases result with
+      | error _ => exact status
+      | ok _ =>
+        obtain ⟨kept, checkTrack, canonTrack⟩ := status
+        refine ⟨kept, checkTrack, ?_⟩
+        intro depth
+        have tracked := canonTrack depth
+        rw [final] at tracked
+        exact .step read (by rw [edit]; rfl) tracked
+    cases trackOccurrences with
+    | false => cases result <;> exact observed
+    | true =>
+      refine ⟨?_, ?_, ?_⟩
+      · cases result <;> exact observed
+      · rw [final] at path
+        exact .canonicalRead ⟨fun place => .step read
+          (by rw [edit]; rfl) (.done _ _), rfl, rfl⟩ path
+      · intro mark
+        obtain ⟨lhs, rhs⟩ := trails mark
+        rw [final] at rhs
+        exact ⟨lhs, .step read (by rw [edit]; cases mark <;> exact rhs)⟩
 
 theorem memoryHandleLeaf (destination : RecordDestination) (inst : InstId) (field : Field) (index ptr : Nat)
     (fragment : CanonicalHandle field) :
@@ -1172,10 +1346,8 @@ theorem collectionInstallTracks (destination : RecordDestination) (inst : InstId
       (CanonicalTree.EntryMode.forOutput destination.width type output)
     let checkCall := collectionEntry destination inst area entries.length scheduledDispatch left check checkResume
     let canonCall := collectionEntry destination inst area entries.length scheduledDispatch right canon canonResume
-    ∀ depth, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch left (.active 0 depth)
-      [.tau, .tau, .tau] checkCall (.active 0 (depth + 1)) ∧
-    ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch right (.active 0 depth)
-      [.tau, .tau] canonCall (.active 0 (depth + 1)) := by
+    ∀ place : Location, Prefix profile scheduledReady scheduledDispatch left place [.tau, .tau, .tau] checkCall place.pushed ∧
+      Prefix profile scheduledReady scheduledDispatch right place [.tau, .tau] canonCall place.pushed := by
   let cx := destination.context (grow := grow) inst
   let area := layout destination.width element
   have width : ptrTypeIn right.store (destination.context inst) = destination.width := by
@@ -1219,19 +1391,23 @@ theorem collectionInstallTracks (destination : RecordDestination) (inst : InstId
   have canonInstall := listRange_install
     (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch) cx area entries.length canonTail canonAlloc
   dsimp only
-  intro depth
-  refine ⟨.step (middle := .active 0 depth) (.get checkRead) ?_
-      (.step (middle := .active 0 depth) (.hostGet rfl) rfl (.step checkInstall ?_ (.done _ _))),
-    .step (middle := .active 0 depth) canonStep ?_ (.step canonInstall ?_ (.done _ _))⟩
+  intro place
+  have pushed (frame : Seg (core3 grow) (HostState sig)) : (Edit.push frame).follow place = some place.pushed := by
+    cases place with
+    | active activation segment => cases activation <;> rfl
+    | saved => rfl
+  refine ⟨.step (middle := place) (.get checkRead) ?_
+      (.step (middle := place) (.hostGet rfl) rfl (.step checkInstall ?_ (.done _ _))),
+    .step (middle := place) canonStep ?_ (.step canonInstall ?_ (.done _ _))⟩
   · rw [ReturnFrame.Occurrence.transitionEdit, checkRead]
     rfl
   · change (ReturnFrame.Occurrence.transitionEdit checkEntered .tau).follow _ = _
     rw [ReturnFrame.Occurrence.transitionEdit, checkAlloc, listRange_focus]
-    rfl
+    exact pushed _
   · rw [ReturnFrame.Occurrence.transitionEdit, canonRead]
     rfl
   · rw [ReturnFrame.Occurrence.transitionEdit, canonAlloc, listRange_focus]
-    rfl
+    exact pushed _
 
 theorem collectionInstallMode (destination : RecordDestination) (inst : InstId) (type element : TypeOf)
     (entries : List Field) (output : Lower.Output) (index : Nat)
@@ -1255,7 +1431,7 @@ theorem collectionInstallMode (destination : RecordDestination) (inst : InstId) 
     Machine.Steps profile scheduledReady scheduledDispatch right [.tau, .tau] canonCall ∧
     HostFrame.Paired checkResume canonResume checkCall canonCall := by
   obtain ⟨checked, canonical⟩ := collectionInstallTracks destination inst type element entries output index
-    left right cursor cursor checkNext canonNext reachedWidth prepared checkAt canonAt 0
+    left right cursor cursor checkNext canonNext reachedWidth prepared checkAt canonAt (.active 0 0)
   refine ⟨(ReturnFrame.Occurrence.prefix_survives checked).1, (ReturnFrame.Occurrence.prefix_survives canonical).1, ?_⟩
   dsimp only [collectionEntry, HostFrame.Paired]
   conv => rhs; rw [← same]
@@ -1285,6 +1461,101 @@ theorem collectionInstall (destination : RecordDestination) (inst : InstId) (typ
   simpa only [mode] using collectionInstallMode destination inst type element entries output index left right cursor
     checkNext canonNext same reachedWidth prepared checkAt canonAt
 
+private theorem checkPlacementRunBounded {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId)
+    (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
+    (finish : P (core3 grow) Host (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ∀ place, Prefix profile ready placementDispatch start place [.tau]
+        { start with ctl := cursor.control finish } place
+    | .error reason => ∃ count, PlacementFault profile ready placementDispatch start
+        { start with ctl := cursor.control (trap reason) } count reason := by
+  by_cases aligned : ptr % area.alignment.bytes = 0
+  · let sizeCheck := fun (store : CStore (core3 grow)) =>
+      (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>=
+        fun size => trapIf (decide (ptr + area.size > size)) .outOfBounds) >>= fun _ => finish
+    have getAt : start.ctl = cursor.control (.op .get sizeCheck) := by
+      have boundsAt : start.ctl = cursor.control (checkInBounds (destination.context inst) ptr area.size >>= fun _ => finish) := by
+        simpa [checkAligned, trapIf, aligned] using focused
+      exact boundsAt
+    have trapped {reason : TrapReason} (atTrap : sizeCheck start.store = trap reason) :
+        PlacementFault profile ready placementDispatch start
+          { start with ctl := cursor.control (trap reason) } 1 reason := by
+      refine ⟨Nat.le_refl _, rfl, rfl, fun place => ?_, .trap rfl⟩
+      rw [← atTrap]
+      exact Prefix.read_at place getAt
+    cases sized : (core3 grow).memSize? start.store.core destination.memory with
+    | none =>
+      have trapAt : sizeCheck start.store = trap (.internal "dangling memory address") := by
+        simp [sizeCheck, sized, orTrap, trap, Prog.bind_eq, Prog.bind]
+        congr 1
+        funext answer
+        exact nomatch answer
+      simp [placement, aligned, sized]
+      exact ⟨1, trapped trapAt⟩
+    | some size =>
+      by_cases fits : ptr + area.size ≤ size
+      · have done : sizeCheck start.store = finish := by
+          simp [sizeCheck, sized, orTrap, trapIf, Nat.not_lt.mpr fits]
+        simp [placement, aligned, sized, Nat.not_lt.mpr fits]
+        intro place
+        simpa only [done, Cursor.control] using
+          (Prefix.read_at (profile := profile) (ready := ready) (dispatch := placementDispatch) place getAt)
+      · have trapAt : sizeCheck start.store = trap .outOfBounds := by
+          simp [sizeCheck, sized, orTrap, trapIf, Nat.lt_of_not_ge fits, trap, Prog.bind_eq, Prog.bind]
+          congr 1
+          funext answer
+          exact nomatch answer
+        simp [placement, aligned, sized, Nat.lt_of_not_ge fits]
+        exact ⟨1, trapped trapAt⟩
+  · simp [checkAligned, trapIf, aligned, trap, Prog.bind_eq, Prog.bind] at focused
+    simp [placement, aligned]
+    have trapAt : start.ctl = cursor.control (trap .unalignedPointer) := by
+      rw [focused]
+      congr 2
+      funext answer
+      exact nomatch answer
+    refine ⟨0, Nat.zero_le _, rfl, rfl, fun place => ?_, .trap rfl⟩
+    rw [← trapAt]
+    cases start
+    exact .done _ place
+
+theorem placementFaultTrail {E : CoreEngine} {World : Type} {faultReady : HostReady World}
+    {faultDispatch : Call E → P E World (Ret E)} {start beforeTrap : Config E World} {count reason}
+    (fault : PlacementFault profile faultReady faultDispatch start beforeTrap count reason) (place : Location) :
+    Trail profile faultReady faultDispatch start (some place) (List.replicate count .tau ++ [.trap reason])
+      (StepDefs.trapCfg start) ((Edit.clear : Edit E World).follow place) :=
+  (fault.tracks place).toTrail.append (.step fault.fault (.done _ _))
+
+theorem checkPlacementRunAll {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId)
+    (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
+    (finish : P (core3 grow) Host (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ∀ place, Prefix profile ready placementDispatch start place [.tau]
+        { start with ctl := cursor.control finish } place
+    | .error reason => ∃ count, ∀ place, Trail profile ready placementDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) Host).follow place) := by
+  have bounded := checkPlacementRunBounded (ready := ready) (placementDispatch := placementDispatch)
+    (profile := profile) destination inst start area ptr cursor finish focused
+  cases verdict : placement destination start.store area ptr with
+  | ok accepted =>
+    cases accepted
+    rw [verdict] at bounded
+    exact bounded
+  | error reason =>
+    rw [verdict] at bounded
+    obtain ⟨count, fault⟩ := bounded
+    exact ⟨count, placementFaultTrail fault⟩
+
 theorem checkPlacementRun {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId)
     (start : Config (core3 grow) Host) (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) Host)
@@ -1294,46 +1565,17 @@ theorem checkPlacementRun {placementDispatch : Call (core3 grow) → P (core3 gr
       checkInBounds (destination.context inst) ptr area.size
       finish)) :
     match placement destination start.store area ptr with
-    | .ok () => ReturnFrame.Occurrence.RetainsActiveSlots profile ready placementDispatch start [.tau]
-        { start with ctl := cursor.control finish }
-    | .error reason => ∃ count, Machine.Steps profile ready placementDispatch start
+    | .ok () => RetainsActiveSlots profile ready placementDispatch start [.tau] { start with ctl := cursor.control finish }
+    | .error reason => ∃ count, Steps profile ready placementDispatch start
         (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) := by
-  by_cases aligned : ptr % area.alignment.bytes = 0
-  · let sizeCheck := fun (store : CStore (core3 grow)) =>
-      (orTrap (.internal "dangling memory address") ((core3 grow).memSize? store.core destination.memory) >>=
-        fun size => trapIf (decide (ptr + area.size > size)) .outOfBounds) >>= fun _ => finish
-    have getAt : start.ctl = cursor.control (.op .get sizeCheck) := by
-      have boundsAt : start.ctl = cursor.control (checkInBounds (destination.context inst) ptr area.size >>= fun _ => finish) := by
-        simpa [checkAligned, trapIf, aligned] using focused
-      exact boundsAt
-    let read := Step.get (prof := profile) (hr := ready) (dispatch := placementDispatch) getAt
-    cases sized : (core3 grow).memSize? start.store.core destination.memory with
-    | none =>
-      have trapAt : sizeCheck start.store = trap (.internal "dangling memory address") := by
-        simp [sizeCheck, sized, orTrap, trap, Prog.bind_eq, Prog.bind]
-        congr 1
-        funext answer
-        exact nomatch answer
-      simp [placement, aligned, sized]
-      exact ⟨1, .cons read (.cons (.trap (congrArg cursor.control trapAt)) (.refl _))⟩
-    | some size =>
-      by_cases fits : ptr + area.size ≤ size
-      · have done : sizeCheck start.store = finish := by
-          simp [sizeCheck, sized, orTrap, trapIf, Nat.not_lt.mpr fits]
-        simp [placement, aligned, sized, Nat.not_lt.mpr fits]
-        intro depth
-        simpa only [done, Cursor.control] using
-          (ReturnFrame.Occurrence.Prefix.read (profile := profile) (ready := ready) (dispatch := placementDispatch) depth getAt)
-      · have trapAt : sizeCheck start.store = trap .outOfBounds := by
-          simp [sizeCheck, sized, orTrap, trapIf, Nat.lt_of_not_ge fits, trap, Prog.bind_eq, Prog.bind]
-          congr 1
-          funext answer
-          exact nomatch answer
-        simp [placement, aligned, sized, Nat.lt_of_not_ge fits]
-        exact ⟨1, .cons read (.cons (.trap (congrArg cursor.control trapAt)) (.refl _))⟩
-  · simp [checkAligned, trapIf, aligned, trap, Prog.bind_eq, Prog.bind] at focused
-    simp [placement, aligned]
-    exact ⟨0, .cons (.trap focused) (.refl _)⟩
+  have run := checkPlacementRunAll (profile := profile) (ready := ready) (placementDispatch := placementDispatch)
+    destination inst start area ptr cursor finish focused
+  cases placed : placement destination start.store area ptr with
+  | error reason =>
+    rw [placed] at run
+    obtain ⟨count, terminal⟩ := run
+    exact ⟨count, (terminal (.active 0 0)).steps⟩
+  | ok value => cases value; rw [placed] at run; exact fun depth => run (.active 0 depth)
 
 theorem checkPlacement {placementDispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId)
@@ -1367,7 +1609,7 @@ private theorem listEntryBounds (area : Layout) {base count index bytes : Nat}
   rw [Nat.add_assoc, ← Nat.succ_mul]
   exact (Nat.add_le_add_left (Nat.mul_le_mul_right area.size (Nat.succ_le_of_lt entry)) base).trans bounds
 
-private theorem listEntryPlacementOfGrowth (destination : RecordDestination) (inst : InstId) (element : TypeOf)
+theorem listEntryPlacementOfGrowth (destination : RecordDestination) (inst : InstId) (element : TypeOf)
     {before after : CStore (core3 grow)} {base count index bytes : Nat}
     (growth : Core3.Grows before.core after.core)
     (width : (core3 grow).memAddrType? before.core destination.memory = some destination.width)
@@ -1474,8 +1716,9 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
       (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
     let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
       (destination.context inst) destination.width (.data type payload) output
-    ∃ reads, ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady scheduledDispatch start
-      (List.replicate reads .tau) { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) } := by
+    ∃ reads, let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    (∀ place, Prefix profile scheduledReady scheduledDispatch start place (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached := by
   let cx := destination.context (grow := grow) inst
   have accepted : (Lower.checkSchema type >>= fun _ => Lower.checkOptions cx type output) = .ok () := by
     rw [schema]
@@ -1505,15 +1748,13 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
     split <;> simp only [Prog.pure_bind', Prog.bind_assoc, checkedResult, Except.mapError]
   let emit := Lower.emit (World := HostState sig) Limits.spec Quirks.none cx destination.width type payload output
   let entered := { start with ctl := cursor.control (emit.bind fun value => finish (.ok value)) }
-  have read (depth : Nat) : ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start
-      (.active 0 depth) [.tau] entered (.active 0 depth) := by
+  have read (place : Location) : Prefix profile scheduledReady scheduledDispatch start place [.tau] entered place := by
     have reachedFit : Lower.fits Quirks.none cx.opts.encoding destination.width type payload.val = true := fit
-    have run := ReturnFrame.Occurrence.Prefix.read (profile := profile) (ready := scheduledReady)
-      (dispatch := scheduledDispatch) depth atRead
+    have run := Prefix.read_at (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch) place atRead
     simpa only [branch, width, reachedFit, Bool.not_true, Bool.false_eq_true, ↓reduceIte, entered, emit, cx,
       Cursor.control] using run
   cases output with
-  | flat => exact ⟨1, read⟩
+  | flat => exact ⟨1, read, .read ⟨read, rfl, rfl⟩ (.done _)⟩
   | memory address =>
     let body : Session grow sig Unit := store Limits.spec Quirks.none cx payload.val type address
     let next := body.bind fun value => finish (.ok value)
@@ -1526,12 +1767,23 @@ private theorem dataEntry (destination : RecordDestination) (inst : InstId) (typ
       change cursor.control ((do checkAligned address area.alignment.bytes; checkInBounds cx address area.size; body).bind
         (fun value => finish (.ok value))) = _
       simp only [Prog.bind_eq, Prog.bind_assoc, next]
-    have bounds := checkPlacementRun (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
+    have bounds := checkPlacementRunAll (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
       destination inst entered area address cursor next guarded
     rw [placedHere] at bounds
-    exact ⟨2, fun depth => (read depth).append (bounds depth)⟩
+    exact ⟨2, fun place => (read place).append (bounds place),
+      .read ⟨read, rfl, rfl⟩ (.read ⟨bounds, rfl, rfl⟩ (.done _))⟩
 
-theorem stringPlanEntry (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
+theorem appendSilentReads {Host : Type} {dispatch : Call E → P E Host (Ret E)} {ready : HostReady Host}
+    {start middle finish : Config E Host} {leading trailing : List (Label E Host)}
+    (front : SilentLocalPath profile ready dispatch start leading middle)
+    (suffix : SilentLocalPath profile ready dispatch middle trailing finish) :
+    SilentLocalPath profile ready dispatch start (leading ++ trailing) finish := by
+  induction front with
+  | done => exact suffix
+  | read step _ ih => exact .read step (ih suffix)
+
+theorem stringPlanEntry {refDispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
     (index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
     (checkCursor canonCursor : Cursor (E := core3 grow) (HostState sig))
     (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -1548,10 +1800,15 @@ theorem stringPlanEntry (destination : RecordDestination) (inst : InstId) (str :
     let cx := destination.context inst
     let plan := storePlanFor Quirks.none destination.encoding destination.width str
     let body := runStoreSteps cx 0 plan.steps
-    ∃ reads, ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
+    ∃ reads, (∀ place, Prefix profile scheduledReady scheduledDispatch left place (List.replicate reads .tau)
       { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } place) ∧
+      (∀ place, Prefix profile scheduledReady refDispatch right place [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
+        { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
           fun value => checkNext (.ok value)) } ∧
-      ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady scheduledDispatch right [.tau]
+      SilentLocalPath profile scheduledReady refDispatch right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } := by
   let cx := destination.context (grow := grow) inst
   let payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload (.prim .string) := ⟨.string str, .string valid⟩
@@ -1560,7 +1817,7 @@ theorem stringPlanEntry (destination : RecordDestination) (inst : InstId) (str :
   have options : Lower.checkOptions cx (.prim .string) output = .ok () := by
     cases output <;> simp [cx, RecordDestination.context, Lower.checkOptions, Lower.Output.needsMemory,
       Validation.containsPtr, realloc] <;> rfl
-  obtain ⟨reads, entered⟩ := dataEntry (profile := profile) (scheduledReady := scheduledReady)
+  obtain ⟨reads, entered, readPath⟩ := dataEntry (profile := profile) (scheduledReady := scheduledReady)
     (scheduledDispatch := scheduledDispatch) destination inst (.prim .string) payload index output left checkCursor checkNext
     (same ▸ width) (primitiveSchema .string) options (by simpa [Lower.fits, payload] using fit) placed checkAt
   let enteredBody := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none cx destination.width
@@ -1580,27 +1837,35 @@ theorem stringPlanEntry (destination : RecordDestination) (inst : InstId) (str :
       rfl
   change right.ctl = canonCursor.control (enteredBody >>= canonNext) at canonAt
   rw [program] at canonAt
-  have reference (depth : Nat) : ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch right (.active 0 depth)
-      [.tau] { right with ctl := canonCursor.control (rest destination.width >>= canonNext) } (.active 0 depth) := by
-    simpa only [width, Cursor.control, Prog.bind_eq] using (ReturnFrame.Occurrence.Prefix.read (profile := profile)
-      (ready := scheduledReady) (dispatch := scheduledDispatch) depth canonAt)
-  change ReturnFrame.Occurrence.RetainsActiveSlots profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
-    { left with ctl := checkCursor.control (enteredBody >>= fun value => checkNext (.ok value)) } at entered
-  rw [program] at entered
-  have checkRead (depth : Nat) : ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch
+  have reference (place : Location) : Prefix profile scheduledReady refDispatch right place
+      [.tau] { right with ctl := canonCursor.control (rest destination.width >>= canonNext) } place := by
+    simpa only [width, Cursor.control, Prog.bind_eq] using (Prefix.read_at (profile := profile)
+      (ready := scheduledReady) (dispatch := refDispatch) place canonAt)
+  change ∀ place, Prefix profile scheduledReady scheduledDispatch left place (List.replicate reads .tau)
+    { left with ctl := checkCursor.control (enteredBody >>= fun value => checkNext (.ok value)) } place at entered
+  change SilentLocalPath profile scheduledReady scheduledDispatch left (List.replicate reads .tau)
+    { left with ctl := checkCursor.control (enteredBody >>= fun value => checkNext (.ok value)) } at readPath
+  rw [program] at entered readPath
+  have checkRead (place : Location) : Prefix profile scheduledReady scheduledDispatch
       { left with ctl := checkCursor.control ((Prog.op .get fun store => rest (ptrTypeIn store cx)) >>=
-          fun value => checkNext (.ok value)) } (.active 0 depth) [.tau]
-      { left with ctl := checkCursor.control (rest destination.width >>= fun value => checkNext (.ok value)) } (.active 0 depth) := by
+          fun value => checkNext (.ok value)) } place [.tau]
+      { left with ctl := checkCursor.control (rest destination.width >>= fun value => checkNext (.ok value)) } place := by
     have reachedWidth : ptrTypeIn left.store cx = destination.width := same ▸ width
     simpa only [Cursor.control, reachedWidth, Prog.bind_eq] using
-      (ReturnFrame.Occurrence.Prefix.read (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch)
+      (Prefix.read_at (profile := profile) (ready := scheduledReady) (dispatch := scheduledDispatch)
         (before := { left with ctl := checkCursor.control ((Prog.op .get fun store => rest (ptrTypeIn store cx)) >>=
-          fun value => checkNext (.ok value)) }) depth rfl)
-  refine ⟨reads + 1, ?_, ?_⟩
-  · intro depth
+          fun value => checkNext (.ok value)) }) place rfl)
+  refine ⟨reads + 1, ?_, ?_, ?_, ?_⟩
+  · intro place
     simpa only [List.replicate_add, List.replicate_one, rest, Prog.bind_eq, Prog.bind_assoc] using
-      (entered depth).append (checkRead depth)
+      (entered place).append (checkRead place)
   · simpa only [rest, Prog.bind_eq, Prog.bind_assoc] using reference
+  · have widthRead : SilentLocalPath profile scheduledReady scheduledDispatch _ [.tau] _ :=
+      .read ⟨checkRead, rfl, rfl⟩ (.done _)
+    simpa only [List.replicate_add, List.replicate_one, rest, Prog.bind_eq, Prog.bind_assoc] using appendSilentReads readPath widthRead
+  · have widthRead : SilentLocalPath profile scheduledReady refDispatch _ [.tau] _ :=
+      .read ⟨reference, rfl, rfl⟩ (.done _)
+    simpa only [rest, Prog.bind_eq, Prog.bind_assoc] using widthRead
 
 theorem stringReallocFocus (cx : LiftLowerContext E) (ptr : Nat) (oldSize : Option Nat)
     (alignment : Alignment) (size : Nat) (steps : List StoreStep) (finish : Nat → P E Host (Ret E)) :
@@ -1634,12 +1899,13 @@ theorem stringReallocInstall (cx : LiftLowerContext E) (ptr : Nat) (oldSize : Op
   exact .call focused
 
 private theorem prependLocalCut {left right : Config E Host} {enteredCtl : List (Activation E Host)}
+    {reference : Call E → P E Host (Ret E)}
     {leading : List (Label E Host)} {keep : CStore E → Prop} {check canon : Cursor (E := E) Host}
     {checkNext canonNext : Result → P E Host (Ret E)}
     (tracked : ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left leading { left with ctl := enteredCtl })
     (silent : visible leading = [])
-    (cut : LocalCutKeeping profile ready dispatch keep { left with ctl := enteredCtl } right check canon checkNext canonNext) :
-    LocalCutKeeping profile ready dispatch keep left right check canon checkNext canonNext := by
+    (cut : LocalCutKeepingBetween profile ready dispatch reference keep { left with ctl := enteredCtl } right check canon checkNext canonNext) :
+    LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext := by
   obtain ⟨store, result, chk, ref, runChk, runRef, seen, status⟩ := cut
   have final : localLeafEnd { left with ctl := enteredCtl } left.host store check.thread check.frames check.rest checkNext result =
       localLeafEnd left left.host store check.thread check.frames check.rest checkNext result := by cases result <;> rfl
@@ -1655,6 +1921,61 @@ private theorem prependLocalCut {left right : Config E Host} {enteredCtl : List 
     have tail := checkTrack depth
     rw [final] at tail
     exact (tracked depth).append tail
+
+private theorem prependLocalReads {left middle right after peer : Config E Host} {reference : Call E → P E Host (Ret E)}
+    {leading checked canonical : List (Label E Host)}
+    (reads : SilentLocalPath profile ready dispatch left leading middle)
+    (path : PairedLocalPath profile ready dispatch reference middle right checked canonical after peer) :
+    PairedLocalPath profile ready dispatch reference left right (leading ++ checked) canonical after peer := by
+  induction reads with
+  | done => exact path
+  | read step _ ih => exact .checkedRead step (ih path)
+
+private theorem prependLocalOccurrenceCut {left right : Config E Host} {enteredCtl : List (Activation E Host)}
+    {reference : Call E → P E Host (Ret E)}
+    {leading : List (Label E Host)} {keep : CStore E → Prop} {check canon : Cursor (E := E) Host}
+    {checkNext canonNext : Result → P E Host (Ret E)}
+    (tracked : ∀ place, Prefix profile ready dispatch left place leading { left with ctl := enteredCtl } place)
+    (reads : SilentLocalPath profile ready dispatch left leading { left with ctl := enteredCtl })
+    (silent : visible leading = [])
+    (cut : LocalCutKeepingBetween profile ready dispatch reference keep { left with ctl := enteredCtl } right
+      check canon checkNext canonNext true) (trackOccurrences : Bool) :
+    LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext trackOccurrences := by
+  obtain ⟨store, result, chk, ref, runChk, runRef, seen, status, path, trails⟩ := cut
+  have final : localLeafEnd { left with ctl := enteredCtl } left.host store check.thread check.frames check.rest checkNext result =
+      localLeafEnd left left.host store check.thread check.frames check.rest checkNext result := by cases result <;> rfl
+  rw [final] at runChk
+  have entry := (prefix_survives (tracked (.active 0 0))).1
+  refine ⟨store, result, leading ++ chk, ref, chain entry runChk, runRef,
+    by rw [visible_append, silent, List.nil_append, seen], ?_⟩
+  have outcome : match result with
+      | .ok _ => keep store ∧ RetainsActiveSlots profile ready dispatch left (leading ++ chk)
+          (localLeafEnd left left.host store check.thread check.frames check.rest checkNext result) ∧
+          RetainsActiveSlots profile ready reference right ref
+            (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonNext result)
+      | .error reason => ∃ prior, visible ref = prior ++ [.trap reason] := by
+    cases result with
+    | error _ => exact status
+    | ok _ =>
+      obtain ⟨kept, checkTrack, canonTrack⟩ := status
+      refine ⟨kept, ?_, canonTrack⟩
+      intro depth
+      have tail := checkTrack depth
+      rw [final] at tail
+      exact (tracked (.active 0 depth)).append tail
+  cases trackOccurrences with
+  | false => cases result <;> exact outcome
+  | true =>
+    refine ⟨?_, ?_, ?_⟩
+    · cases result <;> exact outcome
+    · rw [final] at path
+      exact prependLocalReads reads path
+    · intro mark
+      obtain ⟨lhs, rhs⟩ := trails mark
+      rw [final] at lhs
+      cases mark with
+      | none => exact ⟨(Trail.absent entry).append lhs, rhs⟩
+      | some place => exact ⟨(tracked place).toTrail.append lhs, rhs⟩
 
 private theorem primitiveLeafLocal {keep : CStore (core3 grow) → Prop} (writes : WriteClosed keep)
     (destination : RecordDestination) (inst : InstId) (primitive : WIT.Primitive)
@@ -1853,16 +2174,21 @@ private theorem localDataProgram {keep : CStore (core3 grow) → Prop} (writes :
         first | exact closedIntKeeping writes cx _ address (flagsSize labels.length) |
           exact .op trivial (fun impossible => nomatch impossible)
 
-theorem localDataLeafFrame (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
-    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
-    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
-    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
-    (placed : rootPlacement destination left.store type output = .ok ()) :
-    CompareLocalKeepingAt profile scheduledReady scheduledDispatch (fun store => Core3.Grows origin.core store.core) left right
-      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
-        (.data type payload) index output)
-      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
-        (.data type payload) output) := by
+private theorem dataEntryOfType
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (focused : start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
+    let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output
+    let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    ∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start place
+      (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached := by
   have schema : Lower.checkSchema type = .ok () := by
     cases data with
     | primitive _ => exact primitiveSchema _
@@ -1875,12 +2201,596 @@ theorem localDataLeafFrame (destination : RecordDestination) (inst : InstId) (ty
     cases data with
     | @primitive primitive nonString => cases primitive <;> first | contradiction | cases payload.val <;> rfl
     | enum | flags => cases payload.val <;> rfl
+  exact dataEntry destination inst type payload index output start cursor finish width schema options fit placed focused
+
+theorem localDataEntry
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (origin : CStore (core3 grow))
+    (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (focused : start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
+    let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output
+    let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) program ∧
+    (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile scheduledReady scheduledDispatch start place
+      (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile scheduledReady scheduledDispatch start (List.replicate reads .tau) reached) := by
+  dsimp only
+  refine ⟨?_, dataEntryOfType destination inst type data payload index output start cursor finish width placed focused⟩
+  exact closedLocalProgram (localDataProgram (profile := profile) (growthWrites origin) destination inst type data payload output)
+
+theorem localDataLeafFrameBetween {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store type output = .ok ()) (trackOccurrences : Bool := false) :
+    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) output) trackOccurrences := by
   intro same check canon thread checkedNext canonNext checkAt canonAt
-  obtain ⟨reads, entered⟩ := dataEntry destination inst type payload index output left check checkedNext
-    width schema options fit placed checkAt
-  exact prependLocalCut entered (silent (fun _ member => List.eq_of_mem_replicate member))
-    (closedCut (localDataProgram (growthWrites origin) destination inst type data payload output)
-      _ right check canon (fun value => checkedNext (.ok value)) canonNext growth same thread rfl canonAt)
+  obtain ⟨reads, entered, entryPath⟩ := dataEntryOfType destination inst type data payload index output left check checkedNext
+    width placed checkAt
+  exact prependLocalOccurrenceCut entered entryPath (silent (fun _ member => List.eq_of_mem_replicate member))
+    (closedCutOccurrencesBetween (localDataProgram (growthWrites origin) destination inst type data payload output)
+      _ right check canon (fun value => checkedNext (.ok value)) canonNext growth same thread rfl canonAt) trackOccurrences
+
+theorem localDataLeafFrame (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store type output = .ok ()) :
+    CompareLocalKeepingAt profile scheduledReady scheduledDispatch (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) output) :=
+  localDataLeafFrameBetween destination inst type data payload index output origin left right growth width placed
+
+private theorem continueLocal {keep : CStore E → Prop} {reference : Call E → P E Host (Ret E)}
+    {left right : Config E Host} {check canon : Cursor (E := E) Host}
+    {checkMid canonMid : Result → P E Host (Ret E)} {checkNext canonNext : Next → P E Host (Ret E)}
+    (first : LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkMid canonMid)
+    (suffix : ∀ store value, keep store →
+      LocalCutKeepingBetween profile ready dispatch reference keep
+        (localLeafEnd left left.host store check.thread check.frames check.rest checkMid (.ok value))
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest canonMid (.ok value))
+        check canon checkNext canonNext) :
+    LocalCutKeepingBetween profile ready dispatch reference keep left right check canon checkNext canonNext := by
+  obtain ⟨store, result, lhs, rhs, checkRun, canonRun, seen, ends⟩ := first
+  cases result with
+  | error reason => exact ⟨store, .error reason, lhs, rhs, checkRun, canonRun, seen, ends⟩
+  | ok value =>
+    obtain ⟨kept, checkTrack, canonTrack⟩ := ends
+    obtain ⟨reached, verdict, trailing, referenceLabels, checked, canonical, visibleTail, endCut⟩ := suffix store value kept
+    have collapse (start : Config E Host) (cursor : Cursor (E := E) Host) (middle : Result → P E Host (Ret E))
+        (finish : Next → P E Host (Ret E)) :
+        localLeafEnd (localLeafEnd start start.host store cursor.thread cursor.frames cursor.rest middle (.ok value))
+          (localLeafEnd start start.host store cursor.thread cursor.frames cursor.rest middle (.ok value)).host
+          reached cursor.thread cursor.frames cursor.rest finish verdict =
+        localLeafEnd start start.host reached cursor.thread cursor.frames cursor.rest finish verdict := by
+      cases verdict <;> rfl
+    rw [collapse] at checked canonical
+    refine ⟨reached, verdict, lhs ++ trailing, rhs ++ referenceLabels, chain checkRun checked,
+      localAppend canonRun canonical, by rw [visible_append, visible_append, seen, visibleTail], ?_⟩
+    cases verdict with
+    | error reason =>
+      obtain ⟨leading, seenTrap⟩ := endCut
+      exact ⟨visible rhs ++ leading, by rw [visible_append, seenTrap, List.append_assoc]⟩
+    | ok value =>
+      refine ⟨endCut.1, ?_, ?_⟩
+      · intro depth
+        have run := endCut.2.1 depth
+        rw [collapse] at run
+        exact (checkTrack depth).append run
+      · intro depth
+        have run := endCut.2.2 depth
+        rw [collapse] at run
+        exact (canonTrack depth).append run
+
+private theorem localDataField {element : TypeOf} {item : Field} (data : LocalDataType element)
+    (matched : item.LayoutMatches element) :
+    ∃ payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload element, item = .data element payload := by
+  cases matched with
+  | data payload => exact ⟨payload, rfl⟩
+  | endpoint => rename_i channel _ _; cases channel <;> cases data
+  | _ => cases data
+
+theorem localDataObjects {element : TypeOf} {entries : List Field} (data : LocalDataType element)
+    (matched : Field.EntriesMatch entries element) : Field.listObjects entries = [] := by
+  induction entries with
+  | nil => rfl
+  | cons item rest ih =>
+    cases matched with
+    | cons head tail =>
+      obtain ⟨_, rfl⟩ := localDataField data head
+      simpa only [Field.listObjects, Field.objects, List.nil_append] using ih tail
+
+private theorem localDataElements {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (element : TypeOf) (data : LocalDataType element)
+    (origin : CStore (core3 grow)) (base bytes count : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width element).alignment)
+    (bounds : base + count * (layout destination.width element).size ≤ bytes)
+    (entries : List Field) (matched : Field.EntriesMatch entries element)
+    (index : Nat) (room : index + entries.length ≤ count)
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core) :
+    let cx := destination.context inst
+    let stride := (layout destination.width element).size
+    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.elements recordClaims Limits.spec Quirks.none cx destination.width entries stride (base + index * stride) index)
+      (CanonicalTree.elements Limits.spec Quirks.none cx destination.width entries .value stride (base + index * stride)) := by
+  let cx := destination.context (grow := grow) inst
+  let stride := (layout destination.width element).size
+  dsimp only
+  induction entries generalizing index left right with
+  | nil =>
+    rw [Record.Effects.elements, CanonicalTree.elements]
+    intro same check canon thread checkedNext canonNext checkAt canonAt
+    exact closedCutBetween (.pure ()) left right check canon (fun value => checkedNext (.ok value)) canonNext
+      growth same thread checkAt canonAt
+  | cons item rest ih =>
+    cases matched with
+    | cons head tail =>
+      obtain ⟨payload, rfl⟩ := localDataField data head
+      let pointer := base + index * stride
+      have entry : index < count := by simp only [List.length_cons] at room; omega
+      have nextRoom : index + 1 + rest.length ≤ count := by simp only [List.length_cons] at room; omega
+      have nextPtr : base + (index + 1) * stride = pointer + stride := by
+        simp only [Nat.add_mul, Nat.one_mul, Nat.add_assoc, pointer]
+      intro same check canon thread checkedNext canonNext checkAt canonAt
+      obtain ⟨modulo, within⟩ := listEntryBounds (layout destination.width element) aligned bounds entry
+      have reachedWidth : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width := by
+        rw [same]; exact growth.memAddrType width
+      obtain ⟨enlarged, reachedSize, widened⟩ := growth.memSize sized
+      have sizeAt : (core3 grow).memSize? left.store.core destination.memory = some enlarged := by rw [same]; exact reachedSize
+      have placed : rootPlacement destination left.store element (.memory pointer) = .ok () := by
+        simp [rootPlacement, placement, modulo, sizeAt, Nat.not_lt.mpr (within.trans widened), pointer, stride]
+        rfl
+      let following := fun (verdict : Except RecordLower.Issue Unit) => (match verdict with
+        | .error issue => pure (.error issue)
+        | .ok () => Record.Effects.elements recordClaims Limits.spec Quirks.none cx destination.width rest stride
+            (pointer + stride) (index + 1)) >>= checkedNext
+      let refFollowing := fun () => CanonicalTree.elements Limits.spec Quirks.none cx destination.width rest .value stride
+        (pointer + stride) >>= canonNext
+      let refHead : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width
+        (.data element payload) (.memory pointer)
+      let refBody : Unit → Session grow sig Unit := fun _ => CanonicalTree.elements Limits.spec Quirks.none cx
+        destination.width rest .value stride (pointer + stride)
+      have leaf := localDataLeafFrameBetween (profile := profile) (scheduledReady := scheduledReady)
+        (scheduledDispatch := scheduledDispatch) (reference := reference) destination inst element data payload index
+        (.memory pointer) origin left right growth (by simp [ptrTypeIn, CanonOpts.ptrType, RecordDestination.context, reachedWidth]) placed
+        (trackOccurrences := false) same check canon thread following refFollowing
+        (by
+          rw [checkAt, Record.Effects.elements]
+          congr 1
+          simp only [Prog.bind_eq, Prog.bind_assoc, following]
+          congr 1
+          funext verdict
+          cases verdict with
+          | error issue => rfl
+          | ok value => cases value; rfl)
+        (by
+          rw [CanonicalTree.elements] at canonAt
+          change right.ctl = canon.control ((refHead.bind refBody).bind canonNext) at canonAt
+          rw [Prog.bind_assoc] at canonAt
+          rw [canonAt]
+          congr 2)
+      apply continueLocal leaf
+      intro store value grown
+      cases value
+      have lower := ih tail (index + 1) nextRoom
+        (localLeafEnd left left.host store check.thread check.frames check.rest (fun value => following (.ok value)) (.ok ()))
+        (localLeafEnd right right.host store canon.thread canon.frames canon.rest refFollowing (.ok ())) grown
+      rw [nextPtr] at lower
+      exact lower rfl check canon thread checkedNext canonNext rfl rfl
+
+private theorem localCollectionTail {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (area : Layout) (mode : CanonicalTree.EntryMode)
+    (entries : List Field)
+    (pointer index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
+    (elements : CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows left.store.core store.core) left right
+      (Record.Effects.elements recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        entries area.size pointer 0)
+      (CanonicalTree.elements Limits.spec Quirks.none (destination.context inst) destination.width
+        entries mode area.size pointer))
+    (same : left.store = right.store) (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (checkAt : left.ctl = check.control (checkedCollectionTail destination inst entries area index output pointer (.ok ()) >>= checkNext))
+    (canonAt : right.ctl = canon.control (canonicalCollectionTail destination inst entries area output pointer mode >>= canonNext)) :
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference (fun store => Core3.Grows left.store.core store.core)
+      left right check canon (fun value => checkNext (.ok value)) canonNext := by
+  let cx := destination.context (grow := grow) inst
+  let descriptor : Session grow sig output.Result := ListLower.publish cx destination.width pointer entries.length output
+  let finish := fun (verdict : Except RecordLower.Issue Unit) => (match verdict with
+    | .error issue => pure (.error (.nested index issue))
+    | .ok () => do return .ok (← descriptor)) >>= checkNext
+  let refFinish := fun () => descriptor >>= canonNext
+  have visited := elements same check canon thread finish refFinish
+    (by
+      rw [checkAt]
+      congr 1
+      simp only [checkedCollectionTail, Prog.bind_eq, Prog.bind_assoc]
+      congr 1)
+    (by simpa only [canonicalCollectionTail, Prog.bind_eq, Prog.bind_assoc, refFinish, descriptor, cx] using canonAt)
+  apply continueLocal visited
+  intro store value kept
+  cases value
+  apply closedCutBetween (closedDescriptor (growthWrites left.store) cx destination.width pointer entries.length output)
+  · exact kept
+  · rfl
+  · exact thread
+  · simp only [localLeafEnd, Cursor.control, finish, descriptor, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+  · rfl
+
+theorem localDataCollectionTail {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (element : TypeOf) (data : LocalDataType element)
+    (entries : List Field) (matched : Field.EntriesMatch entries element)
+    (pointer bytes index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? left.store.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width element).alignment)
+    (bounds : pointer + entries.length * (layout destination.width element).size ≤ bytes)
+    (same : left.store = right.store) (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (checkAt : left.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width element)
+      index output pointer (.ok ()) >>= checkNext))
+    (canonAt : right.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width element)
+      output pointer .value >>= canonNext)) :
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference (fun store => Core3.Grows left.store.core store.core)
+      left right check canon (fun value => checkNext (.ok value)) canonNext := by
+  have grown : Core3.Grows left.store.core right.store.core := same ▸ Core3.Grows.refl _
+  have elements := localDataElements (profile := profile) (scheduledReady := scheduledReady)
+    (scheduledDispatch := scheduledDispatch) (reference := reference) destination inst element data left.store pointer bytes entries.length
+    width sized aligned bounds entries matched 0 (by simp) left right grown
+  simp only [Nat.zero_mul, Nat.add_zero] at elements
+  exact localCollectionTail destination inst (layout destination.width element) .value entries pointer index output left right
+    elements same check canon thread checkNext canonNext checkAt canonAt
+
+private theorem localDataAt {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Payload type) (index pointer : Nat) (origin : CStore (core3 grow))
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (placed : ptrTypeIn right.store (destination.context inst) = destination.width ∧
+      placement destination right.store (layout destination.width type) pointer = .ok ()) (trackOccurrences : Bool := false) :
+    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index (.memory pointer))
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width (.data type payload) (.memory pointer))
+      trackOccurrences := by
+  intro same
+  exact localDataLeafFrameBetween destination inst type data payload index (.memory pointer) origin left right growth
+    (same ▸ placed.1) (same ▸ placed.2) (trackOccurrences := trackOccurrences) same
+
+theorem mapKeyPlacement
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyPayload : Payload (.prim key.toPrimitive)) (valField : Field)
+    (origin : CStore (core3 grow)) (base bytes count index : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : base + count * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (entry : index < count) (issueIndex : Nat) (left : Config (core3 grow) (HostState sig))
+    (growth : Core3.Grows origin.core left.store.core) (check : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    let cx := destination.context inst
+    let type : TypeOf := .record (mapEntryFields key element)
+    let addr := base + index * (layout destination.width type).size
+    let keyArea := layout destination.width (.prim key.toPrimitive : TypeOf)
+    let keyPtr := alignTo addr keyArea.alignment
+    let valPtr := alignTo (keyPtr + keyArea.size) (layout destination.width valField.type).alignment
+    let keyField := Field.data (.prim key.toPrimitive) keyPayload
+    let following := fun verdict : Except RecordLower.Issue Unit => (match verdict with
+      | .error issue => pure (.error issue)
+      | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr))
+        >>= fun result => checkNext (result.mapError (.nested issueIndex))
+    left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+      (.aggregate type [keyField, valField]) issueIndex (.memory addr) >>= checkNext) →
+    placement destination left.store keyArea keyPtr = .ok () ∧
+    ∀ place, Prefix profile scheduledReady scheduledDispatch left place [.tau]
+      { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+          keyField 0 (.memory keyPtr) >>= following) } place := by
+  intro cx type addr keyArea keyPtr valPtr keyField following checkAt
+  let area := layout destination.width type
+  let keyBody : Session grow sig (Except RecordLower.Issue Unit) :=
+    Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width keyField 0 (.memory keyPtr)
+  obtain ⟨modulo, within⟩ := listEntryBounds area aligned bounds entry
+  change addr % area.alignment.bytes = 0 at modulo
+  change addr + area.size ≤ bytes at within
+  obtain ⟨reachedBytes, reachedSize, widened⟩ := growth.memSize sized
+  change (core3 grow).memSize? left.store.core destination.memory = some reachedBytes at reachedSize
+  have placed : placement destination left.store area addr = .ok () := by
+    simp [placement, modulo, reachedSize, Nat.not_lt.mpr (within.trans widened)]
+    rfl
+  have guardAt : left.ctl = check.control (do
+      checkAligned addr area.alignment.bytes
+      checkInBounds cx addr area.size
+      keyBody >>= following) := by
+    rw [Record.Effects.field] at checkAt
+    rw [checkAt]
+    apply congrArg check.control
+    simp only [checkAligned, trapIf, modulo, bne_self_eq_false, Bool.false_eq_true, ↓reduceIte,
+      Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
+    let body : Session grow sig (Except RecordLower.Issue Unit) :=
+      Record.Effects.memory recordClaims Limits.spec Quirks.none cx destination.width [keyField, valField] addr 0
+    change ((checkInBounds cx addr area.size).bind (fun _ => body.bind (fun result => Prog.pure (result.mapError (.nested issueIndex))))).bind
+      checkNext = (checkInBounds cx addr area.size).bind (fun _ => keyBody.bind following)
+    rw [Prog.bind_assoc]
+    congr 1
+    funext result
+    cases result
+    simp only [body, Record.Effects.memory, keyBody, keyField, keyPtr, keyArea, Field.type, Prog.bind_eq, Prog.bind_assoc, Prog.pure_bind']
+    congr 1
+    funext verdict
+    cases verdict with
+    | error issue => rfl
+    | ok value =>
+      cases value
+      simp only [following, valPtr, keyPtr, keyArea, Nat.zero_add, Prog.bind_eq, Prog.bind_assoc]
+      congr 1
+      funext result
+      cases result with
+      | error issue => rfl
+      | ok value => cases value; rfl
+  have guard := checkPlacementRunAll (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
+    destination inst left area addr check (keyBody >>= following) guardAt
+  rw [placed] at guard
+  obtain ⟨_, keyPlaced, _⟩ := mapEntryPlacement destination inst key element growth width sized aligned bounds entry
+  exact ⟨keyPlaced, guard⟩
+
+theorem localMapKeyThen {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyData : LocalDataType (.prim key.toPrimitive)) (keyPayload : Payload (.prim key.toPrimitive)) (valField : Field)
+    (origin : CStore (core3 grow)) (base bytes count index : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : base + count * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (entry : index < count) (issueIndex : Nat) (left right : Config (core3 grow) (HostState sig))
+    (growth : Core3.Grows origin.core right.store.core) (same : left.store = right.store)
+    (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (refFollowing : Unit → Session grow sig (Ret (core3 grow))) (trackOccurrences : Bool := false) :
+    let cx := destination.context inst
+    let type : TypeOf := .record (mapEntryFields key element)
+    let addr := base + index * (layout destination.width type).size
+    let keyArea := layout destination.width (.prim key.toPrimitive : TypeOf)
+    let keyPtr := alignTo addr keyArea.alignment
+    let valPtr := alignTo (keyPtr + keyArea.size) (layout destination.width valField.type).alignment
+    let keyField := Field.data (.prim key.toPrimitive) keyPayload
+    left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+      (.aggregate type [keyField, valField]) issueIndex (.memory addr) >>= checkNext) →
+    right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none cx destination.width keyField (.memory keyPtr) >>= refFollowing) →
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right check canon
+      (fun (_ : Unit) => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr) >>=
+        fun result => checkNext (result.mapError (.nested issueIndex)))
+      refFollowing trackOccurrences := by
+  intro cx type addr keyArea keyPtr valPtr keyField checkAt canonAt
+  let following := fun verdict : Except RecordLower.Issue Unit => (match verdict with
+    | .error issue => pure (.error issue)
+    | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr))
+      >>= fun result => checkNext (result.mapError (.nested issueIndex))
+  let entered := { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+    keyField 0 (.memory keyPtr) >>= following) }
+  obtain ⟨_, guard⟩ := mapKeyPlacement (profile := profile) (scheduledReady := scheduledReady)
+    (scheduledDispatch := scheduledDispatch) destination inst key element keyPayload valField origin base bytes count index
+    width sized aligned bounds entry issueIndex left (same ▸ growth) check checkNext checkAt
+  obtain ⟨typed, keyPlaced, _⟩ := mapEntryPlacement destination inst key element growth width sized aligned bounds entry
+  have first := localDataAt (reference := reference) (profile := profile) (scheduledReady := scheduledReady)
+    (scheduledDispatch := scheduledDispatch) destination inst (.prim key.toPrimitive) keyData keyPayload 0 keyPtr origin entered
+    right growth ⟨typed, keyPlaced⟩ true same check canon thread following refFollowing rfl canonAt
+  exact prependLocalOccurrenceCut guard (.read ⟨guard, rfl, rfl⟩ (.done _)) rfl first trackOccurrences
+
+private theorem localMapEntry {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyData : LocalDataType (.prim key.toPrimitive)) (valueData : LocalDataType element)
+    (keyPayload : Payload (.prim key.toPrimitive)) (valuePayload : Payload element)
+    (origin : CStore (core3 grow)) (base bytes count index : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : base + count * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (entry : index < count) (left right : Config (core3 grow) (HostState sig))
+    (growth : Core3.Grows origin.core right.store.core) :
+    let cx := destination.context inst
+    let type : TypeOf := .record (mapEntryFields key element)
+    let addr := base + index * (layout destination.width type).size
+    let keyArea := layout destination.width (.prim key.toPrimitive : TypeOf)
+    let keyPtr := alignTo addr keyArea.alignment
+    let valPtr := alignTo (keyPtr + keyArea.size) (layout destination.width element).alignment
+    let keyField := Field.data (.prim key.toPrimitive) keyPayload
+    let valField := Field.data element valuePayload
+    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width (.aggregate type [keyField, valField]) index (.memory addr))
+      (do
+        CanonicalTree.field Limits.spec Quirks.none cx destination.width keyField (.memory keyPtr)
+        CanonicalTree.field Limits.spec Quirks.none cx destination.width valField (.memory valPtr)) := by
+  intro cx type addr keyArea keyPtr valPtr keyField valField same check canon thread checkNext canonNext checkAt canonAt
+  have first := localMapKeyThen (profile := profile) (scheduledReady := scheduledReady) (scheduledDispatch := scheduledDispatch)
+    (reference := reference) destination inst key element keyData keyPayload valField origin base bytes count index width sized aligned bounds
+    entry index left right growth same check canon thread checkNext
+    (fun _ => CanonicalTree.field Limits.spec Quirks.none cx destination.width valField (.memory valPtr) >>= canonNext) false
+    checkAt (by
+      let keyBody : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width keyField (.memory keyPtr)
+      let valueBody : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width valField (.memory valPtr)
+      exact canonAt.trans (congrArg canon.control (Prog.bind_assoc keyBody (fun _ => valueBody) canonNext)))
+  apply continueLocal first
+  intro store value grown
+  cases value
+  obtain ⟨typed, _, valuePlaced⟩ := mapEntryPlacement destination inst key element grown width sized aligned bounds entry
+  exact localDataAt destination inst element valueData valuePayload 1 valPtr origin
+    { left with store, ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+        valField 1 (.memory valPtr) >>= fun result => checkNext (result.mapError (.nested index))) }
+    { right with store, ctl := canon.control (CanonicalTree.field Limits.spec Quirks.none cx destination.width
+        valField (.memory valPtr) >>= canonNext) }
+    grown ⟨typed, valuePlaced⟩ false rfl check canon thread (fun result => checkNext (result.mapError (.nested index))) canonNext rfl rfl
+
+private theorem localMapElements {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyData : LocalDataType (.prim key.toPrimitive)) (valueData : LocalDataType element)
+    (origin : CStore (core3 grow)) (base bytes count : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : base + count * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (entries : List Field) (index : Nat) (room : index + entries.length ≤ count)
+    (shape : ∀ field ∈ entries, ∃ (keyPayload : Payload (.prim key.toPrimitive)) (valuePayload : Payload element),
+      field = .aggregate (.record (mapEntryFields key element)) [.data (.prim key.toPrimitive) keyPayload, .data element valuePayload])
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core) :
+    let cx := destination.context inst
+    let stride := (layout destination.width (.record (mapEntryFields key element))).size
+    CompareLocalKeepingBetween profile scheduledReady scheduledDispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.elements recordClaims Limits.spec Quirks.none cx destination.width entries stride (base + index * stride) index)
+      (CanonicalTree.elements Limits.spec Quirks.none cx destination.width entries (.memoryMap destination.width key element)
+        stride (base + index * stride)) := by
+  intro cx stride
+  let mode := CanonicalTree.EntryMode.memoryMap destination.width key element
+  induction entries generalizing index left right with
+  | nil =>
+    rw [Record.Effects.elements, CanonicalTree.elements]
+    intro same check canon thread checkNext canonNext checkAt canonAt
+    exact closedCutBetween (.pure ()) left right check canon (fun value => checkNext (.ok value)) canonNext
+      growth same thread checkAt canonAt
+  | cons item rest ih =>
+    obtain ⟨keyPayload, valuePayload, rfl⟩ := shape item (List.mem_cons_self ..)
+    let adr := base + index * stride
+    have entry : index < count := by simp only [List.length_cons] at room; omega
+    have nextRoom : index + 1 + rest.length ≤ count := by simp only [List.length_cons] at room; omega
+    have nextPtr : base + (index + 1) * stride = adr + stride := by simp only [Nat.add_mul, Nat.one_mul, Nat.add_assoc, adr]
+    intro same check canon thread checkNext canonNext checkAt canonAt
+    let following := fun (verdict : Except RecordLower.Issue Unit) => (match verdict with
+      | .error issue => pure (.error issue)
+      | .ok () => Record.Effects.elements recordClaims Limits.spec Quirks.none cx destination.width rest stride (adr + stride) (index + 1))
+      >>= checkNext
+    let refFollowing := fun () => CanonicalTree.elements Limits.spec Quirks.none cx destination.width rest mode stride (adr + stride) >>= canonNext
+    have first := localMapEntry (profile := profile) (scheduledReady := scheduledReady)
+      (scheduledDispatch := scheduledDispatch) (reference := reference) destination inst key element keyData valueData
+      keyPayload valuePayload origin base bytes count index width sized aligned bounds entry left right growth
+      same check canon thread following refFollowing
+      (by
+        rw [checkAt, Record.Effects.elements]
+        apply congrArg check.control
+        simp only [Prog.bind_eq, Prog.bind_assoc, following]
+        congr 1
+        funext verdict
+        cases verdict with
+        | error issue => rfl
+        | ok value => cases value; rfl)
+      (by
+        rw [canonAt, CanonicalTree.elements]
+        apply congrArg canon.control
+        let keyArea := layout destination.width (.prim key.toPrimitive : TypeOf)
+        let keyPtr := alignTo adr keyArea.alignment
+        let first : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width
+          (.data (.prim key.toPrimitive) keyPayload) (.memory keyPtr)
+        let second : Session grow sig Unit := CanonicalTree.field Limits.spec Quirks.none cx destination.width
+          (.data element valuePayload) (.memory (alignTo (keyPtr + keyArea.size) (layout destination.width element).alignment))
+        let tail : Session grow sig Unit := CanonicalTree.elements Limits.spec Quirks.none cx destination.width rest mode stride (adr + stride)
+        change (first.bind (fun _ => second.bind (fun _ => tail))).bind canonNext =
+          (first.bind (fun _ => second)).bind (fun _ => tail.bind canonNext)
+        simp only [Prog.bind_assoc])
+    apply continueLocal first
+    intro store value grown
+    cases value
+    have lower := ih (index + 1) nextRoom (fun field member => shape field (List.mem_cons_of_mem _ member))
+      (localLeafEnd left left.host store check.thread check.frames check.rest (fun result => following (.ok result)) (.ok ()))
+      (localLeafEnd right right.host store canon.thread canon.frames canon.rest refFollowing (.ok ())) grown
+    rw [nextPtr] at lower
+    exact lower rfl check canon thread checkNext canonNext rfl rfl
+
+theorem entriesMatchOfMem {entries : List Field} {type : TypeOf} {item : Field}
+    (matched : Field.EntriesMatch entries type) (member : item ∈ entries) : item.LayoutMatches type := by
+  induction entries with
+  | nil => simp at member
+  | cons head rest ih =>
+    cases matched with
+    | cons first later =>
+      rcases List.mem_cons.mp member with rfl | tail
+      · exact first
+      · exact ih later tail
+
+private theorem mapPairLayout {key : WIT.KeyType} {element : TypeOf} {keyField valueField : Field}
+    (matched : Field.LayoutMatches (.aggregate (.record (mapEntryFields key element)) [keyField, valueField])
+      (.record (mapEntryFields key element))) : valueField.LayoutMatches element := by
+  cases matched with
+  | record fields =>
+    cases fields with
+    | cons _ tail =>
+      cases tail with
+      | cons value _ => exact value
+
+private theorem localMapShape {key : WIT.KeyType} {element : TypeOf} {entries : List Field}
+    (valueData : LocalDataType element)
+    (matched : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (emitted : Field.Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries)) :
+    ∀ field ∈ entries, ∃ (keyPayload : Payload (.prim key.toPrimitive)) (valuePayload : Payload element),
+      field = .aggregate (.record (mapEntryFields key element)) [.data (.prim key.toPrimitive) keyPayload, .data element valuePayload] := by
+  intro field member
+  have found := entriesMatchOfMem matched member
+  cases emitted with
+  | map shapes _ =>
+    obtain ⟨keyPayload, value, rfl⟩ := shapes field member
+    obtain ⟨payload, rfl⟩ := localDataField valueData (mapPairLayout found)
+    exact ⟨keyPayload, payload, rfl⟩
+
+theorem localMapObjects {key : WIT.KeyType} {element : TypeOf} {entries : List Field}
+    (valueData : LocalDataType element)
+    (matched : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (emitted : Field.Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries)) :
+    Field.listObjects entries = [] := by
+  have shapes := localMapShape valueData matched emitted
+  clear emitted matched
+  induction entries with
+  | nil => rfl
+  | cons field rest ih =>
+    obtain ⟨_, _, shape⟩ := shapes field (List.mem_cons_self ..)
+    rw [Field.listObjects, shape]
+    exact ih (fun item member => shapes item (List.mem_cons_of_mem _ member))
+
+theorem localMapCollectionTail {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyData : LocalDataType (.prim key.toPrimitive)) (valueData : LocalDataType element)
+    (entries : List Field)
+    (matched : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (emitted : Field.Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries))
+    (pointer bytes index outputAddress : Nat) (left right : Config (core3 grow) (HostState sig))
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? left.store.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : pointer + entries.length * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (same : left.store = right.store) (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow))) :
+    let area := layout destination.width (.record (mapEntryFields key element))
+    let mode := CanonicalTree.EntryMode.memoryMap destination.width key element
+    left.ctl = check.control (checkedCollectionTail destination inst entries area index (.memory outputAddress) pointer (.ok ()) >>= checkNext) →
+    right.ctl = canon.control (canonicalCollectionTail destination inst entries area (.memory outputAddress) pointer mode >>= canonNext) →
+    LocalCutKeepingBetween profile scheduledReady scheduledDispatch reference (fun store => Core3.Grows left.store.core store.core)
+      left right check canon (fun value => checkNext (.ok value)) canonNext := by
+  intro area mode checkAt canonAt
+  have grown : Core3.Grows left.store.core right.store.core := same ▸ Core3.Grows.refl _
+  have elements := localMapElements (profile := profile) (scheduledReady := scheduledReady)
+    (scheduledDispatch := scheduledDispatch) (reference := reference) destination inst key element keyData valueData left.store
+    pointer bytes entries.length width sized aligned bounds entries 0 (by simp) (localMapShape valueData matched emitted) left right grown
+  simp only [Nat.zero_mul, Nat.add_zero] at elements
+  exact localCollectionTail destination inst area mode entries pointer index (.memory outputAddress) left right
+    elements same check canon thread checkNext canonNext checkAt canonAt
 
 private theorem scalarField {primitive : WIT.Primitive} {item : Field}
     (layoutMatch : item.LayoutMatches (.prim primitive)) :
@@ -1989,17 +2899,6 @@ theorem memoryCollectionTail (destination : RecordDestination) (inst : InstId) (
   intro aligned fits live checked canonical checkStore canonStore checkHost canonHost same check canon thread finish next checkAt canonAt
   exact forgetKeeping (memoryCollectionTailKeeping destination inst element entries child output index pointer bytes left right width sized
     aligned fits live checked canonical checkStore canonStore checkHost canonHost same check canon thread finish next checkAt canonAt)
-
-theorem entriesMatchOfMem {entries : List Field} {type : TypeOf} {item : Field}
-    (matched : Field.EntriesMatch entries type) (member : item ∈ entries) : item.LayoutMatches type := by
-  induction entries with
-  | nil => simp at member
-  | cons head rest ih =>
-    cases matched with
-    | cons first later =>
-      rcases List.mem_cons.mp member with rfl | tail
-      · exact first
-      · exact ih later tail
 
 private theorem primitiveChildRule (destination : RecordDestination) (inst : InstId) (primitive : WIT.Primitive)
     (nonString : primitive ≠ .string) (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload (.prim primitive)) :
@@ -2405,7 +3304,7 @@ theorem localMemoryChild (destination : RecordDestination) (inst : InstId) {item
       exact aggregateChildRule destination inst _ _ (.tuple children)
         (fun child member => ih child member (fieldsMatchOfMem children member))
 
-theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+theorem rootPlacementPrefix (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
     (cursor : Cursor (E := core3 grow) (HostState sig))
     (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -2414,19 +3313,19 @@ theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (ty
     let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 output >>= finish)
     match rootPlacement destination start.store type output with
-    | .ok () => ∃ labels, visible labels = [] ∧
-        Steps profile scheduledReady scheduledDispatch start labels { start with ctl := child }
-    | .error reason => ∃ count, Steps profile scheduledReady scheduledDispatch start
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) := by
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
+        ∀ place, Prefix profile scheduledReady scheduledDispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count, PlacementFault profile scheduledReady scheduledDispatch start
+        { start with ctl := cursor.control (trap reason) } count reason := by
   cases output with
   | flat =>
-    refine ⟨[], rfl, ?_⟩
+    refine ⟨[], .inl rfl, rfl, ?_⟩
     change start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 .flat >>= finish) at focused
     have entered : start = { start with ctl := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
         (destination.context inst) destination.width field 0 .flat >>= finish) } := by
       conv => rhs; rw [← focused]
-    exact entered ▸ .refl start
+    exact fun place => entered ▸ .done start place
   | memory ptr =>
     let area := layout destination.width type
     let body := Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -2437,13 +3336,36 @@ theorem rootPlacementSteps (destination : RecordDestination) (inst : InstId) (ty
         body) := by
       rw [focused]
       simp only [Record.Effects.root, body, area, Prog.bind_eq, Prog.bind_assoc]
-    have run := checkPlacement (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
+    have run := checkPlacementRunBounded (profile := profile) (ready := scheduledReady) (placementDispatch := scheduledDispatch)
       destination inst start area ptr cursor body guardAt
     change (match placement destination start.store area ptr with
       | .ok () => _ | .error _ => _)
     cases verdict : placement destination start.store area ptr with
     | error _ => rw [verdict] at run; exact run
-    | ok result => cases result; rw [verdict] at run; exact ⟨[.tau], rfl, run⟩
+    | ok result => cases result; rw [verdict] at run; exact ⟨[.tau], .inr rfl, rfl, run⟩
+
+theorem rootPlacementTracks (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
+    (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (Record.Effects.root recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width type field output >>= finish)) :
+    let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width field 0 output >>= finish)
+    match rootPlacement destination start.store type output with
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
+        ∀ place, Prefix profile scheduledReady scheduledDispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile scheduledReady scheduledDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
+        ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) := by
+  have steps := rootPlacementPrefix (profile := profile) (scheduledReady := scheduledReady)
+    (scheduledDispatch := scheduledDispatch) destination inst type field output start cursor finish focused
+  cases placement : rootPlacement destination start.store type output with
+  | ok result => cases result; rw [placement] at steps; exact steps
+  | error reason =>
+    rw [placement] at steps
+    obtain ⟨count, fault⟩ := steps
+    exact ⟨count, fault.bounded, placementFaultTrail fault⟩
 
 theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameStore : left.store = right.store)
     (destination : RecordDestination) (inst : InstId) (tag : sig.Tag)
@@ -2469,11 +3391,11 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
       (destination.context inst) destination.width field .flat >>= canonNext) := by
     rw [reference]
     exact canonAt
-  have entry := start.2.2.2
+  have entry := start.2.2.2.2
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
-    exact ⟨.refused issue, [.tau, .tau], [], _, right, entry, .refl right, sameStore, rfl, rfl⟩
+    exact ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
   | ok passed =>
     cases passed
     rw [verdict] at entry
@@ -2481,7 +3403,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at entry
       exact ⟨.refused (.preflight (.abi .allocationPrecondition)), [.tau, .tau, .tau], [], _, right,
-        entry, .refl right, sameStore, rfl, rfl⟩
+        (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at entry
       let entered := { left with ctl := checkCursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
@@ -2489,7 +3411,7 @@ theorem compiledFlat (left right : Config (core3 grow) (HostState sig)) (sameSto
       have continued := flatField (profile := profile) (scheduledReady := scheduledReady)
         (scheduledDispatch := scheduledDispatch) destination inst field certified 0 entered right sameStore
         checkCursor canonCursor sameThread checkNext canonNext rfl canonField
-      exact prependCheck entry (by simp) continued
+      exact prependCheck (prefix_survives (entry.1 (.active 0 0))).1 (by simp) continued
 
 theorem parkedFlat (bindings : List (Binding sig)) (name : String) (type : V1.FuncType)
     (handleWord : BitVec IntType.i32.width) (destination : RecordDestination) (inst : InstId) (schema : TypeOf)
@@ -2589,11 +3511,11 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
       (destination.context inst) destination.width field (.memory ptr) >>= canonNext) := by
     rw [reference]
     exact canonAt
-  have entry := started.2.2.2
+  have entry := started.2.2.2.2
   cases verdict : Record.prepare left.store left.host.writer field.objects with
   | error issue =>
     rw [verdict] at entry
-    exact .inl ⟨.refused issue, [.tau, .tau], [], _, right, entry, .refl right, sameStore, rfl, rfl⟩
+    exact .inl ⟨.refused issue, [.tau, .tau], [], _, right, (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
   | ok passed =>
     cases passed
     rw [verdict] at entry
@@ -2601,7 +3523,7 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
     | false =>
       simp only [fits, Bool.not_false, ↓reduceIte] at entry
       exact .inl ⟨.refused (.preflight (.abi .allocationPrecondition)), [.tau, .tau, .tau], [], _, right,
-        entry, .refl right, sameStore, rfl, rfl⟩
+        (prefix_survives (entry.1 (.active 0 0))).1, .refl right, sameStore, rfl, rfl⟩
     | true =>
       simp only [fits, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at entry
       let area := layout destination.width (sig.payload tag)
@@ -2610,7 +3532,8 @@ private theorem compiledMemory (left right : Config (core3 grow) (HostState sig)
       let body := emit >>= checkNext
       let guarded := { left with ctl := checkCursor.control (Record.Effects.root recordClaims Limits.spec Quirks.none
         (destination.context inst) destination.width (sig.payload tag) field (.memory ptr) >>= checkNext) }
-      have entered : Machine.Steps profile scheduledReady scheduledDispatch left [.tau, .tau, .tau] guarded := entry
+      have entered : Machine.Steps profile scheduledReady scheduledDispatch left [.tau, .tau, .tau] guarded :=
+        (prefix_survives (entry.1 (.active 0 0))).1
       have guardAt : guarded.ctl = checkCursor.control (do
         checkAligned ptr area.alignment.bytes
         checkInBounds (destination.context inst) ptr area.size

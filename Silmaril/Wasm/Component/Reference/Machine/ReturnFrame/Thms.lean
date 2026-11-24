@@ -75,6 +75,22 @@ namespace Related
 
 variable {changes : Substitutions E Host}
 
+theorem Paired.set_store {left right : Config E Host} (paired : Paired changes left right) (store : CStore E) :
+    Paired changes { left with store } { right with store } := by
+  cases paired with
+  | mk control blocked => exact .mk control blocked
+
+theorem Paired.clear_control {left right : Config E Host} (paired : Paired changes left right) :
+    Paired changes { left with ctl := [] } { right with ctl := [] } := by
+  cases paired with
+  | mk _ blocked => exact .mk .nil blocked
+
+/-- If no substitution can relate a pair of saved frames then all active
+and blocked continuations, as well as the scheduler data, agree. -/
+theorem Paired.without_substitution {left right : Config E Host} (paired : Paired changes left right)
+    (empty : ∀ first second, ¬ changes first second) : left = right :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.withoutSubstitution paired empty
+
 theorem Returned.left_input {left right leftAfter rightAfter : Config E Host} {label : Label E Host}
     (popped : Returned changes left right label leftAfter rightAfter) :
     ∃ resume otherResume thread value frames rest, changes resume otherResume ∧
@@ -95,6 +111,82 @@ theorem Paired.retarget {left right : Config E Host} (paired : Paired changes le
       Paired changes { left with host, ctl := ⟨thread, next, frames⟩ :: rest }
         { right with host, ctl := ⟨thread, next, otherFrames⟩ :: otherRest } :=
   Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.retarget paired focused next host
+
+/-- A saved Core caller is shared; only older program continuations can differ. -/
+theorem Paired.retarget_core_frame {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus core coreNext frames rest}
+    (focused : left.ctl = ⟨thread, focus, .core core coreNext :: frames⟩ :: rest)
+    (next : Focus E Host) (host : Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, .core core coreNext :: otherFrames⟩ :: otherRest ∧
+      Paired changes { left with host, ctl := ⟨thread, next, frames⟩ :: rest }
+        { right with host, ctl := ⟨thread, next, otherFrames⟩ :: otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.retargetCoreFrame paired focused next host
+
+/-- Move the current activation and its shared Core caller into the blocked slot. -/
+theorem Paired.park_core {left right : Config E Host} (paired : Paired changes left right)
+    {thread core coreNext frames rest} (focused : left.ctl = ⟨some thread, .core core coreNext, frames⟩ :: rest)
+    (saved : Focus E Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨some thread, .core core coreNext, otherFrames⟩ :: otherRest ∧
+      Paired changes
+        { (left.setCont thread (some ⟨some thread, saved, .core core coreNext :: frames⟩)) with ctl := rest }
+        { (right.setCont thread (some ⟨some thread, saved, .core core coreNext :: otherFrames⟩)) with ctl := otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.parkCore paired focused saved
+
+/-- Park a program already holding a shared Core caller, preserving the
+older active and saved frames. -/
+theorem Paired.park_under_core {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus core coreNext frames rest}
+    (focused : left.ctl = ⟨some thread, focus, .core core coreNext :: frames⟩ :: rest) (saved : Focus E Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨some thread, focus, .core core coreNext :: otherFrames⟩ :: otherRest ∧
+      Paired changes
+        { (left.setCont thread (some ⟨some thread, saved, .core core coreNext :: frames⟩)) with ctl := rest }
+        { (right.setCont thread (some ⟨some thread, saved, .core core coreNext :: otherFrames⟩)) with ctl := otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.parkUnderCore paired focused saved
+
+/-- Restore the actual saved activation, preserving both sets of older frames. -/
+theorem Paired.resume_core {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus frames rest target saved core coreNext savedFrames}
+    (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (found : left.cont? target = some ⟨some target, saved, .core core coreNext :: savedFrames⟩)
+    (ongoing resumed : Focus E Host) :
+    ∃ otherFrames otherRest otherSaved, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      right.cont? target = some ⟨some target, saved, .core core coreNext :: otherSaved⟩ ∧
+      Paired changes
+        { (left.setCont target none) with ctl :=
+          ⟨some target, resumed, .core core coreNext :: savedFrames⟩ :: ⟨thread, ongoing, frames⟩ :: rest }
+        { (right.setCont target none) with ctl :=
+          ⟨some target, resumed, .core core coreNext :: otherSaved⟩ :: ⟨thread, ongoing, otherFrames⟩ :: otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.resumeCore paired focused found ongoing resumed
+
+/-- Save the same caller segment on both sides (including a Core caller).
+Active and blocked frame substitutions are unchanged. -/
+theorem Paired.push_shared {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus frames rest} (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (next : Focus E Host) (frame : Seg E Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      Paired changes { left with ctl := ⟨thread, next, frame :: frames⟩ :: rest }
+        { right with ctl := ⟨thread, next, frame :: otherFrames⟩ :: otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.pushShared paired focused next frame
+
+/-- Install a common continuation prefix without replacing older frames. -/
+theorem Paired.push_shared_frames {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus frames rest} (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (next : Focus E Host) (shared : List (Seg E Host)) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      Paired changes { left with ctl := ⟨thread, next, shared ++ frames⟩ :: rest }
+        { right with ctl := ⟨thread, next, shared ++ otherFrames⟩ :: otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.pushSharedFrames paired focused next shared
+
+/-- Enter the actual saved activation and install a common resumer prefix. -/
+theorem Paired.reenter_saved {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus frames rest target saved} (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (found : left.cont? target = some saved) (ongoing : Focus E Host) (shared : List (Seg E Host)) :
+    ∃ otherFrames otherRest otherSaved, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      right.cont? target = some otherSaved ∧
+      Paired changes
+        { (left.setCont target none) with ctl := saved :: ⟨thread, ongoing, shared ++ frames⟩ :: rest }
+        { (right.setCont target none) with ctl := otherSaved :: ⟨thread, ongoing, shared ++ otherFrames⟩ :: otherRest } :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineReturnFrame.reenterSaved paired focused found ongoing shared
 
 /-- Push a new substituted continuation at the current focus. All already
 paired frames, including those in blocked activations, keep their relation. -/

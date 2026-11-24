@@ -2,6 +2,11 @@ name: CI time budget
 
 on:
   workflow_call:
+    inputs:
+      full-suite:
+        description: Apply the timing limit for the full main-push suite
+        type: boolean
+        default: false
 
 permissions:
   actions: read
@@ -15,9 +20,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Fail separately if this CI attempt runs jobs for over five minutes outside module compilation
+      - name: Enforce the CI time limit outside module compilation
         env:
           GH_TOKEN: ${{ github.token }}
+          FULL_SUITE: ${{ inputs.full-suite }}
         run: |
           attempt="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/attempts/$GITHUB_RUN_ATTEMPT"
           gh api "$attempt" > "$RUNNER_TEMP/ci-run.json"
@@ -28,4 +34,8 @@ jobs:
           for job in $(jq -r '.[].jobs[] | select(.status == "completed" and .conclusion != "skipped") | .id' "$RUNNER_TEMP/ci-jobs.json"); do
             gh api --allow-escape-sequences "repos/$GITHUB_REPOSITORY/actions/jobs/$job/logs" > "$RUNNER_TEMP/logs/$job.txt"
           done
-          python3 scripts/check-ci-time.py "$RUNNER_TEMP/ci-run.json" "$RUNNER_TEMP/ci-jobs.json" "$RUNNER_TEMP"/logs/*.txt
+          args=()
+          if [ "$FULL_SUITE" = true ]; then
+            args+=(--full-suite)
+          fi
+          python3 scripts/check-ci-time.py "${args[@]}" "$RUNNER_TEMP/ci-run.json" "$RUNNER_TEMP/ci-jobs.json" "$RUNNER_TEMP"/logs/*.txt

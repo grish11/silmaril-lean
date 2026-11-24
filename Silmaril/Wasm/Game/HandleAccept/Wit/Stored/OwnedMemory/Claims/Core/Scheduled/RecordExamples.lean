@@ -2,7 +2,9 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Defs
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Delivery.Session.LiveDispatch.Defs
 import Silmaril.Wasm.Component.Reference.Machine.Soundness.Thms
+import Silmaril.Wasm.Verify.Kernel.Defs
 meta import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Defs
 meta import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Component.Defs
 meta import Silmaril.Wasm.Component.Reference.Machine.Exec.Defs
@@ -89,7 +91,8 @@ private def storeWord (ptr value : Nat) : List Instr :=
 
 private def instantiateWith (initial : Store (CanonHost engine))
     (entries : List (String × V1.FuncType × CanonHost engine))
-    (setup : String → List Instr) (locals : List (String × V1.FuncType × List Instr) := []) :
+    (setup : String → List Instr) (locals : List (String × V1.FuncType × List Instr) := [])
+    (emptyMemory : Bool := false) :
     Option (Store (CanonHost engine) × ModuleInst) := do
   let (store, addrs) := entries.foldl (fun (store, addresses) (_, type, code) =>
     let (next, addr) := SingleThreaded.allocHost store type code
@@ -103,7 +106,7 @@ private def instantiateWith (initial : Store (CanonHost engine))
   let module_ : Module := {
     types := entries.map (·.2.1.toCoreRec) ++ locals.map (·.2.1.toCoreRec)
     imports := names.zipIdx |>.map fun (name, index) => ⟨"host", name, .func (indexOf index)⟩
-    memories := [⟨.i32, ⟨1, none⟩⟩]
+    memories := [⟨.i32, ⟨if emptyMemory then 0 else 1, none⟩⟩]
     funcs := (List.range names.length).map wrapper ++ locals.zipIdx.map (fun ((_, _, body), index) =>
       ⟨indexOf (names.length + index), [], body⟩)
     exports := (names ++ locals.map (·.1)).zipIdx.map fun (name, index) =>
@@ -334,18 +337,28 @@ private def inlineSignature (channel : Channel) : Signature :=
     | .stream => WIT.ValType.stream (inlineElement channel)
   ⟨Unit, fun _ => .tuple [.prim .u8, endpoint], fun _ => .fixed 0⟩
 
-private def inlineEndpointSession (channel : Channel) (inst : ModuleInst) :
+private def inlineEndpointSession (channel : Channel) (inst : ModuleInst) (probe : Bool) :
     Session grow (inlineSignature channel) (Ret engine) := do
   let invoke := expect (sig := inlineSignature channel) inst
   invoke "new-channel" [] [.int .i64 (BitVec.ofNat 64 (packEnds 1 2))]
   invoke "accept-flat" [0, 0, 37, 1] ([0, 1].map i32Flat)
   invoke "give-flat" [1] ([0, 37, 1].map i32Flat)
-  invoke "accept-flat" [0, 0, 37, 1] ([0, 2].map i32Flat)
-  invoke "give-payload" [2, 16] ([0, 0].map i32Flat)
-  invoke "close-reader" [1] []
+  if probe then
+    let some address := exportAddr inst "accept-flat" | internal "missing accept-flat export"
+    let reply ← callCore address ([0, 0, 37, 1].map i32Flat)
+    if reply == [i32Flat 0, i32Flat 2] then
+      emit (.note "relift-returned" [])
+    else if reply == [i32Flat 1, i32Flat 0] then
+      emit (.note "relift-refused" [])
+    else
+      internal "unexpected re-lift reply"
+  else
+    invoke "accept-flat" [0, 0, 37, 1] ([0, 2].map i32Flat)
+    invoke "give-payload" [2, 16] ([0, 0].map i32Flat)
+    invoke "close-reader" [1] []
   return .unit
 
-private def inlineEndpointSetup (channel : Channel) :
+private def inlineEndpointSetup (channel : Channel) (probe : Bool := false) :
     Option (List (Binding (inlineSignature channel)) × Machine.Config engine (HostState (inlineSignature channel))) := do
   let elem := inlineElement channel
   let (create, closeReader) : ResolvedBuiltin engine × ResolvedBuiltin engine :=
@@ -357,7 +370,7 @@ private def inlineEndpointSetup (channel : Channel) :
     ("give-flat", wordFn 1 3, .embedder "give-flat" (wordFn 1 3)),
     ("give-payload", wordFn 2 2, .embedder "give-payload" (wordFn 2 2)),
     ("close-reader", wordFn 1 0, .builtin closeReader ⟨0⟩)]
-  let (store, inst) ← instantiateWith {} entries (fun _ => [])
+  let (store, inst) ← instantiateWith {} entries (fun _ => []) (emptyMemory := probe)
   let sig := inlineSignature channel
   let .ok input := Binding.acceptFlat (sig := sig) ("host", "accept-flat") ⟨0⟩ inst 0 { passing := .flat } () | none
   let .ok flat := Binding.giveFlat (sig := sig) "give-flat" ⟨0⟩ inst 0 .i32 .utf8 (sig.payload ()) | none
@@ -368,7 +381,7 @@ private def inlineEndpointSetup (channel : Channel) :
     threads := [{ status := .running, task := ⟨0⟩ }] }
   return ([input, flat, memory], {
     store := reference, host := {}, conts := [none]
-    ctl := [Machine.Activation.ofProg (some ⟨0⟩) (inlineEndpointSession channel inst)] })
+    ctl := [Machine.Activation.ofProg (some ⟨0⟩) (inlineEndpointSession channel inst probe)] })
 
 private def inlineEndpointRegression (channel : Channel) : Bool :=
   match inlineEndpointSetup channel with
@@ -385,6 +398,46 @@ private def inlineEndpointRegression (channel : Channel) : Bool :=
 
 #guard inlineEndpointRegression .future
 #guard inlineEndpointRegression .stream
+
+private noncomputable def reliftDispatch (canonical : Bool) (bindings : List (Binding (inlineSignature .stream))) :
+    Canon.Call engine → Session grow (inlineSignature .stream) (Ret engine) :=
+  specDispatch ready (if canonical then LiveDispatch.host bindings (host bindings) else host bindings)
+
+private def reliftObservation (result : Machine.RunResult engine (HostState (inlineSignature .stream)) Unit) :
+    Machine.Outcome × List HostObs × List (List EndId) × List Issue ×
+      Option HandleEntry × Option (Option InstId × Option Nat) :=
+  let state := result.config
+  (result.outcome, result.labels.filterMap Machine.Label.obs?,
+    state.host.writer.accepted.map rootEndpoints, state.host.refusals,
+    (state.store.inst? ⟨0⟩).bind (·.handles.get? 1),
+    (state.store.end? ⟨0⟩).map (fun entry => (entry.owner, entry.index)))
+
+private noncomputable def runRelift (bindings : List (Binding (inlineSignature .stream)))
+    (initial : Machine.Config engine (HostState (inlineSignature .stream))) (canonical : Bool) :=
+  Machine.run ready (reliftDispatch canonical bindings) (core3Exec grow) Machine.Oracle.first 400 initial
+
+private theorem reliftSetupPresent : (inlineEndpointSetup .stream true).isSome = true := by kernel_rfl
+
+private def reliftLinked := (inlineEndpointSetup .stream true).get reliftSetupPresent
+
+/-- From the same linked setup, a give and re-lift produce distinct actual Core replies.
+Both executions consume the guest slot and release the same nominal end before registration. -/
+theorem linked_endpoint_relift_registration :
+    ∃ bindings initial, inlineEndpointSetup .stream true = some (bindings, initial) ∧
+      (∀ canonical, let result := runRelift bindings initial canonical
+        Machine.Steps .deterministic ready (reliftDispatch canonical bindings)
+          initial result.labels result.config) ∧
+      reliftObservation (runRelift bindings initial false) =
+        (.resolved, [.note "relift-returned" []], [[⟨0⟩], [⟨0⟩]], [], none, some (none, none)) ∧
+      reliftObservation (runRelift bindings initial true) =
+        (.resolved, [.note "relift-refused" []], [[⟨0⟩]], [.accept (.claims .alias)], none, some (none, none)) := by
+  refine ⟨reliftLinked.1, reliftLinked.2, ?_, ?_, ?_, ?_⟩
+  · kernel_rfl
+  · intro canonical
+    exact Machine.run_sound ready (reliftDispatch canonical reliftLinked.1)
+      (core3Exec grow) Machine.Oracle.first 400 reliftLinked.2
+  · kernel_rfl
+  · kernel_rfl
 
 @[expose] public def reallocSignature : Signature :=
   ⟨Unit, fun _ => .tuple [.own resource, .list (.record [("code", .prim .u32)]), .prim .u32], fun _ => .fixed 0⟩

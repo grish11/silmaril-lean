@@ -81,17 +81,19 @@ def readChildren (callee : Callee sig) (cx : LiftLowerContext (core3 grow))
   else
     Prod.fst <$> liftFlatAt Limits.spec Quirks.none cx width childrenType cursor
 
+def selectChild (history : List (Tree sig)) (value : Val) : Except Issue (Tree sig) := do
+  let .int .u32 index := value | throw .wrongType
+  let handle := BitVec.ofNat 32 index.toNat
+  let some tree := Endpoints.Core.childFromHistory history handle
+    | throw (.accept (.boundary (.invalidChild handle)))
+  return tree
+
 def selectChildren (callee : Callee sig) (history : List (Tree sig)) (value : Val) :
     Except Issue (List (Tree sig)) := do
   let .list ids := value | throw .wrongType
   if !(sig.arity callee.tag).Admits ids.length then
     throw (.accept (.boundary (.boundary .badArity)))
-  ids.mapM fun value => do
-    let .int .u32 index := value | throw .wrongType
-    let handle := BitVec.ofNat 32 index.toNat
-    let some tree := Endpoints.Core.childFromHistory history handle
-      | throw (.accept (.boundary (.invalidChild handle)))
-    return tree
+  ids.mapM (selectChild history)
 
 def reject (ticket : Nat) (issue : Issue) : Session grow sig (Ret (core3 grow)) := do
   let _ ← rejectBinding ticket issue
@@ -104,6 +106,22 @@ def planChildren (callee : Callee sig) (cx : LiftLowerContext (core3 grow))
   | .ok value => some <$> selectChildren callee history value
   | .error (.trapped _) => .ok none
   | .error issue => .error (.accept (.localEffect issue))
+
+/-- The selector reads handles in order, including the first missing handle but never
+examining children beyond it or a malformed element. -/
+def childLookupDemands (history : List (Tree sig)) : List Val → List (BitVec 32)
+  | .int .u32 index :: tail =>
+    let handle := BitVec.ofNat 32 index.toNat
+    handle :: if (Endpoints.Core.childFromHistory history handle).isSome then childLookupDemands history tail else []
+  | _ => []
+
+/-- Take demands from the same reached direct/spilled read and arity guard as `planChildren`.
+A local trap or a rejected arity cannot demand a history lookup. -/
+def Callee.plannedChildLookups (callee : Callee sig) (cx : LiftLowerContext (core3 grow))
+    (args : List FlatValue) (store : CStore (core3 grow)) (history : List (Tree sig)) : List (BitVec 32) :=
+  match (Endpoints.Core.runLocal (readChildren callee cx args) store).2 with
+  | .ok (.list values) => if (sig.arity callee.tag).Admits values.length then childLookupDemands history values else []
+  | _ => []
 
 /-- Specialize the reference resolve continuation to the checked, non-allocating
 error result; a different caller record cannot become a general lowering route. -/
@@ -158,24 +176,46 @@ def resolveTree (ticket : Nat) (caller : CallerId) (tree : Tree sig) :
   lowerOnResolve Limits.spec Quirks.none caller (some [.variant 0 (some (Val.u32 handle))])
   completeResolvedTree ticket tree handle
 
+/-- The pure pre-lift decision, including the reached capacity test before selecting children. -/
+def Callee.childPreflight (callee : Callee sig) (history : List (Tree sig)) (store : CStore (core3 grow))
+    (cx : LiftLowerContext (core3 grow)) (args : List FlatValue) : Except Issue (Option (List (Tree sig))) :=
+  match OwnedMemory.checkSchema (sig.payload callee.tag) with
+  | .error issue => .error (.accept (.claims (.lift (.schema issue))))
+  | .ok () =>
+    if history.length + 1 ≥ 2 ^ 32 then .error (.accept (.boundary .exhaustedHandles))
+    else planChildren callee cx args store history
+
+/-- Compare only observations made by the pure preflight: capacity after schema admission,
+and live nominal lookups after capacity admission. -/
+structure Callee.ChildObservationsAgree (callee : Callee sig) (left right : List (Tree sig))
+    (store : CStore (core3 grow)) (cx : LiftLowerContext (core3 grow)) (args : List FlatValue) : Prop where
+  capacity : OwnedMemory.checkSchema (sig.payload callee.tag) = .ok () →
+    (left.length + 1 ≥ 2 ^ 32 ↔ right.length + 1 ≥ 2 ^ 32)
+  lookups : OwnedMemory.checkSchema (sig.payload callee.tag) = .ok () → left.length + 1 < 2 ^ 32 →
+    ∀ handle ∈ callee.plannedChildLookups cx args store left,
+      Endpoints.Core.childFromHistory left handle = Endpoints.Core.childFromHistory right handle
+
+def acceptPayload (callee : Callee sig) (caller : CallerId) (ticket : Nat)
+    (planned : Option (List (Tree sig))) (values : List OwnedMemory.Observed) : Session grow sig (Ret (core3 grow)) :=
+  match values, planned with
+  | [_, payload], some children =>
+    match OwnedMemory.checkValue (sig.payload callee.tag) payload with
+    | .error issue => resolveRefused ticket caller (.accept (.claims (.lift issue)))
+    | .ok payload => resolveTree ticket caller (AST.node callee.tag payload children)
+  | _, _ => reject ticket .wrongType
+
+def acceptPlanned (callee : Callee sig) (caller : CallerId) (ticket : Nat)
+    (planned : Except Issue (Option (List (Tree sig)))) : Session grow sig (Ret (core3 grow)) :=
+  match planned with
+  | .error issue => refuseBeforeLift ticket caller issue
+  | .ok planned => observeLowerOnStart Limits.spec Quirks.none caller >>= acceptPayload callee caller ticket planned
+
 /-- Continuation after linking and checking the caller record. The dispatcher owns
 those checks; this continuation validates the storage schema and the selected children. -/
 def acceptCaller (callee : Callee sig) (caller : CallerId) (ticket : Nat)
     (history : List (Tree sig)) (store : CStore (core3 grow))
-    (cx : LiftLowerContext (core3 grow)) (args : List FlatValue) : Session grow sig (Ret (core3 grow)) := do
-  if let .error issue := OwnedMemory.checkSchema (sig.payload callee.tag) then
-    return ← refuseBeforeLift ticket caller (.accept (.claims (.lift (.schema issue))))
-  if history.length + 1 ≥ 2 ^ 32 then
-    return ← refuseBeforeLift ticket caller (.accept (.boundary .exhaustedHandles))
-  match planChildren callee cx args store history with
-  | .error issue => refuseBeforeLift ticket caller issue
-  | .ok planned => do
-    let [_, payload] ← observeLowerOnStart Limits.spec Quirks.none caller
-      | reject ticket .wrongType
-    let some children := planned | reject ticket .wrongType
-    match OwnedMemory.checkValue (sig.payload callee.tag) payload with
-    | .error issue => resolveRefused ticket caller (.accept (.claims (.lift issue)))
-    | .ok payload => resolveTree ticket caller (AST.node callee.tag payload children)
+    (cx : LiftLowerContext (core3 grow)) (args : List FlatValue) : Session grow sig (Ret (core3 grow)) :=
+  acceptPlanned callee caller ticket (callee.childPreflight history store cx args)
 
 def invokeLower (callee : Callee sig) (caller : CallerId) (state : HostState sig)
     (subtask : SubtaskId) (cx : LiftLowerContext (core3 grow)) (args : List FlatValue) (pos : Nat)

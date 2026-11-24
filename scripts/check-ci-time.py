@@ -14,15 +14,16 @@ took the stated time, so the job ran over [line time - duration, line time]. The
 union of those intervals across all jobs is the wall time spent compiling.
 """
 
+import argparse
 import json
 import os
 import re
-import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
-LIMIT_SECONDS = 300
+SCOPED_LIMIT_SECONDS = 300
+FULL_SUITE_LIMIT_SECONDS = 600
 # GitHub prefixes every log line with its time; Lake's symbol shows the job's log level.
 BUILT = re.compile(r"^(\S+Z) (?:\x1b\[[0-9;]*m)*[✔⚠ℹ] \[\d+/\d+\] Built \S+ \(([^)]*)\)")
 DURATION = re.compile(r"(\d+(?:\.\d+)?)(ms|s|m|h)")
@@ -94,7 +95,8 @@ def compile_seconds(lines, start, end):
     return total
 
 
-def check(run, jobs, now, lines=()):
+def check(run, jobs, now, lines=(), full_suite=False):
+    limit = FULL_SUITE_LIMIT_SECONDS if full_suite else SCOPED_LIMIT_SECONDS
     timestamp(run["run_started_at"])
     intervals = running_intervals(jobs, now)
     if not intervals:
@@ -106,22 +108,27 @@ def check(run, jobs, now, lines=()):
     counted = running - compiled
     message = (f"CI attempt: {running:.1f}s with a job running ({waited:.1f}s with none, "
                f"waiting for runners, not counted), of which {compiled:.1f}s compiled "
-               f"modules; {counted:.1f}s counts against the {LIMIT_SECONDS}s limit.")
+               f"modules; {counted:.1f}s counts against the {limit}s limit.")
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary:
         with Path(summary).open("a") as report:
             report.write(message + "\n")
     print(message)
-    if counted > LIMIT_SECONDS:
-        print(f"::error::CI exceeded {LIMIT_SECONDS} seconds outside module compilation. "
+    if counted > limit:
+        print(f"::error::CI exceeded {limit} seconds outside module compilation. "
               "Correctness checks were allowed to finish.")
         return 1
     return 0
 
 
 if __name__ == "__main__":
-    run = json.loads(Path(sys.argv[1]).read_text())
-    jobs = [job for page in json.loads(Path(sys.argv[2]).read_text()) for job in page["jobs"]]
-    lines = [line for log in sys.argv[3:]
-             for line in Path(log).read_text(errors="replace").splitlines()]
-    raise SystemExit(check(run, jobs, datetime.now(timezone.utc), lines))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--full-suite", action="store_true")
+    parser.add_argument("run", type=Path)
+    parser.add_argument("jobs", type=Path)
+    parser.add_argument("logs", type=Path, nargs="*")
+    args = parser.parse_args()
+    run = json.loads(args.run.read_text())
+    jobs = [job for page in json.loads(args.jobs.read_text()) for job in page["jobs"]]
+    lines = [line for log in args.logs for line in log.read_text(errors="replace").splitlines()]
+    raise SystemExit(check(run, jobs, datetime.now(timezone.utc), lines, full_suite=args.full_suite))

@@ -44,6 +44,12 @@ def parseCompatFilesAux : List String → List String → Option String →
 def parseCompatFiles (args : List String) : Except String CompatFileArgs :=
   parseCompatFilesAux args [] none
 
+/-- Parse the common file options for a command with exactly one input. -/
+def parseCompatSingleInput (args : List String) : Except String (String × Option String) := do
+  let opts ← parseCompatFiles args
+  let [input] := opts.inputs | throw "expected one input file"
+  return (input, opts.output)
+
 def compatHelp (args : List String) : Bool := args == ["--help"] || args == ["-h"]
 
 def compatVersion (args : List String) : Bool := args == ["--version"]

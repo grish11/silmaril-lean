@@ -225,6 +225,18 @@ def checkLiftEnd (kind : EndKind) (t : Option (WIT.ClosedType RtId)) (ent : Hand
     return e
   | _ => trap .wrongHandleType
 
+/-- The result of checking the arena entry read after a readable endpoint has
+been removed from its source slot. The first failed check determines the trap. -/
+def checkLiftEndRead (kind : EndKind) (t : Option (WIT.ClosedType RtId)) :
+    Option (End E) → Except TrapReason Unit
+  | none => .error (.internal "dangling arena id")
+  | some en =>
+    if en.kind != kind then .error .wrongHandleType
+    else if en.t != t then .error .wrongHandleType
+    else if en.state != .idle then .error .liftBusyEnd
+    else if en.common.wset.isSome then .error .endInSet
+    else .ok ()
+
 /-- REF `lift_async_value(ReadableEndT, cx, i, t)` (L1447-1457); `kind` is the readable end
 class (`.readableStream` for `lift_stream`, `.readableFuture` for `lift_future`).
 `end = cx.inst.handles.remove(i)` (trap `unknownHandle`), the checks of `checkLiftEnd`, then

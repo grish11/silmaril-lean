@@ -26,6 +26,37 @@ private theorem listSame {Item : Type} {relation : Item → Item → Prop}
   | nil => exact .nil
   | cons item _ tail => exact .cons (same item) tail
 
+private theorem listEqOfRelated {Item : Type} {relation : Item → Item → Prop}
+    (equal : ∀ {left right}, relation left right → left = right) {left right : List Item}
+    (paired : List.Forall₂ relation left right) : left = right := by
+  induction paired with
+  | nil => rfl
+  | cons head _ tail => rw [equal head, tail]
+
+theorem withoutSubstitution {left right : Config E Host} (paired : PairedOf changes left right)
+    (empty : ∀ first second, ¬ changes first second) : left = right := by
+  have segment {left right : Seg E Host} (paired : SegmentOf changes left right) : left = right := by
+    cases paired with
+    | same => rfl
+    | swap changed => exact (empty _ _ changed).elim
+  have active {left right : Activation E Host} (paired : ActiveOf changes left right) : left = right := by
+    cases paired with
+    | mk frames => rw [listEqOfRelated segment frames]
+  have saved {left right : Option (Activation E Host)} (paired : SavedOf changes left right) : left = right := by
+    cases paired with
+    | none => rfl
+    | some slot => rw [active slot]
+  cases paired with
+  | mk control blocked =>
+    rw [← listEqOfRelated active control, ← listEqOfRelated saved blocked]
+
+private theorem prependShared {left right : List (Seg E Host)}
+    (shared : List (Seg E Host)) (paired : List.Forall₂ (SegmentOf changes) left right) :
+    List.Forall₂ (SegmentOf changes) (shared ++ left) (shared ++ right) := by
+  induction shared with
+  | nil => exact paired
+  | cons frame _ tail => exact .cons (.same frame) tail
+
 private theorem activeSame (act : Activation E Host) : ActiveOf changes act act :=
   .mk (listSame Related.Segment.same act.segs)
 
@@ -98,6 +129,115 @@ theorem retarget {left right : Config E Host} (paired : PairedOf changes left ri
   | mk control blocked =>
     obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
     exact ⟨_, _, atRight, .mk (.cons (.mk head) tail) blocked⟩
+
+theorem pushShared {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread focus frames rest} (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (next : Focus E Host) (frame : Seg E Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      PairedOf changes { left with ctl := ⟨thread, next, frame :: frames⟩ :: rest }
+        { right with ctl := ⟨thread, next, frame :: otherFrames⟩ :: otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    exact ⟨_, _, atRight, .mk (.cons (.mk (.cons (.same frame) head)) tail) blocked⟩
+
+theorem pushSharedFrames {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread focus frames rest} (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (next : Focus E Host) (shared : List (Seg E Host)) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      PairedOf changes { left with ctl := ⟨thread, next, shared ++ frames⟩ :: rest }
+        { right with ctl := ⟨thread, next, shared ++ otherFrames⟩ :: otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    exact ⟨_, _, atRight, .mk (.cons (.mk (prependShared shared head)) tail) blocked⟩
+
+theorem reenterSaved {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread focus frames rest target saved} (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (found : left.cont? target = some saved) (ongoing : Focus E Host) (shared : List (Seg E Host)) :
+    ∃ otherFrames otherRest otherSaved, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      right.cont? target = some otherSaved ∧
+      PairedOf changes
+        { (left.setCont target none) with ctl := saved :: ⟨thread, ongoing, shared ++ frames⟩ :: rest }
+        { (right.setCont target none) with ctl := otherSaved :: ⟨thread, ongoing, shared ++ otherFrames⟩ :: otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    have slot := getSlot_pair blocked target.idx
+    simp only [Config.cont?] at found
+    rw [found] at slot
+    obtain ⟨_, atSaved, sameSaved⟩ := savedSome slot
+    exact ⟨_, _, _, atRight, atSaved, .mk (.cons sameSaved (.cons (.mk (prependShared shared head)) tail))
+      (setSlot_pair .none target.idx blocked .none)⟩
+
+theorem retargetCoreFrame {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread focus core coreNext frames rest}
+    (focused : left.ctl = ⟨thread, focus, .core core coreNext :: frames⟩ :: rest)
+    (next : Focus E Host) (host : Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, .core core coreNext :: otherFrames⟩ :: otherRest ∧
+      PairedOf changes { left with host, ctl := ⟨thread, next, frames⟩ :: rest }
+        { right with host, ctl := ⟨thread, next, otherFrames⟩ :: otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    cases head with
+    | cons shared older =>
+      cases shared
+      exact ⟨_, _, atRight, .mk (.cons (.mk older) tail) blocked⟩
+
+theorem parkCore {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread core coreNext frames rest} (focused : left.ctl = ⟨some thread, .core core coreNext, frames⟩ :: rest)
+    (saved : Focus E Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨some thread, .core core coreNext, otherFrames⟩ :: otherRest ∧
+      PairedOf changes
+        { (left.setCont thread (some ⟨some thread, saved, .core core coreNext :: frames⟩)) with ctl := rest }
+        { (right.setCont thread (some ⟨some thread, saved, .core core coreNext :: otherFrames⟩)) with ctl := otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    exact ⟨_, _, atRight, .mk tail (setSlot_pair .none thread.idx blocked (.some (.mk (.cons (.same _) head))))⟩
+
+theorem parkUnderCore {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread focus core coreNext frames rest}
+    (focused : left.ctl = ⟨some thread, focus, .core core coreNext :: frames⟩ :: rest) (saved : Focus E Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨some thread, focus, .core core coreNext :: otherFrames⟩ :: otherRest ∧
+      PairedOf changes
+        { (left.setCont thread (some ⟨some thread, saved, .core core coreNext :: frames⟩)) with ctl := rest }
+        { (right.setCont thread (some ⟨some thread, saved, .core core coreNext :: otherFrames⟩)) with ctl := otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    cases head with
+    | cons shared older =>
+      cases shared
+      exact ⟨_, _, atRight, .mk tail (setSlot_pair .none thread.idx blocked (.some (.mk (.cons (.same _) older))))⟩
+
+theorem resumeCore {left right : Config E Host} (paired : PairedOf changes left right)
+    {thread focus frames rest target saved core coreNext savedFrames}
+    (focused : left.ctl = ⟨thread, focus, frames⟩ :: rest)
+    (found : left.cont? target = some ⟨some target, saved, .core core coreNext :: savedFrames⟩)
+    (ongoing resumed : Focus E Host) :
+    ∃ otherFrames otherRest otherSaved, right.ctl = ⟨thread, focus, otherFrames⟩ :: otherRest ∧
+      right.cont? target = some ⟨some target, saved, .core core coreNext :: otherSaved⟩ ∧
+      PairedOf changes
+        { (left.setCont target none) with ctl :=
+          ⟨some target, resumed, .core core coreNext :: savedFrames⟩ :: ⟨thread, ongoing, frames⟩ :: rest }
+        { (right.setCont target none) with ctl :=
+          ⟨some target, resumed, .core core coreNext :: otherSaved⟩ :: ⟨thread, ongoing, otherFrames⟩ :: otherRest } := by
+  cases paired with
+  | mk control blocked =>
+    obtain ⟨_, _, atRight, head, tail⟩ := activeHead control focused
+    have slots := getSlot_pair blocked target.idx
+    simp only [Config.cont?] at found
+    rw [found] at slots
+    obtain ⟨_, atSaved, savedPair⟩ := savedSome slots
+    cases savedPair with
+    | mk savedPair =>
+      cases savedPair with
+      | cons shared older =>
+        cases shared
+        exact ⟨_, _, _, atRight, atSaved,
+          .mk (.cons (.mk (.cons (.same _) older)) (.cons (.mk head) tail)) (setSlot_pair .none target.idx blocked .none)⟩
 
 theorem weaken {wider : Substitutions E Host} {left right : Config E Host}
     (included : ∀ {first second}, changes first second → wider first second)

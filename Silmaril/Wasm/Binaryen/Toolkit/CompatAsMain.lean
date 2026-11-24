@@ -17,12 +17,9 @@ def compatAsUsage : String :=
 def runCompatAs (args : List String) : IO UInt32 := do
   if compatHelp args then IO.println compatAsUsage; return 0
   if compatVersion args then IO.println compatVersionText; return 0
-  let opts ← match parseCompatFiles args with
+  let (input, output) ← match parseCompatSingleInput args with
     | .error e => return ← compatUsageError compatAsUsage e
     | .ok opts => pure opts
-  let input ← match opts.inputs with
-    | [input] => pure input
-    | _ => return ← compatUsageError compatAsUsage "expected one input file"
   let defaultOutput :=
     (if input.endsWith ".wat" then (input.dropEnd 4).toString else input) ++ ".wasm"
   try
@@ -30,7 +27,7 @@ def runCompatAs (args : List String) : IO UInt32 := do
     match assembleBinaryenText text with
     | .error e => IO.eprintln ("wasm-as: " ++ e); return 1
     | .ok artifact =>
-      compatWriteBytes (opts.output.getD defaultOutput) artifact.bytes
+      compatWriteBytes (output.getD defaultOutput) artifact.bytes
       return 0
   catch e => IO.eprintln (toString e); return 1
 

@@ -7,6 +7,10 @@ on:
         type: boolean
         default: false
         description: Allow a manual cache seed to finish a cold build
+    outputs:
+      full-suite:
+        description: The prove job selected the full main-push test suite
+        value: ${{ jobs.prove.outputs.full-suite }}
 
 permissions:
   contents: read
@@ -92,6 +96,8 @@ jobs:
       !(github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     name: check on prove
     runs-on: ubuntu-24.04
+    outputs:
+      full-suite: ${{ steps.targets.outputs.full-suite }}
     # Main after a toolchain change, or a seed dispatch, may build cold: 90 minutes.
     timeout-minutes: ${{ (github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.seed)) && 90 || 30 }}
     permissions:
@@ -111,6 +117,7 @@ jobs:
       - name: Install the shared Lake cache
         uses: ./.github/actions/lake-cache-tool
       - name: Choose the Lake targets
+        id: targets
         # A pull request checks what its diff can change (HEAD^1 is the base of the
         # merge commit); main, a manual or a nightly check covers everything. The prove client
         # takes `CHECK_TARGETS=…` as one argv element of at most 4096 characters (#752): a
@@ -118,8 +125,14 @@ jobs:
         # (scripts/ci-targets.py; it fails rather than drop a target).
         run: |
           scoped=$(make -s scope BASE=${{ github.event_name == 'pull_request' && 'HEAD^1' || '' }})
-          targets=$(python3 scripts/ci-targets.py --scoped "$scoped" --full "$(make -s scope)")
+          full=$(make -s scope)
+          targets=$(python3 scripts/ci-targets.py --scoped "$scoped" --full "$full")
           echo "CHECK_TARGETS=$targets" >> "$GITHUB_ENV"
+          full_suite=false
+          if [ -n "$targets" ] && [ "$targets" = "$full" ]; then
+            full_suite=true
+          fi
+          echo "full-suite=$full_suite" >> "$GITHUB_OUTPUT"
           echo "Lake targets: ${targets:-none, so only the source gates run}"
       - name: Run the source gates
         if: env.CHECK_TARGETS == ''

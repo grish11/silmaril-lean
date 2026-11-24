@@ -3,11 +3,13 @@ module
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadEffects.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadCursor.Thms
 public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.CanonicalTree.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Allocation.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.CanonicalTree.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Effects.Thms
+import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedPayloadEffects
 
 public section
@@ -19,6 +21,65 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.
   Silmaril.Wasm.Component.Value
 open Silmaril.Wasm.Execution.Core
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.RecordLower (Field Object)
+open ReturnFrame.Occurrence (Prefix)
+
+open Machine.ReturnFrame.Occurrence in
+/-- Public give entry pushes the actual Core callout continuation. Every
+older location, including saved locations, follows that edit and is
+otherwise unchanged. The eleven instructions include the push, two dispatch
+reads, two journal instructions, four admission instructions, and the
+destination and accepted-root reads. -/
+theorem GiveEffectRoute.parked_framed_tracks {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
+    (route : GiveEffectRoute) (inst : InstId) (destination : RecordDestination) (tree : OwnedMemory.Tree sig)
+    (start : Machine.Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) {core continuation segments rest}
+    (parked : start.ctl = ⟨thread, .core core continuation, segments⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (.embedder name type) (route.args handle))
+    (linked : resolveBinding bindings name type = .ok ⟨name, inst, route.action destination⟩)
+    (caller : Plain.callerInstance start.store thread = .ok (some inst))
+    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
+    (destinationChecked : destination.check start.store = .ok ())
+    (selected : Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
+    (admitted : route.admits destination tree)
+    (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
+    (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
+      let reached := { start with
+        host := start.host.enter name type (route.args handle)
+        ctl := ⟨thread, .prog (route.run destination inst tree start.host.nextTicket), .core core continuation :: segments⟩ :: rest }
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place labels reached
+        (((Edit.push (.core core continuation)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start labels reached :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedPayloadEffects.parkedTracks
+    bindings name type handle route inst destination tree start thread profile ready parked calling linked caller
+    mayLeave destinationChecked selected admitted impl embedder
+
+open Machine.ReturnFrame.Occurrence in
+theorem GiveEffectRoute.parked_tracks {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
+    (route : GiveEffectRoute) (inst : InstId) (destination : RecordDestination) (tree : OwnedMemory.Tree sig)
+    (start : Machine.Config (core3 grow) (HostState sig)) (thread : Option ThreadId)
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) {core continuation segments rest}
+    (parked : start.ctl = ⟨thread, .core core continuation, segments⟩ :: rest)
+    (calling : (core3 grow).status start.store.core core = .callout (.embedder name type) (route.args handle))
+    (linked : resolveBinding bindings name type = .ok ⟨name, inst, route.action destination⟩)
+    (caller : Plain.callerInstance start.store thread = .ok (some inst))
+    (mayLeave : (start.store.inst? inst).any (·.mayLeave) = true)
+    (destinationChecked : destination.check start.store = .ok ())
+    (selected : Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
+    (admitted : route.admits destination tree)
+    (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
+    (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
+    ∃ labels, labels.all (· matches .tau) = true ∧
+      ∀ place, Prefix profile ready (specDispatch ready impl) start place labels
+        { start with host := start.host.enter name type (route.args handle)
+                     ctl := ⟨thread, .prog (route.run destination inst tree start.host.nextTicket),
+                       .core core continuation :: segments⟩ :: rest }
+        (((Edit.push (.core core continuation)).follow place).getD place) := by
+  obtain ⟨labels, silent, _, tracks, _⟩ := route.parked_framed_tracks bindings name type handle inst destination tree start thread
+    profile ready parked calling linked caller mayLeave destinationChecked selected admitted impl embedder
+  exact ⟨labels, silent, tracks⟩
 
 /-- Both linked public give imports run the recursive effect view with the
 original Core activation, continuation and reply ticket. This is entry into
@@ -42,10 +103,10 @@ theorem GiveEffectRoute.parked {sig : Signature} {grow : SingleThreaded.GrowOrac
       Machine.Steps profile ready (specDispatch ready impl) start labels
         { start with host := start.host.enter name type (route.args handle)
                      ctl := ⟨thread, .prog (route.run destination inst tree start.host.nextTicket),
-                       .core core continuation :: segments⟩ :: rest } :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedPayloadEffects.parked
-    bindings name type handle route inst destination tree start thread profile ready parked calling linked caller
-    mayLeave destinationChecked selected admitted impl embedder
+                       .core core continuation :: segments⟩ :: rest } := by
+  obtain ⟨labels, silent, tracks⟩ := route.parked_tracks bindings name type handle inst destination tree start thread
+    profile ready parked calling linked caller mayLeave destinationChecked selected admitted impl embedder
+  exact ⟨labels, silent, (ReturnFrame.Occurrence.prefix_survives (tracks (.active 0 0))).1⟩
 
 /-- The actual start steps give the effect view the compiler's value, layout,
 and exact receipt order. A failed dry run or width-dependent fit check reaches
@@ -67,10 +128,22 @@ theorem RecordDestination.compiled_payload_effects {sig : Signature} {grow : Sin
     let type := sig.payload tag
     field.value = payload.val.value ∧ field.LayoutMatches type ∧
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
+    (∃ next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)),
+      reached.ctl = ⟨thread, .prog (.op .get (fun store => .op .hostGet fun current =>
+        next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest ∧
+      (∃ width, next (.ok ()) = .op .get width)) ∧
     match Record.prepare reached.store reached.host.writer field.objects with
-    | .error issue => Machine.Steps profile ready dispatch reached [.tau, .tau]
+    | .error issue => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau]
         { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest }
-    | .ok () => Machine.Steps profile ready dispatch reached [.tau, .tau, .tau]
+    | .ok () => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
+        { reached with ctl := ⟨thread, .prog (
+          if !Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
+            finish (.error (.preflight (.abi .allocationPrecondition)))
+          else Record.Effects.root recordClaims Limits.spec Quirks.none cx destination.width type field output >>= finish),
+          segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau, .tau]
         { reached with ctl := ⟨thread, .prog (
           if !Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
             finish (.error (.preflight (.abi .allocationPrecondition)))

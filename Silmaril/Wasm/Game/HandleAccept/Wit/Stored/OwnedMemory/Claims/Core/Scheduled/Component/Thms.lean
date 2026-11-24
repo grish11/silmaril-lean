@@ -62,6 +62,103 @@ theorem resolve_begin {prof : ProfileKind} {ready : HostReady (HostState sig)}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.resolve_begin
     ticket caller tree writer registered room pending
 
+/-- Child selection depends only on the handles visited by the reached local read
+and selector. No unvisited handle, writer or journal equality is needed. -/
+theorem plan_children_agrees (callee : Callee sig) (cx : LiftLowerContext (core3 grow)) (args : List FlatValue)
+    (store : CStore (core3 grow)) {left right : List (Tree sig)}
+    (agrees : ∀ handle ∈ callee.plannedChildLookups cx args store left,
+      Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core.childFromHistory left handle =
+        Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core.childFromHistory right handle) :
+    planChildren callee cx args store left = planChildren callee cx args store right :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.plan_children_agrees callee cx args store agrees
+
+/-- Shared preflight follows from the reached capacity and child observations, not from
+agreement on an entire history. Schema rejection demands neither observation. -/
+theorem child_preflight_agrees (callee : Callee sig) {left right : List (Tree sig)}
+    {store : CStore (core3 grow)} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    (agrees : callee.ChildObservationsAgree left right store cx args) :
+    callee.childPreflight left store cx args = callee.childPreflight right store cx args :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.child_preflight_agrees callee agrees
+
+/-- The actual `invokeLower` guard reads the live store, active thread and task. An
+admitted call advances without changing its host, store or occurrence slots. -/
+theorem invoke_lower_admitted {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {segments rest}
+    (callee : Callee sig) (caller : CallerId) (snapshot : HostState sig)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (liveThread : ArenaField.threads.get? config.store active = some entry)
+    (liveTask : ArenaField.tasks.get? config.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check config.store subtask cx args pos ft (limits, results) = .ok ())
+    (pending : config.ctl = ⟨some active, .prog (invokeLower callee caller snapshot subtask cx args pos ft limits results),
+      segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with ctl := ⟨some active, .prog (acceptCaller callee caller snapshot.nextTicket snapshot.writer.accepted
+        config.store cx args), segments⟩ :: rest } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.invoke_lower_admitted
+    callee caller snapshot liveThread liveTask context admitted pending
+
+/-- Reach the argument lift through the actual caller read, progress event (if indexed),
+and subtask start. The live store update is retained and no occurrence slot moves. -/
+theorem observe_lower_start_tracks {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {thread : Option ThreadId} {segments rest}
+    (caller : CallerId) {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    (next : List Stored.OwnedMemory.Observed → Session grow sig (Ret (core3 grow)))
+    (callerRecord : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : config.store.subtask? subtask = some record)
+    (focused : config.ctl = ⟨thread, .prog (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller >>= next),
+      segments⟩ :: rest) :
+    let queued := if record.index.isSome then config.store.setPendingSt (.subtask subtask) (.subtask subtask)
+      else config.store
+    ∀ place, Prefix prof ready dispatch config place
+      ([.tau, .tau] ++ (if record.index.isSome then [.tau] else []) ++ [.tau])
+      { config with store := LowerSt.startSt subtask queued, ctl := ⟨thread, .prog (do
+          let (values, cursor) ← Stored.OwnedMemory.liftFlatValuesWith Limits.spec cx
+            (Stored.OwnedMemory.flatCarrier Limits.spec Quirks.none cx) limits ⟨args, pos⟩ (ft.params.map (·.2))
+          modifyStore (LowerSt.setCallerPosSt caller cursor.pos)
+          next values), segments⟩ :: rest } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.observe_lower_start_tracks
+    caller record next callerRecord live focused
+
+/-- The actual component import reads the reached caller and snapshots its own host,
+then records entry before entering `invokeLower`. No active or saved slot moves. -/
+theorem invoke_lower_entry {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {thread : Option ThreadId} {segments rest}
+    (callee : Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (record : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (pending : config.ctl = ⟨thread, .prog (ComponentCall.invoke callee caller), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau]
+      { config with
+        host := config.host.enter callee.name callee.coreType args
+        ctl := ⟨thread, .prog (invokeLower callee caller config.host subtask cx args pos ft limits results), segments⟩ :: rest }
+      place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.invoke_lower_entry callee caller record pending
+
+/-- Publication and completion do not move active or saved occurrences. The ticket
+is diagnostic; the handle is checked again against the live registration. -/
+theorem complete_commit_tracks {prof : ProfileKind} {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {config : Config (core3 grow) (HostState sig)} {thread : Option ThreadId} {segments rest}
+    (ticket handle : Nat) (tree : Tree sig) (writer : State sig)
+    (registered : config.host.writer.register tree = .ok writer)
+    (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32)
+    (pending : config.ctl = ⟨thread, .prog (completeResolvedTree ticket tree handle), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with
+        host := (({ config.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := ⟨thread, .prog (.pure (.cancel .none)), segments⟩ :: rest } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.ComponentResult.complete_commit_tracks
+    ticket handle tree writer registered expected room pending
+
 /-- Once the canonical result program returns, valid live registration with the checked
 handle commits the root. This branch publishes before it records
 the reply; completion does not overwrite or roll back the reached reference store. -/

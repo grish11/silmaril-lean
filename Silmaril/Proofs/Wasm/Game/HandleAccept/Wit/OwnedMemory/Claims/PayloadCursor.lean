@@ -110,6 +110,13 @@ theorem list_range_body (destination : RecordDestination) (inst : InstId) (area 
       · simp [trapIf, Nat.lt_of_not_ge bounds, bounds]
         rfl
 
+private theorem keepsOccurrence {first last : Config (core3 grow) Host} {labels : List (Label (core3 grow) Host)}
+    (kept : ∀ place, Prefix profile ready dispatch first place labels last place) (mark : Option Location) :
+    Trail profile ready dispatch first mark labels last mark :=
+  match mark with
+  | some place => (kept place).toTrail
+  | none => Trail.absent (prefix_survives (kept (.active 0 0))).1
+
 theorem list_range_resume (destination : RecordDestination) (inst : InstId) (area : Layout)
     (count pointer : Nat) (finish : Nat → P (core3 grow) Host (Ret (core3 grow)))
     (resume : Ret (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
@@ -119,17 +126,18 @@ theorem list_range_resume (destination : RecordDestination) (inst : InstId) (are
     let body := validateListRange (destination.context inst) area count pointer
     match (Plain.runBody body after.store after.host (some thread)).2.2 with
     | .ok value => ∃ labels, (∀ label ∈ labels, label = .tau) ∧
-        RetainsBelowTop profile ready dispatch after labels
+        RangeReturnTrails profile ready dispatch after labels
           { after with ctl := ⟨thread, .prog (finish value), segments⟩ :: rest }
-    | .error (.trapped reason) => ∃ count, Machine.Steps profile ready dispatch after
-        (List.replicate count .tau ++ [.trap reason]) (Machine.StepDefs.trapCfg after)
+    | .error (.trapped reason) => ∃ count, RangeReturnTrails profile ready dispatch after
+        (List.replicate count .tau ++ [.trap reason]) (Machine.StepDefs.trapCfg after) true
     | .error _ => False := by
   let body : P (core3 grow) Host Nat := validateListRange (destination.context inst) area count pointer
   let reached := { after with ctl := ⟨thread, .prog (body >>= finish), segments⟩ :: rest }
-  have pop : Machine.Step profile ready dispatch after .tau reached := by
-    have step := Machine.Step.popProg (prof := profile) (hr := ready) (dispatch := dispatch) returned
-    rw [resumes] at step
-    exact step
+  have pop : RangeReturnTrails profile ready dispatch after [.tau] reached := by
+    intro mark
+    change Trail profile ready dispatch after mark [.tau] reached (mark.bind (Edit.pop : Edit (core3 grow) Host).follow)
+    have run := Trail.pop_prog (profile := profile) (ready := ready) (dispatch := dispatch) mark returned
+    simpa only [reached, body, resumes] using run
   have readOnly := list_range_body destination inst area count pointer after.store after.host thread
   change Plain.runBody body after.store after.host (some thread) = _ at readOnly
   dsimp only
@@ -138,11 +146,9 @@ theorem list_range_resume (destination : RecordDestination) (inst : InstId) (are
     rw [← answer, readOnly]
   cases verdict with
   | ok value =>
-    obtain ⟨labels, silent, tail⟩ := Plain.runBody_thread_tracks body reached after.store after.host value
+    obtain ⟨labels, silent, tail⟩ := Plain.runBody_thread_tracks_all body reached after.store after.host value
       finish thread segments rest profile ready dispatch rfl evaluation
-    have returnedSlots : RetainsBelowTop profile ready dispatch after [.tau] reached := by
-      simpa only [reached, resumes] using (Prefix.pop_return (profile := profile) (ready := ready) (dispatch := dispatch) returned)
-    refine ⟨.tau :: labels, ?_, fun depth => (returnedSlots depth).append (tail depth)⟩
+    refine ⟨.tau :: labels, ?_, fun mark => (pop mark).append (keepsOccurrence tail _)⟩
     intro label member
     rcases List.mem_cons.mp member with rfl | member
     · rfl
@@ -151,9 +157,9 @@ theorem list_range_resume (destination : RecordDestination) (inst : InstId) (are
   | error issue =>
     cases issue with
     | trapped reason =>
-      obtain ⟨count, tail⟩ := Plain.runBody_trap_steps body reached after.store after.host reason
+      obtain ⟨count, tail⟩ := Plain.runBody_trap_tracks body reached after.store after.host reason
         finish thread segments rest profile ready dispatch rfl evaluation
-      exact ⟨count + 1, .cons pop tail⟩
+      exact ⟨count + 1, fun mark => (pop mark).append (tail _)⟩
     | _ =>
       rw [evaluation] at readOnly
       split at readOnly
@@ -161,14 +167,6 @@ theorem list_range_resume (destination : RecordDestination) (inst : InstId) (are
       · split at readOnly
         · cases readOnly
         · split at readOnly <;> cases readOnly
-
-private theorem append_steps {first middle last : Machine.Config (core3 grow) Host} {front back}
-    (prefixSteps : Machine.Steps profile ready dispatch first front middle)
-    (suffixSteps : Machine.Steps profile ready dispatch middle back last) :
-    Machine.Steps profile ready dispatch first (front ++ back) last := by
-  induction prefixSteps with
-  | refl => exact suffixSteps
-  | cons step _ ih => exact .cons step (ih suffixSteps)
 
 theorem list_range_recheck {sig : Stored.Signature} {ready : HostReady (HostState sig)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -187,7 +185,7 @@ theorem list_range_recheck {sig : Stored.Signature} {ready : HostReady (HostStat
     (sized : (core3 grow).memSize? reached.store.core destination.memory = some bytes)
     (bounds : pointer + count * area.size ≤ bytes) :
     ∃ labels, (∀ label ∈ labels, label = .tau) ∧
-      RetainsBelowTop profile ready dispatch reached labels
+      RangeReturnTrails profile ready dispatch reached labels
         { reached with ctl := ⟨thread, .prog (finish pointer
           (Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer plan)),
           segments⟩ :: rest } := by
@@ -205,18 +203,55 @@ theorem list_range_recheck {sig : Stored.Signature} {ready : HostReady (HostStat
   dsimp only at resumed
   rw [valid] at resumed
   obtain ⟨labels, silent, tracks⟩ := resumed
-  have reads : RetainsActiveSlots profile ready dispatch
-      { reached with ctl := ⟨thread, .prog (recheck pointer), segments⟩ :: rest } [.tau, .tau]
+  have reads : ∀ place, Prefix profile ready dispatch
+      { reached with ctl := ⟨thread, .prog (recheck pointer), segments⟩ :: rest } place [.tau, .tau]
       { reached with ctl := ⟨thread, .prog (finish pointer
         (Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer plan)),
-        segments⟩ :: rest } :=
+        segments⟩ :: rest } place :=
     fun _ => .step (.get rfl) rfl (.step (.hostGet rfl) rfl (.done _ _))
   refine ⟨labels ++ [.tau, .tau], ?_, ?_⟩
   · intro label member
     rcases List.mem_append.mp member with inPrefix | inReads
     · exact silent label inPrefix
     · simpa using inReads
-  · exact fun depth => (tracks depth).append (reads depth)
+  · exact fun mark => (tracks mark).append (keepsOccurrence reads _)
+
+theorem range_return_retains (tracks : RangeReturnTrails profile ready dispatch before trace after) :
+    RetainsBelowTop profile ready dispatch before trace after := by
+  intro depth
+  obtain ⟨place, same, run⟩ := (tracks (some (.active 0 (depth + 1)))).survives
+  cases same
+  exact run
+
+theorem list_range_resume_retains (destination : RecordDestination) (inst : InstId) (area : Layout)
+    (count pointer : Nat) (finish : Nat → P (core3 grow) Host (Ret (core3 grow)))
+    (resume : Ret (core3 grow) → P (core3 grow) Host (Ret (core3 grow)))
+    (resumes : resume (.nat pointer) = (validateListRange (destination.context inst) area count pointer >>= finish))
+    {thread segments rest}
+    (returned : after.ctl = ⟨thread, .prog (.pure (.nat pointer)), .prog resume :: segments⟩ :: rest) :
+    let body := validateListRange (destination.context inst) area count pointer
+    match (Plain.runBody body after.store after.host (some thread)).2.2 with
+    | .ok value => ∃ labels, (∀ label ∈ labels, label = .tau) ∧
+        RetainsBelowTop profile ready dispatch after labels
+          { after with ctl := ⟨thread, .prog (finish value), segments⟩ :: rest }
+    | .error (.trapped reason) => ∃ count, Machine.Steps profile ready dispatch after
+        (List.replicate count .tau ++ [.trap reason]) (Machine.StepDefs.trapCfg after)
+    | .error _ => False := by
+  have run := list_range_resume (profile := profile) (ready := ready) (dispatch := dispatch)
+    destination inst area count pointer finish resume resumes returned
+  dsimp only at run ⊢
+  generalize (Plain.runBody (validateListRange (destination.context inst) area count pointer)
+    after.store after.host (some thread)).2.2 = verdict at run ⊢
+  cases verdict with
+  | ok value =>
+    obtain ⟨labels, silent, tracks⟩ := run
+    exact ⟨labels, silent, range_return_retains tracks⟩
+  | error issue =>
+    cases issue with
+    | trapped reason =>
+      obtain ⟨count, tracks⟩ := run
+      exact ⟨count, (tracks none).steps⟩
+    | _ => exact run
 
 theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (HostState sig)}
     {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
@@ -233,10 +268,22 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
     let authority := Stored.OwnedMemory.Claims.Record.authority recordClaims Limits.spec cx
     field.value = payload.val.value ∧ field.LayoutMatches type ∧
     payload.val.owners = field.objects.filterMap Object.ownerReceipt ∧
+    (∃ next : Except Stored.Endpoints.RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)),
+      reached.ctl = ⟨thread, .prog (.op .get (fun store => .op .hostGet fun current =>
+        next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest ∧
+      (∃ width, next (.ok ()) = .op .get width)) ∧
     match Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects with
-    | .error issue => Machine.Steps profile ready dispatch reached [.tau, .tau]
+    | .error issue => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau]
+        { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau]
         { reached with ctl := ⟨thread, .prog (finish (.error issue)), segments⟩ :: rest }
-    | .ok () => Machine.Steps profile ready dispatch reached [.tau, .tau, .tau]
+    | .ok () => (∀ place, Prefix profile ready dispatch reached place [.tau, .tau, .tau]
+        { reached with ctl := ⟨thread, .prog (
+          if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
+            finish (.error (.preflight (.abi .allocationPrecondition)))
+          else Internal.emitValue Limits.spec Quirks.none cx authority destination.width type field output >>= finish),
+          segments⟩ :: rest } place) ∧
+      Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau, .tau]
         { reached with ctl := ⟨thread, .prog (
           if !Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value then
             finish (.error (.preflight (.abi .allocationPrecondition)))
@@ -263,31 +310,41 @@ theorem compiled_payload_start {sig : Stored.Signature} {ready : HostReady (Host
   simp only [Stored.OwnedMemory.Claims.Record.lowerValue, Internal.lowerWithPlan, compiled] at focused
   have read : reached.ctl = ⟨thread, .prog (.op .get (fun store => .op .hostGet fun current =>
       next (Stored.OwnedMemory.Claims.Record.prepare store current.writer field.objects))), segments⟩ :: rest := focused
+  have readWidthFocus : next (.ok ()) = .op .get (fun store => proceed (ptrTypeIn store cx) >>= finish) := by
+    simp only [next, bind_assoc]
+    rfl
+  refine ⟨⟨next, read, _, readWidthFocus⟩, ?_⟩
   let middle := { reached with ctl := ⟨thread, .prog (next
     (Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects)), segments⟩ :: rest }
-  have reads : Machine.Steps profile ready dispatch reached [.tau, .tau] middle :=
-    .cons (.get read) (.cons (.hostGet rfl) (.refl _))
+  have reads (place : Location) : Prefix profile ready dispatch reached place [.tau, .tau] middle place :=
+    .step (middle := place) (.get read) (by rw [transitionEdit, read]; cases place <;> rfl)
+      (.step (middle := place) (.hostGet rfl) (by cases place <;> rfl) (.done _ _))
+  have frames : Plain.HostFramedSteps HostState.writer profile ready dispatch reached [.tau, .tau] middle :=
+    .next (.get read) rfl (.next (.hostGet rfl) rfl (.done _))
   cases verdict : Stored.OwnedMemory.Claims.Record.prepare reached.store reached.host.writer field.objects with
   | error issue =>
-    simp only [middle, verdict] at reads
-    exact reads
+    simp only [middle, verdict] at reads frames
+    exact ⟨reads, frames⟩
   | ok answer =>
     cases answer
     have width : ptrTypeIn reached.store cx = destination.width := by
       simp [ptrTypeIn, CanonOpts.ptrType, cx, RecordDestination.context, check_width _ _ destinationChecked]
     have readWidth : middle.ctl = ⟨thread, .prog (.op .get (fun store =>
       proceed (ptrTypeIn store cx) >>= finish)), segments⟩ :: rest := by
-      simp only [middle, verdict, next, bind_assoc]
-      rfl
-    have step := Step.get (prof := profile) (hr := ready) (dispatch := dispatch) readWidth
-    change Step profile ready dispatch middle .tau
-      { reached with ctl := ⟨thread, .prog (proceed (ptrTypeIn reached.store cx) >>= finish), segments⟩ :: rest } at step
-    rw [width] at step
-    have tail := append_steps reads (.cons step (.refl _))
+      simp only [middle, verdict, readWidthFocus]
+    have step (place : Location) := Prefix.read_at (profile := profile) (ready := ready) (dispatch := dispatch) place readWidth
+    change ∀ place, Prefix profile ready dispatch middle place [.tau]
+      { reached with ctl := ⟨thread, .prog (proceed (ptrTypeIn reached.store cx) >>= finish), segments⟩ :: rest } place at step
+    have framed : Plain.HostFramedSteps HostState.writer profile ready dispatch middle [.tau]
+      { reached with ctl := ⟨thread, .prog (proceed (ptrTypeIn reached.store cx) >>= finish), segments⟩ :: rest } :=
+      .next (.get readWidth) rfl (.done _)
+    rw [width] at step framed
+    have tail := fun place => (reads place).append (step place)
+    have finished := frames.append framed
     by_cases fits : Stored.Lower.fits Quirks.none destination.encoding destination.width type payload.val.value = true
-    · simp [proceed, cx, authority, RecordDestination.context, fits] at tail ⊢
-      exact tail
+    · simp [proceed, cx, authority, RecordDestination.context, fits] at tail finished ⊢
+      exact ⟨tail, finished⟩
     · have fails := Bool.eq_false_iff.mpr fits
-      simpa [proceed, cx, RecordDestination.context, fails] using tail
+      simpa [proceed, cx, RecordDestination.context, fails] using And.intro tail finished
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadCursor

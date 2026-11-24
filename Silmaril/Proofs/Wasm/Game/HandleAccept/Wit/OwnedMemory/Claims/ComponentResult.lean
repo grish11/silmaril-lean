@@ -14,6 +14,7 @@ namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Componen
 open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.Canon
   Silmaril.Wasm.Component.Engine Silmaril.Wasm.Component.Machine Silmaril.Wasm.Component.Runtime
   Silmaril.Wasm.Component.Value Silmaril.Wasm.Component.AsyncRef Silmaril.Wasm.Execution.Core
+open Silmaril.Wasm.Game.HandleAccept.Wit
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored (Signature)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory (Tree)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims (State)
@@ -65,6 +66,129 @@ private theorem complete_read (ticket handle : Nat) (tree : Tree sig) (writer : 
   simp only [Prog.bind, registered, Option.any] at step
   exact step
 
+private theorem child_list_agrees {left right : List (Tree sig)} (values : List Value.Val)
+    (agrees : ∀ handle ∈ childLookupDemands left values,
+      Stored.Endpoints.Core.childFromHistory left handle = Stored.Endpoints.Core.childFromHistory right handle) :
+    values.mapM (selectChild left) = values.mapM (selectChild right) := by
+  induction values with
+  | nil => rfl
+  | cons value tail ih =>
+    cases value <;> try rfl
+    rename_i kind index
+    cases kind <;> try rfl
+    let handle := BitVec.ofNat 32 index.toNat
+    have read := agrees handle (by simp [handle, childLookupDemands])
+    cases chosen : Stored.Endpoints.Core.childFromHistory left handle with
+    | none =>
+      have other := read.symm.trans chosen
+      simp [List.mapM_cons, selectChild, handle, chosen, other]
+      rfl
+    | some tree =>
+      have other := read.symm.trans chosen
+      have rest := ih (fun later visited => agrees later (by
+        change later ∈ handle :: (if (Stored.Endpoints.Core.childFromHistory left handle).isSome then
+          childLookupDemands left tail else [])
+        simp [chosen, visited]))
+      simp [List.mapM_cons, selectChild, handle, chosen, other, rest]
+
+theorem plan_children_agrees (callee : Callee sig) (cx : LiftLowerContext (core3 grow)) (args : List FlatValue)
+    (store : CStore (core3 grow)) {left right : List (Tree sig)}
+    (agrees : ∀ handle ∈ callee.plannedChildLookups cx args store left,
+      Stored.Endpoints.Core.childFromHistory left handle = Stored.Endpoints.Core.childFromHistory right handle) :
+    planChildren callee cx args store left = planChildren callee cx args store right := by
+  unfold planChildren
+  cases seen : (Stored.Endpoints.Core.runLocal (readChildren callee cx args) store).2 with
+  | error issue => cases issue <;> rfl
+  | ok value =>
+    cases value <;> try rfl
+    rename_i values
+    by_cases arity : (sig.arity callee.tag).Admits values.length
+    · have same := child_list_agrees values (fun handle visited => agrees handle (by
+        simpa [Callee.plannedChildLookups, seen, arity] using visited))
+      have selected : selectChildren callee left (.list values) = selectChildren callee right (.list values) := by
+        simpa [selectChildren, arity] using same
+      exact congrArg (fun result => some <$> result) selected
+    · simp [selectChildren, arity]; rfl
+
+theorem child_preflight_agrees (callee : Callee sig) {left right : List (Tree sig)}
+    {store : CStore (core3 grow)} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    (agrees : callee.ChildObservationsAgree left right store cx args) :
+    callee.childPreflight left store cx args = callee.childPreflight right store cx args := by
+  unfold Callee.childPreflight
+  cases schema : Stored.OwnedMemory.checkSchema (sig.payload callee.tag) with
+  | error _ => rfl
+  | ok checked =>
+    cases checked
+    have capacity := agrees.capacity schema
+    by_cases full : left.length + 1 ≥ 2 ^ 32
+    · simp only [ite_eq_left full, ite_eq_left (capacity.mp full)]
+    · have peer := fun exhausted => full (capacity.mpr exhausted)
+      have plans := plan_children_agrees callee cx args store (agrees.lookups schema (Nat.lt_of_not_ge full))
+      simpa only [ite_eq_right full, ite_eq_right peer] using plans
+
+theorem invoke_lower_entry (callee : Callee sig) (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    (record : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (pending : config.ctl = ⟨thread, .prog (ComponentCall.invoke callee caller), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau]
+      { config with
+        host := config.host.enter callee.name callee.coreType args
+        ctl := ⟨thread, .prog (invokeLower callee caller config.host subtask cx args pos ft limits results), segments⟩ :: rest }
+      place := by
+  intro place
+  have read := Step.get (prof := prof) (hr := ready) (dispatch := dispatch) pending
+  simp only [Prog.bind, record] at read
+  refine .step (middle := place) read ?_
+    (.step (middle := place) (.hostGet rfl) ?_ (.step (.hostSet rfl) ?_ (.done _ _)))
+  · rw [transitionEdit, pending]
+    cases place <;> rfl
+  · cases place <;> rfl
+  · cases place <;> rfl
+
+theorem invoke_lower_admitted (callee : Callee sig) (caller : CallerId) (snapshot : HostState sig)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat}
+    {active : ThreadId} {entry : Runtime.Thread} {task : Runtime.Task (core3 grow)}
+    (liveThread : ArenaField.threads.get? config.store active = some entry)
+    (liveTask : ArenaField.tasks.get? config.store entry.task = some task)
+    (context : task.inst = callee.inst)
+    (admitted : callee.check config.store subtask cx args pos ft (limits, results) = .ok ())
+    (pending : config.ctl = ⟨some active, .prog (invokeLower callee caller snapshot subtask cx args pos ft limits results),
+      segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with ctl := ⟨some active, .prog (acceptCaller callee caller snapshot.nextTicket snapshot.writer.accepted
+        config.store cx args), segments⟩ :: rest } place := by
+  intro place
+  refine .step (middle := place) (.get pending) ?_ ?_
+  · rw [transitionEdit, pending]
+    cases place <;> rfl
+  refine .step (middle := place) (.currentThread rfl) (by cases place <;> rfl)
+    (.step (middle := place) (.get rfl) (by cases place <;> rfl) ?_)
+  simp only [Prog.bind, liveThread]
+  refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+  simp only [Prog.bind, liveTask, pure, context, bne_self_eq_false, Bool.false_eq_true, ite_false, admitted]
+  exact .done _ _
+
+theorem complete_commit_tracks (ticket handle : Nat) (tree : Tree sig) (writer : State sig)
+    (registered : config.host.writer.register tree = .ok writer)
+    (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32)
+    (pending : config.ctl = ⟨thread, .prog (completeResolvedTree ticket tree handle), segments⟩ :: rest) :
+    ∀ place, Prefix prof ready dispatch config place [.tau, .tau, .tau, .tau]
+      { config with
+        host := (({ config.host with writer } : HostState sig).record (.published ticket handle)).record
+          (.returned ticket handle)
+        ctl := ⟨thread, .prog (.pure (.cancel .none)), segments⟩ :: rest } place := by
+  subst handle
+  intro place
+  refine .step (middle := place) (complete_read ticket writer.accepted.length tree writer registered pending) ?_ ?_
+  · rw [transitionEdit, pending]
+    cases place <;> rfl
+  simp only [bne_self_eq_false, Bool.false_eq_true, ite_false, Nat.not_le.mpr room]
+  refine .step (middle := place) (.hostSet rfl) ?_
+    (.step (middle := place) (.hostGet rfl) ?_ (.step (.hostSet rfl) ?_ (.done _ _))) <;>
+    cases place <;> rfl
+
 theorem complete_commit (ticket handle : Nat) (tree : Tree sig) (writer : State sig)
     (registered : config.host.writer.register tree = .ok writer)
     (expected : handle = writer.accepted.length) (room : handle < 2 ^ 32)
@@ -109,6 +233,42 @@ theorem resolve_caller (ticket handle : Nat) (caller : CallerId) (tree : Tree si
         completeResolvedTree ticket tree handle), segments⟩ :: rest } := by
   have step := Step.get (prof := prof) (hr := ready) (dispatch := dispatch) pending
   simpa [Prog.bind, callerRecord, Quirks.none, Prog.bind_assoc] using step
+
+theorem observe_lower_start_tracks (caller : CallerId)
+    {subtask : SubtaskId} {cx : LiftLowerContext (core3 grow)} {args : List FlatValue}
+    {pos : Nat} {ft : WIT.FuncType Empty RtId} {limits results : Nat} (record : Subtask)
+    (next : List Stored.OwnedMemory.Observed → Session grow sig (Ret (core3 grow)))
+    (callerRecord : ArenaField.callers.get? config.store caller = some (.lower subtask cx args pos ft limits results))
+    (live : config.store.subtask? subtask = some record)
+    (focused : config.ctl = ⟨thread, .prog (Stored.OwnedMemory.observeLowerOnStart Limits.spec Quirks.none caller >>= next),
+      segments⟩ :: rest) :
+    let queued := if record.index.isSome then config.store.setPendingSt (.subtask subtask) (.subtask subtask)
+      else config.store
+    ∀ place, Prefix prof ready dispatch config place
+      ([.tau, .tau] ++ (if record.index.isSome then [.tau] else []) ++ [.tau])
+      { config with store := LowerSt.startSt subtask queued, ctl := ⟨thread, .prog (do
+          let (values, cursor) ← Stored.OwnedMemory.liftFlatValuesWith Limits.spec cx
+            (Stored.OwnedMemory.flatCarrier Limits.spec Quirks.none cx) limits ⟨args, pos⟩ (ft.params.map (·.2))
+          modifyStore (LowerSt.setCallerPosSt caller cursor.pos)
+          next values), segments⟩ :: rest } place := by
+  dsimp only
+  intro place
+  have read := Step.get (prof := prof) (hr := ready) (dispatch := dispatch) focused
+  simp only [Prog.bind, callerRecord, Prog.pure_eq] at read
+  refine .step (middle := place) read ?_ ?_
+  · rw [transitionEdit, focused]
+    cases place <;> rfl
+  rw [CStore.subtask?] at live
+  cases indexed : record.index with
+  | none =>
+    refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+    simp [Prog.bind, live, indexed, pure, Prog.bind_assoc]
+    exact .step (.modify rfl) (by cases place <;> rfl) (.done _ _)
+  | some _ =>
+    refine .step (middle := place) (.get rfl) (by cases place <;> rfl) ?_
+    simp [Prog.bind, live, indexed, pure, Prog.bind_assoc, Waitable.setPendingEvent]
+    refine .step (middle := place) (.modify rfl) (by cases place <;> rfl) ?_
+    exact .step (middle := place) (.modify rfl) (by cases place <;> rfl) (.done _ _)
 
 private theorem progress_steps (subtask : SubtaskId) (record : Subtask)
     (live : config.store.subtask? subtask = some record) (next : Session grow sig (Ret (core3 grow)))

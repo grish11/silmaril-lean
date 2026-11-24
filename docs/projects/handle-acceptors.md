@@ -1033,6 +1033,57 @@ handles without reviving spent resource or endpoint claims. Both loaders check c
 before lifting, and the publication continuation independently refuses to wrap.
 This conservation statement does not characterize which roots a given module can accept.
 
+#### Claim accounting in the raw comparison
+
+Checked publication records a durable tree and separate live claims. A scheduled
+checked `givePayload` or `giveFlat` spends an exclusive claim at the authorized
+leaf, before the canonical ownership effect. For a readable stream or future, a
+later legitimate lift can register one new live claim for the same arena `EndId`.
+Old and new trees can name that endpoint, but they do not confer separate claims:
+any subsequent give must spend the one live claim. For an owning resource, the
+consumed `HandleObjId` stays retired:
+registration also conflicts with historical owner identities. Canonical `lower_own`
+creates a new owning arena object, so a later lift of that object does not revive
+the original receipt, even if the resource representation or Core slot is reused.
+
+The fixed `LiveDispatch.host` overlay instead runs raw canonical `store` or
+`lowerFlatAt` for linked gives, without the checked host-claim spend. It leaves the
+underlying accept handlers in place. A canonical endpoint move changes the arena
+owner and table slot, not the acceptor's live-claim list. The later shared registration
+can therefore see a stale claim on the raw side. `RecordExamples.linked_endpoint_relift_registration`
+checks actual linked `accept-flat`, `give-flat`, and `accept-flat` executions from
+the same setup: both re-lifts consume the guest slot and detach the same endpoint;
+checked returns status 0 and handle 2, and raw returns status 1 and records alias.
+This is an observable difference on a closed path, not an unsupported request,
+a trap, or just a difference in internal journals.
+
+The finite raw comparison keeps both actual observations. When a component
+registration read executes and the probes disagree, `ReachedRegistrationMismatch`
+records the compared steps and both reached branch programs; the worker cut retains
+the original occurrence path and the actual checked residual. The executed prefix
+to that read leaves each side's writer unchanged, so a discrepancy bound from
+before the install also applies at the read. With aligned accepted indices, a
+mismatch demands an endpoint in that bound or an owner in the bound that is not
+already a conflict in the accepted history. The cut does not claim
+either branch has returned or that a reply or async result was delivered. Agreement
+on demanded claims and accepted indices can establish corresponding registration
+outcomes, but neither disjointness nor acknowledgement of a projected canonical
+spend is a premise of the mismatch classification. This is not whole-session reply
+equivalence, including on re-lifts. A claim-aware comparison target, if introduced,
+must be a separately named dispatcher and perform its own authorized nominal spend
+at the reached leaf, rather than amend history at registration or change the raw
+reference. No such dispatcher is used by this comparison.
+
+The reached nominal-list visitor carries the ordered checked spends through
+successive elements and the actual descriptor program. It starts at the live
+post-range writer pair. An entered guard that refuses adds no spend, but a
+leaf that commits and then traps retains its spend. The evidence applies at
+the compared endpoint; a prefix ending inside an unfinished leaf retains the
+actual checked suffix rather than completing the leaf. The extracted closed
+callback prefix, executed marked pops, and public poll path have separate
+writer-preservation evidence. None of these preserves authority across arbitrary
+callbacks or claims that a selected event is still available at a later read.
+
 `import_binding_trap_steps` covers mislinked imports from the public dispatcher,
 not only its trap continuation. It records the entry and the typed missing, ambiguous
 or mismatched-binding diagnostic before taking the reference trap transition. No
@@ -1273,6 +1324,225 @@ undelivered subtask that has not received a cancel request or joined a set,
 branch. It consumes the existing event, releases lends and returns the already
 resolved state, without an event buffer or cancellation callback. It does not
 cover cancellation requests that precede resolution.
+
+For a resumed worker's first string argument, `CalleeArguments.direct_string_pair`
+and `CalleeSpillReturn.spilled_string_pair` execute the canonical string plan on
+both session dispatchers. The local interpreter stops at the next allocator
+request, and only a return from the marked occurrence advances to the shorter
+residual plan. A finite callback may stay suspended or trap. A successful
+string passes the flat words or reaches the spill tuple suffix after writing
+its descriptor. These cuts classify only the reached callback prefix; they
+do not assume that it returns or preserves memory.
+
+`direct_arguments` and `spilled_arguments` iterate those cuts across a
+parameter list mixing bool, u32, and strings through arbitrarily nested
+tuples, named records, options, dynamic lists, and maps. Direct scalars add their
+canonical flat word; spilled scalars do a live width read and bounds-checked
+write. The next field uses the reached cursor; in the spill path it starts at
+the previous field's ABI end offset. Canonical tuple and record programs
+share the field traversal without a premise about individual children. In
+memory, a canonical option reads the live ABI width for placement and writes
+its discriminant before traversing the selected payload. A later trap or suspension retains
+that reached write and any allocator effects. Flat options run the canonical
+slot adjustment only after the payload completes. An absent option never
+executes its payload; its shape still determines padding and layout. The
+string-only theorems specialize the same traversal.
+`enter_stackful_after_strings` starts actual Core execution with the computed
+flat words or the outer spill pointer when lowering completes. A suspension
+or trap does not enter Core. `collection_range_pair` uses the same installed
+allocator occurrence for the canonical dynamic list/map range request. At a
+selected return it checks alignment and reads the reached memory size; it
+neither assumes the callback returns nor restores memory on a later trap.
+The list proof continues that cut through the canonical indexed element
+stores with allocation-time stride, including recursively allocating elements.
+Its structural argument evidence checks the element schema even for an empty
+list and does not assert any child execution agreement. Once all elements
+finish, the direct path passes the pointer/count operands. The spilled path
+reads the reached pointer width and writes the real pointer followed by the
+count; a trap on the second write retains the first. Maps share the indexed
+loop and descriptor cut. Direct map elements use the actual canonical
+record stores. Indirect map elements instead place the key and value using
+the allocation-time layout, even when a string key allocates before the
+value is written. Map keys in this fragment are bool, u32, or string; an
+empty map still supplies both shapes. Variants and results now traverse their
+selected, possibly allocating payload in the same induction. Inactive arms
+contribute their actual schemas to the layout and joined flat slots but
+do not execute. The memory tag is written before the payload can suspend
+or trap. The flat path runs canonical coercion (including admissible NaN
+choices) and padding only after the payload completes. This is a paired
+canonical worker path, not checked schema admission or a proof of agreement
+between distinct checked and canonical states. A direct owner-head read
+follows the actual caller operand and `Resources.take`, retaining the
+nominal identity on success and the slot removal on a later lift trap.
+Already reached canonical values can include owner descendants anywhere in
+the traversal: the actual handle arena insertion and flat slot or memory
+write run against the reached store. A later failure retains earlier
+effects. The structural witness does not itself grant transfer permission;
+recursive source provenance across the whole argument lift remains separate.
+This worker proof does not classify arbitrary component host reentry.
+
+`finish_stackful_after_arguments` continues the reached Core entry along a
+selected finite body. Guest-only paths classify without a host premise;
+closed paths check the reached dispatch sites, while open paths need site-level
+classification. A finite prefix can stop without returning. At an observed
+return, the live task decides the unresolved-last-thread trap before any
+registration lookup. A valid reached registration takes canonical
+unregistration and worker exit, exposing exactly the reached scheduler tail.
+The proof does not preserve pre-body records. `finish_stackful_with_delivery`
+then composes the reached cut with a finite closed delivery tail. Each poll,
+wait, or cancel edge uses the record or event reached at that step, including
+consumption followed by an event-buffer trap. This transport does not equate
+different open cancellation continuations or compare the full public-give
+session.
+
+`Run.give_then_delivery` bridges a successfully compared public give body
+to a finite tail across different host journals. The two real reply paths
+rejoin the active and blocked activations and the reached store, pending
+calls, results and cancellation records. The checked reply records its
+completion; the canonical reply does not. The proof then transports the
+actual Core, poll, wait (including park and resume), and closed cancel
+delivery edges. It derives their journal independence from the edge
+constructors. Each take uses its reached event and retains consumption
+when a subsequent buffer write traps. This tail does not include another
+give, event publication, open cancel requests or readiness-sensitive tick
+selection. Typed stopped prefixes still have no canonical reply.
+
+`LiveDispatch.NestedPlan` also composes publication and poll with nested
+public gives, including while older allocator continuations are paired.
+Publication rechecks registration against the reached journal and compares
+the actual emitted handle; a failed comparison stops before that transition,
+not at an invented trap. A poll uses the event selected from the reached
+store. On an unaligned or out-of-range buffer it consumes the event and
+locks down the delivered store without resuming the caller. On success it
+writes the event words and rejoins Core with the older frames still paired.
+At a wait's actual selection, the same comparison consumes the reached
+event and either rejoins the saved Core caller or keeps the delivered store
+on a trap. Wait entry compares empty-set parks and both permitted branches
+when an event is ready. A park saves each side's actual Core caller and older
+frames; resumption uses the live blocked slot at the reached `Thread.resume`
+request. The slot may never be resumed, and the eventual selection uses its
+own live evidence. Cancel of an already returned event uses the reached record
+and consumes it without invoking a cancel callback. These classified finite
+edges do not cover open cancellation requests or imply scheduler progress.
+
+`LiveDispatch.stackful_worker_plan` joins the reached direct or spilled
+argument lowering, Core entry, classified body, worker return and delivery
+under one linked dispatcher. Finite argument traps and suspensions end before
+Core entry. Dispatch classification works on actual scheduler steps; Core
+growth evidence is still required separately for allocation invariants.
+For a placed public memory or flat give at a nonallocating data root,
+`local_data_give_plan` derives the body comparison and caller reply from the
+compiled field and linked width. The trap branch keeps the reached store and
+does not journal a completion. Its canonical body and reply carry a local
+focus at each actual step; the live replay crosses that segment with the older
+frames still paired and does not discover a nested installation, divergent
+host read or substituted return there. The worker plan still needs a
+classified body and delivery tail; this does not classify all recursive
+callback paths.
+
+`LiveDispatch.linked_rejoined_give_plan` uses the paths and saved Core reply
+from a reached recursive `givePayload` or `giveFlat` rejoin. Data and sum
+cuts keep their local canonical step certificates. On the reached bodies,
+the component overlay classification derives agreement for ordinary
+allocation, local operations and Core callouts. If it encounters an unequal
+direct install and the observed read selects a lifted function, comparison
+continues at the same canonical lift. Otherwise it exposes the common prefix
+and actual request instead of inventing an error.
+Even after this dispatch comparison, live canonical replay can cut at a
+nested give, an open host observation, or a substituted return. This result
+does not turn a typed stopped prefix into a successful reply.
+`LiveDispatch.linked_stopped_give_plan` also classifies already compared
+refusal and trap prefixes. `LiveDispatch.linked_allocator_cut` classifies a
+compared allocator path up to its active or saved occurrence; observing this
+prefix neither requires a return nor releases the saved continuation.
+
+`LiveDispatch.closed_give_paired` executes the actual confined memory or
+flat give encountered by allocator reentry. It derives the status words
+from the closed caller before root selection, leaves the canonical journal
+untouched, and preserves the pairing of older active and saved frames.
+`linked_closed_give_plan` derives the checked steps for that edge under the
+worker's component dispatcher. `NestedPlan.of_callback_prefix` keeps such
+edges and the certified synchronous candidate read in the finite Core
+callback plan, even if the allocator remains suspended. Candidate agreement
+is needed only for reached blocked threads that query host readiness. Raw
+steps can still reach open dispatch boundaries; this does not classify all
+admitted nested bodies or require a callback to return.
+
+`ClosedCallbackPrefix.string_realloc` and `collection_alloc` now carry the
+allocator occurrence installed on each side. The paths follow its active or
+saved coordinate through actual scheduler edits, including the push and pop
+of a confined give. An overwritten or discarded occurrence cannot be revived
+by an equal continuation. When the marked occurrence actually reaches a
+return at the top, `AllocatorMark.pop` executes both pops and recovers the
+older paired frames and their slot trails. The collection's allocation-time
+placement mode and the string's shorter residual plan are the actual saved
+continuations. This cut stops before their bodies: it does not establish that
+the reached address passes range checks, that the current claims are still
+live, or that a recursive give or its caller delivers a result.
+
+For a marked collection return, `AllocatorMark.collection_range` also runs
+the range checks under the checked and live canonical dispatchers. It derives
+the reached memory width and size from the admitted memory and callback
+growth. A bad range traps each machine from its reached state. A good range
+reads the fresh checked claim verdict and preserves the actual canonical map
+entry mode. A refusal here has no canonical error counterpart: the canonical
+path has only reached its child-entry program and has not run it. The valid
+range cut keeps older return slots and the callback's reached store.
+
+`AllocatorMark.local_list_replies` takes that reached return through the
+actual entry writes for list roots of non-string primitives, enums, and flags.
+The compiled layout and the reached range determine every entry address;
+the induction runs the actual checked and canonical programs under their
+respective dispatchers. Success publishes the real pointer/count descriptor
+and rejoins the tracked Core caller on the memory and flat routes. A trap
+retains the reached effects and issues no reply. The continuation rules
+distinguish a checked-only typed refusal from a canonical trap; these local
+data entries themselves carry no claims. The theorem does not require a
+callback to return and does not yet cover lists with allocating or resource
+descendants, indirect maps, or a whole mixed worker session.
+
+For a collection that fails the fresh check after a valid allocator return,
+`CollectionRangeCut.refused_reply` identifies the original parked caller
+from its occurrence trail and executes the actual typed completion using
+the reached store and host journal. This refusal rule also applies to
+resource plans and the allocation-time map mode: canonical stops before
+child effects or publication, and neither dispatcher undoes callback effects.
+
+For `givePayload` of a map with non-string primitive keys and local data
+values, `AllocatorMark.local_map_replies` obtains each entry's shape from
+the actual compiler and traverses the entries in order. The checked
+aggregate bounds check and the canonical allocation-time offsets are
+related at each entry. Growth rather than byte equality across the
+callback justifies the reached ranges. The proof runs the actual descriptor
+writes and rejoins the tracked caller on success, with no reply on a trap.
+It does not compare allocating map keys or values or require a callback to return.
+
+`LiveDispatch.linked_memory_admission` and `linked_flat_admission` join the
+actual linked root cut to the corresponding recursive body certificate. A
+checked preflight refusal resumes the checked Core caller, but the canonical
+side takes only its real entry prefix, up to the installed body if the live
+journal selects the same tree. No canonical refusal words are invented and
+no canonical lowering effects have run at that cut. Invalid root placement
+traps on the checked side, while the live canonical prefix likewise stops
+before executing the installed body. Canonical store takes valid root
+placement as a precondition; there is no claimed matching trap.
+
+`LiveDispatch.linked_recursive_collection_body` compares the installed bodies
+for list and map roots on both public give routes. One induction covers nested
+lists, maps (including allocating string keys), fixed arrays, records, tuples,
+and the active arms of options, results and variants. The compiled aggregate
+layout and the reached containing interval determine each field's slot. The
+checked path takes the aggregate bounds read, and the canonical path reads
+the live width before each field. Only a completed field advances to the
+next sibling. For sums, the full case layout justifies the payload slot and
+the compiled tag identifies the child comparison.
+
+This induction uses the reached allocator and live claim checks without
+requiring callback return or preservation of guest bytes or claims. The
+body comparison distinguishes suspension, checked refusal and canonical trap
+from success, which reaches the installed reply program. It does not yet
+compose all nested occurrence trails through the original caller's return or
+prove mixed worker and delivery session correspondence.
 
 ## Checking
 

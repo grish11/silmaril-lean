@@ -20,19 +20,16 @@ def compatCtorEvalUsage : String :=
 def runCompatCtorEval (args : List String) : IO UInt32 := do
   if compatHelp args then IO.println compatCtorEvalUsage; return 0
   if compatVersion args then IO.println compatVersionText; return 0
-  let opts ← match parseCompatFiles args with
+  let (input, output) ← match parseCompatSingleInput args with
     | .error e => return ← compatUsageError compatCtorEvalUsage e
     | .ok opts => pure opts
-  let input ← match opts.inputs with
-    | [input] => pure input
-    | _ => return ← compatUsageError compatCtorEvalUsage "expected one input file"
   try
     let bytes ← compatReadBytes input
     match CtorEval.evaluateBytesOrKeep bytes with
     | .error e => IO.eprintln ("wasm-ctor-eval: " ++ e); return 1
     | .ok artifact =>
       IO.eprintln artifact.report
-      if let some output := opts.output then compatWriteBytes output artifact.bytes
+      if let some path := output then compatWriteBytes path artifact.bytes
       return 0
   catch e => IO.eprintln (toString e); return 1
 

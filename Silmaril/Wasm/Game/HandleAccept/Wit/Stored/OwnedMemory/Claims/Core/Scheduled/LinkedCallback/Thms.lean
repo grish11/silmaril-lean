@@ -18,6 +18,32 @@ variable {grow : Silmaril.Wasm.SingleThreaded.GrowOracle} {sig : Signature} {pro
   {ready : HostReady (HostState sig)} {bindings : List (Binding sig)}
   {first second : ReturnFrame.Continuation (core3 grow) (HostState sig)}
 
+/-- Installing paired allocator continuations excludes only the newly pushed
+occurrence from the older relation. The dispatched focuses need not agree for
+this storage fact. -/
+theorem ChildFrameOver.outside_installed {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {left right : State grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    (frame : ChildFrameOver older left right check canon) (checkBody canonBody : Session grow sig (Ret (core3 grow))) :
+    ReturnFrame.Occurrence.Outside older
+      (ReturnFrame.Occurrence.segmentStorage { left with ctl := { check with frames := .prog first :: check.frames }.control checkBody })
+      (ReturnFrame.Occurrence.segmentStorage { right with ctl := { canon with frames := .prog second :: canon.frames }.control canonBody })
+      (some (.active 0 0)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.childFrameOutside frame checkBody first second
+
+/-- Expose the reached pop foci and the residual pairing before running either
+of the two continuations, independently of dispatch. -/
+theorem marked_pop_frame {older wider : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {left right : State grow sig} {check : Cursor (E := core3 grow) (HostState sig)} {value : Ret (core3 grow)}
+    (paired : HostFrame.Related.Paired wider left right)
+    (outside : ReturnFrame.Occurrence.Outside older (ReturnFrame.Occurrence.segmentStorage left)
+      (ReturnFrame.Occurrence.segmentStorage right) (some (.active 0 0)))
+    (leftAt : left.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+    (rightAt : ReturnFrame.Occurrence.segmentAt (ReturnFrame.Occurrence.segmentStorage right) (.active 0 0) = some (.prog second)) :
+    ∃ canon : Cursor (E := core3 grow) (HostState sig),
+      ChildFrameOver older left right check canon ∧
+      right.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure value) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.markedPopFrame paired outside leftAt rightAt
+
 /-- Follow the original parked slot through an actual string allocator install,
 its marked execution, and its designated pop. Depth zero tracks the caller
 immediately beneath the allocator during that execution. -/
@@ -243,6 +269,26 @@ theorem ChildFrameOver.string_field_replay {changes : ReturnFrame.Substitutions 
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.stringFieldReplay
     destination inst str valid index output checkNext canonNext frame present realloc fit placed checkAt canonAt
 
+/-- A typed refusal skips the remaining fields. Flat words are appended
+only after the current field returns successfully. -/
+theorem flat_sequence_checked_cons (destination : RecordDestination) (inst : InstId) (item : Field)
+    (rest : List Field) (index : Nat) (leading : List FlatValue) (next : FlatSequenceCheckNext grow sig) :
+    flatSequenceChecked destination inst (item :: rest) index leading next =
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width item index .flat >>=
+        fun verdict => match verdict with
+        | .error issue => next (.error issue)
+        | .ok words => flatSequenceChecked destination inst rest (index + 1) (leading ++ (show List FlatValue from words)) next) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.flatSequenceCheckedCons
+    destination inst item rest index leading next
+
+theorem flat_sequence_canonical_cons (destination : RecordDestination) (inst : InstId) (item : Field)
+    (rest : List Field) (leading : List FlatValue) (next : FlatSequenceCanonNext grow sig) :
+    flatSequenceCanonical destination inst (item :: rest) leading next =
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width item .flat >>=
+        fun words => flatSequenceCanonical destination inst rest (leading ++ (show List FlatValue from words)) next) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.flatSequenceCanonicalCons
+    destination inst item rest leading next
+
 /-- Compose the actual flat sibling programs by their field cuts. The next
 field runs only on common success, using the reached cursor and flat words;
 each field rule retains its own refused, suspended and trapping prefixes. -/
@@ -282,7 +328,8 @@ theorem mixed_flat_rule {older : ReturnFrame.Substitutions (core3 grow) (HostSta
     FlatFieldRule (mixedFlatComparison profile ready bindings older destination inst) older origin destination inst item :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.mixedFlatRule destination inst item present allocator fit
 
-theorem ChildFrameOver.handle_field_then {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+theorem ChildFrameOver.handle_field_then_between {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {origin : CStore (core3 grow)} (destination : RecordDestination) (inst : InstId) (item : Field) (handle : CanonicalHandle item)
     (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -298,9 +345,12 @@ theorem ChildFrameOver.handle_field_then {older : ReturnFrame.Substitutions (cor
     (ends : ∀ value reached reference check canon, ChildFrameOver older reached reference check canon →
       Core3.Grows origin.core reached.store.core → reached.ctl = check.control (checkNext (.ok value)) →
       reference.ctl = canon.control (canonNext value) → next value reached reference check canon) :
-    HandleFieldThen profile ready bindings item index output left right check canon checkNext canonNext next :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.handleFieldThen
+    HandleFieldThenBetween profile ready dispatch reference item index output left right check canon checkNext canonNext next :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LinkedCallback.handleFieldThenBetween
     destination inst item handle index output checkNext canonNext frame growth checkAt canonAt ends
+
+abbrev ChildFrameOver.handle_field_then :=
+  @ChildFrameOver.handle_field_then_between grow sig profile ready (specDispatch ready (host bindings)) (specDispatch ready (host bindings))
 
 theorem ChildFrameOver.string_field_then {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {origin : CStore (core3 grow)} (destination : RecordDestination) (inst : InstId) (item : StringField) (output : Stored.Lower.Output)

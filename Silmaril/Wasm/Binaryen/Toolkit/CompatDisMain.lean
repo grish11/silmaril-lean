@@ -18,18 +18,15 @@ def compatDisUsage : String :=
 def runCompatDis (args : List String) : IO UInt32 := do
   if compatHelp args then IO.println compatDisUsage; return 0
   if compatVersion args then IO.println compatVersionText; return 0
-  let opts ← match parseCompatFiles args with
+  let (input, output) ← match parseCompatSingleInput args with
     | .error e => return ← compatUsageError compatDisUsage e
     | .ok opts => pure opts
-  let input ← match opts.inputs with
-    | [input] => pure input
-    | _ => return ← compatUsageError compatDisUsage "expected one input file"
   try
     let bytes ← compatReadBytes input
     match disassembleToolkitBytes bytes with
     | .error e => IO.eprintln ("wasm-dis: " ++ e); return 1
     | .ok artifact =>
-      compatWriteText (opts.output.getD "-") artifact.text
+      compatWriteText (output.getD "-") artifact.text
       return 0
   catch e => IO.eprintln (toString e); return 1
 

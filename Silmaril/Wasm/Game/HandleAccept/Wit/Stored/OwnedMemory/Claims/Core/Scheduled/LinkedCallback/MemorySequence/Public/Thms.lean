@@ -12,6 +12,7 @@ open Silmaril.Wasm Silmaril.Wasm.Component Silmaril.Wasm.Component.ABI Silmaril.
   Silmaril.Wasm.Component.Runtime Silmaril.Wasm.Component.Machine
 open Stored.Endpoints.RecordLower
 open PayloadPrefix
+open ReturnFrame.Occurrence
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {pointer : FlatValue}
   {profile : ProfileKind} {ready : HostReady (HostState sig)} {bindings : List (Binding sig)}
@@ -107,8 +108,9 @@ identifies the original occurrence; it does not predict allocator return. -/
 theorem resume_returned_give {route : GiveEffectRoute} (call : PayloadRoot.Site grow sig route)
     (value : route.output.Result) {older : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {reached reference : State grow sig} {check canon : Cursor (E := core3 grow) (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     (frame : ChildFrameOver older reached reference check canon) {labels}
-    (tracked : ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host bindings))
+    (tracked : ReturnFrame.Occurrence.Prefix profile ready dispatch
       call.checked (.active 0 0) labels reached (.active 0 0))
     (checked : reached.ctl = check.control (call.reply (.ok value)))
     (canonical : reference.ctl = canon.control (call.referenceReply value)) :
@@ -116,7 +118,11 @@ theorem resume_returned_give {route : GiveEffectRoute} (call : PayloadRoot.Site 
     ∃ left right, (∀ dispatch, Steps profile ready dispatch reached [.tau, .tau, .tau] left) ∧
       (∀ dispatch, Steps profile ready dispatch reference [.tau] right) ∧ left.store = right.store ∧
       left.host = reached.host.record reply.1 ∧ right.host = reference.host ∧
-      List.Forall₂ (ReturnFrame.Related.Active older) left.ctl right.ctl := by
+      HostFrame.Related.Paired older left right ∧
+      (∀ dispatch place, Trail profile ready dispatch reached (some place) [.tau, .tau, .tau] left
+        ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) ∧
+      (∀ dispatch place, Trail profile ready dispatch reference (some place) [.tau] right
+        ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place)) := by
   obtain ⟨_, caller⟩ := call.reached_caller checked tracked
   exact Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PublicMemorySequence.resumeReturned
     call value frame caller checked canonical

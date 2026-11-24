@@ -3,6 +3,7 @@ module
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Traversal.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.Traversal.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.LinkedCallback.MemorySequence.Public.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadRoot.Thms
 
 public section
 
@@ -22,12 +23,12 @@ variable {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : Profile
 private theorem checkedSilent {left right reached : State grow sig}
     (read : RetainsActiveSlots profile ready (specDispatch ready (host bindings)) left [.tau] reached) :
     TrackedAdvance profile ready bindings left right reached right :=
-  ⟨[.tau], [], rfl, read, fun _ => .done _ _⟩
+  .of_segment (leftLabels := [.tau]) (rightLabels := []) rfl read (fun _ => .done _ _)
 
 private theorem canonicalSilent {left right reached : State grow sig} (mode : Track)
     (read : RetainsActiveSlots profile ready (specDispatch ready (host bindings)) right mode.readLabels reached) :
     TrackedAdvance profile ready bindings left right left reached :=
-  ⟨[], mode.readLabels, by cases mode <;> rfl, (fun _ => .done _ _), read⟩
+  .of_segment (by cases mode <;> rfl) (fun _ => .done _ _) read
 
 theorem sequenceTrack {compare : FieldComparison grow sig} (child : CarriesFinish profile ready bindings compare)
     {mode : Track} {destination : RecordDestination} {inst : InstId} {items : List Field} {index cursor : Nat}
@@ -41,8 +42,10 @@ theorem sequenceTrack {compare : FieldComparison grow sig} (child : CarriesFinis
   induction items generalizing index cursor left right check canon with
   | nil => exact next left right check canon leading run
   | cons item rest ih =>
-    rw [Replay] at run ⊢
-    refine ⟨run.1, child item index _ _ _ check canon _ _ (leading.append (canonicalSilent mode run.1)) run.2 ?_⟩
+    unfold Replay at run ⊢
+    rw [ReplayBetween] at run ⊢
+    refine ⟨run.1, child item index _ _ _ check canon _ _
+      (leading.append (canonicalSilent mode (fun depth => run.1 (.active 0 depth)))) run.2 ?_⟩
     intro lhs rhs check canon path tail
     exact ih path tail
 
@@ -97,7 +100,7 @@ private theorem sumTrack {compare : FieldComparison grow sig} (child : CarriesFi
   | error reason => exact outcome
   | ok _ =>
     obtain ⟨lhs, rhs, tail⟩ := outcome
-    have advance := leading.append ⟨leftLabels, rightLabels, seen, lhs, rhs⟩
+    have advance := leading.append (.of_segment seen lhs rhs)
     refine ⟨lhs, rhs, ?_⟩
     cases selected with
     | none => exact next _ _ _ _ advance tail
@@ -113,7 +116,7 @@ private theorem descriptorTrack {output : Lower.Output} {checkNext canonNext fin
   obtain ⟨store, result, labels, silent, checked, canonical, finish⟩ := run
   refine ⟨store, result, labels, silent, checked, canonical, fun value done => ?_⟩
   obtain ⟨lhs, rhs, tail⟩ := finish value done
-  exact ⟨lhs, rhs, next _ _ _ _ _ (leading.append ⟨labels, labels, rfl, lhs, rhs⟩) tail⟩
+  exact ⟨lhs, rhs, next _ _ _ _ _ (leading.append (.of_segment rfl lhs rhs)) tail⟩
 
 theorem entriesTrack {compare : FieldComparison grow sig} (child : CarriesFinish profile ready bindings compare)
     {destination : RecordDestination} {inst : InstId} {element : TypeOf} {entries : List Field} {index pointer : Nat}
@@ -139,7 +142,8 @@ theorem listTreeTracks {older : ReturnFrame.Substitutions (core3 grow) (HostStat
     rcases run with leaf | aggregate | list | map | sum | fixed
     · exact .inl (leafTrack item index address left right check canon checkNext canonNext leading leaf next)
     · obtain ⟨type, children, shape, placed, tail⟩ := aggregate
-      exact .inr (.inl ⟨type, children, shape, placed, sequenceTrack ih (leading.append (checkedSilent placed)) tail next⟩)
+      exact .inr (.inl ⟨type, children, shape, placed,
+        sequenceTrack ih (leading.append (checkedSilent (fun depth => placed (.active 0 depth)))) tail next⟩)
     · right; right; left
       obtain ⟨element, entries, shape, run⟩ := list
       refine ⟨element, entries, shape, ?_⟩
@@ -227,38 +231,58 @@ private theorem rejoin {route : GiveEffectRoute} (call : PayloadRoot.Site grow s
     (canonical : reference.ctl = canon.control (call.referenceReply value)) :
     RejoinedGive call value profile ready bindings reached reference := by
   refine ⟨advance, ?_⟩
-  obtain ⟨_, _, _, path, _⟩ := advance
-  exact resume_returned_give call value frame (path 0) checked canonical
+  obtain ⟨_, _, _, path, _, _⟩ := advance
+  obtain ⟨left, right, checkRun, canonRun, storeEq, checkHost, canonHost, paired, _, _⟩ :=
+    resume_returned_give call value frame (path 0) checked canonical
+  exact ⟨left, right, checkRun, canonRun, storeEq, checkHost, canonHost, paired⟩
+
+theorem parkedMemoryThen {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory pointer))
+    (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (host (grow := grow) bindings).embedder) {finish : State grow sig → State grow sig → Prop}
+    (onReturn : OnGiveReturn call profile ready bindings impl (fun _ => finish)) :
+    ∃ depth, PayloadRoot.Cut call profile ready bindings (ParkedMemoryBody call depth profile ready bindings finish) impl := by
+  obtain ⟨depth, cut⟩ := parked_compiled_memory (profile := profile) (ready := ready) call linked call.referenceReply impl embedder
+  refine ⟨depth, ?_⟩
+  cases cut with
+  | refused issue silent run framed read => exact .refused issue silent run framed read
+  | placementTrap reason count verdict run framed read beforeTrap => exact .placementTrap reason count verdict run framed read beforeTrap
+  | placed silent verdict prepared run body framed read =>
+    refine .placed silent verdict prepared run (listTreeTracks depth call.field 0 (flatNat pointer) _ _ _ _ _ _
+      (.refl _ _) body ?_) framed read
+    intro lhs rhs check canon path atReturn
+    exact onReturn silent verdict prepared (PayloadRoot.Site.EntryPrefix.steps run) () lhs rhs
+      (rejoin call () path atReturn.1 atReturn.2.1 atReturn.2.2)
+
+theorem parkedFlatThen {schema : TypeOf} (call : PayloadRoot.Site grow sig (.flat schema))
+    (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))
+    (embedder : impl.embedder = (host (grow := grow) bindings).embedder)
+    {finish : List FlatValue → State grow sig → State grow sig → Prop}
+    (onReturn : OnGiveReturn call profile ready bindings impl finish) :
+    ∃ flatDepth entryDepth, PayloadRoot.Cut call profile ready bindings
+      (ParkedFlatResult call flatDepth entryDepth profile ready bindings finish) impl := by
+  obtain ⟨flatDepth, entryDepth, cut⟩ := parked_compiled_flat (profile := profile) (ready := ready) call linked call.referenceReply impl embedder
+  refine ⟨flatDepth, entryDepth, ?_⟩
+  cases cut with
+  | refused issue silent run framed read => exact .refused issue silent run framed read
+  | placementTrap reason count verdict run framed read beforeTrap => exact .placementTrap reason count verdict run framed read beforeTrap
+  | placed silent verdict prepared run body framed read =>
+    refine .placed silent verdict prepared run (flatTreeTracks flatDepth entryDepth call.field 0 _ _ _ _ _ _
+      (.refl _ _) body ?_) framed read
+    intro words lhs rhs check canon path atReturn
+    exact onReturn silent verdict prepared (PayloadRoot.Site.EntryPrefix.steps run) words lhs rhs
+      (rejoin call words path atReturn.1 atReturn.2.1 atReturn.2.2)
 
 theorem parkedMemoryRejoined {pointer : FlatValue} (call : PayloadRoot.Site grow sig (.memory pointer))
     (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ depth, PayloadRoot.Cut call profile ready bindings (ParkedRejoinedMemory call depth profile ready bindings) impl := by
-  obtain ⟨depth, cut⟩ := parked_compiled_memory (profile := profile) (ready := ready) call linked call.referenceReply impl embedder
-  refine ⟨depth, ?_⟩
-  cases cut with
-  | refused issue silent run => exact .refused issue silent run
-  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
-  | placed silent verdict prepared run body =>
-    refine .placed silent verdict prepared run (listTreeTracks depth call.field 0 (flatNat pointer) _ _ _ _ _ _
-      (.refl _ _) body ?_)
-    intro lhs rhs check canon path finish
-    exact rejoin call () path finish.1 finish.2.1 finish.2.2
+    ∃ depth, PayloadRoot.Cut call profile ready bindings (ParkedRejoinedMemory call depth profile ready bindings) impl :=
+  parkedMemoryThen call linked impl embedder (fun _ _ _ _ _ _ _ compared => compared)
 
 theorem parkedFlatRejoined {schema : TypeOf} (call : PayloadRoot.Site grow sig (.flat schema))
     (linked : call.Linked bindings) (impl : HostImpl (core3 grow) (HostState sig))
     (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
     ∃ flatDepth entryDepth, PayloadRoot.Cut call profile ready bindings
-      (ParkedRejoinedFlat call flatDepth entryDepth profile ready bindings) impl := by
-  obtain ⟨flatDepth, entryDepth, cut⟩ := parked_compiled_flat (profile := profile) (ready := ready) call linked call.referenceReply impl embedder
-  refine ⟨flatDepth, entryDepth, ?_⟩
-  cases cut with
-  | refused issue silent run => exact .refused issue silent run
-  | placementTrap reason count verdict run => exact .placementTrap reason count verdict run
-  | placed silent verdict prepared run body =>
-    refine .placed silent verdict prepared run (flatTreeTracks flatDepth entryDepth call.field 0 _ _ _ _ _ _
-      (.refl _ _) body ?_)
-    intro words lhs rhs check canon path finish
-    exact rejoin call words path finish.1 finish.2.1 finish.2.2
+      (ParkedRejoinedFlat call flatDepth entryDepth profile ready bindings) impl :=
+  parkedFlatThen call linked impl embedder (fun _ _ _ _ _ _ _ compared => compared)
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.MemoryTraversal

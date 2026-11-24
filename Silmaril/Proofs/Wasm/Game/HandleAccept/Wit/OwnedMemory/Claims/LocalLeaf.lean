@@ -11,6 +11,7 @@ import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Thms
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.PayloadLeaf.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 
 public section
 
@@ -72,6 +73,39 @@ private theorem localAdd (inst : InstId) (entry : HandleEntry) :
   · exact localTrap _
   · exact (localModify _).bind (fun _ => .pure _)
 
+private theorem localRemove (inst : InstId) (slot : Nat) : LocalProg (handlesRemove inst slot : P E Host HandleEntry) := by
+  unfold handlesRemove
+  refine (localInst inst).bind fun state => ?_
+  cases state.removeHandle? slot with
+  | none => exact localTrap _
+  | some removed => cases removed; exact (localModify _).bind fun _ => .pure _
+
+private theorem localTrapIf (guard : Bool) (reason : TrapReason) : LocalProg (trapIf guard reason : P E Host Unit) := by
+  cases guard
+  · exact .pure ()
+  · exact localTrap reason
+
+theorem localTake (limits : Component.Limits) (cx : LiftLowerContext E) (rt : RtId) (slot : Nat) :
+    LocalProg (Resources.take (World := Host) limits cx rt slot) := by
+  unfold Resources.take Resources.takeWith
+  refine (localRemove cx.inst slot).bind fun entry => ?_
+  cases entry with
+  | resource identity =>
+    simp only [expectResource, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
+    have fetched : LocalProg (getResHandle identity : P E Host ResourceHandle) := by
+      unfold getResHandle getObj
+      refine localGet.bind fun store => ?_
+      cases ArenaField.resHandles.get? store identity
+      · exact localTrap _
+      · exact .pure _
+    exact fetched.bind (fun handle =>
+      (localTrapIf (handle.rt != rt) .resourceTypeMismatch).bind fun _ =>
+      (localTrapIf (handle.numLends != 0) .ownLent).bind fun _ =>
+      (localTrapIf (!handle.own) .notOwnHandle).bind fun _ => .pure (Resources.Owned.mk identity handle.rep))
+  | waitable _ | wset _ | errCtx _ =>
+    simp only [expectResource, Prog.bind_eq, trap]
+    exact .op trivial (fun answer => nomatch answer)
+
 private theorem localOwn (limits : Component.Limits) (cx : LiftLowerContext E) (rt : RtId) (rep : Nat) :
     LocalProg (lowerOwn limits cx rt rep : P E Host Nat) :=
   localGet.bind fun _ => (localModify _).bind fun _ => localAdd cx.inst _
@@ -117,25 +151,114 @@ theorem localHandle (limits : Component.Limits) (quirks : Quirks) (cx : LiftLowe
     | flat => exact (localAdd cx.inst (.errCtx id)).bind fun _ => .pure _
   | _ => contradiction
 
-private theorem execute {profile : ProfileKind} {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
-    (body : P E Host Result) (start : Config E Host) (reached : CStore E) (outcome : Except TrapReason Result)
-    (finish : Result → P E Host (Ret E)) {thread frames rest}
-    (focused : start.ctl = ⟨thread, .prog (body >>= finish), frames⟩ :: rest)
-    (evaluated : Plain.runBody body start.store start.host (some thread) =
-      (reached, start.host, outcome.mapError .trapped)) :
-    ∃ labels, LocalLeafLabels outcome labels ∧ Steps profile ready dispatch start labels
-      (localLeafEnd start start.host reached thread frames rest finish outcome) ∧
-      (∀ value, outcome = .ok value → RetainsActiveSlots profile ready dispatch start labels
-        (localLeafEnd start start.host reached thread frames rest finish (.ok value))) := by
-  cases outcome with
-  | ok value =>
-    obtain ⟨labels, silent, tracks⟩ := Plain.runBody_thread_tracks body start reached start.host value finish thread frames rest
-      profile ready dispatch focused evaluated
-    exact ⟨labels, silent, (prefix_survives (tracks 0)).1, fun _ equal => by cases equal; exact tracks⟩
-  | error reason =>
-    obtain ⟨count, steps⟩ := Plain.runBody_trap_steps body start reached start.host reason finish thread frames rest
-      profile ready dispatch focused evaluated
-    exact ⟨_, ⟨count, rfl⟩, steps, fun _ equal => by cases equal⟩
+private theorem executePair {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch reference : Call E → P E Host (Ret E)} {body : P E Host Result} (only : LocalProg body)
+    (left right : Config E Host) (reached : CStore E) (outcome : Except TrapReason Result)
+    (checkNext canonNext : Result → P E Host (Ret E)) {thread checkFrames checkRest canonFrames canonRest}
+    (same : left.store = right.store)
+    (checkAt : left.ctl = ⟨thread, .prog (body >>= checkNext), checkFrames⟩ :: checkRest)
+    (canonAt : right.ctl = ⟨thread, .prog (body >>= canonNext), canonFrames⟩ :: canonRest)
+    (evaluated : Plain.runBody body left.store left.host (some thread) =
+      (reached, left.host, outcome.mapError .trapped)) :
+    ∃ labels, LocalLeafLabels outcome labels ∧ PairedLeafSteps profile ready dispatch reference left right labels
+      (localLeafEnd left left.host reached thread checkFrames checkRest checkNext outcome)
+      (localLeafEnd right right.host reached thread canonFrames canonRest canonNext outcome) := by
+  induction only generalizing left right with
+  | pure value =>
+    cases outcome <;> simp [Plain.runBody, Except.mapError] at evaluated
+    obtain ⟨rfl, rfl⟩ := evaluated
+    have leftEnd : localLeafEnd left left.host left.store thread checkFrames checkRest checkNext (.ok value) = left := by
+      cases left; simp_all [localLeafEnd]
+    have rightEnd : localLeafEnd right right.host left.store thread canonFrames canonRest canonNext (.ok value) = right := by
+      cases right; simp_all [localLeafEnd]
+    rw [leftEnd, rightEnd]
+    exact ⟨[], by simp [LocalLeafLabels], .done same⟩
+  | @op operation next allowed children ih =>
+    have advance (response : operation.Resp) (leftStore rightStore : CStore E)
+        (store : leftStore = rightStore)
+        (checkStep : Step profile ready dispatch left .tau
+          { left with store := leftStore, ctl := ⟨thread, .prog (next response >>= checkNext), checkFrames⟩ :: checkRest })
+        (canonStep : Step profile ready reference right .tau
+          { right with store := rightStore, ctl := ⟨thread, .prog (next response >>= canonNext), canonFrames⟩ :: canonRest })
+        (checkEdit : transitionEdit left .tau = .same) (canonEdit : transitionEdit right .tau = .same)
+        (evaluated : Plain.runBody (next response) leftStore left.host (some thread) =
+          (reached, left.host, outcome.mapError .trapped)) :
+        ∃ labels, LocalLeafLabels outcome labels ∧ PairedLeafSteps profile ready dispatch reference left right labels
+          (localLeafEnd left left.host reached thread checkFrames checkRest checkNext outcome)
+          (localLeafEnd right right.host reached thread canonFrames canonRest canonNext outcome) := by
+      obtain ⟨labels, kind, tail⟩ := ih response
+        { left with store := leftStore, ctl := ⟨thread, .prog (next response >>= checkNext), checkFrames⟩ :: checkRest }
+        { right with store := rightStore, ctl := ⟨thread, .prog (next response >>= canonNext), canonFrames⟩ :: canonRest }
+        store rfl rfl evaluated
+      refine ⟨.tau :: labels, ?_, ?_⟩
+      · cases outcome with
+        | ok value => simpa [LocalLeafLabels] using kind
+        | error reason =>
+          obtain ⟨count, rfl⟩ := kind
+          exact ⟨count + 1, by rw [List.replicate_succ, List.cons_append]⟩
+      · cases outcome <;> exact .step same checkStep canonStep rfl rfl checkEdit (canonEdit.trans checkEdit.symm) tail
+    cases operation <;> try contradiction
+    case get =>
+      exact advance left.store left.store right.store same (.get checkAt) (by rw [same]; exact .get canonAt)
+        (by rw [transitionEdit, checkAt]; rfl) (by rw [transitionEdit, canonAt]; rfl) evaluated
+    case modify update =>
+      exact advance () (update left.store) (update right.store) (congrArg update same) (.modify checkAt) (.modify canonAt)
+        (by rw [transitionEdit, checkAt]; rfl) (by rw [transitionEdit, canonAt]; rfl) evaluated
+    case trap reason =>
+      cases outcome <;> simp [Plain.runBody, Except.mapError] at evaluated
+      obtain ⟨rfl, rfl⟩ := evaluated
+      rw [show localLeafEnd right right.host left.store thread canonFrames canonRest canonNext (.error reason) =
+        StepDefs.trapCfg right by rw [same]; rfl]
+      exact ⟨[.trap reason], ⟨0, rfl⟩, .step same (.trap checkAt) (.trap canonAt) rfl rfl rfl rfl
+        (.done (congrArg StepDefs.lockdownSt same))⟩
+    case currentThread =>
+      exact advance thread left.store right.store same (.currentThread checkAt) (.currentThread canonAt)
+        (by rw [transitionEdit, checkAt]; rfl) (by rw [transitionEdit, canonAt]; rfl) evaluated
+
+private theorem pairTracks {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch reference : Call E → P E Host (Ret E)} {left right reached peer labels} {outcome : Except TrapReason Result}
+    (path : PairedLeafSteps profile ready dispatch reference left right labels reached peer)
+    (kind : LocalLeafLabels outcome labels) (mark : Option Location) :
+    Trail profile ready dispatch left mark labels reached (localOccurrenceEnd outcome mark) ∧
+    Trail profile ready reference right mark labels peer (localOccurrenceEnd outcome mark) := by
+  induction path generalizing mark with
+  | done =>
+    cases outcome with
+    | ok => exact ⟨.done _ _, .done _ _⟩
+    | error reason => obtain ⟨count, empty⟩ := kind; simp at empty
+  | @step left right middle actual reached peer label labels _ checked raw _ _ checkedEdit sameEdit tail ih =>
+    cases label with
+    | tau =>
+      have kindTail : LocalLeafLabels outcome labels := by
+        cases outcome with
+        | ok value => simpa [LocalLeafLabels] using kind
+        | error reason =>
+          obtain ⟨count, shape⟩ := kind
+          cases count with
+          | zero => simp at shape
+          | succ count => exact ⟨count, by simpa [List.replicate_succ] using shape⟩
+      obtain ⟨ltrack, rtrack⟩ := ih kindTail mark
+      exact ⟨.step checked (by rw [checkedEdit]; cases mark <;> exact ltrack),
+        .step raw (by rw [sameEdit, checkedEdit]; cases mark <;> exact rtrack)⟩
+    | trap reason =>
+      cases outcome with
+      | ok value => simp [LocalLeafLabels] at kind
+      | error stopped =>
+        obtain ⟨count, shape⟩ := kind
+        cases count with
+        | succ count => simp [List.replicate_succ] at shape
+        | zero =>
+          simp at shape
+          obtain ⟨rfl, rfl⟩ := shape
+          cases tail
+          exact ⟨.step checked (by rw [checkedEdit]; cases mark with | none => exact .done _ _ | some place => cases place <;> exact .done _ _),
+            .step raw (by rw [sameEdit, checkedEdit]; cases mark with | none => exact .done _ _ | some place => cases place <;> exact .done _ _)⟩
+    | core | host | choice | obs =>
+      cases outcome with
+      | ok value => simp [LocalLeafLabels] at kind
+      | error reason =>
+        obtain ⟨count, shape⟩ := kind
+        cases count <;> simp [List.replicate_succ] at shape
 
 variable {grow : SingleThreaded.GrowOracle} {sig : Stored.Signature}
   {profile : ProfileKind} {ready : HostReady (HostState sig)}
@@ -177,7 +300,8 @@ private theorem canonical_growth (base : CStore (core3 grow)) (destination : Rec
   | memory ptr => exact P.Inv.store laws _ _ _ _ _ ptr
   | flat => exact P.Inv.lowerFlatAt laws _ _ _ _ _ _
 
-theorem compare {checked canonical : Config (core3 grow) (HostState sig)}
+theorem compare {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {checked canonical : Config (core3 grow) (HostState sig)}
     (sameStore : checked.store = canonical.store) (destination : RecordDestination) (inst : InstId)
     (item : Field) (handle : CanonicalHandle item) (index : Nat) (output : Stored.Lower.Output)
     (checkNext : Except Stored.Endpoints.RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -187,8 +311,8 @@ theorem compare {checked canonical : Config (core3 grow) (HostState sig)}
     (canonAt : canonical.ctl = ⟨thread, .prog (CanonicalTree.leaf Component.Limits.spec Quirks.none
       (destination.context inst) destination.width item output >>= canonNext), canonFrames⟩ :: canonRest) :
     match liveLeafPlan checked.store checked.host.writer index item with
-    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch checked labels
-        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest }
+    | .error issue => ∃ labels, (∀ label ∈ labels, label = .tau) ∧ LeafGuardSteps profile ready dispatch checked labels
+        { checked with ctl := ⟨thread, .prog (checkNext (.error issue)), checkFrames⟩ :: checkRest } none
     | .ok plan =>
       let host := plan.elim checked.host (fun spend => { checked.host with writer := spend.apply checked.host.writer })
       ∃ reached outcome leading checkLabels canonLabels,
@@ -196,26 +320,39 @@ theorem compare {checked canonical : Config (core3 grow) (HostState sig)}
         (∀ label ∈ leading, label = .tau) ∧ LocalLeafLabels outcome checkLabels ∧ LocalLeafLabels outcome canonLabels ∧
         Steps profile ready dispatch checked (leading ++ checkLabels)
           (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome) ∧
-        Steps profile ready dispatch canonical canonLabels
+        Steps profile ready reference canonical canonLabels
           (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome) ∧
-        ∀ value, outcome = .ok value →
+        (∀ mark, Trail profile ready dispatch checked mark (leading ++ checkLabels)
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome)
+          (localOccurrenceEnd outcome mark) ∧
+          Trail profile ready reference canonical mark canonLabels
+            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome)
+            (localOccurrenceEnd outcome mark)) ∧
+        (∀ value, outcome = .ok value →
           RetainsActiveSlots profile ready dispatch checked (leading ++ checkLabels)
             (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) (.ok value)) ∧
-          RetainsActiveSlots profile ready dispatch canonical canonLabels
-            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value)) := by
+          RetainsActiveSlots profile ready reference canonical canonLabels
+            (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext (.ok value))) ∧
+        GuardedLeafSteps profile ready dispatch reference checked canonical leading checkLabels canonLabels
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome)
+          (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome) plan ∧
+        ∀ update, plan = some update → ExclusiveLeafWriterFlow update checked.host canonical.host
+          (localLeafEnd checked host reached thread checkFrames checkRest (fun result => checkNext (.ok result)) outcome).host
+          (localLeafEnd canonical canonical.host reached thread canonFrames canonRest canonNext outcome).host := by
   let body := (CanonicalTree.leaf Component.Limits.spec Quirks.none (destination.context inst)
     destination.width item output : Session grow sig output.Result)
   obtain ⟨guardLabels, guardSilent, guardSteps⟩ := RecordDestination.checked_leaf_prefix
     (profile := profile) (ready := ready) (dispatch := dispatch) checked destination inst item index output checkNext checkAt
   cases verdict : liveLeafPlan checked.store checked.host.writer index item with
   | error issue =>
-    exact ⟨guardLabels, guardSilent, by simpa only [verdict] using guardSteps⟩
+    exact ⟨guardLabels, guardSilent, by simpa only [verdict, Except.toOption, Option.join, Option.bind] using guardSteps⟩
   | ok plan =>
     let host := plan.elim checked.host (fun spend => { checked.host with writer := spend.apply checked.host.writer })
     let checkedNext := { checked with host, ctl := ⟨thread, .prog (body >>= fun result => checkNext (.ok result)),
       checkFrames⟩ :: checkRest }
-    have prefixTracks : RetainsActiveSlots profile ready dispatch checked guardLabels checkedNext := by
-      cases plan <;> simpa only [verdict, checkedNext, host, body, Option.elim] using guardSteps
+    have guard : LeafGuardSteps profile ready dispatch checked guardLabels checkedNext plan := by
+      cases plan <;> simpa only [verdict, checkedNext, host, body, Option.elim, Except.toOption, Option.join, Option.bind, id] using guardSteps
+    have prefixTracks := guard.tracks
     obtain ⟨reached, outcome, evaluated⟩ := eval
       (localHandle Component.Limits.spec Quirks.none (destination.context inst) destination.width item output handle)
       thread checked.store
@@ -229,14 +366,52 @@ theorem compare {checked canonical : Config (core3 grow) (HostState sig)}
       change Core3.Grows canonical.store.core (Plain.runBody body canonical.store canonical.host (some thread)).1.core at kept
       rw [canonEval] at kept
       exact kept
-    obtain ⟨checkLabels, checkTrace, checkRun, checkTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := dispatch)
-      body checkedNext reached outcome (fun result => checkNext (.ok result)) (thread := thread)
-      (frames := checkFrames) (rest := checkRest) rfl checkedEval
-    obtain ⟨canonLabels, canonTrace, canonRun, canonTracks⟩ := execute (profile := profile) (ready := ready) (dispatch := dispatch)
-      body canonical reached outcome canonNext canonAt canonEval
-    refine ⟨reached, outcome, guardLabels, checkLabels, canonLabels, grown, guardSilent, checkTrace, canonTrace, ?_, canonRun, ?_⟩
-    · cases outcome <;> exact chain (prefix_survives (prefixTracks 0)).1 checkRun
+    obtain ⟨labels, trace, bodyRun⟩ := executePair (profile := profile) (ready := ready) (dispatch := dispatch) (reference := reference)
+      (localHandle Component.Limits.spec Quirks.none (destination.context inst) destination.width item output handle)
+      checkedNext canonical reached outcome (fun result => checkNext (.ok result)) canonNext sameStore rfl canonAt checkedEval
+    have tracks := pairTracks bodyRun trace
+    have guardRun := (prefix_survives (prefixTracks (.active 0 0))).1
+    refine ⟨reached, outcome, guardLabels, labels, labels, grown, guardSilent, trace, trace,
+      ?_, (tracks none).2.steps, ?_, ?_, ⟨checkedNext,
+        ⟨destination, inst, item, index, output, checkNext, thread, checkFrames, checkRest, checkAt, verdict⟩,
+        guard, rfl, ?_⟩, ?_⟩
+    · cases outcome <;> exact chain guardRun (tracks none).1.steps
+    · intro mark
+      refine ⟨?_, (tracks mark).2⟩
+      have stitched (startMark) : Trail profile ready dispatch checked startMark guardLabels checkedNext startMark := by
+        cases startMark with
+        | none => exact Trail.absent guardRun
+        | some place => exact (prefixTracks place).toTrail
+      cases outcome <;> exact (stitched mark).append (tracks mark).1
     · intro value success
-      exact ⟨fun depth => (prefixTracks depth).append (checkTracks value success depth), canonTracks value success⟩
+      cases success
+      have retained (place : Location) := tracks (some place)
+      refine ⟨fun depth => ?_, fun depth => ?_⟩
+      · obtain ⟨place, equal, path⟩ := (retained (.active 0 depth)).1.survives
+        cases equal
+        exact (prefixTracks _).append path
+      · obtain ⟨place, equal, path⟩ := (retained (.active 0 depth)).2.survives
+        cases equal
+        exact path
+    · cases outcome <;> exact bodyRun
+    · intro update chosen
+      subst plan
+      have live := liveLeafPlan_spend_live verdict
+      cases outcome <;> exact ⟨live, rfl, rfl, fun agrees => agrees.asymmetricSpend live⟩
+
+theorem endpoint_registration_split {sig : Stored.Signature} {id : EndId}
+    {left right checked canonical : HostState sig}
+    (flow : ExclusiveLeafWriterFlow (.endpoint id) left right checked canonical)
+    (agrees : left.writer.LiveClaimsAgree right.writer) (tree : Stored.OwnedMemory.Tree sig)
+    (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :
+    ∃ registered, checked.writer.register tree = .ok registered ∧ canonical.writer.register tree = .error .alias := by
+  have peerLive := (agrees.endpoints id).mp flow.live
+  rw [flow.checkedHost, flow.canonicalHost]
+  let spent := (Spend.endpoint id).apply left.writer
+  have absent : id ∉ spent.endpoints := (Spend.endpoint id).not_live left.writer
+  refine ⟨⟨tree :: spent.accepted, spent.held, [id] ++ spent.endpoints⟩, ?_, ?_⟩
+  · change spent.register tree = _
+    simp [State.register, unowned, one, absent]
+  · simp [State.register, unowned, one, peerLive]
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.LocalLeaf

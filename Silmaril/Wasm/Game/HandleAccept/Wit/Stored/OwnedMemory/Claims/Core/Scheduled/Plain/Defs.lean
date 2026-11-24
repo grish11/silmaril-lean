@@ -2,13 +2,27 @@ module
 
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Defs
 public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Plain.Defs
+public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
 
 @[expose] public section
 
 namespace Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Plain
 
 open Silmaril.Wasm.Component.Canon Silmaril.Wasm.Component.Engine Silmaril.Wasm.Component.Runtime
+open Silmaril.Wasm.Component
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core (LocalIssue)
+
+/-- An exact finite path whose executed steps never focus a direct dispatch.
+The terminal focus need not be closed. -/
+inductive NoDirectCalls {E : CoreEngine} {Host : Type} (profile : ProfileKind) (ready : HostReady Host)
+    (dispatch : Call E → P E Host (Ret E)) :
+    Machine.Config E Host → List (Machine.Label E Host) → Machine.Config E Host → Prop where
+  | done (state : Machine.Config E Host) : NoDirectCalls profile ready dispatch state [] state
+  | next {start middle finish label labels}
+      (closed : ∀ {thread call next frames rest}, start.ctl ≠ ⟨thread, .prog (.op (.call call) next), frames⟩ :: rest)
+      (step : Machine.Step profile ready dispatch start label middle)
+      (tail : NoDirectCalls profile ready dispatch middle labels finish) :
+      NoDirectCalls profile ready dispatch start (label :: labels) finish
 
 /-- Evaluate the non-suspending part of a checked import. A known activation
 supplies its thread (which may be absent on a host frame). With no activation
@@ -37,6 +51,54 @@ def runBody {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
       (reference, host, .error .scheduling)
     | .emit _ => (reference, host, .error .hostEffect)
 termination_by structural body
+
+/-- Count the local instructions up to the returned value or first effect
+that the plain interpreter cannot run. -/
+def bodyLength {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+    (reference : CStore E) (host : Host) (activation : Option (Option ThreadId)) : Nat :=
+  match body with
+  | .pure _ => 0
+  | .op op next =>
+    match op with
+    | .get => bodyLength (next reference) reference host activation + 1
+    | .modify update => bodyLength (next ()) (update reference) host activation + 1
+    | .hostGet => bodyLength (next host) reference host activation + 1
+    | .hostSet updated => bodyLength (next ()) reference updated activation + 1
+    | .currentThread =>
+      match activation with
+      | some thread => bodyLength (next thread) reference host activation + 1
+      | none => 0
+    | _ => 0
+termination_by structural body
+
+/-- Check a host-field frame along the reached local interpreter branch,
+including each assignment. The check does not run the consumer of the result. -/
+def FramesHost {E : CoreEngine} {Host Result Observed : Type} (project : Host → Observed)
+    (body : P E Host Result) (reference : CStore E) (host : Host) (activation : Option (Option ThreadId)) : Prop :=
+  match body with
+  | .pure _ => True
+  | .op op next =>
+    match op with
+    | .get => FramesHost project (next reference) reference host activation
+    | .modify update => FramesHost project (next ()) (update reference) host activation
+    | .hostGet => FramesHost project (next host) reference host activation
+    | .hostSet updated => project updated = project host ∧ FramesHost project (next ()) reference updated activation
+    | .currentThread => match activation with
+      | some thread => FramesHost project (next thread) reference host activation
+      | none => True
+    | _ => True
+termination_by structural body
+
+/-- An executed path with a separate frame proof for each step. -/
+inductive HostFramedSteps {E : CoreEngine} {Host Observed : Type} (project : Host → Observed)
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E)) :
+    Machine.Config E Host → List (Machine.Label E Host) → Machine.Config E Host → Prop where
+  | done (state : Machine.Config E Host) : HostFramedSteps project profile ready dispatch state [] state
+  | next {start middle finish label labels}
+      (step : Machine.Step profile ready dispatch start label middle)
+      (frame : project middle.host = project start.host)
+      (tail : HostFramedSteps project profile ready dispatch middle labels finish) :
+      HostFramedSteps project profile ready dispatch start (label :: labels) finish
 
 /-- Resolve the active thread's instance through the live arenas. A host frame
 has no instance; a dangling thread or task is a reference-machine error, not

@@ -66,6 +66,27 @@ theorem outside_edit {older : Substitutions E Host} {left right : Stacks E Host}
     Outside older (edit.apply left) (edit.apply right) (mark.bind edit.follow) :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.outside_edit outside edit
 
+theorem OutsideMarks.edit {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)}
+    (outside : OutsideMarks older left right marks) (edit : Edit E Host) :
+    OutsideMarks older (edit.apply left) (edit.apply right) (marks.map (·.bind edit.follow)) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.outsideMarks_edit outside edit
+
+/-- Installing a new continuation preserves each enclosing exception at
+its shifted location and exempts only the freshly installed slot. -/
+theorem OutsideMarks.push {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)}
+    (outside : OutsideMarks older left right marks) (first second : Seg E Host) :
+    OutsideMarks older ((Edit.push first).apply left) ((Edit.push second).apply right)
+      (some (.active 0 0) :: marks.map (·.map Location.pushed)) :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.outsideMarks_push first second outside
+
+theorem outsideMarks_singleton {older : Substitutions E Host} {left right : Stacks E Host} {mark : Option Location} :
+    OutsideMarks older left right [mark] ↔ Outside older left right mark := by
+  simp only [OutsideMarks, List.mem_singleton, Outside]
+
+theorem outsideMarks_drop_lost {older : Substitutions E Host} {left right : Stacks E Host} {marks : List (Option Location)} :
+    OutsideMarks older left right (none :: marks) ↔ OutsideMarks older left right marks := by
+  simp only [OutsideMarks, List.mem_cons, reduceCtorEq, false_or]
+
 theorem narrow {older wider : Substitutions E Host} {left right : Config E Host}
     (paired : Related.Paired wider left right)
     (outside : Outside older (segmentStorage left) (segmentStorage right) none) : Related.Paired older left right :=
@@ -101,12 +122,19 @@ theorem Prefix.append {before middle after : Config E Host} {leading trailing : 
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefix_append left right
 
 /-- A store read changes the focused program but does not edit any segment slot. -/
+theorem Prefix.read_at {before : Config E Host} {thread frames rest}
+    {next : CStore E → P E Host (Ret E)} (place : Location)
+    (focused : before.ctl = ⟨thread, .prog (.op (S := Eff E Host) .get next), frames⟩ :: rest) :
+    Prefix profile ready dispatch before place [.tau]
+      { before with ctl := ⟨thread, .prog (next before.store), frames⟩ :: rest } place :=
+  .step (.get focused) (by rw [transitionEdit, focused]; cases place <;> rfl) (.done _ _)
+
 theorem Prefix.read {before : Config E Host} {thread frames rest}
     {next : CStore E → P E Host (Ret E)} (depth : Nat)
     (focused : before.ctl = ⟨thread, .prog (.op (S := Eff E Host) .get next), frames⟩ :: rest) :
     Prefix profile ready dispatch before (.active 0 depth) [.tau]
       { before with ctl := ⟨thread, .prog (next before.store), frames⟩ :: rest } (.active 0 depth) :=
-  .step (.get focused) (by rw [transitionEdit, focused]; rfl) (.done _ _)
+  Prefix.read_at (.active 0 depth) focused
 
 /-- Pop the actual return frame, keeping every slot below it. -/
 theorem Prefix.pop_return {before : Config E Host} {thread frames rest value} {resume : Continuation E Host}
@@ -140,6 +168,12 @@ theorem Prefix.toTrail {before after : Config E Host} {labels : List (Label E Ho
     (run : Prefix profile ready dispatch before place labels after reached) :
     Trail profile ready dispatch before (some place) labels after (some reached) :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.prefixTrail run
+
+theorem Trail.steps {before after : Config E Host} {labels : List (Label E Host)} {place reached : Option Location}
+    (trail : Trail profile ready dispatch before place labels after reached) : Steps profile ready dispatch before labels after := by
+  induction trail with
+  | done => exact .refl _
+  | step step _ ih => exact .cons step ih
 
 theorem Trail.append {before middle after : Config E Host} {leading trailing : List (Label E Host)}
     {mark reached final : Option Location} (left : Trail profile ready dispatch before mark leading middle reached)
@@ -182,6 +216,29 @@ theorem Trail.through_return_suffix {start entered reached after : Config E Host
 theorem Trail.absent {before after : Config E Host} {labels : List (Label E Host)} (run : Steps profile ready dispatch before labels after) :
     Trail profile ready dispatch before none labels after none :=
   Proofs.Wasm.Component.Reference.MachineReturnOccurrence.absentTrail run
+
+/-- Follow any starting mark through the edits of this actual finite run,
+including a saved mark that moves to active or is overwritten. -/
+theorem Trail.follow_steps {before after : Config E Host} {labels : List (Label E Host)}
+    (run : Steps profile ready dispatch before labels after) (mark : Option Location) :
+    ∃ reached, Trail profile ready dispatch before mark labels after reached :=
+  Proofs.Wasm.Component.Reference.MachineReturnOccurrence.followSteps run mark
+
+/-- The Core reply pops only the reached caller. Older active segments
+move one slot up; suspended and other active activations are untouched. -/
+theorem Trail.pop_core {before : Config E Host} {thread values core next frames rest} (mark : Location)
+    (focused : before.ctl = ⟨thread, .prog (.pure (.flat values)), .core core next :: frames⟩ :: rest) :
+    Trail profile ready dispatch before (some mark) [.tau]
+      { before with ctl := ⟨thread, .core (E.resume before.store.core core (.values values)) next, frames⟩ :: rest }
+      ((Edit.pop : Edit E Host).follow mark) :=
+  .step (.popCore focused) (by rw [transitionEdit, focused]; exact .done _ _)
+
+theorem Trail.pop_prog {before : Config E Host} {thread value resume frames rest} (mark : Option Location)
+    (focused : before.ctl = ⟨thread, .prog (.pure value), .prog resume :: frames⟩ :: rest) :
+    Trail profile ready dispatch before mark [.tau]
+      { before with ctl := ⟨thread, .prog (resume value), frames⟩ :: rest }
+      (mark.bind (Edit.pop : Edit E Host).follow) :=
+  .step (.popProg focused) (by rw [transitionEdit, focused]; exact .done _ _)
 
 /-- An absent final mark identifies a real first loss in the same tracked
 run. Only a loss by popping the selected slot enters its continuation. -/

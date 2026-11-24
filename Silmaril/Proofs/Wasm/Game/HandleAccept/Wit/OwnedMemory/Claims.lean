@@ -9,6 +9,7 @@ namespace Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims
 open Silmaril.Wasm.Component.Runtime
   Silmaril.Wasm.Game.HandleAccept.Wit.Stored
   Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims
+open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory (Receipt)
 
 theorem register_claims {sig : Signature} {state registered : State sig}
     {tree : OwnedMemory.Tree sig} (success : state.register tree = .ok registered) :
@@ -19,6 +20,375 @@ theorem register_claims {sig : Signature} {state registered : State sig}
   dsimp only at success
   split at success <;> cases success
   exact ⟨rfl, rfl, rfl⟩
+
+private theorem containsAny_eq {α : Type} [BEq α] [LawfulBEq α] {demands left right : List α}
+    (agrees : ∀ id ∈ demands, (id ∈ left ↔ id ∈ right)) :
+    demands.any left.contains = demands.any right.contains := by
+  have absent : (demands.any left.contains = false) ↔ (demands.any right.contains = false) := by
+    constructor
+    · exact fun clear => List.any_eq_false.mpr fun id member found =>
+        List.any_eq_false.mp clear id member (List.contains_iff_mem.mpr ((agrees id member).mpr (List.contains_iff_mem.mp found)))
+    · exact fun clear => List.any_eq_false.mpr fun id member found =>
+        List.any_eq_false.mp clear id member (List.contains_iff_mem.mpr ((agrees id member).mp (List.contains_iff_mem.mp found)))
+  cases lhs : demands.any left.contains <;> cases rhs : demands.any right.contains <;> simp_all
+
+private theorem owner_spend_membership {sig : Signature} (state : State sig) (spent id : HandleObjId) :
+    id ∈ ((Spend.owner spent).apply state).held.map receiptId ↔ id ∈ state.held.map receiptId ∧ id ≠ spent := by
+  simp only [Spend.apply, List.mem_map, List.mem_filter, bne_iff_ne]
+  constructor
+  · rintro ⟨receipt, ⟨member, fresh⟩, same⟩
+    exact ⟨⟨receipt, member, same⟩, same ▸ fresh⟩
+  · rintro ⟨⟨receipt, member, same⟩, fresh⟩
+    exact ⟨receipt, ⟨member, same.symm ▸ fresh⟩, same⟩
+
+theorem register_observations {sig : Signature} {left right : State sig} {tree : OwnedMemory.Tree sig}
+    (agrees : left.RegistrationChecksAgree right tree)
+    (length : left.accepted.length = right.accepted.length) :
+    (left.register tree).map (fun writer => writer.accepted.length) =
+      (right.register tree).map (fun writer => writer.accepted.length) := by
+  unfold State.register
+  dsimp only
+  rw [containsAny_eq agrees.owners, containsAny_eq agrees.endpoints]
+  split <;> simp [Except.map, length]
+
+theorem indexedClaims_registration {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (tree : OwnedMemory.Tree sig) :
+    left.RegistrationChecksAgree right tree := by
+  refine ⟨?_, fun id _ => agrees.endpoints id⟩
+  intro id _
+  simp only [List.map_append, List.mem_append, agrees.accepted, agrees.held]
+
+theorem indexedClaims_spend {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (spend : Spend) :
+    (spend.apply left).IndexedClaimsAgree (spend.apply right) := by
+  cases spend with
+  | owner spent =>
+    refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
+    intro id
+    rw [owner_spend_membership, owner_spend_membership, agrees.held id]
+  | endpoint spent =>
+    refine ⟨agrees.accepted, agrees.held, ?_⟩
+    intro id
+    simp only [Spend.apply, List.mem_filter, bne_iff_ne, agrees.endpoints]
+
+theorem registration_after_left_spend {sig : Signature} {left right : State sig} {tree : OwnedMemory.Tree sig}
+    (agrees : left.RegistrationChecksAgree right tree) (update : Spend)
+    (frames : update.FramesRegistration left tree) :
+    (update.apply left).RegistrationChecksAgree right tree := by
+  cases update with
+  | owner spent =>
+    refine ⟨?_, agrees.endpoints⟩
+    intro id demand
+    rw [← agrees.owners id demand]
+    simp only [List.map_append, List.mem_append]
+    rw [owner_spend_membership]
+    have unchanged : ((Spend.owner spent).apply left).accepted = left.accepted := rfl
+    rw [unchanged]
+    by_cases same : id = spent
+    · subst id
+      unfold Spend.FramesRegistration at frames
+      cases frames with
+      | inl absent => exact (absent demand).elim
+      | inr historical => simp only [historical, true_or]
+    · exact ⟨fun member => member.elim Or.inl (fun kept => Or.inr kept.1),
+        fun member => member.elim Or.inl (fun kept => Or.inr ⟨kept, same⟩)⟩
+  | endpoint spent =>
+    refine ⟨agrees.owners, ?_⟩
+    intro id demand
+    have different : id ≠ spent := fun same => frames (same ▸ demand)
+    simpa [Spend.apply, List.mem_filter, different] using agrees.endpoints id demand
+
+theorem indexedClaims_register {sig : Signature} {left right : State sig}
+    (agrees : left.IndexedClaimsAgree right) (tree : OwnedMemory.Tree sig) :
+    (∃ issue, left.register tree = .error issue ∧ right.register tree = .error issue) ∨
+      ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.IndexedClaimsAgree rhs := by
+  have checks := indexedClaims_registration agrees tree
+  simp only [State.register]
+  rw [containsAny_eq checks.owners, containsAny_eq checks.endpoints]
+  split
+  · refine .inr ⟨_, _, rfl, rfl, ⟨congrArg (tree :: ·) agrees.accepted, ?_, ?_⟩⟩
+    · intro id
+      simp only [List.map_append, List.mem_append, agrees.held]
+    · intro id
+      simp only [List.mem_append, agrees.endpoints]
+  · exact .inl ⟨_, rfl, rfl⟩
+
+private theorem ownerObservation_none {sig : Signature} (state : State sig) (id : HandleObjId) :
+    state.ownerObservation id = none ↔ id ∉ state.held.map receiptId := by
+  have erase : state.ownerObservation id = none ↔ state.held.find? (fun receipt => receiptId receipt == id) = none := by
+    unfold State.ownerObservation
+    cases (state.held.find? (fun receipt => receiptId receipt == id)) <;> simp
+  rw [erase, List.find?_eq_none]
+  constructor
+  · intro absent member
+    obtain ⟨receipt, present, rfl⟩ := List.mem_map.mp member
+    simpa using absent receipt present
+  · intro absent receipt member
+    have distinct : receiptId receipt ≠ id := fun same => absent (List.mem_map.mpr ⟨receipt, member, same⟩)
+    simp [distinct]
+
+theorem liveClaims_indexed {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) : left.IndexedClaimsAgree right := by
+  refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
+  intro id
+  rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, agrees.owners]
+
+private theorem findOwner_filter (held : List Receipt) (spent id : HandleObjId) :
+    (held.filter (fun receipt => receiptId receipt != spent)).find? (fun receipt => receiptId receipt == id) =
+      if id = spent then none else held.find? (fun receipt => receiptId receipt == id) := by
+  rw [List.find?_filter]
+  by_cases same : id = spent
+  · subst spent
+    simp
+  · rw [ite_eq_right same]
+    congr 1
+    funext receipt
+    by_cases found : receiptId receipt = id <;> simp_all
+
+theorem observation_after_spend {sig : Signature} {left right : State sig} {probe : Spend}
+    (agrees : probe.ObservationAgrees left right) (update : Spend) :
+    probe.ObservationAgrees (update.apply left) (update.apply right) := by
+  cases probe with
+  | owner id =>
+    cases update with
+    | owner spent =>
+      simp only [Spend.ObservationAgrees, State.ownerObservation, Spend.apply, findOwner_filter]
+      by_cases same : id = spent
+      · simp only [ite_eq_left same]
+      · simpa only [ite_eq_right same, Spend.ObservationAgrees, State.ownerObservation] using agrees
+    | endpoint => exact agrees
+  | endpoint id =>
+    cases update with
+    | owner => exact agrees
+    | endpoint spent =>
+      have membership : id ∈ left.endpoints ↔ id ∈ right.endpoints := agrees
+      simp only [Spend.ObservationAgrees, Spend.apply, List.mem_filter, bne_iff_ne, membership]
+
+theorem observation_after_left_spend {sig : Signature} {left right : State sig} {probe : Spend}
+    (agrees : probe.ObservationAgrees left right) (update : Spend) (distinct : probe ≠ update) :
+    probe.ObservationAgrees (update.apply left) right := by
+  cases probe with
+  | owner id =>
+    cases update with
+    | owner spent =>
+      have separate : id ≠ spent := fun same => distinct (congrArg Spend.owner same)
+      simpa only [Spend.ObservationAgrees, State.ownerObservation, Spend.apply, findOwner_filter,
+        ite_eq_right separate] using agrees
+    | endpoint => exact agrees
+  | endpoint id =>
+    cases update with
+    | owner => exact agrees
+    | endpoint spent =>
+      have separate : id ≠ spent := fun same => distinct (congrArg Spend.endpoint same)
+      exact ⟨fun member => agrees.mp (List.mem_filter.mp member).1,
+        fun member => List.mem_filter.mpr ⟨agrees.mpr member, bne_iff_ne.mpr separate⟩⟩
+
+theorem liveClaims_spend {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (update : Spend) :
+    (update.apply left).LiveClaimsAgree (update.apply right) := by
+  cases update with
+  | owner spent =>
+    refine ⟨agrees.accepted, ?_, agrees.endpoints⟩
+    intro id
+    simp only [State.ownerObservation, Spend.apply, findOwner_filter]
+    by_cases same : id = spent
+    · simp only [ite_eq_left same]
+    · simp only [ite_eq_right same]
+      exact agrees.owners id
+  | endpoint spent =>
+    refine ⟨agrees.accepted, agrees.owners, ?_⟩
+    intro id
+    simp only [Spend.apply, List.mem_filter, bne_iff_ne, agrees.endpoints]
+
+theorem spend_not_live {sig : Signature} (update : Spend) (state : State sig) : ¬ update.Live (update.apply state) := by
+  cases update with
+  | owner id =>
+    intro live
+    obtain ⟨receipt, kept, same⟩ := List.mem_map.mp live
+    have different := (List.mem_filter.mp kept).2
+    simp [same] at different
+  | endpoint id => simp [Spend.Live, Spend.apply]
+
+theorem liveClaims_no_discrepancies {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) : left.ClaimDiscrepancies right (fun _ => False) := by
+  refine ⟨agrees.accepted, ?_⟩
+  intro probe _
+  cases probe with | owner id => exact agrees.owners id | endpoint id => exact agrees.endpoints id
+
+theorem discrepancies_spend_left {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (update : Spend) :
+    (update.apply left).ClaimDiscrepancies right (fun probe => pending probe ∨ probe = update) := by
+  refine ⟨?_, fun probe clean => observation_after_left_spend
+    (related.observe probe (fun present => clean (.inl present))) update (fun same => clean (.inr same))⟩
+  cases update <;> exact related.accepted
+
+theorem discrepancies_spend_both {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (update : Spend) :
+    (update.apply left).ClaimDiscrepancies (update.apply right) (fun probe => pending probe ∧ probe ≠ update) := by
+  refine ⟨?_, ?_⟩
+  · cases update <;> exact related.accepted
+  intro probe clean
+  by_cases same : probe = update
+  · subst probe
+    cases update with
+    | owner id => simp only [Spend.ObservationAgrees, State.ownerObservation, Spend.apply, findOwner_filter,
+        ite_true]
+    | endpoint id => simp [Spend.ObservationAgrees, Spend.apply]
+  · exact observation_after_spend (related.observe probe (fun present => clean ⟨present, same⟩)) update
+
+theorem discrepancies_registration_checks {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) (tree : OwnedMemory.Tree sig)
+    (owners : ∀ id ∈ (rootReceipts tree).map receiptId,
+      pending (.owner id) → id ∈ (left.accepted.flatMap rootReceipts).map receiptId)
+    (endpoints : ∀ id ∈ rootEndpoints tree, ¬ pending (.endpoint id)) : left.RegistrationChecksAgree right tree := by
+  refine ⟨?_, fun id member => related.observe (.endpoint id) (endpoints id member)⟩
+  intro id demand
+  simp only [List.map_append, List.mem_append, ← related.accepted]
+  by_cases exception : pending (.owner id)
+  · simp only [owners id demand exception, true_or]
+  · have observed : left.ownerObservation id = right.ownerObservation id := related.observe (.owner id) exception
+    apply or_congr Iff.rfl
+    rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, observed]
+
+theorem discrepancies_registration_conflict {sig : Signature} {left right : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) {tree : OwnedMemory.Tree sig}
+    (disagree : ¬ left.RegistrationChecksAgree right tree) :
+    (∃ id ∈ (rootReceipts tree).map receiptId, pending (.owner id) ∧
+      id ∉ (left.accepted.flatMap rootReceipts).map receiptId ∧
+      ¬ ((Spend.owner id).Live left ↔ (Spend.owner id).Live right)) ∨
+    (∃ id ∈ rootEndpoints tree, pending (.endpoint id) ∧
+      ¬ ((Spend.endpoint id).Live left ↔ (Spend.endpoint id).Live right)) := by
+  classical
+  by_contra noConflict
+  apply disagree
+  constructor
+  · intro id demand
+    simp only [List.map_append, List.mem_append, ← related.accepted]
+    by_cases historic : id ∈ (left.accepted.flatMap rootReceipts).map receiptId
+    · simp only [historic, true_or]
+    · apply or_congr Iff.rfl
+      by_cases disputed : pending (.owner id)
+      · by_contra notLiveEqual
+        exact noConflict (.inl ⟨id, demand, disputed, historic, notLiveEqual⟩)
+      · have observed : left.ownerObservation id = right.ownerObservation id := related.observe (.owner id) disputed
+        rw [← not_iff_not, ← ownerObservation_none, ← ownerObservation_none, observed]
+  · intro id demand
+    by_cases disputed : pending (.endpoint id)
+    · by_contra notLiveEqual
+      exact noConflict (.inr ⟨id, demand, disputed, notLiveEqual⟩)
+    · exact related.observe (.endpoint id) disputed
+
+theorem discrepancies_register {sig : Signature} {left right lhs rhs : State sig} {pending : Spend → Prop}
+    (related : left.ClaimDiscrepancies right pending) {tree : OwnedMemory.Tree sig}
+    (first : left.register tree = .ok lhs) (second : right.register tree = .ok rhs) :
+    lhs.ClaimDiscrepancies rhs pending := by
+  obtain ⟨leftHistory, leftHeld, leftEnds⟩ := register_claims first
+  obtain ⟨rightHistory, rightHeld, rightEnds⟩ := register_claims second
+  refine ⟨by rw [leftHistory, rightHistory, related.accepted], ?_⟩
+  intro probe clean
+  have observed := related.observe probe clean
+  cases probe with
+  | owner id =>
+    simp only [Spend.ObservationAgrees, State.ownerObservation, leftHeld, rightHeld, List.find?_append]
+    cases (rootReceipts tree).find? (fun receipt => receiptId receipt == id)
+    · exact observed
+    · rfl
+  | endpoint id =>
+    simp only [Spend.ObservationAgrees, leftEnds, rightEnds, List.mem_append]
+    exact or_congr Iff.rfl observed
+
+theorem liveClaims_asymmetricSpend {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) {update : Spend} (live : update.Live left) :
+    (update.apply left).LiveClaimsAgree (update.apply right) ∧ ¬ (update.apply left).LiveClaimsAgree right := by
+  refine ⟨liveClaims_spend agrees update, fun wronglyRestored => spend_not_live update left ?_⟩
+  have before := liveClaims_indexed agrees
+  have after := liveClaims_indexed wronglyRestored
+  cases update with
+  | owner id => exact (after.held id).mpr ((before.held id).mp live)
+  | endpoint id => exact (after.endpoints id).mpr ((before.endpoints id).mp live)
+
+private theorem prepare_observation {sig : Signature} (state : State sig) (resource : RtId) (id : HandleObjId) :
+    (state.prepare resource id).map Prod.fst = match state.ownerObservation id with
+    | none => .error .unclaimed
+    | some (nominal, representation) =>
+      if nominal != resource then .error .wrongResourceType else .ok representation := by
+  unfold State.prepare State.ownerObservation
+  cases state.held.find? (fun receipt => receiptId receipt == id) with
+  | none => rfl
+  | some receipt => by_cases typed : receipt.1 = resource <;> simp [Except.map, typed]
+
+theorem prepare_observation_eq {sig : Signature} {left right : State sig}
+    (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id) :
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
+  rw [prepare_observation, prepare_observation, agrees]
+
+theorem liveClaims_prepare {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (resource : RtId) (id : HandleObjId) :
+    (left.prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst :=
+  prepare_observation_eq resource id (agrees.owners id)
+
+theorem prepare_after_left_spend {sig : Signature} {left right : State sig} (update : Spend)
+    (resource : RtId) (id : HandleObjId) (agrees : left.ownerObservation id = right.ownerObservation id)
+    (frames : ∀ spent, update = .owner spent → id ≠ spent) :
+    ((update.apply left).prepare resource id).map Prod.fst = (right.prepare resource id).map Prod.fst := by
+  rw [prepare_observation, prepare_observation]
+  congr 1
+  rw [← agrees]
+  cases update with
+  | endpoint => rfl
+  | owner spent => simp only [State.ownerObservation, Spend.apply, findOwner_filter, ite_eq_right (frames spent rfl)]
+
+theorem liveClaims_prepare_success {sig : Signature} {left right next : State sig}
+    (agrees : left.LiveClaimsAgree right) {resource : RtId} {id : HandleObjId} {representation : Nat}
+    (success : left.prepare resource id = .ok (representation, next)) :
+    ∃ peer, right.prepare resource id = .ok (representation, peer) ∧ next.LiveClaimsAgree peer := by
+  have paired := liveClaims_prepare agrees resource id
+  rw [success] at paired
+  cases compared : right.prepare resource id with
+  | error issue => simp [compared, Except.map] at paired
+  | ok result =>
+    obtain ⟨rep, peer⟩ := result
+    simp [compared, Except.map] at paired
+    subst rep
+    have update (state updated : State sig) (step : state.prepare resource id = .ok (representation, updated)) :
+        updated = (Spend.owner id).apply state := by
+      unfold State.prepare at step
+      split at step <;> try contradiction
+      split at step <;> cases step
+      rfl
+    exact ⟨peer, rfl, by rw [update _ _ success, update _ _ compared]; exact liveClaims_spend agrees _⟩
+
+theorem liveClaims_register {sig : Signature} {left right : State sig}
+    (agrees : left.LiveClaimsAgree right) (tree : OwnedMemory.Tree sig) :
+    (∃ issue, left.register tree = .error issue ∧ right.register tree = .error issue) ∨
+      ∃ lhs rhs, left.register tree = .ok lhs ∧ right.register tree = .ok rhs ∧ lhs.LiveClaimsAgree rhs := by
+  rcases indexedClaims_register (liveClaims_indexed agrees) tree with failure | ⟨lhs, rhs, first, second, matched⟩
+  · exact .inl failure
+  refine .inr ⟨lhs, rhs, first, second, ⟨matched.accepted, ?_, matched.endpoints⟩⟩
+  intro id
+  simp only [State.ownerObservation, (register_claims first).2.1, (register_claims second).2.1, List.find?_append]
+  cases (rootReceipts tree).find? (fun receipt => receiptId receipt == id)
+  · exact agrees.owners id
+  · rfl
+
+theorem indexed_not_owner_observations {sig : Signature} (resource : RtId) (identity : HandleObjId)
+    {rep other : Nat} (different : rep ≠ other) :
+    ∃ left right : State sig, left.IndexedClaimsAgree right ∧
+      (left.prepare resource identity).map Prod.fst ≠ (right.prepare resource identity).map Prod.fst := by
+  refine ⟨{ held := [⟨resource, ⟨identity, rep⟩⟩] }, { held := [⟨resource, ⟨identity, other⟩⟩] },
+    ⟨rfl, fun _ => Iff.rfl, fun _ => Iff.rfl⟩, ?_⟩
+  simpa [State.prepare, receiptId, Except.map] using different
+
+theorem accepted_not_endpoint_conflicts {sig : Signature} {tree : OwnedMemory.Tree sig} {id : EndId}
+    (unowned : rootReceipts tree = []) (one : rootEndpoints tree = [id]) :
+    ∃ first second spent : State sig, ({} : State sig).register tree = .ok first ∧
+      spent = (Spend.endpoint id).apply first ∧ first.accepted = spent.accepted ∧
+      first.register tree = .error .alias ∧ spent.register tree = .ok second := by
+  let first : State sig := ⟨[tree], [], [id]⟩
+  let spent := (Spend.endpoint id).apply first
+  let second : State sig := ⟨[tree, tree], [], [id]⟩
+  exact ⟨first, second, spent, by simp [State.register, unowned, one, first], rfl, rfl,
+    by simp [State.register, unowned, one, first], by simp [State.register, unowned, one, first, spent, Spend.apply, second]⟩
 
 theorem register_retains_retirement {sig : Signature} {state registered : State sig}
     {tree : OwnedMemory.Tree sig} {id : HandleObjId}

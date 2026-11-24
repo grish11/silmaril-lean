@@ -112,6 +112,16 @@ with tempfile.TemporaryDirectory(prefix='binaryen-compat-') as tmp:
     assert call('metadce', '-', '--graph-file=-').returncode == 2
 
     sentinel = b'output must survive rejection'
+    for tool, options, path in [('as', [], wat), ('dis', [], binary),
+                                ('ctor-eval', [], ctor_input),
+                                ('metadce', ['--graph-file', graph], provider)]:
+        rebuilt.write_bytes(sentinel)
+        usage = ok(tool, '-h').stdout
+        for inputs in [[], [path, path]]:
+            rejected = call(tool, *options, '-o', rebuilt, *inputs)
+            assert rejected.returncode == 2 and not rejected.stdout, (tool, inputs, rejected)
+            assert rejected.stderr == b'expected one input file\n' + usage, (tool, rejected.stderr)
+            assert rebuilt.read_bytes() == sentinel
     for tool, base, flag in [('as', [wat], '--debuginfo'), ('dis', [binary], '--source-map'),
                              ('merge', [provider, 'A'], '--output-manifest=unused.manifest'),
                              ('ctor-eval', [binary], '--ctors')]:

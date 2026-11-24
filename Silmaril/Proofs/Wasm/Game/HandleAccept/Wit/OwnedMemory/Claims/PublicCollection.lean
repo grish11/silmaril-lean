@@ -58,8 +58,8 @@ theorem parked (site : Site grow sig) (profile : ProfileKind) (ready : HostReady
     linked.mayLeave, linked.destination, linked.selected, linked.admitted, linked.compiled⟩
   rcases site.toRoot.parked (profile := profile) (ready := ready) rootLinked with
     ⟨issue, silent, stopped⟩ | ⟨reason, count, placed, halted⟩ | ⟨silent, _, prepared, reached, _⟩
-  · exact .refused issue silent stopped
-  · exact .placementTrap reason count placed halted
+  · exact .refused issue silent stopped.steps
+  · exact .placementTrap reason count placed halted.steps
   · have canonAt : (site.reference next).ctl = site.cursor.control
         (CanonicalTree.field Limits.spec Quirks.none (site.destination.context site.inst) site.destination.width
           site.field site.route.output >>= next) := site.toRoot.reference_at rootLinked next
@@ -72,9 +72,9 @@ theorem parked (site : Site grow sig) (profile : ProfileKind) (ready : HostReady
     obtain ⟨lhs, rhs, paired⟩ := collection_install (profile := profile) (ready := ready) (dispatch := dispatch)
       site.destination site.inst site.type site.element site.entries site.route.output 0 (site.withBody site.checkedBody)
       (site.reference next) site.cursor site.reply next rfl width linked.mode prepared rfl canonAt
-    refine .installed (by rw [visibleAppend, silent]; rfl) (by rfl) (chain reached lhs) rhs paired ?_
+    refine .installed (by rw [visibleAppend, silent]; rfl) (by rfl) (chain reached.steps lhs) rhs paired ?_
     intro last seen path cursor pointer reachedReturn children
-    exact prependCut reached silent (Prefix.collection site.destination site.inst site.type site.element
+    exact prependCut reached.steps silent (Prefix.collection site.destination site.inst site.type site.element
       site.entries site.route.output 0 pointer site.cursor cursor site.reply next rfl (.refl _) linked.destination sized
       linked.mode prepared rfl canonAt path reachedReturn (compare last pointer children))
 

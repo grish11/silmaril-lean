@@ -393,11 +393,12 @@ theorem emitted {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf) (valu
     (compiled : compileValue cx type value receipts output = .ok (shape, objects)) : shape.Emitted :=
   (value_spec cx type value receipts output shape objects compiled).2.2
 
-theorem record {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String × TypeOf))
+private theorem record_spec {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String × TypeOf))
     (value : Val) (receipts : List OwnedMemory.Receipt) (output : Lower.Output)
     (fields : List Field) (objects : List Object)
     (compiled : compileRecord cx (.record types) value receipts output = .ok (fields, objects)) :
-    .record (Field.values fields) = value ∧ Field.FieldsMatch fields (types.map Prod.snd) := by
+    .record (Field.values fields) = value ∧ Field.FieldsMatch fields (types.map Prod.snd) ∧
+      (∀ field ∈ fields, Field.Emitted field) := by
   cases options : Lower.checkOptions cx (.record types) output with
   | error issue => simp [compileRecord, bind, Except.bind, options, Except.mapError] at compiled
   | ok accepted =>
@@ -419,7 +420,24 @@ theorem record {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String 
             rw [step] at run
             cases run
             have certificate := fields_spec cx output 0 types values _ _ _ step
-            exact ⟨congrArg Val.record certificate.1, certificate.2.1⟩
+            exact ⟨congrArg Val.record certificate.1, certificate.2⟩
         · contradiction
+
+theorem record {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String × TypeOf))
+    (value : Val) (receipts : List OwnedMemory.Receipt) (output : Lower.Output)
+    (fields : List Field) (objects : List Object)
+    (compiled : compileRecord cx (.record types) value receipts output = .ok (fields, objects)) :
+    .record (Field.values fields) = value ∧ Field.FieldsMatch fields (types.map Prod.snd) :=
+  let spec := record_spec cx types value receipts output fields objects compiled
+  ⟨spec.1, spec.2.1⟩
+
+theorem record_emitted {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf)
+    (value : Val) (receipts : List OwnedMemory.Receipt) (output : Lower.Output)
+    (fields : List Field) (objects : List Object)
+    (compiled : compileRecord cx type value receipts output = .ok (fields, objects)) :
+    ∀ field ∈ fields, Field.Emitted field := by
+  cases type <;> first
+    | exact (record_spec cx _ value receipts output fields objects compiled).2.2
+    | simp [compileRecord] at compiled
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.CompiledValue

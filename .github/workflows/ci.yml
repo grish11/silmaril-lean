@@ -103,7 +103,7 @@ jobs:
 
   time-budget:
     name: CI time budget
-    needs: result
+    needs: [result, lean]
     if: >-
       always() && !github.event.pull_request.draft &&
       !(github.event_name == 'workflow_dispatch' && inputs.seed)
@@ -111,3 +111,5 @@ jobs:
       actions: read
       contents: read
     uses: ./.github/workflows/ci-time-budget.yml
+    with:
+      full-suite: ${{ needs.lean.outputs.full-suite == 'true' }}

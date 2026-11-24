@@ -45,12 +45,9 @@ def runCompatMetaDCE (args : List String) : IO UInt32 := do
   let (graph, files) ← match parseCompatGraphAux args none [] with
     | .error e => return ← compatUsageError compatMetaDCEUsage e
     | .ok parts => pure parts
-  let opts ← match parseCompatFiles files with
+  let (input, output) ← match parseCompatSingleInput files with
     | .error e => return ← compatUsageError compatMetaDCEUsage e
     | .ok opts => pure opts
-  let input ← match opts.inputs with
-    | [input] => pure input
-    | _ => return ← compatUsageError compatMetaDCEUsage "expected one input file"
   if input == "-" && graph == "-" then
     return ← compatUsageError compatMetaDCEUsage "input and graph cannot both use stdin"
   try
@@ -60,7 +57,7 @@ def runCompatMetaDCE (args : List String) : IO UInt32 := do
     | .error e => IO.eprintln ("wasm-metadce: " ++ e); return 1
     | .ok artifact =>
       IO.eprintln artifact.report
-      if let some output := opts.output then compatWriteBytes output artifact.bytes
+      if let some path := output then compatWriteBytes path artifact.bytes
       return 0
   catch e => IO.eprintln (toString e); return 1
 

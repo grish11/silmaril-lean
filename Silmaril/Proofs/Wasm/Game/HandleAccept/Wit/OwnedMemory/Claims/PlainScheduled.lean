@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
 public import Silmaril.Wasm.Component.Reference.HostWrite.Defs
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Plain.Thms
 import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Scheduled.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Thms
 public import Silmaril.Wasm.Component.Reference.Machine.CoreGrowth.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.HostFrame.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
@@ -27,6 +28,40 @@ open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Core.Schedule
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core (Contract checkChildren)
 open Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Core.Scheduled (nodeCall)
 open Silmaril.Wasm.Game.HandleAccept.MemSound.WitAst (NodeArgs)
+
+theorem indexedClaims_publishRootAt {grow : SingleThreaded.GrowOracle} {sig : Signature} {left right : HostState sig}
+    (agrees : left.writer.IndexedClaimsAgree right.writer) (reference : CStore (core3 grow))
+    (tree : Tree sig) (leftTicket rightTicket : Nat) (expected : Option Nat) (thread : Option (Option ThreadId)) :
+    ∃ lhs rhs verdict,
+      Plain.runBody (publishRootAt leftTicket tree expected) reference left thread = (reference, lhs, .ok verdict) ∧
+      Plain.runBody (publishRootAt rightTicket tree expected) reference right thread = (reference, rhs, .ok verdict) ∧
+      lhs.writer.IndexedClaimsAgree rhs.writer := by
+  rcases agrees.register tree with ⟨issue, denied, peerDenied⟩ | ⟨leftWriter, rightWriter, registered, peerRegistered, matched⟩
+  · refine ⟨left, right, .error (.accept (.claims issue)), ?_, ?_, agrees⟩
+    · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, denied]
+    · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, peerDenied]
+  · have handle : rightWriter.accepted.length = leftWriter.accepted.length := congrArg List.length matched.accepted.symm
+    by_cases unexpected : expected.any (· != leftWriter.accepted.length)
+    · refine ⟨left, right, .error .wrongResultType, ?_, ?_, agrees⟩
+      · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, registered, unexpected]
+      · simp [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, peerRegistered, handle, unexpected]
+    · by_cases full : leftWriter.accepted.length ≥ 2 ^ 32
+      · refine ⟨left, right, .error (.accept (.boundary .exhaustedHandles)), ?_, ?_, agrees⟩
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, registered, unexpected,
+            ite_true, full]
+          rfl
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, perform, Prog.lift, Plain.runBody, peerRegistered, handle, unexpected,
+            ite_true, full]
+          rfl
+      · let lhs := ({ left with writer := leftWriter }).record (.published leftTicket leftWriter.accepted.length)
+        let rhs := ({ right with writer := rightWriter }).record (.published rightTicket rightWriter.accepted.length)
+        refine ⟨lhs, rhs, .ok leftWriter.accepted.length, ?_, ?_, matched⟩
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, hostSet, perform, Prog.lift, Plain.runBody, registered, unexpected,
+            ite_false, full, lhs]
+          rfl
+        · simp only [publishRootAt, bind, Prog.bind, hostGet, hostSet, perform, Prog.lift, Plain.runBody, peerRegistered, handle, unexpected,
+            Bool.false_eq_true, ite_false, full, rhs]
+          rfl
 
 theorem prepend_embedder_callout {E : CoreEngine} {Host : Type}
     [∀ left right, Decidable (E.ExternSub left right)]
@@ -63,7 +98,7 @@ theorem threadMayLeave_of_caller {E : CoreEngine} {store : CStore E} {thread : O
         cases found : store.inst? activeTask.inst <;>
           simp_all [threadMayLeave, instOfThread?, instMayLeave]
 
-theorem body_tracks_at {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+theorem body_tracks_framed_at {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     (start : Machine.Config E Host) (updated : CStore E) (host : Host) (result : Result)
     (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
     (segs : List (Machine.Seg E Host)) (rest : List (Machine.Activation E Host))
@@ -71,9 +106,12 @@ theorem body_tracks_at {E : CoreEngine} {Host Result : Type} (body : P E Host Re
     (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
     (activation : Option (Option ThreadId)) (matchesThread : activation = none ∨ activation = some thread)
     (success : Plain.runBody body start.store start.host activation = (updated, host, .ok result)) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch start labels
-        { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } := by
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = Plain.bodyLength body start.store start.host activation ∧
+      (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place labels
+        { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } place) ∧
+      ∀ (Observed : Type) (project : Host → Observed), Plain.FramesHost project body start.store start.host activation →
+        Plain.HostFramedSteps project profile ready dispatch start labels
+          { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } := by
   induction body generalizing start with
   | pure value =>
     simp only [Plain.runBody, Prod.mk.injEq, Except.ok.injEq] at success
@@ -84,42 +122,65 @@ theorem body_tracks_at {E : CoreEngine} {Host Result : Type} (body : P E Host Re
       congr
       exact focused.symm
     rw [frame]
-    exact ⟨[], rfl, fun _ => .done _ _⟩
+    exact ⟨[], rfl, rfl, fun _ => .done _ _, fun _ _ _ => .done _⟩
   | op op next ih =>
     cases op <;> try simp only [Plain.runBody] at success
     case get =>
-      obtain ⟨labels, silent, tail⟩ := ih start.store
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih start.store
         { start with ctl := ⟨thread, .prog (next start.store >>= finish), segs⟩ :: rest } rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.get focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; rfl) (tail depth)⟩
+      exact ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.get focused)
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth),
+        fun observed project frame => .next (.get focused) rfl (frames observed project frame)⟩
     case modify update =>
-      obtain ⟨labels, silent, tail⟩ := ih ()
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih ()
         { start with store := update start.store, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
         rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.modify focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; rfl) (tail depth)⟩
+      exact ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.modify focused)
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth),
+        fun observed project frame => .next (.modify focused) rfl (frames observed project frame)⟩
     case hostGet =>
-      obtain ⟨labels, silent, tail⟩ := ih start.host
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih start.host
         { start with ctl := ⟨thread, .prog (next start.host >>= finish), segs⟩ :: rest } rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.hostGet focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; rfl) (tail depth)⟩
+      exact ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.hostGet focused)
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth),
+        fun observed project frame => .next (.hostGet focused) rfl (frames observed project frame)⟩
     case hostSet newHost =>
-      obtain ⟨labels, silent, tail⟩ := ih ()
+      obtain ⟨labels, silent, count, tail, frames⟩ := ih ()
         { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
         rfl success
-      exact ⟨.tau :: labels, silent, fun depth => .step (.hostSet focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; rfl) (tail depth)⟩
+      refine ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, count], fun depth => .step (.hostSet focused)
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth), ?_⟩
+      intro observed project frame
+      simp only [Plain.FramesHost] at frame
+      exact .next (.hostSet focused) frame.1 (frames observed project frame.2)
     case currentThread =>
       rcases matchesThread with missing | known
       · rw [missing] at success
         cases success
       · rw [known] at success
-        obtain ⟨labels, silent, tail⟩ := ih thread
+        obtain ⟨labels, silent, count, tail, frames⟩ := ih thread
           { start with ctl := ⟨thread, .prog (next thread >>= finish), segs⟩ :: rest } rfl
           (by simpa only [Plain.runBody, known] using success)
-        exact ⟨.tau :: labels, silent, fun depth => .step (.currentThread focused)
-          (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; rfl) (tail depth)⟩
+        refine ⟨.tau :: labels, silent, by simp only [List.length_cons, Plain.bodyLength, known, count], fun depth => .step (.currentThread focused)
+          (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases depth <;> rfl) (tail depth), ?_⟩
+        intro observed project frame
+        exact .next (.currentThread focused) rfl (frames observed project (by simpa only [Plain.FramesHost, known] using frame))
     all_goals cases success
+
+theorem body_tracks_at {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+    (start : Machine.Config E Host) (updated : CStore E) (host : Host) (result : Result)
+    (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
+    (segs : List (Machine.Seg E Host)) (rest : List (Machine.Activation E Host))
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
+    (activation : Option (Option ThreadId)) (matchesThread : activation = none ∨ activation = some thread)
+    (success : Plain.runBody body start.store start.host activation = (updated, host, .ok result)) :
+    ∃ labels, labels.all (· matches .tau) = true ∧
+      ∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place labels
+        { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } place := by
+  obtain ⟨labels, silent, _, tracks, _⟩ := body_tracks_framed_at body start updated host result finish thread segs rest
+    profile ready dispatch focused activation matchesThread success
+  exact ⟨labels, silent, tracks⟩
 
 theorem body_steps_at {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     (start : Machine.Config E Host) (updated : CStore E) (host : Host) (result : Result)
@@ -134,7 +195,56 @@ theorem body_steps_at {E : CoreEngine} {Host Result : Type} (body : P E Host Res
         { start with store := updated, host, ctl := ⟨thread, .prog (finish result), segs⟩ :: rest } := by
   obtain ⟨labels, silent, tracking⟩ := body_tracks_at body start updated host result finish thread segs rest
     profile ready dispatch focused activation matchesThread success
-  exact ⟨labels, silent, (Machine.ReturnFrame.Occurrence.prefix_survives (tracking 0)).1⟩
+  exact ⟨labels, silent, (Machine.ReturnFrame.Occurrence.prefix_survives (tracking (.active 0 0))).1⟩
+
+open Machine.ReturnFrame.Occurrence in
+theorem body_trap_tracks {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
+    (start : Machine.Config E Host) (updated : CStore E) (host : Host) (reason : TrapReason)
+    (finish : Result → P E Host (Ret E)) (thread : Option ThreadId)
+    (segs : List (Machine.Seg E Host)) (rest : List (Machine.Activation E Host))
+    (profile : ProfileKind) (ready : HostReady Host) (dispatch : Call E → P E Host (Ret E))
+    (focused : start.ctl = ⟨thread, .prog (body >>= finish), segs⟩ :: rest)
+    (failed : Plain.runBody body start.store start.host (some thread) = (updated, host, .error (.trapped reason))) :
+    ∃ count, ∀ mark, Trail profile ready dispatch start mark (List.replicate count .tau ++ [.trap reason])
+      (Machine.StepDefs.trapCfg { start with store := updated, host }) (mark.bind (Edit.clear : Edit E Host).follow) := by
+  have prepend {before middle ended : Machine.Config E Host} {labels : List (Machine.Label E Host)}
+      (step : Machine.Step profile ready dispatch before .tau middle) (same : transitionEdit before .tau = .same)
+      {mark reached : Option Location} (tail : Trail profile ready dispatch middle mark labels ended reached) :
+      Trail profile ready dispatch before mark (.tau :: labels) ended reached := by
+    refine .step (mark := mark) step ?_
+    rw [same]
+    cases mark with
+    | none => exact tail
+    | some _ => exact tail
+  induction body generalizing start with
+  | pure _ => cases failed
+  | op op next ih =>
+    cases op <;> simp only [Plain.runBody] at failed
+    case get =>
+      obtain ⟨count, tail⟩ := ih start.store
+        { start with ctl := ⟨thread, .prog (next start.store >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.get focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case modify update =>
+      obtain ⟨count, tail⟩ := ih ()
+        { start with store := update start.store, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
+        rfl failed
+      exact ⟨count + 1, fun mark => prepend (.modify focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case hostGet =>
+      obtain ⟨count, tail⟩ := ih start.host
+        { start with ctl := ⟨thread, .prog (next start.host >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.hostGet focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case hostSet newHost =>
+      obtain ⟨count, tail⟩ := ih ()
+        { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.hostSet focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case currentThread =>
+      obtain ⟨count, tail⟩ := ih thread
+        { start with ctl := ⟨thread, .prog (next thread >>= finish), segs⟩ :: rest } rfl failed
+      exact ⟨count + 1, fun mark => prepend (.currentThread focused) (by rw [transitionEdit, focused]; rfl) (tail mark)⟩
+    case trap actual =>
+      cases failed
+      exact ⟨0, fun _ => .step (.trap focused) (.done _ _)⟩
+    all_goals cases failed
 
 theorem body_trap_steps {E : CoreEngine} {Host Result : Type} (body : P E Host Result)
     (start : Machine.Config E Host) (updated : CStore E) (host : Host) (reason : TrapReason)
@@ -145,35 +255,8 @@ theorem body_trap_steps {E : CoreEngine} {Host Result : Type} (body : P E Host R
     (failed : Plain.runBody body start.store start.host (some thread) = (updated, host, .error (.trapped reason))) :
     ∃ count, Machine.Steps profile ready dispatch start (List.replicate count .tau ++ [.trap reason])
       (Machine.StepDefs.trapCfg { start with store := updated, host }) := by
-  induction body generalizing start with
-  | pure _ => cases failed
-  | op op next ih =>
-    cases op <;> simp only [Plain.runBody] at failed
-    case get =>
-      obtain ⟨count, tail⟩ := ih start.store
-        { start with ctl := ⟨thread, .prog (next start.store >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.get focused) tail⟩
-    case modify update =>
-      obtain ⟨count, tail⟩ := ih ()
-        { start with store := update start.store, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest }
-        rfl failed
-      exact ⟨count + 1, .cons (.modify focused) tail⟩
-    case hostGet =>
-      obtain ⟨count, tail⟩ := ih start.host
-        { start with ctl := ⟨thread, .prog (next start.host >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.hostGet focused) tail⟩
-    case hostSet newHost =>
-      obtain ⟨count, tail⟩ := ih ()
-        { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.hostSet focused) tail⟩
-    case currentThread =>
-      obtain ⟨count, tail⟩ := ih thread
-        { start with ctl := ⟨thread, .prog (next thread >>= finish), segs⟩ :: rest } rfl failed
-      exact ⟨count + 1, .cons (.currentThread focused) tail⟩
-    case trap actual =>
-      cases failed
-      exact ⟨0, .cons (.trap focused) (.refl _)⟩
-    all_goals cases failed
+  obtain ⟨count, trails⟩ := body_trap_tracks body start updated host reason finish thread segs rest profile ready dispatch focused failed
+  exact ⟨count, Machine.ReturnFrame.Occurrence.Trail.steps (trails none)⟩
 
 private theorem read_thread {E : CoreEngine} {Host Result : Type}
     (next : Option ThreadId → P E Host Result) (store : CStore E) (host : Host)
@@ -219,7 +302,32 @@ private theorem confined_read_store {E : CoreEngine} {Host Result : Type}
     Plain.runBody (confine (getStore.bind next)) store host activation =
       Plain.runBody (confine (next store)) store host activation := rfl
 
-private theorem resolve_caller_confined {E : CoreEngine} {Host Result : Type}
+theorem framesCaller {E : CoreEngine} {Host Result Observed : Type} (project : Host → Observed)
+    (rest : Option InstId → P E Host Result) (reference : CStore E) (host : Host) (thread : Option ThreadId) :
+    Plain.FramesHost project (currentInst?.bind rest) reference host (some thread) =
+      match Plain.callerInstance reference thread with
+      | .ok caller => Plain.FramesHost project (rest caller) reference host (some thread)
+      | .error _ => True := by
+  have readThread (next : Option ThreadId → P E Host Result) :
+      Plain.FramesHost project (currentThread.bind next) reference host (some thread) =
+        Plain.FramesHost project (next thread) reference host (some thread) := rfl
+  have readStore (next : CStore E → P E Host Result) :
+      Plain.FramesHost project (getStore.bind next) reference host (some thread) =
+        Plain.FramesHost project (next reference) reference host (some thread) := rfl
+  cases thread with
+  | none => rfl
+  | some thread =>
+    simp only [currentInst?, currentTask?, Prog.bind_eq, Prog.bind_assoc, readThread]
+    cases active : ArenaField.threads.get? reference thread with
+    | none =>
+      simp only [getThread, getObj, Prog.bind_eq, Prog.bind_assoc, readStore, active, Plain.callerInstance]
+      rfl
+    | some activeThread =>
+      cases task : ArenaField.tasks.get? reference activeThread.task <;>
+        simp only [getThread, getTask, getObj, Prog.bind_eq, Prog.bind_assoc, readStore,
+          active, task, Prog.pure_eq, Prog.pure_bind', Plain.callerInstance] <;> rfl
+
+theorem resolve_caller_confined {E : CoreEngine} {Host Result : Type}
     (rest : Option InstId → P E Host Result)
     (reference : CStore E) (host : Host) (thread : Option ThreadId) :
     Plain.runBody (confine (currentInst?.bind rest)) reference host (some thread) =
@@ -798,7 +906,7 @@ theorem embedder_caller_refusal_steps {sig : Signature} {grow : SingleThreaded.G
   · simp [reached, HostState.publications, HostState.transcript, HostState.record, HostState.enter,
       Event.publication]
 
-private theorem closed_thread {E : CoreEngine} {store : CStore E} {thread : Option ThreadId}
+theorem closed_thread {E : CoreEngine} {store : CStore E} {thread : Option ThreadId}
     {inst : InstId} {entry : InstState}
     (caller : Plain.callerInstance store thread = .ok (some inst))
     (live : store.inst? inst = some entry) (closed : entry.mayLeave = false) :
@@ -861,8 +969,10 @@ private theorem observing_body_growth {grow : SingleThreaded.GrowOracle} {Host R
         store := updated
         host := reached
         ctl := ⟨thread, .prog (finish result), segments⟩ :: rest } ∧
-      ∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place (List.replicate count .tau)
-        { start with store := updated, host := reached, ctl := ⟨thread, .prog (finish result), segments⟩ :: rest } place := by
+      (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place (List.replicate count .tau)
+        { start with store := updated, host := reached, ctl := ⟨thread, .prog (finish result), segments⟩ :: rest } place) ∧
+      Plain.NoDirectCalls profile ready dispatch start (List.replicate count .tau)
+        { start with store := updated, host := reached, ctl := ⟨thread, .prog (finish result), segments⟩ :: rest } := by
   induction observes generalizing start with
   | pure value =>
     simp only [Plain.runBody, Prod.mk.injEq, Except.ok.injEq] at success
@@ -873,33 +983,46 @@ private theorem observing_body_growth {grow : SingleThreaded.GrowOracle} {Host R
       congr
       exact focused.symm
     rw [frame]
-    exact ⟨0, .refl _, fun _ => .done _ _⟩
+    exact ⟨0, .refl _, fun _ => .done _ _, .done _⟩
   | @op op next allowed _ ih =>
     have guard : Machine.CoreUpdateGrows start := by
       rw [Machine.CoreUpdateGrows, focused]
       cases op <;> trivial
     cases op
     case get =>
-      obtain ⟨count, tail, tracking⟩ := ih start.store
+      obtain ⟨count, tail, tracking, closed⟩ := ih start.store
         { start with ctl := ⟨thread, .prog (next start.store >>= finish), segments⟩ :: rest } rfl success
       exact ⟨count + 1, .cons guard (.get focused) tail, fun place => .step (.get focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place)⟩
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place),
+        .next (by intro _ _ _ _ _ atCall; rw [focused] at atCall; cases atCall) (.get focused) closed⟩
     case hostGet =>
-      obtain ⟨count, tail, tracking⟩ := ih start.host
+      obtain ⟨count, tail, tracking, closed⟩ := ih start.host
         { start with ctl := ⟨thread, .prog (next start.host >>= finish), segments⟩ :: rest } rfl success
       exact ⟨count + 1, .cons guard (.hostGet focused) tail, fun place => .step (.hostGet focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place)⟩
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place),
+        .next (by intro _ _ _ _ _ atCall; rw [focused] at atCall; cases atCall) (.hostGet focused) closed⟩
     case hostSet newHost _ =>
-      obtain ⟨count, tail, tracking⟩ := ih ()
+      obtain ⟨count, tail, tracking, closed⟩ := ih ()
         { start with host := newHost, ctl := ⟨thread, .prog (next () >>= finish), segments⟩ :: rest } rfl success
       exact ⟨count + 1, .cons guard (.hostSet focused) tail, fun place => .step (.hostSet focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place)⟩
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place),
+        .next (by intro _ _ _ _ _ atCall; rw [focused] at atCall; cases atCall) (.hostSet focused) closed⟩
     case currentThread =>
-      obtain ⟨count, tail, tracking⟩ := ih thread
+      obtain ⟨count, tail, tracking, closed⟩ := ih thread
         { start with ctl := ⟨thread, .prog (next thread >>= finish), segments⟩ :: rest } rfl success
       exact ⟨count + 1, .cons guard (.currentThread focused) tail, fun place => .step (.currentThread focused)
-        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place)⟩
+        (by rw [Machine.ReturnFrame.Occurrence.transitionEdit, focused]; cases place <;> rfl) (tracking place),
+        .next (by intro _ _ _ _ _ atCall; rw [focused] at atCall; cases atCall) (.currentThread focused) closed⟩
     all_goals first | contradiction | cases success
+
+private theorem appendNoDirect {E : CoreEngine} {Host : Type} {profile ready dispatch}
+    {start middle finish : Machine.Config E Host} {leading trailing}
+    (head : Plain.NoDirectCalls profile ready dispatch start leading middle)
+    (tail : Plain.NoDirectCalls profile ready dispatch middle trailing finish) :
+    Plain.NoDirectCalls profile ready dispatch start (leading ++ trailing) finish := by
+  induction head with
+  | done => exact tail
+  | next closed step _ ih => exact .next closed step (ih tail)
 
 theorem parked_closed_give_steps {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (args : List FlatValue)
@@ -912,12 +1035,14 @@ theorem parked_closed_give_steps {sig : Signature} {grow : SingleThreaded.GrowOr
     (linked : resolveBinding bindings name type = .ok ⟨name, inst,
       schema.elim (.givePayload destination) (.giveFlat destination)⟩)
     (caller : Plain.callerInstance start.store thread = .ok (some inst))
-    (live : start.store.inst? inst = some entry) (closed : entry.mayLeave = false) :
+    (live : start.store.inst? inst = some entry) (closed : entry.mayLeave = false)
+    (impl : HostImpl (core3 grow) (HostState sig) := host bindings)
+    (embedder : impl.embedder = (host (grow := grow) bindings).embedder := by rfl) :
     let reply := schema.elim (completion start.host.nextTicket (.error .wrongContext))
       (fun payload => flatCompletion start.host.nextTicket (ABI.flatten destination.width payload)
         (.error .wrongContext))
     let reached := (start.host.enter name type args).record reply.1
-    ∃ count, Machine.CoreGrowthSteps profile ready (specDispatch ready (host (grow := grow) bindings)) start
+    ∃ count, Machine.CoreGrowthSteps profile ready (specDispatch ready impl) start
       (List.replicate count .tau)
       { start with
         host := reached
@@ -927,25 +1052,28 @@ theorem parked_closed_give_steps {sig : Signature} {grow : SingleThreaded.GrowOr
         host := reached
         ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
           continuation, segments⟩ :: rest }) ∧
-      (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready (host (grow := grow) bindings))
+      (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready impl)
         start place (List.replicate count .tau)
         { start with host := reached, ctl := ⟨thread,
-          .core ((core3 grow).resume start.store.core core (.values reply.2)) continuation, segments⟩ :: rest } place) := by
+          .core ((core3 grow).resume start.store.core core (.values reply.2)) continuation, segments⟩ :: rest } place) ∧
+      Plain.NoDirectCalls profile ready (specDispatch ready impl) start (List.replicate count .tau)
+        { start with host := reached, ctl := ⟨thread,
+          .core ((core3 grow).resume start.store.core core (.values reply.2)) continuation, segments⟩ :: rest } := by
   intro reply reached
-  let impl := host (grow := grow) bindings
   let program := confine (impl.embedder name type args)
   let focused := { start with ctl := ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready impl
     start.store thread (.embedder name type) args), .core core continuation :: segments⟩ :: rest }
   have blocked : (start.store.inst? inst).any (·.mayLeave) = false := by simp [live, closed]
   have evaluated : Plain.runBody program start.store start.host (some thread) =
       (start.store, reached, .ok reply.2) :=
-    confined_give_refusal bindings name type args inst destination schema start.store start.host
-      thread linked caller blocked
+    by simpa only [program, embedder] using
+      confined_give_refusal bindings name type args inst destination schema start.store start.host
+        thread linked caller blocked
   have entered : focused.ctl = ⟨thread, .prog (program >>= fun words => .pure (.flat words)),
       .core core continuation :: segments⟩ :: rest := by
     simp only [focused, calloutBody, closed_thread caller live closed, Bool.false_eq_true, ite_false, program]
     rfl
-  obtain ⟨count, steps, tracking⟩ := observing_body_growth program focused start.store reached reply.2
+  obtain ⟨count, steps, tracking, confined⟩ := observing_body_growth program focused start.store reached reply.2
     (fun words => .pure (.flat words)) thread (.core core continuation :: segments) rest profile ready
     (specDispatch ready impl) entered (confine_every (fun _ fact => fact) _) evaluated
   have guard : Machine.CoreUpdateGrows start := by simp [Machine.CoreUpdateGrows, parked]
@@ -953,7 +1081,13 @@ theorem parked_closed_give_steps {sig : Signature} {grow : SingleThreaded.GrowOr
   rw [← List.replicate_succ'] at resumed
   refine ⟨count + 1 + 1 + 1 + 1, .cons guard (.coreCallout parked calling)
     (.cons trivial (.currentThread rfl) (.cons trivial (.get rfl) resumed)), rfl,
-    (fun growing => growing.replace_core_focus parked reached), ?_⟩
+    (fun growing => growing.replace_core_focus parked reached), ?_, ?_⟩
+  swap
+  · refine .next (by intro _ _ _ _ _ atCall; rw [parked] at atCall; cases atCall) (.coreCallout parked calling) ?_
+    refine .next (by intro _ _ _ _ _ atCall; cases atCall) (.currentThread rfl) ?_
+    refine .next (by intro _ _ _ _ _ atCall; cases atCall) (.get rfl) ?_
+    rw [List.replicate_succ']
+    exact appendNoDirect confined (.next (by intro _ _ _ _ _ atCall; cases atCall) (.popCore rfl) (.done _))
   intro place
   let bumped := ((Machine.ReturnFrame.Occurrence.Edit.push (.core core continuation)).follow place).getD place
   have push : (Machine.ReturnFrame.Occurrence.transitionEdit start .tau).follow place = some bumped := by
@@ -1003,7 +1137,15 @@ theorem parked_closed_give_rejoin {sig : Signature} {grow : SingleThreaded.GrowO
       (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch start place (List.replicate leftCount .tau)
         leftNext place) ∧
       (∀ place, Machine.ReturnFrame.Occurrence.Prefix profile ready dispatch other place (List.replicate rightCount .tau)
-        rightNext place) := by
+        rightNext place) ∧
+      other.ctl = ⟨thread, .core core continuation, otherSegments⟩ :: otherRest ∧
+      rightNext = { other with
+        ctl := ⟨thread, next, otherSegments⟩ :: otherRest
+        host := (other.host.enter name type args).record
+          (schema.elim (completion other.host.nextTicket (.error .wrongContext))
+            (fun payload => flatCompletion other.host.nextTicket (ABI.flatten destination.width payload) (.error .wrongContext))).1 } ∧
+      Plain.NoDirectCalls profile ready dispatch start (List.replicate leftCount .tau) leftNext ∧
+      Plain.NoDirectCalls profile ready dispatch other (List.replicate rightCount .tau) rightNext := by
   intro dispatch reply next leftNext
   let otherReply := schema.elim (completion other.host.nextTicket (.error .wrongContext))
     (fun payload => flatCompletion other.host.nextTicket (ABI.flatten destination.width payload) (.error .wrongContext))
@@ -1011,9 +1153,9 @@ theorem parked_closed_give_rejoin {sig : Signature} {grow : SingleThreaded.GrowO
   obtain ⟨otherSegments, otherRest, otherParked, rejoined⟩ := paired.retarget parked next
     ((start.host.enter name type args).record reply.1) ((other.host.enter name type args).record otherReply.1)
   have sameStore := paired.data.1
-  obtain ⟨leftCount, left, leftWriter, _, leftPrefix⟩ := parked_closed_give_steps
+  obtain ⟨leftCount, left, leftWriter, _, leftPrefix, leftClosed⟩ := parked_closed_give_steps
     bindings name type args inst destination schema start thread profile ready parked calling linked caller live closed
-  obtain ⟨rightCount, right, rightWriter, _, rightPrefix⟩ := parked_closed_give_steps
+  obtain ⟨rightCount, right, rightWriter, _, rightPrefix, rightClosed⟩ := parked_closed_give_steps
     bindings name type args inst destination schema other thread profile ready otherParked
     (sameStore ▸ calling) linked (sameStore ▸ caller) (sameStore ▸ live) closed
   change Machine.CoreGrowthSteps profile ready dispatch other (List.replicate rightCount .tau)
@@ -1026,9 +1168,13 @@ theorem parked_closed_give_rejoin {sig : Signature} {grow : SingleThreaded.GrowO
     { other with host := (other.host.enter name type args).record otherReply.1, ctl := ⟨thread,
       .core ((core3 grow).resume other.store.core core (.values otherReply.2)) continuation, otherSegments⟩ :: otherRest }
     place at rightPrefix
-  rw [sameReply, sameCore] at right rightPrefix
+  change Plain.NoDirectCalls profile ready dispatch other (List.replicate rightCount .tau)
+    { other with host := (other.host.enter name type args).record otherReply.1, ctl := ⟨thread,
+      .core ((core3 grow).resume other.store.core core (.values otherReply.2)) continuation, otherSegments⟩ :: otherRest }
+    at rightClosed
+  rw [sameReply, sameCore] at right rightPrefix rightClosed
   exact ⟨leftCount, rightCount, _, otherSegments, otherRest, left, right, rfl, rejoined, leftWriter, rightWriter,
-    leftPrefix, rightPrefix⟩
+    leftPrefix, rightPrefix, otherParked, rfl, leftClosed, rightClosed⟩
 
 private def admitGive {E : CoreEngine} {Host Result : Type} (inst : InstId)
     (selection : P E Host (Except Claims.Core.Scheduled.Issue Result)) :
@@ -1037,6 +1183,75 @@ private def admitGive {E : CoreEngine} {Host Result : Type} (inst : InstId)
     return .error .wrongContext
   selection
 
+private theorem admittedLength {E : CoreEngine} {Host Result : Type}
+    (inst : InstId) (selection : P E Host (Except Claims.Core.Scheduled.Issue Result))
+    (store : CStore E) (state : Host) (thread : Option ThreadId)
+    (caller : Plain.callerInstance store thread = .ok (some inst))
+    (mayLeave : (store.inst? inst).any (·.mayLeave) = true) :
+    Plain.bodyLength (admitGive inst selection) store state (some thread) =
+      Plain.bodyLength selection store state (some thread) + 4 := by
+  cases thread with
+  | none => simp [Plain.callerInstance] at caller
+  | some worker =>
+    cases active : ArenaField.threads.get? store worker with
+    | none => simp [Plain.callerInstance, active] at caller
+    | some running =>
+      cases task : ArenaField.tasks.get? store running.task with
+      | none => simp [Plain.callerInstance, active, task] at caller
+      | some owner =>
+        have same : owner.inst = inst := by simpa [Plain.callerInstance, active, task, pure, Except.pure] using caller
+        simp [admitGive, currentInst?, currentTask?, getThread, getTask, getObj, currentThread, getStore, perform,
+          Prog.lift, Prog.bind_assoc, Prog.bind, bind, Plain.bodyLength, active, task, same, mayLeave,
+          Nat.add_assoc]
+
+private theorem lengthReadStore {E : CoreEngine} {Host Result : Type}
+    (next : CStore E → P E Host Result) (store : CStore E) (state : Host) (thread : Option ThreadId) :
+    Plain.bodyLength (getStore.bind next) store state (some thread) =
+      Plain.bodyLength (next store) store state (some thread) + 1 := rfl
+
+private theorem lengthReadSelection {grow : SingleThreaded.GrowOracle} {sig : Signature} {Result : Type}
+    (handle : BitVec IntType.i32.width) (next : Option (Tree sig) → Session grow sig Result)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId) :
+    Plain.bodyLength ((select handle).bind next) store state (some thread) =
+      Plain.bodyLength (next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle))
+        store state (some thread) + 1 := rfl
+
+private theorem framesReadStore {grow : SingleThreaded.GrowOracle} {sig : Signature} {Result : Type}
+    (next : CStore (core3 grow) → Session grow sig Result)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId) :
+    Plain.FramesHost HostState.writer (getStore.bind next) store state (some thread) =
+      Plain.FramesHost HostState.writer (next store) store state (some thread) := rfl
+
+private theorem framesReadSelection {grow : SingleThreaded.GrowOracle} {sig : Signature} {Result : Type}
+    (handle : BitVec 32) (next : Option (Tree sig) → Session grow sig Result)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId) :
+    Plain.FramesHost HostState.writer ((select handle).bind next) store state (some thread) =
+      Plain.FramesHost HostState.writer (next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle))
+        store state (some thread) := rfl
+
+theorem framesMemorySelection {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    (destination : RecordDestination) (pointer : FlatValue) (handle : BitVec 32)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId)
+    (word : Stored.flatType pointer = ABI.pointerType destination.width)
+    (checked : destination.check store = .ok ()) :
+    Plain.FramesHost HostState.writer (selectMemoryDestination destination [.int .i32 handle, pointer])
+      store state (some thread) := by
+  simp only [selectMemoryDestination, Execution.Runtime.Value.int, word, bne_self_eq_false, Bool.false_eq_true,
+    ite_false, Prog.bind_eq, framesReadStore, checked, framesReadSelection]
+  cases Stored.Endpoints.Core.childFromHistory state.writer.accepted handle <;> trivial
+
+theorem framesFlatSelection {grow : SingleThreaded.GrowOracle} {sig : Signature}
+    (destination : RecordDestination) (schema : Stored.TypeOf) (handle : BitVec 32)
+    (store : CStore (core3 grow)) (state : HostState sig) (thread : Option ThreadId)
+    (checked : destination.check store = .ok ()) :
+    Plain.FramesHost HostState.writer (selectFlatDestination destination schema [.int .i32 handle])
+      store state (some thread) := by
+  simp only [selectFlatDestination, Execution.Runtime.Value.int, Prog.bind_eq, framesReadStore, checked, framesReadSelection]
+  cases Stored.Endpoints.Core.childFromHistory state.writer.accepted handle with
+  | none => trivial
+  | some tree => cases schemaMatches : rootHasSchema tree schema <;> simp [schemaMatches, Plain.FramesHost]
+
+open Machine.ReturnFrame.Occurrence in
 private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.GrowOracle} {Result : Type}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (args : List FlatValue)
     (start : Machine.Config (core3 grow) (HostState sig)) (thread : Option ThreadId) (inst : InstId)
@@ -1051,12 +1266,16 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
     (routed : route start.host.nextTicket bindings name type args = (admitGive inst selection >>= next))
     (checked : let entered := start.host.enter name type args
       Plain.runBody selection start.store entered (some thread) = (start.store, entered, .ok (.ok selected)))
+    (selectionFrame : Plain.FramesHost HostState.writer selection start.store (start.host.enter name type args) (some thread))
+    (selectionLength : Plain.bodyLength selection start.store (start.host.enter name type args) (some thread) = 2)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
-        { start with host := start.host.enter name type args
-                     ctl := ⟨thread, .prog (next (.ok selected) >>= fun words => pure (.flat words)),
-                       .core core continuation :: segments⟩ :: rest } := by
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
+      let reached := { start with host := start.host.enter name type args
+                                  ctl := ⟨thread, .prog (next (.ok selected) >>= fun words => pure (.flat words)),
+                                    .core core continuation :: segments⟩ :: rest }
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place labels reached
+        (((Edit.push (.core core continuation)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start labels reached := by
   let entered := start.host.enter name type args
   let saved := .core core continuation :: segments
   let admission := admitGive inst selection
@@ -1069,7 +1288,16 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
     rw [resolve_caller, caller]
     simp only [read_store, bne_self_eq_false, mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
     exact checked
-  obtain ⟨labels, silent, steps⟩ := body_steps_at admission active start.store entered (.ok selected) finish
+  have admitFrame : Plain.FramesHost HostState.writer admission start.store entered (some thread) := by
+    dsimp only [admission, admitGive]
+    simp only [Prog.bind_eq]
+    rw [framesCaller, caller]
+    have storeFrame (rest : CStore (core3 grow) → Session grow sig (Except Claims.Core.Scheduled.Issue Result)) :
+        Plain.FramesHost HostState.writer (getStore.bind rest) start.store entered (some thread) =
+          Plain.FramesHost HostState.writer (rest start.store) start.store entered (some thread) := rfl
+    simp only [storeFrame, bne_self_eq_false, mayLeave, Bool.not_true, Bool.or_false, Bool.false_eq_true, ite_false]
+    exact selectionFrame
+  obtain ⟨labels, silent, count, tracks, frames⟩ := body_tracks_framed_at admission active start.store entered (.ok selected) finish
     thread saved rest profile ready (specDispatch ready impl) rfl (some thread) (.inr rfl) evaluated
   have unpack : (route start.host.nextTicket bindings name type args >>= fun words => pure (.flat words)) =
       (admission >>= finish) := by rw [routed]; exact Prog.bind_assoc _ _ _
@@ -1079,22 +1307,49 @@ private theorem parked_give_prefix {sig : Signature} {grow : SingleThreaded.Grow
         route state.nextTicket bindings name type args >>= fun words => pure (.flat words))) := by
     simp only [calloutBody, leaves, ite_true, embedder]
     rfl
-  have entry : Machine.Steps profile ready (specDispatch ready impl)
+  have entry (place : Location) : Prefix profile ready (specDispatch ready impl)
       { start with ctl := ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready impl
-          start.store thread (.embedder name type) args), saved⟩ :: rest } (.tau :: .tau :: labels)
-      { active with ctl := ⟨thread, .prog (finish (.ok selected)), saved⟩ :: rest } := by
-    refine .cons (.hostGet (by rw [installed])) (.cons (.hostSet rfl) ?_)
-    change Machine.Steps profile ready (specDispatch ready impl)
+          start.store thread (.embedder name type) args), saved⟩ :: rest } place (.tau :: .tau :: labels)
+      { active with ctl := ⟨thread, .prog (finish (.ok selected)), saved⟩ :: rest } place := by
+    refine .step (middle := place) (.hostGet (by rw [installed])) ?_
+      (.step (middle := place) (.hostSet rfl) (by cases place <;> rfl) ?_)
+    · rw [transitionEdit]
+      simp only [installed]
+      cases place <;> rfl
+    change Prefix profile ready (specDispatch ready impl)
       { start with host := entered, ctl := ⟨thread, .prog (route start.host.nextTicket bindings name type args >>=
-        fun words => pure (.flat words)), saved⟩ :: rest } labels _
+        fun words => pure (.flat words)), saved⟩ :: rest } place labels _ place
     rw [unpack]
-    exact steps
-  refine ⟨_, ?_, prepend_embedder_callout (impl := impl) parked calling entry⟩
-  change labels.all (· matches .tau) = true
-  apply List.all_eq_true.mpr
-  intro label member
-  have tau := List.all_eq_true.mp silent label member
-  cases label <;> first | rfl | contradiction
+    exact tracks place
+  refine ⟨.tau :: .tau :: .tau :: .tau :: .tau :: labels, ?_, ?_, ?_, ?_⟩
+  · change labels.all (· matches .tau) = true
+    apply List.all_eq_true.mpr
+    intro label member
+    have tau := List.all_eq_true.mp silent label member
+    cases label <;> first | rfl | contradiction
+  · simp only [List.length_cons, count]
+    change Plain.bodyLength (admitGive inst selection) start.store entered (some thread) + 5 = 11
+    rw [admittedLength inst selection start.store entered thread caller mayLeave, selectionLength]
+  · intro place
+    let shifted := ((Edit.push (.core core continuation)).follow place).getD place
+    refine .step (middle := shifted) (.coreCallout parked calling) ?_
+      (.step (middle := shifted) (.currentThread rfl) (by cases shifted <;> rfl)
+        (.step (middle := shifted) (.get rfl) (by cases shifted <;> rfl) (entry shifted)))
+    simp only [transitionEdit, parked, calling, shifted]
+    cases place with
+    | active activation _ => cases activation <;> rfl
+    | saved _ _ => rfl
+  · have calloutFrame : Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl)
+        { start with ctl := ⟨thread, .prog (calloutBody Limits.spec Quirks.none ready impl
+            start.store thread (.embedder name type) args), saved⟩ :: rest } (.tau :: .tau :: labels)
+        { active with ctl := ⟨thread, .prog (finish (.ok selected)), saved⟩ :: rest } := by
+      refine .next (.hostGet (by rw [installed])) rfl (.next (.hostSet (s := entered) rfl) rfl ?_)
+      change Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl)
+        { start with host := entered, ctl := ⟨thread, .prog (route start.host.nextTicket bindings name type args >>=
+          fun words => pure (.flat words)), saved⟩ :: rest } labels _
+      rw [unpack]
+      exact frames _ HostState.writer admitFrame
+    exact .next (.coreCallout parked calling) rfl (.next (.currentThread rfl) rfl (.next (.get rfl) rfl calloutFrame))
 
 private theorem read_selection {sig : Signature} {grow : SingleThreaded.GrowOracle} {Result : Type}
     (handle : BitVec IntType.i32.width) (next : Option (Tree sig) → Session grow sig Result)
@@ -1103,6 +1358,7 @@ private theorem read_selection {sig : Signature} {grow : SingleThreaded.GrowOrac
       Plain.runBody (next (Stored.Endpoints.Core.childFromHistory state.writer.accepted handle))
         store state (some thread) := rfl
 
+open Machine.ReturnFrame.Occurrence in
 theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
     (pointer : FlatValue) (inst : InstId) (destination : RecordDestination) (tree : Tree sig)
@@ -1117,15 +1373,18 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (destinationChecked : destination.check start.store = .ok ())
     (selected : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
-        { start with host := start.host.enter name type [.int .i32 handle, pointer]
-                     ctl := ⟨thread, .prog (do
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
+      let reached := { start with
+        host := start.host.enter name type [.int .i32 handle, pointer]
+        ctl := ⟨thread, .prog (do
                        let result ← Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree (.memory (flatNat pointer))
                        return .flat (← finish start.host.nextTicket
                          (result.mapError .lowerPayload |>.map (fun _ => 0)))),
-                       .core core continuation :: segments⟩ :: rest } := by
+                       .core core continuation :: segments⟩ :: rest }
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place labels reached
+        (((Edit.push (.core core continuation)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start labels reached := by
   let selection := selectMemoryDestination (grow := grow) (sig := sig) destination [.int .i32 handle, pointer]
   let next : Except Claims.Core.Scheduled.Issue (Tree sig × Nat) → Session grow sig (List FlatValue)
     | .error issue => finish start.host.nextTicket (.error issue)
@@ -1164,11 +1423,21 @@ theorem parked_give_payload {sig : Signature} {grow : SingleThreaded.GrowOracle}
       bne_self_eq_false, Bool.false_eq_true, ite_false, read_store, destinationChecked, read_selection]
     rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
     rfl
+  have selectionLength : Plain.bodyLength selection start.store
+      (start.host.enter name type [.int .i32 handle, pointer]) (some thread) = 2 := by
+    let entered := start.host.enter name type [.int .i32 handle, pointer]
+    change Plain.bodyLength selection start.store entered (some thread) = 2
+    simp only [selection, selectMemoryDestination, Execution.Runtime.Value.int, Prog.bind_eq, word,
+      bne_self_eq_false, Bool.false_eq_true, ite_false, lengthReadStore, destinationChecked, lengthReadSelection]
+    rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
+    rfl
   have actual := parked_give_prefix bindings name type _ start thread inst profile ready selection
-    (tree, flatNat pointer) next parked calling caller mayLeave routed checked impl embedder
+    (tree, flatNat pointer) next parked calling caller mayLeave routed checked
+    (framesMemorySelection destination pointer handle start.store _ thread word destinationChecked) selectionLength impl embedder
   simp only [next, Prog.bind_eq, Prog.bind_assoc] at actual ⊢
   exact actual
 
+open Machine.ReturnFrame.Occurrence in
 theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (bindings : List (Binding sig)) (name : String) (type : V1.FuncType) (handle : BitVec IntType.i32.width)
     (inst : InstId) (destination : RecordDestination) (payload : Stored.TypeOf) (tree : Tree sig)
@@ -1183,15 +1452,18 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     (selected : Stored.Endpoints.Core.childFromHistory start.host.writer.accepted handle = some tree)
     (schema : rootHasSchema tree payload = true)
     (impl : HostImpl (core3 grow) (HostState sig)) (embedder : impl.embedder = (host (grow := grow) bindings).embedder) :
-    ∃ labels, labels.all (· matches .tau) = true ∧
-      Machine.Steps profile ready (specDispatch ready impl) start labels
-        { start with host := start.host.enter name type [.int .i32 handle]
-                     ctl := ⟨thread, .prog (do
+    ∃ labels, labels.all (· matches .tau) = true ∧ labels.length = 11 ∧
+      let reached := { start with
+        host := start.host.enter name type [.int .i32 handle]
+        ctl := ⟨thread, .prog (do
                        let result ← Claims.Record.lowerPayloadRoot recordClaims Limits.spec Quirks.none
                          (destination.context inst) tree .flat
                        return .flat (← writeCompletion (flatCompletion start.host.nextTicket
                          (ABI.flatten destination.width payload) (result.mapError .lowerPayload)))),
-                       .core core continuation :: segments⟩ :: rest } := by
+                       .core core continuation :: segments⟩ :: rest }
+      (∀ place, Prefix profile ready (specDispatch ready impl) start place labels reached
+        (((Edit.push (.core core continuation)).follow place).getD place)) ∧
+      Plain.HostFramedSteps HostState.writer profile ready (specDispatch ready impl) start labels reached := by
   let selection := selectFlatDestination (grow := grow) (sig := sig) destination payload [.int .i32 handle]
   let reply := fun result => writeCompletion (grow := grow) (sig := sig)
     (flatCompletion start.host.nextTicket (ABI.flatten destination.width payload) result)
@@ -1229,9 +1501,53 @@ theorem parked_give_flat {sig : Signature} {grow : SingleThreaded.GrowOracle}
     rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
     simp [schema]
     rfl
+  have selectionLength : Plain.bodyLength selection start.store
+      (start.host.enter name type [.int .i32 handle]) (some thread) = 2 := by
+    let entered := start.host.enter name type [.int .i32 handle]
+    change Plain.bodyLength selection start.store entered (some thread) = 2
+    simp only [selection, selectFlatDestination, Execution.Runtime.Value.int, Prog.bind_eq,
+      lengthReadStore, destinationChecked, lengthReadSelection]
+    rw [show Stored.Endpoints.Core.childFromHistory entered.writer.accepted handle = some tree from selected]
+    simp only [schema, Bool.not_true, Bool.false_eq_true, ite_false]
+    rfl
   have actual := parked_give_prefix bindings name type _ start thread inst profile ready selection
-    tree next parked calling caller mayLeave routed checked impl embedder
+    tree next parked calling caller mayLeave routed checked
+    (framesFlatSelection destination payload handle start.store _ thread destinationChecked) selectionLength impl embedder
   simp only [next, reply, Prog.bind_eq, Prog.bind_assoc] at actual ⊢
   exact actual
+
+open Machine Machine.ReturnFrame.Occurrence in
+theorem giveCompletionWrite {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest}
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    let written := { start with
+      host := start.host.record reply.1
+      ctl := ⟨thread, .prog (.pure (.flat reply.2)), .core core continuation :: segments⟩ :: rest }
+    (∀ place, Prefix profile ready dispatch start place [.tau, .tau] written place) ∧
+    Plain.HostFramedSteps HostState.writer profile ready dispatch start [.tau, .tau] written ∧
+    Step profile ready dispatch written .tau
+      { written with ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+        continuation, segments⟩ :: rest } ∧ transitionEdit written .tau = .pop := by
+  refine ⟨fun place => ?_, .next (.hostGet reached) rfl (.next (.hostSet rfl) rfl (.done _)), .popCore rfl, rfl⟩
+  exact .step (.hostGet reached) (by rw [transitionEdit, reached]; rfl) (.step (.hostSet rfl) rfl (.done _ _))
+
+open Machine Machine.ReturnFrame.Occurrence in
+theorem giveCompletionTrail {sig : Signature} {grow : SingleThreaded.GrowOracle}
+    {start : Config (core3 grow) (HostState sig)} (reply : Event × List FlatValue)
+    {profile : ProfileKind} {ready : HostReady (HostState sig)} {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    {thread core continuation segments rest} (place : Location)
+    (reached : start.ctl = ⟨thread, .prog (do return .flat (← writeCompletion reply)),
+      .core core continuation :: segments⟩ :: rest) :
+    Trail profile ready dispatch start (some place) [.tau, .tau, .tau]
+      { start with host := start.host.record reply.1
+                   ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values reply.2))
+                     continuation, segments⟩ :: rest } ((Edit.pop : Edit (core3 grow) (HostState sig)).follow place) := by
+  have edit : transitionEdit start .tau = .same := by rw [transitionEdit, reached]; rfl
+  refine .step (.hostGet reached) ?_
+  rw [edit]
+  exact .step (.hostSet rfl) (Trail.pop_core place rfl)
 
 end Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PlainScheduled

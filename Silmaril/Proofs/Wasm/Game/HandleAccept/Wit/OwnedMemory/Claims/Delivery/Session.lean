@@ -52,10 +52,11 @@ theorem collectionAllocatorPrefix {bindings : List (Binding sig)}
       AllocatorCut profile ready bindings older changes entered reference last other checkLabels canonLabels mark := by
   dsimp only
   intro path covers
-  obtain ⟨checkLabels, canonLabels, other, mark, checked, canonical, seenCheck, seenCanon, paired, outside, checkTrack, canonTrack, _⟩ :=
+  obtain ⟨checkLabels, canonLabels, other, mark, checked, canonical, seenCheck, seenCanon, paired, outside,
+    checkTrack, canonTrack, classified, _⟩ :=
     replay.2.2 path covers
   exact ⟨other, mark, checkLabels, canonLabels, checked.steps, canonical.steps,
-    ⟨checkTrack, canonTrack, paired, outside, seenCheck.trans seenCanon.symm⟩⟩
+    ⟨checkTrack, canonTrack, paired, outside, seenCheck.trans seenCanon.symm, classified⟩⟩
 
 theorem collectionInstallLinked {bindings : List (Binding sig)} {callees : List (Callee sig)}
     {destination : RecordDestination} {inst : InstId} {type element : Stored.TypeOf}
@@ -277,34 +278,43 @@ theorem lowerDirectArguments {engine : CoreEngine} {hostState : Type} (cx : Lift
     rw [List.map_cons, List.map_cons, List.map_cons, lowerFlatTypes, ih]
     cases arg <;> rw [DirectArgument.value, DirectArgument.type, lowerFlatAt] <;> rfl
 
+theorem directCalleePlan (task : TaskId) (callee : (core3 grow).FuncAddr) (record : Task (core3 grow))
+    (args : List DirectArgument) (schema : paramTypes record.ft = args.map DirectArgument.type)
+    (fits : args.length ≤ ABI.maxFlatParams) :
+    ∃ (read : CStore (core3 grow) → Session grow sig (Ret (core3 grow))),
+      liftArgumentsBody .spec .none task callee record (args.map DirectArgument.value) = .op .get read ∧
+      ∀ store, ∃ next, read store = (callCore callee (args.map DirectArgument.flat) >>= next) ∧
+        (record.opts.async_ = true → record.opts.callback = none → next = stackfulTail task) := by
+  let values := args.map DirectArgument.value
+  let flat := args.map DirectArgument.flat
+  let ctx : LiftLowerContext (core3 grow) :=
+    { opts := record.opts, inst := record.inst, scope := .task task }
+  have lower : (lowerFlatValues Limits.spec Quirks.none ctx ABI.maxFlatParams values
+      (paramTypes record.ft) none : Session grow sig (List FlatValue)) =
+      (ptrType ctx >>= fun _ => pure flat) := by
+    simp only [lowerFlatValues, schema, directArgumentCount, ite_eq_right (Nat.not_lt_of_ge fits),
+      values, flat, lowerDirectArguments]
+  simp only [liftArgumentsBody]
+  rw [show (lowerFlatValues Limits.spec Quirks.none
+      { opts := record.opts, inst := record.inst, scope := .task task }
+      ABI.maxFlatParams values (paramTypes record.ft) none : Session grow sig (List FlatValue)) =
+      (ptrType ctx >>= fun _ => pure flat) from lower]
+  refine ⟨_, rfl, ?_⟩
+  intro store
+  cases mode : record.opts.async_ <;> cases callback : record.opts.callback <;>
+    simp [Prog.bind, pure, liftArgumentsTail, liftSyncTail, *] <;> first | rfl | exact ⟨_, rfl⟩
+
 theorem liftDirectCoreAt (site : LiftSite grow sig) (state : State grow sig) (args : List DirectArgument)
     (focused : state.ctl = (site.withArguments (args.map DirectArgument.value)).ctl)
     (schema : paramTypes site.registeredTask.ft = args.map DirectArgument.type)
     (fits : args.length ≤ ABI.maxFlatParams) :
     ∃ next, ∀ (profile : ProfileKind) (ready : HostReady (HostState sig)) (impl : HostImpl (core3 grow) (HostState sig)),
       Steps profile ready (specDispatch ready impl) state [.tau, .tau] (site.coreEnteredAt state (args.map DirectArgument.flat) next) := by
-  let values := args.map DirectArgument.value
-  let flat := args.map DirectArgument.flat
-  let ctx : LiftLowerContext (core3 grow) :=
-    { opts := site.registeredTask.opts, inst := site.registeredTask.inst, scope := .task site.storeAndTask.2 }
-  have lower : (lowerFlatValues Limits.spec Quirks.none ctx ABI.maxFlatParams values
-      (paramTypes site.registeredTask.ft) none : Session grow sig (List FlatValue)) =
-      (ptrType ctx >>= fun _ => pure flat) := by
-    simp only [lowerFlatValues, schema, directArgumentCount, ite_eq_right (Nat.not_lt_of_ge fits),
-      values, flat, lowerDirectArguments]
-  suffices path : ∃ (read : CStore (core3 grow) → Session grow sig (Ret (core3 grow))),
-      (site.withArguments values).ctl = ⟨some site.storeAndThread.2, .prog (.op .get read), []⟩ :: site.workerTail ∧
-      ∃ next, read state.store = .op (.callCore site.core flat) next by
-    obtain ⟨read, focus, next, call⟩ := path
-    exact ⟨next, fun _ _ _ => .cons (.get (focused.trans focus)) (.cons (.callCore (by rw [call])) (.refl _))⟩
-  simp only [LiftSite.withArguments, LiftSite.argumentsTail, liftArgumentsBody]
-  rw [show (lowerFlatValues Limits.spec Quirks.none
-      { opts := site.registeredTask.opts, inst := site.registeredTask.inst, scope := .task site.storeAndTask.2 }
-      ABI.maxFlatParams values (paramTypes site.registeredTask.ft) none : Session grow sig (List FlatValue)) =
-      (ptrType ctx >>= fun _ => pure flat) from lower]
-  refine ⟨_, rfl, ?_⟩
-  cases mode : site.registeredTask.opts.async_ <;> cases callback : site.registeredTask.opts.callback <;>
-    simp [Prog.bind, pure, liftSyncTail, *] <;> exact ⟨_, rfl⟩
+  obtain ⟨read, body, call⟩ := directCalleePlan site.storeAndTask.2 site.core site.registeredTask args schema fits
+  obtain ⟨next, selected, _⟩ := call state.store
+  have focus : state.ctl = ⟨some site.storeAndThread.2, .prog (.op .get read), []⟩ :: site.workerTail := by
+    rw [focused, LiftSite.withArguments, LiftSite.argumentsTail, body]
+  exact ⟨next, fun _ _ _ => .cons (.get focus) (.cons (.callCore (by rw [selected]; rfl)) (.refl _))⟩
 
 theorem liftDirectCore (site : LiftSite grow sig) (args : List DirectArgument)
     (schema : paramTypes site.registeredTask.ft = args.map DirectArgument.type)
@@ -386,19 +396,19 @@ theorem lowerLinkedLift {site : CoreCallSite start} (request : LowerRequest site
   rw [coreCalloutOverlay site bindings callees] at linked
   exact appendSteps linked (appendSteps (lowerAllocate request live allowed) (Dispatch.liftedLookup_steps rfl actual))
 
-theorem lowerStart {site : LiftSite grow sig} (handoff : LowerStart site) :
-    Steps profile ready (specDispatch ready impl) site.onStart (List.replicate handoff.steps .tau) handoff.reading := by
-  have unroll : (callVals (.onStart site.registeredTask.caller) >>= site.argumentsTail) =
-      .op (.call (.onStart site.registeredTask.caller)) (LowerStart.resume site) := by
+theorem lowerStart {site : OnStartSite start} (handoff : LowerStartAt site) :
+    Steps profile ready (specDispatch ready impl) start (List.replicate handoff.steps .tau) handoff.reading := by
+  have unroll : (callVals (.onStart site.caller) >>= site.next) =
+      .op (.call (.onStart site.caller)) site.resume := by
     simp [callVals, callRet, perform, Prog.lift]
     dsimp [Bind.bind, Prog.bind]
     congr 1
     funext result
     cases result <;> rfl
-  have focused : site.onStart.ctl = ⟨some site.storeAndThread.2,
-      .prog (.op (.call (.onStart site.registeredTask.caller)) (LowerStart.resume site)), []⟩ :: site.workerTail := by
-    simp only [LiftSite.onStart, unroll]
-  cases indexed : handoff.record.index <;> simp only [LowerStart.steps, indexed, Option.isSome, Bool.false_eq_true, ite_false, ite_true]
+  have focused : start.ctl = ⟨some site.thread,
+      .prog (.op (.call (.onStart site.caller)) site.resume), site.segments⟩ :: site.rest := by
+    rw [site.focused, unroll]
+  cases indexed : handoff.record.index <;> simp only [LowerStartAt.steps, indexed, Option.isSome, Bool.false_eq_true, ite_false, ite_true]
   all_goals
     refine .cons (.call focused) (.cons (.get rfl) ?_)
     simp [Prog.bind, pure, handoff.callerLive]
@@ -408,19 +418,172 @@ theorem lowerStart {site : LiftSite grow sig} (handoff : LowerStart site) :
     simp [Prog.bind, pure, handoff.subtaskLive, indexed, Waitable.setPendingEvent]
   · refine .cons (.modify rfl) ?_
     convert (Steps.refl (prof := profile) (hr := ready) (dispatch := specDispatch ready impl) handoff.reading) using 1
-    simp [LowerStart.reading, LowerStart.progress, LowerStart.readArgs, indexed]
+    simp [LowerStartAt.reading, LowerStartAt.progress, LowerStartAt.readArgs, indexed]
     dsimp [Prog.bind]
   · refine .cons (.modify rfl) (.cons (.modify rfl) ?_)
     convert (Steps.refl (prof := profile) (hr := ready) (dispatch := specDispatch ready impl) handoff.reading) using 1
-    simp [LowerStart.reading, LowerStart.progress, LowerStart.readArgs, indexed]
+    simp [LowerStartAt.reading, LowerStartAt.progress, LowerStartAt.readArgs, indexed]
     dsimp [Prog.bind]
 
-theorem lowerStartRecord {site : LiftSite grow sig} (handoff : LowerStart site) :
+theorem lowerStartRecord {site : OnStartSite start} (handoff : LowerStartAt site) :
     handoff.reading.store.subtask? handoff.subtask = some handoff.startedRecord := by
   change ArenaField.subtasks.get? (LowerSt.startSt handoff.subtask handoff.progress) handoff.subtask = _
   cases indexed : handoff.record.index <;>
-    simp [LowerSt.startSt, LowerStart.progress, LowerStart.startedRecord, indexed, CStore.setPendingSt,
+    simp [LowerSt.startSt, LowerStartAt.progress, LowerStartAt.startedRecord, indexed, CStore.setPendingSt,
       CStore.modifyWaitableCommon, ArenaField.get?_modify_self, handoff.subtaskLive]
+
+theorem lowerReadPlan {site : OnStartSite start} (handoff : LowerStartAt site) :
+    handoff.readArgs = (do
+      let width ← ptrType handoff.context
+      handoff.readAt width >>= handoff.finishRead) := by
+  simp only [LowerStartAt.readArgs, liftFlatValues, LowerStartAt.readAt, LowerStartAt.types,
+    LowerStartAt.spillLayout, LowerStartAt.cursor, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+  rfl
+
+theorem lowerReadWidth {site : OnStartSite start} (handoff : LowerStartAt site) :
+    Steps profile ready (specDispatch ready impl) handoff.reading [.tau] handoff.selectedRead := by
+  have focus : handoff.reading.ctl = handoff.readControl (do
+      let width ← ptrType handoff.context
+      handoff.readAt width >>= handoff.finishRead) := by
+    rw [← lowerReadPlan]
+    rfl
+  exact .cons (.get focus) (.refl _)
+
+theorem lowerSpill {site : OnStartSite start} (handoff : LowerStartAt site) {pointer memory size}
+    (spilled : handoff.maxParams < (ABI.flattenTypes handoff.readWidth handoff.types).length)
+    (found : handoff.flat[handoff.pos]? = some pointer)
+    (aligned : flatNat pointer = ABI.alignTo (flatNat pointer) (handoff.spillLayout handoff.readWidth).alignment)
+    (selected : handoff.context.opts.memory = some memory)
+    (sized : (core3 grow).memSize? handoff.selectedRead.store.core memory = some size)
+    (fits : flatNat pointer + (handoff.spillLayout handoff.readWidth).size ≤ size) :
+    Steps profile ready (specDispatch ready impl) handoff.selectedRead [.tau] (handoff.spillBody pointer) := by
+  have focus := show handoff.selectedRead.ctl = handoff.readControl
+      (handoff.readAt handoff.readWidth >>= handoff.finishRead) from rfl
+  simp [LowerStartAt.readAt, spilled, FlatCursor.next, LowerStartAt.cursor, found, Prog.bind, pure,
+    trapIf, ← aligned, checkInBounds, memLen, memAddr, selected, orTrap] at focus
+  refine .cons (.get focus) ?_
+  simp [sized, Nat.not_lt.mpr fits, Prog.bind, Prog.bind_assoc, LowerStartAt.spillBody]
+  exact .refl _
+
+theorem lowerSpillRangeTrap {site : OnStartSite start} (handoff : LowerStartAt site) {pointer memory size}
+    (spilled : handoff.maxParams < (ABI.flattenTypes handoff.readWidth handoff.types).length)
+    (found : handoff.flat[handoff.pos]? = some pointer)
+    (aligned : flatNat pointer = ABI.alignTo (flatNat pointer) (handoff.spillLayout handoff.readWidth).alignment)
+    (selected : handoff.context.opts.memory = some memory)
+    (sized : (core3 grow).memSize? handoff.selectedRead.store.core memory = some size)
+    (outside : size < flatNat pointer + (handoff.spillLayout handoff.readWidth).size) :
+    Steps profile ready (specDispatch ready impl) handoff.selectedRead [.tau, .trap .outOfBounds]
+      (StepDefs.trapCfg handoff.selectedRead) := by
+  have focus := show handoff.selectedRead.ctl = handoff.readControl
+      (handoff.readAt handoff.readWidth >>= handoff.finishRead) from rfl
+  simp [LowerStartAt.readAt, spilled, FlatCursor.next, LowerStartAt.cursor, found, Prog.bind, pure,
+    trapIf, ← aligned, checkInBounds, memLen, memAddr, selected, orTrap] at focus
+  refine .cons (.get focus) ?_
+  simp [sized, outside, Prog.bind]
+  exact .cons (.trap rfl) (.refl _)
+
+theorem loadDirectArgument (cx : LiftLowerContext (core3 grow)) (width : AddrType) (arg : DirectArgument) (ptr : Nat) :
+    (loadAt .spec .none cx width arg.type ptr : Session grow sig Value.Val) = (do
+      let bytes ← readMem cx ptr arg.byteCount
+      pure (arg.decode bytes)) := by
+  cases arg <;> simp only [DirectArgument.type, DirectArgument.byteCount, DirectArgument.decode,
+    loadAtWith, LoadCarrier.reference, loadPrim, loadInt, Prog.bind_eq, Prog.pure_eq, Prog.bind_assoc, Prog.pure_bind']
+
+theorem loadScalarSpill (cx : LiftLowerContext (core3 grow)) {memory : (core3 grow).MemAddr} (width : AddrType)
+    (selected : cx.opts.memory = some memory) {store : CStore (core3 grow)} {args : List DirectArgument} {ptr : Nat}
+    (fields : ScalarSpill store memory width args ptr) {state : State grow sig}
+    (live : state.store = store) {thread segments rest}
+    (consume : List Value.Val → Session grow sig (Ret (core3 grow)))
+    (focused : state.ctl = ⟨thread, .prog (loadTypesAt .spec .none cx width (args.map DirectArgument.type) ptr >>= consume),
+      segments⟩ :: rest) :
+    Steps profile ready (specDispatch ready impl) state (List.replicate args.length .tau)
+      { state with ctl := ⟨thread, .prog (consume (args.map DirectArgument.value)), segments⟩ :: rest } := by
+  induction fields generalizing state consume with
+  | nil ptr =>
+    change state.ctl = ⟨thread, .prog (consume []), segments⟩ :: rest at focused
+    have same : { state with ctl := ⟨thread, .prog (consume []), segments⟩ :: rest } = state := by
+      rw [← focused]
+    simp only [List.map_nil]
+    rw [same]
+    exact .refl _
+  | @cons arg args ptr bytes read decoded remaining ih =>
+    have readHere : (core3 grow).memRead? state.store.core memory (ABI.alignTo ptr (ABI.layout width arg.type).alignment)
+        arg.byteCount = some bytes := by
+      rw [live]
+      exact read
+    simp only [List.map_cons, loadTypesAtWith, loadDirectArgument,
+      Prog.bind_eq, Prog.pure_eq, Prog.bind_assoc, Prog.pure_bind'] at focused
+    simp [readMem, memAddr, selected, orTrap, Prog.bind, pure] at focused
+    simp only [List.length_cons, List.replicate_succ]
+    refine .cons (.get focused) ?_
+    simp only [readHere, Prog.bind, Prog.pure_bind', decoded]
+    apply ih _ (fun values => consume (arg.value :: values))
+    · rfl
+    · exact live
+
+theorem lowerLoadScalars {site : OnStartSite start} (handoff : LowerStartAt site)
+    {pointer : FlatValue} {memory : (core3 grow).MemAddr} {args : List DirectArgument}
+    (schema : handoff.types = args.map DirectArgument.type) (selected : handoff.context.opts.memory = some memory)
+    (fields : ScalarSpill handoff.selectedRead.store memory handoff.readWidth args (flatNat pointer)) :
+    Steps profile ready (specDispatch ready impl) (handoff.spillBody pointer) (List.replicate args.length .tau)
+      (handoff.spillLoaded (args.map DirectArgument.value)) := by
+  apply loadScalarSpill handoff.context handoff.readWidth selected fields (state := handoff.spillBody pointer) rfl
+    (fun args => handoff.finishRead (args, handoff.spillCursor))
+  simp only [LowerStartAt.spillBody, LowerStartAt.readControl, schema]
+
+theorem liftDirectArgument {engine : CoreEngine} {hostState : Type} (cx : LiftLowerContext engine)
+    (width : AddrType) (arg : DirectArgument) (cursor : FlatCursor)
+    (found : cursor.values[cursor.pos]? = some arg.flat) :
+    (liftFlatAt .spec .none cx width arg.type cursor : P engine hostState (Value.Val × FlatCursor)) =
+      pure (arg.value, { cursor with pos := cursor.pos + 1 }) := by
+  cases arg with
+  | bool value => cases value <;>
+      simp only [DirectArgument.type, liftFlatAtWith, FlatLoadCarrier.reference, liftFlatPrim,
+        FlatCursor.next, found, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] <;> rfl
+  | u32 value =>
+    have number : (value.toNat : Int) % (2 ^ 32) = value.toNat := by
+      have bound := value.isLt
+      exact Int.emod_eq_of_lt (Int.natCast_nonneg _) (by exact_mod_cast bound)
+    simp only [DirectArgument.type, liftFlatAtWith, FlatLoadCarrier.reference, liftFlatPrim,
+      Value.IntKind.ofPrimitive, FlatCursor.next, found, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
+    congr 3
+    change ((BitVec.ofInt 32 (value.toNat : Int)).toNat : Int) % (2 ^ 32) = value.toNat
+    simpa only [BitVec.ofInt_natCast, BitVec.ofNat_toNat, BitVec.setWidth_eq] using number
+
+theorem liftDirectArguments {engine : CoreEngine} {hostState : Type} (cx : LiftLowerContext engine)
+    (width : AddrType) (args : List DirectArgument) (cursor : FlatCursor) (suffix : List FlatValue)
+    (words : cursor.values.drop cursor.pos = args.map DirectArgument.flat ++ suffix) :
+    (liftFlatTypes .spec .none cx width (args.map DirectArgument.type) cursor :
+      P engine hostState (List Value.Val × FlatCursor)) =
+      pure (args.map DirectArgument.value, { cursor with pos := cursor.pos + args.length }) := by
+  induction args generalizing cursor with
+  | nil => cases cursor; rfl
+  | cons arg rest ih =>
+    have found : cursor.values[cursor.pos]? = some arg.flat := by
+      rw [← List.head?_drop, words]
+      rfl
+    have tail : cursor.values.drop (cursor.pos + 1) = rest.map DirectArgument.flat ++ suffix := by
+      rw [← List.drop_drop, words]
+      rfl
+    simp only [List.map_cons, liftFlatTypesWith, liftDirectArgument cx width arg cursor found,
+      Prog.bind_eq, Prog.pure_eq, Prog.pure_bind', ih { cursor with pos := cursor.pos + 1 } tail, List.length_cons]
+    rw [Nat.add_right_comm cursor.pos 1 rest.length, Nat.add_assoc]
+
+def lowerDirectReturn {site : OnStartSite start} (handoff : LowerStartAt site) (args : List DirectArgument)
+    (schema : handoff.types = args.map DirectArgument.type) (fits : args.length ≤ handoff.maxParams)
+    (suffix : List FlatValue) (words : handoff.flat.drop handoff.pos = args.map DirectArgument.flat ++ suffix) :
+    LowerArgumentReturn handoff handoff.selectedRead := by
+  refine ⟨args.map DirectArgument.value, { handoff.cursor with pos := handoff.pos + args.length }, ?_⟩
+  unfold LowerStartAt.selectedRead
+  simp only [LowerStartAt.readAt, schema, directArgumentCount, not_lt.mpr fits, ite_false,
+    liftDirectArguments handoff.context handoff.readWidth args handoff.cursor suffix words, Prog.bind_eq,
+    Prog.pure_eq, Prog.pure_bind']
+  rfl
+
+theorem lowerArgsReturn {site : OnStartSite start} {handoff : LowerStartAt site} {reached : State grow sig}
+    (returned : LowerArgumentReturn handoff reached) :
+    Steps profile ready (specDispatch ready impl) reached [.tau, .tau] returned.resumed := by
+  exact .cons (.modify returned.focused) (.cons (.popProg rfl) (.refl _))
 
 theorem lowerEmptyArgs {site : LiftSite grow sig} (handoff : LowerStart site) (empty : handoff.fnType.params = []) :
     Steps profile ready (specDispatch ready impl) handoff.reading [.tau, .tau, .tau]
@@ -429,13 +592,14 @@ theorem lowerEmptyArgs {site : LiftSite grow sig} (handoff : LowerStart site) (e
       let _ ← ptrType handoff.context
       modifyStore (LowerSt.setCallerPosSt site.registeredTask.caller handoff.pos)
       pure (.vals [])) := by
-    simp [LowerStart.readArgs, liftFlatValues, empty, ABI.flattenTypes, liftFlatTypesWith, pure]
+    simp [LowerStartAt.readArgs, liftFlatValues, empty, ABI.flattenTypes, liftFlatTypesWith, pure]
     rfl
   have focused : handoff.reading.ctl = ⟨some site.storeAndThread.2, .prog (do
       let _ ← ptrType handoff.context
       modifyStore (LowerSt.setCallerPosSt site.registeredTask.caller handoff.pos)
-      pure (.vals [])), [.prog (LowerStart.resume site)]⟩ :: site.workerTail := by
-    simp only [LowerStart.reading, plan]
+      pure (.vals [])), [.prog site.startCursor.resume]⟩ :: site.workerTail := by
+    rw [LowerStartAt.reading, plan]
+    rfl
   exact .cons (.get focused) (.cons (.modify rfl) (.cons (.popProg rfl) (.refl _)))
 
 theorem lowerEmptyPair {site : LiftSite grow sig} (handoff : LowerStart site)
@@ -471,6 +635,74 @@ theorem lowerFresh {site : CoreCallSite start} (request : LowerRequest site) {co
       handoff.subtask = request.storeAndSubtask.2 ∧ handoff.record = { inst := request.inst } ∧ handoff.pos = 0 ∧
         handoff.flat = site.args :=
   ⟨lowerFreshStart request, rfl, rfl, rfl, rfl⟩
+
+set_option maxHeartbeats 500000 in
+theorem lowerK1Parent {site : CoreCallSite start} (request : LowerRequest site) {core fnType opts inst instance_}
+    (live : start.store.inst? inst = some instance_) (asyncMode : fnType.async_ = true)
+    (pressure : instance_.hasBackpressure (liftTaskData fnType opts inst request.storeAndCaller.2).needsExclusive = true) :
+    let lift := request.lifted core fnType opts inst
+    ∃ (entry : K1GateEntry lift.launched lift.storeAndThread.2 lift.storeAndTask.2)
+      (returned : LowerReturn request entry.wait.blocked),
+      Steps profile ready (specDispatch ready impl) lift.start (List.replicate 14 .tau) entry.wait.blocked ∧
+      returned.cancel = .task lift.storeAndTask.2 ∧
+      entry.wait.blocked.store.subtask? returned.subtask = some { inst := request.inst } ∧
+      returned.cancelInstalled.cont? lift.storeAndThread.2 = some entry.wait.saved ∧
+      returned.cancelInstalled.store.inst? request.inst = (start.store.inst? request.inst).map
+        (fun caller => if inst = request.inst then caller.incWaitingToEnter else caller) ∧
+      entry.next = liftAdmissionTail lift.storeAndTask.2 core := by
+  let lift := request.lifted core fnType opts inst
+  let task := liftTaskData fnType opts inst request.storeAndCaller.2
+  have taskLive : lift.launched.store.task? lift.storeAndTask.2 = some task :=
+    ArenaField.get?_alloc_self ArenaField.tasks lift.start.store task
+  have pressured : instance_.hasBackpressure task.needsExclusive = true := pressure
+  have liveInst : lift.launched.store.inst? inst = some instance_ := live
+  obtain ⟨entry, gate, _, _, continuation⟩ := lift_k1_gate (profile := profile) (ready := ready) (impl := impl)
+    core task instance_ _ (atGate := lift.launched) (thread := lift.storeAndThread.2) rfl taskLive asyncMode liveInst (by simp [pressured])
+  have sameTask : entry.task = task := Option.some.inj (entry.liveTask.symm.trans taskLive)
+  have reached : entry.waitingEntry.store.inst? entry.task.inst = some instance_ := by
+    change lift.launched.store.inst? entry.task.inst = some instance_
+    rw [sameTask]
+    exact liveInst
+  have unready : entry.wait.condition.eval (fun _ => false) entry.wait.incremented = false := by
+    unfold K1Wait.condition K1Wait.incremented ReadyCond.eval
+    change (match ArenaField.insts.get? (ArenaField.insts.modify entry.waitingEntry.store entry.task.inst
+      InstState.incWaitingToEnter) entry.task.inst with
+      | some current => !current.hasBackpressure entry.task.needsExclusive
+      | none => false) = false
+    rw [ArenaField.get?_modify_self, show ArenaField.insts.get? entry.waitingEntry.store entry.task.inst = _ from reached]
+    change (!instance_.hasBackpressure entry.task.needsExclusive) = false
+    rw [sameTask, pressured]
+    rfl
+  have parent : entry.rest = lift.workerTail := (congrArg List.tail entry.focused).symm
+  let returned : LowerReturn request entry.wait.blocked := ⟨.task lift.storeAndTask.2, by
+    change entry.rest = _
+    rw [parent]
+    simp only [LiftSite.workerTail, liftAfterThread, show lift.fnType.async_ = true from asyncMode,
+      Bool.not_true, Bool.false_eq_true, ite_false]
+    rfl⟩
+  have liveSub : entry.wait.blocked.store.subtask? returned.subtask = some { inst := request.inst } := by
+    have parkedFrame : entry.wait.blocked.store.subtasks = lift.launched.store.subtasks := by
+      rfl
+    have launchFrame : lift.launched.store.subtasks = request.storeAndSubtask.1.subtasks := by
+      rfl
+    change entry.wait.blocked.store.subtasks.get? request.storeAndSubtask.2.idx = _
+    rw [parkedFrame, launchFrame]
+    exact ArenaField.get?_alloc_self ArenaField.subtasks start.store { inst := request.inst }
+  have saved : returned.cancelInstalled.cont? lift.storeAndThread.2 = some entry.wait.saved := by
+    change (entry.waitingEntry.setCont lift.storeAndThread.2 (some entry.wait.saved)).cont? _ = _
+    exact Config.cont?_setCont_self entry.waitingEntry lift.storeAndThread.2 (some entry.wait.saved)
+  have parked : Steps profile ready (specDispatch ready impl) lift.launched (List.replicate 9 .tau) entry.wait.blocked :=
+    appendSteps gate (entry.wait.blocks unready)
+  have callerFrame : returned.cancelInstalled.store.inst? request.inst = (start.store.inst? request.inst).map
+      (fun caller => if inst = request.inst then caller.incWaitingToEnter else caller) := by
+    change ArenaField.insts.get? (ArenaField.insts.modify entry.waitingEntry.store entry.task.inst
+        InstState.incWaitingToEnter) request.inst = _
+    rw [ArenaField.get?_modify]
+    have unchanged : ArenaField.insts.get? entry.waitingEntry.store request.inst = start.store.inst? request.inst := rfl
+    have instEq : entry.task.inst = inst := congrArg Task.inst sameTask
+    rw [unchanged, instEq]
+    split <;> simp_all
+  exact ⟨entry, returned, appendSteps (liftLaunchSteps lift) parked, rfl, liveSub, saved, callerFrame, continuation⟩
 
 theorem allocatorSession {route : GiveEffectRoute} {bindings : List (Binding sig)} {callees : List (Callee sig)}
     {site : PayloadRoot.Site grow sig route} {older changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -691,6 +923,456 @@ private theorem lowerTableFull (returned : LowerReturn request reached) {instanc
 
 end LowerReturn
 
+section K1Resume
+
+variable {atWait atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+  {wait : K1Wait atWait thread task}
+
+theorem k1ResumeSelected (resume : K1Resume wait atHost ready profile) :
+    Steps profile ready (specDispatch ready impl) atHost resume.labels resume.reached := by
+  have focused : resume.tick.atResume.ctl =
+      [Activation.ofProg none (Thread.resume thread >>= fun () =>
+        modifyStore StepDefs.leaveHostSt >>= fun () => pure .unit)] := rfl
+  have read := Step.get (prof := profile) (hr := ready) (dispatch := specDispatch ready impl) focused
+  simp [Prog.bind, resume.tick.waiting, Thread.stopWaiting] at read
+  exact appendSteps resume.tick.selects_thread
+    (.cons read (.cons (.modify rfl) (.cons (.resumeThread rfl resume.saved) (.refl _))))
+
+theorem k1ResumeAdmitted (resume : K1Resume wait atHost ready profile) {record : Task (core3 grow)}
+    (live : resume.reached.store.task? task = some record) (notPending : record.state ≠ .pendingCancel) :
+    Steps profile ready (specDispatch ready impl) resume.reached [.tau, .tau] resume.admitted := by
+  have decLive : ArenaField.tasks.get? (ArenaOps.updateSt ArenaField.insts wait.instance_
+      InstState.decWaitingToEnter resume.reached.store) task = some record := live
+  have focused : resume.reached.ctl = wait.saved :: resume.reached.ctl.drop 1 := rfl
+  have first := Step.modify (prof := profile) (hr := ready) (dispatch := specDispatch ready impl) focused
+  refine .cons first (.cons (.get rfl) ?_)
+  simp [K1Resume.admitted, Prog.bind, pure, decLive, notPending]
+  exact .refl _
+
+theorem k1ResumePair (resume : K1Resume wait atHost ready profile) {record : Task (core3 grow)}
+    (live : resume.reached.store.task? task = some record) (notPending : record.state ≠ .pendingCancel)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) atHost (resume.labels ++ [.tau, .tau]) resume.admitted ∧
+      Steps profile ready (Dispatch.linked ready bindings callees) atHost (resume.labels ++ [.tau, .tau]) resume.admitted :=
+  ⟨appendSteps (k1ResumeSelected resume) (k1ResumeAdmitted resume live notPending),
+    appendSteps (k1ResumeSelected resume) (k1ResumeAdmitted resume live notPending)⟩
+
+end K1Resume
+
+theorem k1StartLift {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) :
+    Steps profile ready (specDispatch ready impl) resume.admitted handoff.labels handoff.onStart := by
+  have lockedTask : ArenaField.tasks.get? (resume.entryStore (entry := entry)) task = some handoff.record := by
+    unfold K1Resume.entryStore
+    split <;> exact handoff.live
+  have enteredInst : ArenaField.insts.get? (resume.entryStore (entry := entry)) handoff.record.inst = some handoff.instance_ :=
+    handoff.liveInstance
+  have registered : ArenaField.tasks.get? ((resume.entryStore (entry := entry)).registerThreadSt task thread) task =
+      some handoff.registered := by
+    simp only [CStore.registerThreadSt, CStore.task?, CStore.inst?, lockedTask, enteredInst, Option.bind_some, handoff.capacity]
+    change (ArenaField.tasks.get? (ArenaField.tasks.modify _ task _) task) = _
+    rw [ArenaField.get?_modify_self, lockedTask, Option.map_some]
+    rfl
+  have focused : resume.admitted.ctl = ⟨some thread, .prog (entry.afterWait entry.markedTask true),
+      entry.segments⟩ :: resume.admitted.ctl.drop 1 := rfl
+  cases exclusive : entry.markedTask.needsExclusive
+  all_goals
+    simp [K1LiftStart.labels, exclusive]
+    simp [K1GateEntry.afterWait, Prog.bind, pure, exclusive, Task.registerThread, handoff.body] at focused
+    simp [K1Resume.entryStore, exclusive] at lockedTask enteredInst registered
+    try refine .cons (.modify focused) ?_
+    first | refine .cons (.get focused) ?_ | refine .cons (.get rfl) ?_
+    simp [Prog.bind, pure, ArenaOps.updateSt, lockedTask]
+    refine .cons (.get rfl) ?_
+    simp [Prog.bind, pure, enteredInst, handoff.capacity]
+    refine .cons (.modify rfl) (.cons (.get rfl) ?_)
+    simp [Prog.bind, pure, registered, Task.start]
+    refine .cons (.get rfl) ?_
+    simp [Prog.bind, pure, registered]
+    refine .cons (.modify rfl) ?_
+    simp [K1LiftStart.onStart, K1Resume.entryStore, Prog.bind, exclusive]
+    exact .refl _
+
+theorem k1LiftStartPair {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) (notPending : handoff.record.state ≠ .pendingCancel)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    let labels := (resume.labels ++ [.tau, .tau]) ++ handoff.labels
+    Steps profile ready (Dispatch.coreOnly ready bindings) atHost labels handoff.onStart ∧
+      Steps profile ready (Dispatch.linked ready bindings callees) atHost labels handoff.onStart :=
+  let paths := k1ResumePair resume handoff.live notPending bindings callees
+  ⟨appendSteps paths.1 (k1StartLift handoff), appendSteps paths.2 (k1StartLift handoff)⟩
+
+theorem k1LowerHandoff {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) (notPending : handoff.record.state ≠ .pendingCancel)
+    {subtask context flat pos fnType maxParams maxResults subtaskRecord}
+    (caller : ArenaField.callers.get? atHost.store handoff.record.caller =
+      some (.lower subtask context flat pos fnType maxParams maxResults))
+    (live : atHost.store.subtask? subtask = some subtaskRecord)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    ∃ cursor : LowerStartAt handoff.startCursor,
+      let labels := ((resume.labels ++ [.tau, .tau]) ++ handoff.labels) ++ List.replicate cursor.steps .tau
+      cursor.subtask = subtask ∧ cursor.record = subtaskRecord ∧ cursor.flat = flat ∧ cursor.pos = pos ∧
+      cursor.fnType = fnType ∧ cursor.maxParams = maxParams ∧
+        Steps profile ready (Dispatch.coreOnly ready bindings) atHost labels cursor.reading ∧
+        Steps profile ready (Dispatch.linked ready bindings callees) atHost labels cursor.reading ∧
+        cursor.reading.store.subtask? subtask = some cursor.startedRecord := by
+  obtain ⟨_, _, subtaskFrame, _, _, _, _, _, _, _, _, callerFrame⟩ :=
+    CStore.registerThreadSt_frame task thread (resume.entryStore (entry := entry))
+  let cursor : LowerStartAt handoff.startCursor := by
+    refine ⟨subtask, context, flat, pos, fnType, maxParams, maxResults, subtaskRecord, ?_, ?_⟩
+    · change ((resume.entryStore (entry := entry)).registerThreadSt task thread).callers.get? handoff.record.caller.idx = _
+      rw [callerFrame]
+      unfold K1Resume.entryStore
+      split <;> exact caller
+    · change ((resume.entryStore (entry := entry)).registerThreadSt task thread).subtasks.get? subtask.idx = _
+      rw [subtaskFrame]
+      unfold K1Resume.entryStore
+      split <;> exact live
+  obtain ⟨checked, canonical⟩ := k1LiftStartPair handoff notPending bindings callees
+  exact ⟨cursor, rfl, rfl, rfl, rfl, rfl, rfl, appendSteps checked (lowerStart cursor),
+    appendSteps canonical (lowerStart cursor), lowerStartRecord cursor⟩
+
+theorem stackfulComplete {reached : State grow sig} {site : StackfulReturn reached} (exit : StackfulExit site) :
+    Steps profile ready (specDispatch ready impl) reached exit.labels exit.completed := by
+  rw [StackfulExit.labels, List.replicate_add]
+  refine .cons (.coreReturned site.focused site.returned) (.cons (.get rfl) ?_)
+  have taskLive : ArenaField.tasks.get? reached.store site.taskId = some exit.record := exit.taskLive
+  have instanceLive : ArenaField.insts.get? reached.store exit.record.inst = some exit.inst := exit.instanceLive
+  simp [Task.unregisterThread, Prog.bind, pure, taskLive,
+    exit.implicitThread, orTrap]
+  refine .cons (.get rfl) ?_
+  simp only [Prog.bind, taskLive, pure, exit.allowed, trapIf, Bool.false_eq_true, ite_false]
+  refine .cons (.get rfl) ?_
+  simp [Prog.bind, exit.threadLive, exit.index, pure]
+  refine .cons (.get rfl) ?_
+  simp [Prog.bind, instanceLive, exit.remove, pure]
+  refine .cons (.modify rfl) ?_
+  cases release : (exit.record.ft.async_ && exit.record.needsExclusive) with
+  | false =>
+    simp only [StackfulExit.completed, ← Bool.and_eq_true, release, Bool.false_eq_true, ite_false]
+    exact .refl _
+  | true =>
+    simp only [StackfulExit.completed, ← Bool.and_eq_true, release, ite_true]
+    exact .cons (.modify rfl) (.refl _)
+
+theorem stackfulUnresolved {reached : State grow sig} (site : StackfulReturn reached) {record : Task (core3 grow)}
+    (live : reached.store.task? site.taskId = some record) (implicitThread : record.implicitThread = some site.thread)
+    (last : (record.threads.erase site.thread).isEmpty = true) (unresolved : record.state ≠ .resolved) :
+    Steps profile ready (specDispatch ready impl) reached [.tau, .tau, .tau, .trap .taskNotResolved]
+      (StepDefs.trapCfg reached) := by
+  refine .cons (.coreReturned site.focused site.returned) (.cons (.get rfl) ?_)
+  have lookup : ArenaField.tasks.get? reached.store site.taskId = some record := live
+  simp [Task.unregisterThread, Prog.bind, pure, lookup, implicitThread, orTrap]
+  refine .cons (.get rfl) ?_
+  have guard : ((record.threads.erase site.thread).isEmpty && !decide (record.state = .resolved)) = true := by
+    simp only [last, decide_eq_false unresolved, Bool.not_false, Bool.and_true]
+  simp only [Prog.bind, lookup, pure, guard, trapIf, ite_true]
+  exact .cons (.trap rfl) (.refl _)
+
+theorem stackfulFrames {reached : State grow sig} {site : StackfulReturn reached} (exit : StackfulExit site) :
+    exit.finished.store.subtasks = reached.store.subtasks ∧ exit.finished.store.callers = reached.store.callers := by
+  obtain ⟨_, _, _, subtasks, _, _, _, _, _, _, _, _, callers⟩ :=
+    CStore.unregisterThreadSt_frame site.taskId site.thread exit.slot reached.store
+  unfold StackfulExit.finished StackfulExit.completed
+  split <;> exact ⟨subtasks, callers⟩
+
+theorem stackfulLeave {reached : State grow sig} {site : StackfulReturn reached} (exit : StackfulExit site)
+    (empty : site.segments = []) :
+    Steps profile ready (specDispatch ready impl) exit.completed [.tau] exit.finished := by
+  have focus : exit.completed.ctl = ⟨some site.thread, .prog (.pure .unit), []⟩ :: site.rest := by
+    simp only [StackfulExit.completed, empty]
+  exact .cons (.threadExit focus) (.refl _)
+
+section CalleeArguments
+
+variable {site : OnStartSite start} {handoff : LowerStartAt site} {reached : State grow sig}
+  {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+
+def calleeSelected (args : CalleeArguments returned) (width : AddrType) : Session grow sig (Ret (core3 grow)) := do
+  let lowered : Session grow sig (List FlatValue) := if ABI.maxFlatParams < (ABI.flattenTypes width args.types).length then do
+      let layout := ABI.layout width (.tuple args.types)
+      let (pointer, result) ← spillPointer args.context width layout none
+      trapIf (decide (pointer ≠ ABI.alignTo pointer layout.alignment)) .unalignedPointer
+      checkInBounds args.context pointer layout.size
+      store .spec .none args.context (.record returned.values) (.tuple args.types) pointer
+      pure result
+    else lowerFlatTypes .spec .none args.context width returned.values args.types
+  lowered >>= args.enter
+
+theorem calleeRead (args : CalleeArguments returned) :
+    Step profile ready (specDispatch ready impl) returned.resumed .tau
+      (args.atProgram returned.resumed (calleeSelected args args.width)) := by
+  have focused : returned.resumed.ctl = ⟨some site.thread, .prog (site.next returned.values), site.segments⟩ :: site.rest := rfl
+  exact .get (k := fun store => calleeSelected args (ptrTypeIn store args.context)) (by rw [focused, args.body]; rfl)
+
+theorem calleeDirect (args : CalleeArguments returned)
+    (fits : (ABI.flattenTypes args.width args.types).length ≤ ABI.maxFlatParams) :
+    Step profile ready (specDispatch ready impl) returned.resumed .tau args.direct := by
+  have step := calleeRead (profile := profile) (ready := ready) (impl := impl) args
+  simpa only [calleeSelected, ite_eq_right (Nat.not_lt.mpr fits), CalleeArguments.direct] using step
+
+theorem calleeAllocate (args : CalleeArguments returned)
+    (spill : ABI.maxFlatParams < (ABI.flattenTypes args.width args.types).length) :
+    Steps profile ready (specDispatch ready impl) returned.resumed [.tau, .tau]
+      (args.installed (specDispatch ready impl)) := by
+  have request : calleeSelected args args.width = .op (.call args.request) args.afterAllocate := by
+    simp only [calleeSelected, ite_eq_left spill]
+    change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call args.request) _ =
+      Prog.op (S := Eff (core3 grow) (HostState sig)) (.call args.request) _
+    apply congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) (.call args.request))
+    funext reply
+    cases reply <;> simp only [CalleeArguments.afterAllocate, Prog.bind, Prog.pure_bind', pure, internal, trap]
+    case nat =>
+      simp only [CalleeArguments.place, CalleeArguments.write, CalleeArguments.layout, Prog.bind_eq, Prog.bind_assoc,
+        Prog.pure_bind']
+      rfl
+    all_goals
+      apply congrArg (Prog.op (S := Eff (core3 grow) (HostState sig))
+        (.trap (.internal "late-bound call: expected Ret.nat")))
+      funext impossible
+      exact nomatch impossible
+  have read := calleeRead (profile := profile) (ready := ready) (impl := impl) args
+  rw [request] at read
+  have selected : Step profile ready (specDispatch ready impl) returned.resumed .tau args.allocating := read
+  exact .cons selected (.cons (.call rfl) (.refl _))
+
+theorem calleeReachedReturn {state : State grow sig} {labels pointer next segments rest}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready impl)
+      (args.installed (specDispatch ready impl)) (.active 0 0) labels state (.active 0 0))
+    (focused : state.ctl = ⟨some site.thread, .prog (.pure (.nat pointer)), .prog next :: segments⟩ :: rest) :
+    ∃ result : CalleeSpillReturn args state, result.pointer = pointer := by
+  have retained := (ReturnFrame.Occurrence.prefix_survives path).2
+  simp [ReturnFrame.Occurrence.segmentStorage, ReturnFrame.Occurrence.segmentAt,
+    CalleeArguments.installed, focused] at retained
+  exact ⟨⟨pointer, segments, rest, by simpa only [retained] using focused⟩, rfl⟩
+
+theorem calleeUnaligned {state : State grow sig} (result : CalleeSpillReturn args state)
+    (bad : result.pointer ≠ ABI.alignTo result.pointer args.layout.alignment) :
+    Steps profile ready (specDispatch ready impl) state [.tau, .trap .unalignedPointer] (StepDefs.trapCfg state) := by
+  refine .cons (.popProg result.focused) ?_
+  simp [CalleeArguments.afterAllocate, CalleeArguments.place, bad, trapIf]
+  exact .cons (.trap rfl) (.refl _)
+
+theorem calleePlaced {state : State grow sig} (result : CalleeSpillReturn args state) {memory size}
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory)
+    (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (fits : result.pointer + args.layout.size ≤ size) :
+    Steps profile ready (specDispatch ready impl) state [.tau, .tau] result.writing := by
+  refine .cons (.popProg result.focused) ?_
+  simp [CalleeArguments.afterAllocate, CalleeArguments.place, ← aligned, trapIf,
+    checkInBounds, memLen, memAddr, selected, orTrap, Prog.bind, pure]
+  refine .cons (.get rfl) ?_
+  simp [sized, Nat.not_lt.mpr fits, Prog.bind, CalleeSpillReturn.writing]
+  exact .refl _
+
+theorem calleeOutside {state : State grow sig} (result : CalleeSpillReturn args state) {memory size}
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory)
+    (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (outside : size < result.pointer + args.layout.size) :
+    Steps profile ready (specDispatch ready impl) state [.tau, .tau, .trap .outOfBounds] (StepDefs.trapCfg state) := by
+  refine .cons (.popProg result.focused) ?_
+  simp [CalleeArguments.afterAllocate, CalleeArguments.place, ← aligned, trapIf,
+    checkInBounds, memLen, memAddr, selected, orTrap, Prog.bind, pure]
+  refine .cons (.get rfl) ?_
+  simp [sized, outside, Prog.bind]
+  exact .cons (.trap rfl) (.refl _)
+
+end CalleeArguments
+
+theorem flatArgumentString (context : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal) :
+    (lowerFlatAt .spec .none context width (.string value) (.prim .string) : Session grow sig (List FlatValue)) =
+      .op .get (argumentStringBody context width .flat value) := by
+  simp only [lowerFlatAt, lowerFlatPrim, storeStringIntoRange, Prog.bind_eq, Prog.bind_assoc]
+  rfl
+
+theorem memoryArgumentString (context : LiftLowerContext (core3 grow)) (width : AddrType)
+    (value : Value.StrVal) (address : Nat) :
+    (store .spec .none context (.string value) (.prim .string) address : Session grow sig Unit) =
+      .op .get (argumentStringBody context width (.memory address) value) := by
+  simp only [store.eq_def, storePrim, storeString, storeStringIntoRange, Prog.bind_eq, Prog.bind_assoc]
+  rfl
+
+theorem directStringPlan {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (context : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal)
+    (values : List Value.Val) (types : List Stored.TypeOf) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (enter : List FlatValue → Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (lowerFlatTypes .spec .none context width
+      (.string value :: values) (.prim .string :: types) >>= enter)) :
+    Steps profile ready dispatch start [.tau]
+      { start with ctl := cursor.control (argumentStringBody context width .flat value start.store >>=
+          directStringTail context width values types enter) } := by
+  have atRead : start.ctl = cursor.control (.op .get fun current =>
+      argumentStringBody context width .flat value current >>= directStringTail context width values types enter) := by
+    rw [focused, lowerFlatTypes, flatArgumentString]
+    simp only [Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+    rfl
+  exact .cons (.get atRead) (.refl _)
+
+theorem spilledStringPlan {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (context : LiftLowerContext (core3 grow)) (value : Value.StrVal)
+    (values : List Value.Val) (types : List Stored.TypeOf) (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (enter : Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (storeTuple .spec .none context
+      (.string value :: values) (.prim .string :: types) pointer >>= fun _ => enter)) :
+    Steps profile ready dispatch start [.tau, .tau]
+      { start with ctl := cursor.control (spilledStringBody context (ptrTypeIn start.store context)
+          value values types pointer enter start.store) } := by
+  have atRead : start.ctl = cursor.control (.op .get fun current => .op .get fun live =>
+      spilledStringBody context (ptrTypeIn current context) value values types pointer enter live) := by
+    rw [focused, storeTuple.eq_def]
+    simp only [memoryArgumentString context (ptrTypeIn start.store context), spilledStringBody]
+    simp only [Prog.bind_eq, Prog.bind_assoc]
+    rfl
+  exact .cons (.get atRead) (.cons (.get rfl) (.refl _))
+
+theorem stringArgumentInstall (alloc : ArgumentStringAllocation start) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    Step profile ready (Dispatch.coreOnly ready bindings) start .tau (alloc.installed ready bindings) ∧
+    Step profile ready (Dispatch.linked ready bindings callees) start .tau (alloc.installed ready bindings) := by
+  have body := PayloadPrefix.string_realloc_focus alloc.context alloc.pointer alloc.oldSize alloc.alignment alloc.size
+    alloc.residual alloc.finish
+  have focused : start.ctl = alloc.cursor.control (.op (.call alloc.request) alloc.resume) := alloc.focused.trans (congrArg _ body)
+  exact ⟨.call focused, .call focused⟩
+
+theorem stringArgumentPrefix (alloc : ArgumentStringAllocation start) {bindings : List (Binding sig)}
+    {callees : List (Callee sig)} {last : State grow sig} {labels mark}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (Dispatch.coreOnly ready bindings)
+      (alloc.installed ready bindings) (.active 0 0) labels last mark)
+    (closed : Dispatch.ClosedThrough profile ready bindings (alloc.installed ready bindings) labels last) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) start (.tau :: labels) last ∧
+    Steps profile ready (Dispatch.linked ready bindings callees) start (.tau :: labels) last ∧
+    ReturnFrame.Occurrence.Prefix profile ready (Dispatch.linked ready bindings callees)
+      (alloc.installed ready bindings) (.active 0 0) labels last mark := by
+  obtain ⟨left, right⟩ := stringArgumentInstall (profile := profile) alloc ready bindings callees
+  have following := Dispatch.occurrence_of_closed (callees := callees) path closed
+  exact ⟨.cons left (ReturnFrame.Occurrence.prefix_survives path).1,
+    .cons right (ReturnFrame.Occurrence.prefix_survives following).1, following⟩
+
+theorem stringArgumentReturn (alloc : ArgumentStringAllocation start) {bindings : List (Binding sig)}
+    {callees : List (Callee sig)} {last : State grow sig} {labels}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (Dispatch.coreOnly ready bindings)
+      (alloc.installed ready bindings) (.active 0 0) labels last (.active 0 0))
+    (closed : Dispatch.ClosedThrough profile ready bindings (alloc.installed ready bindings) labels last)
+    (cursor : Cursor (E := core3 grow) (HostState sig)) (answer : Ret (core3 grow)) {next : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (returning : last.ctl = { cursor with frames := .prog next :: cursor.frames }.control (.pure answer)) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) start ((.tau :: labels) ++ [.tau]) (alloc.resumed last cursor answer) ∧
+    Steps profile ready (Dispatch.linked ready bindings callees) start ((.tau :: labels) ++ [.tau]) (alloc.resumed last cursor answer) := by
+  have retained := (ReturnFrame.Occurrence.prefix_survives path).2
+  simp [ReturnFrame.Occurrence.segmentStorage, ReturnFrame.Occurrence.segmentAt,
+    ArgumentStringAllocation.installed, Cursor.control, returning] at retained
+  have atReturn : last.ctl = { cursor with frames := .prog alloc.resume :: cursor.frames }.control (.pure answer) := by
+    simpa only [retained] using returning
+  obtain ⟨left, right, _⟩ := stringArgumentPrefix (callees := callees) alloc path closed
+  exact ⟨appendSteps left (.cons (.popProg atReturn) (.refl _)),
+    appendSteps right (.cons (.popProg atReturn) (.refl _))⟩
+
+theorem storeDirectArgument (context : LiftLowerContext (core3 grow)) (arg : DirectArgument) (address : Nat) :
+    (store .spec .none context arg.value arg.type address : Session grow sig Unit) = writeMem context address arg.bytes := by
+  cases arg <;> rw [DirectArgument.type, DirectArgument.value, store.eq_def] <;> rfl
+
+theorem storeScalarTuple (context : LiftLowerContext (core3 grow)) {memory : (core3 grow).MemAddr}
+    (selected : context.opts.memory = some memory) (args : List DirectArgument) (pointer : Nat)
+    (state : State grow sig) {thread segments rest} (tail : Session grow sig (Ret (core3 grow)))
+    (focused : state.ctl = ⟨thread, .prog (storeTuple .spec .none context
+      (args.map DirectArgument.value) (args.map DirectArgument.type) pointer >>= fun _ => tail), segments⟩ :: rest) :
+    let effect := scalarTupleEffect context memory args pointer state.store
+    Steps profile ready (specDispatch ready impl) state effect.labels (effect.finish state thread segments rest tail) := by
+  induction args generalizing pointer state with
+  | nil =>
+    have atTail : state.ctl = ⟨thread, .prog tail, segments⟩ :: rest := by
+      simpa only [List.map_nil, storeTuple.eq_def, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] using focused
+    have same : { state with ctl := ⟨thread, .prog tail, segments⟩ :: rest } = state := by rw [← atTail]
+    change Steps profile ready (specDispatch ready impl) state [] { state with ctl := _ }
+    rw [same]
+    exact .refl _
+  | cons arg args ih =>
+    let width := ptrTypeIn state.store context
+    let address := arg.address width pointer
+    let remaining (width : AddrType) := storeTuple .spec .none context (args.map DirectArgument.value)
+      (args.map DirectArgument.type) (arg.address width pointer + (ABI.layout width arg.type).size) >>= fun _ => tail
+    have widthRead : state.ctl = ⟨thread, .prog (.op .get (fun current =>
+        writeMem context (arg.address (ptrTypeIn current context) pointer) arg.bytes >>= fun _ =>
+          remaining (ptrTypeIn current context))), segments⟩ :: rest := by
+      rw [focused]
+      rw [List.map_cons, List.map_cons, storeTuple.eq_def]
+      simp only [storeDirectArgument, Prog.bind_eq, Prog.bind_assoc]
+      rfl
+    let afterWidth := { state with ctl := ⟨thread, .prog (writeMem context address arg.bytes >>= fun _ => remaining width),
+      segments⟩ :: rest }
+    have readWidth : Step profile ready (specDispatch ready impl) state .tau afterWidth := .get widthRead
+    have focusWrite : afterWidth.ctl = ⟨thread, .prog (.op .get (fun current =>
+        (match (core3 grow).memWrite? current.core memory address arg.bytes with
+        | none => trap .outOfBounds
+        | some _ => modifyStore (writeMemSt memory address arg.bytes)) >>= fun _ => remaining width)), segments⟩ :: rest := by
+      let write (current : CStore (core3 grow)) : Session grow sig Unit :=
+          match (core3 grow).memWrite? current.core memory address arg.bytes with
+          | none => trap .outOfBounds
+          | some _ => modifyStore (writeMemSt memory address arg.bytes)
+      have expanded : (writeMem context address arg.bytes : Session grow sig Unit) = .op .get write := by
+        unfold writeMem memAddr
+        rw [selected]
+        simp only [orTrap, getStore, perform, Prog.lift, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind']
+        change (Prog.op (S := Eff (core3 grow) (HostState sig)) .get Prog.pure).bind _ = _
+        refine (@Prog.op_bind (Eff (core3 grow) (HostState sig)) (CStore (core3 grow)) Unit .get Prog.pure _).trans ?_
+        apply congrArg (Prog.op (S := Eff (core3 grow) (HostState sig)) .get)
+        funext current
+        change (Prog.pure (S := Eff (core3 grow) (HostState sig)) (α := CStore (core3 grow)) current).bind _ = _
+        refine (@Prog.pure_bind' (Eff (core3 grow) (HostState sig)) (CStore (core3 grow)) Unit current _).trans ?_
+        dsimp only [write]
+        cases (core3 grow).memWrite? current.core memory address arg.bytes <;> rfl
+      have bound : ((writeMem context address arg.bytes : Session grow sig Unit) >>= fun _ => remaining width) =
+          .op .get (fun current =>
+            (match (core3 grow).memWrite? current.core memory address arg.bytes with
+            | none => trap .outOfBounds
+            | some _ => modifyStore (writeMemSt memory address arg.bytes)) >>= fun _ => remaining width) := by
+        rw [expanded]
+        exact @Prog.op_bind (Eff (core3 grow) (HostState sig)) Unit (Ret (core3 grow)) .get _ _
+      simp only [afterWidth, bound]
+    have readWrite := Step.get (prof := profile) (hr := ready) (dispatch := specDispatch ready impl) focusWrite
+    cases written : (core3 grow).memWrite? state.store.core memory address arg.bytes with
+    | none =>
+      have failed := written
+      dsimp [address, width] at failed
+      simp only [scalarTupleEffect, failed]
+      refine .cons readWidth (.cons readWrite ?_)
+      simp only [afterWidth, written, Prog.bind_eq]
+      exact .cons (.trap rfl) (.refl _)
+    | some core =>
+      have checked := written
+      dsimp [address, width] at checked
+      let writtenState := { state with
+        store := writeMemSt memory address arg.bytes state.store
+        ctl := ⟨thread, .prog (remaining width), segments⟩ :: rest }
+      have tailSteps := ih (address + (ABI.layout width arg.type).size) writtenState rfl
+      have restSteps := Steps.cons readWrite (Steps.cons (Step.modify (f := writeMemSt memory address arg.bytes)
+        (k := fun _ => remaining width) (by
+          simp only [afterWidth, written, modifyStore, perform, Prog.lift]
+          rfl))
+        tailSteps)
+      have whole := Steps.cons readWidth restSteps
+      simp only [scalarTupleEffect, checked]
+      cases trapAt : (scalarTupleEffect context memory args (address + (ABI.layout width arg.type).size)
+          writtenState.store).trap <;>
+        simpa only [writtenState, ScalarTupleEffect.labels, ScalarTupleEffect.finish, trapAt, List.replicate_add,
+          List.append_assoc, StepDefs.trapCfg, List.replicate_succ, List.replicate_zero, List.nil_append,
+          List.cons_append] using whole
+
+theorem calleeStoreScalars {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    (result : CalleeSpillReturn args state) {memory} (scalars : List DirectArgument)
+    (schema : args.types = scalars.map DirectArgument.type) (values : returned.values = scalars.map DirectArgument.value)
+    (selected : args.context.opts.memory = some memory) :
+    let effect := scalarTupleEffect args.context memory scalars result.pointer state.store
+    Steps profile ready (specDispatch ready impl) result.writing effect.labels (result.scalarFinished effect) := by
+  apply storeScalarTuple args.context selected scalars result.pointer result.writing
+  simp only [CalleeSpillReturn.writing, CalleeArguments.write, schema, values]
+  rw [store.eq_def]
+
 theorem transitionSteps {action leading} (edge : Transition profile ready impl start action leading finish) :
     Steps profile ready (specDispatch ready impl) start leading finish := by
   cases edge with
@@ -704,10 +1386,33 @@ theorem transitionSteps {action leading} (edge : Transition profile ready impl s
   | coreCallout site => exact coreCalloutSteps site
   | lowerAllocate request live allowed => exact lowerAllocate request live allowed
   | lowerStart handoff => exact lowerStart handoff
+  | lowerReadWidth handoff => exact lowerReadWidth handoff
+  | lowerSpill handoff spilled found aligned selected sized fits => exact lowerSpill handoff spilled found aligned selected sized fits
+  | lowerSpillRangeTrap handoff spilled found aligned selected sized outside =>
+    exact lowerSpillRangeTrap handoff spilled found aligned selected sized outside
+  | lowerLoadScalars handoff schema selected fields => exact lowerLoadScalars handoff schema selected fields
+  | lowerArgsReturn returned => exact lowerArgsReturn returned
+  | calleeDirect args fits => exact .cons (calleeDirect args fits) (.refl _)
+  | calleeAllocate args spill => exact calleeAllocate args spill
+  | calleeAllocationPrefix _ path => exact (ReturnFrame.Occurrence.prefix_survives path).1
+  | calleeUnaligned result bad => exact calleeUnaligned result bad
+  | calleePlaced result aligned selected sized fits => exact calleePlaced result aligned selected sized fits
+  | calleeOutside result aligned selected sized outside => exact calleeOutside result aligned selected sized outside
   | lowerEmptyArgs handoff empty => exact lowerEmptyArgs handoff empty
+  | calleeSpillScalars result scalars schema values selected => exact calleeStoreScalars result scalars schema values selected
+  | calleeStackfulCore args focused asyncMode callback =>
+    have call (values : List FlatValue) : args.enter values = .op (.callCore args.callee values) (stackfulTail args.task) := by
+      simp only [CalleeArguments.enter, liftArgumentsTail, asyncMode, callback, Bool.not_true, Bool.false_eq_true, ite_false]
+      rfl
+    exact .cons (.callCore (by rw [focused, call])) (.refl _)
+  | lowerDirectCore focused selected =>
+    exact .cons (.get focused) (.cons (.callCore (by rw [selected])) (.refl _))
   | lowerEmptyCore _ entry => exact entry
   | invokeReturn focused => exact invokeReturnSteps focused
   | lowerInstallCancel returned => exact lowerInstallCancel returned
+  | stackfulComplete exit => exact stackfulComplete exit
+  | stackfulUnresolved site live implicitThread last unresolved => exact stackfulUnresolved site live implicitThread last unresolved
+  | stackfulExit exit empty => exact stackfulLeave exit empty
   | lowerEagerDelivery returned asyncLower resolved => exact lowerEagerDelivery returned asyncLower resolved
   | lowerPending returned asyncLower recordLive unresolved live room =>
     exact lowerPending returned asyncLower (by simp only [CStore.subtaskResolved, lowerCancelRecord returned recordLive, unresolved])
@@ -716,6 +1421,9 @@ theorem transitionSteps {action leading} (edge : Transition profile ready impl s
     exact lowerTableFull returned asyncLower unresolved live full
   | coreReply focused => exact .cons (.popCore focused) (.refl _)
   | tick tick => exact tick.selects_thread
+  | k1Resume resume => exact k1ResumeSelected resume
+  | k1Admit resume live notPending => exact k1ResumeAdmitted resume live notPending
+  | k1Start handoff => exact k1StartLift handoff
   | coreInternal focused running step => exact .cons (.coreInternal focused running step) (.refl _)
   | coreReturned focused returned => exact .cons (.coreReturned focused returned) (.refl _)
   | coreTrap focused trapped => exact .cons (.coreTrap focused trapped) (.refl _)
@@ -772,11 +1480,262 @@ theorem transitionSteps {action leading} (edge : Transition profile ready impl s
     subst impl
     exact appendSteps (appendSteps checkEntry.steps checkInstall) checked.steps
 
+set_option maxHeartbeats 500000 in
+theorem lowerK1PendingReply {site : CoreCallSite start} (request : LowerRequest site)
+    {core fnType opts inst} {instance_ caller : InstState} {index : Nat}
+    (live : start.store.inst? inst = some instance_) (asyncMode : fnType.async_ = true)
+    (pressure : instance_.hasBackpressure (liftTaskData fnType opts inst request.storeAndCaller.2).needsExclusive = true)
+    (asyncLower : request.opts.async_ = true) (callerLive : start.store.inst? request.inst = some caller)
+    (room : (caller.handles.add? (.waitable (.subtask request.storeAndSubtask.2))).map Prod.fst = some index) :
+    let lift := request.lifted core fnType opts inst
+    let record : Subtask := { inst := request.inst, onCancel := .task lift.storeAndTask.2, index := some index }
+    ∃ (entry : K1GateEntry lift.launched lift.storeAndThread.2 lift.storeAndTask.2)
+      (returned : LowerReturn request entry.wait.blocked),
+      Steps profile ready (specDispatch ready impl) lift.start (List.replicate 21 .tau) (returned.pendingReply record index) ∧
+      (returned.pendingReply record index).cont? lift.storeAndThread.2 = some entry.wait.saved ∧
+      (returned.pendingReply record index).store.subtask? returned.subtask = some record ∧
+      entry.next = liftAdmissionTail lift.storeAndTask.2 core := by
+  let lift := request.lifted core fnType opts inst
+  obtain ⟨entry, returned, path, cancel, fresh, saved, frame, continuation⟩ :=
+    lowerK1Parent (core := core) (profile := profile) (ready := ready) (impl := impl) request live asyncMode pressure
+  let current := if inst = request.inst then caller.incWaitingToEnter else caller
+  have currentLive : returned.cancelInstalled.store.inst? request.inst = some current := by
+    rw [frame, callerLive]
+    rfl
+  have handles : current.handles = caller.handles := by
+    unfold current
+    split <;> rfl
+  obtain ⟨table, allocation⟩ : ∃ table, caller.handles.add? (.waitable (.subtask returned.subtask)) = some (index, table) := by
+    change ((caller.handles.add? (.waitable (.subtask returned.subtask))).map Prod.fst) = some index at room
+    cases selected : caller.handles.add? (.waitable (.subtask returned.subtask)) with
+    | none => simp [selected] at room
+    | some result => rcases result with ⟨selectedIndex, table⟩; simp [selected] at room; exact ⟨table, by rw [room]⟩
+  have actualRoom : current.addHandle? (.waitable (.subtask returned.subtask)) = some (index, { current with handles := table }) := by
+    simp only [InstState.addHandle?, handles, allocation, Option.map_some]
+  let original : Subtask := { inst := request.inst }
+  let updated : Subtask := { original with onCancel := returned.cancel, index := some index }
+  have installed : Steps profile ready (specDispatch ready impl) entry.wait.blocked [.tau, .tau] returned.cancelInstalled :=
+    lowerInstallCancel returned
+  have pending : Steps profile ready (specDispatch ready impl) returned.cancelInstalled [.tau, .tau, .tau, .tau]
+      (returned.pending updated index) :=
+    transitionSteps (.lowerPending returned asyncLower fresh rfl currentLive actualRoom)
+  have reply : Steps profile ready (specDispatch ready impl) (returned.pending updated index) [.tau]
+      (returned.pendingReply updated index) := .cons (.popCore rfl) (.refl _)
+  have total : Steps profile ready (specDispatch ready impl) lift.start (List.replicate 21 .tau)
+      (returned.pendingReply updated index) := appendSteps path (appendSteps installed (appendSteps pending reply))
+  have record : updated = { inst := request.inst, onCancel := .task lift.storeAndTask.2, index := some index } := by
+    dsimp [updated, original]
+    rw [cancel]
+  refine ⟨entry, returned, ?_, ?_, ?_, continuation⟩
+  · rw [← record]
+    exact total
+  · exact saved
+  · rw [← record]
+    exact lowerIndexedRecord returned index fresh
+
+set_option maxHeartbeats 500000 in
+theorem lowerK1FullTrap {site : CoreCallSite start} (request : LowerRequest site)
+    {core fnType opts inst} {instance_ caller : InstState}
+    (live : start.store.inst? inst = some instance_) (asyncMode : fnType.async_ = true)
+    (pressure : instance_.hasBackpressure (liftTaskData fnType opts inst request.storeAndCaller.2).needsExclusive = true)
+    (asyncLower : request.opts.async_ = true) (callerLive : start.store.inst? request.inst = some caller)
+    (full : caller.handles.add? (.waitable (.subtask request.storeAndSubtask.2)) = none) :
+    let lift := request.lifted core fnType opts inst
+    ∃ (entry : K1GateEntry lift.launched lift.storeAndThread.2 lift.storeAndTask.2)
+      (returned : LowerReturn request entry.wait.blocked),
+      Steps profile ready (specDispatch ready impl) lift.start (List.replicate 18 .tau ++ [.trap .tableFull])
+        (StepDefs.trapCfg returned.tableFull) ∧
+      (StepDefs.trapCfg returned.tableFull).store.subtask? returned.subtask =
+        some { inst := request.inst, onCancel := .task lift.storeAndTask.2 } := by
+  let lift := request.lifted core fnType opts inst
+  obtain ⟨entry, returned, path, cancel, fresh, _, frame, _⟩ :=
+    lowerK1Parent (core := core) (profile := profile) (ready := ready) (impl := impl) request live asyncMode pressure
+  let current := if inst = request.inst then caller.incWaitingToEnter else caller
+  have currentLive : returned.cancelInstalled.store.inst? request.inst = some current := by
+    rw [frame, callerLive]
+    rfl
+  have handles : current.handles = caller.handles := by
+    unfold current
+    split <;> rfl
+  have actualFull : current.addHandle? (.waitable (.subtask returned.subtask)) = none := by
+    change caller.handles.add? (.waitable (.subtask returned.subtask)) = none at full
+    simp only [InstState.addHandle?, handles, full, Option.map_none]
+  have unresolved : returned.cancelInstalled.store.subtaskResolved returned.subtask = false := by
+    rw [CStore.subtaskResolved, lowerCancelRecord returned fresh]
+    rfl
+  have late : Steps profile ready (specDispatch ready impl) returned.cancelInstalled [.tau, .tau, .trap .tableFull]
+      (StepDefs.trapCfg returned.tableFull) :=
+    transitionSteps (.lowerTableFull returned asyncLower unresolved currentLive actualFull)
+  have whole := appendSteps path (appendSteps (lowerInstallCancel returned) late)
+  refine ⟨entry, returned, whole, ?_⟩
+  change returned.cancelInstalled.store.subtask? returned.subtask = _
+  rw [lowerCancelRecord returned fresh, cancel]
+
 theorem runSteps {actions labels} (path : Run profile ready impl start actions labels finish) :
     Steps profile ready (specDispatch ready impl) start labels finish := by
   induction path with
   | stop => exact .refl _
   | next edge _ ih => exact appendSteps (transitionSteps edge) ih
+
+private theorem rehostDelivery {reference : HostImpl (core3 grow) (HostState sig)} {action labels}
+    (edge : Transition profile ready impl start action labels finish) (closed : ClosedDeliveryAction action) :
+    Transition profile ready reference start action labels finish := by
+  cases edge <;> simp only [ClosedDeliveryAction] at closed <;> constructor <;> assumption
+
+theorem runRehostDelivery {reference : HostImpl (core3 grow) (HostState sig)} {actions labels}
+    (path : Run profile ready impl start actions labels finish)
+    (closed : ∀ action ∈ actions, ClosedDeliveryAction action) : Run profile ready reference start actions labels finish := by
+  induction path with
+  | stop => exact .stop _
+  | next edge _ ih =>
+    exact .next (rehostDelivery edge (closed _ (List.Mem.head _))) (ih fun action member => closed action (List.Mem.tail _ member))
+
+theorem calleeDirectStringPlan {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached : State grow sig} {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned)
+    {value values types} (schema : args.types = .prim .string :: types) (input : returned.values = .string value :: values)
+    (fits : (ABI.flattenTypes args.width args.types).length ≤ ABI.maxFlatParams) :
+    Steps profile ready (specDispatch ready impl) reached [.tau, .tau, .tau, .tau]
+      (args.atProgram returned.resumed (argumentStringBody args.context args.width .flat value returned.resumed.store >>=
+        directStringTail args.context args.width values types args.enter)) := by
+  have atString : args.direct.ctl = (⟨some site.thread, site.segments, site.rest⟩ : Cursor (HostState sig)).control
+      (lowerFlatTypes .spec .none args.context args.width (.string value :: values) (.prim .string :: types) >>= args.enter) := by
+    simp only [CalleeArguments.direct, CalleeArguments.atProgram, Cursor.control, schema, input]
+  exact appendSteps (transitionSteps (.lowerArgsReturn returned))
+    (.cons (calleeDirect args fits) (directStringPlan _ _ _ _ _ _ _ atString))
+
+theorem calleeSpillStringPlan {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    (result : CalleeSpillReturn args state) {memory size value values types}
+    (schema : args.types = .prim .string :: types) (input : returned.values = .string value :: values)
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (fits : result.pointer + args.layout.size ≤ size) :
+    Steps profile ready (specDispatch ready impl) state [.tau, .tau, .tau, .tau]
+      { state with ctl := ((⟨some site.thread, result.segments, result.rest⟩ : Cursor (HostState sig)).control
+          (spilledStringBody args.context (ptrTypeIn state.store args.context) value values types result.pointer
+            (args.enter [ptrFlat args.width result.pointer]) state.store)) } := by
+  have atString : result.writing.ctl = (⟨some site.thread, result.segments, result.rest⟩ : Cursor (HostState sig)).control
+      (storeTuple .spec .none args.context (.string value :: values) (.prim .string :: types) result.pointer >>=
+        fun _ => args.enter [ptrFlat args.width result.pointer]) := by
+    simp only [CalleeSpillReturn.writing, CalleeArguments.write, Cursor.control, schema, input]
+    rw [store.eq_def]
+  exact appendSteps (calleePlaced result aligned selected sized fits) (spilledStringPlan _ _ _ _ _ _ _ atString)
+
+theorem spillScalarStackful {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    (result : CalleeSpillReturn args state) {memory size} (scalars : List DirectArgument)
+    (schema : args.types = scalars.map DirectArgument.type) (values : returned.values = scalars.map DirectArgument.value)
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (fits : result.pointer + args.layout.size ≤ size)
+    (asyncMode : args.record.opts.async_ = true) (callback : args.record.opts.callback = none)
+    (written : (scalarTupleEffect args.context memory scalars result.pointer state.store).trap = none) :
+    let effect := scalarTupleEffect args.context memory scalars result.pointer state.store
+    ∀ impl, Run profile ready impl state
+      [.calleeSpillPlacement site.thread none, .calleeSpillScalars site.thread effect.trap, .coreEnter site.thread]
+      ([.tau, .tau] ++ (effect.labels ++ [.tau])) (result.enteredStackful effect.store) := by
+  intro effect impl
+  refine .next (.calleePlaced result aligned selected sized fits) (.next (.calleeSpillScalars result scalars schema values selected) ?_)
+  refine .next (.calleeStackfulCore args (flat := [ptrFlat args.width result.pointer])
+    (segments := result.segments) (rest := result.rest) ?_ asyncMode callback) ?_
+  · simp only [CalleeSpillReturn.scalarFinished, ScalarTupleEffect.finish, written, CalleeSpillReturn.writing]
+  · simp only [CalleeSpillReturn.scalarFinished, ScalarTupleEffect.finish, written, CalleeSpillReturn.writing]
+    exact .stop _
+
+theorem lowerEnterDirect {site : OnStartSite start} {handoff : LowerStartAt site} {reached : State grow sig}
+    (returned : LowerArgumentReturn handoff reached) (task : TaskId) (callee : (core3 grow).FuncAddr)
+    (record : Task (core3 grow)) (body : site.next = liftArgumentsBody .spec .none task callee record)
+    (args : List DirectArgument) (values : returned.values = args.map DirectArgument.value)
+    (schema : paramTypes record.ft = args.map DirectArgument.type) (fits : args.length ≤ ABI.maxFlatParams) :
+    ∃ next, (record.opts.async_ = true → record.opts.callback = none → next = stackfulTail task) ∧
+      ∀ impl, Transition profile ready impl returned.resumed (.coreEnter site.thread) [.tau, .tau]
+        (site.entered returned.resumed callee (args.map DirectArgument.flat) next) := by
+  obtain ⟨read, plan, call⟩ := directCalleePlan task callee record args schema fits
+  obtain ⟨next, selected, stackful⟩ := call returned.resumed.store
+  have focused : returned.resumed.ctl = ⟨some site.thread, .prog (.op .get read), site.segments⟩ :: site.rest := by
+    change ⟨some site.thread, .prog (site.next returned.values), site.segments⟩ :: site.rest = _
+    rw [values, body, plan]
+  exact ⟨next, stackful, fun _ => .lowerDirectCore (site := site) focused (by rw [selected]; rfl)⟩
+
+theorem runLowerDirect {site : OnStartSite start} (handoff : LowerStartAt site)
+    (task : TaskId) (callee : (core3 grow).FuncAddr) (record : Task (core3 grow))
+    (body : site.next = liftArgumentsBody .spec .none task callee record) (args : List DirectArgument)
+    (callerSchema : handoff.types = args.map DirectArgument.type) (calleeSchema : paramTypes record.ft = args.map DirectArgument.type)
+    (callerFits : args.length ≤ handoff.maxParams) (calleeFits : args.length ≤ ABI.maxFlatParams)
+    (suffix : List FlatValue) (words : handoff.flat.drop handoff.pos = args.map DirectArgument.flat ++ suffix) :
+    ∃ (returned : LowerArgumentReturn handoff handoff.selectedRead), ∃ next,
+      returned.cursor.pos = handoff.pos + args.length ∧
+      (record.opts.async_ = true → record.opts.callback = none → next = stackfulTail task) ∧
+      ∀ impl, Run profile ready impl handoff.reading
+        [.lowerReadWidth site.caller, .lowerArgsReturn site.caller, .coreEnter site.thread]
+        [.tau, .tau, .tau, .tau, .tau] (site.entered returned.resumed callee (args.map DirectArgument.flat) next) := by
+  let returned := lowerDirectReturn handoff args callerSchema callerFits suffix words
+  obtain ⟨next, stackful, enter⟩ := lowerEnterDirect (profile := profile) (ready := ready) returned
+    task callee record body args rfl calleeSchema calleeFits
+  exact ⟨returned, next, rfl, stackful, fun _ => .next (.lowerReadWidth handoff) (.next (.lowerArgsReturn returned)
+    (.next (enter _) (.stop _)))⟩
+
+theorem runLowerSpilledScalars {site : OnStartSite start} (handoff : LowerStartAt site)
+    (task : TaskId) (callee : (core3 grow).FuncAddr) (record : Task (core3 grow))
+    (body : site.next = liftArgumentsBody .spec .none task callee record) (args : List DirectArgument)
+    (callerSchema : handoff.types = args.map DirectArgument.type) (calleeSchema : paramTypes record.ft = args.map DirectArgument.type)
+    (callerSpills : handoff.maxParams < args.length) (calleeFits : args.length ≤ ABI.maxFlatParams)
+    {pointer : FlatValue} {memory : (core3 grow).MemAddr} {size : Nat}
+    (found : handoff.flat[handoff.pos]? = some pointer)
+    (aligned : flatNat pointer = ABI.alignTo (flatNat pointer) (handoff.spillLayout handoff.readWidth).alignment)
+    (selected : handoff.context.opts.memory = some memory)
+    (sized : (core3 grow).memSize? handoff.selectedRead.store.core memory = some size)
+    (fits : flatNat pointer + (handoff.spillLayout handoff.readWidth).size ≤ size)
+    (fields : ScalarSpill handoff.selectedRead.store memory handoff.readWidth args (flatNat pointer)) :
+    ∃ (returned : LowerArgumentReturn handoff (handoff.spillLoaded (args.map DirectArgument.value))), ∃ next,
+      returned.cursor.pos = handoff.pos + 1 ∧
+      (record.opts.async_ = true → record.opts.callback = none → next = stackfulTail task) ∧
+      ∀ impl, Run profile ready impl handoff.reading
+        [.lowerReadWidth site.caller, .lowerSpill site.caller, .lowerLoadScalars site.caller, .lowerArgsReturn site.caller,
+          .coreEnter site.thread]
+        ([.tau, .tau] ++ (List.replicate args.length .tau ++ [.tau, .tau, .tau, .tau]))
+        (site.entered returned.resumed callee (args.map DirectArgument.flat) next) := by
+  let returned : LowerArgumentReturn handoff (handoff.spillLoaded (args.map DirectArgument.value)) :=
+    ⟨args.map DirectArgument.value, handoff.spillCursor, rfl⟩
+  obtain ⟨next, stackful, enter⟩ := lowerEnterDirect (profile := profile) (ready := ready) returned
+    task callee record body args rfl calleeSchema calleeFits
+  have spilled : handoff.maxParams < (ABI.flattenTypes handoff.readWidth handoff.types).length := by
+    rwa [callerSchema, directArgumentCount]
+  refine ⟨returned, next, rfl, stackful, ?_⟩
+  intro impl
+  have entered := Run.next (enter impl) (.stop _)
+  have committed := Run.next (.lowerArgsReturn returned) entered
+  have loaded := Run.next (.lowerLoadScalars (pointer := pointer) handoff callerSchema selected fields) committed
+  have placed := Run.next (.lowerSpill handoff spilled found aligned selected sized fits) loaded
+  simpa only [List.cons_append, List.nil_append, List.append_nil] using Run.next (.lowerReadWidth handoff) placed
+
+theorem k1LowerDirect {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) (notPending : handoff.record.state ≠ .pendingCancel)
+    {subtask context flat pos fnType maxParams maxResults subtaskRecord}
+    (caller : ArenaField.callers.get? atHost.store handoff.record.caller =
+      some (.lower subtask context flat pos fnType maxParams maxResults))
+    (live : atHost.store.subtask? subtask = some subtaskRecord)
+    (args : List DirectArgument) (callerSchema : paramTypes fnType = args.map DirectArgument.type)
+    (calleeSchema : paramTypes handoff.registered.ft = args.map DirectArgument.type)
+    (callerFits : args.length ≤ maxParams) (calleeFits : args.length ≤ ABI.maxFlatParams)
+    (suffix : List FlatValue) (words : flat.drop pos = args.map DirectArgument.flat ++ suffix)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    ∃ (cursor : LowerStartAt handoff.startCursor) (returned : LowerArgumentReturn cursor cursor.selectedRead), ∃ next,
+      let labels := (((resume.labels ++ [.tau, .tau]) ++ handoff.labels) ++ List.replicate cursor.steps .tau) ++
+        [.tau, .tau, .tau, .tau, .tau]
+      let entered := handoff.startCursor.entered returned.resumed handoff.callee (args.map DirectArgument.flat) next
+      returned.cursor.pos = pos + args.length ∧
+        (handoff.registered.opts.async_ = true → handoff.registered.opts.callback = none → next = stackfulTail task) ∧
+        Steps profile ready (Dispatch.coreOnly ready bindings) atHost labels entered ∧
+        Steps profile ready (Dispatch.linked ready bindings callees) atHost labels entered := by
+  obtain ⟨cursor, _, _, actualFlat, actualPos, actualSchema, actualLimit, check, canon, _⟩ :=
+    k1LowerHandoff handoff notPending caller live bindings callees
+  obtain ⟨returned, next, offset, stackful, run⟩ := runLowerDirect (profile := profile) (ready := ready) cursor task handoff.callee
+    handoff.registered rfl args (by rw [LowerStartAt.types, actualSchema]; exact callerSchema) calleeSchema
+    (by rw [actualLimit]; exact callerFits) calleeFits suffix (by rw [actualFlat, actualPos]; exact words)
+  exact ⟨cursor, returned, next, offset.trans (congrArg (· + args.length) actualPos), stackful,
+    appendSteps check (runSteps (run (host bindings))), appendSteps canon (runSteps (run (hostWithComponent bindings callees)))⟩
 
 theorem giveBodyCut {bindings : List (Binding sig)} {callees : List (Callee sig)} {route : GiveEffectRoute}
     (site : PayloadRoot.Site grow sig route) {check canon : Cursor (E := core3 grow) (HostState sig)} {keep}
@@ -885,12 +1844,12 @@ theorem giveRoot {route : GiveEffectRoute} {bindings : List (Binding sig)} (site
     ∃ phase labels finish, Transition profile ready impl site.start (.give route phase) labels finish ∧
       (phase = .entered → finish = site.checked ∧ body) := by
   cases cut with
-  | refused issue silent run =>
-    exact ⟨.refused issue, _, _, .giveRefused site linked issue silent run, fun equal => by cases equal⟩
-  | placementTrap reason count verdict run =>
-    exact ⟨.placementTrap reason, _, _, .givePlacementTrap site linked reason count verdict run, fun equal => by cases equal⟩
-  | placed silent verdict prepared run body =>
-    exact ⟨.entered, _, _, .giveEntry site linked silent verdict prepared run, fun _ => ⟨rfl, body⟩⟩
+  | refused issue silent run _ =>
+    exact ⟨.refused issue, _, _, .giveRefused site linked issue silent run.steps, fun equal => by cases equal⟩
+  | placementTrap reason count verdict run _ =>
+    exact ⟨.placementTrap reason, _, _, .givePlacementTrap site linked reason count verdict run.steps, fun equal => by cases equal⟩
+  | placed silent verdict prepared run body _ =>
+    exact ⟨.entered, _, _, .giveEntry site linked silent verdict prepared run.steps, fun _ => ⟨rfl, body⟩⟩
 
 theorem giveReturned {route : GiveEffectRoute} {bindings : List (Binding sig)} {callees : List (ComponentCall.Callee sig)}
     (site : PayloadRoot.Site grow sig route) (value : route.output.Result) {reached reference : State grow sig}
@@ -902,7 +1861,7 @@ theorem giveReturned {route : GiveEffectRoute} {bindings : List (Binding sig)} {
       Steps profile ready (Dispatch.linked ready bindings callees) (site.reference site.referenceReply) (canonLabels ++ [.tau]) right ∧
       PayloadPrefix.visible checkLabels = PayloadPrefix.visible canonLabels ∧
       LinkedCallback.MemorySequence.GiveReplies site value profile ready reached reference left right := by
-  obtain ⟨⟨checkLabels, canonLabels, seen, checked, canonical⟩, left, right, replies⟩ := comparison
+  obtain ⟨⟨checkLabels, canonLabels, seen, checked, canonical, _⟩, left, right, replies⟩ := comparison
   obtain ⟨checkRun, canonRun⟩ := agreement checkLabels canonLabels checked canonical
   exact ⟨checkLabels, canonLabels, left, right, .giveReturned site value rfl checkRun canonRun seen replies,
     appendSteps canonRun.steps (replies.2.1 _), seen, replies⟩

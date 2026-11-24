@@ -125,6 +125,16 @@ theorem compileRecord_layout {E : CoreEngine} (cx : LiftLowerContext E) (types :
   (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.CompiledValue.record
     cx types value receipts output fields objects compiled).2
 
+/-- Each field of a successfully compiled record has the recursive shape
+produced by the corresponding compiler branch. -/
+theorem compileRecord_emitted {E : CoreEngine} (cx : LiftLowerContext E) (type : TypeOf)
+    (value : Val) (receipts : List OwnedMemory.Receipt) (output : Lower.Output)
+    (fields : List Field) (objects : List Object)
+    (compiled : compileRecord cx type value receipts output = .ok (fields, objects)) :
+    ∀ field ∈ fields, Field.Emitted field :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.Endpoints.CompiledValue.record_emitted
+    cx type value receipts output fields objects compiled
+
 /-- Whole-record preflight and dynamic subregions use the same field-order traversal. -/
 theorem compileRecord_plan {E : CoreEngine} (cx : LiftLowerContext E) (types : List (String × TypeOf))
     (value : Val) (receipts : List OwnedMemory.Receipt) (output : Lower.Output)

@@ -18,6 +18,25 @@ open Stored.Endpoints.RecordLower
 
 /-- Prepend replayed segments with equal visible labels. The two segments
 may take different numbers of internal steps. -/
+theorem LocalSteps.steps {E : CoreEngine} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch : Call E → P E Host (Ret E)} {before finish labels}
+    (run : LocalSteps profile ready dispatch before labels finish) : Steps profile ready dispatch before labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localSteps run
+
+theorem LocalSteps.append {E : CoreEngine} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch : Call E → P E Host (Ret E)} {before middle finish leading trailing}
+    (front : LocalSteps profile ready dispatch before leading middle)
+    (back : LocalSteps profile ready dispatch middle trailing finish) :
+    LocalSteps profile ready dispatch before (leading ++ trailing) finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localAppend front back
+
+theorem SilentLocalPath.append {E : CoreEngine} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch : Call E → P E Host (Ret E)} {before middle finish leading trailing}
+    (front : SilentLocalPath profile ready dispatch before leading middle)
+    (back : SilentLocalPath profile ready dispatch middle trailing finish) :
+    SilentLocalPath profile ready dispatch before (leading ++ trailing) finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.appendSilentReads front back
+
 theorem ReachesKeeping.prepend {E : CoreEngine} {Host Result : Type} {profile : ProfileKind}
     {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)} {keep : CStore E → Prop}
     {left left' right right' : Config E Host} {checkLabels canonLabels : List (Label E Host)}
@@ -123,8 +142,28 @@ theorem flat_fields_prepend (destination : RecordDestination) (inst : InstId) (i
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.flatFieldsPrepend
     destination inst items fragment index words
 
+/-- The compiled variant tail contains only local operations. Its allowed
+responses are determined at the reached choice steps. -/
+theorem variant_tail_local_ops {E : CoreEngine} {Host : Type} {profile : ProfileKind}
+    (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} :
+    Prog.Every (LocalProgramOp keep) (lowerFlatVariantWith count wanted tag haves (pure words) : P E Host (List FlatValue)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.variantTailLocalOps
+    (profile := profile) count wanted tag haves words
+
 /-- Coercion of already returned sum words is local and preserves a
 reached-store predicate on common success. Its trap or choices remain visible. -/
+theorem variant_tail_frame_between {E : CoreEngine} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch reference : Call E → P E Host (Ret E)}
+    (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
+    (words : List FlatValue) {keep : CStore E → Prop} (left right : Config E Host) (kept : keep right.store)
+    (trackOccurrences : Bool := false) :
+    CompareLocalKeepingBetween profile ready dispatch reference keep left right
+      (do return .ok (← lowerFlatVariantWith count wanted tag haves (pure words)))
+      (lowerFlatVariantWith count wanted tag haves (pure words)) trackOccurrences :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.variantTailFrameBetween count wanted tag haves words left right kept
+    trackOccurrences
+
 theorem variant_tail_frame {E : CoreEngine} {Host : Type} {profile : ProfileKind}
     {ready : HostReady Host} {dispatch : Call E → P E Host (Ret E)}
     (count : Nat) (wanted : List CoreType) (tag : Nat) (haves : List CoreType)
@@ -132,7 +171,7 @@ theorem variant_tail_frame {E : CoreEngine} {Host : Type} {profile : ProfileKind
     CompareLocalKeepingAt profile ready dispatch keep left right
       (do return .ok (← lowerFlatVariantWith count wanted tag haves (pure words)))
       (lowerFlatVariantWith count wanted tag haves (pure words)) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.variantTailFrame count wanted tag haves words left right kept
+  variant_tail_frame_between count wanted tag haves words left right kept
 
 /-- Compose a selected arm comparison with the actual flat coercion and
 padding program. Coercion runs only on common success, and its canonical
@@ -189,8 +228,55 @@ theorem memory_sum_tag (destination : RecordDestination) (inst : InstId) (type :
     LocalCutKeeping profile ready dispatch (fun store => Core3.Grows origin.core store.core) left right check canon
       (sumCheckedNext destination inst selected index address checkNext)
       (sumCanonicalNext destination inst selected address canonNext) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTag
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagBetween (reference := dispatch)
     destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
+
+/-- The reached raw width read exposes the same tag-write body as the
+checked sum. The two continuations each retain the compiler-selected child. -/
+theorem memory_sum_tag_entry {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext)) :
+    let address := sumPayloadAddress destination.width arms base
+    let body : Session grow sig Unit := storeInt (destination.context inst) tag base (discSize arms.length)
+    let entered := { right with ctl := canon.control (body >>= sumCanonicalNext destination inst selected address canonNext) }
+    left.ctl = check.control (body >>= sumCheckedNext destination inst selected index address checkNext) ∧
+    SilentLocalStep profile ready dispatch right entered ∧
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) body :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagEntry
+    destination inst type arms tag index base selected origin left right check canon checkNext canonNext width checkAt canonAt
+
+theorem memory_sum_tag_between {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (arms : List (Option TypeOf)) (tag index base : Nat) (selected : Option Field)
+    (origin : CStore (core3 grow)) (left right : Config (core3 grow) (HostState sig))
+    (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store) (thread : check.thread = canon.thread)
+    (width : ptrTypeIn right.store (destination.context inst) = destination.width)
+    (growth : Core3.Grows origin.core right.store.core)
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) index (.memory base) >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.sum type arms tag selected) (.memory base) >>= canonNext))
+    (trackOccurrences : Bool := false) :
+    let address := sumPayloadAddress destination.width arms base
+    LocalCutKeepingBetween profile ready dispatch reference (fun store => Core3.Grows origin.core store.core) left right check canon
+      (sumCheckedNext destination inst selected index address checkNext)
+      (sumCanonicalNext destination inst selected address canonNext) trackOccurrences :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.memorySumTagBetween
+    destination inst type arms tag index base selected origin left right check canon checkNext canonNext same thread width growth checkAt canonAt
+    trackOccurrences
 
 /-- The handle leaf in a placed memory entry has no allocator or width-read
 prefix of its own. It rechecks live authority at the reached store. -/
@@ -267,6 +353,19 @@ theorem memory_map_tail (destination : RecordDestination) (inst : InstId) (key :
 
 /-- A slot of a validated allocation stays aligned and in bounds across a
 growth-certified prefix. Only the reached size and width are constrained. -/
+theorem list_entry_placement_of_growth (destination : RecordDestination) (inst : InstId) (element : TypeOf)
+    {before after : CStore (core3 grow)} {base count index bytes : Nat}
+    (growth : Core3.Grows before.core after.core)
+    (width : (core3 grow).memAddrType? before.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? before.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width element).alignment)
+    (bounds : base + count * (layout destination.width element).size ≤ bytes) (entry : index < count) :
+    let area := layout destination.width element
+    ptrTypeIn after (destination.context inst) = destination.width ∧
+      placement destination after area (base + index * area.size) = .ok () :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.listEntryPlacementOfGrowth
+    destination inst element growth width sized aligned bounds entry
+
 theorem list_entry_placement {EHost : Type} {entryReady : HostReady EHost}
     {entryDispatch : Call (core3 grow) → P (core3 grow) EHost (Ret (core3 grow))}
     (destination : RecordDestination) (inst : InstId) (element : TypeOf)
@@ -358,8 +457,116 @@ theorem string_plan_entry {grow : SingleThreaded.GrowOracle} {sig : Signature} {
           fun value => checkNext (.ok value)) } ∧
       ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch right [.tau]
         { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
+  by
+    obtain ⟨reads, checked, canonical, _, _⟩ :=
+      Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry (refDispatch := dispatch)
+        destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+    exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩
+
+/-- All coordinates stay fixed through the actual checked entry guards and
+the canonical width read before the first string allocation. -/
+theorem string_plan_entry_occurrences {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : ProfileKind}
+    {ready : HostReady (HostState sig)} {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
+    (index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
+    (checkCursor canonCursor : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store)
+    (present : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    {addr : Nat} (realloc : destination.realloc = some addr)
+    (fit : StoreStringPre Quirks.none destination.encoding destination.width str)
+    (placed : rootPlacement destination left.store (.prim .string) output = .ok ())
+    (checkAt : left.ctl = checkCursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data (.prim .string) ⟨.string str, .string valid⟩) index output >>= checkNext))
+    (canonAt : right.ctl = canonCursor.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data (.prim .string) ⟨.string str, .string valid⟩) output >>= canonNext)) :
+    let cx := destination.context inst
+    let plan := storePlanFor Quirks.none destination.encoding destination.width str
+    let body := runStoreSteps cx 0 plan.steps
+    ∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch left place (List.replicate reads .tau)
+      { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } place) ∧
+      (∀ place, ReturnFrame.Occurrence.Prefix profile ready reference right place [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } place) ∧
+      SilentLocalPath profile ready dispatch left (List.replicate reads .tau)
+        { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } ∧
+      SilentLocalPath profile ready reference right [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.stringPlanEntry
     destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+
+
+/-- Enter a string plan when the same local reads run under two different
+dispatchers. The first allocator call has not yet executed. -/
+theorem string_plan_entry_between {grow : SingleThreaded.GrowOracle} {sig : Signature} {profile : ProfileKind}
+    {ready : HostReady (HostState sig)} {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (str : Value.StrVal) (valid : str.Valid)
+    (index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
+    (checkCursor canonCursor : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (same : left.store = right.store)
+    (present : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    {addr : Nat} (realloc : destination.realloc = some addr)
+    (fit : StoreStringPre Quirks.none destination.encoding destination.width str)
+    (placed : rootPlacement destination left.store (.prim .string) output = .ok ())
+    (checkAt : left.ctl = checkCursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data (.prim .string) ⟨.string str, .string valid⟩) index output >>= checkNext))
+    (canonAt : right.ctl = canonCursor.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data (.prim .string) ⟨.string str, .string valid⟩) output >>= canonNext)) :
+    let cx := destination.context inst
+    let plan := storePlanFor Quirks.none destination.encoding destination.width str
+    let body := runStoreSteps cx 0 plan.steps
+    ∃ reads, ReturnFrame.Occurrence.RetainsActiveSlots profile ready dispatch left (List.replicate reads .tau)
+      { left with ctl := checkCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>=
+          fun value => checkNext (.ok value)) } ∧
+      ReturnFrame.Occurrence.RetainsActiveSlots profile ready reference right [.tau]
+        { right with ctl := canonCursor.control (body >>= fun ptr => stringPlanTail cx destination.width output plan ptr >>= canonNext) } :=
+  by
+    obtain ⟨reads, checked, canonical, _, _⟩ := string_plan_entry_occurrences (profile := profile) (ready := ready)
+      (dispatch := dispatch) (reference := reference)
+      destination inst str valid index output left right checkCursor canonCursor checkNext canonNext same present realloc fit placed checkAt canonAt
+    exact ⟨reads, fun depth => checked (.active 0 depth), fun depth => canonical (.active 0 depth)⟩
+
+/-- At a reached scalar field, the checked entry reads lead to the shared
+local operation. Its choices are followed using the actual checked response. -/
+theorem local_data_entry {ready : HostReady (HostState sig)}
+    {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Payload type) (index : Nat) (output : Lower.Output)
+    (origin : CStore (core3 grow))
+    (start : Config (core3 grow) (HostState sig)) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (width : ptrTypeIn start.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination start.store type output = .ok ())
+    (focused : start.ctl = cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) index output >>= finish)) :
+    let program := CanonicalTree.field (World := HostState sig) Limits.spec Quirks.none
+      (destination.context inst) destination.width (.data type payload) output
+    let reached := { start with ctl := cursor.control (program >>= fun value => finish (.ok value)) }
+    Prog.Every (LocalProgramOp (fun store => Core3.Grows origin.core store.core)) program ∧
+    (∃ reads, (∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch start place
+      (List.replicate reads .tau) reached place) ∧
+      SilentLocalPath profile ready dispatch start (List.replicate reads .tau) reached) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataEntry
+    destination inst type data payload index output origin start cursor finish width placed focused
+
+theorem local_data_leaf_frame_between {ready : HostReady (HostState sig)}
+    {dispatch reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (type : TypeOf) (data : LocalDataType type)
+    (payload : Stored.Payload type) (index : Nat) (output : Lower.Output) (origin : CStore (core3 grow))
+    (left right : Config (core3 grow) (HostState sig)) (growth : Core3.Grows origin.core right.store.core)
+    (width : ptrTypeIn left.store (destination.context inst) = destination.width)
+    (placed : rootPlacement destination left.store type output = .ok ()) (trackOccurrences : Bool := false) :
+    CompareLocalKeepingBetween profile ready dispatch reference (fun store => Core3.Grows origin.core store.core) left right
+      (Record.Effects.field recordClaims Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) index output)
+      (CanonicalTree.field Limits.spec Quirks.none (destination.context inst) destination.width
+        (.data type payload) output) trackOccurrences :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataLeafFrameBetween
+    destination inst type data payload index output origin left right growth width placed trackOccurrences
 
 /-- At a reached allocating string action, the actual call saves the remaining plan. -/
 theorem string_realloc_focus {E : CoreEngine} {Host : Type} (cx : LiftLowerContext E)
@@ -413,6 +620,37 @@ theorem string_front_cut {grow : SingleThreaded.GrowOracle} {Host : Type} {profi
     StringLocalCut profile ready dispatch left right check canon
       (fun front : StringFront steps.length => front.remaining cx >>= checkNext)
       (fun front : StringFront steps.length => front.remaining cx >>= canonNext) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.activeCut
+    (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.cut
+      cx ptr steps left right check canon checkNext canonNext same checkAt canonAt)
+
+/-- Local string instructions do not invoke either dispatcher. -/
+theorem string_front_cut_between {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (steps : List StoreStep)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : Nat → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (runStoreSteps cx ptr steps >>= checkNext))
+    (canonAt : right.ctl = canon.control (runStoreSteps cx ptr steps >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon
+      (fun front : StringFront steps.length => front.remaining cx >>= checkNext)
+      (fun front : StringFront steps.length => front.remaining cx >>= canonNext) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.activeCut
+    (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.cut
+      cx ptr steps left right check canon checkNext canonNext same checkAt canonAt)
+
+/-- Track both active and saved coordinates at the local string cut, even
+when a trap clears active storage. -/
+theorem string_front_occurrences {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (steps : List StoreStep)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : Nat → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (runStoreSteps cx ptr steps >>= checkNext))
+    (canonAt : right.ctl = canon.control (runStoreSteps cx ptr steps >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon
+      (fun front : StringFront steps.length => front.remaining cx >>= checkNext)
+      (fun front : StringFront steps.length => front.remaining cx >>= canonNext) true :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.cut
     cx ptr steps left right check canon checkNext canonNext same checkAt canonAt
 
@@ -426,21 +664,206 @@ theorem string_descriptor_cut {grow : SingleThreaded.GrowOracle} {Host : Type} {
     (checkAt : left.ctl = check.control (stringPlanTail cx width output plan ptr >>= checkNext))
     (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan ptr >>= canonNext)) :
     StringLocalCut profile ready dispatch left right check canon checkNext canonNext :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.activeCut
+    (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.descriptor
+      cx width output plan ptr left right check canon checkNext canonNext same checkAt canonAt)
+
+/-- Encoding the reached pointer and count does not invoke either dispatcher. -/
+theorem string_descriptor_cut_between {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Lower.Output) (plan : StorePlan) (ptr : Nat)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (stringPlanTail cx width output plan ptr >>= checkNext))
+    (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan ptr >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.activeCut
+    (Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.descriptor
+      cx width output plan ptr left right check canon checkNext canonNext same checkAt canonAt)
+
+theorem string_descriptor_occurrences {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Lower.Output) (plan : StorePlan) (ptr : Nat)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (stringPlanTail cx width output plan ptr >>= checkNext))
+    (canonAt : right.ctl = canon.control (stringPlanTail cx width output plan ptr >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.descriptor
     cx width output plan ptr left right check canon checkNext canonNext same checkAt canonAt
 
-/-- Replay the actual pointer/count descriptor from the reached store. A
-late trap in memory output keeps the write to the first word, if it ran. -/
-theorem collection_descriptor_cut {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
-    {dispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+/-- A reached canonical write either commits or traps locally, without
+using either dispatcher. Its memory and bounds checks read the live store. -/
+theorem write_cut_between {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind}
+    {ready : HostReady Host} {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (ptr : Nat) (data : ByteArray)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : Unit → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (writeMem cx ptr data >>= checkNext))
+    (canonAt : right.ctl = canon.control (writeMem cx ptr data >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.write
+    cx ptr data left right check canon checkNext canonNext same checkAt canonAt
+
+/-- Compare actual pointer/count publication with trails for active and saved
+occurrences. A late trap keeps the first write, if it ran. -/
+theorem collection_descriptor_occurrences_between
+    {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
     (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Lower.Output) (ptr count : Nat)
     (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
     (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
     (checkAt : left.ctl = check.control (ListLower.publish cx width ptr count output >>= checkNext))
     (canonAt : right.ctl = canon.control (ListLower.publish cx width ptr count output >>= canonNext)) :
-    StringLocalCut profile ready dispatch left right check canon checkNext canonNext :=
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext true :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.collectionDescriptor
     cx width output ptr count left right check canon checkNext canonNext same checkAt canonAt
+
+/-- Compare pointer/count publication without consulting either dispatcher. -/
+theorem collection_descriptor_cut_between {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch reference : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))}
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType) (output : Lower.Output) (ptr count : Nat)
+    (left right : Config (core3 grow) Host) (check canon : Cursor (E := core3 grow) Host)
+    (checkNext canonNext : output.Result → P (core3 grow) Host (Ret (core3 grow))) (same : left.store = right.store)
+    (checkAt : left.ctl = check.control (ListLower.publish cx width ptr count output >>= checkNext))
+    (canonAt : right.ctl = canon.control (ListLower.publish cx width ptr count output >>= canonNext)) :
+    StringLocalCutBetween profile ready dispatch reference left right check canon checkNext canonNext :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.StringFront.activeCut
+    (collection_descriptor_occurrences_between cx width output ptr count left right check canon checkNext canonNext same checkAt canonAt)
+
+abbrev collection_descriptor_cut {grow : SingleThreaded.GrowOracle} {Host : Type} {profile : ProfileKind} {ready : HostReady Host}
+    {dispatch : Call (core3 grow) → P (core3 grow) Host (Ret (core3 grow))} :=
+  @collection_descriptor_cut_between grow Host profile ready dispatch dispatch
+
+theorem local_data_objects {element : TypeOf} {entries : List Field} (data : LocalDataType element)
+    (matched : Field.EntriesMatch entries element) : Field.listObjects entries = [] :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataObjects data matched
+
+/-- Traverse the actual checked and canonical list elements, deriving each
+child's program and placement from the validated interval and compiled layout.
+Only a successful traversal executes the pointer/count descriptor. -/
+theorem local_data_collection_tail
+    {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (element : TypeOf) (data : LocalDataType element)
+    (entries : List Field) (matched : Field.EntriesMatch entries element)
+    (pointer bytes index : Nat) (output : Lower.Output) (left right : Config (core3 grow) (HostState sig))
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? left.store.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width element).alignment)
+    (bounds : pointer + entries.length * (layout destination.width element).size ≤ bytes)
+    (same : left.store = right.store) (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (checkAt : left.ctl = check.control (checkedCollectionTail destination inst entries (layout destination.width element)
+      index output pointer (.ok ()) >>= checkNext))
+    (canonAt : right.ctl = canon.control (canonicalCollectionTail destination inst entries (layout destination.width element)
+      output pointer .value >>= canonNext)) :
+    LocalCutKeepingBetween profile ready dispatch reference (fun store => Core3.Grows left.store.core store.core)
+      left right check canon (fun value => checkNext (.ok value)) canonNext :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localDataCollectionTail destination inst element data
+    entries matched pointer bytes index output left right width sized aligned bounds same check canon thread checkNext canonNext checkAt canonAt
+
+/-- The checked entry validates its reached record range before either child.
+Expose the actual key program and its placement without evaluating the key. -/
+theorem map_key_placement
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyPayload : Stored.Payload (.prim key.toPrimitive)) (valField : Field)
+    (origin : CStore (core3 grow)) (base bytes count index : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : base + count * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (entry : index < count) (issueIndex : Nat) (left : Config (core3 grow) (HostState sig))
+    (growth : Core3.Grows origin.core left.store.core) (check : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow))) :
+    let cx := destination.context inst
+    let type : TypeOf := .record (mapEntryFields key element)
+    let addr := base + index * (layout destination.width type).size
+    let keyArea := layout destination.width (.prim key.toPrimitive : TypeOf)
+    let keyPtr := alignTo addr keyArea.alignment
+    let valPtr := alignTo (keyPtr + keyArea.size) (layout destination.width valField.type).alignment
+    let keyField := Field.data (.prim key.toPrimitive) keyPayload
+    let following := fun verdict : Except RecordLower.Issue Unit => (match verdict with
+      | .error issue => pure (.error issue)
+      | .ok () => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr))
+        >>= fun result => checkNext (result.mapError (.nested issueIndex))
+    left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+      (.aggregate type [keyField, valField]) issueIndex (.memory addr) >>= checkNext) →
+    placement destination left.store keyArea keyPtr = .ok () ∧
+    ∀ place, ReturnFrame.Occurrence.Prefix profile ready dispatch left place [.tau]
+      { left with ctl := check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+          keyField 0 (.memory keyPtr) >>= following) } place :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.mapKeyPlacement
+    destination inst key element keyPayload valField origin base bytes count index width sized aligned bounds entry issueIndex left growth check checkNext
+
+/-- Validate the checked record slot and execute the actual scalar map key
+under either dispatcher, stopping at the value's effect program. The value
+may allocate or use nominal claims; the key proof neither runs it nor
+requires a comparison hypothesis about it. -/
+theorem local_map_key_then_between {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyData : LocalDataType (.prim key.toPrimitive)) (keyPayload : Stored.Payload (.prim key.toPrimitive)) (valField : Field)
+    (origin : CStore (core3 grow)) (base bytes count index : Nat)
+    (width : (core3 grow).memAddrType? origin.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? origin.core destination.memory = some bytes)
+    (aligned : base = alignTo base (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : base + count * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (entry : index < count) (issueIndex : Nat) (left right : Config (core3 grow) (HostState sig))
+    (growth : Core3.Grows origin.core right.store.core) (same : left.store = right.store)
+    (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (refFollowing : Unit → Session grow sig (Ret (core3 grow))) (trackOccurrences : Bool := false) :
+    let cx := destination.context inst
+    let type : TypeOf := .record (mapEntryFields key element)
+    let addr := base + index * (layout destination.width type).size
+    let keyArea := layout destination.width (.prim key.toPrimitive : TypeOf)
+    let keyPtr := alignTo addr keyArea.alignment
+    let valPtr := alignTo (keyPtr + keyArea.size) (layout destination.width valField.type).alignment
+    let keyField := Field.data (.prim key.toPrimitive) keyPayload
+    left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width
+      (.aggregate type [keyField, valField]) issueIndex (.memory addr) >>= checkNext) →
+    right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none cx destination.width keyField (.memory keyPtr) >>= refFollowing) →
+    LocalCutKeepingBetween profile ready dispatch reference
+      (fun store => Core3.Grows origin.core store.core) left right check canon
+      (fun (_ : Unit) => Record.Effects.field recordClaims Limits.spec Quirks.none cx destination.width valField 1 (.memory valPtr) >>=
+        fun result => checkNext (result.mapError (.nested issueIndex)))
+      refFollowing trackOccurrences :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localMapKeyThen
+    destination inst key element keyData keyPayload valField origin base bytes count index width sized aligned bounds entry
+    issueIndex left right growth same check canon thread checkNext refFollowing trackOccurrences
+
+theorem local_data_map_objects {key : WIT.KeyType} {element : TypeOf} {entries : List Field}
+    (data : LocalDataType element)
+    (matched : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (emitted : Field.Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries)) :
+    Field.listObjects entries = [] :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localMapObjects data matched emitted
+
+/-- Reached memory-map entries use allocation-time key and value offsets.
+Follow every compiled data entry, then execute the real descriptor writes. -/
+theorem local_map_collection_tail {reference : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (key : WIT.KeyType) (element : TypeOf)
+    (keyData : LocalDataType (.prim key.toPrimitive)) (valueData : LocalDataType element)
+    (entries : List Field)
+    (matched : Field.EntriesMatch entries (.record (mapEntryFields key element)))
+    (emitted : Field.Emitted (.dynamic (.map key element) (.record (mapEntryFields key element)) entries))
+    (pointer bytes index outputAddress : Nat) (left right : Config (core3 grow) (HostState sig))
+    (width : (core3 grow).memAddrType? left.store.core destination.memory = some destination.width)
+    (sized : (core3 grow).memSize? left.store.core destination.memory = some bytes)
+    (aligned : pointer = alignTo pointer (layout destination.width (.record (mapEntryFields key element))).alignment)
+    (bounds : pointer + entries.length * (layout destination.width (.record (mapEntryFields key element))).size ≤ bytes)
+    (same : left.store = right.store) (check canon : Cursor (E := core3 grow) (HostState sig)) (thread : check.thread = canon.thread)
+    (checkNext : Except RecordLower.Issue Unit → Session grow sig (Ret (core3 grow)))
+    (canonNext : Unit → Session grow sig (Ret (core3 grow))) :
+    let area := layout destination.width (.record (mapEntryFields key element))
+    let mode := CanonicalTree.EntryMode.memoryMap destination.width key element
+    left.ctl = check.control (checkedCollectionTail destination inst entries area index (.memory outputAddress) pointer (.ok ()) >>= checkNext) →
+    right.ctl = canon.control (canonicalCollectionTail destination inst entries area (.memory outputAddress) pointer mode >>= canonNext) →
+    LocalCutKeepingBetween profile ready dispatch reference (fun store => Core3.Grows left.store.core store.core)
+      left right check canon (fun value => checkNext (.ok value)) canonNext :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.localMapCollectionTail
+    destination inst key element keyData valueData entries matched emitted pointer bytes index outputAddress left right
+    width sized aligned bounds same check canon thread checkNext canonNext
 
 /-- Use the validated collection range, rather than a fresh placement
 assumption for the scalar at its reached list index. -/
@@ -649,6 +1072,33 @@ theorem collection_install_tracks (destination : RecordDestination) (inst : Inst
       [.tau, .tau, .tau] checkCall (.active 0 (depth + 1)) ∧
     ReturnFrame.Occurrence.Prefix profile ready dispatch right (.active 0 depth)
       [.tau, .tau] canonCall (.active 0 (depth + 1)) :=
+  fun depth => Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.collectionInstallTracks
+    destination inst type element entries output index left right check canon checkNext canonNext
+    reachedWidth prepared checkAt canonAt (.active 0 depth)
+
+open ReturnFrame.Occurrence in
+/-- The actual preflight reads leave all coordinates in place. Only the
+allocator install changes the active top segment depths. -/
+theorem collection_install_occurrences (destination : RecordDestination) (inst : InstId) (type element : TypeOf)
+    (entries : List Field) (output : Lower.Output) (index : Nat)
+    (left right : Config (core3 grow) (HostState sig)) (check canon : Cursor (E := core3 grow) (HostState sig))
+    (checkNext : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (canonNext : output.Result → Session grow sig (Ret (core3 grow)))
+    (reachedWidth : (core3 grow).memAddrType? right.store.core destination.memory = some destination.width)
+    (prepared : Record.prepare left.store left.host.writer (Field.listObjects entries) = .ok ())
+    (checkAt : left.ctl = check.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) index output >>= checkNext))
+    (canonAt : right.ctl = canon.control (CanonicalTree.field Limits.spec Quirks.none
+      (destination.context inst) destination.width (.dynamic type element entries) output >>= canonNext)) :
+    let area := layout destination.width element
+    let checkResume := checkedCollectionResume destination inst entries area index output checkNext
+    let canonResume := canonicalCollectionResume destination inst entries area output canonNext
+      (CanonicalTree.EntryMode.forOutput destination.width type output)
+    let checkCall := collectionEntry destination inst area entries.length dispatch left check checkResume
+    let canonCall := collectionEntry destination inst area entries.length dispatch right canon canonResume
+    ∀ place : Location,
+      Prefix profile ready dispatch left place [.tau, .tau, .tau] checkCall place.pushed ∧
+      Prefix profile ready dispatch right place [.tau, .tau] canonCall place.pushed :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.collectionInstallTracks
     destination inst type element entries output index left right check canon checkNext canonNext
     reachedWidth prepared checkAt canonAt
@@ -888,9 +1338,29 @@ theorem check_placement_tracks {World : Type} {placementReady : HostReady World}
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.checkPlacementRun
     destination inst start area ptr cursor finish focused
 
-/-- Enter the actual compiled root body, or trap before any child runs. A
-flat output has no placement steps; a memory output uses its reached store. -/
-theorem root_placement_steps (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+open ReturnFrame.Occurrence in
+/-- The actual placement read preserves every occurrence on success. A trap
+clears active occurrences without popping any saved occurrence. -/
+theorem check_placement_occurrences {World : Type} {placementReady : HostReady World}
+    {placementDispatch : Call (core3 grow) → P (core3 grow) World (Ret (core3 grow))}
+    (destination : RecordDestination) (inst : InstId) (start : Config (core3 grow) World)
+    (area : Layout) (ptr : Nat) (cursor : Cursor (E := core3 grow) World)
+    (finish : P (core3 grow) World (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (do
+      checkAligned ptr area.alignment.bytes
+      checkInBounds (destination.context inst) ptr area.size
+      finish)) :
+    match placement destination start.store area ptr with
+    | .ok () => ∀ place, Prefix profile placementReady placementDispatch start place [.tau]
+        { start with ctl := cursor.control finish } place
+    | .error reason => ∃ count, ∀ place, Trail profile placementReady placementDispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) ((Edit.clear : Edit (core3 grow) World).follow place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.checkPlacementRunAll
+    destination inst start area ptr cursor finish focused
+
+open ReturnFrame.Occurrence in
+/-- Split a failed root placement at its actual trap focus. -/
+theorem root_placement_prefix (destination : RecordDestination) (inst : InstId) (type : TypeOf)
     (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
     (cursor : Cursor (E := core3 grow) (HostState sig))
     (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
@@ -899,10 +1369,31 @@ theorem root_placement_steps (destination : RecordDestination) (inst : InstId) (
     let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
       (destination.context inst) destination.width field 0 output >>= finish)
     match rootPlacement destination start.store type output with
-    | .ok () => ∃ labels, visible labels = [] ∧ Steps profile ready dispatch start labels { start with ctl := child }
-    | .error reason => ∃ count, Steps profile ready dispatch start
-        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start) :=
-  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementSteps destination inst type
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
+        ∀ place, Prefix profile ready dispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count, PlacementFault profile ready dispatch start
+        { start with ctl := cursor.control (trap reason) } count reason :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementPrefix destination inst type
+    field output start cursor finish focused
+
+open ReturnFrame.Occurrence in
+/-- Enter the actual compiled root body, or trap before any child runs. A
+flat output has no placement steps; a memory output uses its reached store. -/
+theorem root_placement_tracks (destination : RecordDestination) (inst : InstId) (type : TypeOf)
+    (field : Field) (output : Lower.Output) (start : Config (core3 grow) (HostState sig))
+    (cursor : Cursor (E := core3 grow) (HostState sig))
+    (finish : Except RecordLower.Issue output.Result → Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (Record.Effects.root recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width type field output >>= finish)) :
+    let child := cursor.control (Record.Effects.field recordClaims Limits.spec Quirks.none
+      (destination.context inst) destination.width field 0 output >>= finish)
+    match rootPlacement destination start.store type output with
+    | .ok () => ∃ labels, (labels = [] ∨ labels = [.tau]) ∧ visible labels = [] ∧
+        ∀ place, Prefix profile ready dispatch start place labels { start with ctl := child } place
+    | .error reason => ∃ count, count ≤ 1 ∧ ∀ place, Trail profile ready dispatch start (some place)
+        (List.replicate count .tau ++ [.trap reason]) (StepDefs.trapCfg start)
+        ((Edit.clear : Edit (core3 grow) (HostState sig)).follow place) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.PayloadPrefix.rootPlacementTracks destination inst type
     field output start cursor finish focused
 
 /-- The linked public `giveFlat` call reaches the same flat words as

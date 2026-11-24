@@ -207,6 +207,44 @@ theorem Run.append {first second leading trailing} (left : Run profile ready imp
     Run profile ready impl start (first ++ second) (leading ++ trailing) finish :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.runAppend left right
 
+/-- Both dispatchers follow the same selected K1 continuation and read the
+task at the reached store. This branch does not deliver a pending cancel. -/
+theorem K1Resume.linked_admission {atWait atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {wait : K1Wait atWait thread task} (resume : K1Resume wait atHost ready profile)
+    {record : Task (core3 grow)} (live : resume.reached.store.task? task = some record)
+    (notPending : record.state ≠ .pendingCancel) (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig)) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) atHost (resume.labels ++ [.tau, .tau]) resume.admitted ∧
+      Steps profile ready (Dispatch.linked ready bindings callees) atHost (resume.labels ++ [.tau, .tau]) resume.admitted :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.k1ResumePair resume live notPending bindings callees
+
+/-- A parked prefix can end before selection. If selected and not cancelled,
+extend the run with the resume and live admission as separate actions. -/
+theorem Run.resume_k1 {atWait : State grow sig} {thread : ThreadId} {task : TaskId}
+    {wait : K1Wait atWait thread task} (resume : K1Resume wait middle ready profile) {actions labels}
+    (run : Run profile ready impl start actions labels middle) {record : Task (core3 grow)}
+    (live : resume.reached.store.task? task = some record) (notPending : record.state ≠ .pendingCancel) :
+    Run profile ready impl start (actions ++ [.k1Resume thread, .k1Admit task]) (labels ++ (resume.labels ++ [.tau, .tau])) resume.admitted :=
+  run.append (.next (.k1Resume resume) (.next (.k1Admit resume live notPending) (.stop _)))
+
+/-- Register the resumed worker and reach the new `onStart` call. The live
+instance controls registration capacity and the current task selects the caller. -/
+theorem K1LiftStart.start_steps {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) :
+    Steps profile ready (specDispatch ready impl) resume.admitted handoff.labels handoff.onStart :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.k1StartLift handoff
+
+/-- Join selected resumption, the live cancellation check and registration on
+both closed dispatchers. The actual `onStart` request is the next cut. -/
+theorem K1LiftStart.linked_start {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) (notPending : handoff.record.state ≠ .pendingCancel)
+    (bindings : List (Binding sig)) (callees : List (ComponentCall.Callee sig)) :
+    let labels := (resume.labels ++ [.tau, .tau]) ++ handoff.labels
+    Steps profile ready (Dispatch.coreOnly ready bindings) atHost labels handoff.onStart ∧
+      Steps profile ready (Dispatch.linked ready bindings callees) atHost labels handoff.onStart :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.k1LiftStartPair handoff notPending bindings callees
+
 /-- Extend a finite run that reached the original lower continuation. The
 result is ready to reply; it has not popped the saved Core caller. -/
 theorem Run.finish_pending_lower {initial reached : State grow sig} {site : CoreCallSite initial} {request : LowerRequest site}
@@ -245,8 +283,64 @@ theorem LiftSite.k1_gate (site : LiftSite grow sig) {instance_ : InstState}
       decide (instance_.numWaitingToEnter > 0)) = true) :
     ∃ entry : K1GateEntry site.launched site.storeAndThread.2 site.storeAndTask.2,
       Steps profile ready (specDispatch ready impl) site.launched (List.replicate 4 .tau) entry.waitingEntry ∧
-      entry.wait.next false = .pure .unit ∧ entry.wait.segments = [] :=
+      entry.wait.next false = .pure .unit ∧ entry.wait.segments = [] ∧ entry.next = liftAdmissionTail site.storeAndTask.2 site.core :=
   lift_k1_gate site.core _ instance_ _ rfl site.live_task asyncMode live gated
+
+/-- A real K1 park in a nested async lift yields the fresh task's cancel
+handle to the original lower. The worker stays saved, and the unstarted
+subtask comes from the original allocation, not a post-park assumption. -/
+theorem LowerRequest.k1_parent {site : CoreCallSite start} (request : LowerRequest site) {core fnType opts inst instance_}
+    (live : start.store.inst? inst = some instance_) (asyncMode : fnType.async_ = true)
+    (pressure : instance_.hasBackpressure (liftTaskData fnType opts inst request.storeAndCaller.2).needsExclusive = true) :
+    let lift := request.lifted core fnType opts inst
+    ∃ (entry : K1GateEntry lift.launched lift.storeAndThread.2 lift.storeAndTask.2)
+      (returned : LowerReturn request entry.wait.blocked),
+      Steps profile ready (specDispatch ready impl) lift.start (List.replicate 14 .tau) entry.wait.blocked ∧
+      returned.cancel = .task lift.storeAndTask.2 ∧
+      entry.wait.blocked.store.subtask? returned.subtask = some { inst := request.inst } ∧
+      returned.cancelInstalled.cont? lift.storeAndThread.2 = some entry.wait.saved ∧
+      returned.cancelInstalled.store.inst? request.inst = (start.store.inst? request.inst).map
+        (fun caller => if inst = request.inst then caller.incWaitingToEnter else caller) ∧
+      entry.next = liftAdmissionTail lift.storeAndTask.2 core :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.lowerK1Parent request live asyncMode pressure
+
+/-- A pending reply returns the index selected by the original caller's
+handle table. Even a same-instance K1 park only increments the wait count
+before insertion; the callee stays saved and its pending event is untouched. -/
+theorem LowerRequest.k1_pending_reply {site : CoreCallSite start} (request : LowerRequest site)
+    {core fnType opts inst} {instance_ caller : InstState} {index : Nat}
+    (live : start.store.inst? inst = some instance_) (asyncMode : fnType.async_ = true)
+    (pressure : instance_.hasBackpressure (liftTaskData fnType opts inst request.storeAndCaller.2).needsExclusive = true)
+    (asyncLower : request.opts.async_ = true) (callerLive : start.store.inst? request.inst = some caller)
+    (room : (caller.handles.add? (.waitable (.subtask request.storeAndSubtask.2))).map Prod.fst = some index) :
+    let lift := request.lifted core fnType opts inst
+    let record : Subtask := { inst := request.inst, onCancel := .task lift.storeAndTask.2, index := some index }
+    ∃ (entry : K1GateEntry lift.launched lift.storeAndThread.2 lift.storeAndTask.2)
+      (returned : LowerReturn request entry.wait.blocked),
+      Steps profile ready (specDispatch ready impl) lift.start (List.replicate 21 .tau) (returned.pendingReply record index) ∧
+      (returned.pendingReply record index).cont? lift.storeAndThread.2 = some entry.wait.saved ∧
+      (returned.pendingReply record index).store.subtask? returned.subtask = some record ∧
+      entry.next = liftAdmissionTail lift.storeAndTask.2 core :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.lowerK1PendingReply
+    request live asyncMode pressure asyncLower callerLive room
+
+/-- Full capacity traps after the same K1 park and cancellation-handle
+installation, without returning an index or running the parked caller. -/
+theorem LowerRequest.k1_full_trap {site : CoreCallSite start} (request : LowerRequest site)
+    {core fnType opts inst} {instance_ caller : InstState}
+    (live : start.store.inst? inst = some instance_) (asyncMode : fnType.async_ = true)
+    (pressure : instance_.hasBackpressure (liftTaskData fnType opts inst request.storeAndCaller.2).needsExclusive = true)
+    (asyncLower : request.opts.async_ = true) (callerLive : start.store.inst? request.inst = some caller)
+    (full : caller.handles.add? (.waitable (.subtask request.storeAndSubtask.2)) = none) :
+    let lift := request.lifted core fnType opts inst
+    ∃ (entry : K1GateEntry lift.launched lift.storeAndThread.2 lift.storeAndTask.2)
+      (returned : LowerReturn request entry.wait.blocked),
+      Steps profile ready (specDispatch ready impl) lift.start (List.replicate 18 .tau ++ [.trap .tableFull])
+        (StepDefs.trapCfg returned.tableFull) ∧
+      (StepDefs.trapCfg returned.tableFull).store.subtask? returned.subtask =
+        some { inst := request.inst, onCancel := .task lift.storeAndTask.2 } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.lowerK1FullTrap
+    request live asyncMode pressure asyncLower callerLive full
 
 /-- A host invocation starts the actual lift body and leaves the parent
 continuation pending. It does not assume the body returns or delivers. -/
@@ -370,20 +464,310 @@ theorem Run.enter_lowered_lift {site : CoreCallSite middle} {actions labels}
 /-- Dispatch the actual lower caller's start request. An unindexed record
 does not touch its event; an indexed one replaces the pending event before
 marking the subtask started. The remaining program lifts the original cursor. -/
-theorem LowerStart.handoff_steps {site : LiftSite grow sig} (handoff : LowerStart site) :
-    Steps profile ready (specDispatch ready impl) site.onStart (List.replicate handoff.steps .tau) handoff.reading :=
+theorem LowerStartAt.handoff_steps {site : OnStartSite start} (handoff : LowerStartAt site) :
+    Steps profile ready (specDispatch ready impl) start (List.replicate handoff.steps .tau) handoff.reading :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.lowerStart handoff
 
-theorem LowerStart.started_record {site : LiftSite grow sig} (handoff : LowerStart site) :
+theorem LowerStartAt.started_record {site : OnStartSite start} (handoff : LowerStartAt site) :
     handoff.reading.store.subtask? handoff.subtask = some handoff.startedRecord :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.lowerStartRecord handoff
 
 /-- The reached start request uses only the arena-backed canonical caller program. -/
-theorem LowerStart.linked_handoff {site : LiftSite grow sig} (handoff : LowerStart site)
+theorem LowerStartAt.linked_handoff {site : OnStartSite start} (handoff : LowerStartAt site)
     (bindings : List (Binding sig)) (callees : List (Callee sig)) :
-    Steps profile ready (Dispatch.coreOnly ready bindings) site.onStart (List.replicate handoff.steps .tau) handoff.reading ∧
-      Steps profile ready (Dispatch.linked ready bindings callees) site.onStart (List.replicate handoff.steps .tau) handoff.reading :=
+    Steps profile ready (Dispatch.coreOnly ready bindings) start (List.replicate handoff.steps .tau) handoff.reading ∧
+      Steps profile ready (Dispatch.linked ready bindings callees) start (List.replicate handoff.steps .tau) handoff.reading :=
   ⟨handoff.handoff_steps, handoff.handoff_steps⟩
+
+/-- Registration frames the live lower caller and subtask on the selected K1
+path. `onStart` replaces the pending slot only when the live subtask is indexed. -/
+theorem K1LiftStart.linked_lower_handoff {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) (notPending : handoff.record.state ≠ .pendingCancel)
+    {subtask context flat pos fnType maxParams maxResults subtaskRecord}
+    (caller : ArenaField.callers.get? atHost.store handoff.record.caller =
+      some (.lower subtask context flat pos fnType maxParams maxResults))
+    (live : atHost.store.subtask? subtask = some subtaskRecord)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    ∃ cursor : LowerStartAt handoff.startCursor,
+      let labels := ((resume.labels ++ [.tau, .tau]) ++ handoff.labels) ++ List.replicate cursor.steps .tau
+      cursor.subtask = subtask ∧ cursor.record = subtaskRecord ∧ cursor.flat = flat ∧ cursor.pos = pos ∧
+      cursor.fnType = fnType ∧ cursor.maxParams = maxParams ∧
+        Steps profile ready (Dispatch.coreOnly ready bindings) atHost labels cursor.reading ∧
+        Steps profile ready (Dispatch.linked ready bindings callees) atHost labels cursor.reading ∧
+        cursor.reading.store.subtask? subtask = some cursor.startedRecord :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.k1LowerHandoff
+    handoff notPending caller live bindings callees
+
+/-- The closed argument handoff reads the caller width, lifts and commits
+exactly the selected words, and enters the real callee on the original activation. -/
+theorem LowerStartAt.direct_callee {site : OnStartSite start} (handoff : LowerStartAt site)
+    (task : TaskId) (callee : (core3 grow).FuncAddr) (record : Task (core3 grow))
+    (body : site.next = liftArgumentsBody .spec .none task callee record) (args : List DirectArgument)
+    (callerSchema : handoff.types = args.map DirectArgument.type) (calleeSchema : paramTypes record.ft = args.map DirectArgument.type)
+    (callerFits : args.length ≤ handoff.maxParams) (calleeFits : args.length ≤ ABI.maxFlatParams)
+    (suffix : List FlatValue) (words : handoff.flat.drop handoff.pos = args.map DirectArgument.flat ++ suffix) :
+    ∃ (returned : LowerArgumentReturn handoff handoff.selectedRead), ∃ next,
+      returned.cursor.pos = handoff.pos + args.length ∧
+      (record.opts.async_ = true → record.opts.callback = none → next = stackfulTail task) ∧
+      ∀ impl, Run profile ready impl handoff.reading
+        [.lowerReadWidth site.caller, .lowerArgsReturn site.caller, .coreEnter site.thread]
+        [.tau, .tau, .tau, .tau, .tau] (site.entered returned.resumed callee (args.map DirectArgument.flat) next) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.runLowerDirect
+    handoff task callee record body args callerSchema calleeSchema callerFits calleeFits suffix words
+
+/-- Both dispatchers install the same closed realloc request after the live
+cursor update, with the actual spill continuation above the older frames. -/
+theorem CalleeArguments.linked_spill_request {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached : State grow sig} {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned)
+    (spill : ABI.maxFlatParams < (ABI.flattenTypes args.width args.types).length)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    let installed := args.installed (Dispatch.coreOnly ready bindings)
+    Steps profile ready (Dispatch.coreOnly ready bindings) reached [.tau, .tau, .tau, .tau] installed ∧
+    Steps profile ready (Dispatch.linked ready bindings callees) reached [.tau, .tau, .tau, .tau] installed :=
+  ⟨(Run.next (.lowerArgsReturn returned) (.next (.calleeAllocate args spill) (.stop _))).steps,
+    (Run.next (.lowerArgsReturn returned) (.next (.calleeAllocate args spill) (.stop _))).steps⟩
+
+/-- A finite closed allocator path need not return. The linked execution
+reaches the same configuration and retains the same live or saved occurrence. -/
+theorem CalleeArguments.linked_spill_prefix {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    {bindings : List (Binding sig)} {callees : List (Callee sig)} {labels mark}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (Dispatch.coreOnly ready bindings)
+      (args.installed (Dispatch.coreOnly ready bindings)) (.active 0 0) labels state mark)
+    (closed : Dispatch.ClosedThrough profile ready bindings (args.installed (Dispatch.coreOnly ready bindings)) labels state) :
+    ReturnFrame.Occurrence.Prefix profile ready (Dispatch.linked ready bindings callees)
+      (args.installed (Dispatch.linked ready bindings callees)) (.active 0 0) labels state mark :=
+  Dispatch.occurrence_of_closed path closed
+
+/-- Recognize the return to the original spill occurrence, even if it was
+parked and resumed with a different scheduler tail. -/
+theorem CalleeSpillReturn.of_occurrence {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    {labels pointer next segments rest}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready impl)
+      (args.installed (specDispatch ready impl)) (.active 0 0) labels state (.active 0 0))
+    (focused : state.ctl = ⟨some site.thread, .prog (.pure (.nat pointer)), .prog next :: segments⟩ :: rest) :
+    ∃ result : CalleeSpillReturn args state, result.pointer = pointer :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.calleeReachedReturn path focused
+
+/-- The direct string field reads its live plan width. After the plan,
+the canonical suffix appends its actual words before entering the guest. -/
+theorem flat_argument_string (context : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal) :
+    (lowerFlatAt .spec .none context width (.string value) (.prim .string) : Session grow sig (List FlatValue)) =
+      .op .get (argumentStringBody context width .flat value) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.flatArgumentString context width value
+
+theorem memory_argument_string (context : LiftLowerContext (core3 grow)) (width : AddrType)
+    (value : Value.StrVal) (address : Nat) :
+    (store .spec .none context (.string value) (.prim .string) address : Session grow sig Unit) =
+      .op .get (argumentStringBody context width (.memory address) value) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.memoryArgumentString context width value address
+
+theorem direct_string_plan {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (context : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal)
+    (values : List Value.Val) (types : List Stored.TypeOf) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (enter : List FlatValue → Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (lowerFlatTypes .spec .none context width
+      (.string value :: values) (.prim .string :: types) >>= enter)) :
+    Steps profile ready dispatch start [.tau]
+      { start with ctl := cursor.control (argumentStringBody context width .flat value start.store >>=
+          directStringTail context width values types enter) } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.directStringPlan
+    context width value values types cursor enter focused
+
+/-- The indirect argument store reads the tuple field offset and then the
+string plan width. The canonical suffix uses the ABI field-end cursor. -/
+theorem spilled_string_plan {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+    (context : LiftLowerContext (core3 grow)) (value : Value.StrVal)
+    (values : List Value.Val) (types : List Stored.TypeOf) (pointer : Nat) (cursor : Cursor (E := core3 grow) (HostState sig))
+    (enter : Session grow sig (Ret (core3 grow)))
+    (focused : start.ctl = cursor.control (storeTuple .spec .none context
+      (.string value :: values) (.prim .string :: types) pointer >>= fun _ => enter)) :
+    Steps profile ready dispatch start [.tau, .tau]
+      { start with ctl := cursor.control (spilledStringBody context (ptrTypeIn start.store context)
+          value values types pointer enter start.store) } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.spilledStringPlan
+    context value values types pointer cursor enter focused
+
+/-- Allocation within an argument is a closed request at the actual
+call site, regardless of subsequent allocator reentry. -/
+theorem ArgumentStringAllocation.linked_install (alloc : ArgumentStringAllocation start) (ready : HostReady (HostState sig))
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    Step profile ready (Dispatch.coreOnly ready bindings) start .tau (alloc.installed ready bindings) ∧
+    Step profile ready (Dispatch.linked ready bindings callees) start .tau (alloc.installed ready bindings) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.stringArgumentInstall alloc ready bindings callees
+
+/-- A classified allocator trace is admissible even if it traps and loses
+the continuation. Its final configuration is the actual reached one. -/
+theorem ArgumentStringAllocation.linked_steps (alloc : ArgumentStringAllocation start) {bindings : List (Binding sig)}
+    {callees : List (Callee sig)} {last : State grow sig} {labels}
+    (path : Steps profile ready (Dispatch.coreOnly ready bindings) (alloc.installed ready bindings) labels last)
+    (closed : Dispatch.ClosedThrough profile ready bindings (alloc.installed ready bindings) labels last) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) start (.tau :: labels) last ∧
+    Steps profile ready (Dispatch.linked ready bindings callees) start (.tau :: labels) last :=
+  let install := alloc.linked_install ready bindings callees
+  ⟨.cons install.1 path, .cons install.2 (Dispatch.Compatible.of_closed path closed).steps⟩
+
+/-- A finite allocator path may stop with the residual plan saved rather
+than return. Transport the actual occurrence and all reached effects. -/
+theorem ArgumentStringAllocation.linked_prefix (alloc : ArgumentStringAllocation start) {bindings : List (Binding sig)}
+    {callees : List (Callee sig)} {last : State grow sig} {labels mark}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (Dispatch.coreOnly ready bindings)
+      (alloc.installed ready bindings) (.active 0 0) labels last mark)
+    (closed : Dispatch.ClosedThrough profile ready bindings (alloc.installed ready bindings) labels last) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) start (.tau :: labels) last ∧
+    Steps profile ready (Dispatch.linked ready bindings callees) start (.tau :: labels) last ∧
+    ReturnFrame.Occurrence.Prefix profile ready (Dispatch.linked ready bindings callees)
+      (alloc.installed ready bindings) (.active 0 0) labels last mark :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.stringArgumentPrefix alloc path closed
+
+/-- Resume the original residual plan only when its tracked occurrence
+returns. Later transcoding, writes and siblings start from the reached store. -/
+theorem ArgumentStringAllocation.linked_return (alloc : ArgumentStringAllocation start) {bindings : List (Binding sig)}
+    {callees : List (Callee sig)} {last : State grow sig} {labels}
+    (path : ReturnFrame.Occurrence.Prefix profile ready (Dispatch.coreOnly ready bindings)
+      (alloc.installed ready bindings) (.active 0 0) labels last (.active 0 0))
+    (closed : Dispatch.ClosedThrough profile ready bindings (alloc.installed ready bindings) labels last)
+    (cursor : Cursor (E := core3 grow) (HostState sig)) (answer : Ret (core3 grow)) {next : ReturnFrame.Continuation (core3 grow) (HostState sig)}
+    (returning : last.ctl = { cursor with frames := .prog next :: cursor.frames }.control (.pure answer)) :
+    Steps profile ready (Dispatch.coreOnly ready bindings) start ((.tau :: labels) ++ [.tau]) (alloc.resumed last cursor answer) ∧
+    Steps profile ready (Dispatch.linked ready bindings callees) start ((.tau :: labels) ++ [.tau]) (alloc.resumed last cursor answer) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.stringArgumentReturn alloc path closed cursor answer returning
+
+/-- Compose the actual caller-cursor commit and direct branch selection with
+the string plan, retaining the append of the canonical suffix words. -/
+theorem CalleeArguments.direct_string_plan {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached : State grow sig} {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned)
+    {value values types} (schema : args.types = .prim .string :: types) (input : returned.values = .string value :: values)
+    (fits : (ABI.flattenTypes args.width args.types).length ≤ ABI.maxFlatParams) :
+    Steps profile ready (specDispatch ready impl) reached [.tau, .tau, .tau, .tau]
+      (args.atProgram returned.resumed (argumentStringBody args.context args.width .flat value returned.resumed.store >>=
+        directStringTail args.context args.width values types args.enter)) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.calleeDirectStringPlan args schema input fits
+
+/-- After the actual outer allocator pop and live placement, enter the
+nested string plan at the reached tuple offset, not the allocator's saved store. -/
+theorem CalleeSpillReturn.spilled_string_plan {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    (result : CalleeSpillReturn args state) {memory size value values types}
+    (schema : args.types = .prim .string :: types) (input : returned.values = .string value :: values)
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (fits : result.pointer + args.layout.size ≤ size) :
+    Steps profile ready (specDispatch ready impl) state [.tau, .tau, .tau, .tau]
+      { state with ctl := ((⟨some site.thread, result.segments, result.rest⟩ : Cursor (HostState sig)).control
+          (spilledStringBody args.context (ptrTypeIn state.store args.context) value values types result.pointer
+            (args.enter [ptrFlat args.width result.pointer]) state.store)) } :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.calleeSpillStringPlan
+    result schema input aligned selected sized fits
+
+/-- Execute the actual scalar tuple store after live spill placement. The
+computed result uses the store from each previous write, including on a trap. -/
+theorem CalleeSpillReturn.placed_scalar_writes {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    (result : CalleeSpillReturn args state) {memory size} (scalars : List DirectArgument)
+    (schema : args.types = scalars.map DirectArgument.type) (values : returned.values = scalars.map DirectArgument.value)
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (fits : result.pointer + args.layout.size ≤ size) :
+    let effect := scalarTupleEffect args.context memory scalars result.pointer state.store
+    ∀ impl, Run profile ready impl state [.calleeSpillPlacement site.thread none, .calleeSpillScalars site.thread effect.trap]
+      ([.tau, .tau] ++ effect.labels) (result.scalarFinished effect) := by
+  intro effect impl
+  have run := Run.next (.calleePlaced result aligned selected sized fits)
+    (.next (.calleeSpillScalars result scalars schema values selected) (.stop _)) (impl := impl) (profile := profile) (ready := ready)
+  simpa only [List.append_nil] using run
+
+/-- Pass the allocator's pointer to the reached stackful Core callee if every
+scalar store commits. The callee inherits the reached scheduler tail. -/
+theorem CalleeSpillReturn.stackful_scalar_callee {site : OnStartSite start} {handoff : LowerStartAt site}
+    {reached state : State grow sig} {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned}
+    (result : CalleeSpillReturn args state) {memory size} (scalars : List DirectArgument)
+    (schema : args.types = scalars.map DirectArgument.type) (values : returned.values = scalars.map DirectArgument.value)
+    (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+    (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+    (fits : result.pointer + args.layout.size ≤ size)
+    (asyncMode : args.record.opts.async_ = true) (callback : args.record.opts.callback = none)
+    (written : (scalarTupleEffect args.context memory scalars result.pointer state.store).trap = none) :
+    let effect := scalarTupleEffect args.context memory scalars result.pointer state.store
+    ∀ impl, Run profile ready impl state
+      [.calleeSpillPlacement site.thread none, .calleeSpillScalars site.thread effect.trap, .coreEnter site.thread]
+      ([.tau, .tau] ++ (effect.labels ++ [.tau])) (result.enteredStackful effect.store) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.spillScalarStackful
+    result scalars schema values aligned selected sized fits asyncMode callback written
+
+/-- A spilled scalar tuple is loaded in ABI field order from the reached memory.
+It consumes one caller word before using the same direct callee entry as flat arguments. -/
+theorem LowerStartAt.spilled_scalar_callee {site : OnStartSite start} (handoff : LowerStartAt site)
+    (task : TaskId) (callee : (core3 grow).FuncAddr) (record : Task (core3 grow))
+    (body : site.next = liftArgumentsBody .spec .none task callee record) (args : List DirectArgument)
+    (callerSchema : handoff.types = args.map DirectArgument.type) (calleeSchema : paramTypes record.ft = args.map DirectArgument.type)
+    (callerSpills : handoff.maxParams < args.length) (calleeFits : args.length ≤ ABI.maxFlatParams)
+    {pointer : FlatValue} {memory : (core3 grow).MemAddr} {size : Nat}
+    (found : handoff.flat[handoff.pos]? = some pointer)
+    (aligned : flatNat pointer = ABI.alignTo (flatNat pointer) (handoff.spillLayout handoff.readWidth).alignment)
+    (selected : handoff.context.opts.memory = some memory)
+    (sized : (core3 grow).memSize? handoff.selectedRead.store.core memory = some size)
+    (fits : flatNat pointer + (handoff.spillLayout handoff.readWidth).size ≤ size)
+    (fields : ScalarSpill handoff.selectedRead.store memory handoff.readWidth args (flatNat pointer)) :
+    ∃ (returned : LowerArgumentReturn handoff (handoff.spillLoaded (args.map DirectArgument.value))), ∃ next,
+      returned.cursor.pos = handoff.pos + 1 ∧
+      (record.opts.async_ = true → record.opts.callback = none → next = stackfulTail task) ∧
+      ∀ impl, Run profile ready impl handoff.reading
+        [.lowerReadWidth site.caller, .lowerSpill site.caller, .lowerLoadScalars site.caller, .lowerArgsReturn site.caller,
+          .coreEnter site.thread]
+        ([.tau, .tau] ++ (List.replicate args.length .tau ++ [.tau, .tau, .tau, .tau]))
+        (site.entered returned.resumed callee (args.map DirectArgument.flat) next) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.runLowerSpilledScalars
+    handoff task callee record body args callerSchema calleeSchema callerSpills calleeFits found aligned selected sized fits fields
+
+/-- A selected K1 worker reaches its direct callee under both dispatchers.
+Unlike the initially admitted path, the retained tail is the reached tick's tail. -/
+theorem K1LiftStart.linked_direct_callee {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {resume : K1Resume entry.wait atHost ready profile}
+    (handoff : K1LiftStart resume) (notPending : handoff.record.state ≠ .pendingCancel)
+    {subtask context flat pos fnType maxParams maxResults subtaskRecord}
+    (caller : ArenaField.callers.get? atHost.store handoff.record.caller =
+      some (.lower subtask context flat pos fnType maxParams maxResults))
+    (live : atHost.store.subtask? subtask = some subtaskRecord)
+    (args : List DirectArgument) (callerSchema : paramTypes fnType = args.map DirectArgument.type)
+    (calleeSchema : paramTypes handoff.registered.ft = args.map DirectArgument.type)
+    (callerFits : args.length ≤ maxParams) (calleeFits : args.length ≤ ABI.maxFlatParams)
+    (suffix : List FlatValue) (words : flat.drop pos = args.map DirectArgument.flat ++ suffix)
+    (bindings : List (Binding sig)) (callees : List (Callee sig)) :
+    ∃ (cursor : LowerStartAt handoff.startCursor) (returned : LowerArgumentReturn cursor cursor.selectedRead), ∃ next,
+      let labels := (((resume.labels ++ [.tau, .tau]) ++ handoff.labels) ++ List.replicate cursor.steps .tau) ++
+        [.tau, .tau, .tau, .tau, .tau]
+      let entered := handoff.startCursor.entered returned.resumed handoff.callee (args.map DirectArgument.flat) next
+      returned.cursor.pos = pos + args.length ∧
+        (handoff.registered.opts.async_ = true → handoff.registered.opts.callback = none → next = stackfulTail task) ∧
+        Steps profile ready (Dispatch.coreOnly ready bindings) atHost labels entered ∧
+        Steps profile ready (Dispatch.linked ready bindings callees) atHost labels entered :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.k1LowerDirect
+    handoff notPending caller live args callerSchema calleeSchema callerFits calleeFits suffix words bindings callees
+
+/-- Stackful completion does not itself consume or replace the event reached
+at Core return, or change that store's caller cursor. -/
+theorem StackfulExit.live_records {reached : State grow sig} {site : StackfulReturn reached} (exit : StackfulExit site) :
+    exit.finished.store.subtasks = reached.store.subtasks ∧ exit.finished.store.callers = reached.store.callers :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.stackfulFrames exit
+
+/-- Replay a finite closed delivery tail under another host overlay. Each
+edge still reads its own reached state; nothing requires a pending event to
+survive consumption or be reused by a later edge. -/
+theorem Run.rehost_delivery {reference : HostImpl (core3 grow) (HostState sig)} {actions labels}
+    (path : Run profile ready impl start actions labels finish) (closed : ∀ action ∈ actions, ClosedDeliveryAction action) :
+    Run profile ready reference start actions labels finish :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.runRehostDelivery path closed
+
+/-- Append the closed return, live unregistration and actual worker exit
+after any classified finite interleaving that reaches the callee return. -/
+theorem Run.finish_stackful {reached : State grow sig} {site : StackfulReturn reached} {actions labels}
+    (run : Run profile ready impl start actions labels reached) (exit : StackfulExit site) (empty : site.segments = []) :
+    Run profile ready impl start (actions ++ [.stackfulComplete site.taskId, .workerExit site.thread])
+      (labels ++ (exit.labels ++ [.tau])) exit.finished := by
+  simpa only [List.append_nil] using run.append (.next (.stackfulComplete exit) (.next (.stackfulExit exit empty) (.stop _)))
 
 /-- No independent live-caller or progress-record premise is needed on the
 fresh, directly admitted lifted path: lift launch and registration leave both arenas alone. -/
@@ -393,8 +777,8 @@ theorem LowerRequest.fresh_start {site : CoreCallSite start} (request : LowerReq
         handoff.flat = site.args :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.FiniteSession.lowerFresh request
 
-theorem Run.start_lowered {site : LiftSite grow sig} {actions labels}
-    (run : Run profile ready impl start actions labels site.onStart) (handoff : LowerStart site) :
+theorem Run.start_lowered {site : OnStartSite middle} {actions labels}
+    (run : Run profile ready impl start actions labels middle) (handoff : LowerStartAt site) :
     Run profile ready impl start (actions ++ [.lowerStart handoff.subtask handoff.record.index.isSome])
       (labels ++ List.replicate handoff.steps .tau) handoff.reading := by
   simpa only [List.append_nil] using run.append (.next (.lowerStart handoff) (.stop _))

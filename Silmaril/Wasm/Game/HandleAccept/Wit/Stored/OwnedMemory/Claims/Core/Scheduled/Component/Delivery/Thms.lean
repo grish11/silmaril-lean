@@ -252,7 +252,7 @@ theorem lift_k1_gate {atGate : Config (core3 grow) (HostState sig)} {thread : Th
     (gated : (instance_.hasBackpressure task.needsExclusive || decide (instance_.numWaitingToEnter > 0)) = true) :
     ∃ entry : K1GateEntry atGate thread taskId,
       Steps profile ready (specDispatch ready impl) atGate (List.replicate 4 .tau) entry.waitingEntry ∧
-      entry.wait.next false = .pure .unit ∧ entry.wait.segments = [] :=
+      entry.wait.next false = .pure .unit ∧ entry.wait.segments = [] ∧ entry.next = liftAdmissionTail taskId callee :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.liftK1Gate
     callee task instance_ rest focused liveTask asynchronous liveInst gated
 
@@ -395,6 +395,17 @@ theorem SyncCancelResume.resumes {cancel : ParkedCancel parked subtask}
     (saved : atResume.cont? cancel.thread = some cancel.saved) :
     Steps profile ready (specDispatch ready impl) atResume (List.replicate 3 .tau) resume.reached :=
   Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.resumeSyncCancel cancel resume saved
+
+/-- From the reached cancel finish, consume a resolved event and release
+its lends before replying to the actual Core caller. -/
+theorem ParkedCancel.finish_delivers (cancel : ParkedCancel parked subtask) {reached : Config (core3 grow) (HostState sig)}
+    (record : Subtask) {rest}
+    (focused : reached.ctl = ⟨some cancel.thread, .prog (ParkedCancel.finish subtask),
+      .core cancel.core cancel.next :: cancel.segments⟩ :: rest)
+    (live : reached.store.subtask? subtask = some record) (resolved : record.state.resolved = true)
+    (pending : record.common.pending = some (.subtask subtask)) :
+    Steps profile ready (specDispatch ready impl) reached (List.replicate 6 .tau) (cancel.finishReply reached record.state rest) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.cancelFinishDelivers cancel reached record focused live resolved pending
 
 /-- After resumption, a reached pending return is consumed before the same
 Core caller receives its reply. This uses the reached event, not the request-time state. -/

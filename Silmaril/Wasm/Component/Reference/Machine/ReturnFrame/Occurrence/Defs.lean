@@ -82,6 +82,10 @@ def Location.resume (slot : Nat) : Location → Location
   | .active activation segment => .active (activation + 1) segment
   | .saved current segment => if current = slot then .active 0 segment else .saved current segment
 
+def Location.pushed : Location → Location
+  | .active 0 segment => .active 0 (segment + 1)
+  | place => place
+
 /-- Map an existing coordinate through one scheduler edit. If an edit
 discards a frame, a later equal frame cannot revive that occurrence. -/
 def Edit.follow (edit : Edit E Host) (place : Location) : Option Location :=
@@ -132,6 +136,12 @@ def Source.segment (storage : Stacks E Host) : Source E Host → Option (Seg E H
 coordinate. This property is indexed by the occurrence, not its closures. -/
 def Outside (older : Substitutions E Host) (left right : Stacks E Host) (mark : Option Location) : Prop :=
   ∀ place, some place ≠ mark → ∀ first second,
+    segmentAt left place = some first → segmentAt right place = some second → Related.Segment older first second
+
+/-- Several installed occurrences can coexist. Only their exact reached
+locations are exempt; a lost mark no longer exempts any segment. -/
+def OutsideMarks (older : Substitutions E Host) (left right : Stacks E Host) (marks : List (Option Location)) : Prop :=
+  ∀ place, some place ∉ marks → ∀ first second,
     segmentAt left place = some first → segmentAt right place = some second → Related.Segment older first second
 
 /-- The only edit that consumes the marked top segment is the actual pop.

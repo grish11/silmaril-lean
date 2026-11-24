@@ -85,6 +85,7 @@ structure AllocatorCut (profile : ProfileKind) (ready : HostReady (HostState sig
   outside : ReturnFrame.Occurrence.Outside older (ReturnFrame.Occurrence.segmentStorage reached)
     (ReturnFrame.Occurrence.segmentStorage reference) mark
   seen : PayloadPrefix.visible checkLabels = PayloadPrefix.visible canonLabels
+  classified : LinkedCallback.ReplayTrace profile ready bindings left checkLabels reached right canonLabels reference
 
 def refusedBodyReply {route : GiveEffectRoute} (site : PayloadRoot.Site grow sig route) (reached : State grow sig)
     (check : Cursor (E := core3 grow) (HostState sig)) (segments : List (Seg (core3 grow) (HostState sig)))
@@ -215,6 +216,75 @@ def LiftSite.coreEntered (site : LiftSite grow sig) (flat : List FlatValue)
     (next : List FlatValue → Session grow sig (Ret (core3 grow))) : State grow sig :=
   site.coreEnteredAt site.onStart flat next
 
+/-- The scheduler selected the actual saved K1 activation at this host cut. -/
+structure K1Resume {atWait : State grow sig} {thread : ThreadId} {task : TaskId}
+    (wait : K1Wait atWait thread task) (atHost : State grow sig)
+    (ready : HostReady (HostState sig)) (profile : ProfileKind) where
+  tick : SelectedTick thread atHost ready profile
+  saved : atHost.cont? thread = some wait.saved
+
+section
+
+variable {atWait atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+  {wait : K1Wait atWait thread task} {ready : HostReady (HostState sig)}
+
+def K1Resume.reached (resume : K1Resume wait atHost ready profile) : State grow sig :=
+  { (resume.tick.atResume.setCont thread none) with
+    store := StepDefs.threadStatusSt thread .running (resume.tick.atResume.store.stopWaitingSt thread)
+    ctl := wait.saved :: [Activation.ofProg none (modifyStore StepDefs.leaveHostSt >>= fun () => pure .unit)] }
+
+def K1Resume.labels (resume : K1Resume wait atHost ready profile) : Trace grow sig :=
+  resume.tick.selectionLabels ++ [.tau, .tau, .tau]
+
+def K1Resume.admitted (resume : K1Resume wait atHost ready profile) : State grow sig :=
+  { resume.reached with
+    store := ArenaField.insts.modify resume.reached.store wait.instance_ InstState.decWaitingToEnter
+    ctl := ⟨some thread, .prog (wait.next true), wait.segments⟩ :: resume.reached.ctl.drop 1 }
+
+end
+
+/-- K1 takes the exclusive lock according to its saved admission branch,
+then registration consults the live task and the reached instance table. -/
+def K1Resume.entryStore {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {ready : HostReady (HostState sig)}
+    (resume : K1Resume entry.wait atHost ready profile) : CStore (core3 grow) :=
+  if entry.markedTask.needsExclusive then
+    ArenaField.insts.modify resume.admitted.store entry.markedTask.inst (InstState.withExclusive (some thread))
+  else resume.admitted.store
+
+structure K1LiftStart {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {ready : HostReady (HostState sig)}
+    (resume : K1Resume entry.wait atHost ready profile) where
+  callee : (core3 grow).FuncAddr
+  body : entry.next = liftAdmissionTail task callee
+  record : Task (core3 grow)
+  live : resume.reached.store.task? task = some record
+  instance_ : InstState
+  liveInstance : (resume.entryStore (entry := entry)).inst? record.inst = some instance_
+  index : Nat
+  installed : InstState
+  capacity : instance_.addThread? thread = some (index, installed)
+
+section
+
+variable {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+  {entry : K1GateEntry atGate thread task} {ready : HostReady (HostState sig)}
+  {resume : K1Resume entry.wait atHost ready profile}
+
+def K1LiftStart.registered (start : K1LiftStart resume) : Task (core3 grow) :=
+  { start.record with threads := start.record.threads ++ [thread] }
+
+def K1LiftStart.onStart (start : K1LiftStart resume) : State grow sig :=
+  { resume.admitted with
+    store := ((resume.entryStore (entry := entry)).registerThreadSt task thread).setTaskState task .started
+    ctl := ⟨some thread, .prog (callVals (.onStart start.registered.caller) >>=
+      liftArgumentsBody .spec .none task start.callee start.registered), entry.segments⟩ :: resume.admitted.ctl.drop 1 }
+
+def K1LiftStart.labels (_start : K1LiftStart resume) : Trace grow sig :=
+  List.replicate (if entry.markedTask.needsExclusive then 7 else 6) .tau
+
+end
+
 /-- Direct parameters that need neither allocating nor nondeterministic lowering. -/
 inductive DirectArgument where
   | bool (value : Bool)
@@ -231,6 +301,64 @@ def DirectArgument.value : DirectArgument → Value.Val
 def DirectArgument.flat : DirectArgument → FlatValue
   | .bool value => i32Flat (if value then 1 else 0)
   | .u32 value => lowerFlatInt .u32 value.toNat
+
+def DirectArgument.byteCount : DirectArgument → Nat
+  | .bool _ => 1
+  | .u32 _ => 4
+
+def DirectArgument.bytes : DirectArgument → ByteArray
+  | .bool value => intToLE 1 (if value then 1 else 0)
+  | .u32 value => intToLE 4 value.toNat
+
+def DirectArgument.decode (arg : DirectArgument) (bytes : ByteArray) : Value.Val :=
+  match arg with
+  | .bool _ => .bool (convertIntToBool (intOfLE false bytes))
+  | .u32 _ => .int .u32 (intOfLE false bytes)
+
+def DirectArgument.address (arg : DirectArgument) (width : AddrType) (ptr : Nat) : Nat :=
+  ABI.alignTo ptr (ABI.layout width arg.type).alignment
+
+/-- The last store before the continuation or canonical lockdown. Each
+successful field has one width read, one write check and one write effect. -/
+structure ScalarTupleEffect (grow : SingleThreaded.GrowOracle) where
+  store : CStore (core3 grow)
+  ticks : Nat
+  trap : Option TrapReason
+
+def ScalarTupleEffect.labels (effect : ScalarTupleEffect grow) : Trace grow sig :=
+  List.replicate effect.ticks .tau ++ effect.trap.toList.map Label.trap
+
+def ScalarTupleEffect.finish (effect : ScalarTupleEffect grow) (state : State grow sig)
+    (thread : Option ThreadId) (segments : List (Seg (core3 grow) (HostState sig)))
+    (rest : List (Activation (core3 grow) (HostState sig))) (tail : Session grow sig (Ret (core3 grow))) : State grow sig :=
+  match effect.trap with
+  | none => { state with store := effect.store, ctl := ⟨thread, .prog tail, segments⟩ :: rest }
+  | some _ => StepDefs.trapCfg { state with store := effect.store }
+
+/-- Compute effects in ABI field order, testing each write against the
+store produced by the preceding fields rather than prevalidating the tuple. -/
+def scalarTupleEffect (context : LiftLowerContext (core3 grow)) (memory : (core3 grow).MemAddr) :
+    List DirectArgument → Nat → CStore (core3 grow) → ScalarTupleEffect grow
+  | [], _, store => ⟨store, 0, none⟩
+  | arg :: args, pointer, store =>
+    let width := ptrTypeIn store context
+    let address := arg.address width pointer
+    match (core3 grow).memWrite? store.core memory address arg.bytes with
+    | none => ⟨store, 2, some .outOfBounds⟩
+    | some _ =>
+      let next := scalarTupleEffect context memory args (address + (ABI.layout width arg.type).size)
+        (writeMemSt memory address arg.bytes store)
+      { next with ticks := 3 + next.ticks }
+
+/-- The reached bytes and decoded values at each canonical tuple-field offset. -/
+inductive ScalarSpill (store : CStore (core3 grow)) (memory : (core3 grow).MemAddr) (width : AddrType) :
+    List DirectArgument → Nat → Prop where
+  | nil (ptr : Nat) : ScalarSpill store memory width [] ptr
+  | cons {arg args ptr} (bytes : ByteArray)
+      (read : (core3 grow).memRead? store.core memory (arg.address width ptr) arg.byteCount = some bytes)
+      (decoded : arg.decode bytes = arg.value)
+      (rest : ScalarSpill store memory width args (arg.address width ptr + (ABI.layout width arg.type).size)) :
+      ScalarSpill store memory width (arg :: args) ptr
 
 /-- The exact host request reached in a guest activation, with the Core
 continuation that the machine will park beneath the callout. -/
@@ -337,14 +465,43 @@ def LowerReturn.delivered (returned : LowerReturn request reached) : State grow 
 def LowerReturn.pending (returned : LowerReturn request reached) (record : Subtask) (index : Nat) : State grow sig :=
   returned.atProgram (returned.indexedStore index) (.pure (.flat (LowerReturn.pendingValues record index)))
 
+def LowerReturn.pendingReply (returned : LowerReturn request reached) (record : Subtask) (index : Nat) : State grow sig :=
+  { returned.pending record index with ctl :=
+    ⟨site.thread, .core ((core3 grow).resume (returned.indexedStore index).core site.core
+      (.values (LowerReturn.pendingValues record index))) site.next, site.segments⟩ :: site.rest }
+
 def LowerReturn.tableFull (returned : LowerReturn request reached) : State grow sig :=
   returned.atProgram returned.cancelInstalled.store (trap .tableFull >>= fun values : List FlatValue => pure (.flat values))
 
 end
 
+/-- The reached `onStart` call and its saved worker continuation, independent
+of whether admission was immediate or resumed from a K1 park. -/
+structure OnStartSite (state : State grow sig) where
+  thread : ThreadId
+  caller : CallerId
+  next : List Value.Val → Session grow sig (Ret (core3 grow))
+  segments : List (Seg (core3 grow) (HostState sig))
+  rest : List (Activation (core3 grow) (HostState sig))
+  focused : state.ctl = ⟨some thread, .prog (callVals (.onStart caller) >>= next), segments⟩ :: rest
+
+def OnStartSite.entered {state : State grow sig} (site : OnStartSite state) (reached : State grow sig)
+    (callee : (core3 grow).FuncAddr) (flat : List FlatValue)
+    (next : List FlatValue → Session grow sig (Ret (core3 grow))) : State grow sig :=
+  { reached with ctl := ⟨some site.thread, .core ((core3 grow).invoke callee flat) next, site.segments⟩ :: site.rest }
+
+def LiftSite.startCursor (site : LiftSite grow sig) : OnStartSite site.onStart :=
+  ⟨site.storeAndThread.2, site.registeredTask.caller, site.argumentsTail, [], site.workerTail, rfl⟩
+
+def K1LiftStart.startCursor {atGate atHost : State grow sig} {thread : ThreadId} {task : TaskId}
+    {entry : K1GateEntry atGate thread task} {ready : HostReady (HostState sig)}
+    {resume : K1Resume entry.wait atHost ready profile} (handoff : K1LiftStart resume) : OnStartSite handoff.onStart :=
+  ⟨thread, handoff.registered.caller, liftArgumentsBody .spec .none task handoff.callee handoff.registered,
+    entry.segments, resume.admitted.ctl.drop 1, rfl⟩
+
 /-- The lower caller read by the admitted lift, including the live progress
 record. Re-reading it distinguishes eager start from a pending event replacement. -/
-structure LowerStart (site : LiftSite grow sig) where
+structure LowerStartAt {state : State grow sig} (site : OnStartSite state) where
   subtask : SubtaskId
   context : LiftLowerContext (core3 grow)
   flat : List FlatValue
@@ -353,34 +510,224 @@ structure LowerStart (site : LiftSite grow sig) where
   maxParams : Nat
   maxResults : Nat
   record : Subtask
-  callerLive : ArenaField.callers.get? site.onStart.store site.registeredTask.caller =
+  callerLive : ArenaField.callers.get? state.store site.caller =
     some (.lower subtask context flat pos fnType maxParams maxResults)
-  subtaskLive : ArenaField.subtasks.get? site.onStart.store subtask = some record
+  subtaskLive : ArenaField.subtasks.get? state.store subtask = some record
+
+abbrev LowerStart (site : LiftSite grow sig) := LowerStartAt site.startCursor
 
 section
 
-variable {site : LiftSite grow sig}
+variable {state : State grow sig} {site : OnStartSite state}
 
-def LowerStart.readArgs (handoff : LowerStart site) : Session grow sig (Ret (core3 grow)) :=
+def LowerStartAt.readArgs (handoff : LowerStartAt site) : Session grow sig (Ret (core3 grow)) :=
   (do
     let (values, cursor) ← liftFlatValues Limits.spec Quirks.none handoff.context handoff.maxParams
       ⟨handoff.flat, handoff.pos⟩ (handoff.fnType.params.map (·.2))
-    modifyStore (LowerSt.setCallerPosSt site.registeredTask.caller cursor.pos)
+    modifyStore (LowerSt.setCallerPosSt site.caller cursor.pos)
     pure values) >>= fun values => pure (.vals values)
 
-def LowerStart.resume (site : LiftSite grow sig) (result : Ret (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+def OnStartSite.resume (site : OnStartSite state) (result : Ret (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
   (match result with
   | .vals values => pure values
-  | _ => internal "late-bound call: expected Ret.vals") >>= site.argumentsTail
+  | _ => internal "late-bound call: expected Ret.vals") >>= site.next
 
-def LowerStart.progress (handoff : LowerStart site) : CStore (core3 grow) :=
-  let store := site.onStart.store
+def LowerStartAt.progress (handoff : LowerStartAt site) : CStore (core3 grow) :=
+  let store := state.store
   if handoff.record.index.isSome then CStore.setPendingSt (.subtask handoff.subtask) (.subtask handoff.subtask) store else store
 
-def LowerStart.reading (handoff : LowerStart site) : State grow sig :=
-  { site.onStart with
+def LowerStartAt.reading (handoff : LowerStartAt site) : State grow sig :=
+  { state with
     store := LowerSt.startSt handoff.subtask handoff.progress
-    ctl := ⟨some site.storeAndThread.2, .prog handoff.readArgs, [.prog (LowerStart.resume site)]⟩ :: site.workerTail }
+    ctl := ⟨some site.thread, .prog handoff.readArgs, .prog site.resume :: site.segments⟩ :: site.rest }
+
+def LowerStartAt.types (handoff : LowerStartAt site) : List Stored.TypeOf := handoff.fnType.params.map (·.2)
+
+def LowerStartAt.cursor (handoff : LowerStartAt site) : FlatCursor := ⟨handoff.flat, handoff.pos⟩
+
+def LowerStartAt.readWidth (handoff : LowerStartAt site) : AddrType := ptrTypeIn handoff.reading.store handoff.context
+
+def LowerStartAt.finishRead (_handoff : LowerStartAt site) (result : List Value.Val × FlatCursor) :
+    Session grow sig (Ret (core3 grow)) := do
+  modifyStore (LowerSt.setCallerPosSt site.caller result.2.pos)
+  pure (.vals result.1)
+
+def LowerStartAt.readControl (_handoff : LowerStartAt site) (body : Session grow sig (Ret (core3 grow))) :
+    List (Activation (core3 grow) (HostState sig)) :=
+  ⟨some site.thread, .prog body, .prog site.resume :: site.segments⟩ :: site.rest
+
+def LowerStartAt.spillLayout (handoff : LowerStartAt site) (width : AddrType) : ABI.Layout :=
+  ABI.layout width (.tuple handoff.types : Stored.TypeOf)
+
+def LowerStartAt.readAt (handoff : LowerStartAt site) (width : AddrType) : Session grow sig (List Value.Val × FlatCursor) :=
+  if (ABI.flattenTypes width handoff.types).length > handoff.maxParams then do
+    let (pointer, cursor) ← handoff.cursor.next (ABI.pointerType width)
+    let layout := handoff.spillLayout width
+    trapIf (decide (flatNat pointer ≠ ABI.alignTo (flatNat pointer) layout.alignment)) .unalignedPointer
+    checkInBounds handoff.context (flatNat pointer) layout.size
+    let values ← loadTypesAt .spec .none handoff.context width handoff.types (flatNat pointer)
+    pure (values, cursor)
+  else liftFlatTypes .spec .none handoff.context width handoff.types handoff.cursor
+
+def LowerStartAt.selectedRead (handoff : LowerStartAt site) : State grow sig :=
+  { handoff.reading with ctl := handoff.readControl (handoff.readAt handoff.readWidth >>= handoff.finishRead) }
+
+/-- A returned spill pointer is consumed once, independently of the number of loaded fields. -/
+def LowerStartAt.spillCursor (handoff : LowerStartAt site) : FlatCursor :=
+  { handoff.cursor with pos := handoff.pos + 1 }
+
+def LowerStartAt.spillBody (handoff : LowerStartAt site) (pointer : FlatValue) : State grow sig :=
+  { handoff.selectedRead with ctl := handoff.readControl (do
+      let values ← loadTypesAt .spec .none handoff.context handoff.readWidth handoff.types (flatNat pointer)
+      handoff.finishRead (values, handoff.spillCursor)) }
+
+def LowerStartAt.spillLoaded (handoff : LowerStartAt site) (values : List Value.Val) : State grow sig :=
+  { handoff.selectedRead with ctl := handoff.readControl (handoff.finishRead (values, handoff.spillCursor)) }
+
+/-- The original `onStart` result frame has reached the caller cursor update.
+Its store may already include effects from lifting the arguments. -/
+structure LowerArgumentReturn (handoff : LowerStartAt site) (reached : State grow sig) where
+  values : List Value.Val
+  cursor : FlatCursor
+  focused : reached.ctl = handoff.readControl (handoff.finishRead (values, cursor))
+
+def LowerArgumentReturn.resumed {handoff : LowerStartAt site} {reached : State grow sig}
+    (returned : LowerArgumentReturn handoff reached) : State grow sig :=
+  { reached with
+    store := LowerSt.setCallerPosSt site.caller returned.cursor.pos reached.store
+    ctl := ⟨some site.thread, .prog (site.next returned.values), site.segments⟩ :: site.rest }
+
+/-- The callee argument program installed by committing the reached caller cursor. -/
+structure CalleeArguments {handoff : LowerStartAt site} {reached : State grow sig}
+    (returned : LowerArgumentReturn handoff reached) where
+  task : TaskId
+  callee : (core3 grow).FuncAddr
+  record : Task (core3 grow)
+  body : site.next = liftArgumentsBody .spec .none task callee record
+
+variable {handoff : LowerStartAt site} {reached : State grow sig} {returned : LowerArgumentReturn handoff reached}
+
+def CalleeArguments.context (args : CalleeArguments returned) : LiftLowerContext (core3 grow) :=
+  { opts := args.record.opts, inst := args.record.inst, scope := .task args.task }
+
+def CalleeArguments.width (args : CalleeArguments returned) : AddrType :=
+  ptrTypeIn returned.resumed.store args.context
+
+def CalleeArguments.types (args : CalleeArguments returned) := paramTypes args.record.ft
+
+def CalleeArguments.layout (args : CalleeArguments returned) : ABI.Layout :=
+  ABI.layout args.width (.tuple args.types)
+
+def CalleeArguments.atProgram (_ : CalleeArguments returned) (state : State grow sig)
+    (program : Session grow sig (Ret (core3 grow))) : State grow sig :=
+  { state with ctl := ⟨some site.thread, .prog program, site.segments⟩ :: site.rest }
+
+def CalleeArguments.enter (args : CalleeArguments returned) (flat : List FlatValue) : Session grow sig (Ret (core3 grow)) :=
+  liftArgumentsTail .spec .none args.task args.callee args.record args.context flat
+
+def CalleeArguments.direct (args : CalleeArguments returned) : State grow sig :=
+  args.atProgram returned.resumed (lowerFlatTypes .spec .none args.context args.width returned.values args.types >>= args.enter)
+
+def CalleeArguments.write (args : CalleeArguments returned) (pointer : Nat) : Session grow sig (Ret (core3 grow)) := do
+  store .spec .none args.context (.record returned.values) (.tuple args.types) pointer
+  args.enter [ptrFlat args.width pointer]
+
+def CalleeArguments.place (args : CalleeArguments returned) (pointer : Nat) : Session grow sig (Ret (core3 grow)) := do
+  trapIf (decide (pointer ≠ ABI.alignTo pointer args.layout.alignment)) .unalignedPointer
+  checkInBounds args.context pointer args.layout.size
+  args.write pointer
+
+/-- The live plan width is read by the string itself; it need not be
+identified with the earlier flat ABI width or the spill field offset. -/
+def argumentStringBody (context : LiftLowerContext (core3 grow)) (flatWidth : AddrType)
+    (output : Stored.Lower.Output) (value : Value.StrVal) (current : CStore (core3 grow)) :
+    Session grow sig output.Result :=
+  let plan := storePlanFor .none context.opts.encoding (ptrTypeIn current context) value
+  runStoreSteps context 0 plan.steps >>= PayloadPrefix.stringPlanTail context flatWidth output plan
+
+def directStringTail (context : LiftLowerContext (core3 grow)) (width : AddrType)
+    (values : List Value.Val) (types : List Stored.TypeOf) (enter : List FlatValue → Session grow sig (Ret (core3 grow)))
+    (words : List FlatValue) : Session grow sig (Ret (core3 grow)) :=
+  lowerFlatTypes .spec .none context width values types >>= fun rest => enter (words ++ rest)
+
+/-- The tuple's width read chooses both the field address and the cursor for
+the remaining fields, even if allocating the field changes the reached store. -/
+def spilledStringBody (context : LiftLowerContext (core3 grow)) (width : AddrType) (value : Value.StrVal)
+    (values : List Value.Val) (types : List Stored.TypeOf) (pointer : Nat) (enter : Session grow sig (Ret (core3 grow)))
+    (current : CStore (core3 grow)) : Session grow sig (Ret (core3 grow)) :=
+  let layout := ABI.layout width (.prim .string : Stored.TypeOf)
+  let address := ABI.alignTo pointer layout.alignment
+  argumentStringBody context width (.memory address) value current >>= fun _ =>
+    storeTuple .spec .none context values types (address + layout.size) >>= fun _ => enter
+
+/-- A reached allocation (or resize) within a callee argument, with the
+unexecuted plan and the actual rest of the argument computation. -/
+structure ArgumentStringAllocation (state : State grow sig) where
+  context : LiftLowerContext (core3 grow)
+  pointer : Nat
+  oldSize : Option Nat
+  alignment : ABI.Alignment
+  size : Nat
+  residual : List ABI.StoreStep
+  finish : Nat → Session grow sig (Ret (core3 grow))
+  cursor : Cursor (E := core3 grow) (HostState sig)
+  focused : state.ctl = cursor.control (runStoreSteps context pointer
+    ((oldSize.elim (.allocate alignment size) (fun old => .reallocate old alignment size)) :: residual) >>= finish)
+
+def ArgumentStringAllocation.request {state : State grow sig} (alloc : ArgumentStringAllocation state) : Call (core3 grow) :=
+  .reallocate alloc.context (alloc.oldSize.elim 0 (fun _ => alloc.pointer)) (alloc.oldSize.getD 0) alloc.alignment.bytes alloc.size
+
+def ArgumentStringAllocation.resume {state : State grow sig} (alloc : ArgumentStringAllocation state) :
+    ReturnFrame.Continuation (core3 grow) (HostState sig) :=
+  PayloadPrefix.stringPlanResume alloc.context alloc.residual alloc.finish
+
+def ArgumentStringAllocation.installed {state : State grow sig} (alloc : ArgumentStringAllocation state)
+    (ready : HostReady (HostState sig)) (bindings : List (Binding sig)) : State grow sig :=
+  let parked := { alloc.cursor with frames := .prog alloc.resume :: alloc.cursor.frames }
+  { state with ctl := parked.control (Dispatch.coreOnly ready bindings alloc.request) }
+
+def ArgumentStringAllocation.resumed {state : State grow sig} (alloc : ArgumentStringAllocation state)
+    (reached : State grow sig) (cursor : Cursor (E := core3 grow) (HostState sig)) (answer : Ret (core3 grow)) : State grow sig :=
+  { reached with ctl := cursor.control (alloc.resume answer) }
+
+def CalleeArguments.request (args : CalleeArguments returned) : Call (core3 grow) :=
+  .reallocate args.context 0 0 args.layout.alignment.bytes args.layout.size
+
+def CalleeArguments.afterAllocate (args : CalleeArguments returned) : Ret (core3 grow) → Session grow sig (Ret (core3 grow))
+  | .nat pointer => args.place pointer
+  | _ => internal "late-bound call: expected Ret.nat"
+
+def CalleeArguments.allocating (args : CalleeArguments returned) : State grow sig :=
+  args.atProgram returned.resumed (.op (.call args.request) args.afterAllocate)
+
+def CalleeArguments.installed (args : CalleeArguments returned)
+    (dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))) : State grow sig :=
+  { returned.resumed with ctl :=
+      ⟨some site.thread, .prog (dispatch args.request), .prog args.afterAllocate :: site.segments⟩ :: site.rest }
+
+/-- The reached return to the saved spill frame. All placement checks use
+the reached store, which can differ from the store at allocator entry. -/
+structure CalleeSpillReturn (args : CalleeArguments returned) (state : State grow sig) where
+  pointer : Nat
+  segments : List (Seg (core3 grow) (HostState sig))
+  rest : List (Activation (core3 grow) (HostState sig))
+  focused : state.ctl =
+    ⟨some site.thread, .prog (.pure (.nat pointer)), .prog args.afterAllocate :: segments⟩ :: rest
+
+def CalleeSpillReturn.writing {args : CalleeArguments returned} {state : State grow sig}
+    (result : CalleeSpillReturn args state) : State grow sig :=
+  { state with ctl := ⟨some site.thread, .prog (args.write result.pointer), result.segments⟩ :: result.rest }
+
+def CalleeSpillReturn.scalarFinished {args : CalleeArguments returned} {state : State grow sig}
+    (result : CalleeSpillReturn args state) (effect : ScalarTupleEffect grow) : State grow sig :=
+  effect.finish result.writing (some site.thread) result.segments result.rest
+    (args.enter [ptrFlat args.width result.pointer])
+
+def CalleeSpillReturn.enteredStackful {args : CalleeArguments returned} {state : State grow sig}
+    (result : CalleeSpillReturn args state) (store : CStore (core3 grow)) : State grow sig :=
+  { state with store, ctl :=
+      ⟨some site.thread, .core ((core3 grow).invoke args.callee [ptrFlat args.width result.pointer])
+        (fun _ => Task.exitImplicitThread args.task >>= fun _ => pure .unit), result.segments⟩ :: result.rest }
 
 def LiftSite.withLowerValues (site : LiftSite grow sig) (state : State grow sig) (args : List Value.Val)
     (pos : Nat) : State grow sig :=
@@ -388,16 +735,66 @@ def LiftSite.withLowerValues (site : LiftSite grow sig) (state : State grow sig)
     store := LowerSt.setCallerPosSt site.registeredTask.caller pos state.store
     ctl := ⟨some site.storeAndThread.2, .prog (site.argumentsTail args), []⟩ :: site.workerTail }
 
-def LowerStart.startedRecord (handoff : LowerStart site) : Subtask :=
+def LowerStartAt.startedRecord (handoff : LowerStartAt site) : Subtask :=
   { handoff.record with
     state := .started
     common := if handoff.record.index.isSome then { handoff.record.common with pending := some (.subtask handoff.subtask) }
       else handoff.record.common }
 
-def LowerStart.steps (handoff : LowerStart site) : Nat :=
+def LowerStartAt.steps (handoff : LowerStartAt site) : Nat :=
   if handoff.record.index.isSome then 6 else 5
 
 end
+
+/-- The return continuation of a lift with async canonical options and no callback. -/
+def stackfulTail (task : TaskId) (_flat : List FlatValue) : Session grow sig (Ret (core3 grow)) := do
+  Task.exitImplicitThread task
+  pure .unit
+
+/-- A reached Core return, after any intervening guest and scheduler effects. -/
+structure StackfulReturn (reached : State grow sig) where
+  taskId : TaskId
+  thread : ThreadId
+  core : (core3 grow).Thread (CanonHost (core3 grow))
+  values : List FlatValue
+  segments : List (Seg (core3 grow) (HostState sig))
+  rest : List (Activation (core3 grow) (HostState sig))
+  focused : reached.ctl = ⟨some thread, .core core (stackfulTail taskId), segments⟩ :: rest
+  returned : (core3 grow).status reached.store.core core = .returned (.values values)
+
+/-- Registration witnessed in the store at Core return, not the store at admission. -/
+structure StackfulExit {reached : State grow sig} (site : StackfulReturn reached) where
+  record : Task (core3 grow)
+  registration : Thread
+  inst : InstState
+  slot : Nat
+  removed : InstState
+  taskLive : reached.store.task? site.taskId = some record
+  implicitThread : record.implicitThread = some site.thread
+  allowed : ((record.threads.erase site.thread).isEmpty && !decide (record.state = .resolved)) = false
+  threadLive : ArenaField.threads.get? reached.store site.thread = some registration
+  index : registration.index = some slot
+  instanceLive : reached.store.inst? record.inst = some inst
+  remove : inst.removeThread? slot = some (site.thread, removed)
+
+def StackfulExit.completed {reached : State grow sig} {site : StackfulReturn reached}
+    (exit : StackfulExit site) : State grow sig :=
+  let unregistered := reached.store.unregisterThreadSt site.taskId site.thread exit.slot
+  { reached with
+    store := if exit.record.ft.async_ && exit.record.needsExclusive then
+      ArenaField.insts.modify unregistered exit.record.inst (InstState.withExclusive none)
+    else unregistered
+    ctl := ⟨some site.thread, .prog (.pure .unit), site.segments⟩ :: site.rest }
+
+def StackfulExit.finished {reached : State grow sig} {site : StackfulReturn reached}
+    (exit : StackfulExit site) : State grow sig :=
+  { exit.completed with
+    store := StepDefs.threadStatusSt site.thread .exited exit.completed.store
+    ctl := site.rest }
+
+def StackfulExit.labels {reached : State grow sig} {site : StackfulReturn reached}
+    (exit : StackfulExit site) : Trace grow sig :=
+  List.replicate (6 + (exit.record.ft.async_ && exit.record.needsExclusive).toNat) .tau
 
 /-- No K1 wait is entered on this branch. Full registration tables are not
 classified as admitted and must take the canonical trap branch instead. -/
@@ -427,6 +824,15 @@ inductive Action where
   | lowerAllocate (subtask : SubtaskId) (caller : CallerId)
   | lowerStart (subtask : SubtaskId) (indexed : Bool)
   | lowerEmptyArgs (caller : CallerId)
+  | lowerReadWidth (caller : CallerId)
+  | lowerSpill (caller : CallerId)
+  | lowerLoadScalars (caller : CallerId)
+  | lowerArgsReturn (caller : CallerId)
+  | calleeArguments (thread : ThreadId) (spill : Bool)
+  | calleeSpillPlacement (thread : ThreadId) (trap : Option TrapReason)
+  | calleeSpillScalars (thread : ThreadId) (trap : Option TrapReason)
+  | calleeAllocationPrefix (thread : ThreadId) (mark : ReturnFrame.Occurrence.Location)
+  | lowerSpillTrap (caller : CallerId) (reason : TrapReason)
   | lowerInstallCancel (subtask : SubtaskId)
   | lowerEagerDelivery (subtask : SubtaskId)
   | lowerPending (subtask : SubtaskId) (index : Nat)
@@ -434,11 +840,17 @@ inductive Action where
   | coreReply (values : List FlatValue)
   | invokeReturn (cancel : CancelRef)
   | tick (selected : ThreadId)
+  | k1Resume (thread : ThreadId)
+  | k1Admit (task : TaskId)
+  | k1Start (task : TaskId)
   | coreStep
   | coreReturn
   | coreTrap
   | commit (target : SubtaskId) (index : Nat)
   | poll (target : SubtaskId) (index : Nat) (result : BufferResult)
+  | stackfulComplete (task : TaskId)
+  | stackfulUnresolved (task : TaskId)
+  | workerExit (thread : ThreadId)
   | wait (target : SubtaskId) (index : Nat) (result : BufferResult)
   | waitEnter (thread : ThreadId) (early : Bool)
   | waitResume (thread : ThreadId)
@@ -496,9 +908,93 @@ inductive Transition (profile : ProfileKind) (ready : HostReady (HostState sig))
       {instance_ : InstState} (live : start.store.inst? request.inst = some instance_) (allowed : instance_.mayLeave = true) :
       Transition profile ready impl (site.reached ready impl) (.lowerAllocate request.storeAndSubtask.2 request.storeAndCaller.2)
         [.tau, .tau, .tau, .tau, .tau] request.allocated
-  | lowerStart {site : LiftSite grow sig} (handoff : LowerStart site) :
-      Transition profile ready impl site.onStart (.lowerStart handoff.subtask handoff.record.index.isSome)
+  | lowerStart {start} {site : OnStartSite start} (handoff : LowerStartAt site) :
+      Transition profile ready impl start (.lowerStart handoff.subtask handoff.record.index.isSome)
         (List.replicate handoff.steps .tau) handoff.reading
+  | lowerReadWidth {start} {site : OnStartSite start} (handoff : LowerStartAt site) :
+      Transition profile ready impl handoff.reading (.lowerReadWidth site.caller) [.tau] handoff.selectedRead
+  | lowerSpill {start} {site : OnStartSite start} (handoff : LowerStartAt site)
+      {pointer : FlatValue} {memory : (core3 grow).MemAddr} {size : Nat}
+      (spilled : handoff.maxParams < (ABI.flattenTypes handoff.readWidth handoff.types).length)
+      (found : handoff.flat[handoff.pos]? = some pointer)
+      (aligned : flatNat pointer = ABI.alignTo (flatNat pointer) (handoff.spillLayout handoff.readWidth).alignment)
+      (selected : handoff.context.opts.memory = some memory)
+      (sized : (core3 grow).memSize? handoff.selectedRead.store.core memory = some size)
+      (fits : flatNat pointer + (handoff.spillLayout handoff.readWidth).size ≤ size) :
+      Transition profile ready impl handoff.selectedRead (.lowerSpill site.caller) [.tau] (handoff.spillBody pointer)
+  | lowerSpillRangeTrap {start} {site : OnStartSite start} (handoff : LowerStartAt site)
+      {pointer : FlatValue} {memory : (core3 grow).MemAddr} {size : Nat}
+      (spilled : handoff.maxParams < (ABI.flattenTypes handoff.readWidth handoff.types).length)
+      (found : handoff.flat[handoff.pos]? = some pointer)
+      (aligned : flatNat pointer = ABI.alignTo (flatNat pointer) (handoff.spillLayout handoff.readWidth).alignment)
+      (selected : handoff.context.opts.memory = some memory)
+      (sized : (core3 grow).memSize? handoff.selectedRead.store.core memory = some size)
+      (outside : size < flatNat pointer + (handoff.spillLayout handoff.readWidth).size) :
+      Transition profile ready impl handoff.selectedRead (.lowerSpillTrap site.caller .outOfBounds)
+        [.tau, .trap .outOfBounds] (StepDefs.trapCfg handoff.selectedRead)
+  | lowerLoadScalars {start} {site : OnStartSite start} (handoff : LowerStartAt site)
+      {pointer : FlatValue} {memory : (core3 grow).MemAddr} {args : List DirectArgument}
+      (schema : handoff.types = args.map DirectArgument.type)
+      (selected : handoff.context.opts.memory = some memory)
+      (fields : ScalarSpill handoff.selectedRead.store memory handoff.readWidth args (flatNat pointer)) :
+      Transition profile ready impl (handoff.spillBody pointer) (.lowerLoadScalars site.caller)
+        (List.replicate args.length .tau) (handoff.spillLoaded (args.map DirectArgument.value))
+  | lowerArgsReturn {start reached} {site : OnStartSite start} {handoff : LowerStartAt site}
+      (returned : LowerArgumentReturn handoff reached) :
+      Transition profile ready impl reached (.lowerArgsReturn site.caller) [.tau, .tau] returned.resumed
+  | calleeDirect {start reached} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned)
+      (fits : (ABI.flattenTypes args.width args.types).length ≤ ABI.maxFlatParams) :
+      Transition profile ready impl returned.resumed (.calleeArguments site.thread false) [.tau] args.direct
+  | calleeAllocate {start reached} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned)
+      (spill : ABI.maxFlatParams < (ABI.flattenTypes args.width args.types).length) :
+      Transition profile ready impl returned.resumed (.calleeArguments site.thread true) [.tau, .tau]
+        (args.installed (specDispatch ready impl))
+  | calleeAllocationPrefix {start reached state labels mark} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned)
+      (path : ReturnFrame.Occurrence.Prefix profile ready (specDispatch ready impl)
+        (args.installed (specDispatch ready impl)) (.active 0 0) labels state mark) :
+      Transition profile ready impl (args.installed (specDispatch ready impl))
+        (.calleeAllocationPrefix site.thread mark) labels state
+  | calleeUnaligned {start reached state} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned} (result : CalleeSpillReturn args state)
+      (bad : result.pointer ≠ ABI.alignTo result.pointer args.layout.alignment) :
+      Transition profile ready impl state (.calleeSpillPlacement site.thread (some .unalignedPointer))
+        [.tau, .trap .unalignedPointer] (StepDefs.trapCfg state)
+  | calleePlaced {start reached state} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned} (result : CalleeSpillReturn args state)
+      {memory size} (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+      (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+      (fits : result.pointer + args.layout.size ≤ size) :
+      Transition profile ready impl state (.calleeSpillPlacement site.thread none) [.tau, .tau]
+        result.writing
+  | calleeOutside {start reached state} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned} (result : CalleeSpillReturn args state)
+      {memory size} (aligned : result.pointer = ABI.alignTo result.pointer args.layout.alignment)
+      (selected : args.context.opts.memory = some memory) (sized : (core3 grow).memSize? state.store.core memory = some size)
+      (outside : size < result.pointer + args.layout.size) :
+      Transition profile ready impl state (.calleeSpillPlacement site.thread (some .outOfBounds))
+        [.tau, .tau, .trap .outOfBounds] (StepDefs.trapCfg state)
+  | calleeSpillScalars {start reached state} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} {args : CalleeArguments returned} (result : CalleeSpillReturn args state)
+      {memory} (scalars : List DirectArgument) (schema : args.types = scalars.map DirectArgument.type)
+      (values : returned.values = scalars.map DirectArgument.value) (selected : args.context.opts.memory = some memory) :
+      Transition profile ready impl result.writing
+        (.calleeSpillScalars site.thread (scalarTupleEffect args.context memory scalars result.pointer state.store).trap)
+        (scalarTupleEffect args.context memory scalars result.pointer state.store).labels
+        (result.scalarFinished (scalarTupleEffect args.context memory scalars result.pointer state.store))
+  | calleeStackfulCore {start reached state} {site : OnStartSite start} {handoff : LowerStartAt site}
+      {returned : LowerArgumentReturn handoff reached} (args : CalleeArguments returned) {flat segments rest}
+      (focused : state.ctl = ⟨some site.thread, .prog (args.enter flat), segments⟩ :: rest)
+      (asyncMode : args.record.opts.async_ = true) (callback : args.record.opts.callback = none) :
+      Transition profile ready impl state (.coreEnter site.thread) [.tau]
+        { state with ctl :=
+            ⟨some site.thread, .core ((core3 grow).invoke args.callee flat) (stackfulTail args.task), segments⟩ :: rest }
+  | lowerDirectCore {start reached} {site : OnStartSite start} {callee flat next read}
+      (focused : reached.ctl = ⟨some site.thread, .prog (.op .get read), site.segments⟩ :: site.rest)
+      (selected : read reached.store = .op (.callCore callee flat) next) :
+      Transition profile ready impl reached (.coreEnter site.thread) [.tau, .tau] (site.entered reached callee flat next)
   | lowerEmptyArgs {site : LiftSite grow sig} (handoff : LowerStart site) (empty : handoff.fnType.params = []) :
       Transition profile ready impl handoff.reading (.lowerEmptyArgs site.registeredTask.caller) [.tau, .tau, .tau]
         (site.withLowerValues handoff.reading [] handoff.pos)
@@ -513,6 +1009,16 @@ inductive Transition (profile : ProfileKind) (ready : HostReady (HostState sig))
   | lowerInstallCancel {initial reached : State grow sig} {site : CoreCallSite initial} {request : LowerRequest site}
       (returned : LowerReturn request reached) :
       Transition profile ready impl reached (.lowerInstallCancel returned.subtask) [.tau, .tau] returned.cancelInstalled
+  | stackfulComplete {reached} {site : StackfulReturn reached} (exit : StackfulExit site) :
+      Transition profile ready impl reached (.stackfulComplete site.taskId) exit.labels exit.completed
+  | stackfulUnresolved {reached} (site : StackfulReturn reached) {record : Task (core3 grow)}
+      (live : reached.store.task? site.taskId = some record)
+      (implicitThread : record.implicitThread = some site.thread)
+      (last : (record.threads.erase site.thread).isEmpty = true) (unresolved : record.state ≠ .resolved) :
+      Transition profile ready impl reached (.stackfulUnresolved site.taskId)
+        [.tau, .tau, .tau, .trap .taskNotResolved] (StepDefs.trapCfg reached)
+  | stackfulExit {reached} {site : StackfulReturn reached} (exit : StackfulExit site) (empty : site.segments = []) :
+      Transition profile ready impl exit.completed (.workerExit site.thread) [.tau] exit.finished
   | lowerEagerDelivery {initial reached : State grow sig} {site : CoreCallSite initial} {request : LowerRequest site}
       (returned : LowerReturn request reached) (asyncLower : request.opts.async_ = true)
       (resolved : returned.cancelInstalled.store.subtaskResolved returned.subtask = true) :
@@ -540,6 +1046,16 @@ inductive Transition (profile : ProfileKind) (ready : HostReady (HostState sig))
         { start with ctl := ⟨thread, .core ((core3 grow).resume start.store.core core (.values values)) next, segments⟩ :: rest }
   | tick {start thread} (tick : SelectedTick thread start ready profile) :
       Transition profile ready impl start (.tick thread) tick.selectionLabels tick.atResume
+  | k1Resume {atWait start thread task} {wait : K1Wait atWait thread task}
+      (resume : K1Resume wait start ready profile) :
+      Transition profile ready impl start (.k1Resume thread) resume.labels resume.reached
+  | k1Admit {atWait start thread task} {wait : K1Wait atWait thread task}
+      (resume : K1Resume wait start ready profile) {record : Task (core3 grow)}
+      (live : resume.reached.store.task? task = some record) (notPending : record.state ≠ .pendingCancel) :
+      Transition profile ready impl resume.reached (.k1Admit task) [.tau, .tau] resume.admitted
+  | k1Start {atGate start thread task} {entry : K1GateEntry atGate thread task}
+      {resume : K1Resume entry.wait start ready profile} (handoff : K1LiftStart resume) :
+      Transition profile ready impl resume.admitted (.k1Start task) handoff.labels handoff.onStart
   | coreInternal {start thread core next segments rest coreStore advanced}
       (focused : start.ctl = ⟨thread, .core core next, segments⟩ :: rest)
       (running : (core3 grow).status start.store.core core = .running ∨ (core3 grow).status start.store.core core = .stuck)
@@ -716,6 +1232,17 @@ inductive Run (profile : ProfileKind) (ready : HostReady (HostState sig)) (impl 
       (head : Transition profile ready impl start action leading middle)
       (tail : Run profile ready impl middle actions trailing finish) :
       Run profile ready impl start (action :: actions) (leading ++ trailing) finish
+
+/-- The delivery-related edges whose reached configurations do not depend
+on the component host hook. A cancellation request installing an open
+continuation is not such an edge. -/
+def ClosedDeliveryAction : Action → Prop
+  | .commit .. | .poll .. | .wait .. | .waitEnter .. | .waitResume ..
+  | .cancel .. | .cancelReentry .. | .cancelCallbackDone .. | .cancelPark .. | .cancelResume ..
+  | .callbackTake .. | .callbackResolveCancel .. | .callbackBorrowTrap ..
+  | .lowerInstallCancel .. | .lowerEagerDelivery .. | .lowerPending .. | .lowerTableFull ..
+  | .tick .. | .coreStep | .coreReturn | .coreTrap | .coreReply .. => True
+  | _ => False
 
 /-- The return proof already derives paired paths from the compiled body.
 This contract concerns only dispatch at the late-bound calls on those paths;

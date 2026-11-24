@@ -795,20 +795,15 @@ private theorem accept_caller_safe (callee : Callee sig) (caller : CallerId) (ti
     (history : List (Stored.OwnedMemory.Tree sig)) (store : CStore (core3 grow))
     (cx : LiftLowerContext (core3 grow)) (args : List FlatValue) :
     Safe (acceptCaller callee caller ticket history store cx args) := by
-  unfold acceptCaller
-  split
-  · exact before_lift_safe _ _ _
-  split
-  · exact before_lift_safe _ _ _
+  unfold acceptCaller acceptPlanned
   split
   · exact before_lift_safe _ _ _
   · refine HostWrite.bind (observe_safe _) fun _ => ?_
+    unfold acceptPayload
     split
     · split
-      · split
-        · exact refused_safe _ _ _
-        · exact tree_safe _ _ _
-      · exact reject_safe _ _
+      · exact refused_safe _ _ _
+      · exact tree_safe _ _ _
     · exact reject_safe _ _
 
 private theorem invoke_lower_safe (callee : Callee sig) (caller : CallerId) (state : HostState sig)

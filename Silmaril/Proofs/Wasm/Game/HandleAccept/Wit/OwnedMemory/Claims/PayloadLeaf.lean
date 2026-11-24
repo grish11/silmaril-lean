@@ -5,6 +5,7 @@ public import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.Endpoints.Record.Canoni
 public import Silmaril.Wasm.Component.Reference.Machine.Step.Defs
 public import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Defs
 import Silmaril.Wasm.Component.Reference.Machine.ReturnFrame.Occurrence.Thms
+import Silmaril.Wasm.Game.HandleAccept.Wit.Stored.OwnedMemory.Claims.Record.Thms
 
 public section
 
@@ -23,6 +24,27 @@ open Silmaril.Wasm.Component.Machine.ReturnFrame.Occurrence
 variable {grow : SingleThreaded.GrowOracle} {sig : Signature}
 variable {profile : ProfileKind} {ready : HostReady (HostState sig)}
 variable {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
+
+theorem plan_spend_live {store : CStore (core3 grow)} {state : OwnedMemory.Claims.State sig}
+    {index : Nat} {item : Field} {update : Spend}
+    (planned : liveLeafPlan store state index item = .ok (some update)) : update.Live state := by
+  cases item with
+  | owner receipt =>
+    cases prepared : prepareOwner state receipt with
+    | error _ => simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+    | ok result =>
+      obtain ⟨rep, next⟩ := result
+      simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+      exact planned ▸ (owner_prepared prepared).2
+  | endpoint channel element id =>
+    cases prepared : prepareEndpoint store state channel element id with
+    | error _ => simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+    | ok next =>
+      simp [liveLeafPlan, prepared, Except.map, Except.mapError] at planned
+      exact planned ▸ (endpoint_prepared prepared).2
+  | context id =>
+    by_cases missing : (store.errCtx? id).isNone = true <;> simp [liveLeafPlan, missing] at planned
+  | data | aggregate | fixed | dynamic | sum => cases planned
 
 private def readPlan (initial : CStore (core3 grow)) (item : Field) (index : Nat) :
     Session grow sig (Except RecordLower.Issue (Option Spend)) :=
@@ -67,33 +89,51 @@ private theorem transfer_eq (initial : CStore (core3 grow)) (item : Field) (inde
     by_cases missing : (store.errCtx? id).isNone <;> simp [missing, applyPlan]
   | _ => rfl
 
+theorem guard_tracks {before after labels spend}
+    (run : LeafGuardSteps profile ready dispatch before labels after spend) (place : Location) :
+    Prefix profile ready dispatch before place labels after place := by
+  induction run with
+  | done state => exact .done state place
+  | read step edit _ _ _ ih => exact .step step (by rw [edit]; rfl) ih
+  | commit focus => exact .step (.hostSet focus) (by rw [transitionEdit, focus]; rfl) (.done _ _)
+
+private theorem guard_append {before middle after checked trailing frontSpend spend}
+    (front : LeafGuardSteps profile ready dispatch before checked middle frontSpend) (unspent : frontSpend = none)
+    (back : LeafGuardSteps profile ready dispatch middle trailing after spend) :
+    LeafGuardSteps profile ready dispatch before (checked ++ trailing) after spend := by
+  induction front with
+  | done => exact back
+  | read step edit store host _ ih => exact .read step edit store host (ih unspent back)
+  | commit => cases unspent
+
 private theorem reads (reached : Machine.Config (core3 grow) (HostState sig)) (item : Field) (index : Nat)
     (finish : Except RecordLower.Issue (Option Spend) → Session grow sig (Ret (core3 grow))) {thread segments rest}
     (focused : reached.ctl = ⟨thread, .prog (readPlan reached.store item index >>= finish), segments⟩ :: rest) :
-    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch reached labels
+    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ LeafGuardSteps profile ready dispatch reached labels
       { reached with ctl := ⟨thread, .prog (finish (liveLeafPlan reached.store reached.host.writer index item)),
-        segments⟩ :: rest } := by
+        segments⟩ :: rest } none := by
   cases item with
-  | owner => exact ⟨[.tau], by simp, fun depth => .step (.hostGet focused)
-      (by rw [transitionEdit, focused]; rfl) (.done _ _)⟩
-  | endpoint | context => exact ⟨[.tau, .tau], by simp, fun _ => .step (.hostGet focused)
-      (by rw [transitionEdit, focused]; rfl) (.step (.get rfl) rfl (.done _ _))⟩
+  | owner => exact ⟨[.tau], by simp, .read (.hostGet focused)
+      (by rw [transitionEdit, focused]; rfl) rfl rfl (.done _)⟩
+  | endpoint | context => exact ⟨[.tau, .tau], by simp, .read (.hostGet focused)
+      (by rw [transitionEdit, focused]; rfl) rfl rfl (.read (.get rfl) rfl rfl rfl (.done _))⟩
   | _ =>
     refine ⟨[], by simp, ?_⟩
     change reached.ctl = ⟨thread, .prog (finish (.ok none)), segments⟩ :: rest at focused
-    change RetainsActiveSlots profile ready dispatch reached []
-      { reached with ctl := ⟨thread, .prog (finish (.ok none)), segments⟩ :: rest }
+    change LeafGuardSteps profile ready dispatch reached []
+      { reached with ctl := ⟨thread, .prog (finish (.ok none)), segments⟩ :: rest } none
     rw [← focused]
     cases reached
-    exact fun _ => .done _ _
+    exact .done _
 
 private theorem spends (reached : Machine.Config (core3 grow) (HostState sig)) (spend : Spend)
     (finish : Session grow sig (Ret (core3 grow))) {thread segments rest}
     (focused : reached.ctl = ⟨thread, .prog (claims.spend spend >>= fun _ => finish), segments⟩ :: rest) :
-    RetainsActiveSlots profile ready dispatch reached [.tau, .tau]
+    LeafGuardSteps profile ready dispatch reached [.tau, .tau]
       { reached with host := { reached.host with writer := spend.apply reached.host.writer }
-                     ctl := ⟨thread, .prog finish, segments⟩ :: rest } :=
-  fun _ => .step (.hostGet focused) (by rw [transitionEdit, focused]; rfl) (.step (.hostSet rfl) rfl (.done _ _))
+                     ctl := ⟨thread, .prog finish, segments⟩ :: rest } (some spend) :=
+  .read (.hostGet focused) (by rw [transitionEdit, focused]; rfl) rfl rfl
+    (.commit (next := fun _ => finish) rfl)
 
 theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (destination : RecordDestination)
     (inst : InstId) (item : Field) (index : Nat) (output : Lower.Output)
@@ -106,8 +146,9 @@ theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (des
       | .error issue => (reached.host, finish (.error issue))
       | .ok none => (reached.host, canonical)
       | .ok (some spend) => ({ reached.host with writer := spend.apply reached.host.writer }, canonical)
-    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ RetainsActiveSlots profile ready dispatch reached labels
-      { reached with host := postHost, ctl := ⟨thread, .prog next, segments⟩ :: rest } := by
+    let committed := (liveLeafPlan reached.store reached.host.writer index item).toOption.join
+    ∃ labels, (∀ label ∈ labels, label = .tau) ∧ LeafGuardSteps profile ready dispatch reached labels
+      { reached with host := postHost, ctl := ⟨thread, .prog next, segments⟩ :: rest } committed := by
   let canonical := RecordLower.CanonicalTree.leaf Limits.spec Quirks.none (destination.context inst)
     destination.width item output >>= fun result => finish (.ok result)
   have leafEq : Effects.canonical Limits.spec Quirks.none (destination.context inst)
@@ -130,18 +171,18 @@ theorem leaf_prefix (reached : Machine.Config (core3 grow) (HostState sig)) (des
     reached item index next atRead
   dsimp only
   cases plan : liveLeafPlan reached.store reached.host.writer index item with
-  | error issue => exact ⟨labels, silent, by simpa only [plan, next, applyPlan, afterTransfer, pure_bind] using readSteps⟩
+  | error issue => exact ⟨labels, silent, by simpa only [plan, next, applyPlan, afterTransfer, pure_bind, Except.toOption, Option.join, Option.bind] using readSteps⟩
   | ok result =>
     cases result with
-    | none => exact ⟨labels, silent, by simpa only [plan, next, applyPlan, pure_bind, onSuccess] using readSteps⟩
+    | none => exact ⟨labels, silent, by simpa only [plan, next, applyPlan, pure_bind, onSuccess, Except.toOption, Option.join, Option.bind, id] using readSteps⟩
     | some spend =>
       let afterRead := { reached with ctl := ⟨thread, .prog (next (.ok (some spend))), segments⟩ :: rest }
-      have readDone : RetainsActiveSlots profile ready dispatch reached labels afterRead := by
+      have readDone : LeafGuardSteps profile ready dispatch reached labels afterRead none := by
         simpa only [plan, afterRead] using readSteps
       have spendSteps := spends (profile := profile) (ready := ready) (dispatch := dispatch) afterRead spend canonical
         (thread := thread) (segments := segments) (rest := rest) (by
           simp only [afterRead, next, applyPlan, bind_assoc, pure_bind, onSuccess])
-      refine ⟨labels ++ [.tau, .tau], ?_, fun depth => (readDone depth).append (spendSteps depth)⟩
+      refine ⟨labels ++ [.tau, .tau], ?_, guard_append readDone rfl spendSteps⟩
       intro label member
       rcases List.mem_append.mp member with front | back
       · exact silent label front

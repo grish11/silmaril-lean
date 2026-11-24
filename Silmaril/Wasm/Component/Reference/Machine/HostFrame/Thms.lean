@@ -141,6 +141,29 @@ theorem Paired.retarget {left right : Config E Host} (paired : Paired changes le
         { right with host := rightHost, ctl := ⟨thread, next, otherFrames⟩ :: otherRest } :=
   ReturnFrame.Related.Paired.retarget paired focused next rightHost
 
+theorem Paired.retarget_core_frame {left right : Config E Host} (paired : Paired changes left right)
+    {thread focus core coreNext frames rest}
+    (focused : left.ctl = ⟨thread, focus, .core core coreNext :: frames⟩ :: rest)
+    (next : Focus E Host) (leftHost rightHost : Host) :
+    ∃ otherFrames otherRest, right.ctl = ⟨thread, focus, .core core coreNext :: otherFrames⟩ :: otherRest ∧
+      Paired changes { left with host := leftHost, ctl := ⟨thread, next, frames⟩ :: rest }
+        { right with host := rightHost, ctl := ⟨thread, next, otherFrames⟩ :: otherRest } :=
+  ReturnFrame.Related.Paired.retarget_core_frame paired focused next rightHost
+
+theorem Paired.set_store {left right : Config E Host} (paired : Paired changes left right) (store : CStore E) :
+    Paired changes { left with store } { right with store } :=
+  ReturnFrame.Related.Paired.set_store paired store
+
+theorem Paired.clear_control {left right : Config E Host} (paired : Paired changes left right) :
+    Paired changes { left with ctl := [] } { right with ctl := [] } :=
+  ReturnFrame.Related.Paired.clear_control paired
+
+theorem paired_step {left right next : Config E Host} {label : Label E Host}
+    (paired : Paired changes left right) (run : Step profile ready dispatch left label next) :
+    ∃ other, Step profile ready dispatch right label other ∧
+      (Paired changes next other ∨ Boundary changes left right label next other) :=
+  Silmaril.Proofs.Wasm.Component.Reference.MachineHostFrame.paired_step paired run
+
 /-- A protected interior focus has neither a host read nor a substituted
 return, so the actual step replays under the same label and growth evidence. -/
 theorem interior_step {grow : SingleThreaded.GrowOracle}
