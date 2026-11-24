@@ -25256,7 +25256,7 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
   | ind count ih =>
     cases run with
     | refl => exact .exhausted
-    | @cons _ _ _ label trailing actual tail =>
+    | @cons _ _ reached label trailing actual tail =>
       have frontier := CallbackSliceEnd.sharedDropSwitchTarget (bindings := bindings)
         parents target resumers stores scheduler leftAt rightAt (.cons actual tail)
       have shorter : trailing.length ≤ limit := Nat.le_of_succ_le bounded
@@ -25398,6 +25398,27 @@ private theorem finishSourceSwitchTargetWith {limit : Nat}
                 builtin inst args selected stores scheduler rfl rfl tail (Nat.le_refl _) compareProgram
             · exact otherwise
           | _ => exact otherwise
+        classical
+        by_cases cleanup : ∃ (copy : SourceCopy grow) (source : SourceCopyBuffer grow),
+            focus = .prog (copy.clearWaiter source)
+        · obtain ⟨copy, source, rfl⟩ := cleanup
+          let check : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, frames, active ++ rest⟩
+          let canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig) := ⟨thread, peerFrames, peerActive ++ peerRest⟩
+          let update := CStore.setSyncWaiterSt (E := core3 grow) (.end_ source.2.1) none
+          let left := { start with store := update start.store, ctl := check.control (copy.deliver source) }
+          let right := { incoming with store := update incoming.store, ctl := canon.control (copy.deliver source) }
+          have checked : Step profile ready (specDispatch ready base) start .tau left :=
+            .modify (f := update) (k := fun _ => copy.deliver source) leftAt
+          have canonical : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right :=
+            .modify (f := update) (k := fun _ => copy.deliver source) rightAt
+          obtain ⟨rfl, rfl⟩ := silentStepUnique checked actual
+          have cleared := sharedSchedulerTransport (bindings := bindings) (edit := .same) checked canonical
+            (by rw [transitionEdit, leftAt]; rfl) (by rw [transitionEdit, rightAt]; rfl)
+          refine .destructorPrefix cleared (frameCalloutStep cleared rfl rfl) (fun same => same) ?_
+          refine compareSourceCopyDelivery (check := check) (canon := canon) (limit := trailing.length)
+            rfl copy source ?_ (congrArg update stores) rfl rfl scheduler tail (Nat.le_refl _)
+          intro program lhs rhs suffix same lAt rAt aligned residual within
+          exact proceed (.mk segments) resumers same aligned lAt rAt residual within
         cases actual with
         | @call _ request resume _ _ atCall =>
           rw [leftAt] at atCall
