@@ -52,7 +52,8 @@ children = ["silmaril.selftest.truth", "silmaril.selftest.small", "silmaril.self
   "silmaril.compiles_to.all", "silmaril.compiler_explorer.all", "silmaril.selftest.languages",
   "formats.examples",
   "formats.catalogue", "silmaril.selftest.consequence", "silmaril.selftest.wasm_acceptors",
-  "silmaril.elf.cli", "silmaril.component_tests", "containers"]
+  "silmaril.elf.cli", "silmaril.component_tests", "containers",
+  "calculi.per_constraints.separation", "calculi.per_constraints.conflict"]
 
 # The container shapes and the instances over the minimal machine (docs/projects/containers.md).
 [[group]]
