@@ -24457,12 +24457,12 @@ private abbrev SourceValueAllocationAt {check canon : PayloadPrefix.Cursor (E :=
     (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (limit : Nat) (finish : Config (core3 grow) (HostState sig)) :=
   SourceRecordAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish ∧
-  ∀ cx width site values dest next,
+  ∀ cx width site values output,
     (∀ pointer, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (canonicalListStoreResume cx width site values dest next (.nat pointer))
-      (canonicalListStoreResume cx width site values dest next (.nat pointer))) →
+      (canonicalListStoreResume cx width site values output (.nat pointer))
+      (canonicalListStoreResume cx width site values output (.nat pointer))) →
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (canonicalListStoreCall cx width site values dest next) (canonicalListStoreCall cx width site values dest next)
+      (canonicalListStoreCall cx width site values output) (canonicalListStoreCall cx width site values output)
 
 private theorem sourceValueAllocationAt {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -24473,24 +24473,17 @@ private theorem sourceValueAllocationAt {limit : Nat}
   constructor
   · exact fun cx site compiled leftNext rightNext onResume =>
       finishSourceRecordAllocator parents thread segments cx site compiled leftNext rightNext onResume (imports parents thread)
-  · intro cx width site values dest next onResume
-    let resume := canonicalListStoreResume cx width site values dest next
+  · intro cx width site values output onResume
+    let resume := canonicalListStoreResume cx width site values output
     intro left right remaining same lhs rhs aligned residual within
     exact crossSourceAllocatorCall cx (canonicalListStoreRequest width site values.length) resume resume
-      (.canonicalList cx width site values dest next) imports parents thread segments onResume
+      (.canonicalList cx width site values output) imports parents thread segments onResume
       same lhs rhs aligned residual within
 
-private theorem canonicalListAllocationCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
-    (site : CanonicalListStore) (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) :
-    (storeListWith cx (site.layout width) (site.storeEntry cx width)
-      false values dest >>= fun _ => next) = canonicalListStoreCall cx width site values dest next := by
-  have split : (storeListWith cx (site.layout width)
-      (site.storeEntry cx width) false values dest >>= fun _ => next) =
-      (allocate cx (site.layout width).alignment.bytes (values.length * (site.layout width).size) >>=
-        canonicalListStoreAfterPointer cx width site values dest next) := by
-    unfold storeListWith storeListIntoRangeWith allocateListRange canonicalListStoreAfterPointer
-    simp only [Bool.false_eq_true, ite_false, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
-  rw [split]
+private theorem canonicalListReallocateCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (site : CanonicalListStore) (values : List Value.Val) (output : CanonicalListOutput grow sig) :
+    (allocate cx (site.layout width).alignment.bytes (values.length * (site.layout width).size) >>=
+      canonicalListStoreAfterPointer cx width site values output) = canonicalListStoreCall cx width site values output := by
   let request := canonicalListStoreRequest width site values.length
   let call : Call (core3 grow) := .reallocate cx request.oldPtr request.oldSize request.alignment request.newSize
   let read (result : Ret (core3 grow)) : Session grow sig Nat := match result with
@@ -24507,7 +24500,7 @@ private theorem canonicalListAllocationCode (cx : LiftLowerContext (core3 grow))
     funext response
     cases response <;> rfl
   unfold allocate reallocate
-  change (callNat call >>= canonicalListStoreAfterPointer cx width site values dest next) = _
+  change (callNat call >>= canonicalListStoreAfterPointer cx width site values output) = _
   rw [code]
   change Prog.op (S := Eff (core3 grow) (HostState sig)) (.call call) _ = _
   congr 1
@@ -24516,6 +24509,34 @@ private theorem canonicalListAllocationCode (cx : LiftLowerContext (core3 grow))
   case nat => rfl
   all_goals rw [internalBind]; rfl
 
+private theorem canonicalListAllocationCode (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (site : CanonicalListStore) (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) :
+    (storeListWith cx (site.layout width) (site.storeEntry cx width)
+      false values dest >>= fun _ => next) = canonicalListStoreCall cx width site values (.memory dest next) := by
+  rw [← canonicalListReallocateCode]
+  unfold storeListWith storeListIntoRangeWith allocateListRange canonicalListStoreAfterPointer CanonicalListOutput.finish
+  simp only [Bool.false_eq_true, ite_false, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+
+private theorem compareSourceListRange {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (site : CanonicalListStore) (values : List Value.Val) (output : CanonicalListOutput grow sig) (ptr : Nat)
+    (child : CompareSourceEntryAt (check := check) (canon := canon) profile ready base bindings older limit finish (site.storeEntry cx width))
+    (returned : ∀ pointer, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (output.finish cx pointer values.length) (output.finish cx pointer values.length)) :
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
+      (canonicalListStoreAfterPointer cx width site values output ptr)
+      (canonicalListStoreAfterPointer cx width site values output ptr) := by
+  let area := site.layout width
+  let fill (pointer : Nat) : Session grow sig (Ret (core3 grow)) :=
+    sourceStoreSequence (site.storeEntry cx width) area.size pointer values.zipIdx >>= fun _ => output.finish cx pointer values.length
+  have range : StoreEffects (validateListRange cx area values.length ptr : Session grow sig Nat) :=
+    (storeEffectTrapIf _ _).bind fun _ => (storeEffectBounds cx ptr _).bind fun _ => .pure ptr
+  intro left right remaining stores lhs rhs scheduler run bounded
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (validateListRange cx area values.length ptr) range fill fill
+    (fun pointer => compareSourceStoreSequence (site.storeEntry cx width) area.size pointer child values.zipIdx
+      (output.finish cx pointer values.length) (returned pointer)) stores lhs rhs scheduler run bounded
+
 private theorem compareSourceListAfterPointer {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
@@ -24523,23 +24544,16 @@ private theorem compareSourceListAfterPointer {limit : Nat}
     (child : CompareSourceEntryAt (check := check) (canon := canon) profile ready base bindings older limit finish (site.storeEntry cx width))
     (returned : DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish next next) :
     DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (canonicalListStoreAfterPointer cx width site values dest next ptr)
-      (canonicalListStoreAfterPointer cx width site values dest next ptr) := by
-  let area := site.layout width
-  let publish (pointer : Nat) : Session grow sig (Ret (core3 grow)) :=
-    storeListDescriptor cx pointer values.length dest >>= fun _ => next
-  let fill (pointer : Nat) : Session grow sig (Ret (core3 grow)) :=
-    sourceStoreSequence (site.storeEntry cx width) area.size pointer values.zipIdx >>= fun _ => publish pointer
-  have range : StoreEffects (validateListRange cx area values.length ptr : Session grow sig Nat) :=
-    (storeEffectTrapIf _ _).bind fun _ => (storeEffectBounds cx ptr _).bind fun _ => .pure ptr
+      (canonicalListStoreAfterPointer cx width site values (.memory dest next) ptr)
+      (canonicalListStoreAfterPointer cx width site values (.memory dest next) ptr) := by
   have descriptor (pointer : Nat) : StoreEffects (storeListDescriptor cx pointer values.length dest : Session grow sig Unit) :=
     ((storeEffectPtrType cx).bind fun p => .pure (ptrSizeOf p)).bind fun size =>
       (storeEffectWrite cx dest _).bind fun _ => storeEffectWrite cx (dest + size) _
   intro left right remaining stores lhs rhs scheduler run bounded
-  exact crossDestructorRecordStore (check := check) (canon := canon) thread (validateListRange cx area values.length ptr) range fill fill
-    (fun pointer => compareSourceStoreSequence (site.storeEntry cx width) area.size pointer child values.zipIdx (publish pointer)
-      (crossDestructorRecordStore (check := check) (canon := canon) thread (storeListDescriptor cx pointer values.length dest)
-        (descriptor pointer) (fun _ => next) (fun _ => next) (fun _ => returned))) stores lhs rhs scheduler run bounded
+  exact compareSourceListRange thread cx width site values (.memory dest next) ptr child
+    (fun pointer => crossDestructorRecordStore (check := check) (canon := canon) thread (storeListDescriptor cx pointer values.length dest)
+      (descriptor pointer) (fun _ => next) (fun _ => next) (fun _ => returned))
+    stores lhs rhs scheduler run bounded
 
 private theorem compareSourceStoreOpt {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
@@ -24730,7 +24744,7 @@ private theorem compareRecursiveSourceStore {limit : Nat}
     | list element =>
       cases value with
       | list values =>
-        let entry (width : AddrType) := canonicalListStoreCall (sig := sig) cx width (.list element) values dest next
+        let entry (width : AddrType) := canonicalListStoreCall (sig := sig) cx width (.list element) values (.memory dest next)
         have code : (Canon.store Limits.spec Quirks.none cx (.list values) (.list element) dest >>= fun _ => next) =
             ptrType cx >>= entry := by
           rw [Canon.store.eq_def]
@@ -24742,7 +24756,7 @@ private theorem compareRecursiveSourceStore {limit : Nat}
           ih element (by simp_wf)
         rw [code] at lhs rhs
         exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
-          entry entry (fun width => allocate.2 cx width (.list element) values dest next fun pointer =>
+          entry entry (fun width => allocate.2 cx width (.list element) values (.memory dest next) fun pointer =>
             compareSourceListAfterPointer thread cx width (.list element) values dest next pointer child returned)
           stores lhs rhs scheduler run bounded
       | _ => exact mismatch _ _ (by rw [Canon.store.eq_def]) stores lhs rhs scheduler run bounded
@@ -24750,7 +24764,7 @@ private theorem compareRecursiveSourceStore {limit : Nat}
       cases value with
       | list values =>
         let site := CanonicalListStore.map key element
-        let entry (width : AddrType) := canonicalListStoreCall (sig := sig) cx width site values dest next
+        let entry (width : AddrType) := canonicalListStoreCall (sig := sig) cx width site values (.memory dest next)
         have code : (Canon.store Limits.spec Quirks.none cx (.list values) (.map key element) dest >>= fun _ => next) =
             ptrType cx >>= entry := by
           rw [Canon.store.eq_def]
@@ -24762,7 +24776,7 @@ private theorem compareRecursiveSourceStore {limit : Nat}
           ih element (by simp_wf)
         rw [code] at lhs rhs
         exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
-          entry entry (fun width => allocate.2 cx width site values dest next fun pointer =>
+          entry entry (fun width => allocate.2 cx width site values (.memory dest next) fun pointer =>
             compareSourceListAfterPointer thread cx width site values dest next pointer
               (compareSourceMapEntry thread allocate.1 cx width key element child) returned)
           stores lhs rhs scheduler run bounded
@@ -25321,9 +25335,39 @@ private theorem compareSourceFlatCase {limit : Nat}
       exact ih index (fun name child member => children name child (List.mem_cons_of_mem _ member))
         next returned same lhs rhs aligned run bounded
 
+private theorem compareSourceFlatList {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (outerWidth : AddrType) (element : Stored.TypeOf) (values : List Value.Val) :
+    CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+      (storeListIntoRange Limits.spec Quirks.none cx values element >>= fun (pointer, count) =>
+        pure [ptrFlat outerWidth pointer, ptrFlat outerWidth count]) := by
+  intro next returned left right remaining stores lhs rhs scheduler run bounded
+  let site := CanonicalListStore.list element
+  let output := CanonicalListOutput.flat outerWidth next
+  let enter (width : AddrType) := canonicalListStoreCall cx width site values output
+  have code : ((storeListIntoRange Limits.spec Quirks.none cx values element >>= fun (pointer, count) =>
+      pure [ptrFlat outerWidth pointer, ptrFlat outerWidth count]) >>= next) = ptrType cx >>= enter := by
+    unfold storeListIntoRange
+    simp only [Prog.bind_eq, Prog.bind_assoc]
+    congr 1
+    funext width
+    rw [show enter width = canonicalListStoreCall cx width site values output from rfl, ← canonicalListReallocateCode]
+    unfold storeListIntoRangeWith allocateListRange canonicalListStoreAfterPointer CanonicalListOutput.finish
+    simp only [site, CanonicalListStore.layout, output, Prog.bind_eq, Prog.bind_assoc, Prog.pure_eq, Prog.pure_bind']
+    rfl
+  exact crossDestructorRecordStore (check := check) (canon := canon) thread (ptrType cx) (storeEffectPtrType cx)
+    enter enter (fun width => allocate.2 cx width site values output fun pointer =>
+      compareSourceListRange thread cx width site values output pointer
+        (compareRecursiveSourceStore thread allocate cx element) (fun p => returned [ptrFlat outerWidth p, ptrFlat outerWidth values.length]))
+    stores (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) scheduler run bounded
+
 private theorem compareRecursiveSourceFlat {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
-    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (thread : check.thread = canon.thread)
+    (allocate : SourceValueAllocationAt (check := check) (canon := canon) profile ready base bindings older limit finish)
+    (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (type : Stored.TypeOf)
     (compareProgram : ∀ program, DestructorRecordAt (check := check) (canon := canon)
       profile ready base bindings older limit finish program program) :
@@ -25458,8 +25502,20 @@ private theorem compareRecursiveSourceFlat {limit : Nat}
               (resultWants width ok err index.succ.succ) (pure [])
               (fun next returned {_ _ _} => returned []) next returned same lhs rhs aligned run bounded
       | _ => exact mismatch (.result ok err) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | list element =>
+      cases value with
+      | list values =>
+        simp only [lowerFlatAt] at lhs rhs
+        exact compareSourceFlatList thread allocate cx width element values next returned same lhs rhs aligned run bounded
+      | _ => exact mismatch (.list element) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | map key element =>
+      cases value with
+      | list values =>
+        simp only [lowerFlatAt] at lhs rhs
+        exact compareSourceFlatList thread allocate cx width (.record (ABI.mapEntryFields key element)) values
+          next returned same lhs rhs aligned run bounded
+      | _ => exact mismatch (.map key element) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
     | ref impossible => nomatch impossible
-    | _ => exact compareProgram _ same lhs rhs aligned run bounded
 
 private def sourceTaskResultPublish (subtask : SubtaskId) (flat : List FlatValue) :
     Session grow sig (Ret (core3 grow)) := do
@@ -25578,7 +25634,7 @@ private theorem compareSourceTaskResultValues {limit : Nat}
     split
     · exact compareSourceTaskResultSpill thread allocate cx width values types cursor subtask compareProgram
     · exact compareSourceFlatTypes thread cx width types
-        (fun type _ => compareRecursiveSourceFlat thread cx width type compareProgram) values (sourceTaskResultPublish subtask)
+        (fun type _ => compareRecursiveSourceFlat thread allocate cx width type compareProgram) values (sourceTaskResultPublish subtask)
         (fun flat => crossDestructorRecordStore (check := check) (canon := canon) thread (Subtask.resolve subtask .returned flat)
           (storeEffectModify _) (fun _ => .pure .unit) (fun _ => .pure .unit) (fun _ => compareProgram (.pure .unit)))
   have code : (lowerFlatValues Limits.spec Quirks.none cx maxResults values types (some cursor) >>= sourceTaskResultPublish subtask) =
