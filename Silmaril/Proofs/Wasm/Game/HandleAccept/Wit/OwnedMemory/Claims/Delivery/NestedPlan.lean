@@ -15787,21 +15787,22 @@ private theorem compareDestructorParentJournal {thread frame frames peerFrames r
           exact .cons (.mk framesPaired) restPaired)
 
 open ReturnFrame.Occurrence in
-private theorem crossSourceLiftUnitPop
+private theorem crossSourceProgramPop
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (value : Ret (core3 grow))
     (first second : ReturnFrame.Continuation (core3 grow) (HostState sig))
-    (leftAt : start.ctl = { check with frames := .prog first :: check.frames }.control (.pure .unit))
-    (rightAt : incoming.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure .unit))
+    (leftAt : start.ctl = { check with frames := .prog first :: check.frames }.control (.pure value))
+    (rightAt : incoming.ctl = { canon with frames := .prog second :: canon.frames }.control (.pure value))
     (run : Steps profile ready (specDispatch ready base) start labels finish)
     (after : ∀ {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig},
       left.store = start.store → right.store = incoming.store →
-      left.ctl = check.control (first .unit) → right.ctl = canon.control (second .unit) →
+      left.ctl = check.control (first value) → right.ctl = canon.control (second value) →
       (DestructorSchedulerAlignment older start incoming → DestructorSchedulerAlignment older left right) →
       Steps profile ready (specDispatch ready base) left suffix finish → suffix.length ≤ labels.length →
       CallbackSliceEnd profile ready base bindings older left right suffix finish) :
     CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
-  let left := { start with ctl := check.control (first .unit) }
-  let right := { incoming with ctl := canon.control (second .unit) }
+  let left := { start with ctl := check.control (first value) }
+  let right := { incoming with ctl := canon.control (second value) }
   have pop : Step profile ready (specDispatch ready base) start .tau left := .popProg leftAt
   have raw : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau right := .popProg rightAt
   cases run with
@@ -15883,7 +15884,7 @@ private theorem crossSourceSyncLiftIteration
             simp only [read, sharedDestructorReadLoopTask, taskAt, doneState, ite_true]
           have leftReplyAt : readLeft.ctl = checking.control (.pure .unit) := congrArg checking.control evaluates
           have rightReplyAt : readRight.ctl = canonical.control (.pure .unit) := congrArg canonical.control evaluates
-          refine crossSourceLiftUnitPop first second leftReplyAt rightReplyAt residual ?_
+          refine crossSourceProgramPop .unit first second leftReplyAt rightReplyAt residual ?_
           intro reached peer remaining leftStore rightStore checked canonical align tail shorter
           exact onReply leftStore rightStore checked canonical align tail
             (Nat.lt_succ_of_le (shorter.trans (destructorSuffixBound used (Nat.le_refl _))))
@@ -26961,7 +26962,7 @@ private theorem finishSourceLiftLoopWith {cap : Nat}
       (check := checking) (canon := canonical) compare task .pure .pure threads (.common .pure frames)
       parents same aligned checked raw residual ((Nat.le_of_lt shorter).trans withinCap) ?_
     intro left right suffix equal saved leftAt rightAt tail afterLoop
-    refine crossSourceLiftUnitPop first second leftAt rightAt tail ?_
+    refine crossSourceProgramPop .unit first second leftAt rightAt tail ?_
     intro returned peer remaining lhs rhs checked raw align tail afterPop
     exact onReply (lhs.trans (equal.trans rhs.symm)) (align saved) checked raw tail
       (afterPop.trans (afterLoop.trans (Nat.le_of_lt shorter)))
@@ -30515,6 +30516,124 @@ private theorem sourceFuncInstCode (base : HostImpl (core3 grow) (HostState sig)
   funext record
   cases record <;> rfl
 
+private def sourceLiftLoopReply (task : TaskId) : Ret (core3 grow) → Session grow sig (Ret (core3 grow))
+  | .unit => .pure (.cancel (.task task))
+  | _ => internal "late-bound call: expected Ret.unit"
+
+private def sourceLiftParent (async : Bool) (task : TaskId) : Session grow sig (Ret (core3 grow)) :=
+  if async then .pure (.cancel (.task task))
+  else .op (.call (.loop (.syncLiftLoop task))) (sourceLiftLoopReply task)
+
+private theorem sourceFuncLiftCode (core : (core3 grow).FuncAddr) (ft : WIT.FuncType Empty RtId)
+    (opts : CanonOpts (core3 grow)) (inst : InstId) (caller : CallerId) :
+    (canonLift Limits.spec Quirks.none core ft opts inst caller : Session grow sig (Ret (core3 grow))) =
+      (allocObj ArenaField.tasks ({ ft, opts, inst, caller } : Runtime.Task (core3 grow)) >>= fun task =>
+        .op (.newThread (.liftImplicit task core)) (fun worker => Thread.resume worker >>= fun _ => sourceLiftParent ft.async_ task)) := by
+  unfold canonLift
+  simp only [Prog.bind_eq, Prog.pure_eq]
+  congr 1
+  funext task
+  unfold newThread perform Prog.lift
+  simp only [Prog.bind]
+  congr 1
+  funext worker
+  apply congrArg (fun program => Thread.resume worker >>= fun _ => program)
+  cases ft.async_ <;> simp [sourceLiftParent, callUnit, callRet, Prog.lift, perform, bind, Prog.bind]
+  congr 1
+  funext reply
+  cases reply <;> try rfl
+  all_goals simp [sourceLiftLoopReply, internal, trap, Prog.bind]
+  all_goals congr 1
+  all_goals funext response
+  all_goals cases response
+
+private theorem compareSourceFuncLift {cap : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    {resume frames peerFrames}
+    (thread : check.thread = canon.thread)
+    (checkedFrame : check.frames = .prog resume :: frames)
+    (canonicalFrame : canon.frames = .prog resume :: peerFrames)
+    (segments : List.Forall₂ (ReturnFrame.Related.Segment older) check.frames canon.frames)
+    (resumers : List.Forall₂ (ReturnFrame.Related.Active older) check.rest canon.rest)
+    (core : (core3 grow).FuncAddr) (ft : WIT.FuncType Empty RtId) (opts : CanonOpts (core3 grow))
+    (inst : InstId) (caller : CallerId)
+    (stores : start.store = incoming.store)
+    (checked : start.ctl = check.control (canonLift Limits.spec Quirks.none core ft opts inst caller))
+    (canonical : incoming.ctl = canon.control (canonLift Limits.spec Quirks.none core ft opts inst caller))
+    (scheduler : DestructorSchedulerAlignment older start incoming)
+    (run : Steps profile ready (specDispatch ready base) start labels finish)
+    (shorter : labels.length < cap)
+    (compare : ShorterCallbackSlices profile ready base bindings cap) :
+    CallbackSliceEnd profile ready base bindings older start incoming labels finish := by
+  rw [sourceFuncLiftCode] at checked canonical
+  let entry : Runtime.Task (core3 grow) := { ft, opts, inst, caller }
+  let workerBody (task : TaskId) := ThreadBody.liftImplicit task core
+  let afterTask (task : TaskId) : Session grow sig (Ret (core3 grow)) :=
+    .op (.newThread (workerBody task)) (fun worker => Thread.resume worker >>= fun _ => sourceLiftParent ft.async_ task)
+  refine crossSharedRecordArenaAlloc ArenaField.tasks entry afterTask afterTask stores checked canonical run ?_
+  intro afterAllocation
+  dsimp only
+  intro allocationRun allocated
+  let task := (ArenaField.tasks.alloc start.store entry).2
+  let parent := sourceLiftParent (grow := grow) (sig := sig) ft.async_ task
+  have related (program : Session grow sig (Ret (core3 grow))) :
+      List.Forall₂ (ReturnFrame.Related.Active older) (check.control program) (canon.control program) := by
+    cases check
+    cases canon
+    cases thread
+    exact .cons (.mk segments) resumers
+  have present : check.control parent ≠ [] ∧ canon.control parent ≠ [] :=
+    ⟨List.cons_ne_nil _ _, List.cons_ne_nil _ _⟩
+  let leftCaller := { check with frames := frames }
+  let rightCaller := { canon with frames := peerFrames }
+  have callerFrames : List.Forall₂ (ReturnFrame.Related.Segment older) frames peerFrames := by
+    rw [checkedFrame, canonicalFrame] at segments
+    cases segments with
+    | cons _ tail => exact tail
+  let result : Ret (core3 grow) := .cancel (.task task)
+  have complete {left right : Config (core3 grow) (HostState sig)} {suffix : Trace grow sig}
+      (same : left.store = right.store) (aligned : DestructorSchedulerAlignment older left right)
+      (leftAt : left.ctl = check.control (.pure result)) (rightAt : right.ctl = canon.control (.pure result))
+      (residual : Steps profile ready (specDispatch ready base) left suffix finish)
+      (within : suffix.length < cap) : CallbackSliceEnd profile ready base bindings older left right suffix finish := by
+    have leftPop : left.ctl = { leftCaller with frames := .prog resume :: leftCaller.frames }.control (.pure result) := by
+      simpa only [leftCaller, PayloadPrefix.Cursor.control, checkedFrame] using leftAt
+    have rightPop : right.ctl = { rightCaller with frames := .prog resume :: rightCaller.frames }.control (.pure result) := by
+      simpa only [rightCaller, PayloadPrefix.Cursor.control, canonicalFrame] using rightAt
+    refine crossSourceProgramPop result resume resume leftPop rightPop residual ?_
+    intro popped peer residualLabels leftStore rightStore checked canonical update rest afterPop
+    have control : List.Forall₂ (ReturnFrame.Related.Active older) popped.ctl peer.ctl := by
+      rw [checked, canonical]
+      unfold leftCaller rightCaller
+      cases check
+      cases canon
+      cases thread
+      exact .cons (.mk callerFrames) resumers
+    obtain ⟨_, _, _, _, _, split, compared, ending⟩ := compare (afterPop.trans_lt within) rest
+      (destructorSchedulerPair (update aligned) (leftStore.trans (same.trans rightStore.symm)) control)
+    rw [split]
+    exact .comparedPrefix compared.occurrences compared.writers ending
+  refine crossSourceWorkerResume (workerBody task) parent parent rfl rfl rfl scheduler allocationRun ?_
+  intro worker _ _ left right suffix _ same aligned _ _ _ _ _ _ leftAt rightAt ranWorker residual
+  have savedPair : ReturnFrame.Related.Active older
+      (StepDefs.threadAct (specDispatch ready base) worker (workerBody task))
+      (StepDefs.threadAct (specDispatch ready (LiveDispatch.host bindings base)) worker (workerBody task)) := .mk .nil
+  refine finishSourceSwitchTarget (.paired (related parent)) present savedPair .nil same aligned leftAt rightAt
+    residual (Nat.le_refl _) ?_
+  intro left right remaining same aligned checked canonical residual within
+  have bound := (within.trans (ranWorker.le.trans allocated)).trans_lt shorter
+  cases isAsync : ft.async_
+  · have code : parent = .op (.call (.loop (.syncLiftLoop task))) (sourceLiftLoopReply task) := by
+      simp [parent, sourceLiftParent, isAsync]
+    exact finishSourceLiftLoop (check := check) (canon := canon) task (sourceLiftLoopReply task) (sourceLiftLoopReply task)
+      thread (.common _ (.paired segments)) (.paired resumers) same aligned
+      (checked.trans (congrArg check.control code)) (canonical.trans (congrArg canon.control code)) residual
+      (fun equal reached leftAt rightAt actual restBound =>
+        complete equal reached leftAt rightAt actual (restBound.trans_lt bound))
+  · have code : parent = .pure result := by simp [parent, result, sourceLiftParent, isAsync]
+    exact complete same aligned (checked.trans (congrArg check.control code))
+      (canonical.trans (congrArg canon.control code)) residual bound
+
 open ReturnFrame.Occurrence in
 private theorem classifiedFuncInstCrossing : CallbackFuncInstCrossing profile ready base bindings := by
   intro changes checked canonical next finish label trailing func caller thread resume frames rest focus actual tail paired compare
@@ -30551,9 +30670,31 @@ private theorem classifiedFuncInstCrossing : CallbackFuncInstCrossing profile re
   · have shorter : remaining.length < (.tau :: trailing).length := by
       rw [split, List.length_cons, List.length_append]
       omega
-    obtain ⟨_, _, _, _, _, used, compared, last⟩ := compare shorter residual afterRead
-    rw [used]
-    exact .comparedPrefix compared.occurrences compared.writers last
+    cases source : ArenaField.funcs.get? checked.store func with
+    | none =>
+      obtain ⟨_, _, _, _, _, used, compared, last⟩ := compare shorter residual afterRead
+      rw [used]
+      exact .comparedPrefix compared.occurrences compared.writers last
+    | some entry =>
+      cases entry with
+      | host =>
+        obtain ⟨_, _, _, _, _, used, compared, last⟩ := compare shorter residual afterRead
+        rw [used]
+        exact .comparedPrefix compared.occurrences compared.writers last
+      | lifted core ft opts inst =>
+        have lifted : body = canonLift Limits.spec Quirks.none core ft opts inst caller := by
+          simp [body, read, sharedArenaReader, source, sourceFuncInstRoute]
+        have controls : List.Forall₂ (ReturnFrame.Related.Active changes) (check.control body) (canon.control body) :=
+          destructorReturnControl afterRead
+        have frames : List.Forall₂ (ReturnFrame.Related.Segment changes) check.frames canon.frames ∧
+            List.Forall₂ (ReturnFrame.Related.Active changes) check.rest canon.rest := by
+          cases controls with
+          | cons active rest =>
+            cases active with
+            | mk frames => exact ⟨frames, rest⟩
+        exact compareSourceFuncLift (check := check) (canon := canon) rfl rfl rfl frames.1 frames.2 core ft opts inst caller
+          afterRead.data.1 (congrArg check.control lifted) (congrArg canon.control lifted)
+          (destructorSchedulerOfPair afterRead) residual shorter compare
 
 private theorem foldMixedCallbacks {callees : List (ComponentCall.Callee sig)}
     (run : Steps profile ready (specDispatch ready (ComponentCall.hostWithComponent bindings callees)) start labels finish)
