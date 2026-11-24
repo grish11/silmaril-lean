@@ -2817,6 +2817,10 @@ private theorem foldCallbackSlicesWith (cross : CallbackGiveCrossing profile rea
       cases kind with
       | give install => exact advance (cross install tail front.paired available)
       | @read thread resume frames rest focus _ =>
+        by_cases tick : reached.ctl = [.ofProg none (sourceTickRead ready reached.store)]
+        · rcases CallbackPrefix.compareReachedTickRead tick step tail front.paired with ⟨_, read⟩ | ending
+          · exact advance (.inl ⟨[], [label], trailing, next, _, rfl, read, tail⟩)
+          · exact stop ending
         by_cases agrees : resume reached.host = resume peer.host
         · obtain ⟨afterRead, read⟩ := CallbackPrefix.compareReachedHostRead focus step front.paired agrees
           obtain ⟨checked, canonical, trailing, lhs, rhs, used, continued, ending⟩ :=
@@ -2905,6 +2909,7 @@ private theorem callbackEndSteps {changes : ReturnFrame.Substitutions (core3 gro
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | observation _ _ paths _ tail => exact append (paths.choose_spec.1 none).1.steps tail
+  | tickReadiness _ _ paths _ _ _ tail => exact append (paths.choose_spec.1 none).1.steps tail
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | legacyLoadMismatch _ _ _ _ residual => exact residual
@@ -2984,6 +2989,7 @@ private theorem returningCallbackEndSteps {changes : ReturnFrame.Substitutions (
   | exhausted => exact .refl _
   | boundary _ step tail => exact .cons step tail
   | observation read _ _ _ _ => simp_all [PayloadPrefix.Cursor.control]
+  | tickReadiness read _ _ _ _ _ _ => simp_all [PayloadPrefix.Cursor.control, Activation.ofProg, sourceTickRead]
   | pendingAssignment _ _ _ _ paths _ => exact (paths.choose_spec.1 none).1.steps
   | coreAcceptTerminal paths _ tail _ => exact append (paths.choose_spec.1 none).1.steps tail
   | legacyLoadMismatch _ _ _ _ residual => exact residual

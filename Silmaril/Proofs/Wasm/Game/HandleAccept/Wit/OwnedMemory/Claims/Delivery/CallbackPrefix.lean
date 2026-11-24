@@ -237,23 +237,26 @@ theorem closedCancelRead (target : ThreadId) (next : Bool → Session grow sig (
   ⟨thread, _, frames, rest, focused, fun other => congrArg next
     (threadReadyClosed start.store target (ready start.host) (ready other) closed)⟩
 
+theorem sourceTickProgram (ready : HostReady (HostState sig)) :
+    (StepDefs.tickProg ready : Session grow sig (Ret (core3 grow))) = (do
+      modifyStore StepDefs.enterHostSt
+      let store ← getStore
+      sourceTickRead ready store) := by
+  unfold StepDefs.tickProg sourceTickRead
+  simp only [Prog.bind_eq]
+  congr 1
+
 theorem reachedClosedTickRead (enabled : StepDefs.HostReadyCfg start)
     (closed : let entered := StepDefs.enterHostSt start.store
       ∀ candidate ∈ entered.waiting, ∀ entry, entered.thread? candidate = some entry →
         entry.blocked = true → ∀ query, entry.readyCond ≠ some (.host query)) :
     ∃ atRead, Steps profile ready (specDispatch ready base) start [.host .tick, .tau, .tau] atRead ∧ ClosedHostRead atRead := by
   let entered := StepDefs.enterHostSt start.store
-  let next : List ThreadId → Session grow sig (Ret (core3 grow)) := fun candidates => do
-    match candidates with
-    | [] => pure ()
-    | first :: rest =>
-      let chosen ← pickTick first rest
-      Thread.resume chosen
-    modifyStore StepDefs.leaveHostSt
-    pure .unit
-  let enteredState := { start with store := entered }
-  let atRead := { enteredState with ctl := [Activation.ofProg none (.op .hostGet (fun host => next (entered.candidates (ready host))))] }
-  exact ⟨atRead, .cons (.hostTick enabled) (.cons (.modify rfl) (.cons (.get rfl) (.refl _))), closedTickRead next rfl closed⟩
+  let atRead := { start with store := entered, ctl := [Activation.ofProg none (sourceTickRead ready entered)] }
+  have installed := Step.hostTick (prof := profile) (hr := ready) (dispatch := specDispatch ready base) enabled
+  rw [sourceTickProgram] at installed
+  exact ⟨atRead, .cons installed (.cons (.modify rfl) (.cons (.get rfl) (.refl _))),
+    closedTickRead sourceTickCandidates rfl closed⟩
 
 private theorem closedReadPeer {before peer : Config (core3 grow) (HostState sig)} {thread frames rest resume}
     {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
@@ -876,6 +879,34 @@ theorem compareReachedRecordPrepareAfterLeaf {changes : ReturnFrame.Substitution
   obtain ⟨peer, compared, lhs, rhs⟩ := compareReachedHostReadFramed focus step paired (congrArg next observed)
   exact ⟨peer, compared, by rwa [lhs, rhs]⟩
 
+private theorem reachedHostReadPaths {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {thread resume frames rest label middle}
+    (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
+    (step : Step profile ready (specDispatch ready base) start label middle)
+    (paired : HostFrame.Related.Paired changes start incoming) :
+    ∃ peerNext peerFrames peerRest,
+      label = .tau ∧
+      middle.ctl = ⟨thread, .prog (resume start.host), frames⟩ :: rest ∧
+      incoming.ctl = ⟨thread, .prog (.op .hostGet resume), peerFrames⟩ :: peerRest ∧
+      peerNext.ctl = ⟨thread, .prog (resume incoming.host), peerFrames⟩ :: peerRest ∧
+      OccurrenceTransport profile ready base bindings start incoming [.tau] [.tau] middle peerNext ∧
+      VisitorWriterPath profile ready base bindings start incoming [.tau] [.tau] middle peerNext := by
+  obtain ⟨rfl, rfl⟩ := actualHostGet focus step
+  obtain ⟨peerFrames, peerRest, atPeer, _⟩ := paired.retarget focus (.prog (resume start.host)) start.host incoming.host
+  let peerNext := { incoming with ctl := ⟨thread, .prog (resume incoming.host), peerFrames⟩ :: peerRest }
+  have observed : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peerNext :=
+    .hostGet atPeer
+  exact ⟨peerNext, peerFrames, peerRest, rfl, rfl, atPeer, rfl,
+    stationaryTransport (by
+      intro place
+      refine .step (.hostGet focus) ?_ (.done _ _)
+      rw [transitionEdit, focus]
+      cases place <;> rfl) (by
+      intro place
+      refine .step observed ?_ (.done _ _)
+      rw [transitionEdit, atPeer]
+      cases place <;> rfl),
+    .framed (.same step rfl (.done _)) (.same observed rfl (.done _))⟩
 theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
     {thread resume frames rest label middle trailing}
     (focus : start.ctl = ⟨thread, .prog (.op .hostGet resume), frames⟩ :: rest)
@@ -884,21 +915,76 @@ theorem compareDivergentHostRead {changes : ReturnFrame.Substitutions (core3 gro
     (paired : HostFrame.Related.Paired changes start incoming)
     (different : resume start.host ≠ resume incoming.host) :
     CallbackSliceEnd profile ready base bindings changes start incoming (label :: trailing) finish := by
-  obtain ⟨rfl, rfl⟩ := actualHostGet focus step
-  obtain ⟨peerFrames, peerRest, atPeer, _⟩ := paired.retarget focus (.prog (resume start.host)) start.host incoming.host
-  let peerNext := { incoming with ctl := ⟨thread, .prog (resume incoming.host), peerFrames⟩ :: peerRest }
-  have observed : Step profile ready (specDispatch ready (LiveDispatch.host bindings base)) incoming .tau peerNext :=
-    .hostGet atPeer
-  refine .observation (otherNext := peerNext)
-    focus different (stationaryTransport ?_ ?_) (.framed (.same step rfl (.done _)) (.same observed rfl (.done _))) tail
-  · intro place
-    refine .step (.hostGet focus) ?_ (.done _ _)
-    rw [transitionEdit, focus]
-    cases place <;> rfl
-  · intro place
-    refine .step observed ?_ (.done _ _)
-    rw [transitionEdit, atPeer]
-    cases place <;> rfl
+  obtain ⟨_, _, _, rfl, _, _, _, paths, writers⟩ := reachedHostReadPaths (bindings := bindings) focus step paired
+  exact .observation focus different paths writers tail
+
+private theorem tickReadinessMismatch
+    (stores : start.store = incoming.store)
+    (different : start.store.candidates (ready start.host) ≠ incoming.store.candidates (ready incoming.host)) :
+    Nonempty (TickReadinessMismatch ready start incoming) := by
+  classical
+  have witness : ∃ thread ∈ start.store.waiting, ∃ entry,
+      start.store.thread? thread = some entry ∧ entry.blocked = true ∧
+      ∃ query, entry.readyCond = some (.host query) ∧ ready start.host query ≠ ready incoming.host query := by
+    by_contra! same
+    apply different
+    rw [← stores]
+    apply List.filter_congr
+    intro thread waiting
+    simp only [CStore.threadReady, CStore.threadIs]
+    split
+    · rename_i entry live
+      unfold Thread.ready
+      cases blocked : entry.blocked with
+      | false => rfl
+      | true =>
+        cases condition : entry.readyCond with
+        | none => rfl
+        | some cond =>
+          cases cond <;> try rfl
+          rename_i query
+          have agrees := same thread waiting entry live blocked query condition
+          simp [ReadyCond.eval, agrees]
+    · rfl
+  obtain ⟨thread, waiting, entry, live, blocked, query, condition, disagrees⟩ := witness
+  exact ⟨⟨stores, thread, entry, query, waiting, live, blocked, condition, disagrees, different⟩⟩
+
+theorem compareReachedTickRead {changes : ReturnFrame.Substitutions (core3 grow) (HostState sig)}
+    {label middle trailing}
+    (focus : start.ctl = [.ofProg none (sourceTickRead ready start.store)])
+    (step : Step profile ready (specDispatch ready base) start label middle)
+    (tail : Steps profile ready (specDispatch ready base) middle trailing finish)
+    (paired : HostFrame.Related.Paired changes start incoming) :
+    (∃ peer, ExecutedCallbackSegment profile ready base bindings changes start incoming [label] [label] middle peer) ∨
+      CallbackSliceEnd profile ready base bindings changes start incoming (label :: trailing) finish := by
+  let resume : HostState sig → Session grow sig (Ret (core3 grow)) :=
+    fun host => sourceTickCandidates (start.store.candidates (ready host))
+  have read : start.ctl = [⟨none, .prog (.op .hostGet resume), []⟩] := focus
+  by_cases agrees : start.store.candidates (ready start.host) = incoming.store.candidates (ready incoming.host)
+  · apply Or.inl
+    apply compareReachedHostRead read step paired
+    have stores := paired.data.1
+    exact congrArg sourceTickCandidates (agrees.trans (congrArg (fun store => store.candidates (ready incoming.host)) stores).symm)
+  · apply Or.inr
+    obtain ⟨mismatch⟩ := tickReadinessMismatch paired.data.1 agrees
+    obtain ⟨_, peerFrames, peerRest, rfl, checked, rawFocus, canonical, paths, writers⟩ :=
+      reachedHostReadPaths (bindings := bindings) read step paired
+    have frames {left right : Config (core3 grow) (HostState sig)}
+        (paired : ReturnFrame.Related.Paired changes left right) :
+        List.Forall₂ (ReturnFrame.Related.Active changes) left.ctl right.ctl := by
+      cases paired with
+      | mk active _ => exact active
+    have aligned := frames (left := HostFrame.replace start incoming.host) paired
+    change List.Forall₂ (ReturnFrame.Related.Active changes) start.ctl incoming.ctl at aligned
+    rw [read, rawFocus] at aligned
+    cases aligned with
+    | cons active rest =>
+      cases active with
+      | mk frames =>
+        cases frames
+        cases rest
+        apply CallbackSliceEnd.tickReadiness focus mismatch paths writers checked _ tail
+        simpa only [resume, mismatch.stores, Activation.ofProg] using canonical
 
 private theorem reachedAssignment {dispatch : Call (core3 grow) → Session grow sig (Ret (core3 grow))}
     {before : Config (core3 grow) (HostState sig)} {thread target next frames rest}

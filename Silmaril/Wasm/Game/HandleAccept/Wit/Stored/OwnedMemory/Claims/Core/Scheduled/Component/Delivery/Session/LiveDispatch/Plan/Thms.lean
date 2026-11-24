@@ -3654,6 +3654,15 @@ theorem classify_initial_mixed_callbacks {callees : List (ComponentCall.Callee s
       (Config.init store checkedHost) (Config.init store canonicalHost) labels finish :=
   classify_mixed_callbacks run (.mk .nil .nil)
 
+/-- The executable tick enters the host, captures the store, then performs
+its readiness read. The captured store supplies the ordered candidates. -/
+theorem source_tick_program (ready : HostReady (HostState sig)) :
+    (StepDefs.tickProg ready : Session grow sig (Ret (core3 grow))) = (do
+      modifyStore StepDefs.enterHostSt
+      let store ← getStore
+      sourceTickRead ready store) :=
+  Silmaril.Proofs.Wasm.Game.HandleAccept.Wit.OwnedMemory.Claims.Delivery.CallbackPrefix.sourceTickProgram ready
+
 /-- Start the mixed comparison at the executable host tick from its idle
 host frame. The checked suffix starts at the actual tick installation. -/
 theorem classify_host_tick_callbacks {callees : List (ComponentCall.Callee sig)}

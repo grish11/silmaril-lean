@@ -1572,6 +1572,34 @@ def sourceTickReturn : Session grow sig (Ret (core3 grow)) := do
   modifyStore StepDefs.leaveHostSt
   pure .unit
 
+/-- The executable tick choice followed by the selected thread's resume and
+the host return. The empty candidate list goes straight to the host return. -/
+def sourceTickCandidates (candidates : List ThreadId) : Session grow sig (Ret (core3 grow)) :=
+  match candidates with
+  | [] => sourceTickReturn
+  | first :: rest => pickTick first rest >>= fun selected => Thread.resume selected >>= fun _ => sourceTickReturn
+
+/-- The actual readiness read after tick has entered the host and captured
+the store. -/
+def sourceTickRead (ready : HostReady (HostState sig)) (store : CStore (core3 grow)) :
+    Session grow sig (Ret (core3 grow)) :=
+  .op .hostGet fun host => sourceTickCandidates (store.candidates (ready host))
+
+/-- The two reached tick reads disagree on a blocked waiting thread's host
+query. Both compute their ordered candidate lists from the shared store. -/
+structure TickReadinessMismatch (ready : HostReady (HostState sig))
+    (checked canonical : Config (core3 grow) (HostState sig)) where
+  stores : checked.store = canonical.store
+  thread : ThreadId
+  entry : Thread
+  query : Nat
+  waiting : thread ∈ checked.store.waiting
+  live : checked.store.thread? thread = some entry
+  blocked : entry.blocked = true
+  condition : entry.readyCond = some (.host query)
+  different : ready checked.host query ≠ ready canonical.host query
+  candidates : checked.store.candidates (ready checked.host) ≠ canonical.store.candidates (ready canonical.host)
+
 /-- The first executed action not covered by the closed callback rules.
 This is a proof cut, not a new runtime rejection. -/
 inductive CallbackWorkerBoundary (bindings : List (Binding sig)) (ready : HostReady (HostState sig))
@@ -2645,6 +2673,15 @@ inductive CallbackSliceEnd (profile : ProfileKind) (ready : HostReady (HostState
       (different : resume reached.host ≠ resume peer.host)
       (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] next otherNext)
       (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] next otherNext)
+      (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
+      CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
+  | tickReadiness {changes reached peer next otherNext trailing finish}
+      (focus : reached.ctl = [.ofProg none (sourceTickRead ready reached.store)])
+      (mismatch : TickReadinessMismatch ready reached peer)
+      (paths : OccurrenceTransport profile ready base bindings reached peer [.tau] [.tau] next otherNext)
+      (writers : VisitorWriterPath profile ready base bindings reached peer [.tau] [.tau] next otherNext)
+      (checked : next.ctl = [.ofProg none (sourceTickCandidates (reached.store.candidates (ready reached.host)))])
+      (canonical : otherNext.ctl = [.ofProg none (sourceTickCandidates (peer.store.candidates (ready peer.host)))])
       (tail : Steps profile ready (specDispatch ready base) next trailing finish) :
       CallbackSliceEnd profile ready base bindings changes reached peer (.tau :: trailing) finish
   | pendingAssignment {changes reached peer left right leftTarget rightTarget next}
