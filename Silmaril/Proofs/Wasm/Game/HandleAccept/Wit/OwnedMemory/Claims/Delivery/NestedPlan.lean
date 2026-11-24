@@ -25137,16 +25137,21 @@ private theorem storeEffectSourceFlatLeaf (cx : LiftLowerContext (core3 grow)) (
     cases value <;> simp only [lowerFlatAt] <;> try exact storeEffectTrap _
     exact (sharedHandleInsertEffects cx.inst (.errCtx _)).bind fun _ => .pure _
 
+private abbrev CompareSourceFlatBody {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
+    (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
+    (limit : Nat) (finish : Config (core3 grow) (HostState sig)) (body : Session grow sig (List FlatValue)) :=
+  ∀ (next : List FlatValue → Session grow sig (Ret (core3 grow))),
+    (∀ flat, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish (next flat) (next flat)) →
+    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish (body >>= next) (body >>= next)
+
 private abbrev CompareSourceFlatAt {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (profile : ProfileKind) (ready : HostReady (HostState sig)) (base : HostImpl (core3 grow) (HostState sig))
     (bindings : List (Binding sig)) (older : ReturnFrame.Substitutions (core3 grow) (HostState sig))
     (limit : Nat) (finish : Config (core3 grow) (HostState sig)) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (type : Stored.TypeOf) :=
-  ∀ (value : Value.Val) (next : List FlatValue → Session grow sig (Ret (core3 grow))),
-    (∀ flat, DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish (next flat) (next flat)) →
-    DestructorRecordAt (check := check) (canon := canon) profile ready base bindings older limit finish
-      (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next)
-      (lowerFlatAt Limits.spec Quirks.none cx width value type >>= next)
+  ∀ value, CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+    (lowerFlatAt Limits.spec Quirks.none cx width value type)
 
 private theorem sourceFlatFieldsTuple (cx : LiftLowerContext (core3 grow)) (width : AddrType)
     (fields : List (String × Stored.TypeOf)) (values : List Value.Val) :
@@ -25218,6 +25223,104 @@ private theorem compareSourceFlatFixedList {limit : Nat}
     simp only [Prog.mapM, Prog.bind_eq, Prog.bind_assoc, Prog.pure_bind', List.flatten_cons]
     exact child value _ (fun flat => ih (fun tail => next (flat ++ tail)) (fun tail => returned (flat ++ tail)))
 
+private theorem storeEffectCoerceFlatSlots (haves wants : List ABI.CoreType) (values : List FlatValue) :
+    StoreEffects (coerceLowerSlots haves wants values : Session grow sig (List FlatValue × List ABI.CoreType)) := by
+  have coerce (actual target : ABI.CoreType) (value : FlatValue) :
+      StoreEffects (coerceLower actual target value : Session grow sig FlatValue) := by
+    unfold coerceLower
+    split
+    · exact (storeEffectEncodeFloat .f32 _).bind fun _ => .pure _
+    · exact .pure _
+    · exact (storeEffectEncodeFloat .f32 _).bind fun _ => .pure _
+    · exact (storeEffectEncodeFloat .f64 _).bind fun _ => .pure _
+    · exact .pure _
+  induction haves generalizing wants values with
+  | nil => exact .pure _
+  | cons haveType haves ih =>
+    cases values with
+    | nil => cases wants <;> exact .pure _
+    | cons value values =>
+      cases wants with
+      | nil => exact storeEffectTrap _
+      | cons wantType wants =>
+        exact (coerce haveType wantType value).bind fun word => (ih wants values).bind fun (tail, spare) => .pure (word :: tail, spare)
+
+private theorem compareSourceFlatVariant {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (count index : Nat) (joined haves : List ABI.CoreType)
+    (payload : Session grow sig (List FlatValue))
+    (child : CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish payload) :
+    CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerFlatVariantWith count joined index haves payload) := by
+  intro next returned left right remaining same lhs rhs aligned run bounded
+  by_cases admitted : index < count
+  · let finishSlots (slots : List FlatValue × List ABI.CoreType) :=
+      next (i32Flat index :: (slots.1 ++ slots.2.map Execution.Runtime.Value.zero))
+    let coerceSlots (values : List FlatValue) := coerceLowerSlots haves joined values >>= finishSlots
+    have code : (lowerFlatVariantWith count joined index haves payload >>= next) = payload >>= coerceSlots := by
+      simp only [lowerFlatVariantWith, admitted, ite_true, coerceSlots, finishSlots, Prog.bind_eq, Prog.bind_assoc]
+      congr 1
+    exact child coerceSlots
+      (fun flat => crossDestructorRecordStore (check := check) (canon := canon) thread (coerceLowerSlots haves joined flat)
+        (storeEffectCoerceFlatSlots haves joined flat) finishSlots finishSlots (fun slots =>
+          returned (i32Flat index :: (slots.1 ++ slots.2.map Execution.Runtime.Value.zero))))
+      same (lhs.trans (congrArg check.control code)) (rhs.trans (congrArg canon.control code)) aligned run bounded
+  · simp only [lowerFlatVariantWith, admitted, ite_false] at lhs rhs
+    exact crossDestructorRecordStore (check := check) (canon := canon) thread flatMismatch
+      (storeEffectTrap _) next next returned same lhs rhs aligned run bounded
+
+private theorem compareSourceFlatOpt {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (payload : Option Value.Val) (type : Option Stored.TypeOf)
+    (children : ∀ child, type = some child → CompareSourceFlatAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish cx width child) :
+    CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerFlatOpt Limits.spec Quirks.none cx width payload type) := by
+  intro next returned left right remaining same lhs rhs aligned run bounded
+  cases type with
+  | none =>
+    simp only [lowerFlatOpt, Prog.bind_eq, Prog.pure_eq, Prog.pure_bind'] at lhs rhs
+    exact returned [] same lhs rhs aligned run bounded
+  | some type =>
+    cases payload with
+    | none =>
+      simp only [lowerFlatOpt] at lhs rhs
+      exact crossDestructorRecordStore (check := check) (canon := canon) thread flatMismatch
+        (storeEffectTrap _) next next returned same lhs rhs aligned run bounded
+    | some value =>
+      simp only [lowerFlatOpt] at lhs rhs
+      exact children type rfl value next returned same lhs rhs aligned run bounded
+
+private theorem compareSourceFlatCase {limit : Nat}
+    {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
+    (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
+    (cases : List (String × Option Stored.TypeOf)) (index : Nat) (payload : Option Value.Val)
+    (children : ∀ name child, (name, some child) ∈ cases → CompareSourceFlatAt (check := check) (canon := canon)
+      profile ready base bindings older limit finish cx width child) :
+    CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+      (lowerFlatCase Limits.spec Quirks.none cx width index payload cases) := by
+  induction cases generalizing index with
+  | nil =>
+    intro next returned left right remaining same lhs rhs aligned run bounded
+    simp only [lowerFlatCase] at lhs rhs
+    exact crossDestructorRecordStore (check := check) (canon := canon) thread flatMismatch
+      (storeEffectTrap _) next next returned same lhs rhs aligned run bounded
+  | cons arm tail ih =>
+    obtain ⟨name, type⟩ := arm
+    cases index with
+    | zero =>
+      intro next returned left right remaining same lhs rhs aligned run bounded
+      simp only [lowerFlatCase] at lhs rhs
+      exact compareSourceFlatOpt thread cx width payload type
+        (fun child selected => children name child (selected ▸ List.mem_cons_self ..))
+        next returned same lhs rhs aligned run bounded
+    | succ index =>
+      intro next returned left right remaining same lhs rhs aligned run bounded
+      simp only [lowerFlatCase] at lhs rhs
+      exact ih index (fun name child member => children name child (List.mem_cons_of_mem _ member))
+        next returned same lhs rhs aligned run bounded
+
 private theorem compareRecursiveSourceFlat {limit : Nat}
     {check canon : PayloadPrefix.Cursor (E := core3 grow) (HostState sig)}
     (thread : check.thread = canon.thread) (cx : LiftLowerContext (core3 grow)) (width : AddrType)
@@ -25285,6 +25388,76 @@ private theorem compareRecursiveSourceFlat {limit : Nat}
         exact compareSourceFlatFixedList cx width element (ih element (by simp_wf; omega)) values next returned
           same lhs rhs aligned run bounded
       | _ => exact mismatch (.fixedList element count) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | variant cases =>
+      cases value with
+      | variant index payload =>
+        have children : ∀ name child, (name, some child) ∈ cases → CompareSourceFlatAt (check := check) (canon := canon)
+            profile ready base bindings older limit finish cx width child := by
+          intro name child member
+          apply ih
+          have memberSize := List.sizeOf_lt_of_mem member
+          change 1 + sizeOf name + (1 + sizeOf child) < sizeOf cases at memberSize
+          simp_wf
+          omega
+        simp only [lowerFlatAt] at lhs rhs
+        exact compareSourceFlatVariant thread cases.length index (ABI.variantPayload (ABI.flattenCases width cases))
+          (caseFlat width cases index) (lowerFlatCase Limits.spec Quirks.none cx width index payload cases)
+          (compareSourceFlatCase thread cx width cases index payload children) next returned same lhs rhs aligned run bounded
+      | _ => exact mismatch (.variant cases) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | option type =>
+      cases value with
+      | variant index payload =>
+        have ignored : CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+            (pure []) := by
+          intro next returned left right remaining same lhs rhs aligned run bounded
+          exact returned [] same lhs rhs aligned run bounded
+        cases index with
+        | zero =>
+          simp only [lowerFlatAt] at lhs rhs
+          exact compareSourceFlatVariant thread 2 0 (ABI.flatten width type) (optionWants width type 0)
+            (pure []) ignored next returned same lhs rhs aligned run bounded
+        | succ index =>
+          cases index with
+          | zero =>
+            simp only [lowerFlatAt] at lhs rhs
+            have opt : CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+                (lowerFlatOpt Limits.spec Quirks.none cx width payload (some type)) :=
+              compareSourceFlatOpt thread cx width payload (some type)
+                (fun child selected => by cases selected; exact ih type (by simp_wf))
+            cases payload <;>
+              exact compareSourceFlatVariant thread 2 1 (ABI.flatten width type) (optionWants width type 1) _
+                opt next returned same lhs rhs aligned run bounded
+          | succ index =>
+            simp only [lowerFlatAt] at lhs rhs
+            exact compareSourceFlatVariant thread 2 index.succ.succ (ABI.flatten width type)
+              (optionWants width type index.succ.succ) (pure []) ignored next returned same lhs rhs aligned run bounded
+      | _ => exact mismatch (.option type) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
+    | result ok err =>
+      cases value with
+      | variant index payload =>
+        let joined := ABI.joinFlat (ABI.flattenOption width ok) (ABI.flattenOption width err)
+        have arm (index : Nat) (type : Option Stored.TypeOf)
+            (smaller : ∀ child, type = some child → sizeOf child < sizeOf (.result ok err : Stored.TypeOf)) :
+            CompareSourceFlatBody (check := check) (canon := canon) profile ready base bindings older limit finish
+              (lowerFlatVariantWith 2 joined index (resultWants width ok err index)
+                (lowerFlatOpt Limits.spec Quirks.none cx width payload type)) :=
+          compareSourceFlatVariant thread 2 index joined (resultWants width ok err index) _
+            (compareSourceFlatOpt thread cx width payload type (fun child selected => ih child (smaller child selected)))
+        cases index with
+        | zero =>
+          simp only [lowerFlatAt] at lhs rhs
+          exact arm 0 ok (by intro child selected; subst ok; simp_wf; omega) next returned same lhs rhs aligned run bounded
+        | succ index =>
+          cases index with
+          | zero =>
+            simp only [lowerFlatAt] at lhs rhs
+            exact arm 1 err (by intro child selected; subst err; simp_wf; omega) next returned same lhs rhs aligned run bounded
+          | succ index =>
+            simp only [lowerFlatAt] at lhs rhs
+            exact compareSourceFlatVariant thread 2 index.succ.succ joined
+              (resultWants width ok err index.succ.succ) (pure [])
+              (fun next returned {_ _ _} => returned []) next returned same lhs rhs aligned run bounded
+      | _ => exact mismatch (.result ok err) _ (by simp only [lowerFlatAt]) same lhs rhs aligned run bounded
     | ref impossible => nomatch impossible
     | _ => exact compareProgram _ same lhs rhs aligned run bounded
 
