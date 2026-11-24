@@ -2407,34 +2407,58 @@ abbrev SourceOverlayFieldSource (destination : RecordDestination) (item : Stored
   Stored.Lower.fits Quirks.none destination.encoding destination.width schema root.value = true ∧
   Stored.Endpoints.RecordLower.Field.AllocatorFor destination.realloc root ∧ root.Descendant item
 
-/-- The request selected by the canonical dynamic-list store at its width read. -/
-def canonicalListStoreRequest (width : AddrType) (element : Stored.TypeOf) (count : Nat) : ABI.ReallocRequest :=
-  let area := ABI.layout width element
+/-- The two value shapes that use a canonical indirect list store. Map entries
+have a captured layout and their own executable key and value placements. -/
+inductive CanonicalListStore where
+  | list (element : Stored.TypeOf)
+  | map (key : WIT.KeyType) (value : Stored.TypeOf)
+
+def CanonicalListStore.layout (site : CanonicalListStore) (width : AddrType) : ABI.Layout :=
+  match site with
+  | .list element => ABI.layout width element
+  | .map key value => ABI.layout width (.record (ABI.mapEntryFields key value) : Stored.TypeOf)
+
+def CanonicalListStore.storeEntry (site : CanonicalListStore) (cx : LiftLowerContext (core3 grow))
+    (width : AddrType) (entry : Value.Val) (ptr : Nat) : Session grow sig Unit :=
+  match site with
+  | .list element => Canon.store Limits.spec Quirks.none cx entry element ptr
+  | .map key value =>
+    match entry with
+    | .record [entryKey, entryValue] => do
+      let keyLayout := ABI.primitiveLayout width key.toPrimitive
+      let keyAddr := ABI.alignTo ptr keyLayout.alignment
+      storePrim Limits.spec Quirks.none cx key.toPrimitive entryKey keyAddr
+      Canon.store Limits.spec Quirks.none cx entryValue value
+        (ABI.alignTo (keyAddr + keyLayout.size) (ABI.layout width value).alignment)
+    | _ => storeMismatch
+
+/-- The request selected by the canonical list or map store at its width read. -/
+def canonicalListStoreRequest (width : AddrType) (site : CanonicalListStore) (count : Nat) : ABI.ReallocRequest :=
+  let area := site.layout width
   { oldPtr := 0, oldSize := 0, alignment := area.alignment.bytes, newSize := count * area.size }
 
 /-- The canonical list uses the captured element layout to check and fill the
 range. The descriptor program reads its width after the element stores. -/
-def canonicalListStoreAfterPointer (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
+def canonicalListStoreAfterPointer (cx : LiftLowerContext (core3 grow)) (width : AddrType) (site : CanonicalListStore)
     (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) (ptr : Nat) :
     Session grow sig (Ret (core3 grow)) := do
-  let area := ABI.layout width element
+  let area := site.layout width
   let checked ← validateListRange cx area values.length ptr
-  storeListIntoValidRangeWith area.size (fun value address => Canon.store Limits.spec Quirks.none cx value element address)
-    values checked
+  storeListIntoValidRangeWith area.size (site.storeEntry cx width) values checked
   storeListDescriptor cx checked values.length dest
   next
 
-def canonicalListStoreResume (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
+def canonicalListStoreResume (cx : LiftLowerContext (core3 grow)) (width : AddrType) (site : CanonicalListStore)
     (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) :
     ReturnFrame.Continuation (core3 grow) (HostState sig)
-  | .nat pointer => canonicalListStoreAfterPointer cx width element values dest next pointer
+  | .nat pointer => canonicalListStoreAfterPointer cx width site values dest next pointer
   | _ => internal "late-bound call: expected Ret.nat"
 
-def canonicalListStoreCall (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
+def canonicalListStoreCall (cx : LiftLowerContext (core3 grow)) (width : AddrType) (site : CanonicalListStore)
     (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) : Session grow sig (Ret (core3 grow)) :=
-  let request := canonicalListStoreRequest width element values.length
+  let request := canonicalListStoreRequest width site values.length
   .op (.call (.reallocate cx request.oldPtr request.oldSize request.alignment request.newSize))
-    (canonicalListStoreResume cx width element values dest next)
+    (canonicalListStoreResume cx width site values dest next)
 
 open Stored.Endpoints in
 /-- The return programs installed by a source allocator call. -/
@@ -2463,10 +2487,10 @@ inductive SourceAllocatorReturn :
       (first second : Nat → Session grow sig (Ret (core3 grow))) :
       SourceAllocatorReturn (PayloadPrefix.stringPlanResume (destination.context inst) steps first)
         (PayloadPrefix.stringPlanResume (destination.context inst) steps second)
-  | canonicalList (cx : LiftLowerContext (core3 grow)) (width : AddrType) (element : Stored.TypeOf)
+  | canonicalList (cx : LiftLowerContext (core3 grow)) (width : AddrType) (site : CanonicalListStore)
       (values : List Value.Val) (dest : Nat) (next : Session grow sig (Ret (core3 grow))) :
-      SourceAllocatorReturn (canonicalListStoreResume cx width element values dest next)
-        (canonicalListStoreResume cx width element values dest next)
+      SourceAllocatorReturn (canonicalListStoreResume cx width site values dest next)
+        (canonicalListStoreResume cx width site values dest next)
 
 open Stored.Endpoints in
 /-- Frames beneath a selected synchronous worker. Common loop tail calls
