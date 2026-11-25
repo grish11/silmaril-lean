@@ -359,7 +359,6 @@ if __name__ == "__main__":
             ('def outer(seed): assert "x" not in seed().__code__.co_cellvars', ".frontend .expressionShape"),
             ('def outer(seed): assert "x" not in seed.__code__.co_cellvars, "message"', ".frontend .bodyShape"),
             ('def outer(seed): assert "x" in seed.__code__.co_cellvars', ".frontend .expressionShape"),
-            ('def outer(seed): assert "x" in seed.__code__.co_names', ".bodyProfile [0]"),
             ('def outer(seed): assert "x" in seed().__code__.co_names', ".frontend .expressionShape"),
             ('def outer(seed): assert "x" not in seed.__code__.co_names', ".frontend .expressionShape"),
             ('def outer(seed): assert "x" in seed.__code__.co_names, "message"', ".frontend .bodyShape"),

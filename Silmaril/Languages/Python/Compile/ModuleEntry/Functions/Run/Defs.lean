@@ -74,7 +74,7 @@ def lowerInstructions {scope : Scope} (tree : Source.ScopeTree) (next : Nat) : L
       let root : Compile.Closure.Link.Block :=
         ⟨child.scope.context.path, ⟨layout, { parameters, body := nested.code }⟩⟩
       return (.publish name ⟨⟨next, layout⟩, captures⟩ :: instructions,
-        (root.withFreeVars tree).withCellVars tree :: (nested.children ++ blocks))
+        ((root.withFreeVars tree).withCellVars tree).withCodeNames tree :: (nested.children ++ blocks))
     else throw (.incomingCaptures child.scope.context.path)
 
 structure Compiled (source : Source.Module) where

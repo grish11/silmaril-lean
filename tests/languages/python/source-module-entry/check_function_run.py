@@ -11,6 +11,24 @@ import tempfile
 
 
 FIXTURES = (
+    ("body_code_names_live_rebind", """global_x = 1
+def first():
+    assert global_x == 1
+def empty():
+    pass
+def probe():
+    assert "global_x" in target.__code__.co_names
+def through_alias():
+    assert "global_x" in saved.__code__.co_names
+    return 7
+target = first
+saved = target
+probe()
+target = empty
+observed = through_alias()
+observed = probe()
+kept = 9
+""", "AssertionError", ".raised .assertionError", 7, None),
     ("body_cellvars_global", """def target():
     pass
 def inspect():

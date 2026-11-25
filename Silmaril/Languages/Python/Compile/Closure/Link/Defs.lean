@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.Languages.Python.Compile.Closure.Body.Defs
+public import Silmaril.Languages.Python.Compile.Closure.CodeNames.Emission
 public import Silmaril.Languages.Python.Core.Closure.Dispatch.Defs
 
 /-! # Link lowered Python closure bodies into a Core dispatch table
@@ -14,25 +14,8 @@ and captures, with the child body stored in the code table.
 namespace Silmaril.Languages.Python.Compile.Closure.Link
 
 open Source (BlockPath Scope ScopeTree)
-open Core.Closure (CaptureSlot CodeRef Layout Slot)
+open Core.Closure (CodeRef Layout)
 open Core.Closure.Dispatch (CodeTable Entry ProfiledCodeNames)
-
-inductive Code (layout : Layout) where
-  | ret (value : Body.Expr layout)
-  | assert (test : Body.Expr layout) (next : Code layout)
-  | assertFreeVars (receiver : Body.Expr layout) (needle : List UInt32) (expected : Bool) (next : Code layout)
-  | assertCellVars (receiver : Body.Expr layout) (needle : List UInt32) (next : Code layout)
-  | assertCodeNames (receiver : Body.Expr layout) (needle : List UInt32) (next : Code layout)
-  | discardCall (callee : Body.Expr layout) (next : Code layout)
-  | assign (destination : Slot layout) (value : Body.Expr layout) (next : Code layout)
-  | closure (destination : Slot layout) (path : BlockPath) (ref : CodeRef)
-      (captures : Fin ref.layout.captures → CaptureSlot layout) (next : Code layout)
-
-def Code.references {layout : Layout} : Code layout → List (BlockPath × CodeRef)
-  | .ret _ => []
-  | .assign _ _ next | .assert _ next | .assertFreeVars _ _ _ next
-  | .assertCellVars _ _ next | .assertCodeNames _ _ next | .discardCall _ next => next.references
-  | .closure _ path ref _ next => (path, ref) :: next.references
 
 structure Block where
   path : BlockPath
@@ -84,6 +67,19 @@ def blockCellVars? (tree : ScopeTree) (block : Block) : Option (BlockCellVars tr
   let ⟨names, profile, exactNames⟩ ← cellVarNames? scope
   return ⟨scope, located, layout, names, profile, exactNames⟩
 
+structure BlockCodeNames (tree : ScopeTree) (block : Block) where
+  scope : Scope
+  located : tree.atPath block.path = some scope
+  codeLayout : block.entry.layout = frameLayout scope
+  operations : List CodeNames.Operation
+  emitted : CodeNames.operations? block.entry.definition.body = some operations
+
+def blockCodeNames? (tree : ScopeTree) (block : Block) : Option (BlockCodeNames tree block) := do
+  let ⟨scope, located, layout⟩ ← blockScope? tree block
+  match emitted : CodeNames.operations? block.entry.definition.body with
+  | none => none
+  | some operations => return ⟨scope, located, layout, operations, emitted⟩
+
 /-- Attach only the metadata checked against this block's source scope and
 layout. The code reference, parameters and body are independent of the tuple. -/
 def Block.withFreeVars (block : Block) (tree : ScopeTree) : Block :=
@@ -93,6 +89,11 @@ def Block.withFreeVars (block : Block) (tree : ScopeTree) : Block :=
 def Block.withCellVars (block : Block) (tree : ScopeTree) : Block :=
   { block with entry := { block.entry with definition := { block.entry.definition with
     cellvars := (blockCellVars? tree block).map (·.names) } } }
+
+def Block.withCodeNames (block : Block) (tree : ScopeTree) : Block :=
+  { block with entry := { block.entry with definition := { block.entry.definition with
+    codeNames := (blockCodeNames? tree block).map fun checked =>
+      ⟨.cpython3135ExecOptimize0, CodeNames.names .cpython3135 checked.operations⟩ } } }
 
 structure LinkedBody (layout : Layout) where
   code : Code layout
@@ -124,7 +125,7 @@ def linkBody {layout : Layout} (first : Nat) (tree : ScopeTree) : Body.Code layo
     let tail := linkBody (first + 1 + nested.children.length) tree rest
     let entry : Entry Code := ⟨childLayout, { parameters, body := nested.code }⟩
     ⟨.closure slot path ⟨first, childLayout⟩ captures tail.code,
-      ((Block.mk path entry).withFreeVars tree).withCellVars tree :: (nested.children ++ tail.children)⟩
+      (((Block.mk path entry).withFreeVars tree).withCellVars tree).withCodeNames tree :: (nested.children ++ tail.children)⟩
 
 structure Program where
   entry : CodeRef
@@ -151,6 +152,7 @@ def link {source : Source.Module} (compiled : Body.Compiled source) : Program :=
   let entry : Entry Code := ⟨layout, { parameters := compiled.parameters, body := root.code }⟩
   let block := ((Block.mk compiled.tree.scope.context.path entry).withFreeVars compiled.moduleTree)
     |>.withCellVars compiled.moduleTree
+    |>.withCodeNames compiled.moduleTree
   ⟨⟨0, layout⟩, block :: root.children⟩
 
 end Silmaril.Languages.Python.Compile.Closure.Link

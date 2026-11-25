@@ -37,6 +37,7 @@ theorem lower_complete {layout : Layout} {source : Link.Code layout}
   | assert test _ remaining => simp [lowerCode, operand_complete test, remaining]
   | assertFreeVars read _ remaining => simp [lowerCode, name_read_complete read, remaining]
   | assertCellVars read _ remaining => simp [lowerCode, name_read_complete read, remaining]
+  | assertCodeNames read _ remaining => simp [lowerCode, name_read_complete read, remaining]
   | discardCall callee _ remaining => simp [lowerCode, operand_complete callee, remaining]
   | assign value _ remaining => cases value <;> simp [lowerCode, operand?, remaining]
   | call callee arguments _ remaining =>

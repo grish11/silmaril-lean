@@ -79,6 +79,9 @@ inductive Translation {layout : Layout} :
   | assertCellVars {source receiver needle rest next}
       (read : NameReadTranslation source receiver) (tail : Translation rest next) :
       Translation (.assertCellVars source needle rest) (.assertCellvars ⟨receiver, needle⟩ next)
+  | assertCodeNames {source receiver needle rest next}
+      (read : NameReadTranslation source receiver) (tail : Translation rest next) :
+      Translation (.assertCodeNames source needle rest) (.assertCodeNames ⟨receiver, needle⟩ next)
   | discardCall {callee function rest next}
       (calleeTranslation : OperandTranslation callee function) (tail : Translation rest next) :
       Translation (.discardCall callee rest) (.callTo .discard function [] next)
@@ -110,7 +113,10 @@ def lowerCode {layout : Layout} : (code : Link.Code layout) →
     let receiver ← nameRead? source
     let tail ← lowerCode rest
     return ⟨.assertCellvars ⟨receiver.val, needle⟩ tail.val, .assertCellVars receiver.property tail.property⟩
-  | .assertCodeNames _ _ _ => none
+  | .assertCodeNames source needle rest => do
+    let receiver ← nameRead? source
+    let tail ← lowerCode rest
+    return ⟨.assertCodeNames ⟨receiver.val, needle⟩ tail.val, .assertCodeNames receiver.property tail.property⟩
   | .discardCall callee rest => do
     let function ← operand? callee
     let tail ← lowerCode rest

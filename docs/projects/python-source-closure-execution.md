@@ -60,8 +60,11 @@ the two attribute loads of this form, and the assertion-failure operation.
 The 3.7.3 tuple includes the synthetic `AssertionError` name. The 3.13.5
 tuple uses a dedicated opcode for that branch. Repeated names keep their
 first index, and each nested body has its own table. Unsupported code
-shapes have no checked tuple. Execution of `co_names` assertions still
-requires a Core metadata read and stops at the executor lowering boundary.
+shapes have no checked tuple. The linker attaches the exact 3.13.5 tuple
+and its profile tag to the checked definition. The ordinary executor
+reads the current function and its code key once, preserves the exact
+literal code points, and uses the existing assertion failure path. The
+3.7.3 tuple remains available as source evidence.
 
 Successful lowering retains the source translation and preserves the
 definition, layout and parameter destinations at every emitted code key.

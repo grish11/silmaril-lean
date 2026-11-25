@@ -30,6 +30,9 @@ def inspect():
     assert "order_z" in probe.__code__.co_names
     assert "co_names" in enclosing.__code__.co_names
     return enclosing
+
+inspected = inspect()
+answer = inspected()
 """
 
 CPYTHON = """
@@ -48,8 +51,8 @@ with open(sys.argv[1], 'rb') as source:
 unit = compile(raw, sys.argv[1], 'exec', dont_inherit=True, optimize=0)
 scope = {'__builtins__': {}}
 exec(unit, scope)
-enclosing = scope['inspect']()
-assert enclosing() == 4
+enclosing = scope['inspected']
+assert scope['answer'] == 4
 assert 'only_child' not in enclosing.__code__.co_names
 assert 'local' not in enclosing.__code__.co_names
 print(json.dumps([sys.version.split()[0], list(tables(scope['inspect'].__code__))]))
@@ -82,9 +85,14 @@ private def linkedTuples (source : Module) (version : CodeNames.Version) :
     let evidence ← CodeNames.checked? checked.tree blocks ⟨key, block.entry.layout⟩
     return evidence.tuple version
 
-#guard (match Compile.ModuleEntry.Functions.Run.compile pythonSource with
-  | .error (.functionBody (.bodyProfile _)) => true
-  | _ => false)
+private def executed (source : Module) : Option (List (List String)) := do
+  let compiled ← (Compile.ModuleEntry.Functions.Run.compile source).toOption
+  let .finished session .normal :=
+    (Compile.ModuleEntry.Functions.Run.runPrefix compiled.table 256 compiled.start).2 | none
+  let some (.int 4) := session.globals "answer" | none
+  compiled.entries.mapM fun entry => do
+    let data ← entry.definition.codeNames
+    if data.profile == .cpython3135ExecOptimize0 then some data.names else none
 """
 
 GUARD_SOURCE = r'''def inspect(receiver):
@@ -121,6 +129,7 @@ if __name__ == "__main__":
         "Compile.Closure.Body.Defs",
         "Compile.ModuleEntry.Functions.Defs",
         "Compile.ModuleEntry.Functions.Run.Defs",
+        "Core.Closure.Dispatch.Defs",
     )
     imports = tuple(f"{prefix} Silmaril.Languages.Python.{module}"
                     for module in modules for prefix in ("import", "meta import"))
@@ -140,6 +149,7 @@ if __name__ == "__main__":
             f"#guard linkedTuples pythonSource .{tag} == some {json.dumps(EXPECTED[version])}"
             for tag, version in (("cpython373", "3.7.3"), ("cpython3135", "3.13.5"))
         )
+        checks += f"\n#guard executed pythonSource == some {json.dumps(EXPECTED['3.13.5'])}"
         shared["check_lean"](lean_file, checks, extra_imports=imports)
         shared["emit"](source_file, lean_file, GUARD_SOURCE)
         shared["check_lean"](lean_file, GUARD_LEAN, extra_imports=imports)
