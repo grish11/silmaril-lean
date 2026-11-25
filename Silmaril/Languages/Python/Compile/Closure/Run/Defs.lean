@@ -20,11 +20,13 @@ open Core.Closure.Executor (Operand State Event)
 inductive OperandTranslation {layout : Layout} : Body.Expr layout → Operand layout → Prop where
   | integer (value : Int) : OperandTranslation (.integer value) (.literal (.int value))
   | read (slot : Core.Closure.Slot layout) : OperandTranslation (.read slot) (.read slot)
+  | globalName (name : Source.Name) : OperandTranslation (.globalName name) (.readGlobal name)
 
 def operand? {layout : Layout} : (source : Body.Expr layout) →
     Option {target // OperandTranslation source target}
   | .integer value => some ⟨.literal (.int value), .integer value⟩
   | .read slot => some ⟨.read slot, .read slot⟩
+  | .globalName name => some ⟨.readGlobal name, .globalName name⟩
   | _ => none
 
 inductive ArgumentsTranslation {layout : Layout} : List (Body.Expr layout) → List (Operand layout) → Prop where

@@ -48,3 +48,16 @@ keyword arguments at this profile.
 ```sh
 make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Thms
 ```
+
+The module function runner links the selected bodies and publishes them in
+the shared Core namespace, in source order. A positional call reads its
+callable and its literal or name arguments through that namespace. Its
+result updates the selected binding only on successful completion. The
+runner gives the labelled invocation trace and a residual state that can
+be resumed with further fuel. Its prefix composition theorem agrees with
+a run using the combined fuel.
+[Module-call runner](../../Silmaril/Languages/Python/Compile/ModuleEntry/Functions/Run/Thms.lean)
+
+```sh
+make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms
+```

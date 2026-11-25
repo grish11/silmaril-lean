@@ -188,6 +188,7 @@ check-integrations:
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_intake.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Run.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_run.py)
 	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_functions.py)
+	$(if $(filter Silmaril +Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Thms,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/languages/python/source-module-entry/check_function_run.py)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Entry.Determinism.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/operational-determinism/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.GlobalProfile.Thms,$(CHECK_TARGETS)),$(LAKE) env lean -DwarningAsError=true tests/wasm/global-profile/Regression.lean)
 	$(if $(filter Silmaril +Silmaril.Wasm.Execution.Core.Entry.ClosedFunctional.Thms,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.Wasm.Det.NaN.Litmus.Thms +Silmaril.Wasm.Execution.Core.Exec.InstantiateIff && $(LAKE) env lean -DwarningAsError=true tests/wasm/closed-functional/Regression.lean)
