@@ -29,3 +29,22 @@ overwrites, assertion failure, an unbound read and arithmetic failure.
 make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Thms
 make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Run.Thms
 ```
+
+## Function bindings and calls
+
+The function plan keeps the source order of top-level assignments,
+definitions and calls. A definition carries its analyzed child path,
+fixed positional destinations and lowered body. Each call reads the
+function by its module name and supplies ordered positional operands. The
+result can be assigned to a name or discarded.
+
+An implicit or declared global read in a function body retains its module
+name. This supplies lookup in the namespace at call time, including writes
+between a definition and call. Local references continue to use bounded
+frame slots. The regression verifies both kinds of lookup and rejects
+keyword arguments at this profile.
+[Function plan](../../Silmaril/Languages/Python/Compile/ModuleEntry/Functions/Thms.lean)
+
+```sh
+make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Thms
+```
