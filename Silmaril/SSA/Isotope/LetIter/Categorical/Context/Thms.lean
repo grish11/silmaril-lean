@@ -11,7 +11,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
-open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (extend retainLeft)
+open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (duplicate extend retainLeft)
 open Silmaril.Isotope.LetIter.LocallyNameless (Derivation Tm)
 
 universe v₁ v₂ u₁ u₂
@@ -44,5 +44,13 @@ theorem extend_postmap [FreydCategory J] {R A B : V} (f : J.obj R ⟶ J.obj A) (
 theorem extend_map [FreydCategory J] {R A : V} (p : R ⟶ A) :
     extend J (J.map p) = J.map (CartesianMonoidalCategory.lift (𝟙 R) p) :=
   extend_map_proof J p
+
+/-- A shared tensor comparison makes the transported value diagonal central. -/
+theorem duplicate_central_of_tensor_eqToIso [FreydCategory J] (E : V)
+    (h : J.obj E ⊗ J.obj E = J.obj (E ⊗ E))
+    (shared : Functor.StrongPremonoidal.tensorIso (J := J) E E = eqToIso h) :
+    PremonoidalCategory.IsCentral
+      (J.map (duplicate E) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) E E).inv) :=
+  duplicate_central_of_tensor_eqToIso_proof J E h shared
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical

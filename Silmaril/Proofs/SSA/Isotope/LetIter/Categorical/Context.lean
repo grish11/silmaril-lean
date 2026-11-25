@@ -57,4 +57,15 @@ theorem extend_map_proof [FreydCategory J] {R A : V} (p : R ⟶ A) :
   · simp [duplicate]
   · simp [duplicate]
 
+theorem duplicate_central_of_tensor_eqToIso_proof [FreydCategory J] (E : V)
+    (h : J.obj E ⊗ J.obj E = J.obj (E ⊗ E))
+    (shared : Functor.StrongPremonoidal.tensorIso (J := J) E E = eqToIso h) :
+    PremonoidalCategory.IsCentral
+      (J.map (duplicate E) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) E E).inv) := by
+  have transport {X Y : C} (e : X = Y) : IsCentral (eqToIso e).inv := by
+    subst Y
+    exact isCentral_id _
+  rw [shared]
+  exact (FreydCategory.image_central J _).comp (transport h)
+
 end Silmaril.Isotope.LetIter.Semantics.Categorical

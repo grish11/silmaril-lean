@@ -176,19 +176,12 @@ theorem noLocalBlocks_lsubst
   lsubst_of_noLocalBlocks_or_sharedTensor J M copyCentral (pureBranches_of_values J M values)
     (Or.inl noBlocks) d
 
-omit [SymmetricPremonoidalCategory C] [HasFiniteCoproducts C]
-  [DistributivePremonoidalCategory C] [Iteration C] [ElgotCategory C] in
-private theorem equalityIso_inv_central {X Y : C} (e : X = Y) : IsCentral (eqToIso e).inv := by
-  subst Y
-  exact isCentral_id _
-
 private theorem copyCentral_of_shared
     (shared : ∀ E X : V, ∃ h : J.obj E ⊗ J.obj X = J.obj (E ⊗ X),
       Functor.StrongPremonoidal.tensorIso (J := J) E X = eqToIso h) (E : V) :
     IsCentral (J.map (duplicate E) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) E E).inv) := by
   obtain ⟨h, eq⟩ := shared E E
-  rw [eq]
-  exact (FreydCategory.image_central J _).comp (equalityIso_inv_central h)
+  exact Silmaril.Isotope.LetIter.Semantics.Categorical.duplicate_central_of_tensor_eqToIso J E h eq
 
 theorem lsubst_sharedTensor [FreydCategory.CentralUnit J]
     (shared : ∀ E X : V, ∃ h : J.obj E ⊗ J.obj X = J.obj (E ⊗ X),

@@ -1,6 +1,6 @@
 module
 
-public import Silmaril.SSA.Isotope.LetIter.Categorical.Thms
+public import Silmaril.SSA.Isotope.LetIter.Categorical.Context.Thms
 import Silmaril.Proofs.SSA.Isotope.LetIter.Categorical.Context.Naturality
 
 /-! # Change of the pure environment in categorical LetIter combinators -/
@@ -14,9 +14,12 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 open CategoryTheory CategoryTheory.Limits CategoryTheory.PremonoidalCategory
 open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical
-  (caseWithContext contextualLoop)
+  (caseWithContext contextualLoop duplicate extend retainLeft)
 
 local notation "bindArrow" => Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind
+
+local notation "fst" => CartesianMonoidalCategory.fst
+local notation "lift" => CartesianMonoidalCategory.lift
 
 variable {V : Type u₁} {C : Type u₂}
   [Category.{v₁} V] [Category.{v₂} C]
@@ -58,6 +61,60 @@ theorem case_bind_value {E P A B X : V} (f : J.obj E ⟶ J.obj P)
       bindArrow J f (caseWithContext J (J.map (CartesianMonoidalCategory.snd E P ≫ p))
         (J.map (CartesianMonoidalCategory.fst E P ▷ A) ≫ l) (J.map (CartesianMonoidalCategory.fst E P ▷ B) ≫ r)) :=
   case_bind_value_proof J f p l r
+
+local notation "tIso" => Functor.StrongPremonoidal.tensorIso (J := J)
+
+/-- Retaining a duplicated value context commutes with an arbitrary computation when the transported diagonal is central. -/
+theorem retainLeft_copy {E A B : V} (f : J.obj A ⟶ J.obj B)
+    (central : IsCentral (J.map (duplicate E) ≫ (tIso E E).inv)) :
+    J.map ((duplicate E ▷ A) ≫ (α_ E E A).hom) ≫
+      retainLeft J (R := E) (retainLeft J (R := E) f) =
+    retainLeft J (R := E) f ≫ J.map ((duplicate E ▷ B) ≫ (α_ E E B).hom) :=
+  retainLeft_copy_proof J f central
+
+omit [SymmetricCategory V] [HasFiniteCoproducts V] [DistributiveTensor V] in
+/-- The Cartesian diagonal and associator put one copy of the context beside the unchanged input pair. -/
+theorem copyValue (E A : V) :
+    (duplicate E ▷ A) ≫ (α_ E E A).hom = lift (fst E A) (𝟙 (E ⊗ A)) :=
+  copyValue_proof E A
+
+/-- Retain an extra copy of the context through a computation that already retains its input. -/
+@[reassoc] theorem extend_capture {E A : V} (f : J.obj E ⟶ J.obj A)
+    (central : IsCentral (J.map (duplicate E) ≫ (tIso E E).inv)) :
+    J.map (duplicate E) ≫ retainLeft J (R := E) (extend J f) =
+      extend J f ≫ J.map (lift (fst E A) (𝟙 (E ⊗ A))) :=
+  extend_capture_proof J f central
+
+/-- Reassociate contextual binds under centrality of the transported value diagonal. -/
+theorem bind_assoc_capture {E A B D : V}
+    (central : IsCentral (J.map (duplicate E) ≫ (tIso E E).inv))
+    (f : J.obj E ⟶ J.obj A) (g : J.obj (E ⊗ A) ⟶ J.obj B)
+    (k : J.obj (E ⊗ B) ⟶ J.obj D) :
+    bindArrow J (bindArrow J f g) k =
+      bindArrow J f (bindArrow J g (J.map (fst E A ▷ B) ≫ k)) :=
+  bind_assoc_capture_proof J central f g k
+
+/-- Reassociate contextual binds through an explicit reindexing of the intermediate environment. -/
+theorem bind_assoc_reindex {E A X B D : V}
+    (central : IsCentral (J.map (duplicate E) ≫ (tIso E E).inv))
+    (f : J.obj E ⟶ J.obj A) (p : E ⊗ A ⟶ X)
+    (g : J.obj X ⟶ J.obj B) (q : X ⟶ E) (hq : p ≫ q = fst E A)
+    (k : J.obj (E ⊗ B) ⟶ J.obj D) :
+    bindArrow J (bindArrow J f (J.map p ≫ g)) k =
+      bindArrow J f (J.map p ≫ bindArrow J g (J.map (q ▷ B) ≫ k)) :=
+  bind_assoc_reindex_proof J central f p g q hq k
+
+/-- Distribute a continuation into both branches of a contextual case. -/
+theorem bind_case_capture {E A B X Y : V}
+    (central : IsCentral (J.map (duplicate E) ≫ (tIso E E).inv))
+    (scrutinee : J.obj E ⟶ J.obj (A ⨿ B))
+    (left : J.obj (E ⊗ A) ⟶ J.obj X) (right : J.obj (E ⊗ B) ⟶ J.obj X)
+    (k : J.obj (E ⊗ X) ⟶ J.obj Y) :
+    bindArrow J (caseWithContext J scrutinee left right) k =
+      caseWithContext J scrutinee
+        (bindArrow J left (J.map (fst E A ▷ X) ≫ k))
+        (bindArrow J right (J.map (fst E B ▷ X) ≫ k)) :=
+  bind_case_capture_proof J central scrutinee left right k
 
 end Distributive
 
