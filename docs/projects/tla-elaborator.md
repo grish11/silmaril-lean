@@ -118,6 +118,7 @@ lake build --wfail +Silmaril.Logic.Temporal.TLA.Elaborator.Thms \
 ```
 
 [Lean regressions](../../Silmaril/Logic/Temporal/TLA/Elaborator/Examples.lean)
-cover AST-to-denotation behavior and rejection cases. Concrete byte-to-AST
-integration awaits the parser. General TLA+ source-language correctness and
-specifications with fairness are outside these results.
+cover AST-to-denotation behavior and rejection cases. The
+[Quint import guide](tla-quint-import.md) connects the native parser to this
+elaborator on intact export files. General TLA+ source-language correctness
+and specifications with fairness are outside these results.

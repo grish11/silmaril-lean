@@ -82,10 +82,11 @@ check:
 
 # Runtime observations read the completed build. Integration suites own their separate
 # generated outputs; overlap the two bounded groups and propagate either failure.
-.PHONY: check-runtime check-integrations
+.PHONY: check-runtime check-integrations tla-import-check
 check-runtime:
 	$(MAKE) process-gates
 	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Surface.Parser.%,$(CHECK_TARGETS)),LAKE="$(LAKE)" $(PYTHON) -I tests/semantics/tla-parser/check.py)
+	$(if $(filter Silmaril +Silmaril.Logic.Temporal.TLA.Import.% +Silmaril.Logic.Temporal.TLA.Surface.Parser.% +Silmaril.Logic.Temporal.TLA.Elaborator.% +Silmaril.Logic.Temporal.TLA.Kernel.%,$(CHECK_TARGETS)),$(MAKE) tla-import-check)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Institution.% +Silmaril.Proofs.SSA.RVSDG.Institution.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Institution.Categorical.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGInstitution.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.% +Silmaril.Proofs.SSA.RVSDG.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDG.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.NestedTheta.Petri.% +Silmaril.Proofs.SSA.RVSDG.NestedTheta.Petri.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.NestedTheta.Petri.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGNestedPetri.lean)
@@ -160,6 +161,11 @@ check-runtime:
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Linking +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Invocation,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGModuleLinking.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Defs +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.% +Silmaril.Proofs.SSA.RVSDG.Interprocedural.Recursive,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGPhiCalls.lean)
 	$(if $(filter Silmaril +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Isomorphism.Tail.% +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Tail.%,$(CHECK_TARGETS)),$(LAKE) build --wfail +Silmaril.SSA.RVSDG.Interprocedural.Runtime.Isomorphism.Tail.Thms && $(LAKE) env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGRecursiveTail.lean)
+
+tla-import-check:
+	$(LAKE) build --wfail +Silmaril.Logic.Temporal.TLA.Import.Defs +Silmaril.Logic.Temporal.TLA.Kernel.Thms
+	cd tests/semantics/tla-quint && sha256sum -c SHA256SUMS
+	$(LAKE) env lean -DautoImplicit=false -DwarningAsError=true --run tests/semantics/tla-quint/Import.lean
 
 check-integrations:
 	$(if $(filter ci_cerberus_genuine_oracle,$(CHECK_TARGETS)),$(MAKE) cerberus-oracle)

@@ -6,6 +6,9 @@ finite domains. Each state array follows the order in `variables`. Each
 transition is a pair of state arrays in source, destination order. The exported
 operators to check are `q_init` and `q_step`, which alias `init` and `step`.
 
+Run `make tla-import-check` for the Lean import regression over these files.
+[Import API and checks](../../../docs/projects/tla-quint-import.md)
+
 | Fixture | Bounded states | Initial state | Raw `q_step` successors |
 |---|---|---|---|
 | [BoundedCounter](BoundedCounter.tla) | `0, 1, 2` | `0` | `0 → {1}`, `1 → {2}`, `2 → {}` |

@@ -271,8 +271,10 @@ check ASSUME/PROVE modes and TLA+ expression levels, and interpret proof
 obligations. Position maps and diagnostics can accompany a tree externally.
 The native [source parser](tla-parser.md) produces these trees from TLA+
 modules and expressions. Its coverage table describes the supported syntax and
-the remaining productions. Semantic elaboration, TLC configuration, PlusCal
-translation, proof checking and Quint integration are separate work.
+the remaining productions. The [scalar elaborator](tla-elaborator.md) checks
+state predicates and actions. The [Quint import path](tla-quint-import.md)
+connects both stages on intact exports. TLC configuration, PlusCal translation
+and proof checking are separate work.
 
 ### Checked surface examples
 
@@ -327,7 +329,7 @@ lake build --wfail +Silmaril.Logic.Temporal.TLA.Thms +Silmaril.Logic.Temporal.TL
 
 | Area | Formalized | Remaining |
 | --- | --- | --- |
-| Terms and actions | Typed variable lookup, denotational expressions and actions, rigid existential quantification, explicit state-level `ENABLED` | Elaborating checked source terms and actions into the denotations, and general capture-avoiding term substitution |
+| Terms and actions | Typed variable lookup, denotational expressions and actions, rigid existential quantification, explicit state-level `ENABLED`, and scalar source elaboration | Wider source elaboration and general capture-avoiding term substitution |
 | Temporal formulas | Typed Simple and General TLA syntax and semantics, rigid and flexible quantifiers, whole-state stutter invariance, and scoped reindexing | A derivation calculus with the syntactic substitution rules of Fig. 9, machine closure, completeness results, and a Lean comparison with a separate stutter-reduction operator |
 | Specifications | Simple TLA fairness, invariant and progress rules, and semantic state-map refinement | General refinement substitution and auxiliary-variable theorems |
-| Integration | The General TLA room functor and satisfaction condition for fixed carriers, and a named TLA+ surface AST with a verified S-expression codec and native parser including hierarchical proofs and step references | SANY source compatibility gaps, checked elaboration, and Quint integration |
+| Integration | The General TLA room functor and satisfaction condition for fixed carriers, a named TLA+ surface AST with a verified S-expression codec and native parser including hierarchical proofs and step references, and bounded checks of two pinned Quint imports | SANY source compatibility gaps, wider elaboration, and general exporter correctness |
