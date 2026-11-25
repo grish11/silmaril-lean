@@ -51,12 +51,11 @@ cannot supply a Boolean operand.
 ## Upstream coverage
 
 The inventory covers all 54 operations in the four SMT operation TableGen
-files at llvm-project commit `cc45e189bc99870d26d50c5e3a3d215068e74880`.
-The Lean and prose are original to Silmaril and use upstream definitions as
-references. [SMT dialect documentation](https://mlir.llvm.org/docs/Dialects/SMT/) ·
+files at llvm-project commit `cc45e189bc99870d26d50c5e3a3d215068e74880`
+(2026-11-25T23:18:05Z). [SMT dialect documentation](https://mlir.llvm.org/docs/Dialects/SMT/) ·
 [Pinned core operations][core] · [Pinned integer operations][ints] ·
 [Pinned bitvector operations][bv] · [Pinned array operations][arrays] ·
-[Pinned types][types] · [LLVM license][license]
+[Pinned types][types]
 
 | Upstream ops | Status and profile |
 | --- | --- |
@@ -81,6 +80,17 @@ SSA identity. An MLIR text parser, a verifier for arbitrary dialect input and
 integration with the generic SSA graph are outside this interface.
 [Pinned region verifier][verifier] · [Upstream zero-argument examples][basic] ·
 [Pinned exporter scope handling][exporter]
+
+## License and source provenance
+
+The Lean definitions, proofs, examples and this guide were authored for Silmaril
+under its MIT license. The implementation uses the existing Silmaril quantified
+SMT API and its substitution theorems. The upstream documentation, TableGen,
+verifier, exporter and tests serve as specification references. The cited LLVM
+sources are under Apache-2.0 with LLVM exceptions. The contribution includes no
+upstream code or fixtures. [Silmaril license](../../LICENSE) · [LLVM license][license]
+
+## Verification
 
 ```sh
 lake build --wfail +Silmaril.SSA.MLIR.SMT.Examples.Thms
