@@ -55,7 +55,7 @@ theorem splitSum_proof {n : Nat} {β : BoundCtx S.Ty n} {A B D : S.Ty}
   rw [specialize_underCase] at lb rb
   exact (e.trans varBeta).symm.trans (seq.trans (.case (.refl x) lb rb))
 
-private theorem rebuildProduct {R A D : SynCat S} {t : Tm Empty S.Instr 1}
+theorem rebuildProduct {R A D : SynCat S} {t : Tm Empty S.Instr 1}
     (h : HasType S.Instr Ctx.nil (.snoc .nil (tensor R.ty A.ty)) t D.ty) :
     Eqv S.pureEff Ctx.nil (.snoc .nil (tensor R.ty A.ty)) t
       (.let₂ (.bv 0) (bsubst (fun _ => .pair (.bv 1) (.bv 0)) t)) D.ty := by
@@ -278,7 +278,7 @@ private theorem reduce_copair_right {n : Nat} {β : BoundCtx S.Ty n}
   have beta := Eqv.ax (.structural (.letBeta pb)) rh (body.instantiate hb)
   rwa [instantiate_pair_application] at beta
 
-private theorem eq_of_product_test (R A : SynCat S) {D : SynCat S}
+theorem eq_of_product_test (R A : SynCat S) {D : SynCat S}
     {f g : productObj R A ⟶ D}
     (test : let δ := BoundCtx.nil.snoc (productObj R A).ty
             let x := HasType.previous (Φ := S.Instr) (Γ := (Ctx.nil : Ctx Empty S.Ty))

@@ -39,7 +39,7 @@ private theorem instantiate_twice_left_body {n : Nat} (t : Tm Empty S.Instr 1)
   rw [hb]
   rfl
 
-private theorem left_on_pair {n : Nat} {β : BoundCtx S.Ty n} {R A B : S.Ty}
+theorem left_on_pair {n : Nat} {β : BoundCtx S.Ty n} {R A B : S.Ty}
     {t : Tm Empty S.Instr 1} (h : HasType S.Instr Ctx.nil (.snoc .nil A) t B)
     {a b : Tm Empty S.Instr n} (ha : HasType S.Instr Ctx.nil β a R)
     (hb : HasType S.Instr Ctx.nil β b A) (hpa : Pure S.pureEff a) (hpb : Pure S.pureEff b) :
@@ -56,7 +56,7 @@ private theorem left_on_pair {n : Nat} {β : BoundCtx S.Ty n} {R A B : S.Ty}
   have e := Eqv.ax (.structural (.letBeta hpa)) (.let₁ ha h₁) h₂
   rwa [instantiate_twice_left_body] at e
 
-private theorem bsubst_tensorLeftTm {n : Nat} (σ : Fin 1 → Tm Empty S.Instr n)
+theorem bsubst_tensorLeftTm {n : Nat} (σ : Fin 1 → Tm Empty S.Instr n)
     (t : Tm Empty S.Instr 1) :
     bsubst σ (tensorLeftTm t) = .let₂ (σ 0) (tensorLeftBody t) := by
   simp only [tensorLeftTm, tensorLeftBody, onNewest, bsubst_let₂, bsubst_let₁, bsubst_pair,
@@ -136,11 +136,11 @@ theorem tensorLeft_pair_proof {X R A B : SynCat S} {a : X ⟶ R} {b : X ⟶ A}
     exact (let_tensor_pair ht ha hb hpa hpb).trans
       (term.symm.trans (.pair (.refl ha) beta.symm))
 
-private theorem underBinder_eq_onNewest (t : Tm Empty S.Instr 1) :
+theorem underBinder_eq_onNewest (t : Tm Empty S.Instr 1) :
     underBinder t = onNewest t :=
   rename_congr (Fin.cases rfl (fun i => i.elim0)) _
 
-private theorem underBinder_onNewest {n : Nat} (t : Tm Empty S.Instr 1) :
+theorem underBinder_onNewest {n : Nat} (t : Tm Empty S.Instr 1) :
     underBinder (onNewest (n := n) t) = onNewest t :=
   rename_onNewest _ rfl _
 
@@ -195,7 +195,7 @@ theorem tensorLeft_id_proof (R A : SynCat S) :
     Eqv.ax (.structural (.letBeta .bv)) step body
   exact (Eqv.let₂ (Eqv.refl x) e).trans (Eqv.ax (.structural (.pairEta _)) (.let₂ x body) x)
 
-private theorem after_destructuring {n : Nat} {β : BoundCtx S.Ty n} {R A B C : S.Ty}
+theorem after_destructuring {n : Nat} {β : BoundCtx S.Ty n} {R A B C : S.Ty}
     {p : Tm Empty S.Instr n} {body : Tm Empty S.Instr (n + 2)} {k : Tm Empty S.Instr 1}
     (hp : HasType S.Instr Ctx.nil β p (tensor R A))
     (hb : HasType S.Instr Ctx.nil (.snoc (.snoc β R) A) body B)
