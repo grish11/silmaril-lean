@@ -54,7 +54,7 @@ theorem repairedIteration_fixpoint {X Y : RepairedSynCat (τ := τ) (Φ := Φ) p
   rw [repairedIteration_map, Category.assoc, hId,
     repairedProjection_coprodIso_desc, ← (P).map_comp, ← ElgotCategory.fixpoint]
 
-private theorem repairedProjection_coprodIso_map {X Y U V : SynCat S} (f : X ⟶ U) (g : Y ⟶ V) :
+theorem repairedProjection_coprodIso_map {X Y U V : SynCat S} (f : X ⟶ U) (g : Y ⟶ V) :
     (repairedProjectionCoprodIso pe X Y).hom ≫ coprod.map ((P).map f) ((P).map g) =
       (P).map (coprod.map f g) ≫ (repairedProjectionCoprodIso pe U V).hom := by
   apply repairedProjection_coprod_hom_ext pe

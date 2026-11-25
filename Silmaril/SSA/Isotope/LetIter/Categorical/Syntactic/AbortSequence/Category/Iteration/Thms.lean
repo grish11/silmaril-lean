@@ -27,6 +27,19 @@ theorem repairedIteration_map {X Y : SynCat S} (f : X ⟶ Y ⨿ X) :
       (P).map (CategoryTheory.iterate f) :=
   RepairedIterationProofs.repairedIteration_map pe f
 
+/-- Every quotient loop body is the projection of an exact body, after applying its coproduct
+comparison. -/
+theorem repairedIteration_body_surjective {X Y : RepairedSynCat (τ := τ) (Φ := Φ) pe}
+    (f : X ⟶ Y ⨿ X) :
+    ∃ g : X.as ⟶ Y.as ⨿ X.as, (P).map g ≫ (repairedProjectionCoprodIso pe Y.as X.as).hom = f :=
+  RepairedIterationProofs.repairedIteration_body_surjective pe f
+
+/-- The coproduct comparison commutes with the maps on the two branches. -/
+theorem repairedProjection_coprodIso_map {X Y U V : SynCat S} (f : X ⟶ U) (g : Y ⟶ V) :
+    (repairedProjectionCoprodIso pe X Y).hom ≫ coprod.map ((P).map f) ((P).map g) =
+      (P).map (coprod.map f g) ≫ (repairedProjectionCoprodIso pe U V).hom :=
+  RepairedIterationProofs.repairedProjection_coprodIso_map pe f g
+
 /-- Quotient iteration satisfies the Elgot fixpoint equation. -/
 theorem repairedIteration_fixpoint {X Y : RepairedSynCat (τ := τ) (Φ := Φ) pe}
     (f : X ⟶ Y ⨿ X) :
