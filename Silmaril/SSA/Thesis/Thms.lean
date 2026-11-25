@@ -27,6 +27,6 @@ are initiality in the category of algebras and completeness with respect to
 algebras only; they may not be read as statements about "all models" in the
 informal sense, nor as Freyd, Elgot or monadic semantics.  Initiality into
 strong Elgot Freyd models and the non-vacuity examples for lambda-iter are in
-`Silmaril.SSA.Thesis.Categorical.Thms`; the source files `Models/Monadic` and
-`Semantics/Kleisli` were not ported.  Universes: `Syn S : Alg.{u, u} S`.
+`Silmaril.SSA.Thesis.Categorical.Thms`; the monadic and Kleisli statements are in `Silmaril.SSA.Thesis.Monadic.Thms` and
+`Silmaril.SSA.Thesis.Kleisli.Thms`. Universes: `Syn S : Alg.{u, u} S`.
 -/
