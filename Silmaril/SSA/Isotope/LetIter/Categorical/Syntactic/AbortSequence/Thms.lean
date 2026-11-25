@@ -13,7 +13,7 @@ universe u
 namespace Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
 
 open CategoryTheory
-open Silmaril.Thesis.LambdaIter.Syn (mk)
+open Silmaril.Thesis.LambdaIter.Syn (SynCat mk)
 open Silmaril.Thesis.LambdaIter.Syn.SynCat
 
 variable {τ Φ ε : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε]
@@ -71,6 +71,24 @@ theorem repairedPackedHomEquiv_mk {n : Nat} {β : BoundCtx τ n} {a : ThesisTm E
     repairedPackedHomEquiv pe β A (repairedClass pe (mk (S := modelSig) ha)) =
       repairedHomClass pe (packedArrow (S := modelSig) ha) :=
   AbortSequenceProofs.repairedPackedHomEquiv_mk_proof pe ha
+
+/-- Repaired term classes are equal exactly when their typed representatives are related. -/
+theorem repairedClass_mk_eq_iff {n : Nat} {β : BoundCtx τ n}
+    {a b : ThesisTm Empty Φ n} {A : τ}
+    (ha : ThesisHasType Φ .nil (toThesisCtx β) a A)
+    (hb : ThesisHasType Φ .nil (toThesisCtx β) b A) :
+    repairedClass (β := β) pe (mk (S := modelSig) ha) =
+      repairedClass (β := β) pe (mk (S := modelSig) hb) ↔ RepairedEqv pe β a b A :=
+  ⟨Quotient.exact, fun h => Quotient.sound h⟩
+
+/-- Repaired hom classes are equal exactly when their one-variable representatives are related. -/
+theorem repairedHomClass_mk_eq_iff {X Y : SynCat modelSig} {a b : ThesisTm Empty Φ 1}
+    (ha : ThesisHasType Φ .nil (.snoc .nil X.ty) a Y.ty)
+    (hb : ThesisHasType Φ .nil (.snoc .nil X.ty) b Y.ty) :
+    repairedHomClass pe (X := X) (Y := Y) (mk (S := modelSig) ha) =
+      repairedHomClass pe (X := X) (Y := Y) (mk (S := modelSig) hb) ↔
+        RepairedEqv pe (.snoc .nil X.ty) a b Y.ty :=
+  repairedClass_mk_eq_iff pe ha hb
 
 /-- Equality of repaired packed classes reflects and preserves the repaired term relation. -/
 theorem repairedHomClass_packedArrow_eq_iff {n : Nat} {β : BoundCtx τ n}
