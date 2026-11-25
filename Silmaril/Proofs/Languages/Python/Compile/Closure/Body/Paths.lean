@@ -16,6 +16,7 @@ theorem childPaths {tree : Source.ScopeTree} {start : Nat} {source : List Source
   | ret => simp [Code.childPaths]
   | assign _ _ _ _ tail => exact tail
   | nonlocal _ tail => exact tail
+  | global _ tail => exact tail
   | @closure tree start name declaration body rest slot child params code next _ path _ _ _ _ _ _ _ inner tail =>
     let parent := tree.scope.context.path
     have nestedPath {nested : Source.BlockPath} (member : nested ∈ code.childPaths) :
