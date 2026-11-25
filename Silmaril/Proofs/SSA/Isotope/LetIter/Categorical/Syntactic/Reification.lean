@@ -51,14 +51,17 @@ private theorem packedArrow_abort_repaired {n : Nat} {β : BoundCtx τ n} {t : T
       (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) (empty : τ)) :
     classOf (packedArrow (S := modelSig) h ≫ emptyElim (Φ := Φ) pe A) =
       classOf (packedArrow (S := modelSig) (.abort (C := A) h)) := by
+  let packed := packedTyping (S := modelSig) h
   have nativeTyping : LocallyNameless.HasType Φ (Ctx.nil : Ctx Empty τ)
       (.snoc .nil (packType (S := modelSig) (Bridge.BoundCtx.toThesis β)))
       (Bridge.ofThesis (packedTerm (S := modelSig) (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t)))
       (empty : τ) := by
     apply (Bridge.hasType_iff (Bridge.TypeCompat.canonical τ) (Bridge.InstrCompat.canonical Φ τ)).mpr
     simpa only [Bridge.Ctx.toThesis, Bridge.BoundCtx.toThesis, Bridge.toThesis_ofThesis] using
-      Nonempty.intro (packedTyping (S := modelSig) h)
-  exact Quotient.sound (AbortEquiv.symm (AbortEquiv.sequence nativeTyping))
+      Nonempty.intro packed
+  exact (repairedHomClass_mk_eq_iff pe
+    (.let₁ packed (.abort (C := A) .newest)) (.abort (C := A) packed)).mpr
+    (AbortEquiv.symm (AbortEquiv.sequence nativeTyping))
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
