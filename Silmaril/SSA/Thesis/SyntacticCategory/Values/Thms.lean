@@ -37,11 +37,19 @@ def valueEmptyIsInitial (S : Sig.{u}) :
 instance valuesHasInitial (S : Sig.{u}) : HasInitial (ValueCat S) :=
   (valueEmptyIsInitial S).hasInitial
 
+/-- The left syntactic injection has a pure representative. -/
+theorem isPureMor_injl (A B : SynCat S) : IsPureMor (injl A B) :=
+  isPureMor_injl_proof A B
+
+/-- The right syntactic injection has a pure representative. -/
+theorem isPureMor_injr (A B : SynCat S) : IsPureMor (injr A B) :=
+  isPureMor_injr_proof A B
+
 /-- The two syntax injections have pure representatives. -/
-def valueCofan (A B : ValueCat S) : BinaryCofan A B :=
+@[expose] def valueCofan (A B : ValueCat S) : BinaryCofan A B :=
   BinaryCofan.mk (P := ⟨cop A.obj B.obj⟩)
-    ⟨injl A.obj B.obj, isPureMor_injl_proof _ _⟩
-    ⟨injr A.obj B.obj, isPureMor_injr_proof _ _⟩
+    ⟨injl A.obj B.obj, isPureMor_injl _ _⟩
+    ⟨injr A.obj B.obj, isPureMor_injr _ _⟩
 
 /-- Copairing two pure representatives gives a pure representative of the copairing. -/
 def valueCofanIsColimit (A B : ValueCat S) : IsColimit (valueCofan A B) :=

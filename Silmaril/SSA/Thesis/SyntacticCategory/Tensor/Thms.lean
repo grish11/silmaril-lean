@@ -78,7 +78,7 @@ theorem tensorRight_value {R A B : ValueCat S} (f : A ⟶ B) :
   tensorRight_value_proof f
 
 /-- The endofunctor of the syntactic computation category given by tensoring on the left. -/
-def tensorLeftFunctor (R : SynCat S) : SynCat S ⥤ SynCat S where
+@[expose] def tensorLeftFunctor (R : SynCat S) : SynCat S ⥤ SynCat S where
   obj := productObj R
   map := tensorLeft R
   map_id := tensorLeft_id R
