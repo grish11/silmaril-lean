@@ -10,6 +10,34 @@ positions and mapping the sorts of the corresponding profiles. The maps can
 identify sorts or symbols. [Definitions](../../Silmaril/SSA/MLIR/Institution/Defs.lean) ·
 [Institution laws](../../Silmaril/SSA/MLIR/Institution/Thms.lean)
 
+## Typed signature category
+
+`Silmaril.SSA.MLIR.Signature.Thms` exposes the signature category on its own.
+`Signature.withRegions` is a fully faithful functor from `Signature false` to
+`Signature true`. It keeps the sorts and symbols and gives each operation zero
+region slots. `includeRegionless` gives a natural family of `Room` corridors
+along this functor. It translates equations forward and restricts models
+backward, preserving and reflecting satisfaction in each model.
+[Signature API](../../Silmaril/SSA/MLIR/Signature/Thms.lean) ·
+[Institution inclusion](../../Silmaril/SSA/MLIR/Institution/Regionless/Thms.lean)
+
+`Signature.disjointSum` is a binary coproduct for either choice of region
+policy. It tags sorts and operation symbols by dialect, including when both
+dialects start with the same sort type. The mediator can identify the images
+of two tagged sorts. `disjointSum.isColimit` checks both factorization laws
+and uniqueness in the signature category.
+
+These arrows are typed renamings. An operation-to-block interpretation can
+expand a symbol to several applications, and a model interprets symbols as
+functions. The institution below uses discrete categories of such models.
+
+```sh
+lake build --wfail +Silmaril.SSA.MLIR.Signature.Thms \
+  +Silmaril.SSA.MLIR.Institution.Regionless.Thms
+```
+
+## Sentences and models
+
 A block has one expression per yielded value. An application selects a result
 from a pure total operation. Each body is typed in precisely its declared
 parameter context. A set model assigns a carrier to each sort and interprets

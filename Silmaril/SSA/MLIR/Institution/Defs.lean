@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Logic.Institution.Basic
+public import Silmaril.SSA.MLIR.Signature.Defs
 public import Mathlib.CategoryTheory.Discrete.Basic
 
 /-! Pure equational signatures for regionless operations and operations with isolated
@@ -11,65 +12,6 @@ single-block regions. Sorts may be identified by signature maps. -/
 namespace Silmaril.MLIR.Institution
 
 open CategoryTheory Silmaril.Logic.Institution
-
-/-- The number of block arguments and yielded values of an isolated region. -/
-structure RegionArity where
-  params : Nat
-  yields : Nat
-
-/-- An ordered family of region slots, each with its own parameter and yield counts. -/
-structure RegionSlots where
-  count : Nat
-  slot : Fin count → RegionArity
-
-/-- Slot counts are independent of sorts. A regionless operation has no region slots. -/
-structure OpArity (withRegions : Bool) where
-  operands : Nat
-  results : Nat
-  regions : if withRegions then RegionSlots else Unit
-
-/-- The ordered region slots of an operation. -/
-abbrev OpArity.regionArities : {withRegions : Bool} → OpArity withRegions → RegionSlots
-  | false, _ => ⟨0, Fin.elim0⟩
-  | true, a => a.regions
-
-abbrev OpArity.Region {withRegions : Bool} (a : OpArity withRegions) := Fin a.regionArities.count
-
-abbrev OpArity.region {withRegions : Bool} (a : OpArity withRegions) (r : a.Region) : RegionArity :=
-  a.regionArities.slot r
-
-/-- Ordered sorts for operands, results, block arguments and yields. -/
-structure Profile {withRegions : Bool} (a : OpArity withRegions) (Ty : Type) where
-  operand : Fin a.operands → Ty
-  result : Fin a.results → Ty
-  param : (r : a.Region) → Fin (a.region r).params → Ty
-  yield : (r : a.Region) → Fin (a.region r).yields → Ty
-
-def Profile.map {withRegions : Bool} {a : OpArity withRegions} {Ty Ty' : Type}
-    (f : Ty → Ty') (p : Profile a Ty) : Profile a Ty' where
-  operand i := f (p.operand i)
-  result i := f (p.result i)
-  param r i := f (p.param r i)
-  yield r i := f (p.yield r i)
-
-/-- A signature of symbols indexed by their full typed operation profile. -/
-structure Signature (withRegions : Bool) where
-  Ty : Type
-  Op : {a : OpArity withRegions} → Profile a Ty → Type
-
-/-- Maps may identify sorts and symbols. Every operand, result, block parameter and yield
-retains its slot and has its sort mapped by `sort`. -/
-structure Signature.Hom {withRegions : Bool} (S T : Signature withRegions) where
-  sort : S.Ty → T.Ty
-  symbol : ∀ {a : OpArity withRegions} {p : Profile a S.Ty}, S.Op p → T.Op (p.map sort)
-
-instance {withRegions : Bool} : Category (Signature withRegions) where
-  Hom := Signature.Hom
-  id _ := ⟨id, id⟩
-  comp f g := ⟨g.sort ∘ f.sort, fun o => g.symbol (f.symbol o)⟩
-  id_comp _ := rfl
-  comp_id _ := rfl
-  assoc _ _ _ := rfl
 
 /-- Assign a value to each position of a typed context, including the empty context. -/
 abbrev Assignment {Ty : Type} (carrier : Ty → Type) {n : Nat} (Γ : Fin n → Ty) :=
