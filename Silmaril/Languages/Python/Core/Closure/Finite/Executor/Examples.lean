@@ -157,12 +157,16 @@ private def ownedOutput : Slot callerLayout := .owned 0
 private def assertionCaller : Call.Saved Closure.Executor.Continuation :=
   ⟨callerLayout, frame, ⟨ownedOutput, .ret (.read ownedOutput)⟩⟩
 
+private def assertionEnvironment : Snapshot calleeLayout :=
+  ⟨residual, ⟨fun _ => none, Fin.elim0, fun _ => ⟨0⟩⟩⟩
+
+private def assertionTail : Closure.Executor.Body calleeLayout :=
+  .store (.capture 0) (.literal (.int 23)) (.ret (.literal (.int 5)))
+
 -- The callee has already updated cell 0. Its tail and the caller's result
 -- destination would both overwrite that cell if the assertion continued.
 private def asserting (test : Closure.Executor.Operand calleeLayout) : State :=
-  .running ⟨residual, ⟨fun _ => none, Fin.elim0, fun _ => ⟨0⟩⟩⟩
-    (.assert test (.store (.capture 0) (.literal (.int 23)) (.ret (.literal (.int 5)))))
-    [assertionCaller]
+  .running assertionEnvironment (.assert test assertionTail) [assertionCaller]
 
 private def assertionFailure : Result := .error .assertionError
 
@@ -205,5 +209,70 @@ example : advanceIn table globals (asserting (.readGlobal "missing")) =
 
 example : advanceIn table (fun _ => some (.bool false)) (asserting (.readGlobal "missing")) =
     some (none, .delivering residual [assertionCaller] assertionFailure) := rfl
+
+private def assertionNext : Closure.Executor.State :=
+  .running residual.project assertionEnvironment.frame assertionTail [assertionCaller]
+
+private def acceptsEquality (test : Closure.Executor.Operand calleeLayout) : Prop :=
+  ∃ next, advanceIn table globals (asserting test) = some (none, next) ∧ next.project = assertionNext
+
+example : acceptsEquality (.eqInt (.slot (.capture 0)) 7) :=
+  stepIn_iff.mp (Closure.Executor.stepIn_iff.mpr rfl)
+
+example : acceptsEquality (.eqInt (.global "argument") 11) :=
+  stepIn_iff.mp (Closure.Executor.stepIn_iff.mpr rfl)
+
+example : ∃ next, advanceIn table globals (asserting (.eqInt (.slot (.capture 0)) 11)) = some (none, next) ∧
+    next.project = .delivering residual.project [assertionCaller] assertionFailure :=
+  stepIn_iff.mp (Closure.Executor.stepIn_iff.mpr rfl)
+
+private def missingEquality : State := asserting (.eqInt (.global "missing") 0)
+private def missingResult : Result := .error (.nameError "missing")
+
+private theorem missingEqualityRun :
+    (semanticIn table.project globals).Execution missingEquality.project
+      [none, some (.resume missingResult), none, some (.complete missingResult)]
+      (.finished residual.project missingResult)
+      [missingEquality.project, .delivering residual.project [assertionCaller] missingResult,
+        .receiving residual.project assertionCaller [] missingResult,
+        .delivering residual.project [] missingResult, .finished residual.project missingResult] :=
+  .stepL (Closure.Executor.stepIn_iff.mpr rfl)
+    (.stepL (.resume _ _ _ _) (.stepL (.receiveError _ _ _ _) (.stepL (.complete _ _) (.refl _))))
+
+example : ∃ final states, (presentedIn table globals).Execution missingEquality
+      [none, some (.resume missingResult), none, some (.complete missingResult)] final states ∧
+    states.map State.project = [missingEquality.project, .delivering residual.project [assertionCaller] missingResult,
+      .receiving residual.project assertionCaller [] missingResult,
+      .delivering residual.project [] missingResult, .finished residual.project missingResult] ∧
+    final.project = .finished residual.project missingResult :=
+  executionIn_readback missingEqualityRun
+
+private def unboundEquality : State :=
+  .running { assertionEnvironment with heap } (.assert (.eqInt (.slot (.capture 0)) 0) assertionTail)
+    [assertionCaller]
+
+example : ∃ next, advanceIn table globals unboundEquality = some (none, next) ∧
+    next.project = .delivering heap.project [assertionCaller] (.error (.unboundCapture 0)) :=
+  stepIn_iff.mp (Closure.Executor.stepIn_iff.mpr rfl)
+
+private def danglingEquality : State :=
+  .running { assertionEnvironment with heap := HeapTable.empty }
+    (.assert (.eqInt (.slot (.capture 0)) 0) assertionTail) [assertionCaller]
+
+example : ∃ next, advanceIn table globals danglingEquality = some (some (.fault (.danglingCell ⟨0⟩)), next) ∧
+    next.project = .faulted HeapTable.empty.project [assertionCaller] (.danglingCell ⟨0⟩) :=
+  stepIn_iff.mp (Closure.Executor.stepIn_iff.mpr rfl)
+
+private def compares (value : Value) (right : Int) : Except Failure Value :=
+  let test : Closure.Executor.Operand calleeLayout := .eqInt (.global "value") right
+  test.evalIn (fun _ => some value) residual.project assertionEnvironment.frame
+
+example : compares (.int 7) 7 = .ok (.bool true) := rfl
+example : compares (.int 7) 0 = .ok (.bool false) := rfl
+example : compares (.bool false) 0 = .ok (.bool true) := rfl
+example : compares (.bool true) 1 = .ok (.bool true) := rfl
+example : compares (.bool true) 2 = .ok (.bool false) := rfl
+example : compares .none 0 = .ok (.bool false) := rfl
+example : compares (.function (frame.closure ref (fun _ => .owned 0))) 0 = .ok (.bool false) := rfl
 
 end Silmaril.Languages.Python.Core.Closure.Finite.Executor
