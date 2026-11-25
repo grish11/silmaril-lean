@@ -62,6 +62,25 @@ theorem constantBits_lowers :
           .localGet ⟨0⟩, .return_]⟩ :=
   rfl
 
+def lessThan (t : IntType) (sign : Signedness) : Func [t, t] .i32 :=
+  .letOp (.localGet .here) <|
+  .letOp (.localGet (.there .here)) <|
+  .letOp (.lt sign (.there .here) .here) <|
+  .return_ .here
+
+def expectedLessThan (t : Silmaril.Wasm.IntType) (sign : Silmaril.Wasm.Signedness) :
+    Silmaril.Wasm.Func :=
+  ⟨⟨0⟩, [.num (.int t), .num (.int t), .num (.int .i32)],
+    [.localGet ⟨0⟩, .localSet ⟨2⟩, .localGet ⟨1⟩, .localSet ⟨3⟩,
+      .localGet ⟨2⟩, .localGet ⟨3⟩, .intRelOp t (.lt sign), .localSet ⟨4⟩,
+      .localGet ⟨4⟩, .return_]⟩
+
+theorem lessThanSigned_lowers (t : IntType) :
+    (lessThan t .signed).toWasm? {} ⟨0⟩ = some (expectedLessThan t.toWasm .signed) := rfl
+
+theorem lessThanUnsigned_lowers (t : IntType) :
+    (lessThan t .unsigned).toWasm? {} ⟨0⟩ = some (expectedLessThan t.toWasm .unsigned) := rfl
+
 /-- Even an unused GC binding with integer result is rejected. -/
 def unusedGC : GC.Func [] (.core .i32) :=
   .letOp (.core (.const 17)) <|

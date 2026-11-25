@@ -5,8 +5,10 @@ and exactly one integer result. Upstream function parameters enter the body as
 local references. In this slice they can only be read with `wasmssa.local_get`.
 Each scalar binding introduces one fresh SSA value. Operand references carry
 their type and can only name earlier bindings. Constants carry the decoded
-32- or 64-bit pattern. `eqz` accepts either width and yields `i32`. `select`
-requires an `i32` condition and two alternatives of the same integer type.
+32- or 64-bit pattern. `eqz` accepts either width and yields `i32`.
+`lt_si` and `lt_ui` require operands of the same integer width and yield
+`i32`. `select` requires an `i32` condition and two alternatives of the same
+integer type.
 The function model omits symbols, export and argument/result attributes, and
 MLIR text and verifier interfaces.
 [Integer syntax](../../Silmaril/SSA/MLIR/WasmSSA/Defs.lean)
@@ -15,16 +17,17 @@ MLIR text and verifier interfaces.
 
 The 80 mnemonics below all have the prefix `wasmssa.`. The list is taken
 from the pinned operation definitions and matches the generated operation
-index. Checked rows cover the integer forms described above. Planned rows
-are outside this milestone.
+index. The 14 checked mnemonics cover the integer forms described above.
+The other 66 mnemonics are planned.
 
 | Status | Group | Mnemonics |
 | --- | --- | --- |
 | Checked | Function entry and exit | `func`, `local_get`, `return` |
 | Checked | Scalar bindings | `const`, `add`, `sub`, `mul`, `and`, `or`, `xor`, `eqz`, `select` |
+| Checked | Integer comparisons | `lt_si`, `lt_ui` |
 | Planned | Structured control | `block`, `block_return`, `branch_if`, `if`, `loop` |
 | Planned | Calls, declarations and mutation | `call`, `global`, `global_get`, `global_set`, `import_func`, `import_global`, `import_mem`, `import_table`, `local`, `local_set`, `local_tee`, `memory`, `table` |
-| Planned | Integer or mixed numeric operations | `clz`, `ctz`, `div_si`, `div_ui`, `eq`, `extend`, `extend_i32_s`, `extend_i32_u`, `ge_si`, `ge_ui`, `gt_si`, `gt_ui`, `le_si`, `le_ui`, `lt_si`, `lt_ui`, `ne`, `popcnt`, `rem_si`, `rem_ui`, `rotl`, `rotr`, `shl`, `shr_s`, `shr_u`, `wrap` |
+| Planned | Integer or mixed numeric operations | `clz`, `ctz`, `div_si`, `div_ui`, `eq`, `extend`, `extend_i32_s`, `extend_i32_u`, `ge_si`, `ge_ui`, `gt_si`, `gt_ui`, `le_si`, `le_ui`, `ne`, `popcnt`, `rem_si`, `rem_ui`, `rotl`, `rotr`, `shl`, `shr_s`, `shr_u`, `wrap` |
 | Planned | Floating-point operations and conversions | `abs`, `ceil`, `convert_s`, `convert_u`, `copysign`, `demote`, `div`, `floor`, `ge`, `gt`, `le`, `lt`, `max`, `min`, `nearest`, `neg`, `promote`, `reinterpret`, `sqrt`, `trunc`, `trunc_sat_si`, `trunc_sat_ui`, `trunc_si`, `trunc_ui` |
 
 Upstream also defines `ExternRefType`, `FuncRefType`, `LimitType`,
@@ -51,7 +54,8 @@ The published reference is generated from TableGen and tracks upstream.
 `Func.toBody` constructs a `Silmaril.Wasm.Validation.Intrinsic.Body`. Each SSA
 binding gets its own Core local after the parameters. Bindings are emitted in
 source order, including unused bindings. Operands are loaded into the stack
-from their typed slots. Subtraction loads the left operand first. Core
+from their typed slots. Subtraction and less-than load the left operand first.
+Less-than emits the Core integer relation with the source signedness. Core
 `select` loads the true value, the false value and then the condition, and
 carries one explicit integer type annotation. The terminator loads its operand
 and emits Core `return`. The local layout must fit the 32-bit local-index space.
@@ -68,6 +72,7 @@ using the function-validation theorem.
 | `Func.toWasm?_isSome_iff` | The optional lowering succeeds exactly when parameters plus bindings fit the local-index space. |
 | `Examples.selectDifference_lowers`, `Examples.selectDifference_validates` | A mixed-width block with reused SSA values lowers to the stated Core instructions and locals, and the function validates at type index zero. |
 | `Examples.constantBits_lowers` | An `i32` constant with all bits set retains its bit pattern, and an unused `i64` binding still lowers. |
+| `Examples.lessThanSigned_lowers`, `Examples.lessThanUnsigned_lowers` | For either integer width the emitted Core function preserves operand order and signedness and puts the comparison result in an `i32` local. |
 
 These results concern Core syntax and validation. WasmSpec's `Computes` and
 Silmaril's Wasm SSA runtime theorems are about execution. The translation

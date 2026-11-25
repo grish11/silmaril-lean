@@ -38,6 +38,10 @@ def BinOp.toWasm : BinOp → Silmaril.Wasm.IntBinOp
   | .or => .or
   | .xor => .xor
 
+def Signedness.toWasm : Signedness → Silmaril.Wasm.Signedness
+  | .signed => .signed
+  | .unsigned => .unsigned
+
 theorem IntType.width_toWasm (t : IntType) : t.toWasm.width = t.width := by
   cases t <;> rfl
 
@@ -68,6 +72,10 @@ def frame {C : Context} {input output : List CValType} (stack : List IntType)
     Body C (.plain (stack.map IntType.closed ++ input) (stack.map IntType.closed ++ output)) :=
   .frame b (numericStack C stack)
 
+def readPair {C : Context} {t : IntType} (lhs rhs : Slot C t) :
+    Body C (.plain [] [t.closed, t.closed]) :=
+  thenBody (.single (.localGet lhs)) (frame [t] (.single (.localGet rhs)))
+
 def numeric {C : Context} {i : Instr} {sig : InstrType}
     (atomic : Silmaril.Wasm.Validation.Intrinsic.isAtomic i = true)
     (valid : NumericInstrOk C i sig) : Body C sig :=
@@ -88,17 +96,17 @@ def lowerOp {C : Context} {params Γ : List IntType}
       numeric rfl (.intConst t.toWasm (t.width_toWasm.symm ▸ bits))
   | .localGet param => .single (.localGet (paramsAt param))
   | .binary op lhs rhs =>
-      thenBody (.single (.localGet (valsAt lhs))) <|
-        thenBody (frame [t] (.single (.localGet (valsAt rhs)))) <|
-          numeric rfl (.intBinOp t.toWasm op.toWasm)
+      thenBody (readPair (valsAt lhs) (valsAt rhs)) (numeric rfl (.intBinOp t.toWasm op.toWasm))
   | .eqz (t := inputType) input =>
       thenBody (.single (.localGet (valsAt input))) <| numeric rfl (.intTestOp inputType.toWasm .eqz)
+  | .lt (t := inputType) sign lhs rhs =>
+      thenBody (readPair (valsAt lhs) (valsAt rhs))
+        (numeric rfl (.intRelOp inputType.toWasm (.lt sign.toWasm)))
   | .select condition ifTrue ifFalse =>
-      thenBody (.single (.localGet (valsAt ifTrue))) <|
-        thenBody (frame [t] (.single (.localGet (valsAt ifFalse)))) <|
-          thenBody (frame [t, t] (.single (.localGet (valsAt condition)))) <|
-            .single (.atom (.select (some [t.valType])) rfl
-              (.parametric (.selectExpl (.num (.int t.toWasm)))))
+      thenBody (readPair (valsAt ifTrue) (valsAt ifFalse)) <|
+        thenBody (frame [t, t] (.single (.localGet (valsAt condition)))) <|
+          .single (.atom (.select (some [t.valType])) rfl
+            (.parametric (.selectExpl (.num (.int t.toWasm)))))
 
 def lowerBlock {C : Context} {params Γ : List IntType} {result : IntType}
     (b : Block params result Γ) (paramsAt : Slots C params) (valsAt : Slots C Γ)

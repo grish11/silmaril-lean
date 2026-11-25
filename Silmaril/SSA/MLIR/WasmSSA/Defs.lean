@@ -41,6 +41,11 @@ inductive BinOp where
   | add | sub | mul | and | or | xor
   deriving DecidableEq, Repr
 
+/-- The interpretation of the operands to an integer comparison. -/
+inductive Signedness where
+  | signed | unsigned
+  deriving DecidableEq, Repr
+
 /-- `Value` determines how operands refer to the surrounding SSA context. This
 lets the GC extension share the core operation signatures. -/
 inductive Op (params : List IntType) (Value : IntType → Type) : IntType → Type where
@@ -48,6 +53,8 @@ inductive Op (params : List IntType) (Value : IntType → Type) : IntType → Ty
   | localGet {t : IntType} (param : Ref params t) : Op params Value t
   | binary {t : IntType} (op : BinOp) (lhs rhs : Value t) : Op params Value t
   | eqz {t : IntType} (input : Value t) : Op params Value .i32
+  /-- `wasmssa.lt_si` or `wasmssa.lt_ui`, depending on the signedness. -/
+  | lt {t : IntType} (sign : Signedness) (lhs rhs : Value t) : Op params Value .i32
   | select {t : IntType} (condition : Value .i32) (ifTrue ifFalse : Value t) : Op params Value t
 
 def Op.map {params : List IntType} {Value Value' : IntType → Type}
@@ -56,6 +63,7 @@ def Op.map {params : List IntType} {Value Value' : IntType → Type}
   | .localGet param => .localGet param
   | .binary op lhs rhs => .binary op (f lhs) (f rhs)
   | .eqz input => .eqz (f input)
+  | .lt sign lhs rhs => .lt sign (f lhs) (f rhs)
   | .select condition ifTrue ifFalse => .select (f condition) (f ifTrue) (f ifFalse)
 
 abbrev Rhs (params Γ : List IntType) := Op params (Ref Γ)
