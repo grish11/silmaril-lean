@@ -87,7 +87,7 @@ theorem denote_bind_op_proof {n : Nat} {β : BoundCtx τ n} {f : Φ}
       J.map (envSnocIso M Γ β (instrTrg f)).hom ≫ denote J M dc)
       (snoc_retain J M (β := β) (A := instrSrc f) (InstructionModel.denote f))).symm
 
-private theorem denote_iter_newest {n : Nat} {β : BoundCtx τ n}
+theorem denote_iter_newest_proof {n : Nat} {β : BoundCtx τ n}
     {b : Tm ν Φ (n + 1)} {A B : τ}
     (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
     J.map (envSnocIso M Γ β A).hom ≫ denote J M (.iter (.bv (ι := 0))
@@ -109,7 +109,7 @@ theorem denote_iter_bind_proof {n : Nat} {β : BoundCtx τ n}
     denote J M (.iter da db) =
       denote J M (.let₁ da (.iter (.bv (ι := 0))
         (db.rename (TypedRenaming.underBinder β A A)))) :=
-  congrArg (bindArrow J (denote J M da)) (denote_iter_newest J M db).symm
+  congrArg (bindArrow J (denote J M da)) (denote_iter_newest_proof J M db).symm
 
 theorem denote_bind_case_proof {n : Nat} {β : BoundCtx τ n}
     {e : Tm ν Φ n} {l r : Tm ν Φ (n + 1)} {A B D : τ}
@@ -184,7 +184,7 @@ theorem denote_iter_fixpoint_proof {n : Nat} {β : BoundCtx τ n}
       (J.map (envSnocIso M Γ δ B).hom ≫ J.map q)
       (J.map (envSnocIso M Γ δ A).hom ≫ denote J M (.iter (.bv (ι := 0))
         (db'.rename (TypedRenaming.underBinder δ A A)))))
-  rw [denote_iter_newest, ← case_pre_map, contextualLoop_fixpoint]
+  rw [denote_iter_newest_proof, ← case_pre_map, contextualLoop_fixpoint]
   have exitBranch : J.map (s ▷ M.obj B) ≫ J.map (envSnocIso M Γ δ B).hom ≫ J.map q =
       J.map (snd E (M.obj B)) := by
     rw [← J.map_comp, snoc_newest, ← J.map_comp, whiskerRight_snd]

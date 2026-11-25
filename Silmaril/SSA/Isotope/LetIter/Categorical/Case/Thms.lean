@@ -12,6 +12,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
+open CartesianMonoidalCategory (snd)
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (caseWithContext)
 open Silmaril.Isotope.LetIter.LocallyNameless (Derivation Tm)
 
@@ -32,6 +33,13 @@ theorem case_postcomp [DistributiveFreydCategory J] {R A B D E : V}
     (k : J.obj D ⟶ J.obj E) :
     caseWithContext J e l r ≫ k = caseWithContext J e (l ≫ k) (r ≫ k) :=
   case_postcomp_proof J e l r k
+
+/-- A case whose branches only apply value maps is postcomposition by their coproduct map. -/
+theorem case_return_map [DistributiveFreydCategory J] [FreydCategory.CentralUnit J] {R A B T : V}
+    (f : J.obj R ⟶ J.obj (A ⨿ B)) (l : A ⟶ T) (r : B ⟶ T) :
+    caseWithContext J f (J.map (snd R A ≫ l)) (J.map (snd R B ≫ r)) =
+    f ≫ J.map (coprod.desc l r) :=
+  case_return_map_proof J f l r
 
 variable [Iteration C] [ElgotCategory C] [StrongElgotFreydCategory J]
   {τ : Type u₃} [TypeFormers τ] (M : TypeModel τ V)

@@ -105,6 +105,23 @@ theorem contextualLoop_retain {E A B : V}
     retainEnvironment J (fst E A) (contextualLoop J body) = iterate (contextualStep J body) :=
   contextualLoop_retain_proof J central shared body
 
+/-- Changing the exit payload by a value map commutes with contextual iteration. -/
+theorem contextualLoop_map_value_exit {R A B S : V}
+    (f : J.obj (R ⊗ S) ⟶ J.obj (A ⨿ S)) (e : A ⟶ B) :
+    contextualLoop J (f ≫ J.map (coprod.map e (𝟙 S))) =
+      contextualLoop J f ≫ J.map e :=
+  contextualLoop_map_value_exit_proof J f e
+
+/-- Collapse two iterations sharing their state and environment into one iteration. -/
+theorem contextualLoop_codiagonal {R A B : V}
+    (central : IsCentral (J.map (duplicate R) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) R R).inv))
+    (shared : ∃ h : J.obj R ⊗ J.obj (R ⊗ A) = J.obj (R ⊗ (R ⊗ A)),
+      Functor.StrongPremonoidal.tensorIso (J := J) R (R ⊗ A) = eqToIso h)
+    (f : J.obj (R ⊗ A) ⟶ J.obj ((B ⨿ A) ⨿ A)) :
+    contextualLoop J (contextualLoop J f) =
+      contextualLoop J (f ≫ J.map (coprod.desc (𝟙 (B ⨿ A)) (coprod.inr : A ⟶ B ⨿ A))) :=
+  contextualLoop_codiagonal_proof J central shared f
+
 end Iteration
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical

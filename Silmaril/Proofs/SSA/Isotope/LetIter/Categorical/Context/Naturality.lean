@@ -506,6 +506,57 @@ private theorem case_exit_transform {R A B D : V}
   change bindArrow J f (J.map (fst R A ▷ (B ⨿ A)) ≫ liftExit J k) = _
   exact bind_retainEnvironment_proof J _ _ _
 
+private theorem route_collapse (R A B : V) :
+    J.map (R ◁ coprod.desc (𝟙 (B ⨿ A)) (coprod.inr : A ⟶ B ⨿ A)) ≫
+      routeEnvironment J R B A =
+    routeEnvironment J R (B ⨿ A) A ≫ coprod.desc (routeEnvironment J R B A) coprod.inr := by
+  let route := routeEnvironment J R (B ⨿ A) A
+  have : IsIso route := by dsimp only [route, routeEnvironment, splitMapCoprod]; infer_instance
+  have hl : J.map (R ◁ (coprod.inl : B ⨿ A ⟶ (B ⨿ A) ⨿ A)) ≫ route = coprod.inl :=
+    distributeMap_inl J R (B ⨿ A) A
+  have hr : J.map (R ◁ (coprod.inr : A ⟶ (B ⨿ A) ⨿ A)) ≫ route = coprod.inr :=
+    distributeMap_inr J R (B ⨿ A) A
+  have hl' : coprod.inl ≫ inv route = J.map (R ◁ (coprod.inl : B ⨿ A ⟶ (B ⨿ A) ⨿ A)) := by
+    rw [← hl, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+  have hr' : coprod.inr ≫ inv route = J.map (R ◁ (coprod.inr : A ⟶ (B ⨿ A) ⨿ A)) := by
+    rw [← hr, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+  change _ = route ≫ _
+  apply (cancel_epi (inv route)).mp
+  simp only [IsIso.inv_hom_id_assoc]
+  apply coprod.hom_ext
+  · rw [← Category.assoc, hl', ← J.map_comp_assoc, ← MonoidalCategory.whiskerLeft_comp,
+      coprod.inl_desc, MonoidalCategory.whiskerLeft_id, J.map_id, Category.id_comp, coprod.inl_desc]
+  · have routeRight : J.map (R ◁ (coprod.inr : A ⟶ B ⨿ A)) ≫ routeEnvironment J R B A = coprod.inr :=
+      distributeMap_inr J R B A
+    rw [← Category.assoc, hr', ← J.map_comp_assoc, ← MonoidalCategory.whiskerLeft_comp,
+      coprod.inr_desc, routeRight, coprod.inr_desc]
+
+private theorem route_map_exit {R A B S : V} (e : A ⟶ B) :
+    J.map (R ◁ coprod.map e (𝟙 S)) ≫ routeEnvironment J R B S =
+      routeEnvironment J R A S ≫ coprod.map (J.map (R ◁ e)) (𝟙 (J.obj (R ⊗ S))) := by
+  let route := routeEnvironment J R A S
+  have : IsIso route := by dsimp only [route, routeEnvironment, splitMapCoprod]; infer_instance
+  have left : J.map (R ◁ (coprod.inl : A ⟶ A ⨿ S)) ≫ route = coprod.inl :=
+    distributeMap_inl J R A S
+  have right : J.map (R ◁ (coprod.inr : S ⟶ A ⨿ S)) ≫ route = coprod.inr :=
+    distributeMap_inr J R A S
+  have left' : coprod.inl ≫ inv route = J.map (R ◁ (coprod.inl : A ⟶ A ⨿ S)) := by
+    rw [← left, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+  have right' : coprod.inr ≫ inv route = J.map (R ◁ (coprod.inr : S ⟶ A ⨿ S)) := by
+    rw [← right, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+  change _ = route ≫ _
+  apply (cancel_epi (inv route)).mp
+  simp only [IsIso.inv_hom_id_assoc]
+  apply coprod.hom_ext
+  · have step : J.map (R ◁ (coprod.inl : B ⟶ B ⨿ S)) ≫ routeEnvironment J R B S = coprod.inl :=
+      distributeMap_inl J R B S
+    rw [← Category.assoc, left', ← J.map_comp_assoc, ← MonoidalCategory.whiskerLeft_comp,
+      coprod.inl_map, MonoidalCategory.whiskerLeft_comp, J.map_comp_assoc, step, coprod.inl_map]
+  · have step : J.map (R ◁ (coprod.inr : S ⟶ B ⨿ S)) ≫ routeEnvironment J R B S = coprod.inr :=
+      distributeMap_inr J R B S
+    rw [← Category.assoc, right', ← J.map_comp_assoc, ← MonoidalCategory.whiskerLeft_comp,
+      coprod.inr_map, Category.id_comp, step, coprod.inr_map, Category.id_comp]
+
 end Distributive
 
 section Iteration
@@ -681,6 +732,41 @@ theorem contextualLoop_naturality_proof [FreydCategory.CentralUnit J] {R A B D :
         (J.map (snd (R ⊗ A) A ≫ coprod.inr))) := by
   rw [bind_retainEnvironment_proof, contextualLoop_retain_proof J central shared, case_exit_transform,
     contextualLoop_liftExit_proof J central]
+
+theorem contextualLoop_codiagonal_proof {R A B : V}
+    (central : IsCentral (J.map (duplicate R) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) R R).inv))
+    (shared : ∃ h : J.obj R ⊗ J.obj (R ⊗ A) = J.obj (R ⊗ (R ⊗ A)),
+      Functor.StrongPremonoidal.tensorIso (J := J) R (R ⊗ A) = eqToIso h)
+    (f : J.obj (R ⊗ A) ⟶ J.obj ((B ⨿ A) ⨿ A)) :
+    contextualLoop J (contextualLoop J f) =
+      contextualLoop J (f ≫ J.map (coprod.desc (𝟙 (B ⨿ A)) (coprod.inr : A ⟶ B ⨿ A))) := by
+  let collapse := coprod.desc (𝟙 (B ⨿ A)) (coprod.inr : A ⟶ B ⨿ A)
+  have body :
+      contextualStep J (f ≫ J.map collapse) =
+        contextualStep J f ≫ coprod.desc (routeEnvironment J R B A) coprod.inr := by
+    simp only [contextualStep, retainEnvironment_comp_proof, retainLeft_map, Category.assoc,
+      collapse, route_collapse]
+  have nested : contextualStep J (contextualLoop J f) =
+      iterate (contextualStep J f) ≫ routeEnvironment J R B A := by
+    change retainEnvironment J (fst R A) (contextualLoop J f) ≫ routeEnvironment J R B A = _
+    rw [contextualLoop_retain_proof J central shared f]
+  rw [contextualLoop_eq_step, nested,
+    ElgotCategory.naturality (contextualStep J f) (routeEnvironment J R B A),
+    ElgotCategory.codiagonal]
+  change _ = contextualLoop J (f ≫ J.map collapse)
+  rw [contextualLoop_eq_step, body, Category.assoc, coprod.map_desc, Category.comp_id, Category.id_comp]
+
+theorem contextualLoop_map_value_exit_proof {R A B S : V}
+    (f : J.obj (R ⊗ S) ⟶ J.obj (A ⨿ S)) (e : A ⟶ B) :
+    contextualLoop J (f ≫ J.map (coprod.map e (𝟙 S))) =
+      contextualLoop J f ≫ J.map e := by
+  have step : contextualStep J (f ≫ J.map (coprod.map e (𝟙 S))) =
+      contextualStep J f ≫ coprod.map (J.map (R ◁ e)) (𝟙 (J.obj (R ⊗ S))) := by
+    simp only [contextualStep, retainEnvironment_comp_proof, retainLeft_map, Category.assoc,
+      route_map_exit]
+  rw [contextualLoop_eq_step, step, ← ElgotCategory.naturality, contextualLoop_eq_step,
+    Category.assoc, Category.assoc, ← J.map_comp, ← J.map_comp,
+    CartesianMonoidalCategory.whiskerLeft_snd]
 
 end Iteration
 

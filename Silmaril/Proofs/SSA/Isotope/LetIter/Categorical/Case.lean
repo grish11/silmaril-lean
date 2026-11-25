@@ -98,6 +98,15 @@ private theorem case_return_context [FreydCategory.CentralUnit J] {R A B : V}
   rw [FreydCategory.whiskerLeft_snd J, ← J.map_comp_assoc]
   simp [duplicate]
 
+theorem case_return_map_proof [FreydCategory.CentralUnit J] {R A B T : V}
+    (f : J.obj R ⟶ J.obj (A ⨿ B)) (l : A ⟶ T) (r : B ⟶ T) :
+    caseWithContext J f (J.map (snd R A ≫ l)) (J.map (snd R B ≫ r)) =
+    f ≫ J.map (coprod.desc l r) := by
+  conv_rhs => rw [← case_return_context J f]
+  rw [case_postcomp_proof]
+  simp only [← J.map_comp, Category.assoc, coprod.inl_desc, coprod.inr_desc]
+
+
 end
 
 variable [Iteration C] [ElgotCategory C] [StrongElgotFreydCategory J]

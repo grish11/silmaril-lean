@@ -13,6 +13,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits CartesianMonoidalCategory
 open Silmaril.Isotope.LetIter.LocallyNameless
+open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (contextualLoop)
 
 variable {τ : Type u} [TypeFormers τ] {ν : Type w} [DecidableEq ν]
   {Φ : Type v} [HasTy Φ τ] {Γ : Ctx ν τ}
@@ -76,5 +77,15 @@ theorem denote_iter_fixpoint {n : Nat} {β : BoundCtx τ n}
           ((db.rename (TypedRenaming.underBinder β A A)).rename
             (TypedRenaming.underBinder (.snoc β A) A A))))) :=
   denote_iter_fixpoint_proof J M da db
+
+/-- Starting a loop at the newest bound variable recovers its contextual loop arrow. -/
+theorem denote_iter_newest {n : Nat} {β : BoundCtx τ n}
+    {b : Tm ν Φ (n + 1)} {A B : τ}
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
+    J.map (envSnocIso M Γ β A).hom ≫ denote J M (.iter (.bv (ι := 0))
+      (db.rename (TypedRenaming.underBinder β A A))) =
+      contextualLoop J (J.map (envSnocIso M Γ β A).hom ≫ denote J M db ≫
+        J.map (M.coprodIso B A).hom) :=
+  denote_iter_newest_proof J M db
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical
