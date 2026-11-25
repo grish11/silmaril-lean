@@ -22,6 +22,7 @@ inductive Code (layout : Layout) where
   | assert (test : Body.Expr layout) (next : Code layout)
   | assertFreeVars (receiver : Body.Expr layout) (needle : List UInt32) (expected : Bool) (next : Code layout)
   | assertCellVars (receiver : Body.Expr layout) (needle : List UInt32) (next : Code layout)
+  | assertCodeNames (receiver : Body.Expr layout) (needle : List UInt32) (next : Code layout)
   | discardCall (callee : Body.Expr layout) (next : Code layout)
   | assign (destination : Slot layout) (value : Body.Expr layout) (next : Code layout)
   | closure (destination : Slot layout) (path : BlockPath) (ref : CodeRef)
@@ -30,7 +31,7 @@ inductive Code (layout : Layout) where
 def Code.references {layout : Layout} : Code layout → List (BlockPath × CodeRef)
   | .ret _ => []
   | .assign _ _ next | .assert _ next | .assertFreeVars _ _ _ next
-  | .assertCellVars _ _ next | .discardCall _ next => next.references
+  | .assertCellVars _ _ next | .assertCodeNames _ _ next | .discardCall _ next => next.references
   | .closure _ path ref _ next => (path, ref) :: next.references
 
 structure Block where
@@ -109,6 +110,9 @@ def linkBody {layout : Layout} (first : Nat) (tree : ScopeTree) : Body.Code layo
   | .assertCellVars receiver needle rest =>
     let tail := linkBody first tree rest
     ⟨.assertCellVars receiver needle tail.code, tail.children⟩
+  | .assertCodeNames receiver needle rest =>
+    let tail := linkBody first tree rest
+    ⟨.assertCodeNames receiver needle tail.code, tail.children⟩
   | .discardCall callee rest =>
     let tail := linkBody first tree rest
     ⟨.discardCall callee tail.code, tail.children⟩

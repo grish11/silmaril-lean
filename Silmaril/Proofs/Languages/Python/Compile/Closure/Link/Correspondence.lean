@@ -49,7 +49,7 @@ private theorem link_targets {layout : Layout} (tree : Source.ScopeTree) (first 
   induction code generalizing first with
   | ret => simp [linkBody, Code.references, blockReferences]
   | assign _ _ _ tail | assert _ _ tail | assertFreeVars _ _ _ _ tail
-  | assertCellVars _ _ _ tail | discardCall _ _ tail =>
+  | assertCellVars _ _ _ tail | assertCodeNames _ _ _ tail | discardCall _ _ tail =>
     simpa [linkBody, Code.references] using tail first
   | closure slot path childLayout parameters captures child rest inner tail =>
     let nested := linkBody (first + 1) tree child
@@ -85,7 +85,7 @@ private theorem link_paths {layout : Layout} (tree : Source.ScopeTree) (first : 
   induction code generalizing first with
   | ret => rfl
   | assign _ _ _ tail | assert _ _ tail | assertFreeVars _ _ _ _ tail
-  | assertCellVars _ _ _ tail | discardCall _ _ tail =>
+  | assertCellVars _ _ _ tail | assertCodeNames _ _ _ tail | discardCall _ _ tail =>
     simpa [linkBody, Body.Code.childPaths] using tail first
   | closure _ _ _ _ _ _ _ inner tail =>
     simp [linkBody, Block.withFreeVars, Block.withCellVars, Body.Code.childPaths, inner, tail]

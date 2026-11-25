@@ -15,7 +15,7 @@ theorem ordinary {tree : Source.ScopeTree} {start : Nat} {source : List Source.S
   | ret clear _ _ | fallthrough clear _ => exact clear
   | assign _ _ _ _ tail | assert _ _ tail | pass _ tail | nonlocal _ tail | global _ tail => exact tail
   | assertBoolean _ tail | assertEqInt _ _ tail | assertFreeVars _ _ _ tail
-  | assertCellVars _ _ _ tail | discardCall _ _ _ tail => exact tail
+  | assertCellVars _ _ _ tail | assertCodeNames _ _ _ tail | discardCall _ _ _ tail => exact tail
   | closure _ _ _ _ _ _ _ _ _ _ tail => exact tail
 
 theorem ordinaryChild {tree : Source.ScopeTree} {start : Nat} {source : List Source.Stmt}
@@ -28,7 +28,7 @@ theorem ordinaryChild {tree : Source.ScopeTree} {start : Nat} {source : List Sou
   | assign _ _ _ _ tail | assert _ _ tail | pass _ tail | nonlocal _ tail | global _ tail =>
     exact tail member
   | assertBoolean _ tail | assertEqInt _ _ tail | assertFreeVars _ _ _ tail
-  | assertCellVars _ _ _ tail | discardCall _ _ _ tail => exact tail member
+  | assertCellVars _ _ _ tail | assertCodeNames _ _ _ tail | discardCall _ _ _ tail => exact tail member
   | @closure tree start name declaration body rest slot child params code next found path _ _ _ _ _
       childTranslation _ childOrdinary nextOrdinary =>
     simp only [Code.childPaths, List.mem_cons, List.mem_append] at member
@@ -48,7 +48,7 @@ theorem childPaths {tree : Source.ScopeTree} {start : Nat} {source : List Source
   induction translated with
   | ret | fallthrough => simp [Code.childPaths]
   | assign _ _ _ _ tail | assert _ _ tail | assertBoolean _ tail | assertEqInt _ _ tail
-  | assertFreeVars _ _ _ tail | assertCellVars _ _ _ tail | discardCall _ _ _ tail => exact tail
+  | assertFreeVars _ _ _ tail | assertCellVars _ _ _ tail | assertCodeNames _ _ _ tail | discardCall _ _ _ tail => exact tail
   | pass _ tail | nonlocal _ tail | global _ tail => exact tail
   | @closure tree start name declaration body rest slot child params code next _ path _ _ _ _ _ _ _ inner tail =>
     let parent := tree.scope.context.path

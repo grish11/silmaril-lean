@@ -51,7 +51,17 @@ contribute to `co_freevars`. A definition with captured parameters has no
 `co_cellvars` tuple in this profile because their observable ordering differs
 between CPython 3.7 and 3.13. The executor retains the literal code points and
 uses the same frame, heap and function identity through the test.
-Other code metadata attributes remain compiler rejections.
+The source and linker also recognize message-free
+`assert "<literal>" in name.__code__.co_names` in an ordinary function.
+The name-table evidence is indexed by the linked code key and layout. It
+models the order in which CPython 3.7.3 and 3.13.5 intern name operands
+in `exec` mode at optimization level zero. It records global loads,
+the two attribute loads of this form, and the assertion-failure operation.
+The 3.7.3 tuple includes the synthetic `AssertionError` name. The 3.13.5
+tuple uses a dedicated opcode for that branch. Repeated names keep their
+first index, and each nested body has its own table. Unsupported code
+shapes have no checked tuple. Execution of `co_names` assertions still
+requires a Core metadata read and stops at the executor lowering boundary.
 
 Successful lowering retains the source translation and preserves the
 definition, layout and parameter destinations at every emitted code key.

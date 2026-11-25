@@ -110,6 +110,7 @@ def lowerCode {layout : Layout} : (code : Link.Code layout) →
     let receiver ← nameRead? source
     let tail ← lowerCode rest
     return ⟨.assertCellvars ⟨receiver.val, needle⟩ tail.val, .assertCellVars receiver.property tail.property⟩
+  | .assertCodeNames _ _ _ => none
   | .discardCall callee rest => do
     let function ← operand? callee
     let tail ← lowerCode rest

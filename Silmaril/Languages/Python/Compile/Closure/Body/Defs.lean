@@ -147,6 +147,7 @@ inductive Code : Core.Closure.Layout → Type where
   | assertFreeVars {layout} (receiver : Expr layout) (needle : List UInt32) (expected : Bool)
       (next : Code layout) : Code layout
   | assertCellVars {layout} (receiver : Expr layout) (needle : List UInt32) (next : Code layout) : Code layout
+  | assertCodeNames {layout} (receiver : Expr layout) (needle : List UInt32) (next : Code layout) : Code layout
   | discardCall {layout} (callee : Expr layout) (next : Code layout) : Code layout
   | assign {layout} (destination : Slot layout) (value : Expr layout) (next : Code layout) : Code layout
   | closure {layout} (destination : Slot layout) (path : BlockPath) (childLayout : Core.Closure.Layout)
@@ -157,7 +158,7 @@ inductive Code : Core.Closure.Layout → Type where
 def Code.childPaths {layout : Core.Closure.Layout} : Code layout → List BlockPath
   | .ret _ => []
   | .assign _ _ next | .assert _ next | .assertFreeVars _ _ _ next
-  | .assertCellVars _ _ next | .discardCall _ next => next.childPaths
+  | .assertCellVars _ _ next | .assertCodeNames _ _ next | .discardCall _ next => next.childPaths
   | .closure _ path _ _ _ child next => path :: (child.childPaths ++ next.childPaths)
 
 def fixed (parameter : Source.Parameter) : Bool :=
@@ -227,6 +228,18 @@ def cellVarsTest? : (source : Source.Expr) →
     some ⟨(function, name), .excludes function name⟩
   | _ => none
 
+inductive CodeNamesTest : Source.Expr → Name → List UInt32 → Prop where
+  | contains (function : Name) (name : List UInt32) :
+      CodeNamesTest
+        (.comparison (.text name) [(.in_, .attribute (.attribute (.name function) "__code__") "co_names")])
+        function name
+
+def codeNamesTest? : (source : Source.Expr) →
+    Option {test : Name × List UInt32 // CodeNamesTest source test.1 test.2}
+  | .comparison (.text name) [(.in_, .attribute (.attribute (.name function) "__code__") "co_names")] =>
+    some ⟨(function, name), .contains function name⟩
+  | _ => none
+
 inductive Translation : (tree : ScopeTree) → Nat → List Source.Stmt →
     Code (frameLayout tree.scope) → Prop where
   | ret {tree index source target} (ordinary : tree.scope.context.containsYield = false)
@@ -261,6 +274,11 @@ inductive Translation : (tree : ScopeTree) → Nat → List Source.Stmt →
       (read : ExprTranslation tree.scope (.name name) function)
       (tail : Translation tree index rest next) :
       Translation tree index (.assert_ source none :: rest) (.assertCellVars function member next)
+  | assertCodeNames {tree index source name function member rest next}
+      (shape : CodeNamesTest source name member)
+      (read : ExprTranslation tree.scope (.name name) function)
+      (tail : Translation tree index rest next) :
+      Translation tree index (.assert_ source none :: rest) (.assertCodeNames function member next)
   | discardCall {tree index source name callee rest next}
       (shape : ZeroArgumentNameCall source name)
       (read : ExprTranslation tree.scope (.name name) callee)
@@ -311,6 +329,10 @@ private def lowerOrdinaryBody (tree : ScopeTree) (allowGlobals : Bool)
       let read ← lowerExprWith tree.scope allowGlobals (.name function)
       let tail ← lowerOrdinaryBody tree allowGlobals ordinary childIndex rest
       return ⟨.assertCellVars read.val name tail.val, .assertCellVars shape read.property tail.property⟩
+    else if let some ⟨(function, name), shape⟩ := codeNamesTest? test then
+      let read ← lowerExprWith tree.scope allowGlobals (.name function)
+      let tail ← lowerOrdinaryBody tree allowGlobals ordinary childIndex rest
+      return ⟨.assertCodeNames read.val name tail.val, .assertCodeNames shape read.property tail.property⟩
     else
       let target ← lowerExprWith tree.scope allowGlobals test
       let tail ← lowerOrdinaryBody tree allowGlobals ordinary childIndex rest
