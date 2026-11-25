@@ -61,26 +61,6 @@ variable {V : Type u₀} {C : Type u₁} {D : Type u₂}
   [Iteration C] [ElgotCategory C] [Iteration D] [ElgotCategory D]
   (J : V ⥤ C) (P : C ⥤ D) [StrongElgotFreydCategory J] [StrongElgotFreydCategory (J ⋙ P)]
 
-local notation "tIso" K => Functor.StrongPremonoidal.tensorIso (J := K)
-
-/-- A coherent tensor comparison gives preservation of retaining a value context. -/
-private theorem retainOfTensor
-    (σ : ∀ X Y : C, P.obj (X ⊗ Y) ≅ P.obj X ⊗ P.obj Y)
-    (whisker : ∀ (X : C) {Y Z : C} (f : Y ⟶ Z),
-      P.map (X ◁ f) ≫ (σ X Z).hom = (σ X Y).hom ≫ (P.obj X ◁ P.map f))
-    (tensorHom : ∀ R A : V,
-      P.map ((tIso J) R A).hom = (σ (J.obj R) (J.obj A)).hom ≫ ((tIso (J ⋙ P)) R A).hom)
-    {R A B : V} (f : J.obj A ⟶ J.obj B) :
-    P.map (retainLeft J (R := R) f) = retainLeft (J ⋙ P) (R := R) (P.map f) := by
-  have tensorInv : P.map ((tIso J) R A).inv ≫ (σ (J.obj R) (J.obj A)).hom =
-      ((tIso (J ⋙ P)) R A).inv := by
-    apply (cancel_mono ((tIso (J ⋙ P)) R A).hom).mp
-    rw [Category.assoc, ← tensorHom, ← P.map_comp, Iso.inv_hom_id, P.map_id, Iso.inv_hom_id]
-  simp only [retainLeft, leftTensor, id_whiskerRight, Category.id_comp, Functor.map_comp]
-  rw [tensorHom, ← Category.assoc (P.map (J.obj R ◁ f)), whisker,
-    Category.assoc, ← Category.assoc (P.map ((tIso J) R A).inv), tensorInv]
-  rfl
-
 /-- Preservation at exactly the interfaces used by native contextual control. -/
 structure PreservesControl : Prop where
   retain {R A B : V} (f : J.obj A ⟶ J.obj B) :
@@ -178,6 +158,33 @@ private theorem mapPrecomposeDenote {Γ : Ctx ν τ} {n : Nat} {β : BoundCtx τ
 
 end SameValues
 
+section RepairedRetention
+
+open Silmaril.Thesis.LambdaIter.Syn.SynCat (ValueCat values)
+
+variable {τ Φ ε : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε] (pe : ε)
+  [SymmetricPremonoidalCategory (RepairedSynCat (τ := τ) (Φ := Φ) pe)]
+  [FreydCategory (repairedValues (τ := τ) (Φ := Φ) pe)]
+
+local notation "S" => signature (τ := τ) (Φ := Φ) pe
+local notation "I" => values S
+local notation "P" => repairedProjection (τ := τ) (Φ := Φ) pe
+local notation "Jq" => repairedValues (τ := τ) (Φ := Φ) pe
+local notation "tIso" K => Functor.StrongPremonoidal.tensorIso (J := K)
+
+theorem repairedProjection_retainLeft {R A B : ValueCat S} (f : (I).obj A ⟶ (I).obj B)
+    (tensorA : (P).map ((tIso I) R A).hom = ((tIso Jq) R A).hom)
+    (tensorB : (P).map ((tIso I) R B).hom = ((tIso Jq) R B).hom) :
+    (P).map (retainLeft I (R := R) f) = retainLeft Jq (R := R) ((P).map f) := by
+  have tensorInv : (P).map ((tIso I) R A).inv = ((tIso Jq) R A).inv := by
+    apply (cancel_mono ((tIso Jq) R A).hom).mp
+    rw [← tensorA, ← (P).map_comp, Iso.inv_hom_id, (P).map_id, tensorA, Iso.inv_hom_id]
+  simp only [retainLeft, leftTensor, id_whiskerRight, Category.id_comp, Functor.map_comp]
+  rw [tensorInv, tensorB, ← repairedWhiskerLeft_map pe ((I).obj R) f]
+  rfl
+
+end RepairedRetention
+
 section RepairedSyntactic
 
 open Silmaril.Thesis.LambdaIter.Syn.SynCat (ValueCat values)
@@ -201,13 +208,7 @@ variable
 include tensorHom in
 
 private theorem repairedControl : PreservesControl (values modelSig) P where
-  retain f := by
-    refine retainOfTensor (values modelSig) P (fun X Y => Iso.refl ((P).obj (X ⊗ Y))) ?_ ?_ f
-    · intro X Y Z g
-      simpa only [Iso.refl_hom, Category.comp_id, Category.id_comp] using
-        (repairedWhiskerLeft_map pe X g).symm
-    · intro R A
-      simpa only [Iso.refl_hom, Category.id_comp] using tensorHom R A
+  retain {R A B} f := repairedProjection_retainLeft pe f (tensorHom R A) (tensorHom R B)
   chooseCoprod X Y := ⟨repairedProjectionCoprodIso pe X Y,
     repairedProjection_coprodIso_inl pe X Y, repairedProjection_coprodIso_inr pe X Y,
     repairedIteration_map pe⟩

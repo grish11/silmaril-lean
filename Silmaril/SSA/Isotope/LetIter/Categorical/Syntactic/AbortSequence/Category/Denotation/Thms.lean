@@ -15,17 +15,32 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
 
 open CategoryTheory
 open Silmaril.Isotope.LetIter.LocallyNameless (Derivation Tm)
+open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (retainLeft)
 open Silmaril.Thesis.LambdaIter.Syn.SynCat (ValueCat values)
 
 variable {τ Φ ε : Type u} [TypeFormers τ] [HasTy Φ τ] [HasEff Φ ε] (pe : ε)
   [SymmetricPremonoidalCategory (RepairedSynCat (τ := τ) (Φ := Φ) pe)]
-  [DistributivePremonoidalCategory (RepairedSynCat (τ := τ) (Φ := Φ) pe)]
-  [StrongElgotFreydCategory (repairedValues (τ := τ) (Φ := Φ) pe)]
-  [InstructionModel (repairedValues (τ := τ) (Φ := Φ) pe) (typeModel (τ := τ) (Φ := Φ) pe) Φ]
 
+local notation "S" => signature (τ := τ) (Φ := Φ) pe
+local notation "I" => values S
 local notation "P" => repairedProjection (τ := τ) (Φ := Φ) pe
 local notation "Jq" => repairedValues (τ := τ) (Φ := Φ) pe
 local notation "model" => typeModel (τ := τ) (Φ := Φ) pe
+
+/-- Projection preserves retaining a value context when the two endpoint tensor comparisons
+are preserved. -/
+theorem repairedProjection_retainLeft [FreydCategory Jq] {R A B : ValueCat S}
+    (f : (I).obj A ⟶ (I).obj B)
+    (tensorA : (P).map (Functor.StrongPremonoidal.tensorIso (J := I) R A).hom =
+      (Functor.StrongPremonoidal.tensorIso (J := Jq) R A).hom)
+    (tensorB : (P).map (Functor.StrongPremonoidal.tensorIso (J := I) R B).hom =
+      (Functor.StrongPremonoidal.tensorIso (J := Jq) R B).hom) :
+    (P).map (retainLeft I (R := R) f) = retainLeft Jq (R := R) ((P).map f) :=
+  DenotationProofs.repairedProjection_retainLeft pe f tensorA tensorB
+
+variable [DistributivePremonoidalCategory (RepairedSynCat (τ := τ) (Φ := Φ) pe)]
+  [StrongElgotFreydCategory (repairedValues (τ := τ) (Φ := Φ) pe)]
+  [InstructionModel (repairedValues (τ := τ) (Φ := Φ) pe) (typeModel (τ := τ) (Φ := Φ) pe) Φ]
 
 variable
   (tensorHom : ∀ R A : ValueCat (signature (τ := τ) (Φ := Φ) pe),

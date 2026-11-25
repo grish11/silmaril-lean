@@ -36,7 +36,8 @@ theorem repairedInstructionModel_pure (f : Φ) (hf : IsPure pe f) :
       (repairedInstructionModel pe).denote f = (Jq).map p :=
   ModelProofs.repairedInstructionModel_pure pe f hf
 
-private theorem repairedTensorComparison_map (R A : ValueCat S) :
+/-- In the concrete model, projection preserves the value functor's tensor comparison. -/
+theorem repairedTensorComparison_map (R A : ValueCat S) :
     (P).map (Functor.StrongPremonoidal.tensorIso (J := values S) R A).hom =
       (Functor.StrongPremonoidal.tensorIso (J := Jq) R A).hom :=
   (P).map_id _
