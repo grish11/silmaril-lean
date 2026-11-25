@@ -1,0 +1,80 @@
+module
+
+import Silmaril.SSA.MLIR.CF.SwitchAssert
+
+/-! Executable checks for typed switch edges and assertion outcomes. -/
+
+namespace Silmaril.MLIR.CF.SwitchAssert.Examples
+
+open Arith (Width Env)
+open Silmaril.MLIR.Pure (Eval i1)
+
+private def i8 : Width := ⟨8, by decide⟩
+private def i65 : Width := ⟨65, by decide⟩
+
+private inductive Op : List Width → Width → Type where
+  | inc : Op [i8] i8
+
+private def evalOp : Eval Op
+  | _, _, .inc, .cons n .nil => n + 1
+
+private inductive Label : List Width → Type where
+  | matched : Label [i8]
+  | fallback : Label [i1, i8]
+
+/-- The cases differ only at bit 64 and pass different operands to the same
+successor. The default forwards a tuple of a different type and arity. -/
+private def dispatch : Cfg Op Label [i1, i65, i8, i8] [i8] where
+  entry := .assert .here "dispatch enabled" <| .terminator (.switch {
+    flag := .there .here
+    widthSupported := by decide
+    defaultEdge := ⟨.fallback, .cons .here (.cons (.there (.there (.there .here))) .nil)⟩
+    cases := [(1, ⟨.matched, .cons (.there (.there .here)) .nil⟩),
+      (18446744073709551617, ⟨.matched, .cons (.there (.there (.there .here))) .nil⟩)]
+    unique := by decide
+  })
+  block
+    | .matched =>
+        .letOp .inc (.cons .here .nil) (.terminator (.basic (.ret (.cons .here .nil))))
+    | .fallback => .terminator (.basic (.ret (.cons (.there .here) .nil)))
+
+private def input (test : BitVec 1) (flag : BitVec 65) : Env [i1, i65, i8, i8] :=
+  .cons test (.cons flag (.cons 7 (.cons 19 .nil)))
+
+example : dispatch.run evalOp 2 (input 1 1) = some (.returned (.cons 8 .nil)) := rfl
+example : dispatch.run evalOp 2 (input 1 18446744073709551617) =
+    some (.returned (.cons 20 .nil)) := rfl
+example : dispatch.run evalOp 2 (input 1 9) = some (.returned (.cons 19 .nil)) := rfl
+example : dispatch.run evalOp 1 (input 1 9) = none := rfl
+example : dispatch.run evalOp 1 (input 0 9) = some .aborted := rfl
+
+private inductive LoopLabel : List Width → Type where
+  | again : LoopLabel []
+
+/-- A default-only `i1` switch forms a cycle when the assertion succeeds. -/
+private def loopBody : Block Op LoopLabel [] [i1] :=
+  .assert .here "loop enabled" <| .terminator (.switch {
+    flag := .here
+    widthSupported := by decide
+    defaultEdge := ⟨.again, .nil⟩
+    cases := []
+    unique := by decide
+  })
+
+private def loop : Cfg Op LoopLabel [i1] [] where
+  entry := loopBody
+  block | .again => loopBody
+
+example : loop.run evalOp 1 (.cons 0 .nil) = some .aborted := rfl
+
+example : loop.Diverges evalOp (.cons 1 .nil) := by
+  intro fuel
+  induction fuel with
+  | zero => rfl
+  | succ _ ih => exact ih
+
+example : (16777215 : Nat) ≤ maxSwitchWidth := by decide
+example : ¬ (16777216 : Nat) ≤ maxSwitchWidth := by decide
+example : ¬ ([255, -1] : List (BitVec 8)).Nodup := by decide
+
+end Silmaril.MLIR.CF.SwitchAssert.Examples
