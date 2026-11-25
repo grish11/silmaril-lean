@@ -30,6 +30,8 @@ structure BlockContext where
   read : List Name := []
   globals : List Name := []
   nonlocals : List Name := []
+  /-- Whether collection visited a yield in this block's own lexical context. -/
+  containsYield : Bool := false
   deriving Repr
 
 /-- A module, or an explicit global declaration in a function, ends the search. -/
@@ -301,7 +303,8 @@ mutual
     | .slice receiver lower upper stride => do
       let block ← collectExpr block receiver
       collectOptional (← collectOptional (← collectOptional block lower) upper) stride
-    | .yield_ value => collectOptional block value
+    | .yield_ value =>
+      collectOptional { block with context := { block.context with containsYield := true } } value
     | .lambda parameters body => do
       let outer ← collectDefaults block parameters
       let context ← functionContext outer.childPath parameters

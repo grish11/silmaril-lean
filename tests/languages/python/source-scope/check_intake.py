@@ -2,12 +2,14 @@
 """Check the Python AST emitter, source scope and supported compiler profiles."""
 
 import argparse
+import inspect
 import json
 import os
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import CodeType
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -78,6 +80,43 @@ def outer(seed):
 #guard ((analyze pythonSource).toOption.bind (·.atPath [0, 0, 0, 0])).bind (·.access "key") ==
   some (.free [0, 0, 0])
 """, extra_imports=("import Batteries.Tactic.Alias",))
+        yields = """
+def outer():
+    def suspended():
+        if False:
+            yield 1
+    return lambda: (yield 2)
+
+def defaulted():
+    def nested(value=(yield 3)):
+        return value
+    return nested
+"""
+        expected = {
+            "outer": False, "suspended": True, "<lambda>": True,
+            "defaulted": True, "nested": False,
+        }
+
+        def generators(code):
+            result = {code.co_name: bool(code.co_flags & inspect.CO_GENERATOR)}
+            for constant in code.co_consts:
+                if isinstance(constant, CodeType):
+                    result.update(generators(constant))
+            return result
+
+        assert generators(compile(yields, "<scope fixture>", "exec")) == {"<module>": False, **expected}
+        emit(source, destination, yields)
+        paths = {"outer": [0], "suspended": [0, 0], "<lambda>": [0, 1],
+                 "defaulted": [1], "nested": [1, 0]}
+        observations = [
+            f"#guard hasYield {paths[name]} == some {str(value).lower()}"
+            for name, value in expected.items()
+        ]
+        check_lean(destination, """
+private def hasYield (path : BlockPath) : Option Bool :=
+  ((analyze pythonSource).toOption.bind (·.atPath path)).map (·.context.containsYield)
+#guard hasYield [] == some false
+""" + "\n".join(observations))
         emit(source, destination, "[item for item in entries]\n")
         check_lean(destination, """
 #guard (match analyze pythonSource with
