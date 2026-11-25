@@ -48,8 +48,8 @@ private theorem compare_endpoints
     denote J M l' = denote J M r' :=
   (coherent l' l).trans (h.trans (coherent r r'))
 
-/-- Assemble all congruence constructors and typed uniformity from soundness of core
-axiom applications at their endpoint judgments. -/
+/-- Assemble all congruence constructors and typed uniformity from soundness
+of the core schemes at their endpoint judgments. -/
 private theorem denote_equiv_of_core_sound
     (coherent : TypingCoherent (ν := ν) J M Φ)
     (diagonal : ∀ R : V, IsCentral (J.map (duplicate R) ≫
