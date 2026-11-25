@@ -37,6 +37,30 @@ private def readBeforeDivision : Code 2 :=
 private def divisionBeforeRead : Code 2 :=
   .assign x (.binary .add zero (.read x)) (.ret (.read x))
 
+private def negativeCondition : Code 2 :=
+  .assign x (.arithmetic (.int (-9))) (.branch (.read x) (.ret sum) (.ret zero))
+
+private def zeroCondition : Code 2 :=
+  .assign x (.arithmetic (.int 0)) (.branch (.read x) (.ret zero) (.ret (.arithmetic (.int 8))))
+
+private def failingCondition : Code 2 :=
+  .assign x (.arithmetic (.int 1))
+    (.branch (.binary .floorDiv (.read x) (.arithmetic (.int 0)))
+      (.ret sum) (.ret (.arithmetic (.int 8))))
+
+private def falseAnd : Code 2 :=
+  .assign x (.arithmetic (.int 0)) (.ret (.logical .and (.read x) zero))
+
+private def trueOr : Code 2 :=
+  .assign x (.arithmetic (.int (-4))) (.ret (.logical .or (.read x) zero))
+
+private def trueAnd : Code 2 :=
+  .assign x (.arithmetic (.int 7)) (.ret (.logical .and (.read x) zero))
+
+private def falseOr : Code 2 :=
+  .assign x (.arithmetic (.int 0))
+    (.ret (.logical .or (.read x) (.arithmetic (.binary .floorDiv (.int 7) (.int (-3))))))
+
 private def simple : Code 2 := .assign x sum (.ret (.read x))
 
 example : (labelled 2).Finishes (State.enter empty simple) [.write x 7, .exit (.ok 7)]
@@ -73,6 +97,20 @@ example : (model 2).May localOperands (.returned (.ok 4)) :=
 example : (model 2).May copyThenOverwrite (.returned (.ok (-3))) :=
   model_may_iff.mpr rfl
 
+example : (model 2).May negativeCondition (.returned (.ok 7)) := model_may_iff.mpr rfl
+
+example : (model 2).May zeroCondition (.returned (.ok 8)) := model_may_iff.mpr rfl
+
+example : (model 2).May failingCondition (.returned (.error (.arithmetic .zeroDivisionError))) :=
+  model_may_iff.mpr rfl
+
+example : (model 2).May falseAnd (.returned (.ok 0)) := model_may_iff.mpr rfl
+example : (model 2).May trueOr (.returned (.ok (-4))) := model_may_iff.mpr rfl
+example : (model 2).May falseOr (.returned (.ok (-3))) := model_may_iff.mpr rfl
+
+example : (model 2).May trueAnd (.returned (.error (.arithmetic .zeroDivisionError))) :=
+  model_may_iff.mpr rfl
+
 private def outcome (code : Code 2) : IO String :=
   match run code code.budget with
   | .stop _ (.observed (.returned (.ok value))) => pure (toString value)
@@ -84,7 +122,9 @@ public def main : IO Unit := do
   for (name, code) in [("copy_then_overwrite", copyThenOverwrite),
       ("self_read_before_write", selfReadBeforeWrite), ("failed_reassignment", failedReassignment),
       ("local_operands", localOperands), ("read_before_division", readBeforeDivision),
-      ("division_before_read", divisionBeforeRead)] do
+      ("division_before_read", divisionBeforeRead), ("negative_condition", negativeCondition),
+      ("zero_condition", zeroCondition), ("failing_condition", failingCondition),
+      ("false_and", falseAnd), ("true_or", trueOr), ("true_and", trueAnd), ("false_or", falseOr)] do
     IO.println s!"parity\t{name}\t{← outcome code}"
 
 #print axioms Rhs.reduce_iff
