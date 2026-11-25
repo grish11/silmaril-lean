@@ -15,7 +15,13 @@ universe u v w u' v' w' u'' v'' w''
 
 theorem Module.map_comp {F : Type u} {G : Type v} {H : Type w}
     (f : F → G) (g : G → H) (mod : Module F) :
-    Module.map g (Module.map f mod) = Module.map (g ∘ f) mod := by simp [map, List.map_map]
+    Module.map g (Module.map f mod) = Module.map (g ∘ f) mod := by
+  simp [map, List.map_map, Prod.map_comp_map]
+
+@[simp] theorem Module.find?_map {F : Type u} {G : Type v}
+    (f : F → G) (mod : Module F) (name : String) :
+    (Module.map f mod).find? name = (mod.find? name).map f := by
+  simp [find?, map, List.lookup_eq_findSome?, List.findSome?_map, Function.comp_def, apply_ite]
 
 variable {I : Type u} {O : Type v} {I' : Type u'} {O' : Type v'} {I'' : Type u''} {O'' : Type v''}
   {B : I → O → Type w} {C : I' → O' → Type w'} {D : I'' → O'' → Type w''}
@@ -57,6 +63,6 @@ theorem FuncModule.map_comp (f : I → I') (g : O → O') (h : I' → I'') (k : 
 @[simp] theorem FuncModule.find?_map (f : I → I') (g : O → O')
     (body : ∀ {i o}, B i o → C (f i) (g o)) (mod : FuncModule B) (name : String) :
     (mod.map f g body).find? name = (mod.find? name).map (FuncOf.map f g body) :=
-  List.find?_map
+  Module.find?_map (FuncOf.map f g body) mod name
 
 end Silmaril.MLIR

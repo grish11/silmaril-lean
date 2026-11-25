@@ -14,11 +14,13 @@ open Arith.Examples (doubleMul i1 i8 squareAdd)
 open Institution.Arith (assignment model signature translate translate_denote)
 open Institution.Arith.Examples (squareInput)
 
-private def double : FuncOf Block := ⟨"double", [i8], i8, doubleMul i8⟩
+private def double : FuncOf Block := ⟨[i8], i8, doubleMul i8⟩
 
-private def square : FuncOf Block := ⟨"square_add", [i1, i8], i8, squareAdd⟩
+private def square : FuncOf Block := ⟨[i1, i8], i8, squareAdd⟩
 
-private def scalarModule : FuncModule Block := ⟨[double, square]⟩
+private def scalarModule : FuncModule Block where
+  funcs := [("double", double), ("square_add", square)]
+  uniqueNames := by decide
 
 private abbrev Context := Institution.Syntax.Context signature
 
@@ -37,6 +39,10 @@ private def isolatedModule : FuncModule IsolatedBody :=
   scalarModule.map inputContext outputContext translateBody
 
 example : scalarModule.find? "double" = some double := rfl
+
+example (mod : FuncModule Block) : mod.funcs ≠ [("double", double), ("double", square)] := by
+  intro repeated
+  simpa [repeated] using mod.uniqueNames
 
 example : double.body.denote (Env.cons 200#8 .nil) = 144#8 := rfl
 
