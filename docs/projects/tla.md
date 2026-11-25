@@ -269,8 +269,10 @@ pass must resolve operators, labels, selectors, step references and module
 instances, check arities and substitutions, establish binding and `@` scope,
 check ASSUME/PROVE modes and TLA+ expression levels, and interpret proof
 obligations. Position maps and diagnostics can accompany a tree externally.
-Concrete parsing, semantic elaboration, TLC configuration, PlusCal,
-proof checking and Quint integration are outside this change.
+The native [source parser](tla-parser.md) produces these trees from TLA+
+modules and expressions. Its coverage table describes the supported syntax and
+the remaining productions. Semantic elaboration, TLC configuration, PlusCal
+translation, proof checking and Quint integration are separate work.
 
 ### Checked surface examples
 
@@ -328,4 +330,4 @@ lake build --wfail +Silmaril.Logic.Temporal.TLA.Thms +Silmaril.Logic.Temporal.TL
 | Terms and actions | Typed variable lookup, denotational expressions and actions, rigid existential quantification, explicit state-level `ENABLED` | Elaborating checked source terms and actions into the denotations, and general capture-avoiding term substitution |
 | Temporal formulas | Typed Simple and General TLA syntax and semantics, rigid and flexible quantifiers, whole-state stutter invariance, and scoped reindexing | A derivation calculus with the syntactic substitution rules of Fig. 9, machine closure, completeness results, and a Lean comparison with a separate stutter-reduction operator |
 | Specifications | Simple TLA fairness, invariant and progress rules, and semantic state-map refinement | General refinement substitution and auxiliary-variable theorems |
-| Integration | The General TLA room functor and satisfaction condition for fixed carriers, and a named TLA+ surface AST with a verified S-expression codec | Concrete parser, checked elaboration, and Quint integration |
+| Integration | The General TLA room functor and satisfaction condition for fixed carriers, and a named TLA+ surface AST with a verified S-expression codec and native parser core | Parser coverage extensions, checked elaboration, and Quint integration |
