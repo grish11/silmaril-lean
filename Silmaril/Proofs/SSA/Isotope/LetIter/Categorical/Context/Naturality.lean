@@ -190,6 +190,33 @@ theorem contextualLoop_pre_map_proof {D E A B : V} (k : D ⟶ E)
   have proj : (k ▷ B) ≫ snd E B = snd D B := by simp
   rw [← Category.assoc, ← outputs, Category.assoc, ← J.map_comp, proj]
 
+theorem contextualLoop_fixpoint_proof {R A B : V} (f : J.obj (R ⊗ A) ⟶ J.obj (B ⨿ A)) :
+    contextualLoop J f = caseWithContext J f
+      (J.map (snd (R ⊗ A) B)) (J.map (fst R A ▷ A) ≫ contextualLoop J f) := by
+  let E := R ⊗ A
+  let p : E ⟶ R := fst R A
+  let step : J.obj E ⟶ J.obj (R ⊗ B) ⨿ J.obj E :=
+    J.map (lift p (𝟙 E)) ≫ retainLeft J f ≫ distributeEnv J R B A
+  let out : J.obj (R ⊗ B) ⟶ J.obj B := J.map (snd R B)
+  have prepare : extend J f ≫ J.map (p ▷ (B ⨿ A)) =
+      J.map (lift p (𝟙 E)) ≫ retainLeft J f := by
+    simp only [extend_eq_retainLeft, Category.assoc, ← retainLeft_pre_map, ← J.map_comp_assoc]
+    have h : duplicate E ≫ (p ▷ E) = lift p (𝟙 E) := by
+      apply CartesianMonoidalCategory.hom_ext <;> simp [duplicate]
+    rw [h]
+  have project : J.map (snd E B) = J.map (p ▷ B) ≫ out := by
+    rw [← J.map_comp]
+    simp
+  rw [case_eq_distribute, project]
+  change iterate step ≫ out =
+    extend J f ≫ distributeEnv J E B A ≫
+      coprod.desc (J.map (p ▷ B) ≫ out) (J.map (p ▷ A) ≫ iterate step ≫ out)
+  rw [← coprod.map_desc, distributeEnv_pre_assoc, ← Category.assoc (extend J f),
+    prepare, Category.assoc, ← Category.assoc (retainLeft J f), ← Category.assoc (J.map (lift p (𝟙 E)))]
+  change iterate step ≫ out = step ≫ coprod.desc out (iterate step ≫ out)
+  conv_lhs => rw [ElgotCategory.fixpoint_assoc]
+  rw [coprod.desc_comp, Category.id_comp]
+
 end Iteration
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical

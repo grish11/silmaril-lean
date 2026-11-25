@@ -71,6 +71,12 @@ theorem contextualLoop_pre_map {D E A B : V} (k : D ⟶ E)
     contextualLoop J (J.map (k ▷ A) ≫ f) = J.map (k ▷ A) ≫ contextualLoop J f :=
   contextualLoop_pre_map_proof J k f
 
+/-- Unfold contextual iteration as a case on one step of its body. -/
+theorem contextualLoop_fixpoint {R A B : V} (f : J.obj (R ⊗ A) ⟶ J.obj (B ⨿ A)) :
+    contextualLoop J f = caseWithContext J f
+      (J.map (CartesianMonoidalCategory.snd (R ⊗ A) B)) (J.map (CartesianMonoidalCategory.fst R A ▷ A) ≫ contextualLoop J f) :=
+  contextualLoop_fixpoint_proof J f
+
 end Iteration
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical

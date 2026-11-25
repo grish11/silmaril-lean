@@ -87,23 +87,29 @@ theorem denote_bind_op_proof {n : Nat} {β : BoundCtx τ n} {f : Φ}
       J.map (envSnocIso M Γ β (instrTrg f)).hom ≫ denote J M dc)
       (snoc_retain J M (β := β) (A := instrSrc f) (InstructionModel.denote f))).symm
 
+private theorem denote_iter_newest {n : Nat} {β : BoundCtx τ n}
+    {b : Tm ν Φ (n + 1)} {A B : τ}
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
+    J.map (envSnocIso M Γ β A).hom ≫ denote J M (.iter (.bv (ι := 0))
+      (db.rename (TypedRenaming.underBinder β A A))) =
+      contextualLoop J (J.map (envSnocIso M Γ β A).hom ≫ denote J M db ≫
+        J.map (M.coprodIso B A).hom) := by
+  let q : envObj M Γ (.snoc β A) ⟶ M.obj A := boundVar M 0
+  let k := J.map (M.coprodIso B A).hom
+  change J.map (envSnocIso M Γ β A).hom ≫ bindArrow J (J.map q)
+    (contextualLoop J (J.map (envSnocIso M Γ (.snoc β A) A).hom ≫
+      denote J M (db.rename (TypedRenaming.underBinder β A A)) ≫ k)) = _
+  rw [← Category.assoc (J.map (envSnocIso M Γ (.snoc β A) A).hom), denote_underBinder,
+    Category.assoc, contextualLoop_pre_map, snoc_rebind, Category.assoc]
+
 theorem denote_iter_bind_proof {n : Nat} {β : BoundCtx τ n}
     {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : τ}
     (da : Derivation Φ Γ β a A)
     (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
     denote J M (.iter da db) =
       denote J M (.let₁ da (.iter (.bv (ι := 0))
-        (db.rename (TypedRenaming.underBinder β A A)))) := by
-  let q : envObj M Γ (.snoc β A) ⟶ M.obj A := boundVar M 0
-  let k := J.map (M.coprodIso B A).hom
-  change bindArrow J (denote J M da)
-      (contextualLoop J (J.map (envSnocIso M Γ β A).hom ≫ denote J M db ≫ k)) =
-    bindArrow J (denote J M da)
-      (J.map (envSnocIso M Γ β A).hom ≫ bindArrow J (J.map q)
-        (contextualLoop J (J.map (envSnocIso M Γ (.snoc β A) A).hom ≫
-          denote J M (db.rename (TypedRenaming.underBinder β A A)) ≫ k)))
-  rw [← Category.assoc (J.map (envSnocIso M Γ (.snoc β A) A).hom), denote_underBinder,
-    Category.assoc, contextualLoop_pre_map, snoc_rebind, Category.assoc]
+        (db.rename (TypedRenaming.underBinder β A A)))) :=
+  congrArg (bindArrow J (denote J M da)) (denote_iter_newest J M db).symm
 
 theorem denote_bind_case_proof {n : Nat} {β : BoundCtx τ n}
     {e : Tm ν Φ n} {l r : Tm ν Φ (n + 1)} {A B D : τ}
@@ -155,5 +161,42 @@ theorem denote_bind_pair_proof {n : Nat} {β : BoundCtx τ n}
     rw [MonoidalCategory.id_tensorHom S p, MonoidalCategory.id_tensorHom R p]
     exact MonoidalCategory.whisker_exchange d p
   rw [denote_underTwoBinders, ← J.map_comp_assoc (𝟙 S ⊗ₘ p), slide, J.map_comp_assoc, snoc_rebind]
+
+theorem denote_iter_fixpoint_proof {n : Nat} {β : BoundCtx τ n}
+    {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : τ}
+    (da : Derivation Φ Γ β a A)
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
+    denote J M (.iter da db) =
+      denote J M (.let₁ da (.case db (.bv (ι := 0))
+        (.iter (.bv (ι := 0))
+          ((db.rename (TypedRenaming.underBinder β A A)).rename
+            (TypedRenaming.underBinder (.snoc β A) A A))))) := by
+  let δ := BoundCtx.snoc β A
+  let R := envObj M Γ β
+  let E := R ⊗ M.obj A
+  let s := (envSnocIso M Γ β A).hom
+  let q : envObj M Γ (.snoc δ B) ⟶ M.obj B := boundVar M 0
+  let k := J.map (M.coprodIso B A).hom
+  let db' := db.rename (TypedRenaming.underBinder β A A)
+  let body := J.map s ≫ denote J M db ≫ k
+  change bindArrow J (denote J M da) (contextualLoop J body) =
+    bindArrow J (denote J M da) (J.map s ≫ caseWithContext J (denote J M db ≫ k)
+      (J.map (envSnocIso M Γ δ B).hom ≫ J.map q)
+      (J.map (envSnocIso M Γ δ A).hom ≫ denote J M (.iter (.bv (ι := 0))
+        (db'.rename (TypedRenaming.underBinder δ A A)))))
+  rw [denote_iter_newest, ← case_pre_map, contextualLoop_fixpoint]
+  have exitBranch : J.map (s ▷ M.obj B) ≫ J.map (envSnocIso M Γ δ B).hom ≫ J.map q =
+      J.map (snd E (M.obj B)) := by
+    rw [← J.map_comp, snoc_newest, ← J.map_comp, whiskerRight_snd]
+  have resume : J.map (s ▷ M.obj A) ≫ contextualLoop J
+      (J.map (envSnocIso M Γ δ A).hom ≫ denote J M db' ≫ k) =
+      J.map (fst R (M.obj A) ▷ M.obj A) ≫ contextualLoop J body := by
+    rw [← Category.assoc (J.map (envSnocIso M Γ δ A).hom), denote_underBinder,
+      Category.assoc, contextualLoop_pre_map, ← J.map_comp_assoc,
+      ← MonoidalCategory.comp_whiskerRight]
+    have drop : s ≫ dropSlot M β A = fst R (M.obj A) := by
+      simp [s, dropSlot, R]
+    rw [drop, Category.assoc]
+  rw [exitBranch, resume]
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical

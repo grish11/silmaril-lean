@@ -65,4 +65,16 @@ theorem denote_bind_pair {n : Nat} {β : BoundCtx τ n}
         (dc.rename (TypedRenaming.underTwoBinders β (product A B) A B)))) :=
   denote_bind_pair_proof J M da dc
 
+/-- The exact iteration fixpoint unfolds one body step and recurs only on the right branch. -/
+theorem denote_iter_fixpoint {n : Nat} {β : BoundCtx τ n}
+    {a : Tm ν Φ n} {b : Tm ν Φ (n + 1)} {A B : τ}
+    (da : Derivation Φ Γ β a A)
+    (db : Derivation Φ Γ (.snoc β A) b (coprod B A)) :
+    denote J M (.iter da db) =
+      denote J M (.let₁ da (.case db (.bv (ι := 0))
+        (.iter (.bv (ι := 0))
+          ((db.rename (TypedRenaming.underBinder β A A)).rename
+            (TypedRenaming.underBinder (.snoc β A) A A))))) :=
+  denote_iter_fixpoint_proof J M da db
+
 end Silmaril.Isotope.LetIter.Semantics.Categorical
