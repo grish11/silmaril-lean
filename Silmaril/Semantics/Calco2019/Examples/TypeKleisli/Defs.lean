@@ -43,4 +43,9 @@ structure Iteration (G : Guard m) where
     (h : Z → X) (hf : G.holds f) (hg : G.holds g) :
     f ∘ h = g >=> Elgot.liftPure (Sum.map id h) → run f hf ∘ h = run g hg
 
+/-- Unique guarded solutions in the function presentation. -/
+def Guard.HasUniqueFixpoints (G : Guard m) : Prop :=
+  ∀ {X Y : Type u} (f : X → m (Y ⊕ X)), G.holds f →
+    ∃! g, f >=> Sum.elim pure g = g
+
 end Silmaril.Calco2019.Examples.TypeKleisli

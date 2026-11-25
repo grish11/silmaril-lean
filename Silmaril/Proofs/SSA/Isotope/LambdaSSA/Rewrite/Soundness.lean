@@ -67,13 +67,13 @@ variable [Iteration C] [ElgotCategory C]
   {Φ : Type u₄} [HasTy Φ τ] [InstructionModel J M Φ]
 
 set_option backward.isDefEq.respectTransparency false in
-theorem cfgBrExit_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {ℓ : Nat} {a : Tm Φ}
+theorem cfgBrExit_map_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {ℓ : Nat} {a : Tm Φ}
     {A : τ} {blocks : Fin (n + 1) → Region Φ}
-    (R : Fin (n + 1) → τ) (hℓ : At L ℓ A) (ha : Tm.BranchValue Γ a A)
+    (R : Fin (n + 1) → τ) (hℓ : At L ℓ A) (ha : Tm.HasType Γ a A)
+    (p : ctxObj M Γ ⟶ M.obj A) (dp : Denotes J M ha (J.map p))
     (hb : ∀ i, Region.HasType (R i :: Γ) (blocks i) (List.ofFn R ++ L)) :
     ∃ (hs : Region.HasType Γ (.cfg (.br (n + 1 + ℓ) a) (n + 1) blocks) L)
       (ht : Region.HasType Γ (.br ℓ a) L), ∃ f, RegionDenotes J M hs f ∧ RegionDenotes J M ht f := by
-  obtain ⟨ha, p, dp⟩ := branchValue_denotes J M ha
   let fb (i : Fin (n + 1)) := denoteRegion J M (hb i)
   obtain ⟨c, dc⟩ := collectiveDenotes_exists_succ J M n Γ R L fb
   have den := RegionDenotes.cfg (.br (exitAt R hℓ) ha) hb (.br (h := exitAt R hℓ) dp)
@@ -93,15 +93,24 @@ theorem cfgBrExit_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {ℓ : Nat} {a :
   rw [hret] at den
   exact ⟨_, _, _, den, .br (h := hℓ) dp⟩
 
+theorem cfgBrExit_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {ℓ : Nat} {a : Tm Φ}
+    {A : τ} {blocks : Fin (n + 1) → Region Φ}
+    (R : Fin (n + 1) → τ) (hℓ : At L ℓ A) (ha : Tm.BranchValue Γ a A)
+    (hb : ∀ i, Region.HasType (R i :: Γ) (blocks i) (List.ofFn R ++ L)) :
+    ∃ (hs : Region.HasType Γ (.cfg (.br (n + 1 + ℓ) a) (n + 1) blocks) L)
+      (ht : Region.HasType Γ (.br ℓ a) L), ∃ f, RegionDenotes J M hs f ∧ RegionDenotes J M ht f := by
+  obtain ⟨ht, p, dp⟩ := branchValue_denotes J M ha
+  exact cfgBrExit_map_common J M R hℓ ht p dp hb
+
 set_option backward.isDefEq.respectTransparency false in
-theorem cfgBrLocal_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {a : Tm Φ}
+theorem cfgBrLocal_map_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {a : Tm Φ}
     {blocks : Fin (n + 1) → Region Φ}
-    (R : Fin (n + 1) → τ) (i : Fin (n + 1)) (ha : Tm.BranchValue Γ a (R i))
+    (R : Fin (n + 1) → τ) (i : Fin (n + 1)) (ha : Tm.HasType Γ a (R i))
+    (p : ctxObj M Γ ⟶ M.obj (R i)) (dp : Denotes J M ha (J.map p))
     (hb : ∀ j, Region.HasType (R j :: Γ) (blocks j) (List.ofFn R ++ L)) :
     ∃ (hs : Region.HasType Γ (.cfg (.br i a) (n + 1) blocks) L)
       (ht : Region.HasType Γ (.cfg (.let₁ a (blocks i)) (n + 1) blocks) L),
       ∃ f, RegionDenotes J M hs f ∧ RegionDenotes J M ht f := by
-  obtain ⟨ha, p, dp⟩ := branchValue_denotes J M ha
   let fb (j : Fin (n + 1)) := denoteRegion J M (hb j)
   obtain ⟨c, dc⟩ := collectiveDenotes_exists_succ J M n Γ R L fb
   let E := ctxObj M Γ
@@ -138,6 +147,16 @@ theorem cfgBrLocal_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {a : Tm Φ}
     simpa only [Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind,
       hbody, Category.assoc] using contextualLoop_enter J p iLocal body
   exact ⟨_, _, _, heq ▸ lhs, rhs⟩
+
+theorem cfgBrLocal_common {n : Nat} {Γ : VCtx τ} {L : LCtx τ} {a : Tm Φ}
+    {blocks : Fin (n + 1) → Region Φ}
+    (R : Fin (n + 1) → τ) (i : Fin (n + 1)) (ha : Tm.BranchValue Γ a (R i))
+    (hb : ∀ j, Region.HasType (R j :: Γ) (blocks j) (List.ofFn R ++ L)) :
+    ∃ (hs : Region.HasType Γ (.cfg (.br i a) (n + 1) blocks) L)
+      (ht : Region.HasType Γ (.cfg (.let₁ a (blocks i)) (n + 1) blocks) L),
+      ∃ f, RegionDenotes J M hs f ∧ RegionDenotes J M ht f := by
+  obtain ⟨ht, p, dp⟩ := branchValue_denotes J M ha
+  exact cfgBrLocal_map_common J M R i ht p dp hb
 
 variable [RegionTypingCoherent (Φ := Φ) J M]
 

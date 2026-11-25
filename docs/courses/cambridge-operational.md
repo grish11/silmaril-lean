@@ -65,11 +65,18 @@ The executable interfaces have different proved contracts:
 | Interface | What it computes | Current guarantee |
 | --- | --- | --- |
 | `L1.Exercises.searchConfig` | One step with a printable derivation tree | Each returned tree proves its resulting `L1.Step` via `StepTree.toStep` |
-| `L2.runFuel` | Substitution-based CBV/CBN reduction, bounded by a number of transitions | Concrete exercise programs have proved results; no general reducer-to-`Step` correctness theorem yet |
+| `L2.runFuel` | Substitution-based CBV/CBN reduction, bounded by a number of transitions | CBV agrees with `L2.Step` on all configurations. CBN has checked exercise results |
 | `L2.evalClosureFuel` | CBV evaluation with lexical and recursive closures, bounded by evaluation depth | Proven agreement with the substitution interpreter on lexical-scope, recursion and store-effect examples; no general simulation theorem yet |
 
-`runFuel` returns `some c` when its reducer has no next step, which can mean a
-value or a stuck configuration on untyped input. `none` records insufficient
+`L2.Config.reduce_value_iff_step` identifies each successful CBV reducer call
+with a `Step`. `L2.Config.reduce_value_eq_none_iff_terminal` identifies failure
+to step with relational terminality. `L2.runFuel_value_returns_terminal`
+certifies a finite trace to any returned configuration, including a stuck
+configuration on untyped input. Under the safety assumptions above,
+`L2.runFuel_value_returns_typed_value` gives a value of the original type and
+preserves closedness and store coverage.
+
+`runFuel` returns `some c` when its reducer has no next step. `none` records insufficient
 transition fuel. A particular fuel-exhaustion equation is not an infinite-run
 proof. The closure interpreter's `none` also covers invalid operations or
 missing variables; `evalClosureGround` additionally rejects function results.
@@ -161,9 +168,29 @@ typed sources.
 | Theorem 26 for the printed contexts on typed source expressions | `L3.contextStep_iff_step_of_hasType` |
 | Theorem 26 on arbitrary configurations with the (assign2) location premise | `L3.locationContextStep_iff_step` |
 
-Executable type inference and reduction and L3 denotational models remain
-follow-up work. Named and resolved terms and expression types have
-structural codecs.
+### Executable reduction (§5.5)
+
+`L3.Config.reduce` selects one direct step when a successor exists. For an
+allocation, `L3.Store.freshAddress` chooses one above the maximum allocated
+address, using 1 for an empty store. The record reducer inspects fields in
+source order and stops at the first non-value, even if that field is stuck.
+Executable regressions check intermediate record writes, projection by label,
+a stuck first field, and allocation in empty and nonempty stores.
+
+| Result | Public name |
+| --- | --- |
+| The selected address is outside the current domain | `L3.Store.freshAddress_not_mem` |
+| Every selected edge satisfies the direct rules | `L3.Config.reduce_sound` |
+| The reducer stops exactly on configurations without a direct successor | `L3.Config.reduce_eq_none_iff_terminal` |
+| Some executable successor exists exactly when some relational successor exists | `L3.Config.reduce_exists_iff_step_exists` |
+
+Successor existence allows a single executable choice even when the relation
+admits several. For example, allocating in the empty store may choose 0 in
+the relation, while the reducer chooses 1. The operational institution below
+continues to observe the original relation.
+
+Executable type inference and L3 denotational models remain follow-up work.
+Named and resolved terms and expression types have structural codecs.
 [AST codec guide](cambridge-ast-codecs.md)
 
 The [course notes](https://www.cl.cam.ac.uk/teaching/2526/Semantics/notes.pdf)
@@ -176,4 +203,5 @@ call-by-value L2 step models and the direct L3 step model over their original
 configurations. Finite returns observe reachable values with their final
 stores. L3 retains each fresh location choice.
 [L1 and L2 observation contract](../projects/operational-institutions.md#cambridge-l1-and-l2) ·
-[L3 observation contract](../projects/operational-institutions.md#cambridge-l3)
+[L3 observation contract](../projects/operational-institutions.md#cambridge-l3) ·
+[Step specifications](cambridge-step-specification.md)

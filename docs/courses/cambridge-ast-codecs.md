@@ -5,7 +5,7 @@ The Cambridge `L1.Codec`, `L2.Codec` and `L3.Codec` modules expose
 `TotalCodec` with an encoder, an optional decoder and a Lean proof
 `recovers` of decode-after-encode. The shared `AstCodec.encode_injective`
 theorem gives encoder injectivity for each of these codecs.
-[Cambridge course index](cambridge.md)
+[Cambridge course index](cambridge.md) · [Verified UTF-8 JSON bridge](cambridge-json-bytes.md)
 
 The `term` carriers are `L1.Expr`, `L2.RawExpr` and `L3.RawExpr`. L2 and L3
 keep the exact names of binders and occurrences, including empty strings,

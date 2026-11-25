@@ -21,4 +21,12 @@ noncomputable def assemble {G : Guard m} (I : Iteration m G) :
     GuardedElgotMonad typeCoproducts :=
   Proofs.assemble I
 
+/-- The concrete guard on the inherited coproducts of the Kleisli category. -/
+noncomputable def categoricalGuard (G : Guard m) :
+    MonadGuardedness typeCoproducts (ofTypeMonad m) :=
+  Proofs.guard m G
+
+theorem iterative_iff (G : Guard m) : (categoricalGuard G).Iterative ↔ G.HasUniqueFixpoints :=
+  Proofs.iterative_iff G
+
 end Silmaril.Calco2019.Examples.TypeKleisli

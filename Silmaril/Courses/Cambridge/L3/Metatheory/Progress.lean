@@ -3,19 +3,12 @@ module
 public import Silmaril.Courses.Cambridge.L3.Reduction
 public import Silmaril.Courses.Cambridge.L3.Typing
 import Mathlib.Data.Fin.Tuple.Basic
-import Mathlib.Data.Finset.Lattice.Fold
 
 /-! # Cambridge L3 progress (Theorem 23, p. 75) -/
 
 @[expose] public section
 
 namespace Silmaril.Courses.Cambridge.L3
-
-private theorem Store.exists_fresh (s : Store) : ∃ loc : Loc, loc ∉ s := by
-  refine ⟨s.keys.sup id + 1, fun present => ?_⟩
-  have bound : s.keys.sup id + 1 ≤ s.keys.sup id :=
-    Finset.le_sup (f := id) (Finmap.mem_keys.mpr present)
-  exact Nat.not_succ_le_self _ bound
 
 private theorem int_value {Θ : LocTypes} {Γ : VarTypes} {e : Expr}
     (typed : HasType Θ Γ e .int) (value : IsValue e) : ∃ n, e = .int n := by
@@ -151,8 +144,7 @@ theorem progress {Θ : LocTypes} {e : Expr} {T : Ty} {s : Store}
   | ref _ ih =>
       apply Or.inr
       rcases ih closed with value | ⟨⟨_, _⟩, step⟩
-      · obtain ⟨loc, fresh⟩ := s.exists_fresh
-        exact ⟨_, .refValue (loc := loc) ⟨_, value⟩ fresh⟩
+      · exact ⟨_, .refValue (loc := s.freshAddress) ⟨_, value⟩ s.freshAddress_not_mem⟩
       · exact ⟨_, .refStep step⟩
   | assign hl _ ihl ihr =>
       apply Or.inr

@@ -32,24 +32,36 @@ direct local and owned-cell reads correspond to `UnboundLocalError`.
 [Theorems](../../Silmaril/Languages/Python/Core/Closure/Thms.lean)
 · [Regression](../../tests/languages/python/closure-runtime/Regression.lean)
 
-## Call and stack stages
+## Fixed positional calls and saved-caller delivery
 
-The call stage will bind a list of fixed positional arguments in order to the
-distinct `Parameters.slots` of a fresh frame. Arity mismatch is a defined
-error and has no committed allocation or write. The binding proof will
-identify each bound argument, preserve the incoming identities and show that
-other fresh destinations remain unbound.
+`Core.Closure.Call.bindPositional` binds argument values in order to the
+distinct `Parameters.slots`. Its success is equivalent to the arity test and
+the ordered `Writes` relation. Arity mismatch is a defined error with no
+committed write. `Call.enter` accepts a function and its positional layout,
+checks the incoming cell identities against the original heap, binds the
+arguments in a fresh frame and pushes the saved caller. The binding proof
+preserves the owned and incoming cell identities. `Call.enter_complete`
+guarantees entry when arity matches and the captured addresses are allocated,
+including captures that are still unbound. `Call.enter_read` proves that each
+argument is readable at its compiler-assigned local or owned-cell slot.
+`Call.enter_preserves_cell` covers every previously allocated caller cell,
+including any incoming capture, before callee execution begins.
+[Call definitions](../../Silmaril/Languages/Python/Core/Closure/Call/Defs.lean)
 
-The stack stage will save the caller frame and its continuation before
-entering the callee. A return restores both with the residual heap and passes
-the value to that continuation. A defined error also preserves the saved
-frame and residual heap and passes the error to the corresponding unwind
-continuation. The preservation claim covers direct locals and the identity
-mappings in the saved frame. The residual heap supplies the latest values of
-shared cells. The interface reserves `Result` for normal returns and defined
-Python errors. Invalid cell addresses are separately classified by `Failure`.
-Keyword arguments, default values, variadic binding and exception-handler
-execution require additional profiles.
+A `Call.Saved` stores the caller's layout, frame and typed continuation.
+`Call.finish` hands a returned value or defined error to that continuation
+with the callee's residual heap. It restores the saved frame and older stack
+exactly. The saved frame provides the direct locals and cell identities.
+The residual heap provides the latest values of shared cells. An empty stack
+emits a terminal result. Invalid cell addresses use `Failure`, outside the
+defined outcomes in `Result`.
+[Call theorems](../../Silmaril/Languages/Python/Core/Closure/Call/Thms.lean)
+· [Binding and delivery regression](../../tests/languages/python/closure-runtime/Call.lean)
+
+Call entry takes a resolved function and its parameter layout. The surrounding
+machine supplies code-table lookup and validation, callee body execution and
+the resumed continuation. Keyword arguments, defaults, variadic binding and
+exception-handler execution require additional profiles.
 
 The public baseline is the Python 3.12.13 language reference. The Data model
 HTML has SHA-256 `c300d0904a1a03abd7752308eacffbdf7364d95d45f8e52d60076f38a21f763e`.
@@ -64,4 +76,6 @@ The Expressions HTML has SHA-256
 ```sh
 lake build --wfail +Silmaril.Languages.Python.Core.Closure.Thms
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/languages/python/closure-runtime/Regression.lean
+lake build --wfail +Silmaril.Languages.Python.Core.Closure.Call.Thms
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/languages/python/closure-runtime/Call.lean
 ```

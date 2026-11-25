@@ -8,9 +8,10 @@ public import Silmaril.Courses.Cambridge.L2.CallByName
 changes only application: CBV evaluates the argument before beta substitution;
 CBN substitutes it immediately. `runFuel` distinguishes a terminal result
 from an execution that has not stopped within the supplied step budget.
-The terminal result can be a value or a stuck configuration. The exercise
-modules prove concrete results; a general correctness theorem relating this
-reducer to `Step` or `NameStep` is not provided here.
+The terminal result can be a value or a stuck configuration.
+`L2.Metatheory.Interpreter` connects CBV execution to the small-step rules
+and proves that a return from closed well-typed input is a value when the
+initial store covers the typing environment.
 -/
 
 @[expose] public section
@@ -91,5 +92,26 @@ def runFuel (mode : EvaluationMode) : Nat → Config → Option Config
           match fuel with
           | 0 => none
           | fuel + 1 => runFuel mode fuel next
+
+/-- A successful run follows the selected reducer to a configuration where
+that reducer stops. -/
+theorem runFuel_returns {mode : EvaluationMode} {fuel : Nat} {before after : Config}
+    (result : runFuel mode fuel before = some after) :
+    Relation.ReflTransGen (fun c next => c.reduce mode = some next) before after ∧
+      after.reduce mode = none := by
+  induction fuel generalizing before with
+  | zero =>
+      rw [runFuel] at result
+      split at result
+      · cases result
+        exact ⟨.refl, by assumption⟩
+      · contradiction
+  | succ fuel ih =>
+      rw [runFuel] at result
+      split at result
+      · cases result
+        exact ⟨.refl, by assumption⟩
+      · obtain ⟨trace, stopped⟩ := ih result
+        exact ⟨trace.head (by assumption), stopped⟩
 
 end Silmaril.Courses.Cambridge.L2

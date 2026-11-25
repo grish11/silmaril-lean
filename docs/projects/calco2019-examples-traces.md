@@ -16,8 +16,20 @@ this guard.
 
 [TraceMonad][monad] checks pure and bind on the finite-plus-infinite trace
 carrier and its nonempty subtype. `traceStep_eq_bind` identifies the
-set-valued unfolding with Kleisli composition. The guarded Conway and
-uniformity laws of the productive solution remain to be packaged.
+set-valued unfolding with Kleisli composition.
+
+[TraceIteration][iteration] provides `productiveGuard`, `productiveIter`,
+`productiveLaws`, and `productiveElgot`. Naturality follows by prefixing
+each finite result with its continuation and preserving infinite traces.
+The reverse inclusion uses the nonempty-word guard to exclude finite
+observations that could be unmatched after arbitrarily many recursive
+steps. Codiagonal follows from greatestness and naturality. Pure uniformity
+transports postfixed families along the state map in both directions.
+Proposition 17 supplies dinaturality.
+
+`canonical_not_least` compares the chosen solution with the finite-only
+fixpoint. For an alphabet with a letter, `productive_not_iterative` gives
+the concrete failure of unique guarded fixpoints.
 
 ```sh
 lake build --wfail +Silmaril.Papers.Calco2019.Examples.Printing
@@ -26,3 +38,4 @@ lake build --wfail +Silmaril.Papers.Calco2019.Examples.Printing
 [paper]: https://doi.org/10.4230/LIPIcs.CALCO.2019.13
 [paths]: ../../Silmaril/Semantics/Calco2019/Examples/Printing/Paths/Thms.lean
 [monad]: ../../Silmaril/Semantics/Calco2019/Examples/Printing/TraceMonad/Thms.lean
+[iteration]: ../../Silmaril/Semantics/Calco2019/Examples/Printing/TraceIteration/Thms.lean

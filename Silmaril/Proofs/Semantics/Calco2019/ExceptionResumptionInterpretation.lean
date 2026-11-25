@@ -24,7 +24,7 @@ local notation "K" => P.kleisli Q
 local notation "J" => Kleisli.Adjunction.toKleisli Q
 
 /-- A fully guarded computation stays guarded after an arbitrary continuation. -/
-private theorem post_guarded {A B Y Z : Kleisli Q} (f : A ⟶ B) (g : B ⟶ (K).sum Y Z)
+theorem post_guarded {A B Y Z : Kleisli Q} (f : A ⟶ B) (g : B ⟶ (K).sum Y Z)
     (h : S.guard.guarded (f ≫ (K).inr (X := Kleisli.mk Q (⊥_ C)))) :
     S.guard.guarded (f ≫ g) := by
   let l : Kleisli.mk Q (⊥_ C) ⟶ Y := (J).map (initial.to Y.of)
@@ -58,6 +58,42 @@ theorem mediator_unfold (X : C) :
   simpa only [Category.assoc, Coproducts.desc_comp, Coproducts.inl_desc, Coproducts.inr_desc]
     using e.symm
 
+theorem normalized_mediator {A X Y : C} (f : A ⟶ R.obj (P.sum Y X)) :
+    let Z := P.sum Y X
+    let W := R.obj Z
+    let E := H.obj W
+    let u := (f ≫ R.out Z) ≫ T.monad.map (rearrange P E (Y := Y) (Z := X))
+    let v := (kleisliArrow (u ≫ ξ.hom.app (P.sum (P.sum Y E) X)) :
+      Kleisli.mk Q A ⟶ Kleisli.mk Q (P.sum (P.sum Y E) X))
+    (J).map f ≫ mediator R ξ σ Z =
+      v ≫ (K).desc ((K).desc (K).inl (kleisliArrow (σ.val.app W) ≫ mediator R ξ σ Z)) (K).inr := by
+  intro Z W E u v
+  let k := (K)
+  let y := Kleisli.mk Q Y
+  let x := Kleisli.mk Q X
+  let b := kleisliArrow (σ.val.app W) ≫ mediator R ξ σ Z
+  let j := rearrange P E (Y := Y) (Z := X)
+  let obs : Kleisli.mk Q W ⟶ k.sum (k.sum y x) (Kleisli.mk Q E) :=
+    kleisliArrow (R.out Z ≫ ξ.hom.app (P.sum Z E))
+  have n : v = ((J).map f ≫ obs) ≫ (J).map j := by
+    apply Kleisli.hom_ext
+    rw [comp_pure_of Q, pure_comp_of Q]
+    change ((f ≫ R.out Z) ≫ T.monad.map j) ≫ ξ.hom.app (P.sum (P.sum Y E) X) =
+      (f ≫ R.out Z ≫ ξ.hom.app (P.sum Z E)) ≫ (Q).map j
+    simp only [Category.assoc, ξ.hom.toNatTrans.naturality]
+    rfl
+  have er : (J).map j ≫ k.desc (k.desc k.inl b) k.inr = k.desc (𝟙 (k.sum y x)) b := by
+    apply Kleisli.hom_ext
+    rw [pure_comp_of Q, kleisli_desc_of, kleisli_desc_of, kleisli_desc_of]
+    change j ≫ P.desc (P.desc (k.inl (X := y) (Y := x)).of b.of) (k.inr (X := y) (Y := x)).of =
+      P.desc ((Q).η.app Z) b.of
+    simp [j, rearrange, Z]
+    have e : P.desc (k.inl (X := y) (Y := x)).of (k.inr (X := y) (Y := x)).of = (Q).η.app Z := by
+      apply P.hom_ext <;> simp only [Coproducts.inl_desc, Coproducts.inr_desc] <;> rfl
+    rw [e]
+  rw [n, Category.assoc, er, mediator_unfold R ξ σ Z]
+  exact (Category.assoc _ _ _).symm
+
 /-- The interpretation respects guarding in the observed right summand. -/
 theorem mediator_guard {A Y Z : C} (f : A ⟶ R.obj (P.sum Y Z))
     (hf : (parametrizedElgot T H).ResumptionGuard R (Y := Y) (Z := Z) f) :
@@ -72,8 +108,6 @@ theorem mediator_guard {A Y Z : C} (f : A ⟶ R.obj (P.sum Y Z))
   let k := (K)
   let j := rearrange P E (Y := Y) (Z := Z)
   let obs : A ⟶ T.monad.obj (P.sum B E) := f ≫ R.out B
-  let raw : Kleisli.mk Q A ⟶ k.sum (k.sum y z) e :=
-    kleisliArrow (obs ≫ ξ.hom.app (P.sum B E))
   let normalized : Kleisli.mk Q A ⟶ k.sum (k.sum y e) z :=
     kleisliArrow ((obs ≫ T.monad.map j) ≫ ξ.hom.app (P.sum (P.sum Y E) Z))
   have hn : S.guard.guarded (Y := k.sum y e) (Z := z) normalized :=
@@ -88,25 +122,9 @@ theorem mediator_guard {A Y Z : C} (f : A ⟶ R.obj (P.sum Y Z))
   have hi : S.guard.guarded (Y := y) (Z := z) i := by
     simpa only [Category.id_comp] using S.guard.trivial (Z := z) (𝟙 y)
   have g := S.guard.compose t hn (S.guard.parallel hi hb)
-  have n : normalized = raw ≫ (J).map j := by
-    apply Kleisli.hom_ext
-    refine ((Category.assoc _ _ _).trans ?_).trans (comp_pure_of Q raw j).symm
-    exact (congrArg (obs ≫ ·) (ξ.hom.toNatTrans.naturality j)).trans (Category.assoc _ _ _).symm
-  have er : (J).map j ≫ k.desc (k.desc i b) t = k.desc (𝟙 (k.sum y z)) b := by
-    apply Kleisli.hom_ext
-    rw [pure_comp_of Q, kleisli_desc_of, kleisli_desc_of, kleisli_desc_of]
-    change j ≫ P.desc (P.desc i.of b.of) t.of =
-      P.desc ((Q).η.app B) b.of
-    simp [j, rearrange, B]
-    have e' : P.desc i.of t.of = (Q).η.app B := by
-      apply P.hom_ext <;> simp only [Coproducts.inl_desc, Coproducts.inr_desc] <;> rfl
-    rw [e']
-  have eq : normalized ≫ k.desc (k.desc i b) t = (J).map f ≫ mediator R ξ σ B := by
-    rw [n, Category.assoc, er, mediator_unfold R ξ σ B, ← Category.assoc]
-    congr 1
-    apply Kleisli.hom_ext
-    exact (Category.assoc _ _ _).trans (pure_comp_of Q f _).symm
-  exact eq ▸ g
+  have eq : (J).map f ≫ mediator R ξ σ B = normalized ≫ k.desc (k.desc i b) t :=
+    normalized_mediator R ξ σ f
+  exact eq.symm ▸ g
 
 theorem mediator_base (X : C) :
     (J).map (liftBase T H R X) ≫ mediator R ξ σ X = kleisliArrow (ξ.hom.app X) := by

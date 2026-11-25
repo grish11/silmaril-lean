@@ -1,6 +1,10 @@
 module
 
 public import Silmaril.Courses.Cambridge.L3
+import Silmaril.Courses.Cambridge.L3.Interpreter
+meta import Silmaril.Courses.Cambridge.L3.Interpreter
+meta import Silmaril.Courses.Cambridge.L3.Store
+meta import Silmaril.Courses.Cambridge.L3.Syntax
 
 /-! # Checked L3 derivations for sums, records and references -/
 
@@ -151,5 +155,34 @@ example : Stuck ⟨.assign (.int 0) (.ref (.int 1)), ∅⟩ := by
   · intro next step
     cases step with
     | assignLeft inner => cases inner
+
+private def storedInt (s : Store) (loc : Loc) : Option Int :=
+  s.lookup loc |>.bind fun value =>
+    match value.val with
+    | .int n => some n
+    | _ => none
+
+-- The executable trace makes the intermediate write visible before the second write.
+#guard (do
+    let first ← (Config.mk recordProgram ((∅ : Store).insert 0 zero)).reduce
+    let second ← first.reduce
+    let projected ← second.reduce
+    let returned := match projected.expr with | .skip => projected.reduce.isNone | _ => false
+    some (storedInt first.store 0, storedInt second.store 0, returned)) ==
+  some (some 1, some 2, true)
+
+-- A stuck first field prevents any step in the second field.
+#guard (Config.mk (.record recordLabels (fun i =>
+    if i = 0 then .deref (.loc 9) else .ref (.int 7))) ∅).reduce.isNone
+
+-- A record projects by label after both fields are values.
+#guard ((Config.mk (.project (.record recordLabels (fun i => .int (Int.ofNat i.val))) "second")
+    ∅).reduce.bind fun next => match next.expr with | .int n => some n | _ => none) == some 1
+
+-- Starting from a nonempty store chooses max + 1 and retains the original binding.
+#guard ((Config.mk (.ref (.int 3)) ((∅ : Store).insert 7 two)).reduce.bind fun next =>
+    match next.expr with
+    | .loc address => some (address, storedInt next.store address, storedInt next.store 7)
+    | _ => none) == some (8, some 3, some 2)
 
 end Silmaril.Courses.Cambridge.L3.Examples

@@ -3,10 +3,10 @@ module
 public import Silmaril.Papers.Calco2019.Defs
 public import Silmaril.Semantics.Calco2019.Thms
 public import Silmaril.Semantics.Calco2019.ResumptionThms
+public import Silmaril.Semantics.Calco2019.InductiveResumption.Thms
 public import Silmaril.Semantics.Calco2019.ResumptionConway
 public import Silmaril.Semantics.Calco2019.VacuousThms
-public import Silmaril.Semantics.Calco2019.ExceptionResumption.Interpretation.Uniqueness
-public import Silmaril.Semantics.Calco2019.ExceptionResumption.Interpretation.Multiplication
+public import Silmaril.Semantics.Calco2019.ExceptionResumption.Specializations
 
 /-! # Numbered results for CALCO 2019, Article 13 -/
 
@@ -17,6 +17,18 @@ universe u v u' v'
 namespace Silmaril.Papers.Calco2019
 
 open CategoryTheory CategoryTheory.Limits Silmaril.Calco2019
+
+section InductiveResumptions
+
+variable {C : Type u} [Category.{v} C] (P : Coproducts C)
+
+/-- Section 1.2. The chosen initial algebras of `Z ↦ T (X + H Z)` give the
+inductive resumption monad. -/
+abbrev inductiveResumption (T : CategoryTheory.Monad C) (H : C ⥤ C)
+    (R : InitialResumptions (Exception.parametrized P T H)) : CategoryTheory.Monad C :=
+  R.monad
+
+end InductiveResumptions
 
 section FreeExtensions
 
@@ -161,6 +173,25 @@ theorem lemma27_base (T : GuardedElgotMonad P) (H : C ⥤ C)
     ∃ e : GuardedElgotMonadHom P T ((Exception.parametrizedElgot T H).resumptionElgotMonad R),
       ∀ X, e.hom.app X = T.monad.map (P.inl (Y := H.obj (R.obj X))) ≫ R.roll X :=
   ⟨Exception.baseEmbedding T H R, Exception.baseEmbedding_app T H R⟩
+
+/-- Theorem 28. Exception resumptions freely extend the guarded Elgot base by
+the endofunctor, with the specified base and suspension embeddings. -/
+theorem theorem28 [HasInitial C] (T : GuardedElgotMonad P) (H : C ⥤ C)
+    (R : FinalResumptions (Exception.parametrizedElgot T H).toParametrizedMonad) :
+    (guardedBimodule P).IsFreeExtension (Exception.resumptionGenerator R)
+      (Exception.baseEmbedding T H R) :=
+  Exception.resumption_free R
+
+/-- Corollary 29. The second coproduct summand comes from the final coalgebras
+of `Z ↦ X + H Z`, the identity-base instance of the resumption construction. -/
+theorem corollary29 [HasInitial C] (T : GuardedElgotMonad P) (H : C ⥤ C)
+    (R : FinalResumptions (Exception.parametrizedElgot T H).toParametrizedMonad)
+    (R₀ : FinalResumptions (Exception.parametrizedElgot (guardedIdentity P) H).toParametrizedMonad) :
+    ∃! l : (Exception.parametrizedElgot (guardedIdentity P) H).resumptionElgotMonad R₀ ⟶
+        (Exception.parametrizedElgot T H).resumptionElgotMonad R,
+      (guardedBimodule P).post (Exception.resumptionGenerator R₀) l = Exception.resumptionGenerator R ∧
+        Nonempty (IsColimit (BinaryCofan.mk l (Exception.baseEmbedding T H R))) :=
+  Exception.resumption_coproduct R R₀
 
 end Exception
 

@@ -103,9 +103,10 @@ properties, divergence, or typing. [L1 return correspondence](../../Silmaril/Cou
 course-specific value predicate for unit-labelled systems. The L1 denotational
 adapters use this finite-return view to prove satisfaction of value-and-store
 atoms, with the read-only model as a reduct of the effectful model.
-A specification-format adapter can target the step
-sentences once it defines how documents name configurations and establishes
-satisfaction for that translation. [Shared entry points](../../Silmaril/Courses/Cambridge/OperationalInstitution/Basic.lean) ·
+The Cambridge step specification format names complete configurations by
+bounded catalogue slots and translates conjunctions of step claims into
+this institution with a checked satisfaction condition.
+[Step specification format](../courses/cambridge-step-specification.md) · [Shared entry points](../../Silmaril/Courses/Cambridge/OperationalInstitution/Basic.lean) ·
 [L1 denotations](../courses/cambridge-denotational.md#effectful-l1)
 
 ## Cambridge L3

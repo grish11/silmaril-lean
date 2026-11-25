@@ -82,6 +82,29 @@ instance valuesPreservesFiniteCoproducts (S : Sig.{u}) : PreservesFiniteCoproduc
     let := preservesColimitsOfShape_pempty_of_preservesInitial (values S)
     PreservesFiniteCoproducts.of_preserves_binary_and_initial (values S) (Fin n)
 
+/-- The first projection of a pair reduces when the discarded second term is pure. -/
+theorem first_beta {n : Nat} {β : BoundCtx S.Ty n}
+    {a b : Tm Empty S.Instr n} {A B : S.Ty}
+    (ha : HasType S.Instr Ctx.nil β a A) (hb : HasType S.Instr Ctx.nil β b B)
+    (hp : Pure S.pureEff b) :
+    Eqv S.pureEff Ctx.nil β (.let₂ (.pair a b) (.bv 1)) a A :=
+  first_beta_proof ha hb hp
+
+/-- The second projection of a pair reduces when the discarded first term is pure. -/
+theorem second_beta {n : Nat} {β : BoundCtx S.Ty n}
+    {a b : Tm Empty S.Instr n} {A B : S.Ty}
+    (ha : HasType S.Instr Ctx.nil β a A) (hb : HasType S.Instr Ctx.nil β b B)
+    (hp : Pure S.pureEff a) :
+    Eqv S.pureEff Ctx.nil β (.let₂ (.pair a b) (.bv 0)) b B :=
+  second_beta_proof ha hb hp
+
+/-- Pairing the projections of a pure term recovers that term. -/
+theorem pair_projections_eta {n : Nat} {β : BoundCtx S.Ty n}
+    {p : Tm Empty S.Instr n} {A B : S.Ty}
+    (h : HasType S.Instr Ctx.nil β p (tensor A B)) (hp : Pure S.pureEff p) :
+    Eqv S.pureEff Ctx.nil β (.pair (.let₂ p (.bv 1)) (.let₂ p (.bv 0))) p (tensor A B) :=
+  pair_projections_eta_proof h hp
+
 /-- The syntactic projections are value morphisms. -/
 def valueFan (A B : ValueCat S) : BinaryFan A B :=
   BinaryFan.mk (P := ⟨productObj A.obj B.obj⟩)

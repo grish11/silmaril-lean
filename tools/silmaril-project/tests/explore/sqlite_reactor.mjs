@@ -14,6 +14,7 @@ const reactor = index.modules.find((module) => module.source.name === "sqlite.wa
 assert.ok(reactor, "pinned reactor is listed in Wasm Explorer");
 const { slug } = reactor;
 assert.equal(slug, `sqlite.wasi.preview1.reactor.${reactor.source.sha256}`);
+const inventory = JSON.parse(fs.readFileSync(path.join(site, "wasm", "m", `${slug}.json`)));
 const port = 8790 + process.pid % 400;
 const base = `http://127.0.0.1:${port}/index.html`;
 const server = spawn("python3", ["-I", fileURLToPath(new URL("pages_server.py", import.meta.url)),
@@ -39,6 +40,19 @@ try {
     fs.mkdirSync(shots, { recursive: true });
     await page.screenshot({ path: path.join(shots, name + ".png") });
   };
+  const checkLlvmLink = async (slot, symbol) => {
+    const llvm = page.getByRole("link", { name: "LLVM build provenance" });
+    const source = JSON.parse((await page.locator("#source-meta").textContent()) || "null");
+    const hasReceipt = inventory.llvmReceipt?.symbols?.[slot] === symbol;
+    const expected = process.env[`SQLITE_REACTOR_LLVM_${slot}`];
+    if (expected) assert.equal(hasReceipt ? "present" : "absent", expected);
+    assert.equal(await llvm.count(), source && hasReceipt ? 1 : 0);
+    if (source && hasReceipt) {
+      assert.equal(await llvm.getAttribute("href"),
+        `${source.repo}/blob/${source.rev}/tools/sqlite-wasm/llvm-provenance/receipt.json`);
+      assert.ok((await page.locator("#main").innerText()).includes(`early bitcode symbol ${symbol}`));
+    }
+  };
 
   await page.goto(`${base}#/wasm`);
   await page.locator("#wfq").fill("sqlite3_libversion_number");
@@ -49,6 +63,7 @@ try {
   await result.click();
   await page.locator("#wcy").waitFor();
   assert.match(await page.locator("#main").innerText(), /SqliteWasm\.version_exec/);
+  await checkLlvmLink(289, "sqlite3_libversion_number");
   assert.deepEqual(details, [`/wasm/f/${slug}/289.json`]);
 
   const openModule = async () => {
@@ -86,6 +101,8 @@ try {
   await openModule();
   await openSlot("530");
   await page.locator("#wcy").waitFor();
+  assert.equal(await page.getByRole("link", { name: "SqliteWasm.putVarint_oneByte" }).count(), 1);
+  await checkLlvmLink(530, "sqlite3PutVarint");
   const effects = await page.locator("#main dt").filter({ hasText: /^effect marks$/ })
     .evaluate((term) => term.nextElementSibling.textContent.split(", "));
   assert.deepEqual(new Set(effects), new Set(["may-trap", "call"]));
@@ -108,10 +125,10 @@ try {
   }
   const empty = await browser.newPage();
   empty.on("pageerror", (e) => errors.push(e.message));
-  const inventory = JSON.parse(fs.readFileSync(path.join(site, "wasm", "m", `${slug}.json`)));
-  inventory.functions[530].blocks = 0;
-  inventory.functions[530].instrs = 0;
-  await empty.route(`**/wasm/m/${slug}.json`, (route) => route.fulfill({ json: inventory }));
+  const emptyInventory = structuredClone(inventory);
+  emptyInventory.functions[530].blocks = 0;
+  emptyInventory.functions[530].instrs = 0;
+  await empty.route(`**/wasm/m/${slug}.json`, (route) => route.fulfill({ json: emptyInventory }));
   await empty.route(`**/wasm/f/${slug}/530.json`, (route) => route.fulfill({ json: exitOnly }));
   await empty.goto(`${base}#/wasm-func/${slug}/530`);
   await empty.locator("#wcy").waitFor();

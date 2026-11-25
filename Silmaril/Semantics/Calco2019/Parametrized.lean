@@ -67,4 +67,30 @@ abbrev ParametrizedGuardedElgotMonad.toParametrizedMonad (M : ParametrizedGuarde
     ParametrizedMonad C :=
   M ⋙ GuardedElgotMonad.forget P
 
+namespace ParametrizedGuardedElgotMonad
+
+variable (M : ParametrizedGuardedElgotMonad P)
+
+/-- Parameter maps preserve the unit at each result object. -/
+@[reassoc]
+theorem parameter_unit {W W' : C} (j : W ⟶ W') (X : C) :
+    (M.obj W).monad.η.app X ≫ (M.toParametrizedMonad.parameter X).map j =
+      (M.obj W').monad.η.app X :=
+  (M.map j).hom.app_η X
+
+/-- Parameter maps preserve the chosen fixpoint of every guarded loop. -/
+@[reassoc]
+theorem parameter_iteration {W W' X Y : C} (j : W ⟶ W')
+    (f : X ⟶ (M.obj W).monad.obj (P.sum Y X))
+    (hf : (M.obj W).guard.guarded (Y := Kleisli.mk (M.obj W).monad Y)
+      (Z := Kleisli.mk (M.obj W).monad X) (kleisliArrow f)) :
+    ((M.obj W).iteration.iterate (kleisliArrow f) hf).of ≫
+        (M.toParametrizedMonad.parameter Y).map j =
+      ((M.obj W').iteration.iterate
+        (kleisliArrow (f ≫ (M.toParametrizedMonad.parameter (P.sum Y X)).map j))
+        ((M.map j).guarded f hf)).of :=
+  (M.map j).iteration f hf
+
+end ParametrizedGuardedElgotMonad
+
 end Silmaril.Calco2019

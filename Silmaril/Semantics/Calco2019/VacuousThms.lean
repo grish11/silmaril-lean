@@ -22,6 +22,24 @@ noncomputable def vacuousMap (m : T ⟶ S.monad) : GuardedElgotMonadHom P (vacuo
   guarded := Proofs.vacuousMap_guarded m
   iteration := Proofs.vacuousMap_iterates m
 
+/-- Equip every monad and monad morphism with the vacuous guarded Elgot structure. -/
+noncomputable def vacuousGuardFunctor (P : Coproducts C) :
+    CategoryTheory.Monad C ⥤ GuardedElgotMonad P where
+  obj T := vacuousMonad P T
+  map m := vacuousMap m
+  map_id _ := GuardedElgotMonadHom.ext rfl
+  map_comp _ _ := GuardedElgotMonadHom.ext rfl
+
+/-- Every parametrized monad has a lift to a parametrized guarded Elgot monad. -/
+noncomputable def ParametrizedMonad.withVacuousGuard (P : Coproducts C) (M : ParametrizedMonad C) :
+    ParametrizedGuardedElgotMonad P :=
+  M ⋙ vacuousGuardFunctor P
+
+theorem ParametrizedMonad.withVacuousGuard_forget (P : Coproducts C) (M : ParametrizedMonad C) :
+    (withVacuousGuard P M).toParametrizedMonad = M := by
+  unfold ParametrizedMonad.withVacuousGuard
+  rfl
+
 /-- Initiality of the identity monad with the least guard, used before Corollary 29. -/
 noncomputable def guardedIdentity_initial (P : Coproducts C) :
     IsInitial (guardedIdentity P) :=

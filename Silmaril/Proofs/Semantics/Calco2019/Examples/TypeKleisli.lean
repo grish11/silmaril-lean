@@ -194,4 +194,30 @@ noncomputable def assemble : GuardedElgotMonad typeCoproducts where
       (uniform I) }
   uniformity := uniform I
 
+private theorem computation_fix_iff (f : X → m (Y ⊕ X)) (g : X → m Y) :
+    Guardedness.IsFixpoint (P := Q) (computation m f) (computation m g) ↔
+      f >=> Sum.elim pure g = g := by
+  unfold Guardedness.IsFixpoint
+  change computation m f ≫ (Q).desc (computation m pure) (computation m g) =
+    computation m g ↔ _
+  rw [desc, comp]
+  exact ⟨fun e => congrArg
+    (fun k : Kleisli.mk T X ⟶ Kleisli.mk T Y => (show X → m Y from k.of)) e,
+    congrArg (computation m)⟩
+
+theorem iterative_iff (G : Guard m) : (guard m G).Iterative ↔ G.HasUniqueFixpoints := by
+  constructor
+  · intro h X Y f hf
+    obtain ⟨g, hg, hu⟩ := h (computation m f) ((guard_iff m G f).2 hf)
+    let observe (k : Kleisli.mk T X ⟶ Kleisli.mk T Y) : X → m Y := k.of
+    refine ⟨observe g, (computation_fix_iff f (observe g)).1 hg, fun k hk => ?_⟩
+    exact congrArg observe (hu (computation m k) ((computation_fix_iff f k).2 hk))
+  · intro h X Y f hf
+    obtain ⟨A⟩ := X
+    obtain ⟨B⟩ := Y
+    let body : A → m (B ⊕ A) := f.of
+    obtain ⟨g, hg, hu⟩ := h body hf
+    exact ⟨computation m g, (computation_fix_iff body g).2 hg, fun k hk =>
+      congrArg (computation m) (hu k.of ((computation_fix_iff body k.of).1 hk))⟩
+
 end Silmaril.Calco2019.Examples.TypeKleisli.Proofs
