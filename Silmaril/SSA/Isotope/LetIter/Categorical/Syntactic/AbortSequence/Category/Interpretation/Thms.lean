@@ -58,4 +58,23 @@ theorem repairedArrowDenote_mk {X Y : SynCat modelSig}
       J.map (singletonEnvIso M X.ty).inv ≫ denote J M d :=
   InterpretationProofs.repairedArrowDenote_mk pe J M coherent shared pureInstr h d
 
+local notation "evalArrow" => repairedArrowDenote pe J M coherent shared pureInstr
+
+/-- Interpretation sends the singleton variable to the computation identity. -/
+theorem repairedArrowDenote_id (X : Q) :
+    evalArrow (𝟙 X) = 𝟙 (J.obj (M.obj X.as.ty)) :=
+  InterpretationProofs.repairedArrowDenote_id pe J M coherent shared pureInstr X
+
+/-- Interpretation turns the sequencing representative of composition into composition. -/
+theorem repairedArrowDenote_comp {X Y Z : Q} (f : X ⟶ Y) (g : Y ⟶ Z) :
+    evalArrow (f ≫ g) = evalArrow f ≫ evalArrow g :=
+  InterpretationProofs.repairedArrowDenote_comp pe J M coherent shared pureInstr f g
+
+/-- Interpret the repaired computation category in the target model's computation category. -/
+@[expose] noncomputable def repairedComputationFunctor : Q ⥤ C where
+  obj X := J.obj (M.obj X.as.ty)
+  map f := evalArrow f
+  map_id X := repairedArrowDenote_id pe J M coherent shared pureInstr X
+  map_comp f g := repairedArrowDenote_comp pe J M coherent shared pureInstr f g
+
 end Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
