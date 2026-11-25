@@ -85,6 +85,13 @@ destinations. Mapping destination names back gives the original parameter
 order. The capture entries are also available as a vector indexed by the
 child's capture count.
 
+The [Core lowering](../../Silmaril/Languages/Python/Compile/Closure/Thms.lean)
+assigns distinct slot families to ordinary locals, owned cells and forwarded
+captures. Parameter destinations keep declaration order. A nested closure
+selects the same parent cell identity at each capture index as the source
+layout. The regression constructs both versions of the Core closure and
+reads a parent's subsequent write through the child's capture.
+
 ## Source intake
 
 The AST emitter takes an external CPython AST and writes a Lean module
