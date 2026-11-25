@@ -23,9 +23,12 @@ local notation "ThesisTm" => Thesis.LambdaIter.LocallyNameless.Tm
 local notation "ThesisHasType" => Thesis.LambdaIter.LocallyNameless.HasType
 local notation "ThesisEqv" => Thesis.LambdaIter.LocallyNameless.Eqv
 
-local instance : Thesis.LambdaIter.TypeFormers τ := Bridge.thesisTypeFormers τ
-local instance : Thesis.LambdaIter.HasTy Φ τ := Bridge.thesisHasTy Φ τ
-local instance : Thesis.LambdaIter.HasEff Φ ε := Bridge.thesisHasEff Φ ε
+local instance repairedSetoidThesisTypeFormers : Thesis.LambdaIter.TypeFormers τ :=
+  Bridge.thesisTypeFormers τ
+local instance repairedSetoidThesisHasTy : Thesis.LambdaIter.HasTy Φ τ :=
+  Bridge.thesisHasTy Φ τ
+local instance repairedSetoidThesisHasEff : Thesis.LambdaIter.HasEff Φ ε :=
+  Bridge.thesisHasEff Φ ε
 
 variable (pe : ε)
 
