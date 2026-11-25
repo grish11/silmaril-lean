@@ -128,18 +128,31 @@ private noncomputable def distributeEnv (E A B : V) :
       (show J.map (E ◁ (coprod.inr : B ⟶ A ⨿ B)) ≫ distributeEnv J E A B =
         coprod.inr from distributeMap_inr J E A B).symm
 
+private theorem case_eq_distribute {E A B X : V} (f : J.obj E ⟶ J.obj (A ⨿ B))
+    (l : J.obj (E ⊗ A) ⟶ J.obj X) (r : J.obj (E ⊗ B) ⟶ J.obj X) :
+    caseWithContext J f l r = extend J f ≫ distributeEnv J E A B ≫ coprod.desc l r := by
+  simp only [caseWithContext, Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind,
+    distributeEnv, Category.assoc]
+
 theorem case_pre_map_proof {D E A B X : V} (k : D ⟶ E)
     (f : J.obj E ⟶ J.obj (A ⨿ B))
     (left : J.obj (E ⊗ A) ⟶ J.obj X) (right : J.obj (E ⊗ B) ⟶ J.obj X) :
     caseWithContext J (J.map k ≫ f) (J.map (k ▷ A) ≫ left) (J.map (k ▷ B) ≫ right) =
       J.map k ≫ caseWithContext J f left right := by
-  have unfoldCase {Y : V} (f : J.obj Y ⟶ J.obj (A ⨿ B))
-      (l : J.obj (Y ⊗ A) ⟶ J.obj X) (r : J.obj (Y ⊗ B) ⟶ J.obj X) :
-      caseWithContext J f l r = extend J f ≫ distributeEnv J Y A B ≫ coprod.desc l r := by
-    simp only [caseWithContext, Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind,
-      distributeEnv, Category.assoc]
-  rw [unfoldCase, unfoldCase]
+  rw [case_eq_distribute, case_eq_distribute]
   rw [← coprod.map_desc, distributeEnv_pre_assoc, extend_pre_map_assoc]
+
+theorem case_bind_value_proof {E P A B X : V} (f : J.obj E ⟶ J.obj P)
+    (p : P ⟶ A ⨿ B) (l : J.obj (E ⊗ A) ⟶ J.obj X) (r : J.obj (E ⊗ B) ⟶ J.obj X) :
+    caseWithContext J (f ≫ J.map p) l r =
+      bindArrow J f (caseWithContext J (J.map (snd E P ≫ p))
+        (J.map (fst E P ▷ A) ≫ l) (J.map (fst E P ▷ B) ≫ r)) := by
+  simp only [case_eq_distribute, Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind]
+  rw [extend_postmap, Category.assoc, extend_map, ← coprod.map_desc, distributeEnv_pre_assoc,
+    ← J.map_comp_assoc]
+  have h : lift (𝟙 (E ⊗ P)) (snd E P ≫ p) ≫ (fst E P ▷ (A ⨿ B)) = E ◁ p := by
+    apply CartesianMonoidalCategory.hom_ext <;> simp
+  rw [h]
 
 end Distributive
 

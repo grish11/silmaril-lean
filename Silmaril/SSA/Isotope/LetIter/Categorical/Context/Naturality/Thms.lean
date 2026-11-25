@@ -51,6 +51,14 @@ theorem case_pre_map {D E A B X : V} (k : D ⟶ E)
       J.map k ≫ caseWithContext J f left right :=
   case_pre_map_proof J k f left right
 
+/-- Bind the scrutinee first, then perform contextual case analysis on its value. -/
+theorem case_bind_value {E P A B X : V} (f : J.obj E ⟶ J.obj P)
+    (p : P ⟶ A ⨿ B) (l : J.obj (E ⊗ A) ⟶ J.obj X) (r : J.obj (E ⊗ B) ⟶ J.obj X) :
+    caseWithContext J (f ≫ J.map p) l r =
+      bindArrow J f (caseWithContext J (J.map (CartesianMonoidalCategory.snd E P ≫ p))
+        (J.map (CartesianMonoidalCategory.fst E P ▷ A) ≫ l) (J.map (CartesianMonoidalCategory.fst E P ▷ B) ≫ r)) :=
+  case_bind_value_proof J f p l r
+
 end Distributive
 
 section Iteration

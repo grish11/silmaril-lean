@@ -17,7 +17,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 open CategoryTheory CategoryTheory.Limits CartesianMonoidalCategory PremonoidalCategory
 open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.LocallyNameless
-open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (extend retainLeft contextualLoop)
+open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (extend retainLeft contextualLoop caseWithContext)
 
 local notation "bindArrow" => Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind
 
@@ -104,5 +104,32 @@ theorem denote_iter_bind_proof {n : Nat} {β : BoundCtx τ n}
           denote J M (db.rename (TypedRenaming.underBinder β A A)) ≫ k)))
   rw [← Category.assoc (J.map (envSnocIso M Γ (.snoc β A) A).hom), denote_underBinder,
     Category.assoc, contextualLoop_pre_map, snoc_rebind, Category.assoc]
+
+theorem denote_bind_case_proof {n : Nat} {β : BoundCtx τ n}
+    {e : Tm ν Φ n} {l r : Tm ν Φ (n + 1)} {A B D : τ}
+    (de : Derivation Φ Γ β e (coprod A B))
+    (dl : Derivation Φ Γ (.snoc β A) l D) (dr : Derivation Φ Γ (.snoc β B) r D) :
+    denote J M (.case de dl dr) =
+      denote J M (.let₁ de (.case (.bv (ι := 0))
+        (dl.rename (TypedRenaming.underBinder β (coprod A B) A))
+        (dr.rename (TypedRenaming.underBinder β (coprod A B) B)))) := by
+  let S := coprod A B
+  let q : envObj M Γ (.snoc β S) ⟶ M.obj S := boundVar M 0
+  let p := (M.coprodIso A B).hom
+  let s := (envSnocIso M Γ β S).hom
+  let dl' := dl.rename (TypedRenaming.underBinder β S A)
+  let dr' := dr.rename (TypedRenaming.underBinder β S B)
+  change caseWithContext J (denote J M de ≫ J.map p)
+      (J.map (envSnocIso M Γ β A).hom ≫ denote J M dl)
+      (J.map (envSnocIso M Γ β B).hom ≫ denote J M dr) =
+    bindArrow J (denote J M de) (J.map s ≫ caseWithContext J (J.map q ≫ J.map p)
+      (J.map (envSnocIso M Γ (.snoc β S) A).hom ≫ denote J M dl')
+      (J.map (envSnocIso M Γ (.snoc β S) B).hom ≫ denote J M dr'))
+  rw [case_bind_value, denote_underBinder, denote_underBinder, ← case_pre_map]
+  have hq : s ≫ q = snd (envObj M Γ β) (M.obj S) := snoc_newest M β S
+  have hs : s ≫ dropSlot M β S = fst (envObj M Γ β) (M.obj S) := by simp [s, dropSlot]
+  rw [← J.map_comp_assoc s q, hq, ← J.map_comp,
+    ← J.map_comp_assoc (s ▷ M.obj A), ← J.map_comp_assoc (s ▷ M.obj B),
+    ← MonoidalCategory.comp_whiskerRight, ← MonoidalCategory.comp_whiskerRight, hs]
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical

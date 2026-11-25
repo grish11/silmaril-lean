@@ -44,4 +44,15 @@ theorem denote_iter_bind {n : Nat} {β : BoundCtx τ n}
         (db.rename (TypedRenaming.underBinder β A A)))) :=
   denote_iter_bind_proof J M da db
 
+/-- A case scrutinee can be bound before branching on the newest variable. -/
+theorem denote_bind_case {n : Nat} {β : BoundCtx τ n}
+    {e : Tm ν Φ n} {l r : Tm ν Φ (n + 1)} {A B D : τ}
+    (de : Derivation Φ Γ β e (coprod A B))
+    (dl : Derivation Φ Γ (.snoc β A) l D) (dr : Derivation Φ Γ (.snoc β B) r D) :
+    denote J M (.case de dl dr) =
+      denote J M (.let₁ de (.case (.bv (ι := 0))
+        (dl.rename (TypedRenaming.underBinder β (coprod A B) A))
+        (dr.rename (TypedRenaming.underBinder β (coprod A B) B)))) :=
+  denote_bind_case_proof J M de dl dr
+
 end Silmaril.Isotope.LetIter.Semantics.Categorical
