@@ -12,6 +12,8 @@ private structure ParseState where
   offset : Nat := 0
   /-- An item of an active junction list can only consume tokens to its right. -/
   junctionColumn : Nat := 0
+  /-- Numeric levels for hierarchy checks. The tree keeps the source's level markers. -/
+  proofLevels : List Nat := []
 
 private abbrev ParseM := StateT ParseState (Except Diagnostic)
 
@@ -43,6 +45,18 @@ private def takeToken : ParseM Token := do
 
 private def Token.isOneOf (token : Token) (spellings : List String) : Bool :=
   token.kind != .string && spellings.contains token.text
+
+private def Token.stepLabel (token : Token) : Option StepLabel := do
+  match token.kind with
+  | .step | .stepRef =>
+    let [level, suffix] := token.text.splitOn ">" | none
+    let level ← match level with
+      | "<*" => some StepLevel.current
+      | "<+" => some StepLevel.next
+      | _ => (String.ofList (level.toList.drop 1)).toNat?.map .explicit
+    let name := String.ofList (suffix.toList.takeWhile (fun c => c != '.' && c != '*' && c != '-'))
+    return ⟨level, if name.isEmpty then none else some name⟩
+  | _ => none
 
 private def sees (spellings : List String) (ahead : Nat := 0) : ParseM Bool := do
   return (← peek ahead).isOneOf spellings
@@ -196,6 +210,23 @@ private def afterDelimiter (offset : Nat) (openers closers : List String) :
 
 private def membership := ["\\in", "∈"]
 private def definitionMark := ["==", "≜"]
+
+-- Recognize SANY's synthetic DEFBREAK boundary without inserting tokens.
+private def startsDefinition (ahead : Nat := 0) : ParseM Bool := do
+  let token ← peek ahead
+  if token.isOneOf ["-|-"] then return true
+  let next ← peek (ahead + 1)
+  if token.kind != .ident then
+    return token.isNamedPrefix && next.kind == .ident && (← sees definitionMark (ahead + 2))
+  if next.isOneOf definitionMark then return true
+  if next.postfix.isSome then return ← sees definitionMark (ahead + 2)
+  if next.infix.isSome then
+    return (← peek (ahead + 2)).kind == .ident && (← sees definitionMark (ahead + 3))
+  let after ← if next.isOneOf ["("] then afterDelimiter (ahead + 1) ["("] [")"]
+    else if next.isOneOf ["["] then afterDelimiter (ahead + 1) ["["] ["]", "]_"]
+    else pure none
+  if let some offset := after then return ← sees definitionMark offset
+  return false
 
 private def startsBound : ParseM Bool := do
   -- SANY's matchFcnConst commits on a tuple followed by membership.
@@ -352,17 +383,16 @@ private partial def atom : ParseM Expr := do
     return .literal (.natural (numberValue token.text))
   else if token.kind == .string then
     return .literal (.string (← takeToken).text)
-  else if token.kind == .ident || (token.operator.isSome && !token.isOneOf ["[", "."]) then
+  else if token.kind == .ident || token.kind == .stepRef ||
+      (token.operator.isSome && !token.isOneOf ["[", "."]) then
     reference false
   else if token.isOneOf ["WF_", "SF_"] then
     let _ ← takeToken
     fairness (if token.text == "WF_" then .weak else .strong)
-  else if token.kind == .step then
-    failAt token "proof-step references are unsupported" .unsupported
   else reduced
 
 private partial def reference (restricted : Bool) : ParseM Expr := do
-  let name ← if restricted then pure (.ident (← ident)) else operatorName
+  let head ← if restricted then pure (.operator (.ident (← ident))) else referenceHead
   let args ← refArgs
   let mut selectors := []
   while ← accept ["!"] do
@@ -370,9 +400,21 @@ private partial def reference (restricted : Bool) : ParseM Expr := do
       let name ← ident
       pure (.named (.ident name) (← refArgs))
     else selector) :: selectors
-  if let .ident "@" := name then
+  if let .operator (.ident "@") := head then
     if args.isEmpty && selectors.isEmpty then return .oldValue
-  return .ref (.operator name) args selectors.reverse
+  return .ref head args selectors.reverse
+
+private partial def referenceHead : ParseM RefHead := do
+  let token ← peek
+  if token.kind != .stepRef then return .operator (← operatorName)
+  if (← get).proofLevels.isEmpty then failAt token "proof-step reference outside a hierarchical proof"
+  let some ⟨level, some name⟩ := token.stepLabel | failAt token "expected a named proof-step reference"
+  let level ← match level with
+    | .explicit n => pure (StepRefLevel.explicit n)
+    | .current => pure .current
+    | .next => failAt token "<+> cannot be used in a proof-step reference"
+  let _ ← takeToken
+  return .step ⟨level, name⟩
 
 private partial def reduced : ParseM Expr := do
   let token ← peek
@@ -404,7 +446,7 @@ private partial def opArg : ParseM OpArg := do
     expect ":"
     return .lambda parameters (← expression)
   if let some op := token.operator then
-    if stopsBareOperator (← peek 1) && (op.fixity != .prefix || token.isNamedPrefix) then
+    if stopsBareOperator (← peek 1) || (← startsDefinition 1) then
       if op.fixity == .product then failAt token "a Cartesian product cannot be a bare operator argument"
       let some symbol := symbolOf token op | failAt token "expected a standalone operator"
       let _ ← takeToken
@@ -583,6 +625,7 @@ private partial def caseArm : ParseM CaseArm := do
   return ⟨condition, ← expression⟩
 
 private partial def definition (vis : Visibility) : ParseM Definition := do
+  let _ ← accept ["-|-"]
   let token ← peek
   if token.kind == .ident then
     let name ← ident
@@ -680,41 +723,89 @@ private def citation : ParseM Citation := do
 private def startsCitation : ParseM Bool := do
   let token ← peek
   return token.kind == .ident || token.kind == .number || token.kind == .string ||
-    token.kind == .step || (token.operator.isSome && !token.isOneOf ["."]) ||
+    token.kind == .stepRef || (token.operator.isSome && !token.isOneOf ["."]) ||
     token.isOneOf ["MODULE", "(", "[", "{", "<<", "⟨", "@", "WF_", "SF_", "IF", "CASE",
       "LET", "CHOOSE", "\\A", "\\forall", "∀", "\\E", "\\exists", "∃", "\\AA", "\\EE"]
-
--- A definition immediately after an otherwise empty BY/USE/HIDE starts a
--- new unit. SANY signals this boundary with a synthetic DEFBREAK token.
-private def startsDefinition : ParseM Bool := do
-  let token ← peek
-  let next ← peek 1
-  if token.kind != .ident then
-    return token.isNamedPrefix && next.kind == .ident && (← sees definitionMark 2)
-  if next.isOneOf definitionMark then return true
-  if next.postfix.isSome then return ← sees definitionMark 2
-  if next.infix.isSome then
-    return (← peek 2).kind == .ident && (← sees definitionMark 3)
-  let after ← if next.isOneOf ["("] then afterDelimiter 1 ["("] [")"]
-    else if next.isOneOf ["["] then afterDelimiter 1 ["["] ["]", "]_"]
-    else pure none
-  if let some offset := after then return ← sees definitionMark offset
-  return false
 
 private def citations : ParseM Citations := do
   let facts ← if (← startsCitation) && !(← startsDefinition) then commaList citation else pure []
   let defs ← if ← accept ["DEF", "DEFS"] then commaList citation else pure []
   return ⟨facts, defs⟩
 
-private def proof : ParseM (Option Proof) := do
-  let explicit ← accept ["PROOF"]
+private def startsProof : ParseM Bool := do
   let token ← peek
-  if token.kind == .step then failAt token "hierarchical proofs are unsupported" .unsupported
+  if token.isOneOf ["PROOF", "OBVIOUS", "OMITTED", "BY"] then return true
+  let parent := (← get).proofLevels.head?
+  match token.stepLabel with
+  | some ⟨.current, _⟩ => return parent.isNone
+  | some ⟨.next, _⟩ => return true
+  | some ⟨.explicit level, _⟩ => return parent.all (· < level)
+  | none => return false
+
+private def stepDefinitions : ParseM (List Definition) := do
+  let mut definitions := [← definition (← visibility)]
+  while ← startsDefinition (if ← sees ["LOCAL"] then 1 else 0) do
+    definitions := (← definition (← visibility)) :: definitions
+  return definitions.reverse
+
+mutual
+
+private partial def proof : ParseM (Option Proof) := do
+  if !(← startsProof) then return none
+  let parents := (← get).proofLevels
+  if parents.length ≥ 100 then failHere "proofs nested more than 100 deep"
+  let _ ← accept ["PROOF"]
   if ← accept ["OBVIOUS"] then return some .obvious
   if ← accept ["OMITTED"] then return some .omitted
   if ← accept ["BY"] then return some (.byFacts (← accept ["ONLY"]) (← citations))
-  if explicit then failAt token "expected OBVIOUS, OMITTED, BY, or a proof step after PROOF"
-  return none
+  let token ← peek
+  let some first := token.stepLabel | failAt token "expected a proof step header"
+  let level ← match first.level with
+    | .explicit level =>
+      if parents.head?.any (· ≥ level) then failAt token "nested proof level must exceed its parent"
+      pure level
+    | .current | .next => pure (parents.head?.map (· + 1) |>.getD 0)
+  modify fun state => { state with proofLevels := level :: parents }
+  let result ← proofSteps level
+  modify fun state => { state with proofLevels := parents }
+  return some result
+
+private partial def proofSteps (level : Nat) : ParseM Proof := do
+  let mut first := true
+  let mut steps := []
+  repeat
+    let token ← peek
+    let some label := token.stepLabel | failAt token "expected a proof step header or labeled QED"
+    let sameLevel := match label.level with
+      | .explicit n => n == level
+      | .current => true
+      | .next => first
+    if !sameLevel then failAt token "proof step level does not match its siblings"
+    let _ ← takeToken
+    if ← accept ["QED"] then return .steps steps.reverse label (← proof)
+    steps := ⟨label, ← stepBody⟩ :: steps
+    first := false
+
+private partial def stepBody : ParseM StepBody := do
+  if ← accept ["PICK"] then
+    let binders ← rigidBinders
+    expect ":"
+    return .pick binders (← expression) (← proof)
+  if ← accept ["CASE"] then return .caseOf (← expression) (← proof)
+  if ← accept ["SUFFICES"] then return .suffices (← statement) (← proof)
+  let body ← if ← accept ["USE"] then
+    pure (.directive (.use (← accept ["ONLY"]) (← citations)))
+  else if ← accept ["HIDE"] then pure (.directive (.hide (← citations)))
+  else if ← sees ["INSTANCE"] then pure (.instantiation (← instantiation))
+  else if (← accept ["DEFINE"]) || (← startsDefinition) then pure (.define (← stepDefinitions))
+  else if ← accept ["HAVE"] then pure (.have (← expression))
+  else if ← accept ["TAKE"] then pure (.take (← rigidBinders))
+  else if ← accept ["WITNESS"] then pure (.witness (← commaList expression))
+  else return .assert (← statement) (← proof)
+  if ← startsProof then failHere "this kind of proof step cannot have a proof"
+  return body
+
+end
 
 private partial def moduleBody : ParseM Module := do
   let token ← peek

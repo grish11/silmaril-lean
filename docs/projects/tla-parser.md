@@ -53,11 +53,46 @@ operator. Parenthesizing an item preserves the enclosing indentation rule.
 These rules follow SANY's `JunctionListContext` and *Specifying Systems*
 §§15.2.1–15.2.2. [Book](https://lamport.azurewebsites.net/tla/book-21-07-04.pdf)
 
+## Proof hierarchy and reference syntax
+
+SANY uses the first step header to set a proof's level. A proof starting with
+`<*>` or `<+>` has level zero at the theorem and one more than its parent
+inside a proof. A numeric child level can skip numbers, provided it exceeds
+the parent's level. Siblings and the closing QED share the proof's level.
+Within a proof, `<*>` continues that level unless `PROOF` opens a child proof.
+`<+>` opens a child proof where the grammar permits one. The header level
+determines nesting independently of indentation. Each hierarchical proof ends
+with a QED and its own step header, even with zero preceding steps. The QED
+can itself have a terminal or hierarchical proof. The parser follows SANY's
+100-proof nesting limit and uses arbitrary-precision levels where SANY uses
+signed Java integers for headers.
+
+Surface preserves the spelling of each step name and the choice of numeric,
+`<*>` or `<+>` level. Numerals in headers and references become `Nat` values,
+so leading zeros disappear from the level. `PROOF`, `DEFINE`, the `-|-`
+definition marker, trailing header dots, and the nameless header suffixes `*`
+and `-` carry no field in the tree. Name underscores are accepted in numeric
+and dotted headers, following the pinned lexer.
+
+Within a hierarchical proof, named undotted `<n>name` and `<*>name` tokens
+can head expressions and citations, including qualified forms such as
+`<1>a!Label(2)!1`. A leaf proof within a hierarchy inherits the enclosing
+context. A theorem statement, a standalone `parseExpr` call and a theorem's
+top-level terminal proof have no such context. `<+>name` is header syntax.
+After an empty `BY`, `USE` or `HIDE`, a named undotted token can be consumed
+as the first citation. A dotted or nameless header avoids that ambiguity.
+
+The parser checks levels and where child proofs may appear. Step name
+uniqueness, whether a reference denotes an available step or selector, what
+may appear in a citation, and proof obligations belong to later passes.
+The `CASE` step consumes a condition expression. Use parentheses to make
+an assertion whose expression begins with `CASE … -> …`.
+[Pinned SANY grammar](https://github.com/tlaplus/tlaplus/blob/bc1b506bdcad80bb518bf3776a9161c34ff0fc4c/tlatools/org.lamport.tlatools/javacc/tla%2B.jj)
+
 ## Grammar coverage
 
 Statuses describe the named Surface path. **Landed** refers to the existing
-AST and codec. **Implemented** refers to this parser. **Remaining** identifies
-productions for follow-up work and **Unsupported** identifies deliberate
+AST and codec. **Implemented** refers to this parser. **Unsupported** identifies
 boundary cases that require a representation or source contract decision.
 
 | Status | Pinned SANY productions | Coverage |
@@ -75,26 +110,28 @@ boundary cases that require a representation or source contract decision.
 | Implemented | `IfThenElse`, `Case`, `CaseArm`, `OtherArm`, `Junctions`, `DisjList`, `ConjList`, `JuncItem` | IF, CASE including final OTHER, and aligned junction lists including Unicode markers. |
 | Implemented | `Assumption`, `Theorem`, `AssumeProve`, `NewSymb` | Named or unnamed assumptions and theorems, nested and labeled ASSUME/PROVE hypotheses, boxed modes and NEW hypotheses. |
 | Implemented | terminal `Proof`, `UseOrHideOrBy` | Omitted proof, OMITTED, OBVIOUS, BY with facts and DEF lists, and module-level USE/HIDE. Module-level USE ONLY is a SANY syntax rejection. |
-| Remaining | hierarchical `Proof`, `StepStartToken`, `Step`, `QEDStep` | Explicit and relative proof levels, step labels, nested proofs and QED with its optional proof. |
-| Remaining | `DefStep`, `HaveStep`, `TakeStep`, `WitnessStep`, `PickStep`, `CaseStep`, `AssertStep` and step alternatives | DEFINE and unmarked definitions, HAVE, TAKE, WITNESS, PICK, CASE, assertions, SUFFICES, INSTANCE, USE and HIDE within step proofs. |
-| Remaining | proof-step alternatives of `PrimitiveExp` | Numbered and current-level step references, including references in citations and as qualified heads. |
+| Implemented | hierarchical `Proof`, `StepStartToken`, `Step`, `QEDStep` | Explicit and relative proof levels, optional names and punctuation, nested proofs and QED with its optional proof. |
+| Implemented | `DefStep`, `HaveStep`, `TakeStep`, `WitnessStep`, `PickStep`, `CaseStep`, `AssertStep` and step alternatives | DEFINE and unmarked definitions, HAVE, TAKE, WITNESS, PICK, CASE, assertions, SUFFICES, INSTANCE, USE and HIDE within step proofs. |
+| Implemented | proof-step alternatives of `PrimitiveExp` | Numbered and current-level step references in expressions, including citations and qualified heads. |
 | Unsupported | `Prelude` and JavaCC default-mode text | Leading arbitrary prose and the `--->` pragma. The native API also rejects trailing text or another top-level module after the terminator. |
-| Unsupported | permissive label alternative of `ExtendableExpr` | Nonidentifier labels or arguments accepted by JavaCC lookahead. The Surface label stores a name and identifier parameters. |
+| Unsupported | permissive label alternative of `ExtendableExpr` | Nonidentifier labels or arguments accepted by JavaCC lookahead. SANY accepts `<1>other :: TRUE` and `L(<1>other) :: TRUE` in a proof. Both receive `unsupported` diagnostics because `Surface.Label` stores identifier names and parameters. |
 | Unsupported | permissive `TupleOrAction` alternatives | Angle-action forms with zero or multiple apparent bodies. The Surface action stores one body. |
 | Unsupported | Bare index payload in `ParenthesesExpression` or `ReducedExpression` | SANY can recognize `[x]` as a function-application payload without a function. The Surface index requires a function expression. |
 | Unsupported | permissive `Number` alternative | A decimal with a base-prefixed whole or fractional token. The Surface decimal stores an exact base-ten fraction. |
 | Unsupported | outside the TLA+ module grammar | TLC configuration and PlusCal translation. A PlusCal algorithm inside a TLA+ block comment is consumed as comment text. |
 
-Proof steps and step references are the first follow-up because their
-constructors already exist in the Surface tree. Next, extend the differential
-corpus around overlapping grammar alternatives and settle input compatibility
-with SANY's prelude and permissive syntax. Elaboration is a separate downstream
-task.
+The next parser compatibility decision is whether to keep rejecting SANY's
+permissive forms that have no Surface representation, including the two
+step-reference label positions and the action, index and decimal cases in
+the table. Separately, decide whether module intake should accept SANY's
+prelude and unread trailing input. The syntax corpus can grow independently
+of those decisions. In downstream elaboration, resolve step names, current
+levels and selectors before assigning obligations to proof steps.
 
 ## Validation and provenance
 
 Run from the repository root. The default check uses the native parser and
-local fixtures. `--upstream` also downloads the three original example modules.
+local fixtures. `--upstream` also downloads the pinned example and proof modules.
 `--sany` additionally requires a JDK and Ant, runs the vendored JavaCC
 generator, builds SANY from the pinned upstream source, and calls `TLAplusParser.parse()` directly. This
 returns a syntax verdict without invoking SANY's semantic frontend, which
@@ -105,17 +142,21 @@ compilation unit, which the SANY entry point can leave unread.
 ~~~sh
 python3 -I tests/semantics/tla-parser/check.py
 python3 -I tests/semantics/tla-parser/check.py --sany
-make check CHECK_TARGETS='+Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs'
+make check CHECK_TARGETS='+Silmaril.Logic.Temporal.TLA.Surface.Parser.Grammar +Silmaril.Logic.Temporal.TLA.Surface.Parser.Lexer'
 ~~~
 
-The fixture check verifies downloaded bytes by SHA-256 and uses intact
-HourClock, LiveHourClock and DieHard from the TLA+ tree at
-`bc1b506bdcad80bb518bf3776a9161c34ff0fc4c`. It reads BoundedCounter and
-BitPair in place and checks their hashes against the original export tree at
-`6606bd00bde1c71430aa254ce78a716dd6d59267`. Native tests assert tree shapes
-and diagnostic positions in addition to whole-source verdicts.
+The fixture check verifies downloaded bytes by SHA-256. It uses intact
+HourClock, LiveHourClock, DieHard, the TLAPS `VoteProof` specimen, and SANY's
+`ImplicitProofsTest` and `ProofsTest` from the pinned TLA+ tree. It reads
+BoundedCounter and BitPair in place and checks their hashes against the
+original export tree at `6606bd00bde1c71430aa254ce78a716dd6d59267`. Native
+tests compare the full encoded trees of `BoundedQueue` and `ProofSteps`
+against handwritten Surface trees, and check diagnostic positions and
+whole-source verdicts. `make check` runs the native regression whenever a
+scoped target is in the parser namespace.
 [Fixture driver and hashes](../../tests/semantics/tla-parser/check.py) ·
 [Verdict cases](../../tests/semantics/tla-parser/cases.json) ·
+[Pinned VoteProof](https://github.com/tlaplus/tlaplus/blob/bc1b506bdcad80bb518bf3776a9161c34ff0fc4c/tlatools/org.lamport.tlatools/test-model/VoteProof/VoteProof.tla) ·
 [Pinned Quint export tree](https://github.com/hiloopai/silmaril-lean/tree/6606bd00bde1c71430aa254ce78a716dd6d59267/tests/semantics/tla-quint)
 
 The SHA-256 of the pinned `tla+.jj` is

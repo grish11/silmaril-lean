@@ -2,9 +2,15 @@ module
 
 import Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs
 meta import Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs
+import all Silmaril.Logic.Temporal.TLA.Surface.Examples
+meta import all Silmaril.Logic.Temporal.TLA.Surface.Examples
+import Silmaril.ProofFormats.TLA.SurfaceSExp.Defs
+meta import Silmaril.ProofFormats.TLA.SurfaceSExp.Defs
 
 open Silmaril.Logic.Temporal.TLA.Surface
 open Silmaril.Logic.Temporal.TLA.Surface.Parser
+open Silmaril.Logic.Temporal.TLA.Surface.Examples (boundedQueue)
+open Silmaril.ProofFormats.TLA.SurfaceSExp (encodeModule)
 
 private def check (condition : Bool) (message : String) : IO Unit :=
   unless condition do throw (IO.userError message)
@@ -95,7 +101,8 @@ private def checkDiagnostics : IO Unit := do
     ("\"bad\\q\"", .lexical, ⟨4, 1, 5⟩, ⟨6, 1, 7⟩, "invalid string escape"),
     ("  /\\ (x'\n  )", .syntax, ⟨11, 2, 3⟩, ⟨12, 2, 4⟩, "outside the active junction"),
     ("a b", .syntax, ⟨2, 1, 3⟩, ⟨3, 1, 4⟩, "after complete input"),
-    ("x +", .syntax, ⟨3, 1, 4⟩, ⟨3, 1, 4⟩, "expression")]
+    ("x +", .syntax, ⟨3, 1, 4⟩, ⟨3, 1, 4⟩, "expression"),
+    ("<1>a", .syntax, ⟨0, 1, 1⟩, ⟨4, 1, 5⟩, "outside a hierarchical proof")]
   for (source, kind, start, stop, message) in cases do
     match parseExpr source with
     | .error actual =>
@@ -122,6 +129,51 @@ private def checkAssignments (boundedPath bitPath : System.FilePath) : IO Unit :
         (.infix (.symbol ":=") (.postfix .prime (.ref (.operator (.ident "y")) [] []))
           (.ifThenElse _ (.infix (.symbol "-") _ _) _))) => pure ()
   | value => throw (IO.userError s!"BitPair step: {reprStr value}")
+
+private def name (id : Ident) (args : List Expr := []) : Expr :=
+  .ref (.operator (.ident id)) (args.map .expr) []
+
+private def stepRef (level : StepRefLevel) (id : Ident) : Expr :=
+  .ref (.step ⟨level, id⟩) [] []
+
+private def proofStepsModule : Module :=
+  let truth := name "TRUE"
+  let natural := fun n => Expr.literal (.natural n)
+  let prep := stepRef (.explicit 3) "prep"
+  let currentPrep := stepRef .current "prep"
+  let tupleBound : Bound := ⟨.tuple ["x", "y"], name "S"⟩
+  let sufficesProof := Proof.steps [⟨⟨.current, none⟩, .have truth⟩]
+    ⟨.explicit 5, none⟩ (some .obvious)
+  let caseProof := Proof.steps
+    [⟨⟨.next, none⟩, .suffices
+      (.assumeProve .plain [.newBoundConstant "k" (name "S")] .plain (name "P" [name "k"]))
+      (some sufficesProof)⟩] ⟨.explicit 4, none⟩ none
+  let proof := Proof.steps
+    [ ⟨⟨.explicit 3, some "prep"⟩, .define
+        [ .operator .local (.ident "F" [.ident "x" 0]) (name "x"),
+          .function .ordinary "G" [⟨.names ["y"], name "S"⟩] (name "F" [name "y"]) ]⟩,
+      ⟨⟨.current, some "plain"⟩, .define
+        [ .namedInstance .ordinary "H" [] ⟨"M", [⟨.ident "C", .symbolic (.infix (.symbol "+"))⟩]⟩,
+          .operator .ordinary (.ident "J" []) (name "F" [natural 0]) ]⟩,
+      ⟨⟨.explicit 3, none⟩, .instantiation ⟨"M", [⟨.ident "C", .expr prep⟩]⟩⟩,
+      ⟨⟨.explicit 3, none⟩, .have (.ref (.step ⟨.explicit 3, "prep"⟩) [.expr (natural 1)]
+        [.named (.ident "Label") [.expr (natural 2)], .structural (.operand 1)])⟩,
+      ⟨⟨.explicit 3, none⟩, .take (.bounded [tupleBound, ⟨.names ["z", "w"], name "V"⟩])⟩,
+      ⟨⟨.explicit 3, none⟩, .witness
+        [ .infix (.symbol "\\in") (.tuple [name "x", name "y"]) (name "S"),
+          .ref (.step ⟨.current, "prep"⟩) [] [.structural .body] ]⟩,
+      ⟨⟨.current, none⟩, .pick (.unbounded ["p", "q"]) (name "P" [name "p", name "q"])
+        (some (.byFacts true ⟨[.moduleName "M", .expr currentPrep], [.expr prep, .moduleName "N"]⟩))⟩,
+      ⟨⟨.explicit 3, some "case_label"⟩, .caseOf (name "C") (some caseProof)⟩,
+      ⟨⟨.explicit 3, none⟩, .directive (.use true ⟨[.expr prep], [.expr (name "H")]⟩)⟩,
+      ⟨⟨.explicit 3, none⟩, .directive (.hide ⟨[], [.expr (name "G")]⟩)⟩,
+      ⟨⟨.explicit 3, some "last"⟩, .assert (.assumeProve .plain [.statement (.expr truth)] .plain truth)
+        (some (.steps [] ⟨.explicit 9, none⟩ (some .omitted)))⟩ ]
+    ⟨.explicit 3, some "end"⟩
+    (some (.steps [] ⟨.next, none⟩ (some (.byFacts false ⟨[.expr (stepRef .current "unknown")], []⟩))))
+  ⟨"ProofSteps", [],
+    [ .theoremDecl ⟨some "T", .expr truth, some proof⟩,
+      .theoremDecl ⟨some "U", .expr truth, some (.steps [] ⟨.current, none⟩ none)⟩ ]⟩
 
 private def checkUpstreamShape (parsed : Module) : IO Unit := do
   if parsed.name == "HourClock" then
@@ -157,7 +209,12 @@ private def checkCorpus : List String → IO Unit
     match parseModule source with
     | .ok parsed =>
       check (expected == "accept") s!"{file}: unexpectedly accepted"
-      checkUpstreamShape parsed
+      let filename := (System.FilePath.mk file).fileName
+      if filename == some "BoundedQueue.tla" || filename == some "ProofSteps.tla" then
+        let tree := if filename == some "BoundedQueue.tla" then boundedQueue else proofStepsModule
+        check (decide (encodeModule parsed = encodeModule tree)) s!"{file}: wrong tree\n{reprStr parsed}"
+      else
+        checkUpstreamShape parsed
     | .error error =>
       let actual := if error.kind == .unsupported then "unsupported" else "reject"
       check (actual == expected) s!"{file}: {reprStr error}"

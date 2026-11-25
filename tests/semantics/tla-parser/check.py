@@ -26,6 +26,12 @@ UPSTREAM = {
         "d363d32fa6a20f7aa6b2590ba95e2a4ffd7849107423ae3bbc5ac96d10693064",
     "test-model/DieHard.tla":
         "9ca268ae443b82715c59591f2da4c81a65d0c276e7c5f2d9afb42658289f1ff9",
+    "test-model/VoteProof/VoteProof.tla":
+        "fa7003b79d50625037c5a2a386d9c6b263296cfef82380cbd3ba588fd918fe91",
+    "test/tla2sany/semantic/corpus/ImplicitProofsTest.tla":
+        "921892dda4b2f47020b5d15af2e5566853565c861268bf5ff6125832ddf9589f",
+    "test/tla2sany/semantic/corpus/ProofsTest.tla":
+        "a8a49cec3fc55e853a40bb6cfa7011bff50655aa645879522f7d33510a659630",
 }
 IN_PLACE = {
     "BoundedCounter.tla": "24d769ab5e0785ff4a89c93712f38786d681bd761b93cd89d8adf2cc896b8c5b",
@@ -61,19 +67,24 @@ def run_sany(work, cases):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--upstream", action="store_true", help="include the three pinned upstream modules")
+    parser.add_argument("--upstream", action="store_true", help="include the pinned upstream modules")
     parser.add_argument("--sany", action="store_true", help="also run the pinned syntax-only JavaCC oracle")
-    parser.add_argument("--no-build", action="store_true", help="use the existing Lake build of the parser")
+    parser.add_argument("--no-build", action="store_true", help="use the existing Lake build of the test imports")
     args = parser.parse_args()
     lake = os.environ.get("LAKE", "lake")
     if not args.no_build:
-        subprocess.run([lake, "build", "--wfail", "+Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs"],
-                       cwd=ROOT, check=True)
+        subprocess.run([lake, "build", "--wfail",
+                        "+Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs",
+                        "+Silmaril.Logic.Temporal.TLA.Surface.Examples",
+                        "+Silmaril.ProofFormats.TLA.SurfaceSExp.Defs"], cwd=ROOT, check=True)
 
     with tempfile.TemporaryDirectory(prefix="silmaril-tla-parser-") as temporary:
         work = Path(temporary)
         native = []
         sany = []
+        for name in ("BoundedQueue.tla", "ProofSteps.tla"):
+            native.extend([str(HERE / name), "accept"])
+            sany.extend([str(HERE / name), "accept"])
         for case in json.loads((HERE / "cases.json").read_text(encoding="utf-8")):
             path = work / (case["name"] + ".tla")
             source = case.get("source")
@@ -82,6 +93,12 @@ def main():
             path.write_bytes(source.encode("utf-8"))
             native.extend([str(path), case["native"]])
             sany.extend([str(path), case.get("sany", case["native"])])
+        for depth, expected in ((100, "accept"), (101, "reject")):
+            path = work / f"proof-depth-{depth}.tla"
+            qeds = "".join(f"<{level}> QED\n" for level in range(depth))
+            path.write_text(f"---- MODULE Fixture ----\nTHEOREM TRUE\n{qeds}====\n", encoding="utf-8")
+            native.extend([str(path), expected])
+            sany.extend([str(path), expected])
         for name, digest in IN_PLACE.items():
             path = HERE.parent / "tla-quint" / name
             verify(path, digest)

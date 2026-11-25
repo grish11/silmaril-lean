@@ -9,7 +9,10 @@ public section
 namespace Silmaril.Logic.Temporal.TLA.Surface.Parser
 
 inductive TokenKind where
-  | ident | keyword | symbol | number | string | step | beginModule | separator | endModule | eof
+  | ident | keyword | symbol | number | string | step
+  /-- A named, undotted step token. It can also start a step. -/
+  | stepRef
+  | beginModule | separator | endModule | eof
   deriving BEq, Inhabited
 
 structure Token where
@@ -115,19 +118,26 @@ private def basedNumber (chars : List Char) : List Char :=
     | digits => '\\' :: tag :: digits
   | _ => []
 
-private def proofStep (chars : List Char) : List Char := Id.run do
-  let '<' :: tail := chars | return []
+private def proofStep (tail : List Char) : Option (TokenKind × String × Nat) := do
   let level := match tail with
     | '*' :: _ => ['*']
     | '+' :: _ => ['+']
     | _ => tail.takeWhile Char.isDigit
-  if level.isEmpty then return []
-  let '>' :: tail := tail.drop level.length | return []
+  let _ :: _ := level | none
+  let '>' :: tail := tail.drop level.length | none
   let name := tail.takeWhile wordChar
-  let suffix := match tail with
-    | '*' :: _ | '-' :: _ => tail.take 1 ++ ((tail.drop 1).takeWhile (· == '.'))
-    | _ => name ++ ((tail.drop name.length).takeWhile (· == '.'))
-  return '<' :: level ++ '>' :: suffix
+  let dots := (tail.drop name.length).takeWhile (· == '.')
+  -- JavaCC allows underscores in numeric labels and any dotted label.
+  let (kind, suffix) : TokenKind × List Char := match tail with
+    | '*' :: rest | '-' :: rest => (.step, tail.take 1 ++ rest.takeWhile (· == '.'))
+    | _ =>
+      if !dots.isEmpty then (.step, name ++ dots)
+      else
+        let name := if level == ['*'] || level == ['+'] then
+          name.takeWhile (· != '_') else name
+        (if name.isEmpty then .step else .stepRef, name)
+  let chars := '<' :: level ++ '>' :: suffix
+  return (kind, String.ofList chars, chars.length)
 
 private def lexeme (c : Char) (chars : List Char) : TokenKind × String × Nat := Id.run do
   if c == '-' || c == '=' then
@@ -152,9 +162,12 @@ private def lexeme (c : Char) (chars : List Char) : TokenKind × String × Nat :
   if c == 'ℕ' || c == 'ℤ' || c == 'ℝ' || c == '@' then return (.ident, String.singleton c, 1)
   let fixed := (symbolBuckets.getD c []).find? (fun (spelling, _) => spelling.isPrefixOf chars)
   let fixedLength := fixed.map (fun (spelling, _) => spelling.length) |>.getD 0
-  let special := if c == '<' then proofStep chars else if c == '\\' then basedNumber chars else []
-  if special.length > fixedLength then
-    return (if c == '<' then .step else .number, String.ofList special, special.length)
+  if c == '<' then
+    if let some special := proofStep (chars.drop 1) then
+      if special.2.2 > fixedLength then return special
+  if c == '\\' then
+    let digits := basedNumber chars
+    if digits.length > fixedLength then return (.number, String.ofList digits, digits.length)
   if let some (_, spelling) := fixed then return (.symbol, spelling, fixedLength)
   return (.symbol, String.singleton c, 0)
 
