@@ -66,17 +66,41 @@ comorphism preserves and reflects satisfaction for equations and refinements
 at each model. The separate syntactic operation `RegionLoop.bsubst` permits
 term substitution under region binders.
 `RegionLoop.bsubst_id`, `RegionLoop.bsubst_comp` and
-`RegionLoop.lower_bsubst` check its laws. Signature morphisms in this
-institution use variable renaming, so the model reduct needs only bound
-values.
+`RegionLoop.lower_bsubst` check its laws. For inert substitutions, `iterBeh_bsubst` and
+`RegionLoop.observe_bsubst` also prove equality of full answers after
+replacing the environment by the substituted values. Signature morphisms
+in this institution use variable renaming.
+
+## Typed scalar SCF and CF
+
+`ScalarWhile.toRegionLoop` realizes the typed `While` from
+[PR #3167](https://github.com/hiloopai/silmaril-lean/pull/3167).
+It embeds each of its four individual blocks as a typed primitive call.
+The names of those primitives carry the block code. For a fixed interface,
+one model interprets the symbols from any loop with that interface using the
+given scalar primitive interpretation and ambient input. Native LetIter
+controls entry, the branch on the condition tag, the backedge and the parent
+continuation. `ScalarWhile.toRegionLoop_wellTyped` checks the resulting
+LetIter interface with distinct state and payload types.
+
+`ScalarWhile.returns_iff` proves that every LetIter return has the typed
+result profile and a corresponding finite scalar run, and every finite
+scalar return appears in LetIter. `ScalarWhile.diverges_iff` matches the
+native coinductive divergence to the scalar evaluator's absence of a result
+at every finite budget. `ScalarWhile.no_fault` checks that the pure scalar
+realization has no fault observation. `ScalarWhile.cf_returns_iff` and
+`ScalarWhile.cf_diverges_iff` compose these agreements with the independent
+SCF-to-CF lowering.
 
 ## Scope of the claim
 
-The full observations are at the parent boundary. They do not report
-individual condition decisions or count yields. This is a comparison to
-LetIter's observational institution. A comparison to the exact equational
-institution would require a corresponding class of operation algebras and a
-separate satisfaction result. The SCF-facing side still uses native
-LetIter regions. Relating it to the independent SCF while dialect requires
-a common admissible primitive interpretation and a proof that its region
-evaluations and parent outcomes realize this boundary semantics.
+The full observations are at the parent boundary. They omit individual
+condition decisions and counts of yields. The comorphisms compare the
+region view to LetIter's observational institution. The scalar realization
+relates the deterministic pure dialect at a fixed profile and input to that
+view. Its code blocks are interpreted as whole primitive calls, so this
+realization does not lower individual scalar instructions. Typed SCF
+signature change across profiles and a reverse translation for general
+LetIter remain open. A comparison to the exact equational institution
+would require a corresponding class of operation algebras and a separate
+satisfaction result.

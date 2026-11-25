@@ -20,7 +20,7 @@ open CategoryTheory Silmaril.Logic.Institution
 open Silmaril.Logic.Institution.Observational (Sentence)
 open Silmaril.Isotope.Institution.Observational (Behaviour Model Observation iterBeh letIter noFree)
 open Silmaril.Isotope.LetIter.LocallyNameless (Tm)
-open Silmaril.Isotope.LetIter.Semantics (Eval Fault)
+open Silmaril.Isotope.LetIter.Semantics
 
 variable {Φ : Type u}
 
@@ -59,14 +59,19 @@ instance : Category Scope where
   id _ := id
   comp f g := g ∘ f
 
-/-- Reduct leaves the instruction and state model in place and reindexes the bound values. -/
-def reduct {S T : Scope} (f : S ⟶ T) (M : Model.{u, v, w} Φ T.arity) : Model.{u, v, w} Φ S.arity where
+/-- Change the ambient values while preserving the primitive model. -/
+def withBound {n m : Nat} (M : Model.{u, v, w} Φ m) (bound : BoundEnv M.α n) :
+    Model.{u, v, w} Φ n where
   α := M.α
   σ := M.σ
   instr := M.instr
   faults := M.faults
   prim := M.prim
-  bound i := M.bound (f i)
+  bound := bound
+
+/-- Reduct leaves the instruction and state model in place and reindexes the bound values. -/
+def reduct {S T : Scope} (f : S ⟶ T) (M : Model.{u, v, w} Φ T.arity) : Model.{u, v, w} Φ S.arity :=
+  withBound M (M.bound ∘ f)
 
 @[simp] theorem reduct_id {S : Scope} (M : Model.{u, v, w} Φ S.arity) : reduct (𝟙 S) M = M := rfl
 
@@ -89,12 +94,29 @@ theorem reductFunctor_comp {S T U : Scope} (f : S ⟶ T) (g : T ⟶ U) :
 theorem iterBeh_rename {S T : Scope} (f : S ⟶ T) (M : Model.{u, v, w} Φ T.arity)
     (t : Tm Empty Φ S.arity) : iterBeh M (t.rename f) = iterBeh (reduct f M) t :=
   Observation.set_eq_iff.mpr ⟨fun _ _ _ => Eval.rename_iff (fun _ => rfl),
-    fun _ _ => Fault.rename_iff (fun _ => rfl), fun _ => Silmaril.Isotope.LetIter.Semantics.External.Diverges.rename_iff (fun _ => rfl)⟩
+    fun _ _ => Fault.rename_iff (fun _ => rfl), fun _ => External.Diverges.rename_iff (fun _ => rfl)⟩
 
 /-- Region-view answers commute with the same model reduct. -/
 theorem RegionLoop.observe_rename {S T : Scope} (f : S ⟶ T) (M : Model.{u, v, w} Φ T.arity)
     (p : RegionLoop Φ S.arity) : (p.rename f).observe M = p.observe (reduct f M) := by
   rw [observe_eq_iterBeh, lower_rename, iterBeh_rename, observe_eq_iterBeh]
+
+/-- Substituting inert values is equivalent to changing the bound environment
+for full native answers, including faults and divergence. -/
+theorem iterBeh_bsubst {n m : Nat} (M : Model.{u, v, w} Φ m)
+    (f : Fin n → Tm Empty Φ m) (inert : ∀ i, Inert (f i)) (t : Tm Empty Φ n) :
+    iterBeh M (t.bsubst f) = iterBeh (withBound M (fun i => inertValue noFree M.bound (f i))) t := by
+  have pureSubst : PureSubst M.instr noFree M.bound f (fun i => inertValue noFree M.bound (f i)) :=
+    ⟨fun i s => (inert i).eval s, fun {i _ _ _} run => (inert i).unique run⟩
+  exact Observation.set_eq_iff.mpr ⟨fun _ _ _ => Eval.bsubst_iff pureSubst,
+    fun _ _ => Fault.bsubst_iff pureSubst (fun i => (inert i).not_fault),
+    fun _ => External.Diverges.bsubst_iff pureSubst (fun i => (inert i).not_diverges)⟩
+
+/-- The same value-substitution law holds for all region-view answers. -/
+theorem RegionLoop.observe_bsubst {n m : Nat} (M : Model.{u, v, w} Φ m)
+    (f : Fin n → Tm Empty Φ m) (inert : ∀ i, Inert (f i)) (p : RegionLoop Φ n) :
+    (p.bsubst f).observe M = p.observe (withBound M (fun i => inertValue noFree M.bound (f i))) := by
+  rw [observe_eq_iterBeh, lower_bsubst, iterBeh_bsubst M f inert, observe_eq_iterBeh]
 
 /-- Construct an institution from a renaming action and its reduct law. -/
 def ofRenaming
