@@ -48,13 +48,16 @@ profile. Its NaN and signed-zero bit examples describe the local evaluator.
 
 ## Libm and WebAssembly attachment
 
-The following adapter is the integration delta after the separately coordinated
-`SSA` dependency on `Numeric` in `regions.toml`. The existing Lake globs cover
-the dialect directories.
+Place the adapter in `Silmaril/Wasm/SSA/MLIRMath/Defs.lean` and `Thms.lean`.
+The Wasm region can import SSA and Numeric under the existing region map,
+and the existing Lake globs cover this path. The SSA contract stays
+backend-independent. Keep the adapter a leaf so the existing Libm and Wasm
+APIs can be composed without an import cycle. [Region map](../../regions.toml)
 
-1. In `Math/Libm/Defs.lean`, import `Numeric.Libm.Catalogue.Defs` and convert
-   codes with `F64.ofBits bits.toUInt64` and `x.bits.toBitVec`. Decode finite
-   inputs by mapping the rational from `F64.toRat?` to `ℝ`. Show that
+1. Import `SSA.MLIR.Math.Defs` and `Numeric.Libm.Catalogue.Defs` in the
+   adapter and convert codes with `F64.ofBits bits.toUInt64` and
+   `x.bits.toBitVec`. Decode finite inputs by mapping the rational from
+   `F64.toRat?` to `ℝ`. Show that
    `Numeric.Libm.Double.log.exact` gives the same result graph as the Math
    reference on decoded positive inputs. The existing log spec comes from
    `Numeric.Libm.Elementary.Defs`.
@@ -118,6 +121,7 @@ Apache-2.0 with the LLVM exception. [Math docs](https://mlir.llvm.org/docs/Diale
 ## Checks
 
 ```sh
+scripts/check-layout.sh
 lake build --wfail +Silmaril.SSA.MLIR.Math.Thms +Silmaril.SSA.MLIR.Complex.Thms
 make check CHECK_TARGETS='+Silmaril.SSA.MLIR.Math.Thms +Silmaril.SSA.MLIR.Complex.Thms'
 ```
