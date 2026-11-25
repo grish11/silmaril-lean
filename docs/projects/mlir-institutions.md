@@ -45,6 +45,38 @@ lake build --wfail +Silmaril.SSA.MLIR.Signature.Thms \
   +Silmaril.SSA.MLIR.Institution.Regionless.Thms
 ```
 
+### Extending an isolated dialect at fixed sorts
+
+The fixed-sort coproduct allows fresh labels with region slots when the region
+flag is `true`. It retains the common sorts and the full ordered operand,
+result, parameter, and yield profiles. Its universal property is in the
+identity-sort fiber. Two unrestricted renamings can disagree on a shared sort,
+so they need not have a mediator from the fixed-sort sum. The disjoint-sort
+coproduct gives them separate copies of that sort.
+
+The checked example adds one execute-once label with an explicit parameter and
+a yielded result. The body uses old Arith addition and receives only the
+declared parameter. Lean identifies the coproduct mediator that keeps old
+labels and maps the fresh one to Arith's existing isolated application. It
+checks the doubled result before and after renaming at every positive width,
+including `200 : i8` yielding `144` with an unused outer input.
+[Example and theorems](../../Silmaril/SSA/MLIR/Signature/FixedSorts/Examples/Thms.lean)
+
+The example uses the pure total expression model. Upstream `scf.execute_region`
+has no entry arguments and can access dominating captures and contain multiple
+blocks. The separate `scf.while` to CF development checks successor transfers,
+finite returns, and divergence for its single-loop fragment. The fixed-sort
+result concerns symbol renamings, with separate laws for operation-to-block
+interpretations and model reducts.
+[#3167 structural lowering](https://github.com/hiloopai/silmaril-lean/pull/3167) ·
+[#3169 zero-region primitive extension](https://github.com/hiloopai/silmaril-lean/pull/3169) ·
+[Upstream SCF reference](https://mlir.llvm.org/docs/Dialects/SCFDialect/#scfexecute_region-scfexecuteregionop)
+
+```sh
+lake build --wfail +Silmaril.SSA.MLIR.Signature.FixedSorts.Examples.Thms
+make check CHECK_TARGETS=+Silmaril.SSA.MLIR.Signature.FixedSorts.Examples.Thms
+```
+
 ## Sentences and models
 
 A block has one expression per yielded value. An application selects a result
