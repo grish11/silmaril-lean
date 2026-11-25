@@ -1,0 +1,5 @@
+*.qnt text eol=lf
+*.tla text eol=lf
+oracle.json text eol=lf
+SHA256SUMS text eol=lf
+check.sh text eol=lf
