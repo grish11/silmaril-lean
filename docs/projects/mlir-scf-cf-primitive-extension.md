@@ -16,6 +16,10 @@ both unit laws and associativity. Its unit is the old-symbol inclusion, and its 
 identifies corresponding primitives from the two successive fresh copies. Maps that change
 sorts, replace symbols by terms, or require equations between symbols have different hypotheses. [Theorem interface](../../Silmaril/SSA/MLIR/SCF/ExtensionPrimitiveThms.lean)
 
+The generic signature category permits sort maps and its disjoint sum tags sorts as well as
+symbols. The fixed-sort extension shares the sorts across the base and fresh families, using the
+same operation profiles and identity sort maps into the institution. [Generic signature category](https://github.com/hiloopai/silmaril-lean/pull/3166)
+
 The inclusion gives an institution map, so `Term.denote_map` compares a renamed old term with the
 original term in the reduct of a given extended model. Existence of such a model is a separate
 condition. For example, `nullary_result_nonempty` shows that a nullary fresh primitive forces each
@@ -59,6 +63,10 @@ Natural subsets follow the interfaces in the matrix.
 - Parallel reduction uses `parallel`, `reduce` and `reduce.return`. `forall` and
   `forall.in_parallel` instead use a shared-output update interface and synchronization.
 
+The separate scalar while-to-CF slice checks finite return and divergence correspondence for
+`while`, its region terminators and the typed `br` and `cond_br` targets. It supplies an initial
+control-flow comparison for the matrix. [While-to-CF lowering](https://github.com/hiloopai/silmaril-lean/pull/3167)
+
 ## Parallel and yield with LetIter
 
 The scalar Arith bridge checks typed return observations in LetIter. The ranked-controller work
@@ -68,6 +76,10 @@ prefixes, whereas a written expression in that specific grammar has a uniform fi
 These results give a sequential baseline and a reason to track observable prefixes when extending
 the language. Recent MLIR developments cover pure typed lowering and primitive-only RVSDG
 translation. The concurrent constructs and comparisons below are open. [Arith bridge](../../Silmaril/SSA/MLIR/Arith/LetIter/Thms.lean) · [Ranked controller implementation and proof](https://github.com/hiloopai/silmaril-lean/commit/834bb6010d26f3bc5a30e616f7c044b3db97ca5f) · [Cyclic nonrepresentability](https://github.com/hiloopai/silmaril-lean/pull/3152) · [Pure MLIR observations](https://github.com/hiloopai/silmaril-lean/pull/3018) · [Regionless RVSDG translation](https://github.com/hiloopai/silmaril-lean/pull/3133)
+
+The written mixed-expression normalization work covers loop-free expressions in a pure atomic
+context with an atomic result. Its equality reflection is at the supplied source effect bound
+under the stated primitive hypotheses. [Written LetIter normalization](https://github.com/hiloopai/silmaril-lean/pull/3163)
 
 Structured yield returns control and a typed tuple to a parent region interface. A suspension yield
 sends a value or request to a handler and leaves a continuation for possible resumption. A thread
