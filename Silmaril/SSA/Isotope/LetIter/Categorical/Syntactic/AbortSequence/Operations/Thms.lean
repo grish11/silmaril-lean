@@ -13,6 +13,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
 
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
+open Silmaril.Thesis.LambdaIter (Sig)
 open Silmaril.Thesis.LambdaIter.Syn (SynCat)
 open Silmaril.Thesis.LambdaIter.Syn.SynCat
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical
@@ -98,6 +99,11 @@ theorem repairedHomClass_retainLeft_congr {R A B : ValueCat modelSig}
     classOf ((R ⊗ A).obj, (R ⊗ B).obj) (retainLeft (values modelSig) (R := R) f) =
       classOf ((R ⊗ A).obj, (R ⊗ B).obj) (retainLeft (values modelSig) (R := R) f') :=
   AbortSequenceProofs.retainLeft_congr pe hf
+
+/-- In the syntactic model, retaining the input pairs the identity with the computation. -/
+theorem extend_values_eq_pairArrows {S : Sig.{u}} {R A : ValueCat S}
+    (f : R.obj ⟶ A.obj) : extend (values S) f = pairArrows (𝟙 R.obj) f :=
+  AbortSequenceProofs.extend_values_eq_pairArrows_proof f
 
 /-- Evaluating a computation while retaining its input respects the repaired computation class. -/
 theorem repairedHomClass_extend_congr {R A : ValueCat modelSig} {f f' : R.obj ⟶ A.obj}

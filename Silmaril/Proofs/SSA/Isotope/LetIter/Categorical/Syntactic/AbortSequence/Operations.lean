@@ -13,6 +13,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic.AbortSequence
 open CategoryTheory CategoryTheory.Limits CategoryTheory.PremonoidalCategory
 open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.LocallyNameless (AbortEquiv PureTypedSubst Refinement Tm)
+open Silmaril.Thesis.LambdaIter (Sig)
 open Silmaril.Thesis.LambdaIter.Syn (SynCat ind)
 open Silmaril.Thesis.LambdaIter.Syn.SynCat
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical
@@ -190,27 +191,35 @@ theorem tensorRight_congr {X Y : SynCat modelSig}
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
+private theorem retainLeft_values {S : Sig.{u}} {R A B : ValueCat S} (f : A.obj ⟶ B.obj) :
+    retainLeft (values S) (R := R) f = tensorLeft R.obj f := by
+  change 𝟙 _ ≫ leftTensor (𝟙 R.obj) f ≫ 𝟙 _ = _
+  simp only [Category.id_comp, Category.comp_id, leftTensor, id_whiskerRight]
+  rfl
+
 theorem retainLeft_congr {R A B : ValueCat modelSig}
     {f f' : A.obj ⟶ B.obj}
     (hf : classOf (A.obj, B.obj) f = classOf (A.obj, B.obj) f') :
     classOf ((R ⊗ A).obj, (R ⊗ B).obj) (retainLeft (values modelSig) (R := R) f) =
       classOf ((R ⊗ A).obj, (R ⊗ B).obj) (retainLeft (values modelSig) (R := R) f') := by
-  have retained (g : A.obj ⟶ B.obj) :
-      retainLeft (values modelSig) (R := R) g = tensorLeft R.obj g := by
-    change 𝟙 _ ≫ leftTensor (𝟙 R.obj) g ≫ 𝟙 _ = _
-    simp only [Category.id_comp, Category.comp_id, leftTensor, id_whiskerRight]
-    rfl
-  rw [retained, retained]
+  simp only [retainLeft_values]
   exact tensorLeft_congr pe R.obj hf
+
+theorem extend_values_eq_pairArrows_proof {S : Sig.{u}} {R A : ValueCat S}
+    (f : R.obj ⟶ A.obj) : extend (values S) f = pairArrows (𝟙 R.obj) f := by
+  change (values S).map (duplicate R) ≫ retainLeft (values S) (R := R) f = _
+  have copy : (values S).map (duplicate R) = pairArrows (𝟙 R.obj) (𝟙 R.obj) :=
+    valueLift_hom (𝟙 R) (𝟙 R)
+  rw [copy, retainLeft_values]
+  exact (tensorLeft_pair (isPureMor_id R.obj) (isPureMor_id R.obj) f).trans
+    (congrArg (pairArrows (𝟙 R.obj)) (Category.id_comp f))
 
 theorem extend_congr {R A : ValueCat modelSig} {f f' : R.obj ⟶ A.obj}
     (hf : classOf (R.obj, A.obj) f = classOf (R.obj, A.obj) f') :
     classOf (R.obj, (R ⊗ A).obj) (extend (values modelSig) f) =
       classOf (R.obj, (R ⊗ A).obj) (extend (values modelSig) f') := by
-  let J := values modelSig
-  change classOf (R.obj, (R ⊗ A).obj) (J.map (duplicate R) ≫ retainLeft J (R := R) f) =
-    classOf (R.obj, (R ⊗ A).obj) (J.map (duplicate R) ≫ retainLeft J (R := R) f')
-  exact comp_congr pe rfl (retainLeft_congr pe (R := R) hf)
+  simp only [extend_values_eq_pairArrows_proof]
+  exact pair_congr pe rfl hf
 
 theorem bind_congr {R A B : ValueCat modelSig}
     {f f' : R.obj ⟶ A.obj} {g g' : (R ⊗ A).obj ⟶ B.obj}
