@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.Isotope.LetIter.Categorical.Syntactic.Packing.Defs
+public import Silmaril.SSA.Thesis.SyntacticCategory.Packing.Iteration.Defs
 import Silmaril.SSA.Isotope.Bridge.Thms
 import Silmaril.SSA.Isotope.LetIter.Categorical.Context.Naturality.Thms
 import Silmaril.SSA.Isotope.LetIter.Categorical.Context.Iteration.Thms
@@ -43,7 +44,7 @@ theorem packedNative_let1 (pe : ε) {n : Nat} {β : BoundCtx τ n} {t : Tm Empty
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
-private theorem bind_values {S : Sig.{u}} {X A B : ValueCat S}
+theorem bind_values {S : Sig.{u}} {X A B : ValueCat S}
     (f : X.obj ⟶ A.obj) (g : (X ⊗ A).obj ⟶ B.obj) :
     bindArrow (values S) f g = pairArrows (𝟙 X.obj) f ≫ g := by
   unfold ProofRelevant.Semantics.Categorical.bind ProofRelevant.Semantics.Categorical.extend
@@ -188,14 +189,11 @@ theorem packedNative_let1_eq_packedArrow (pe : ε)
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
-theorem packedNative_inl_eq_packedArrow (pe : ε)
+theorem packedNative_inl (pe : ε)
     {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
-    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A)
-    (h : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
-      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) A)
-    (ih : packedNative pe d = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) h) :
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A) :
     packedNative pe (Derivation.inl (B := B) d) =
-      packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (HasType.inl (B := B) h) := by
+      packedNative pe d ≫ injl (of (S := signature (τ := τ) (Φ := Φ) pe) A) (of B) := by
   let S := signature (τ := τ) (Φ := Φ) pe
   let J := values S
   let M := typeModel (τ := τ) (Φ := Φ) pe
@@ -208,20 +206,26 @@ theorem packedNative_inl_eq_packedArrow (pe : ε)
       (Category.assoc _ _ _).symm
     _ = packedNative pe d ≫ injl (of (S := S) A) (of B) :=
       congrArg (fun f => packedNative pe d ≫ J.map f) injection
-    _ = packedArrow (S := S) h ≫ injl (of (S := S) A) (of B) :=
-      congrArg (fun f => f ≫ injl (of (S := S) A) (of B)) ih
-    _ = _ := (packedArrow_inl (S := S) h).symm
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
-theorem packedNative_inr_eq_packedArrow (pe : ε)
+theorem packedNative_inl_eq_packedArrow (pe : ε)
     {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
-    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t B)
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A)
     (h : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
-      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) B)
+      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) A)
     (ih : packedNative pe d = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) h) :
+    packedNative pe (Derivation.inl (B := B) d) =
+      packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (HasType.inl (B := B) h) := by
+  rw [packedNative_inl pe d, packedArrow_inl h, ih]
+
+set_option backward.isDefEq.respectTransparency false in
+set_option backward.isDefEq.respectTransparency.types false in
+theorem packedNative_inr (pe : ε)
+    {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t B) :
     packedNative pe (Derivation.inr (A := A) d) =
-      packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (HasType.inr (A := A) h) := by
+      packedNative pe d ≫ injr (of (S := signature (τ := τ) (Φ := Φ) pe) A) (of B) := by
   let S := signature (τ := τ) (Φ := Φ) pe
   let J := values S
   let M := typeModel (τ := τ) (Φ := Φ) pe
@@ -234,9 +238,18 @@ theorem packedNative_inr_eq_packedArrow (pe : ε)
       (Category.assoc _ _ _).symm
     _ = packedNative pe d ≫ injr (of (S := S) A) (of B) :=
       congrArg (fun f => packedNative pe d ≫ J.map f) injection
-    _ = packedArrow (S := S) h ≫ injr (of (S := S) A) (of B) :=
-      congrArg (fun f => f ≫ injr (of (S := S) A) (of B)) ih
-    _ = _ := (packedArrow_inr (S := S) h).symm
+
+set_option backward.isDefEq.respectTransparency false in
+set_option backward.isDefEq.respectTransparency.types false in
+theorem packedNative_inr_eq_packedArrow (pe : ε)
+    {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t B)
+    (h : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
+      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) B)
+    (ih : packedNative pe d = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) h) :
+    packedNative pe (Derivation.inr (A := A) d) =
+      packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (HasType.inr (A := A) h) := by
+  rw [packedNative_inr pe d, packedArrow_inr h, ih]
 
 private theorem retainLeft_values {S : Sig.{u}} {R A B : ValueCat S}
     (f : A.obj ⟶ B.obj) :
@@ -280,18 +293,11 @@ private theorem pair_values {S : Sig.{u}} {X A B : ValueCat S}
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
-theorem packedNative_pair_eq_packedArrow (pe : ε)
+theorem packedNative_pair (pe : ε)
     {n : Nat} {β : BoundCtx τ n} {t s : Tm Empty Φ n} {A B : τ}
     (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A)
-    (e : Derivation Φ (Ctx.nil : Ctx Empty τ) β s B)
-    (ha : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
-      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) A)
-    (hb : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
-      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis s) B)
-    (ih₁ : packedNative pe d = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) ha)
-    (ih₂ : packedNative pe e = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) hb) :
-    packedNative pe (.pair d e) =
-      packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (.pair ha hb) := by
+    (e : Derivation Φ (Ctx.nil : Ctx Empty τ) β s B) :
+    packedNative pe (.pair d e) = pairArrows (packedNative pe d) (packedNative pe e) := by
   let S := signature (τ := τ) (Φ := Φ) pe
   let J := values S
   let X := valueObj (τ := τ) (Φ := Φ) pe (packType (S := S) (Bridge.BoundCtx.toThesis β))
@@ -306,7 +312,22 @@ theorem packedNative_pair_eq_packedArrow (pe : ε)
       (pair_pre_map J k (denoteInSyntax pe d) (denoteInSyntax pe e)).symm
     _ = pairArrows (packedNative pe d) (packedNative pe e) :=
       @pair_values S X Y Z (packedNative pe d) (packedNative pe e)
-    _ = _ := (congrArg₂ pairArrows ih₁ ih₂).trans (packedArrow_pair (S := S) ha hb).symm
+
+set_option backward.isDefEq.respectTransparency false in
+set_option backward.isDefEq.respectTransparency.types false in
+theorem packedNative_pair_eq_packedArrow (pe : ε)
+    {n : Nat} {β : BoundCtx τ n} {t s : Tm Empty Φ n} {A B : τ}
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A)
+    (e : Derivation Φ (Ctx.nil : Ctx Empty τ) β s B)
+    (ha : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
+      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis t) A)
+    (hb : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
+      .nil (Bridge.BoundCtx.toThesis β) (Bridge.toThesis s) B)
+    (ih₁ : packedNative pe d = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) ha)
+    (ih₂ : packedNative pe e = packedArrow (S := signature (τ := τ) (Φ := Φ) pe) hb) :
+    packedNative pe (.pair d e) =
+      packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (.pair ha hb) := by
+  rw [packedNative_pair pe d e, packedArrow_pair ha hb, ih₁, ih₂]
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
@@ -489,7 +510,7 @@ theorem packedNative_iter (pe : ε) {n : Nat} {β : BoundCtx τ n}
 
 set_option backward.isDefEq.respectTransparency false in
 set_option backward.isDefEq.respectTransparency.types false in
-private theorem contextualLoop_carried (pe : ε) {n : Nat} {β : BoundCtx τ n} {A B : τ}
+theorem contextualLoop_carried (pe : ε) {n : Nat} {β : BoundCtx τ n} {A B : τ}
     {b : Thesis.LambdaIter.LocallyNameless.Tm Empty Φ (n + 1)}
     (hb : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
       .nil ((Bridge.BoundCtx.toThesis β).snoc A) b (Silmaril.coprod B A)) :

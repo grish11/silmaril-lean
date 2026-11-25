@@ -15,6 +15,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical.Syntactic
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.LocallyNameless (Derivation Tm)
+open Silmaril.Thesis.LambdaIter (Sig)
 open Silmaril.Thesis.LambdaIter.LocallyNameless (HasType)
 open Silmaril.Thesis.LambdaIter.Syn.SynCat
 
@@ -38,6 +39,12 @@ theorem packedNative_let1 (pe : ε) {n : Nat} {β : BoundCtx τ n} {t : Tm Empty
     packedNative pe (.let₁ d e) =
       bindArrow (values (signature (τ := τ) (Φ := Φ) pe)) (packedNative pe d) (packedNative pe e) :=
   PackingProofs.packedNative_let1 pe d e
+
+/-- Contextual binding in syntax pairs the original input with the scrutinee before continuing. -/
+theorem bind_values {S : Sig.{u}} {X A B : ValueCat S}
+    (f : X.obj ⟶ A.obj) (g : (X ⊗ A).obj ⟶ B.obj) :
+    bindArrow (values S) f g = pairArrows (𝟙 X.obj) f ≫ g :=
+  PackingProofs.bind_values f g
 
 local instance : Thesis.LambdaIter.TypeFormers τ := Bridge.thesisTypeFormers τ
 local instance : Thesis.LambdaIter.HasTy Φ τ := Bridge.thesisHasTy Φ τ
@@ -88,6 +95,14 @@ theorem packedNative_let1_eq_packedArrow (pe : ε)
       packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (.let₁ ha hb) :=
   PackingProofs.packedNative_let1_eq_packedArrow pe d e ha hb ih₁ ih₂
 
+/-- Packing a left injection leaves the syntactic injection as postcomposition. -/
+theorem packedNative_inl (pe : ε)
+    {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A) :
+    packedNative pe (Derivation.inl (B := B) d) =
+      packedNative pe d ≫ injl (of (S := signature (τ := τ) (Φ := Φ) pe) A) (of B) :=
+  PackingProofs.packedNative_inl pe d
+
 /-- Reification of an argument implies reification of its left injection. -/
 theorem packedNative_inl_eq_packedArrow (pe : ε)
     {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
@@ -99,6 +114,14 @@ theorem packedNative_inl_eq_packedArrow (pe : ε)
       packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (HasType.inl (B := B) h) :=
   PackingProofs.packedNative_inl_eq_packedArrow pe d h ih
 
+/-- Packing a right injection leaves the syntactic injection as postcomposition. -/
+theorem packedNative_inr (pe : ε)
+    {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t B) :
+    packedNative pe (Derivation.inr (A := A) d) =
+      packedNative pe d ≫ injr (of (S := signature (τ := τ) (Φ := Φ) pe) A) (of B) :=
+  PackingProofs.packedNative_inr pe d
+
 /-- Reification of an argument implies reification of its right injection. -/
 theorem packedNative_inr_eq_packedArrow (pe : ε)
     {n : Nat} {β : BoundCtx τ n} {t : Tm Empty Φ n} {A B : τ}
@@ -109,6 +132,14 @@ theorem packedNative_inr_eq_packedArrow (pe : ε)
     packedNative pe (Derivation.inr (A := A) d) =
       packedArrow (S := signature (τ := τ) (Φ := Φ) pe) (HasType.inr (A := A) h) :=
   PackingProofs.packedNative_inr_eq_packedArrow pe d h ih
+
+/-- Packing a sequential pair evaluates each packed component in order. -/
+theorem packedNative_pair (pe : ε)
+    {n : Nat} {β : BoundCtx τ n} {t s : Tm Empty Φ n} {A B : τ}
+    (d : Derivation Φ (Ctx.nil : Ctx Empty τ) β t A)
+    (e : Derivation Φ (Ctx.nil : Ctx Empty τ) β s B) :
+    packedNative pe (.pair d e) = pairArrows (packedNative pe d) (packedNative pe e) :=
+  PackingProofs.packedNative_pair pe d e
 
 /-- Reifying both components reifies their left-to-right sequential pair. -/
 theorem packedNative_pair_eq_packedArrow (pe : ε)
@@ -198,6 +229,16 @@ theorem packedNative_iter (pe : ε) {n : Nat} {β : BoundCtx τ n}
     packedNative pe (.iter da db) = pairArrows (𝟙 X) (packedNative pe da) ≫
       contextualLoop J (packedNative pe db ≫ J.map ((typeModel (Φ := Φ) pe).coprodIso B A).hom) :=
   PackingProofs.packedNative_iter pe da db
+
+/-- On a packed syntax body, contextual iteration uses the whole packed state. -/
+theorem contextualLoop_carried (pe : ε) {n : Nat} {β : BoundCtx τ n} {A B : τ}
+    {b : Thesis.LambdaIter.LocallyNameless.Tm Empty Φ (n + 1)}
+    (hb : HasType (signature (τ := τ) (Φ := Φ) pe).Instr
+      .nil ((Bridge.BoundCtx.toThesis β).snoc A) b (Silmaril.coprod B A)) :
+    let J := values (signature (τ := τ) (Φ := Φ) pe)
+    contextualLoop J (packedArrow hb ≫ J.map ((typeModel (Φ := Φ) pe).coprodIso B A).hom) =
+      Silmaril.Thesis.LambdaIter.Syn.SynCat.iterate (packedArrow (carriedIterTyping hb)) :=
+  PackingProofs.contextualLoop_carried pe hb
 
 /-- Reifying the initializer and the body reifies iteration with the original context. -/
 theorem packedNative_iter_eq_packedArrow (pe : ε) {n : Nat} {β : BoundCtx τ n}
