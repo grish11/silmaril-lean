@@ -409,6 +409,37 @@ theorem denote_underBinder_proof {n : Nat} {β : BoundCtx τ n}
       (fun i => (dropSlot_bound M (Γ := Γ) β X i).trans (Category.comp_id _).symm) Y)
   rw [h, ← J.map_comp_assoc, snoc_liftEnvMap, J.map_comp_assoc]
 
+theorem denote_underTwoBinders_proof {n : Nat} {β : BoundCtx τ n}
+    {t : Tm ν Φ (n + 2)} {D X A B : τ}
+    (d : Derivation Φ Γ (.snoc (.snoc β A) B) t D) :
+    J.map (envPairHom M Γ (.snoc β X) A B) ≫
+        denote J M (d.rename (TypedRenaming.underTwoBinders β X A B)) =
+      J.map (dropSlot M β X ▷ (M.obj A ⊗ M.obj B)) ≫
+        J.map (envPairHom M Γ β A B) ≫ denote J M d := by
+  let ρ := TypedRenaming.succ β X
+  let p := dropSlot M (Γ := Γ) β X
+  have hρ : TypedRenaming.underTwoBinders β X A B = TypedRenaming.up (TypedRenaming.up ρ A) B := by
+    have h : (TypedRenaming.underTwoBinders β X A B).toFun =
+        (TypedRenaming.up (TypedRenaming.up ρ A) B).toFun := by
+      funext i
+      exact Fin.cases rfl (fun j => Fin.cases rfl (fun _ => rfl) j) i
+    have extensional (r s : TypedRenaming (.snoc (.snoc β A) B) (.snoc (.snoc (.snoc β X) A) B))
+        (he : r.toFun = s.toFun) : r = s := by
+      rcases r with ⟨f, hf⟩
+      rcases s with ⟨g, hg⟩
+      change f = g at he
+      subst g
+      rfl
+    exact extensional _ _ h
+  have hp : ∀ i, p ≫ boundVar M (Γ := Γ) i =
+      boundVar M (Γ := Γ) (ρ.toFun i) ≫ eqToHom (congrArg M.obj (ρ.typed i)) :=
+    fun i => (dropSlot_bound M (Γ := Γ) β X i).trans (Category.comp_id _).symm
+  rw [hρ, denote_rename_along_proof J M d _
+    (liftEnvMap M (liftEnvMap M p A) B)
+    (liftEnvMap_free M (liftEnvMap_free M (dropSlot_free M β X) A) B)
+    (renaming_vars_up M _ _ (renaming_vars_up M ρ p hp A) B),
+    ← J.map_comp_assoc, envPair_liftEnvMap, J.map_comp_assoc]
+
 variable {ε : Type*} [HasEff Φ ε] {pe : ε}
 variable (pureInstr : ∀ f : Φ, IsPure pe f →
   ∃ p : M.obj (instrSrc f) ⟶ M.obj (instrTrg f),

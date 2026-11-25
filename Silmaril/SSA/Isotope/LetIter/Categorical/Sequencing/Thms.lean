@@ -55,4 +55,14 @@ theorem denote_bind_case {n : Nat} {β : BoundCtx τ n}
         (dr.rename (TypedRenaming.underBinder β (coprod A B) B)))) :=
   denote_bind_case_proof J M de dl dr
 
+/-- A product scrutinee can be bound before destructuring the newest variable. -/
+theorem denote_bind_pair {n : Nat} {β : BoundCtx τ n}
+    {a : Tm ν Φ n} {c : Tm ν Φ (n + 2)} {A B D : τ}
+    (da : Derivation Φ Γ β a (product A B))
+    (dc : Derivation Φ Γ (.snoc (.snoc β A) B) c D) :
+    denote J M (.let₂ da dc) =
+      denote J M (.let₁ da (.let₂ (.bv (ι := 0))
+        (dc.rename (TypedRenaming.underTwoBinders β (product A B) A B)))) :=
+  denote_bind_pair_proof J M da dc
+
 end Silmaril.Isotope.LetIter.Semantics.Categorical

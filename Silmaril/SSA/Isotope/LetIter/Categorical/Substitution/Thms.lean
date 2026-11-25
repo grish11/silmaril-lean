@@ -47,6 +47,16 @@ theorem denote_underBinder {n : Nat} {β : BoundCtx τ n}
         J.map (envSnocIso M Γ β Y).hom ≫ denote J M d :=
   denote_underBinder_proof J M d
 
+/-- Inserting a slot below the two product binders drops that slot from their environment. -/
+theorem denote_underTwoBinders {n : Nat} {β : BoundCtx τ n}
+    {t : Tm ν Φ (n + 2)} {D X A B : τ}
+    (d : Derivation Φ Γ (.snoc (.snoc β A) B) t D) :
+    J.map (envPairHom M Γ (.snoc β X) A B) ≫
+        denote J M (d.rename (TypedRenaming.underTwoBinders β X A B)) =
+      J.map (dropSlot M β X ▷ (M.obj A ⊗ M.obj B)) ≫
+        J.map (envPairHom M Γ β A B) ≫ denote J M d :=
+  denote_underTwoBinders_proof J M d
+
 /-- Simultaneous substitution by value denotations precomposes the bound environment tuple. -/
 theorem denote_bsubst {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ m}
     {t : Tm ν Φ n} {A : τ} (d : Derivation Φ Γ β t A)

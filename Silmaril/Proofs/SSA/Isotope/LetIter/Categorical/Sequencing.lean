@@ -132,4 +132,28 @@ theorem denote_bind_case_proof {n : Nat} {β : BoundCtx τ n}
     ← J.map_comp_assoc (s ▷ M.obj A), ← J.map_comp_assoc (s ▷ M.obj B),
     ← MonoidalCategory.comp_whiskerRight, ← MonoidalCategory.comp_whiskerRight, hs]
 
+theorem denote_bind_pair_proof {n : Nat} {β : BoundCtx τ n}
+    {a : Tm ν Φ n} {c : Tm ν Φ (n + 2)} {A B D : τ}
+    (da : Derivation Φ Γ β a (product A B))
+    (dc : Derivation Φ Γ (.snoc (.snoc β A) B) c D) :
+    denote J M (.let₂ da dc) =
+      denote J M (.let₁ da (.let₂ (.bv (ι := 0))
+        (dc.rename (TypedRenaming.underTwoBinders β (product A B) A B)))) := by
+  let P := product A B
+  let R := envObj M Γ β
+  let S := envObj M Γ (.snoc β P)
+  let q : S ⟶ M.obj P := boundVar M 0
+  let p := (M.productIso A B).hom
+  let d := dropSlot M (Γ := Γ) β P
+  change bindArrow J (denote J M da)
+      (J.map (𝟙 R ⊗ₘ p) ≫ J.map (envPairHom M Γ β A B) ≫ denote J M dc) =
+    bindArrow J (denote J M da) (J.map (envSnocIso M Γ β P).hom ≫ bindArrow J (J.map q)
+      (J.map (𝟙 S ⊗ₘ p) ≫ J.map (envPairHom M Γ (.snoc β P) A B) ≫
+        denote J M (dc.rename (TypedRenaming.underTwoBinders β P A B))))
+  have slide : (𝟙 S ⊗ₘ p) ≫ (d ▷ (M.obj A ⊗ M.obj B)) =
+      (d ▷ M.obj P) ≫ (𝟙 R ⊗ₘ p) := by
+    rw [MonoidalCategory.id_tensorHom S p, MonoidalCategory.id_tensorHom R p]
+    exact MonoidalCategory.whisker_exchange d p
+  rw [denote_underTwoBinders, ← J.map_comp_assoc (𝟙 S ⊗ₘ p), slide, J.map_comp_assoc, snoc_rebind]
+
 end Silmaril.Isotope.LetIter.Semantics.Categorical
