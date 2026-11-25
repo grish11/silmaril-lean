@@ -60,6 +60,11 @@ theorem advanceIn_project (rows : CodeRows) (globals : GlobalLookup) (source : S
       cases operand.evalIn globals environment.heap.project environment.frame with
       | ok value => exact congrArg some (resumeStore_project environment destination value next stack)
       | error failure => exact congrArg some (fail_project environment.heap stack failure)
+    | assert test next =>
+      simp only [advanceIn, coreAdvance, State.project, Option.map_some]
+      cases test.evalIn globals environment.heap.project environment.frame with
+      | ok value => cases truth : value.truth <;> simp [truth, Transition.project, State.project]
+      | error failure => exact congrArg some (fail_project environment.heap stack failure)
     | call destination callee arguments next =>
       simp only [advanceIn, coreAdvance, State.project, Option.map_some]
       cases evalCallIn globals environment.heap.project environment.frame callee arguments with

@@ -152,4 +152,58 @@ example :
     | _ => false
   | _ => false
 
+private def ownedOutput : Slot callerLayout := .owned 0
+
+private def assertionCaller : Call.Saved Closure.Executor.Continuation :=
+  ⟨callerLayout, frame, ⟨ownedOutput, .ret (.read ownedOutput)⟩⟩
+
+-- The callee has already updated cell 0. Its tail and the caller's result
+-- destination would both overwrite that cell if the assertion continued.
+private def asserting (test : Closure.Executor.Operand calleeLayout) : State :=
+  .running ⟨residual, ⟨fun _ => none, Fin.elim0, fun _ => ⟨0⟩⟩⟩
+    (.assert test (.store (.capture 0) (.literal (.int 23)) (.ret (.literal (.int 5)))))
+    [assertionCaller]
+
+private def assertionFailure : Result := .error .assertionError
+
+private theorem failingAssertionRun :
+    (semanticIn table.project globals).Execution (asserting (.literal .none)).project
+      [none, some (.resume assertionFailure), none, some (.complete assertionFailure)]
+      (.finished residual.project assertionFailure)
+      [(asserting (.literal .none)).project, .delivering residual.project [assertionCaller] assertionFailure,
+        .receiving residual.project assertionCaller [] assertionFailure,
+        .delivering residual.project [] assertionFailure, .finished residual.project assertionFailure] :=
+  .stepL (.assertFalse (.literal .none) rfl)
+    (.stepL (.resume _ _ _ _) (.stepL (.receiveError _ _ _ _) (.stepL (.complete _ _) (.refl _))))
+
+example : ∃ final states, (presentedIn table globals).Execution (asserting (.literal .none))
+      [none, some (.resume assertionFailure), none, some (.complete assertionFailure)] final states ∧
+    states.map State.project = [(asserting (.literal .none)).project,
+      .delivering residual.project [assertionCaller] assertionFailure,
+      .receiving residual.project assertionCaller [] assertionFailure,
+      .delivering residual.project [] assertionFailure, .finished residual.project assertionFailure] ∧
+    final.project = .finished residual.project assertionFailure ∧ final.completion? = some assertionFailure := by
+  obtain ⟨final, states, run, stateEq, finalEq⟩ := executionIn_readback failingAssertionRun
+  have observed : Closure.Executor.observes final.project assertionFailure := by
+    rw [finalEq]
+    rfl
+  exact ⟨final, states, run, stateEq, finalEq, (observes_iff final _).mp observed⟩
+
+#guard
+  match runPrefixIn table globals 4 (asserting (.literal .none)),
+      runPrefixIn table globals 7 (asserting (.literal (.int (-1)))) with
+  | ([.resume (.error .assertionError), .complete (.error .assertionError)],
+      .finished failedHeap (.error .assertionError)),
+    ([.resume (.ok (.int 5)), .complete (.ok (.int 5))], .finished passedHeap (.ok (.int 5))) =>
+    match failedHeap.rows.lookup 0, passedHeap.rows.lookup 0 with
+    | some (.int 7), some (.int 5) => failedHeap.next == 1 && passedHeap.next == 1
+    | _, _ => false
+  | _, _ => false
+
+example : advanceIn table globals (asserting (.readGlobal "missing")) =
+    some (none, .delivering residual [assertionCaller] (.error (.nameError "missing"))) := rfl
+
+example : advanceIn table (fun _ => some (.bool false)) (asserting (.readGlobal "missing")) =
+    some (none, .delivering residual [assertionCaller] assertionFailure) := rfl
+
 end Silmaril.Languages.Python.Core.Closure.Finite.Executor

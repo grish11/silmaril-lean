@@ -70,6 +70,12 @@ def advanceIn (rows : CodeRows) (globals : GlobalLookup) : State → Option Tran
     some <| match operand.evalIn globals source.heap.project source.frame with
     | .ok value => resumeStore source destination value next stack
     | .error error => fail source.heap stack error
+  | .running source (.assert test next) stack =>
+    some <| match test.evalIn globals source.heap.project source.frame with
+    | .ok value =>
+      if value.truth then (none, .running source next stack)
+      else (none, .delivering source.heap stack (.error .assertionError))
+    | .error error => fail source.heap stack error
   | .running source (.call destination callee arguments next) stack =>
     some <| match Closure.Executor.evalCallIn globals source.heap.project source.frame callee arguments with
     | .error error => fail source.heap stack error
