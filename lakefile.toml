@@ -462,6 +462,11 @@ supportInterpreter = true
 name = "WasmAutoTests"
 globs = ["tests.wasm.auto.+", "tests.wasm.auto2.+"]
 
+# Elaborate the exact and repaired LetIter packing headers together in both import orders.
+[[lean_lib]]
+name = "LetIterPackingImportTests"
+globs = ["tests.ssa.LetIterPackingImports.+"]
+
 # The component and generator tools of the Wasm release (docs/projects/wasm-components.md).
 [[lean_exe]]
 name = "wasm-tools-gen"
