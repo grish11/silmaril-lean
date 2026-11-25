@@ -40,6 +40,7 @@ theorem dispatch_sound (launched : dispatch table callee arguments heap caller s
     Dispatches table arguments heap caller stack callee active := by
   cases callee with
   | int value => simp [dispatch] at launched
+  | bool value => simp [dispatch] at launched
   | function fn =>
     cases resolved : resolve table fn.code with
     | error error => simp [dispatch, resolved] at launched

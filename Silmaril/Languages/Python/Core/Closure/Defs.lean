@@ -63,6 +63,7 @@ def Function.ofCaptureList (code : CodeRef) (captures : List CellId)
 
 inductive Value where
   | int (value : Int)
+  | bool (value : Bool)
   | function (value : Function)
   deriving Repr
 
@@ -72,6 +73,7 @@ inductive RuntimeError where
   | unboundLocal (slot : Nat)
   | unboundOwned (slot : Nat)
   | unboundCapture (slot : Nat)
+  | nameError (name : String)
   | positionalArity (expected actual : Nat)
   | notCallable
   | arithmetic (error : Exception)
