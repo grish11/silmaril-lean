@@ -5,6 +5,7 @@ import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.I
 import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.SingleTheta.Thms
 import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Thms
 import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Environments
+import Silmaril.SSA.RVSDG.NestedTheta.Thms
 
 public section
 
@@ -21,12 +22,37 @@ universe u v w
 variable {V S : Type u} {Op : Dialect.{u, v} (ValueSort V S) S}
 variable {m : Machine.{u, v, w} Op} {σ : Type (max u v w)} {ids : GlobalRel}
 variable {primitives : Primitives m σ} {mapping : Renaming}
-variable {args entry carried returned outs : Ports (Ty V S)} {extra : Nat}
-variable {sigsL sigsR : List (Ports (Ty V S))}
+variable {args entry carried returned outs params : Ports (Ty V S)} {extra : Nat}
+variable {sigs sigsL sigsR : List (Ports (Ty V S))}
 variable {left : NestedTheta.Term (Instruction Op) args [] sigsL outs}
 variable {right : NestedTheta.Term (Instruction Op) args [] sigsR outs}
 variable {inputL inputR : Tuple m.Val args} {store : σ}
 variable {locL locR : Location} {stopL stopR : Block m σ outs}
+
+theorem prepend_related {context : Ports (Ty V S)}
+    {capturesL capturesR : Tuple m.Val context} {argsL argsR : Tuple m.Val params}
+    (captures : TupleRelated m ids capturesL capturesR) (arguments : TupleRelated m ids argsL argsR) :
+    TupleRelated m ids (prependContext argsL capturesL) (prependContext argsR capturesR) := by
+  induction context with
+  | nil => cases captures; exact arguments
+  | cons _ _ ih => cases captures with | cons head tail => exact .cons head (ih tail)
+
+theorem open_lambda {context : Ports (Ty V S)}
+    (code : NestedTheta.Term (Instruction Op) (context ++ params) [] sigs outs)
+    (captures : Tuple m.Val context) (arguments : Tuple m.Val params) :
+    Job.openClosure m (.closure captures code.toGraph) arguments =
+      .region code (prependContext arguments captures) PUnit.unit :=
+  congrArg (fun term => Job.region (m := m) (past := []) term (prependContext arguments captures) PUnit.unit)
+    (NestedTheta.Term.toTerm_toGraph code)
+
+theorem application_eval {fn : Function V S} {entry : Tuple m.Val args}
+    {inputs : Wires args [] (fn.port :: fn.args)} {callee : m.Val fn.port} {arguments : Tuple m.Val fn.args}
+    {outcome : Continuation.Partial.Outcome m σ fn.results}
+    (selected : inputs.read entry PUnit.unit = .cons callee arguments)
+    (ran : Eval primitives (.call callee arguments) store outcome) :
+    Eval primitives (.node (applicationVertex fn inputs).kind (applicationVertex fn inputs).childSigs
+      (fun i => i.elim0) (inputs.read entry PUnit.unit)) store outcome :=
+  selected.symm ▸ Eval.apply (fn := fn) (cs := fun _ => []) (children := fun i => i.elim0) ran
 
 theorem block_observations
     (stopped : BlockPair primitives ids mapping left right inputL inputR store locL locR stopL stopR) :
@@ -36,6 +62,7 @@ theorem block_observations
   | theta _ _ _ _ _ _ _ sites _ _ => exact ⟨rfl, sites, rfl⟩
   | gamma _ _ _ _ _ ih => exact ⟨congrArg (Location.gamma _) ih.1, ih.2⟩
   | loop _ _ _ _ _ _ _ ih => exact ⟨congrArg Location.loop ih.1, ih.2⟩
+  | application _ _ _ _ _ ih => exact ⟨congrArg Location.application ih.1, ih.2⟩
 
 theorem block_evals
     (stopped : BlockPair primitives ids mapping left right inputL inputR store locL locR stopL stopR) :
@@ -71,6 +98,15 @@ theorem block_evals
     rw [startsR, startsStore] at ranR
     exact ⟨.bindBlocked (node := loopVertex initial sigsL) (.theta ranL),
       .bindBlocked (node := loopVertex initial sigsR) (.theta ranR)⟩
+
+  | @application _ _ _ fn _ _ _ left right captL captR _ _ argsL argsR _ _ _ stopL stopR
+      inputs outputs selectedL selectedR _ ih =>
+    cases stopL
+    cases stopR
+    have ranL := Eval.call ((open_lambda left captL argsL).symm ▸ ih.1)
+    have ranR := Eval.call ((open_lambda right captR argsR).symm ▸ ih.2)
+    exact ⟨.bindBlocked (node := applicationVertex fn inputs) (application_eval selectedL ranL),
+      .bindBlocked (node := applicationVertex fn inputs) (application_eval selectedR ranR)⟩
 
 private theorem selected_tuple {valuesL valuesR : Tuple m.Val (.control (extra + 2) :: entry)}
     (related : TupleRelated m ids valuesL valuesR) :

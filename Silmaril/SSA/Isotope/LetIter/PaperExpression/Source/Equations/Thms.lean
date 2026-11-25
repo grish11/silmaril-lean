@@ -18,6 +18,11 @@ theorem wk_subst (a : Expr Φ) (σ : Nat → Expr Φ) (ρ : Nat → Nat) :
     (a.subst σ).wk ρ = a.subst (fun i => (σ i).wk ρ) :=
   Source.Proofs.wk_subst a σ ρ
 
+/-- Substitution after renaming composes the maps on variables. -/
+theorem subst_wk (a : Expr Φ) (σ : Nat → Expr Φ) (ρ : Nat → Nat) :
+    (a.wk ρ).subst σ = a.subst (σ ∘ ρ) :=
+  Source.Proofs.subst_wk a σ ρ
+
 /-- View a renaming as a substitution of variables. -/
 theorem wk_eq_subst (a : Expr Φ) (ρ : Nat → Nat) :
     a.wk ρ = a.subst (Expr.var ∘ ρ) := by

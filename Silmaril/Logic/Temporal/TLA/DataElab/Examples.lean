@@ -4,6 +4,9 @@ public import Silmaril.Logic.Temporal.TLA.DataElab.Defs
 import all Silmaril.Logic.Temporal.TLA.DataElab.Defs
 meta import Silmaril.Logic.Temporal.TLA.DataElab.Defs
 import Silmaril.Logic.Temporal.TLA.Data.Thms
+import Silmaril.Logic.Temporal.TLA.DataElab.Endpoints.Thms
+import all Silmaril.Logic.Temporal.TLA.DataElab.Endpoints.Defs
+meta import Silmaril.Logic.Temporal.TLA.DataElab.Endpoints.Defs
 meta import Silmaril.Logic.Temporal.TLA.Surface.Parser.Defs
 public import Lean
 public meta import Lean
@@ -124,6 +127,7 @@ private meta partial def quoteTerm (term : Term fixtureSignature) : Elab.Term.Te
   | .rigid id => return node ``Term.rigid #[toExpr id]
   | .flexible id => return node ``Term.flexible #[toExpr id]
   | .witness slot => return node ``Term.witness #[toExpr slot]
+  | .prime site operand => return node ``Term.prime #[toExpr site, ← quoteTerm operand]
   | .numeral value => return node ``Term.numeral #[toExpr value]
   | .boolean b => return node ``Term.boolean #[toExpr b]
   | .booleanSet => return node ``Term.booleanSet #[]
@@ -231,5 +235,127 @@ private theorem image_on_invalid_bound
 
 example (ops : DataOperations V) :
     numeralExpr.eval ops B (external ops) v = ops.numeral 12 := rfl
+
+namespace EndpointExamples
+
+private meta def resolveBody (body : String) (imports : ImportMap := [])
+    (dependencies : Registry := []) : Except String CheckedRegistry := do
+  let source ← (Surface.Parser.parseModule s!"---- MODULE ActionSlice ----\n{body}\n====").mapError reprStr
+  (Resolution.resolveWith .levelSyntax (("action", .parsed source imports) :: dependencies)
+    "action").mapError reprStr
+
+private meta def endpointText := r#"CONSTANT C
+VARIABLE x, y
+Lift(e) == LET Local == {e, C} IN Local'
+Current == {x, y}
+Both == {Current, Lift({x, y})}
+OuterWitness == \E w \in {x} : (w = y)'
+InnerWitness == (\E w \in {x} : w = y)'
+Future == []TRUE
+Ignore(arg) == TRUE
+IgnoredAction == Ignore(x')
+THEOREM Future
+"#
+
+private meta def actionUnit (idx : Nat) : BindingId := .declared ⟨"action", [.unit idx]⟩
+private meta def act (registry : CheckedRegistry) (idx : Nat) :=
+  Endpoints.lowerAction registry [] fixtureSignature 40 (actionUnit idx)
+private meta def atState (registry : CheckedRegistry) (idx : Nat) :=
+  Endpoints.lowerState registry [] fixtureSignature 40 (actionUnit idx)
+
+#guard match resolveBody endpointText with
+  | .ok registry => match atState registry 4, act registry 3, act registry 7,
+      atState registry 9, act registry 10, lowerDefinition registry fixtureSignature 40 (actionUnit 4) with
+    | .error (.wrongLevel stateSite .state .action), .error (.wrongLevel actionSite .action .state),
+      .error (.wrongLevel temporalSite .action .temporal), .ok ignored,
+      .error (.lowering {kind := .expectedNullaryDefinition _, ..}),
+      .error {kind := .primeRequiresLevels, site := primeSite} =>
+      stateSite = ⟨"action", [.unit 4, .body]⟩ ∧ actionSite = ⟨"action", [.unit 3, .body]⟩ ∧
+      temporalSite = ⟨"action", [.unit 7, .body]⟩ ∧ ignored.term.firstPrime.isNone ∧
+      primeSite = ⟨"action", [.unit 2, .body, .body]⟩
+    | _, _, _, _, _, _ => false
+  | .error _ => false
+
+#guard match resolveBody "VARIABLE v\nP(t) == t'\nBad == P(v')" with
+  | .ok registry =>
+    match act registry 2 with
+    | .error (.levels diagnostic) =>
+      diagnostic = ⟨⟨"action", [.unit 2, .body]⟩, .failedRequirement
+        ⟨⟨"action", [.unit 1, .body, .operand 0]⟩, .atMost (.fixed .action) .state⟩⟩
+    | _ => false
+  | .error _ => false
+
+#guard match resolveBody "VARIABLE v\nBad == (v')'" with
+  | .ok registry =>
+    match act registry 1 with
+    | .error (.levels diagnostic) =>
+      let inner : Site := ⟨"action", [.unit 1, .body, .operand 0]⟩
+      diagnostic = ⟨inner, .failedRequirement ⟨inner, .atMost (.fixed .action) .state⟩⟩
+    | _ => false
+  | .error _ => false
+
+#guard match resolveBody "VARIABLE v\nH(F(_)) == F(v)\nOut == v'" with
+  | .ok registry =>
+    match act registry 2 with
+    | .error (.levels diagnostic) =>
+      diagnostic = ⟨⟨"action", [.unit 1, .parameter 0]⟩, .unsupported .operatorParameter⟩
+    | _ => false
+  | .error _ => false
+
+private meta def maskId : BindingId := .declared ⟨"std", [.member 0]⟩
+
+-- A zero-weight argument can still occur in the expanded value passed to a primitive.
+#guard match resolveBody "EXTENDS Std\nVARIABLE v\nHidden == Mask(v')\nNested == Hidden'"
+    [("Std", "std")] [("std", .signature "Std" [] [.operator (.ident "Mask") [.expression]])] with
+  | .ok registry =>
+    let levels : Levels.ExternalLevels := [(maskId, ⟨.constant, [⟨.action, false⟩]⟩)]
+    let admitted : ExternalSignature := fun id => if id = maskId then some 1 else none
+    match Endpoints.lowerState registry levels admitted 40 (actionUnit 1),
+      Endpoints.lowerAction registry levels admitted 40 (actionUnit 2) with
+    | .error (.primeInState inner), .error (.lowering ⟨outer, .nestedPrime retained⟩) =>
+      inner = ⟨"action", [.unit 1, .body, .argument 0]⟩ ∧ retained = inner ∧
+      outer = ⟨"action", [.unit 2, .body]⟩
+    | _, _ => false
+  | .error _ => false
+
+open Lean in
+private meta def emitAction (idx : Nat) : Elab.Term.TermElabM Lean.Expr := do
+  let result := (resolveBody endpointText).bind fun registry => (act registry idx).mapError reprStr
+  let action ← match result with
+    | .ok action => pure action
+    | .error message => throwError "{message}"
+  let term ← quoteTerm action.term
+  let valid ← Meta.mkEqRefl (toExpr true)
+  return mkApp3 (mkConst ``Endpoints.CheckedAction.mk) (mkConst ``fixtureSignature) term valid
+
+private noncomputable def bothExpr : Endpoints.CheckedAction fixtureSignature := by_elab emitAction 4
+private noncomputable def outerExpr : Endpoints.CheckedAction fixtureSignature := by_elab emitAction 5
+private noncomputable def innerExpr : Endpoints.CheckedAction fixtureSignature := by_elab emitAction 6
+
+variable (ends : Endpoints.EndpointValuation V)
+private def xKey : BindingId := .declared ⟨"action", [.unit 1, .member 0]⟩
+private def yKey : BindingId := .declared ⟨"action", [.unit 1, .member 1]⟩
+private def cKey : BindingId := .declared ⟨"action", [.unit 0, .member 0]⟩
+
+private noncomputable def observe (action : Endpoints.CheckedAction fixtureSignature) : V :=
+  let ops := DataOperations.ofModel M numeral
+  action.eval ops B (external ops) ends
+
+private theorem compound_eq :
+    observe M numeral B ends bothExpr =
+      M.enum [M.enum [ends.source xKey, ends.source yKey],
+        M.enum [M.enum [ends.target xKey, ends.target yKey], ends.rigid cKey]] := rfl
+
+private theorem enclosing_witness_iff :
+    B.holds (observe M numeral B ends outerExpr) ↔ ends.source xKey = ends.target yKey := by
+  simp [observe, outerExpr, Endpoints.CheckedAction.eval, Term.eval, Term.evalList, withWitness,
+    DataOperations.ofModel, Booleans.holds_ofProp, xKey, yKey]
+
+private theorem primed_domain_iff :
+    B.holds (observe M numeral B ends innerExpr) ↔ ends.target xKey = ends.target yKey := by
+  simp [observe, innerExpr, Endpoints.CheckedAction.eval, Term.eval, Term.evalList, withWitness,
+    DataOperations.ofModel, Booleans.holds_ofProp, xKey, yKey]
+
+end EndpointExamples
 
 end Silmaril.Logic.Temporal.TLA.DataElab.Examples

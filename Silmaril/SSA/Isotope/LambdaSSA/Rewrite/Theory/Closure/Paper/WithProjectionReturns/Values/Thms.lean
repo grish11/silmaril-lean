@@ -39,7 +39,7 @@ set_option hygiene false in
 local notation "Values" => ProjectedCopyingValueCategory Seed pe
 
 /-- The two guarded projections form a binary fan in the projected value category. -/
-def productFan (A B : τ) :
+@[expose] def productFan (A B : τ) :
     BinaryFan (⟨ofType Seed A⟩ : Values) (⟨ofType Seed B⟩ : Values) :=
   BinaryFan.mk (P := (⟨ofType Seed (product A B)⟩ : Values))
     ⟨ofRegion Seed (productFstBranches A B), fst_mem pe Seed includeStep A B⟩

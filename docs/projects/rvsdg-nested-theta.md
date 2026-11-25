@@ -151,6 +151,9 @@ The state fixture also assembles and checks explicit versions of the two
 observations, including payload 7 and token 15 when the arm that adds 100 is
 skipped. [Fixture](../../tests/ssa/RVSDGNestedThetaOrderedState.lean)
 
+The partial-primitive bridge extends these observations to exact blocked
+attempts and productive divergence. [Partial explicit wires](rvsdg-nested-partial-wires.md)
+
 ## Reproduce
 
 ```sh

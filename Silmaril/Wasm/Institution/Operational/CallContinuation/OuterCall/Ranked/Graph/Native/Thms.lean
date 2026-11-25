@@ -60,6 +60,23 @@ section Core
 variable {H : Type} {P : Profile} {s : Core.Store H} {program : Program}
   {caller : Frame} {target : CallTarget} {fn : Function}
 
+theorem core_body_expression (fn : Function) :
+    Core.expression fn.coreFunc.body =
+      (Body.running fn.initial fn.code).render coreAdmin :=
+  Proofs.Core.expression_code fn
+
+/-- After address resolution the caller need not have a direct index for this
+callee. The graph guard still checks direct resolution for calls in its body. -/
+theorem core_resolved_frame_step_iff (checked : program.checkDirect = true)
+    (allocated : program.CoreAllocated s)
+    (found : program.lookup target.address = some fn) (declared : fn.declaration = target.declaration)
+    {a : Phase} {b : Core.Config H} (ready : Admitted program fn a)
+    (resolved : ∀ args, a ≠ .call args) :
+    Core.Step P noHost (coreConfig s caller target a) b ↔
+      ∃ out, program.FrameEdge target.address a out ∧ b = coreConfig s caller target out :=
+  Proofs.Core.resolved_frame_step_iff checked allocated _ rfl found declared
+    (fun args eq => (resolved args eq).elim) ready
+
 /-- Exact native successors under dynamic frame descent, including recursive calls
 to a checked, allocated direct target. -/
 theorem core_frame_step_iff (checked : program.checkDirect = true) (allocated : program.CoreAllocated s)
@@ -93,6 +110,23 @@ section Lime1
 
 variable {H : Type} {s : Wasm.Lime1.Execution.Store H} {program : Program}
   {caller : Frame} {target : CallTarget} {fn : Function}
+
+theorem lime_body_expression (fn : Function) :
+    Wasm.Lime1.Execution.expression fn.limeFunc.body =
+      (Body.running fn.initial fn.code).render limeAdmin :=
+  Proofs.Lime1.expression_code fn
+
+/-- After address resolution the caller need not have a direct index for this
+callee. The graph guard still checks direct resolution for calls in its body. -/
+theorem lime_resolved_frame_step_iff (checked : program.checkDirect = true)
+    (allocated : program.LimeAllocated s)
+    (found : program.lookup target.address = some fn) (declared : fn.declaration = target.declaration)
+    {a : Phase} {b : Wasm.Lime1.Execution.Config H} (ready : Admitted program fn a)
+    (resolved : ∀ args, a ≠ .call args) :
+    Wasm.Lime1.Execution.Step CallFrame.limeNoHost (limeConfig s caller target a) b ↔
+      ∃ out, program.FrameEdge target.address a out ∧ b = limeConfig s caller target out :=
+  Proofs.Lime1.resolved_frame_step_iff checked allocated _ rfl found declared
+    (fun args eq => (resolved args eq).elim) ready
 
 theorem lime_frame_step_iff (checked : program.checkDirect = true) (allocated : program.LimeAllocated s)
     (root : Root program caller target fn) {a : Phase} {b : Wasm.Lime1.Execution.Config H} (ready : Admitted program fn a) :

@@ -37,6 +37,7 @@ inductive DiagnosticKind where
   | unsupportedBuiltin (id : BindingId)
   | unsupported (form : Unsupported)
   | primeRequiresLevels
+  | nestedPrime (inner : Site)
   | expansionLimit
   | invalidExpansion
   deriving DecidableEq, Repr
@@ -90,12 +91,13 @@ private def sourceBody (source : Surface.Module) (path : Path) : Option Surface.
   let .definition (.operator _ _ body) ← source.units[index]? | none
   return body
 
-private def useBinding (registry : CheckedRegistry) (site : Site) (role : ReferenceRole) :
-    LowerM Binding := do
+private def useBinding (registry : CheckedRegistry) (site : Site) (role : ReferenceRole)
+    (allowPrime : Bool := false) : LowerM Binding := do
   let some reference := (registry.moduleAt site.moduleId).bind (·.referenceAt site.path)
     | fail site (.missingReference role)
   unless reference.role = role do fail site (.missingReference role)
-  if reference.target = .builtin (.symbol .postfix "'") then fail site .primeRequiresLevels
+  if !allowPrime && reference.target = .builtin (.symbol .postfix "'") then
+    fail site .primeRequiresLevels
   let some binding := registry.findBinding reference.target
     | fail site (.missingBinding reference.target)
   return binding
@@ -103,6 +105,10 @@ private def useBinding (registry : CheckedRegistry) (site : Site) (role : Refere
 private def lowerBuiltin (site : Site) (name : Name) (args : List (Term signature)) :
     LowerM (Term signature) :=
   match name, args with
+  | .symbol .postfix "'", [operand] =>
+    match operand.firstPrime with
+    | some inner => fail site (.nestedPrime inner)
+    | none => pure (.prime site operand)
   | .ident "TRUE", [] => pure (.boolean true)
   | .ident "FALSE", [] => pure (.boolean false)
   | .ident "BOOLEAN", [] => pure .booleanSet
@@ -189,9 +195,9 @@ private def lowerActual (registry : CheckedRegistry) (visit : Visit signature)
       return .named binding
 
 private def lowerApplication (registry : CheckedRegistry) (visit : Visit signature)
-    (locals : Context signature) (site : Site) (args : List Surface.OpArg) (child : Nat → Step) :
-    LowerM (Term signature) := do
-  let binding ← useBinding registry site .application
+    (locals : Context signature) (site : Site) (args : List Surface.OpArg) (child : Nat → Step)
+    (allowPrime : Bool) : LowerM (Term signature) := do
+  let binding ← useBinding registry site .application allowPrime
   unless args.length = binding.slots.length do fail site (.invalidApplication binding.id)
   let actuals ← (binding.slots.zip args).zipIdx.mapM fun ((slot, arg), i) =>
     lowerActual registry visit locals (site.child (child i)) slot arg
@@ -222,19 +228,20 @@ private def lowerQuant (visit : Visit signature) (locals : Context signature)
   let result ← visit inner (site.child .body) body
   return reversed.foldl (fun term (slot, domain) => .quant kind slot domain term) result
 
-private def lower (registry : CheckedRegistry) (fuel : Nat) (locals : Context signature)
+private def lower (registry : CheckedRegistry) (allowPrime : Bool) (fuel : Nat)
+    (locals : Context signature)
     (site : Site) (expr : Surface.Expr) : LowerM (Term signature) := do
   match fuel with
   | 0 => fail site .expansionLimit
   | remaining + 1 =>
-    let visit := lower registry remaining
+    let visit := lower registry allowPrime remaining
     let operands := fun (items : List Surface.Expr) =>
       items.zipIdx.mapM fun (item, i) => visit locals (site.child (.operand i)) item
     let symbolic := fun args =>
-      lowerApplication registry visit locals site (args.map Surface.OpArg.expr) .operand
+      lowerApplication registry visit locals site (args.map Surface.OpArg.expr) .operand allowPrime
     let unsupported := fun form => fail site (.unsupported form)
     match expr with
-    | .ref (.operator _) args [] => lowerApplication registry visit locals site args .argument
+    | .ref (.operator _) args [] => lowerApplication registry visit locals site args .argument allowPrime
     | .ref .. => unsupported .proofOrQualifiedReference
     | .prefix _ arg | .postfix _ arg => symbolic [arg]
     | .infix _ left right => symbolic [left, right]
@@ -284,12 +291,8 @@ private def lower (registry : CheckedRegistry) (fuel : Nat) (locals : Context si
     | .labeled .. => unsupported .labeled
 termination_by structural fuel
 
-/-- Check and expand the requested nullary source definition. The bound limits
-the depth of source visits, including calls into operator bodies. A zero
-remaining bound reports the next unvisited site. An unused LET body or operator
-actual contributes no denotation. -/
-public def lowerDefinition (registry : CheckedRegistry) (signature : ExternalSignature)
-    (maxDepth : Nat) (id : BindingId) : Except Diagnostic (CheckedExpr signature) := do
+private def definitionBody (registry : CheckedRegistry) (id : BindingId) :
+    Except Diagnostic (Site × Surface.Expr) := do
   let .declared home := id
     | throw ⟨⟨registry.root, []⟩, .expectedNullaryDefinition id⟩
   let body : Option Surface.Expr := do
@@ -300,10 +303,23 @@ public def lowerDefinition (registry : CheckedRegistry) (signature : ExternalSig
       sourceBody source home.path
     else none
   let some body := body | throw ⟨home, .expectedNullaryDefinition id⟩
-  let (term, _) ← (lower registry maxDepth [] (home.child .body) body).run 0
+  return (home, body)
+
+private def lowerBody (registry : CheckedRegistry) (signature : ExternalSignature)
+    (allowPrime : Bool) (maxDepth : Nat) (home : Site) (body : Surface.Expr) :
+    Except Diagnostic (CheckedExpr signature) := do
+  let (term, _) ← (lower registry allowPrime maxDepth [] (home.child .body) body).run 0
   if valid : term.isWellFormed [] = true then
     return ⟨term, valid⟩
   else
     throw ⟨home.child .body, .invalidExpansion⟩
+
+/-- Expand a nullary source definition without a level check. Prime is
+rejected. The depth bound counts visits through source expressions and expanded
+bodies. Exhaustion reports the next unvisited site. -/
+public def lowerDefinition (registry : CheckedRegistry) (signature : ExternalSignature)
+    (maxDepth : Nat) (id : BindingId) : Except Diagnostic (CheckedExpr signature) := do
+  let (home, body) ← definitionBody registry id
+  lowerBody registry signature false maxDepth home body
 
 end Silmaril.Logic.Temporal.TLA.DataElab

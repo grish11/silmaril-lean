@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Defs
+import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Application
 import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Feedback
 import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Regions
 import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Thms
@@ -26,22 +27,6 @@ variable {primitives : Primitives m σ} {mapping : Renaming}
 variable {args outs params results finalL finalR : Ports (Ty V S)}
 variable {sigs sigsL sigsR : List (Ports (Ty V S))}
 
-private theorem prepend_related {context : Ports (Ty V S)}
-    {capturesL capturesR : Tuple m.Val context} {argsL argsR : Tuple m.Val params}
-    (captures : TupleRelated m ids capturesL capturesR) (arguments : TupleRelated m ids argsL argsR) :
-    TupleRelated m ids (prependContext argsL capturesL) (prependContext argsR capturesR) := by
-  induction context with
-  | nil => cases captures; exact arguments
-  | cons _ _ ih => cases captures with | cons head tail => exact .cons head (ih tail)
-
-private theorem open_lambda {context : Ports (Ty V S)}
-    (code : NestedTheta.Term (Instruction Op) (context ++ params) [] sigs outs)
-    (captures : Tuple m.Val context) (arguments : Tuple m.Val params) :
-    Job.openClosure m (.closure captures code.toGraph) arguments =
-      .region code (prependContext arguments captures) PUnit.unit :=
-  congrArg (fun term => Job.region (m := m) (past := []) term (prependContext arguments captures) PUnit.unit)
-    (NestedTheta.Term.toTerm_toGraph code)
-
 private theorem terminal_of_eval {job : Job m results} {store : σ}
     {outcome : Continuation.Partial.Outcome m σ results}
     (ran : Eval primitives job store outcome) :
@@ -53,6 +38,29 @@ private theorem terminal_of_eval {job : Job m results} {store : σ}
   | returned => exact fun _ stepped => _root_.Part.notMem_none _ stepped
   | blocked => exact fun _ => (ran.blocks .halt).no_step
 
+private theorem invoke_regions {context : Ports (Ty V S)}
+    {left : NestedTheta.Term (Instruction Op) (context ++ params) [] sigsL results}
+    {right : NestedTheta.Term (Instruction Op) (context ++ params) [] sigsR results}
+    {capturesL capturesR : Tuple m.Val context} {argsL argsR : Tuple m.Val params} {store : σ}
+    (observed : RegionPair primitives ids mapping left right
+      (prependContext argsL capturesL) (prependContext argsR capturesR) store) :
+    CallPair primitives ids mapping results
+      ⟨Continuation.start (.call (.closure capturesL left.toGraph) argsL), store⟩
+      ⟨Continuation.start (.call (.closure capturesR right.toGraph) argsR), store⟩ := by
+  have actualL := open_lambda left capturesL argsL
+  have actualR := open_lambda right capturesR argsR
+  cases observed with
+  | returned values ranL ranR =>
+    exact .returned values (terminal_of_eval (.call (actualL.symm ▸ ranL)))
+      (terminal_of_eval (.call (actualR.symm ▸ ranR)))
+  | blocked stopped =>
+    obtain ⟨ranL, ranR⟩ := block_evals stopped
+    exact .blocked stopped (terminal_of_eval (.call (actualL.symm ▸ ranL)))
+      (terminal_of_eval (.call (actualR.symm ▸ ranR)))
+  | productive run =>
+    exact .productive (productive_map run (fun ran => ⟨_, .call (actualL.symm ▸ ran)⟩)
+      (fun ran => ⟨_, .call (actualR.symm ▸ ran)⟩))
+
 theorem calls (respects : ActionsRespect primitives ids)
     {calleeL calleeR : m.Val (.value (.function params results))}
     (callees : ScheduledLambda m ids mapping params results calleeL calleeR)
@@ -61,20 +69,11 @@ theorem calls (respects : ActionsRespect primitives ids)
       ⟨Continuation.start (.call calleeL argsL), store⟩
       ⟨Continuation.start (.call calleeR argsR), store⟩ := by
   cases callees with
-  | @closure context sigsL sigsR capturesL capturesR left right captures code =>
-    have actualL := open_lambda left capturesL argsL
-    have actualR := open_lambda right capturesR argsR
-    cases regions code respects (prepend_related captures arguments) store with
-    | returned values ranL ranR =>
-      exact .returned values (terminal_of_eval (.call (actualL.symm ▸ ranL)))
-        (terminal_of_eval (.call (actualR.symm ▸ ranR)))
-    | blocked stopped =>
-      obtain ⟨ranL, ranR⟩ := block_evals stopped
-      exact .blocked stopped (terminal_of_eval (.call (actualL.symm ▸ ranL)))
-        (terminal_of_eval (.call (actualR.symm ▸ ranR)))
-    | productive run =>
-      exact .productive (productive_map run (fun ran => ⟨_, .call (actualL.symm ▸ ran)⟩)
-        (fun ran => ⟨_, .call (actualR.symm ▸ ran)⟩))
+  | closure captures code =>
+    exact invoke_regions (regions code respects (prepend_related captures arguments) store)
+  | application calleeCaptures calleeIso code captures wires outputs =>
+    exact invoke_regions (captured_application code respects wires outputs
+      (prepend_related captures arguments) calleeCaptures calleeIso store)
 
 private theorem terminal_excludes_infinite {source : Config m σ outs}
     {outcome : Continuation.Partial.Outcome m σ outs}

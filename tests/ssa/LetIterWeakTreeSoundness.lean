@@ -1,7 +1,7 @@
 module
 
 import Silmaril.Semantics.ITree.Thms
-import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Flatten.Thms
+import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.FreeTree.Response.Case.Thms
 import Silmaril.SSA.Isotope.LetIter.Categorical.Kleisli.Thms
 import Silmaril.SSA.Isotope.LetIter.PaperExpression.Source.Native.Thms
 
@@ -517,5 +517,118 @@ example : ∃ t s : Tm Empty Prim Γ.length,
   obtain ⟨t, ht, _⟩ := (source_wf sig ctx_pure slots_typed strict leftFirst typedLeftFirst).toLetIter
   obtain ⟨s, hs, _⟩ := (source_wf sig ctx_pure slots_typed strict rightFirst typedRightFirst).toLetIter
   exact ⟨t, s, ht, hs, swapped_arguments_native_ne ht hs⟩
+
+section EffectfulCase
+
+abbrev Γsum : EffectCtx T Fx := (Ty.coprod inputSort outputSort, ⊥) :: Γ
+abbrev Γleft : EffectCtx T Fx := (inputSort, ⊥) :: Γ
+abbrev Γright : EffectCtx T Fx := (outputSort, ⊥) :: Γ
+abbrev leftSlots : Fin Γleft.length → Bool := Response.extendSorts false sorts
+abbrev rightSlots : Fin Γright.length → Bool := Response.extendSorts true sorts
+
+abbrev leftArm : Program sig leftSlots true :=
+  .unary Prim.read rfl (.tree (.var 0))
+abbrev changedLeft : Program sig leftSlots true :=
+  .unary Prim.readAlt rfl (.tree (.var 0))
+
+/-- The right arm uses its own payload to issue a request at a different type.
+Its response becomes the argument of the next request. -/
+abbrev rightArm : Program sig rightSlots true :=
+  .let1 (.unary Prim.readOther rfl (.tree (.var 0)))
+    (.unary Prim.readAlt rfl (.tree (.var 0)))
+abbrev changedRight : Program sig rightSlots true :=
+  .unary Prim.readAlt rfl (.tree (.var 2))
+
+private theorem leftArm_typed : Program.WellTyped sig strict leftArm := ⟨le_rfl, trivial⟩
+private theorem changedLeft_typed : Program.WellTyped sig strict changedLeft := ⟨le_rfl, trivial⟩
+private theorem rightArm_typed : Program.WellTyped sig strict rightArm :=
+  ⟨⟨le_rfl, trivial⟩, le_rfl, trivial⟩
+private theorem changedRight_typed : Program.WellTyped sig strict changedRight := ⟨le_rfl, trivial⟩
+
+private theorem branchSlots {a : Bool} :
+    ∀ i : Fin ((Ty.base a, (⊥ : Fx)) :: Γ).length,
+      (((Ty.base a, (⊥ : Fx)) :: Γ).get i).1 = .base (Response.extendSorts a sorts i) :=
+  fun i => Fin.cases (motive := fun j =>
+    (((Ty.base a, (⊥ : Fx)) :: Γ).get j).1 = .base (Response.extendSorts a sorts j))
+    rfl slots_typed i
+
+private theorem branchPure (a : Bool) : EffectCtx.Pure ((Ty.base a, (⊥ : Fx)) :: Γ) :=
+  fun i => Fin.cases (motive := fun j => (((Ty.base a, (⊥ : Fx)) :: Γ).get j).2 = ⊥)
+    rfl ctx_pure i
+
+private theorem caseWf (l : Program sig leftSlots true) (r : Program sig rightSlots true)
+    (hl : Program.WellTyped sig strict l) (hr : Program.WellTyped sig strict r) :
+    Wf Γsum (Response.Case.onHead l.source r.source) outputSort strict :=
+  Response.Case.source_wf
+    (source_wf sig (branchPure false) branchSlots strict l hl)
+    (source_wf sig (branchPure true) branchSlots strict r hr)
+
+private theorem unequalOrders {Δ : EffectCtx T Fx} {ss : Fin Δ.length → Bool}
+    (hΔ : Δ.Pure) (hs : ∀ i, (Δ.get i).1 = .base (ss i))
+    (p q : Program sig ss true) (hp : Program.WellTyped sig strict p)
+    (hq : Program.WellTyped sig strict q)
+    (h : visibleOrder (compile (ε := Fx) sig p) ≠ visibleOrder (compile (ε := Fx) sig q)) :
+    ¬ Eqv Δ outputSort strict p.source q.source := by
+  intro he
+  have ep := compile_eqv sig hΔ hs strict p hp
+  have eq := compile_eqv sig hΔ hs strict q hq
+  have hn := (ep.symm.trans (he.trans eq)).toLetIter
+    (Response.Sequence.lowers sig (compile (ε := Fx) sig p))
+    (Response.Sequence.lowers sig (compile (ε := Fx) sig q))
+  exact h (congrArg visibleOrder (Response.Sequence.native_eq_implies_eq sig hs strict _ _
+    (compile_typed sig strict p hp) (compile_typed sig strict q hq) hn))
+
+private theorem leftOrder :
+    visibleOrder (compile (ε := Fx) sig leftArm) = [Prim.read] := by
+  simp only [compile, unaryTail, emit, ite_eq_right read_not_pure, Response.Sequence.bind,
+    Response.Sequence.subst, visibleOrder]
+
+private theorem changedLeftOrder :
+    visibleOrder (compile (ε := Fx) sig changedLeft) = [Prim.readAlt] := by
+  simp only [compile, unaryTail, emit, ite_eq_right read_alt_not_pure, Response.Sequence.bind,
+    Response.Sequence.subst, visibleOrder]
+
+private theorem rightOrder :
+    visibleOrder (compile (ε := Fx) sig rightArm) = [Prim.readOther, Prim.readAlt] := by
+  simp only [compile, unaryTail, emit, ite_eq_right read_other_not_pure,
+    ite_eq_right read_alt_not_pure, Response.Sequence.bind, Response.Sequence.subst, visibleOrder]
+
+private theorem changedRightOrder :
+    visibleOrder (compile (ε := Fx) sig changedRight) = [Prim.readAlt] := by
+  simp only [compile, unaryTail, emit, ite_eq_right read_alt_not_pure, Response.Sequence.bind,
+    Response.Sequence.subst, visibleOrder]
+
+/-- Changing either arm is visible, even though the other arm and scrutinee are
+identical. The three raw cases lower at the original strict bound. -/
+theorem effectful_case_observes_both_tags :
+    ∃ t l r : Tm Empty Prim Γsum.length,
+      (Response.Case.onHead leftArm.source rightArm.source).toLetIter Γsum.length = some t ∧
+      (Response.Case.onHead changedLeft.source rightArm.source).toLetIter Γsum.length = some l ∧
+      (Response.Case.onHead leftArm.source changedRight.source).toLetIter Γsum.length = some r ∧
+      ¬ AbortEquiv (⊥ : Fx) Γ₀ Γsum.toBoundCtx t l outputSort ∧
+      ¬ AbortEquiv (⊥ : Fx) Γ₀ Γsum.toBoundCtx t r outputSort := by
+  obtain ⟨t, ht, _⟩ := (caseWf leftArm rightArm leftArm_typed rightArm_typed).toLetIter
+  obtain ⟨l, hl, _⟩ := (caseWf changedLeft rightArm changedLeft_typed rightArm_typed).toLetIter
+  obtain ⟨r, hr, _⟩ := (caseWf leftArm changedRight leftArm_typed changedRight_typed).toLetIter
+  refine ⟨t, l, r, ht, hl, hr, ?_, ?_⟩
+  · intro hn
+    have he := Response.Case.arms_eqv_of_native sig ctx_pure slots_typed strict
+      leftArm changedLeft rightArm rightArm
+      leftArm_typed changedLeft_typed rightArm_typed rightArm_typed ht hl hn
+    exact unequalOrders (branchPure false) branchSlots leftArm changedLeft leftArm_typed
+      changedLeft_typed (by rw [leftOrder, changedLeftOrder]; intro h; cases h) he.1
+  · intro hn
+    have he := (Response.Case.endpoint_reflection sig ctx_pure slots_typed strict
+      leftArm leftArm rightArm changedRight leftArm_typed leftArm_typed
+      rightArm_typed changedRight_typed ht hr).mp hn
+    have harms := (Response.Case.eqv_iff_arms
+      (source_wf sig (branchPure false) branchSlots strict leftArm leftArm_typed)
+      (source_wf sig (branchPure true) branchSlots strict rightArm rightArm_typed)
+      (source_wf sig (branchPure false) branchSlots strict leftArm leftArm_typed)
+      (source_wf sig (branchPure true) branchSlots strict changedRight changedRight_typed)).mp he
+    exact unequalOrders (branchPure true) branchSlots rightArm changedRight rightArm_typed
+      changedRight_typed (by rw [rightOrder, changedRightOrder]; intro h; cases h) harms.2
+
+end EffectfulCase
 
 end LetIterResponseSingleCall

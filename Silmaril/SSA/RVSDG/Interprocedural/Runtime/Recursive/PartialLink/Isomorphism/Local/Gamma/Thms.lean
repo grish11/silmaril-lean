@@ -4,6 +4,8 @@ public import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.I
 import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Feedback
 import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Regions
 import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Dispatch
+import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Application
+import Silmaril.Proofs.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.Gamma.Resumption
 
 public section
 
@@ -116,6 +118,70 @@ theorem regions (admitted : CodePair Op mapping left right) (respects : ActionsR
     RegionPair primitives ids mapping left right inputL inputR store :=
   Proofs.regions admitted respects inputs store
 
+section Application
+
+variable {captured : Ports (Ty V S)} {fn : Function V S}
+
+/-- Congruence for a selected call to two actual closures with scheduled
+call-free bodies. The application reads these closures and the related
+arguments from its real operand wires. Its typed suffix is preserved. -/
+theorem application
+    {left : NestedTheta.Term (Instruction Op) (captured ++ fn.args) [] sigsL fn.results}
+    {right : NestedTheta.Term (Instruction Op) (captured ++ fn.args) [] sigsR fn.results}
+    (code : CodePair Op mapping left right) (respects : ActionsRespect primitives ids)
+    (inputs : Wires args [] (fn.port :: fn.args)) (outputs : Wires args [fn.results] outs)
+    {entryL entryR : Tuple m.Val args} (entries : TupleRelated m ids entryL entryR)
+    {captL captR : Tuple m.Val captured} (captures : TupleRelated m ids captL captR)
+    {argsL argsR : Tuple m.Val fn.args} (arguments : TupleRelated m ids argsL argsR)
+    (selectL : inputs.read entryL PUnit.unit = .cons (.closure captL left.toGraph) argsL)
+    (selectR : inputs.read entryR PUnit.unit = .cons (.closure captR right.toGraph) argsR) (store : σ) :
+    RegionPair primitives ids mapping (applicationCode fn inputs outputs) (applicationCode fn inputs outputs)
+      entryL entryR store :=
+  Proofs.application code respects inputs outputs entries captures arguments selectL selectR store
+
+/-- Replay a successful call into the caller's actual suffix with the
+returned tuple bound once and the exact final store. -/
+theorem resume_application {entry : Tuple m.Val args} {inputs : Wires args [] (fn.port :: fn.args)}
+    (outputs : Wires args [fn.results] outs) (parent : Continuation.Stack m outs finalL)
+    {callee : m.Val fn.port} {arguments : Tuple m.Val fn.args} {store returnedStore : σ} {value : Tuple m.Val fn.results}
+    (selected : inputs.read entry PUnit.unit = .cons callee arguments)
+    (ran : Eval primitives (.call callee arguments) store (.returned value returnedStore)) :
+    ReflTransGen (Step primitives) ⟨.eval (.region (applicationCode fn inputs outputs) entry PUnit.unit) parent, store⟩
+      (resumedApplication outputs entry parent value returnedStore) :=
+  Proofs.resume_application outputs parent selected ran
+
+/-- A first return to the saved application frame on either side
+reflects to a paired return and actual suffix resumption on the other,
+with related full tuples at the same returned store. -/
+theorem application_resumption
+    {left : NestedTheta.Term (Instruction Op) (captured ++ fn.args) [] sigsL fn.results}
+    {right : NestedTheta.Term (Instruction Op) (captured ++ fn.args) [] sigsR fn.results}
+    (code : CodePair Op mapping left right) (respects : ActionsRespect primitives ids)
+    (inputs : Wires args [] (fn.port :: fn.args)) (outputs : Wires args [fn.results] outs)
+    {entryL entryR : Tuple m.Val args} {captL captR : Tuple m.Val captured}
+    (captures : TupleRelated m ids captL captR)
+    {argsL argsR : Tuple m.Val fn.args} (arguments : TupleRelated m ids argsL argsR)
+    (selectL : inputs.read entryL PUnit.unit = .cons (.closure captL left.toGraph) argsL)
+    (selectR : inputs.read entryR PUnit.unit = .cons (.closure captR right.toGraph) argsR)
+    (parentL : Continuation.Stack m outs finalL) (parentR : Continuation.Stack m outs finalR) (store : σ) :
+    (∀ {valueL : Tuple m.Val fn.results} {returnedStore : σ},
+      CallReturnsTo primitives (.closure captL left.toGraph) argsL (applicationFrame outputs entryL parentL)
+        store valueL returnedStore →
+      ∃ valueR, TupleRelated m ids valueL valueR ∧
+        ReflTransGen (Step primitives)
+          ⟨.eval (.region (applicationCode fn inputs outputs) entryR PUnit.unit) parentR, store⟩
+          (resumedApplication outputs entryR parentR valueR returnedStore)) ∧
+    (∀ {valueR : Tuple m.Val fn.results} {returnedStore : σ},
+      CallReturnsTo primitives (.closure captR right.toGraph) argsR (applicationFrame outputs entryR parentR)
+        store valueR returnedStore →
+      ∃ valueL, TupleRelated m ids valueL valueR ∧
+        ReflTransGen (Step primitives)
+          ⟨.eval (.region (applicationCode fn inputs outputs) entryL PUnit.unit) parentL, store⟩
+          (resumedApplication outputs entryL parentL valueL returnedStore)) :=
+  Proofs.application_resumption code respects inputs outputs captures arguments selectL selectR parentL parentR store
+
+end Application
+
 /-- Each side replays the finite route to the common paired feedback
 stream, then positive restart segments with its own saved frame. -/
 theorem ProductivePair.infinite {jobL jobR : Job m outs}
@@ -132,8 +198,9 @@ theorem CallPair.infinite_iff {sourceL sourceR : Config m σ outs}
     InfiniteTrace (Step primitives) sourceL ↔ InfiniteTrace (Step primitives) sourceR :=
   Proofs.infinite_iff paired
 
-/-- Compose ordered partial ω linking and γ congruence for actual export
-dispatch. Terminal observations reflect back to the paired endpoints. -/
+/-- Compose ordered partial ω linking with paired code for the actual
+export, including a statically witnessed application. Terminal observations
+reflect back to the paired endpoints. -/
 theorem link_then_invoke (respects : ActionsRespect primitives ids)
     {left : Omega Op args outs sigsL} {right : Omega Op args outs sigsR}
     {positions : Fin sigsL.length ≃ Fin sigsR.length} (iso : left.RenumberedBy right positions)

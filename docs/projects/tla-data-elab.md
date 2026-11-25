@@ -34,16 +34,39 @@ state. Use `booleans.holds` on that value when a caller needs a proposition.
   including expression actuals even when unused. An uncalled LET operator
   or unapplied operator actual does not require a data denotation.
 
-The public interfaces leave a place for a compositional level check to consume
-the same resolved registry and declaration paths before evaluation.
-`primeRequiresLevels` identifies a resolved prime use at its source site,
-including one reached through a call. Future prime semantics need to evaluate
-the *whole substituted operand* with a shifted flexible valuation and the same
-rigid bindings. For example, expanding `P(e) == e'` requires the flexible
-reads of the actual for `e` to shift together. Operator arguments also need
-level and modal-dependency summaries before any modal evaluation is admitted.
+## Checked source and target evaluation
 
-[Lamport, *Specifying Systems*, §§16.1.4 and 17.2](https://lamport.azurewebsites.net/tla/book-21-07-04.pdf)
+Import `Silmaril.Logic.Temporal.TLA.DataElab.Endpoints.Thms` for the endpoint
+entry points and equations. Call
+`Endpoints.lowerState registry externalLevels signature maxDepth id` for a
+constant- or state-level definition. Call `Endpoints.lowerAction` with the
+same arguments for an action-level definition. Both run `Levels.check` on the
+registry they lower and select a declared nullary source operator by
+`BindingId`. Level failures retain their use and requirement-origin sites.
+A selection at the wrong level reports the selected body's site and level.
+Level checking covers the reachable registry, including unsupported
+operator-valued formals even when they are unused by the selected operator.
+The original `lowerDefinition` entry continues to reject prime.
+
+Evaluate a checked action with
+`action.eval ops booleans external ⟨rigid, source, target⟩`. The flexible maps
+supply the source and target values. Prime uses the target map for the entire
+expanded operand, including actual terms substituted through LET and calls.
+The rigid map and any surrounding witnesses stay fixed. Binders inside the
+operand evaluate their bounds and bodies at the target. `Term.eval_prime`
+states the shift equation, and `CheckedAction.eval_diagonal` gives evaluation
+with a common flexible map at both endpoints.
+
+Lowering rejects a retained prime inside another prime after expansion. State
+selection also rejects a retained prime, for example in an evaluated external
+argument whose level signature gives that slot zero weight. An action argument
+discarded by an expanded source operator leaves no such read. The checked
+subset still excludes temporal values, action brackets, ENABLED, UNCHANGED,
+INSTANCE, and proof interpretation.
+[Endpoint API](../../Silmaril/Logic/Temporal/TLA/DataElab/Endpoints/Defs.lean) ·
+[Endpoint laws](../../Silmaril/Logic/Temporal/TLA/DataElab/Endpoints/Thms.lean) ·
+[Level checking](tla-expression-levels.md) ·
+[Lamport, *Specifying Systems*, §§16.2 and 17.2](https://lamport.azurewebsites.net/tla/book-21-07-04.pdf)
 
 ## Values and admitted syntax
 
@@ -79,9 +102,10 @@ level and modal-dependency summaries before any modal evaluation is admitted.
 
 Decimal and string literals, tuple binders, multi-binder images, CASE,
 functions, records, tuples, and other collection syntax require future
-clauses. This entry point produces a single-state data denotation. Action and
-temporal forms, INSTANCE, ASSUME, theorem declarations and proof syntax are
-outside the checked pipeline.
+clauses. The original entry point produces a single-state data denotation.
+Endpoint selection adds prime in the checked fragment. Level checking can
+classify a proof-free theorem statement without treating it as a selectable
+definition or proof.
 
 ## Tagged interpretation
 
@@ -116,17 +140,18 @@ laws. [Scalar laws](tla-tagged-values.md#scalar-handoff)
 The HourClock registry can attest the required Naturals declarations as a
 signature entry. Pinned Naturals has dummy source bodies for arithmetic, so
 parsing it as a source module selects those bodies. Callers can use the same
-signature registry for level checking and lowering. This increment covers
-the numeric and set prerequisites for HourClock state expressions. Intact
-module acceptance and prime remain separate work.
-[Level checking](tla-expression-levels.md)
+signature registry for level checking and lowering. With `Resolution.resolveWith .levelSyntax`,
+the endpoint entry points can select the initial and next-state definitions
+from a registry that also contains its temporal specification and proof-free
+theorem statement. [Level checking](tla-expression-levels.md)
 
 ## Verification
 
 ```sh
 lake build --wfail +Silmaril.Logic.Temporal.TLA.DataElab.Examples \
   +Silmaril.Logic.Temporal.TLA.DataElab.Tagged.Examples \
-  +Silmaril.Logic.Temporal.TLA.Resolution.Examples
+  +Silmaril.Logic.Temporal.TLA.Resolution.Examples \
+  +Silmaril.Logic.Temporal.TLA.Resolution.Levels.Examples
 scripts/check-layout.sh
 ```
 
@@ -141,8 +166,11 @@ forwarding and LET capture, repeated expansion of the same binder, set image
 and filtering, rigid quantification, CHOOSE, and a proved external
 implementation. Guards check prime, unsupported tuples, depth
 exhaustion, wrong arity, and a same-named external from a different module ID.
-The parser and resolver run during elaboration, so this fixture does not
-constitute a general source adequacy theorem.
+The endpoint fixture checks double-prime provenance, level selection, and
+first-order admission. Its kernel-checked equations cover a compound formal
+primed through LET, source and target reads, and witness scope on both sides
+of a prime. The parser, resolver, and level checker run during elaboration.
+A general source adequacy theorem is outside the fixture's scope.
 
 [In-memory regression](../../Silmaril/Logic/Temporal/TLA/DataElab/Examples.lean)
 

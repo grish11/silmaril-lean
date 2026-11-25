@@ -6,6 +6,7 @@ import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Invocati
 import Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.Continuation.Partial.Feedback.Thms
 import Silmaril.SSA.RVSDG.Interprocedural.Isomorphism.Thms
 import Silmaril.SSA.RVSDG.NestedTheta.Thms
+import Silmaril.SSA.RVSDG.NestedTheta.Isomorphism.Thms
 import Silmaril.SSA.RVSDG.Thms
 
 namespace Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.NestedLoop.Tests
@@ -744,5 +745,175 @@ private theorem deepBlockedCalls :
     ⟨callR.steps .halt, fun _ => (callR.blocks .halt).no_step⟩⟩
 
 end DepthThree
+
+section Application
+
+private abbrev calleeFn : Function Unit Unit := ⟨carried, Theta.BodyResults outerCarry⟩
+private abbrev callerFn : Function Unit Unit := ⟨carried, results⟩
+private abbrev moduleImports : Ports T := [.control 2]
+private abbrev callerPorts : Ports T := calleeFn.port :: carried
+
+private def imported : Tuple machine.Val moduleImports := .cons (.control 0) .nil
+
+private def callArguments : Wires callerPorts [] carried :=
+  .cons (.arg (.tail .head)) (.cons (.arg (.tail (.tail .head))) .nil)
+
+private def callInputs : Wires callerPorts [] (calleeFn.port :: carried) :=
+  .cons (.arg .head) callArguments
+
+private def callSuffix : Wires callerPorts [calleeFn.results] results :=
+  .cons (.output (0 : Fin 1) (.tail (.tail (.tail .head))))
+    (.cons (.arg (.tail (.tail .head))) .nil)
+
+private abbrev callerCode := Gamma.applicationCode (Op := Op) calleeFn callInputs callSuffix
+
+private def program (callee : Gamma.LoopBody Op outerCarry [carried]) :
+    OmegaTerm Op moduleImports [callerFn.port] [[calleeFn.port], [callerFn.port]] :=
+  ⟨.bind (.lambda ⟨moduleImports, .cons (.arg .head) .nil, [carried], callee⟩) <|
+    .bind (.lambda ⟨[calleeFn.port], .cons (.output (0 : Fin 1) .head) .nil, [calleeFn.results], callerCode⟩) <|
+      .ret (.cons (.output (1 : Fin 2) .head) .nil)⟩
+
+private def calleeValue (body : Gamma.LoopBody Op outerCarry [carried]) : machine.Val calleeFn.port :=
+  .closure imported body.toGraph
+
+private def callerValue (body : Gamma.LoopBody Op outerCarry [carried]) : machine.Val callerFn.port :=
+  .closure (.cons (calleeValue body) .nil) callerCode.toGraph
+
+private def callerInput (body : Gamma.LoopBody Op outerCarry [carried]) (mode : Fin 2) (n : Nat) :
+    Tuple machine.Val callerPorts :=
+  .cons (calleeValue body) (carry mode n)
+
+private theorem callerLinks (body : Gamma.LoopBody Op outerCarry [carried]) :
+    Links primitives 17 (program body).toGraph imported 20 (.linked (.cons (callerValue body) .nil) 20) :=
+  .bind (values := .cons (calleeValue body) .nil) (middle := 20) rfl
+    (.bind (values := .cons (callerValue body) .nil) (middle := 20) rfl (.ret _ _ _ _))
+
+private abbrev callPositions : Fin 2 ≃ Fin 2 := Equiv.refl _
+
+private def callSource (body : Gamma.LoopBody Op outerCarry [carried]) (mode : Fin 2) (n : Nat) :
+    Config machine Nat results :=
+  ⟨Continuation.start (.call (callerValue body) (carry mode n)), 20⟩
+
+private theorem applicationDispatch (mode : Fin 2) (n : Nat) :
+    Gamma.CallPair primitives Eq innerMap results (callSource innerL mode n) (callSource innerR mode n) := by
+  have sameCaller := NestedTheta.Graph.Isomorphic.refl callerCode.toGraph
+  have iso : (program innerL).toGraph.RenumberedBy (program innerR).toGraph callPositions :=
+    ⟨two (.lambda ⟨⟨rfl, rfl⟩, innerIso⟩) (.lambda ⟨⟨rfl, rfl⟩, sameCaller⟩), rfl⟩
+  have schedule : Ordered Op (renameVertex callPositions) moduleImports [callerFn.port]
+      (program innerL).toGraph.toTerm.region (program innerR).toGraph.toTerm.region := by
+    rw [OmegaTerm.toTerm_toGraph, OmegaTerm.toTerm_toGraph]
+    exact .bind rfl (.lambda ⟨⟨rfl, rfl⟩, innerIso⟩)
+      (.bind rfl (.lambda ⟨⟨rfl, rfl⟩, sameCaller⟩) (.ret _ _))
+  let req (body : Gamma.LoopBody Op outerCarry [carried]) :=
+    request (m := machine) 17 (program body).toGraph imported .head (carry mode n) 20
+  have paired : Gamma.DispatchPair primitives Eq (renameVertex callPositions) innerMap results
+      ((req innerL).start primitives) ((req innerR).start primitives) :=
+    Gamma.link_then_invoke respects iso schedule (fun i => by simp [renameVertex, callPositions])
+      (.cons (.control 0) .nil) .head (carry_related mode n) 20 (by
+        intro _ _ _ linkedL linkedR _
+        cases outcome_unique linkedL (callerLinks innerL)
+        cases outcome_unique linkedR (callerLinks innerR)
+        exact .application (.cons (.control 0) .nil) innerIso admitted .nil callArguments callSuffix)
+  rw [start_linked (request := req innerL) (callerLinks innerL),
+    start_linked (request := req innerR) (callerLinks innerR)] at paired
+  cases paired with
+  | invoked calls => exact calls
+
+private theorem openCallee (body : Gamma.LoopBody Op outerCarry [carried]) (mode : Fin 2) (n : Nat) :
+    Job.openClosure machine (calleeValue body) (carry mode n) = .region body (input 0 mode n) PUnit.unit :=
+  congrArg (fun term => Job.region (m := machine) (past := []) term (input 0 mode n) PUnit.unit)
+    (NestedTheta.Term.toTerm_toGraph body)
+
+private theorem openCaller (body : Gamma.LoopBody Op outerCarry [carried]) (mode : Fin 2) (n : Nat) :
+    Job.openClosure machine (callerValue body) (carry mode n) = .region callerCode (callerInput body mode n) PUnit.unit :=
+  congrArg (fun term => Job.region (m := machine) (past := []) term (callerInput body mode n) PUnit.unit)
+    (NestedTheta.Term.toTerm_toGraph callerCode)
+
+private theorem callerEntered (body : Gamma.LoopBody Op outerCarry [carried]) (mode : Fin 2) (n : Nat) :
+    Step primitives (callSource body mode n) ⟨.eval (.region callerCode (callerInput body mode n) PUnit.unit) .halt, 20⟩ := by
+  apply Step.of_next_some
+  change _root_.Part.some (Config.mk (.eval (Job.openClosure machine (callerValue body) (carry mode n)) .halt) 20) = _
+  rw [openCaller]
+
+/-- The actual dispatch resumes the caller's suffix with the returned
+tuple at store 23. The suffix also reads the caller's saved original 2. -/
+private theorem returnsThroughCall (body : Gamma.LoopBody Op outerCarry [carried])
+    (ran : Eval primitives (.region body (input 0 0 2) PUnit.unit) 20
+      (.returned (.cons (.control 0) (input 0 0 3)) 23)) :
+    TerminalPath primitives (callSource body 0 2) ⟨.returned (output 3 2) .halt, 23⟩ := by
+  have invoked : Eval primitives (.call (calleeValue body) (carry 0 2)) 20
+      (.returned (.cons (.control 0) (input 0 0 3)) 23) :=
+    .call ((openCallee body 0 2).symm ▸ ran)
+  have resumed := Gamma.resume_application (fn := calleeFn) (inputs := callInputs)
+    (entry := callerInput body 0 2) callSuffix (.halt : Continuation.Stack machine results results) rfl invoked
+  have suffix : Eval primitives (.region (.ret callSuffix) (callerInput body 0 2)
+      (Locals.snoc (past := []) PUnit.unit (.cons (.control 0) (input 0 0 3)))) 23 (.returned (output 3 2) 23) :=
+    .ret callSuffix _ _ _
+  exact ⟨(resumed.head (callerEntered body 0 2)).trans (suffix.steps .halt), fun _ h => _root_.Part.notMem_none _ h⟩
+
+private theorem callerReturns :
+    TerminalPath primitives (callSource innerL 0 2) ⟨.returned (output 3 2) .halt, 23⟩ ∧
+    TerminalPath primitives (callSource innerR 0 2) ⟨.returned (output 3 2) .halt, 23⟩ :=
+  let ran := completedInner 0 0 2 20 (_root_.Part.mem_some _)
+  ⟨returnsThroughCall innerL ran.1, returnsThroughCall innerR ran.2⟩
+
+private def callerStop (body : Gamma.LoopBody Op outerCarry [carried])
+    (stop : Gamma.Block machine Nat calleeFn.results) : Gamma.Block machine Nat results :=
+  ⟨stop.site, .bind (past := []) (.ret callSuffix) (callerInput body 0 0) PUnit.unit stop.pending, stop.store⟩
+
+private theorem callerBlock :
+    Gamma.BlockPair primitives Eq innerMap callerCode callerCode (callerInput innerL 0 0) (callerInput innerR 0 0) 20
+      (.application (.theta (.here 1))) (.application (.theta (.here 0)))
+      (callerStop innerL (stopped left pendingL)) (callerStop innerR (stopped right pendingR)) :=
+  .application (fn := calleeFn) (captured := moduleImports) (left := innerL) (right := innerR)
+    (captL := imported) (captR := imported) (argsL := carry 0 0) (argsR := carry 0 0)
+    callInputs callSuffix rfl rfl blockedActivation
+
+private theorem blocksThroughCall (body : Gamma.LoopBody Op outerCarry [carried]) {stop : Gamma.Block machine Nat results}
+    (ran : Eval primitives (.region callerCode (callerInput body 0 0) PUnit.unit) 20 stop.outcome) :
+    TerminalPath primitives (callSource body 0 0) (stop.outcome.atStack .halt) := by
+  cases stop
+  exact ⟨(ran.steps .halt).head (callerEntered body 0 0), fun _ => (ran.blocks .halt).no_step⟩
+
+/-- The callee blocks with its mapped primitive address at store 23.
+The caller's original result binding is still pending on both sides. -/
+private theorem callerBlocks :
+    TerminalPath primitives (callSource innerL 0 0) ((callerStop innerL (stopped left pendingL)).outcome.atStack .halt) ∧
+    TerminalPath primitives (callSource innerR 0 0) ((callerStop innerR (stopped right pendingR)).outcome.atStack .halt) :=
+  ⟨blocksThroughCall innerL callerBlock.evals.1, blocksThroughCall innerR callerBlock.evals.2⟩
+
+private theorem callInnerRun : Feedback.Run primitives (embed left.toTerm) (carry 1 1, 20) := by
+  refine ⟨fun n => (carry 1 (n + 1), 20 + 3 * n), rfl, ?_⟩
+  intro n
+  have sameStore : 20 + 3 * (n + 1) = 20 + 3 * n + 3 := by omega
+  change Feedback.Iteration primitives (embed left.toTerm) (carry 1 (n + 1), 20 + 3 * n)
+    (carry 1 ((n + 1) + 1), 20 + 3 * (n + 1))
+  rw [sameStore]
+  apply (feedback 1 (n + 1) (20 + 3 * n) ?_).1
+  have notZero : n + 1 ≠ 0 := by omega
+  unfold action
+  rw [ite_eq_left (by decide : (1 : Fin 2).val = 1), ite_eq_right notZero]
+  exact _root_.Part.mem_some _
+
+/-- An independent stream of successful callee feedback iterations
+replays through the actual application, with the caller suffix saved. -/
+private theorem callerDiverges : InfiniteTrace (Step primitives) (callSource innerR 1 1) := by
+  apply (applicationDispatch 1 1).infinite_iff.mp
+  let target : Feedback.Restart machine Nat := ⟨carried, [[], bodyResults], embed left.toTerm, (carry 1 1, 20)⟩
+  let calleePending : Pending machine carried calleeFn.results :=
+    .bind (past := []) (.ret innerOutputs) (input 0 1 1) PUnit.unit .empty
+  let callerPending : Pending machine carried results :=
+    .bind (past := []) (.ret callSuffix) (callerInput innerL 1 1) PUnit.unit calleePending
+  have inner : Feedback.Reaches primitives (.region innerL (input 0 1 1) PUnit.unit) 20 target calleePending :=
+    .inside (node := Isomorphism.Invocation.loopVertex innerInitial [[], bodyResults])
+      (.theta (.restart (input := target.input) (current := target.input) .refl))
+  have route : Feedback.Reaches primitives (.region callerCode (callerInput innerL 1 1) PUnit.unit) 20
+      target callerPending :=
+    .inside (node := Gamma.applicationVertex calleeFn callInputs)
+      (.apply (fn := calleeFn) (.call ((openCallee innerL 1 1).symm ▸ inner)))
+  exact InfiniteTrace.of_steps ((route.steps .halt).head (callerEntered innerL 1 1))
+    (callInnerRun.infinite (callerPending.push .halt))
+
+end Application
 
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.Local.NestedLoop.Tests
