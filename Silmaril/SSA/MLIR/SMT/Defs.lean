@@ -67,17 +67,55 @@ def Env.toSmt {Γ : Context} : Env Γ → (i : Fin Γ.length) → model.carriers
   | .nil => fun i => i.elim0
   | .cons x env => Fin.cases x env.toSmt
 
-/-- Pure primitive operations on already defined SSA values. Variadic
-operators in this slice have exactly two operands. -/
+/-- The four predicates of `smt.int.cmp` on mathematical integers. -/
+inductive IntPredicate where
+  | lt
+  | le
+  | gt
+  | ge
+
+def IntPredicate.eval (pred : IntPredicate) (x y : Int) : Bool :=
+  match pred with
+  | .lt => decide (x < y)
+  | .le => decide (x ≤ y)
+  | .gt => decide (x > y)
+  | .ge => decide (x ≥ y)
+
+def IntPredicate.toSmt {Γ : Context} (pred : IntPredicate) (x y : Term Γ .int) : Formula Γ :=
+  match pred with
+  | .lt => .app .lt (Fin.cases x (fun _ => y))
+  | .le => .app .le (Fin.cases x (fun _ => y))
+  | .gt => .app .lt (Fin.cases y (fun _ => x))
+  | .ge => .app .le (Fin.cases y (fun _ => x))
+
+/-- Pure primitive operations on already defined SSA values. Equality takes
+at least two same-sort operands. Conjunction, disjunction and addition are binary here. -/
 inductive Rhs (Γ : Context) : Ty → Type where
   | boolConst (b : Bool) : Rhs Γ .bool
   | intConst (n : Int) : Rhs Γ .int
   | not (x : Var Γ .bool) : Rhs Γ .bool
   | and (x y : Var Γ .bool) : Rhs Γ .bool
   | or (x y : Var Γ .bool) : Rhs Γ .bool
-  | eq {s} (x y : Var Γ s) : Rhs Γ .bool
+  | eq {s} (x y : Var Γ s) (rest : List (Var Γ s) := []) : Rhs Γ .bool
   | ite {s} (cond : Var Γ .bool) (yes no : Var Γ s) : Rhs Γ s
   | add (x y : Var Γ .int) : Rhs Γ .int
+  | intCmp (pred : IntPredicate) (x y : Var Γ .int) : Rhs Γ .bool
+
+/-- SMT-LIB equality is chainable. Every adjacent pair must be equal. -/
+noncomputable def Rhs.evalEq {Γ : Context} {s : Ty} (env : Env Γ) (x y : Var Γ s) :
+    List (Var Γ s) → Bool := by
+  classical
+  exact fun rest =>
+    let equal := decide (env.get x = env.get y)
+    match rest with
+    | [] => equal
+    | z :: zs => equal && Rhs.evalEq env y z zs
+
+def Rhs.toSmtEq {Γ : Context} {s : Ty} (x y : Var Γ s) (rest : List (Var Γ s)) : Formula Γ :=
+  let equal : Formula Γ := .app (.eq s.toSmt) (Fin.cases x.toSmt.term (fun _ => y.toSmt.term))
+  match rest with
+  | [] => equal
+  | z :: zs => .app .and (Fin.cases equal (fun _ => Rhs.toSmtEq y z zs))
 
 noncomputable def Rhs.eval {Γ : Context} {s : Ty} (op : Rhs Γ s) (env : Env Γ) : s.Value := by
   classical
@@ -87,9 +125,10 @@ noncomputable def Rhs.eval {Γ : Context} {s : Ty} (op : Rhs Γ s) (env : Env Γ
   | .not x => !(env.get x)
   | .and x y => env.get x && env.get y
   | .or x y => env.get x || env.get y
-  | .eq x y => decide (env.get x = env.get y)
+  | .eq x y rest => Rhs.evalEq env x y rest
   | .ite c x y => if env.get c = true then env.get x else env.get y
   | .add x y => Int.add (env.get x) (env.get y)
+  | .intCmp pred x y => pred.eval (env.get x) (env.get y)
 
 def Rhs.toSmt {Γ : Context} {s : Ty} : Rhs Γ s → Term Γ s
   | .boolConst b => .app (.boolean b) (fun i => i.elim0)
@@ -97,10 +136,11 @@ def Rhs.toSmt {Γ : Context} {s : Ty} : Rhs Γ s → Term Γ s
   | .not x => .app .not (fun _ => x.toSmt.term)
   | .and x y => .app .and (Fin.cases x.toSmt.term (fun _ => y.toSmt.term))
   | .or x y => .app .or (Fin.cases x.toSmt.term (fun _ => y.toSmt.term))
-  | .eq (s := t) x y => .app (.eq t.toSmt) (Fin.cases x.toSmt.term (fun _ => y.toSmt.term))
+  | .eq x y rest => Rhs.toSmtEq x y rest
   | .ite (s := t) c x y =>
       .app (.ite t.toSmt) (Fin.cases c.toSmt.term (Fin.cases x.toSmt.term (fun _ => y.toSmt.term)))
   | .add x y => .app .add (Fin.cases x.toSmt.term (fun _ => y.toSmt.term))
+  | .intCmp pred x y => pred.toSmt x.toSmt.term y.toSmt.term
 
 /-- Extend a scope with block arguments in source order. Each argument
 occupies a fresh slot, with the last argument at index zero. -/

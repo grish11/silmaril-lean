@@ -19,12 +19,29 @@ private theorem eval_ref {Γ : Context} {s : Ty} (x : Var Γ s) (env : Env Γ) :
           exact (Ref.value_succ model rest.toSmt x.toSmt _ value).trans (ih rest)
 
 set_option backward.isDefEq.respectTransparency false in
+private theorem eval_eq {Γ : Context} {s : Ty} (env : Env Γ) (x y : Var Γ s)
+    (rest : List (Var Γ s)) :
+    eval model env.toSmt (Rhs.toSmtEq x y rest) = Rhs.evalEq env x y rest := by
+  classical
+  induction rest generalizing x y with
+  | nil =>
+      simp [Rhs.toSmtEq, Rhs.evalEq, eval, Silmaril.Logic.Smt.Uflia.Model.apply,
+        Fin.cases, Fin.induction, Fin.induction.go, eval_ref]
+  | cons z zs ih =>
+      simp [Rhs.toSmtEq, Rhs.evalEq, eval, Silmaril.Logic.Smt.Uflia.Model.apply,
+        Fin.cases, Fin.induction, Fin.induction.go, eval_ref, ih]
+
+set_option backward.isDefEq.respectTransparency false in
 private theorem eval_rhs {Γ : Context} {s : Ty} (op : Rhs Γ s) (env : Env Γ) :
     eval model env.toSmt op.toSmt = op.eval env := by
   classical
   cases op <;>
     simp [Rhs.toSmt, Rhs.eval, eval, Silmaril.Logic.Smt.Uflia.Model.apply,
-      Fin.cases, Fin.induction, Fin.induction.go, eval_ref]
+      Fin.cases, Fin.induction, Fin.induction.go, eval_ref, eval_eq]
+  case intCmp pred x y =>
+    cases pred <;>
+      simp [IntPredicate.toSmt, IntPredicate.eval, eval, Silmaril.Logic.Smt.Uflia.Model.apply,
+        Fin.cases, Fin.induction, Fin.induction.go, eval_ref]
 
 set_option backward.isDefEq.respectTransparency false in
 private theorem eval_quantifier (q : Quantifier) {Γ : Context} (env : Env Γ)

@@ -48,6 +48,14 @@ Its inner body uses the outer bound value and an earlier SSA constant.
 cannot supply a Boolean operand.
 [Checked examples](../../Silmaril/SSA/MLIR/SMT/Examples/Thms.lean)
 
+`Examples.chainedEquality_holds_iff` characterizes the translation of a
+three-input Int equality, including when just the final operand differs.
+`Examples.orderedBounds_holds` uses all four integer comparison predicates
+inside a quantifier. The body captures `n` and the earlier SSA result `n + 1`,
+and checks that `n + 1 ≤ x`, `n < x`, `x ≥ n + 1` and `x > n` agree for every
+`x : Int`.
+[Comparison examples](../../Silmaril/SSA/MLIR/SMT/Examples/Thms.lean)
+
 ## Upstream coverage
 
 The inventory covers all 54 operations in the four SMT operation TableGen
@@ -61,17 +69,27 @@ files at llvm-project commit `cc45e189bc99870d26d50c5e3a3d215068e74880`
 | --- | --- |
 | `smt.constant`, `smt.not` | Checked for Boolean operands and results as applicable. |
 | `smt.and`, `smt.or` | Checked at arity two. Larger variadic forms are deferred. |
-| `smt.eq` | Checked for two operands of the same supported sort. Larger variadic forms are deferred. |
+| `smt.eq` | Checked at every arity of at least two, with all operands of the same supported sort. |
 | `smt.ite` | Checked with a Boolean guard and two alternatives of the same supported sort. |
 | `smt.int.constant`, `smt.int.add` | Checked for arbitrary integers, with binary addition. Larger variadic forms of addition are deferred. |
+| `smt.int.cmp` | Checked for two arbitrary integers and all four predicates `lt`, `le`, `gt` and `ge`. |
 | `smt.forall`, `smt.exists` | Checked with one or more Bool/Int binders, including mixed lists, nesting and capture of dominating values. |
 | `smt.yield` | Checked in the quantifier profile with exactly one Boolean operand. Solver and check terminators are deferred. |
 | `smt.xor`, `smt.implies`, `smt.distinct` | Deferred Boolean and equality operations. |
-| `smt.int.abs`, `smt.int.cmp`, `smt.int.div`, `smt.int.mod`, `smt.int.mul`, `smt.int.sub` | Deferred integer operations. Division and remainder need the SMT contract at zero. |
+| `smt.int.abs`, `smt.int.div`, `smt.int.mod`, `smt.int.mul`, `smt.int.sub` | Deferred integer operations. Division and remainder need the SMT contract at zero. |
 | `smt.bv.constant`, `smt.bv.add`, `smt.bv.and`, `smt.bv.ashr`, `smt.bv.cmp`, `smt.bv.concat`, `smt.bv.extract`, `smt.bv.lshr`, `smt.bv.mul`, `smt.bv.neg`, `smt.bv.not`, `smt.bv.or`, `smt.bv.repeat`, `smt.bv.sdiv`, `smt.bv.shl`, `smt.bv.smod`, `smt.bv.srem`, `smt.bv.udiv`, `smt.bv.urem`, `smt.bv.xor`, `smt.bv2int`, `smt.int2bv` | Deferred with bitvector sorts and conversions. |
 | `smt.array.broadcast`, `smt.array.select`, `smt.array.store` | Deferred with array sorts. |
 | `smt.declare_fun`, `smt.apply_func` | Deferred with function values and uninterpreted sorts. |
 | `smt.assert`, `smt.check`, `smt.pop`, `smt.push`, `smt.reset`, `smt.set_logic`, `smt.solver` | Deferred solver state, effects and outcome regions. |
+
+The upstream `smt.eq` verifier requires at least two operands. Two mandatory
+SSA references and a list of further same-sort references encode that lower
+bound. Lowering conjoins the equality of each adjacent pair, as specified by
+SMT-LIB chainability. The integer comparison lowering uses binary `<` and
+`≤`, reversing operands for `gt` and `ge`. The variadic TableGen declarations
+for `and`, `or` and `int.add` remain covered only at arity two.
+[Equality verifier][eq-verifier] · [Pinned core operations][core] ·
+[Pinned integer operations][ints] · [Comparison exporter][cmp-exporter]
 
 The profile also excludes zero-argument quantifiers (which upstream MLIR
 admits), optional bound-variable name prefixes, pattern regions, the
@@ -102,6 +120,8 @@ make check CHECK_TARGETS=+Silmaril.SSA.MLIR.SMT.Examples.Thms
 [bv]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/SMT/IR/SMTBitVectorOps.td
 [arrays]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/SMT/IR/SMTArrayOps.td
 [types]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/SMT/IR/SMTTypes.td
+[eq-verifier]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Dialect/SMT/IR/SMTOps.cpp#L125
+[cmp-exporter]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Target/SMTLIB/ExportSMTLIB.cpp#L256
 [verifier]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Dialect/SMT/IR/SMTOps.cpp#L324
 [basic]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/test/Dialect/SMT/basic.mlir#L153
 [exporter]: https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Target/SMTLIB/ExportSMTLIB.cpp#L292
