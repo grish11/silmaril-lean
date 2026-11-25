@@ -397,6 +397,18 @@ theorem denote_rename_proof {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ m
   · intro i
     exact envSubstMap_bound M β δ _ i
 
+theorem denote_underBinder_proof {n : Nat} {β : BoundCtx τ n}
+    {t : Tm ν Φ (n + 1)} {A X Y : τ} (d : Derivation Φ Γ (.snoc β Y) t A) :
+    J.map (envSnocIso M Γ (.snoc β X) Y).hom ≫
+        denote J M (d.rename (TypedRenaming.underBinder β X Y)) =
+      J.map (dropSlot M β X ▷ M.obj Y) ≫
+        J.map (envSnocIso M Γ β Y).hom ≫ denote J M d := by
+  have h := denote_rename_along_proof J M d (TypedRenaming.underBinder β X Y)
+    (liftEnvMap M (dropSlot M β X) Y) (liftEnvMap_free M (dropSlot_free M β X) Y)
+    (renaming_vars_up M (TypedRenaming.succ β X) (dropSlot M β X)
+      (fun i => (dropSlot_bound M (Γ := Γ) β X i).trans (Category.comp_id _).symm) Y)
+  rw [h, ← J.map_comp_assoc, snoc_liftEnvMap, J.map_comp_assoc]
+
 variable {ε : Type*} [HasEff Φ ε] {pe : ε}
 variable (pureInstr : ∀ f : Φ, IsPure pe f →
   ∃ p : M.obj (instrSrc f) ⟶ M.obj (instrTrg f),

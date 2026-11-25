@@ -13,6 +13,7 @@ universe u v w u₁ u₂ v₁ v₂
 namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits CartesianMonoidalCategory
+open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.LocallyNameless
 
 variable {τ : Type u} [TypeFormers τ] {ν : Type w} [DecidableEq ν]
@@ -36,6 +37,15 @@ theorem denote_lift {n : Nat} {β : BoundCtx τ n} {t : Tm ν Φ n} {A B : τ}
     (d : Derivation Φ Γ β t A) :
     denote J M (d.lift (B := B)) = J.map (dropSlot M β B) ≫ denote J M d :=
   denote_lift_proof J M d
+
+/-- Weakening below the newest binder drops the inserted slot and retains the newest value. -/
+theorem denote_underBinder {n : Nat} {β : BoundCtx τ n}
+    {t : Tm ν Φ (n + 1)} {A X Y : τ} (d : Derivation Φ Γ (.snoc β Y) t A) :
+    J.map (envSnocIso M Γ (.snoc β X) Y).hom ≫
+        denote J M (d.rename (TypedRenaming.underBinder β X Y)) =
+      J.map (dropSlot M β X ▷ M.obj Y) ≫
+        J.map (envSnocIso M Γ β Y).hom ≫ denote J M d :=
+  denote_underBinder_proof J M d
 
 /-- Simultaneous substitution by value denotations precomposes the bound environment tuple. -/
 theorem denote_bsubst {n m : Nat} {β : BoundCtx τ n} {δ : BoundCtx τ m}

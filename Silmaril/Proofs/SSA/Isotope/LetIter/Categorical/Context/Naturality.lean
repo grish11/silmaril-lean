@@ -66,26 +66,11 @@ private theorem extend_eq_retainLeft {E A : V} (f : J.obj E ⟶ J.obj A) :
   rw [← Category.assoc, ← J.map_comp, h]
   exact map_inr_inv_coprodComparison J
 
-@[reassoc] private theorem retainLeft_pre {D E A B : V} (k : D ⟶ E)
-    (f : J.obj A ⟶ J.obj B) :
-    J.map (k ▷ A) ≫ retainLeft J (R := E) f =
-      retainLeft J (R := D) f ≫ J.map (k ▷ B) := by
-  let t := Functor.StrongPremonoidal.tensorIso (J := J)
-  apply (cancel_epi (t D A).hom).mp
-  have exchange := (FreydCategory.image_central J k).1 f
-  unfold leftTensor rightTensor at exchange
-  simp only [retainLeft, leftTensor, id_whiskerRight, Category.id_comp, Category.assoc]
-  rw [← Category.assoc (t D A).hom, ← Functor.StrongPremonoidal.tensor_naturality_left]
-  simp only [Category.assoc, Iso.hom_inv_id_assoc]
-  rw [← Functor.StrongPremonoidal.tensor_naturality_left, ← Category.assoc
-    (J.obj D ◁ f), ← exchange]
-  simp only [t, Category.assoc, Iso.hom_inv_id_assoc]
-
 @[reassoc] private theorem extend_pre_map {D E A : V} (k : D ⟶ E)
     (f : J.obj E ⟶ J.obj A) :
     extend J (J.map k ≫ f) ≫ J.map (k ▷ A) = J.map k ≫ extend J f := by
   simp only [extend_eq_retainLeft, retainLeft_comp, retainLeft_map, Category.assoc,
-    ← retainLeft_pre]
+    ← retainLeft_pre_map]
   simp only [← J.map_comp_assoc]
   congr 2
   rw [← MonoidalCategory.tensorHom_def']
@@ -175,7 +160,7 @@ theorem contextualLoop_pre_map_proof {D E A B : V} (k : D ⟶ E)
   have square : step D g ≫ coprod.map (J.map (k ▷ B)) (J.map (k ▷ A)) =
       J.map (k ▷ A) ≫ step E f := by
     simp only [step, Category.assoc, distributeEnv_pre, g, retainLeft_comp, retainLeft_map]
-    rw [← retainLeft_pre_assoc, ← J.map_comp_assoc, ← J.map_comp_assoc, Category.assoc (copy D), copy_natural, J.map_comp_assoc]
+    rw [← retainLeft_pre_map_assoc, ← J.map_comp_assoc, ← J.map_comp_assoc, Category.assoc (copy D), copy_natural, J.map_comp_assoc]
   have outputs :
       iterate (step D g) ≫ J.map (k ▷ B) = J.map (k ▷ A) ≫ iterate (step E f) := by
     rw [ElgotCategory.naturality]
