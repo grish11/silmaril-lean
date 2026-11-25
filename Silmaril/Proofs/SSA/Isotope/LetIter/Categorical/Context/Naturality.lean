@@ -691,6 +691,20 @@ theorem retainLeft_iterate_shared {E X Y : V}
   rw [StrongElgotFreydCategory.strength J]
   simp only [retainLeft, leftTensor, id_whiskerRight, Category.id_comp, f, t]
 
+theorem contextualLoop_discard_proof [FreydCategory.CentralUnit J] {E A B : V}
+    (shared : ∃ e : J.obj E ⊗ J.obj A = J.obj (E ⊗ A),
+      Functor.StrongPremonoidal.tensorIso (J := J) E A = eqToIso e)
+    (body : J.obj A ⟶ J.obj (B ⨿ A)) :
+    contextualLoop J (J.map (snd E A) ≫ body) =
+      J.map (snd E A) ≫ iterate (body ≫ splitMapCoprod J B A) := by
+  have step : contextualStep J (J.map (snd E A) ≫ body) =
+      retainLeft J (R := E) body ≫ routeEnvironment J E B A := by
+    rw [contextualStep, retainEnvironment_comp_proof J, retainEnvironment_map_proof J,
+      CartesianMonoidalCategory.lift_fst_snd, J.map_id, Category.id_comp]
+  rw [contextualLoop_eq_step, step, retainLeft_iterate_shared J shared]
+  simpa only [retainLeft, leftTensor, id_whiskerRight, Category.id_comp, Category.assoc] using
+    FreydCategory.whiskerLeft_snd J E (iterate (body ≫ splitMapCoprod J B A))
+
 theorem contextualLoop_retain_proof {E A B : V}
     (central : IsCentral (J.map (duplicate E) ≫
       (Functor.StrongPremonoidal.tensorIso (J := J) E E).inv))

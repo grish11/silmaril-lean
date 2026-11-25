@@ -15,7 +15,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 open CategoryTheory CategoryTheory.Limits CategoryTheory.PremonoidalCategory
 open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical
-  (caseWithContext contextualLoop duplicate retainLeft)
+  (caseWithContext contextualLoop duplicate retainLeft splitMapCoprod)
 
 local notation "bindArrow" => Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.bind
 
@@ -78,6 +78,15 @@ end Distributive
 section Iteration
 
 variable [Iteration C] [ElgotCategory C] [StrongElgotFreydCategory J]
+
+/-- If the loop body discards its environment, iteration needs only the payload state. -/
+theorem contextualLoop_discard [FreydCategory.CentralUnit J] {E A B : V}
+    (shared : ∃ e : J.obj E ⊗ J.obj A = J.obj (E ⊗ A),
+      Functor.StrongPremonoidal.tensorIso (J := J) E A = eqToIso e)
+    (body : J.obj A ⟶ J.obj (B ⨿ A)) :
+    contextualLoop J (J.map (snd E A) ≫ body) =
+      J.map (snd E A) ≫ iterate (body ≫ splitMapCoprod J B A) :=
+  contextualLoop_discard_proof J shared body
 
 /-- Move an effectful exit continuation into the corresponding case branch of the loop body. -/
 theorem contextualLoop_naturality [FreydCategory.CentralUnit J] {R A B D : V}

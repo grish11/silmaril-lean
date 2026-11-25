@@ -144,7 +144,7 @@ private theorem denote_singleton_comp {a b : Tm Empty Φ 1} {A B D : τ}
   rw [← Category.assoc retained, letEta]
 
 include coherent shared pureInstr in
-private theorem repairedArrowDenote_mk_of {X Y : SynCat modelSig}
+theorem repairedArrowDenote_mk_of {X Y : SynCat modelSig}
     {t : Thesis.LambdaIter.LocallyNameless.Tm Empty Φ 1}
     (h : HasType Φ .nil (.snoc .nil X.ty) t Y.ty)
     {s : Tm Empty Φ 1} (d : Derivation Φ Γ₀ (.snoc .nil X.ty) s Y.ty)

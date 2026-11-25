@@ -58,6 +58,17 @@ theorem repairedArrowDenote_mk {X Y : SynCat modelSig}
       J.map (singletonEnvIso M X.ty).inv ≫ denote J M d :=
   InterpretationProofs.repairedArrowDenote_mk pe J M coherent shared pureInstr h d
 
+/-- Evaluate a projected representative using an explicitly identified native term. -/
+theorem repairedArrowDenote_mk_of {X Y : SynCat modelSig}
+    {t : Thesis.LambdaIter.LocallyNameless.Tm Empty Φ 1}
+    (h : Thesis.LambdaIter.LocallyNameless.HasType Φ .nil (.snoc .nil X.ty) t Y.ty)
+    {s : Silmaril.Isotope.LetIter.LocallyNameless.Tm Empty Φ 1}
+    (d : Derivation Φ Γ₀ (.snoc .nil X.ty) s Y.ty) (hs : s = Bridge.ofThesis t) :
+    repairedArrowDenote pe J M coherent shared pureInstr
+        ((P).map (mk (S := modelSig) h : X ⟶ Y)) =
+      J.map (singletonEnvIso M X.ty).inv ≫ denote J M d :=
+  InterpretationProofs.repairedArrowDenote_mk_of pe J M coherent shared pureInstr h d hs
+
 local notation "evalArrow" => repairedArrowDenote pe J M coherent shared pureInstr
 
 /-- Interpretation sends the singleton variable to the computation identity. -/
