@@ -287,33 +287,18 @@ lake build --wfail +Silmaril.Logic.Temporal.TLA.Surface.Defs \
   +Silmaril.Logic.Temporal.TLA.Surface.Examples
 ~~~
 
-### S-expression codec handoff
+### Versioned S-expression codec
 
-Use a distinct tag per constructor, with separate atom representations for
-tags, names, literal payloads and numbers. Keep fixed fields positional and
-keep list and option fields explicit, preserving emptiness, ordering and
-the distinction between `none` and `some`. The round trip should quantify
-over every AST value. Decoding checks the tag, field count, atom kind and child
-sort. Grammar and semantic validation can run separately after decoding.
+The [version 1 wire schema](tla-surface-sexp.md) covers the entire Surface AST
+and includes the positional field types for every constructor. The
+`Silmaril.ProofFormats.TLA.SurfaceSExp.Thms` header exposes the module and
+expression APIs and their tree, text and UTF-8 byte round trips. Successful
+decoding implies that re-encoding reproduces the exact S-expression tree.
 
-`SExp2` in `Formats.SExp.Basic` has structural recursion on its cons spine
-and an injective `ofList`. `SExp` in `Formats.SExp.Proper` has intrinsic
-proper lists and the `children?_ofList` inverse law. `TExpr` in
-`Formats.SExp.Tagged` offers separate tags and atoms and the
-`node_ofNode`/`ofNode_node` laws. With `SExp2`, encode a proper tagged
-list and reject dotted tails. Descend through the input tree before each
-recursive call so decoding terminates even on malformed data. With the
-n-ary APIs, recurse over the original finite children or use `TExpr.fold` to
-validate each node with its decoded children. [SExp2](../../Silmaril/Formats/SExp/Basic.lean)
-· [SExp](../../Silmaril/Formats/SExp/Proper.lean)
-· [TExpr](../../Silmaril/Formats/SExp/Tagged.lean)
-
-The AST's mutual inductive groups and ordered lists support structural
-encoders and mutual induction. Use explicit recursion through the nested list
-and option fields of each group, then lift the round trips to the module.
-Keep the bridge under a region allowed to import both Logic and Formats.
-The concrete parser and any later checked elaborator can consume the same
-tree independently of the codec.
+~~~sh
+lake build --wfail +Silmaril.ProofFormats.TLA.SurfaceSExp.Thms \
+  +Silmaril.ProofFormats.TLA.SurfaceSExp.Examples
+~~~
 
 ## Checked examples and coverage
 
@@ -343,4 +328,4 @@ lake build --wfail +Silmaril.Logic.Temporal.TLA.Thms +Silmaril.Logic.Temporal.TL
 | Terms and actions | Typed variable lookup, denotational expressions and actions, rigid existential quantification, explicit state-level `ENABLED` | Elaborating checked source terms and actions into the denotations, and general capture-avoiding term substitution |
 | Temporal formulas | Typed Simple and General TLA syntax and semantics, rigid and flexible quantifiers, whole-state stutter invariance, and scoped reindexing | A derivation calculus with the syntactic substitution rules of Fig. 9, machine closure, completeness results, and a Lean comparison with a separate stutter-reduction operator |
 | Specifications | Simple TLA fairness, invariant and progress rules, and semantic state-map refinement | General refinement substitution and auxiliary-variable theorems |
-| Integration | The General TLA room functor and satisfaction condition for fixed carriers, and an independent named TLA+ surface AST | S-expression codec, concrete parser, checked elaboration, and Quint integration |
+| Integration | The General TLA room functor and satisfaction condition for fixed carriers, and a named TLA+ surface AST with a verified S-expression codec | Concrete parser, checked elaboration, and Quint integration |
