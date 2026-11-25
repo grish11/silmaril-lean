@@ -175,6 +175,34 @@ private def proofStepsModule : Module :=
     [ .theoremDecl ⟨some "T", .expr truth, some proof⟩,
       .theoremDecl ⟨some "U", .expr truth, some (.steps [] ⟨.current, none⟩ none)⟩ ]⟩
 
+private def compatibilityModule : Module :=
+  let definition := fun head body => ModuleUnit.definition (.operator .ordinary (.ident head []) body)
+  let infixOp := fun op left right => Expr.infix (.symbol op) left right
+  let overlay := infixOp "="
+    (.except (name "r") [⟨[.field "v"], infixOp "@@" .oldValue (name "patch")⟩])
+    (name "expected")
+  let selected := infixOp "="
+    (.ref (.operator (.ident "M")) []
+      [.named (.symbolic (.infix (.symbol "@@"))) [], .structural (.operand 1), .structural .allBindings])
+    (name "wanted")
+  let substitution := Expr.letIn
+    [.definition (.namedInstance .ordinary "I" []
+      ⟨"M", [⟨.ident "F", .expr (.ref (.operator (.symbolic (.infix (.symbol "+")))) [] [])⟩]⟩)]
+    (name "I")
+  ⟨"Compatibility", [],
+    [ .assumption (some "Named") (name "TRUE"),
+      definition "Overlay" (.junction .conjunction [overlay, selected]),
+      definition "OverlayOrder"
+        (infixOp ":=" (infixOp "@@" (infixOp "@@" (name "a") (name "b")) (name "c")) (name "d")),
+      definition "UsesOperator" (.ref (.operator (.ident "F")) [.symbolic (.infix (.symbol "×"))] []),
+      definition "Tagged" (infixOp "*" (name "a") (.labeled ⟨"Item", ["x"]⟩ (infixOp "+" (name "b") (name "x")))),
+      definition "Substitution" substitution,
+      .directive (.use false ⟨[], []⟩),
+      .submodule ⟨"Child", [], [.variables ["value"]]⟩,
+      .theoremDecl ⟨none, .expr (name "TRUE"), some (.steps [] ⟨.explicit 1, none⟩
+        (some (.byFacts false ⟨[], []⟩)))⟩,
+      .submodule ⟨"Sibling", [], []⟩ ]⟩
+
 private def checkUpstreamShape (parsed : Module) : IO Unit := do
   if parsed.name == "HourClock" then
     match parsed.units with
@@ -209,12 +237,15 @@ private def checkCorpus : List String → IO Unit
     match parseModule source with
     | .ok parsed =>
       check (expected == "accept") s!"{file}: unexpectedly accepted"
-      let filename := (System.FilePath.mk file).fileName
-      if filename == some "BoundedQueue.tla" || filename == some "ProofSteps.tla" then
-        let tree := if filename == some "BoundedQueue.tla" then boundedQueue else proofStepsModule
+      let expectedTree := match (System.FilePath.mk file).fileName with
+        | some "BoundedQueue.tla" => some boundedQueue
+        | some "ProofSteps.tla" => some proofStepsModule
+        | some "Compatibility.tla" => some compatibilityModule
+        | _ => none
+      match expectedTree with
+      | some tree =>
         check (decide (encodeModule parsed = encodeModule tree)) s!"{file}: wrong tree\n{reprStr parsed}"
-      else
-        checkUpstreamShape parsed
+      | none => checkUpstreamShape parsed
     | .error error =>
       let actual := if error.kind == .unsupported then "unsupported" else "reject"
       check (actual == expected) s!"{file}: {reprStr error}"

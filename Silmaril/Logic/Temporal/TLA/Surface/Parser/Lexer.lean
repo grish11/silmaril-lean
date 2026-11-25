@@ -147,7 +147,8 @@ private def lexeme (c : Char) (chars : List Char) : TokenKind × String × Nat :
       let spaces := (chars.drop run.length).takeWhile (· == ' ')
       let afterSpaces := chars.drop (run.length + spaces.length)
       if "MODULE".toList.isPrefixOf afterSpaces then
-        return (.beginModule, "MODULE", run.length + spaces.length + 6)
+        let length := run.length + spaces.length + 6
+        return (.beginModule, String.ofList (chars.take length), length)
       return (.separator, String.ofList run, run.length)
   if ['W', 'F', '_'].isPrefixOf chars then return (.keyword, "WF_", 3)
   if ['S', 'F', '_'].isPrefixOf chars then return (.keyword, "SF_", 3)
@@ -159,7 +160,7 @@ private def lexeme (c : Char) (chars : List Char) : TokenKind × String × Nat :
     if c.isDigit then
       let digits := word.takeWhile Char.isDigit
       return (.number, String.ofList digits, digits.length)
-  if c == 'ℕ' || c == 'ℤ' || c == 'ℝ' || c == '@' then return (.ident, String.singleton c, 1)
+  if c == 'ℕ' || c == 'ℤ' || c == 'ℝ' then return (.ident, String.singleton c, 1)
   let fixed := (symbolBuckets.getD c []).find? (fun (spelling, _) => spelling.isPrefixOf chars)
   let fixedLength := fixed.map (fun (spelling, _) => spelling.length) |>.getD 0
   if c == '<' then
@@ -168,7 +169,8 @@ private def lexeme (c : Char) (chars : List Char) : TokenKind × String × Nat :
   if c == '\\' then
     let digits := basedNumber chars
     if digits.length > fixedLength then return (.number, String.ofList digits, digits.length)
-  if let some (_, spelling) := fixed then return (.symbol, spelling, fixedLength)
+  if let some (_, spelling) := fixed then
+    return (if spelling == "@" then .ident else .symbol, spelling, fixedLength)
   return (.symbol, String.singleton c, 0)
 
 private partial def scan (cursor : Cursor) (tokens : Array Token) : Except Diagnostic (Array Token) :=

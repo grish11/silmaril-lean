@@ -269,31 +269,48 @@ private def bindsInside (parent : Option Pending) (next : Pending) : ParseM Bool
 -- product enters the enclosing parse as an ordinary expression.
 private inductive ParsedExpr where
   | single (value : Expr)
+  | grouped (value : Expr)
   | product (reversedFactors : List Expr)
   deriving Inhabited
 
 private def ParsedExpr.finish : ParsedExpr → Expr
-  | .single value => value
+  | .single value | .grouped value => value
   | .product factors => .cartesian factors.reverse
 
 private def ParsedExpr.appendFactor (left : ParsedExpr) (right : Expr) : ParsedExpr :=
   match left with
-  | .single value => .product [right, value]
+  | .single value | .grouped value => .product [right, value]
   | .product factors => .product (right :: factors)
 
-private def labelEnd : ParseM (Option Nat) := do
-  if (← peek).kind != .ident then return none
-  if ← sees ["::", "∷"] 1 then return some 1
-  if ← sees ["("] 1 then
-    let offset ← nameListEnd 2
-    if (← peek 2).kind == .ident && (← sees [")"] offset) && (← sees ["::", "∷"] (offset + 1)) then
-      return some (offset + 1)
+private def labelMark := ["::", "∷"]
+
+-- SANY also recognizes simple symbolic heads and step references as labels.
+-- An argument must be a bare name even in the permissive grammar.
+private def labelEnd : ParseM (Option (Nat × Bool)) := do
+  let inProof := !(← get).proofLevels.isEmpty
+  let isName (token : Token) := token.kind == .ident ||
+    (inProof && token.kind == .stepRef && !token.text.startsWith "<+>")
+  let head ← peek
+  if !(isName head || head.infix.isSome || head.postfix.isSome || head.isOneOf ["-."]) then
+    return none
+  let mut supported := head.kind == .ident
+  let mut offset := 1
+  if ← sees ["("] offset then
+    repeat
+      let param ← peek (offset + 1)
+      if !isName param then return none
+      supported := supported && param.kind == .ident
+      offset := offset + 2
+      if !(← sees [","] offset) then break
+    if !(← sees [")"] offset) then return none
+    offset := offset + 1
+  if ← sees labelMark offset then return some (offset, supported)
   return none
 
 private def stopsBareOperator (token : Token) : Bool :=
   token.kind == .beginModule || token.kind == .endModule || token.kind == .separator ||
     token.isOneOf [",", ")", "LOCAL", "INSTANCE", "THEOREM", "ASSUME", "ASSUMPTION", "AXIOM",
-      "CONSTANT", "CONSTANTS", "VARIABLE", "VARIABLES", "RECURSIVE", "IN"]
+      "CONSTANT", "CONSTANTS", "VARIABLE", "VARIABLES", "RECURSIVE"]
 
 -- Each recursive expression call either consumes an opener/operator or returns
 -- to its caller at a delimiter or weaker operator.
@@ -315,30 +332,33 @@ private partial def operand (parent : Option Pending) : ParseM ParsedExpr := do
     let _ ← takeToken
     let value ← operand (some ⟨token, op⟩)
     extend parent (.single (.prefix (op.prefixOp token.text) value.finish))
-  else if let some _ ← labelEnd then
+  else if let some (marker, supported) ← labelEnd then
+    if !supported then
+      failAt (← peek marker) "only identifier labels with identifier parameters are supported" .unsupported
     let name ← ident
     let parameters ← if ← accept ["("] then delimited [")"] (commaList ident) else pure []
-    let _ ← expectOne ["::", "∷"]
+    let _ ← expectOne labelMark
     let start ← peek
-    let body ← expression
-    if let some left := parent then
+    let body ← operand none
+    if let (some left, .single value) := (parent, body) then
       -- A label cannot change the binding of the operator at the root of its body.
-      -- Parenthesized bodies have their own precedence context.
-      if !start.isOneOf ["("] then
-        let root := match body with
-          | .infix (.symbol spelling) .. => lookupOperator spelling
-          | .infix .compose .. => lookupOperator "\\cdot"
-          | .infix .leadsTo .. => lookupOperator "~>"
-          | .infix .guarantees .. => lookupOperator "-+->"
-          | .postfix .prime _ => lookupOperator "'"
-          | .postfix (.symbol spelling) _ => lookupOperator spelling
-          | _ => none
-        if let some op := root then
-          if left.op.high ≥ op.low then failAt start "label changes operator grouping. Use parentheses"
-    return .single (.labeled ⟨name, parameters⟩ body)
+      let root := match value with
+        | .infix (.symbol spelling) .. => lookupOperator spelling
+        | .infix .compose .. => lookupOperator "\\cdot"
+        | .infix .leadsTo .. => lookupOperator "~>"
+        | .infix .guarantees .. => lookupOperator "-+->"
+        | .postfix .prime _ => lookupOperator "'"
+        | .postfix (.symbol spelling) _ => lookupOperator spelling
+        | _ => none
+      if let some op := root then
+        if left.op.high ≥ op.low then
+          failAt start "label changes operator grouping. Use parentheses" .precedence
+    return .single (.labeled ⟨name, parameters⟩ body.finish)
   else if token.isOneOf ["IF", "CASE", "LET", "CHOOSE", "\\A", "\\forall", "∀",
       "\\E", "\\exists", "∃", "\\AA", "\\EE"] then
     return .single (← openExpression)
+  else if ← accept ["("] then
+    extend parent (.grouped (← delimited [")"] expression))
   else
     extend parent (.single (← atom))
 
@@ -364,8 +384,8 @@ private partial def extend (parent : Option Pending) (left : ParsedExpr) : Parse
     let result := if op.fixity == .product then left.appendFactor right
       else .single (.infix (op.infixOp next.text) left.finish right)
     extend parent result
-  else if next.isOneOf ["::", "∷"] then
-    failAt next "only identifier labels with identifier parameters are supported" .unsupported
+  else if next.isOneOf labelMark then
+    failAt next "expected a label name with optional bare parameters before ::"
   else
     return left
 
@@ -447,7 +467,8 @@ private partial def opArg : ParseM OpArg := do
     return .lambda parameters (← expression)
   if let some op := token.operator then
     if stopsBareOperator (← peek 1) || (← startsDefinition 1) then
-      if op.fixity == .product then failAt token "a Cartesian product cannot be a bare operator argument"
+      if token.isOneOf ["\\X", "\\times"] then
+        failAt token "this spelling of Cartesian product cannot be a bare operator argument"
       let some symbol := symbolOf token op | failAt token "expected a standalone operator"
       let _ ← takeToken
       return .symbolic symbol
@@ -501,25 +522,14 @@ private partial def brace : ParseM Expr := do
     if ← accept [":"] then return .setFilter binder domain (← delimited ["}"] expression)
     let first := Expr.infix (.symbol member.text) (patternExpr binder) domain
     return .setEnum (← delimited ["}"] (commaTail first expression))
-  let start := (← get).offset
-  let startsParens ← sees ["("]
-  let body ← expression
-  let stop := (← get).offset
+  let body ← operand none
   if ← accept [":"] then
-    if let .infix (.symbol "\\in") _ _ := body then
+    if let .single (.infix (.symbol "\\in") _ _) := body then
       -- This JavaCC alternative rejects an ungrouped ASCII membership
       -- expression as the result of a set map.
-      let wrapped ← if startsParens then
-        -- Use the original offset for lookahead because expression has advanced.
-        let state ← get
-        set { state with offset := start }
-        let after ← afterDelimiter 0 ["("] [")"]
-        set state
-        pure (after == some (stop - start))
-      else pure false
-      if !wrapped then failHere "parenthesize a membership expression used as the result of a set map"
-    return .setMap body (← delimited ["}"] (commaList bound))
-  return .setEnum (← delimited ["}"] (commaTail body expression))
+      failHere "parenthesize a membership expression used as the result of a set map"
+    return .setMap body.finish (← delimited ["}"] (commaList bound))
+  return .setEnum (← delimited ["}"] (commaTail body.finish expression))
 
 private partial def fieldEntry (marker : List String) (nameParser : ParseM Ident) : ParseM Field := do
   let name ← nameParser
@@ -561,18 +571,19 @@ private partial def update : ParseM Update := do
   return ⟨path.reverse, ← expression⟩
 
 private partial def fairness (kind : Fairness) : ParseM Expr := do
-  let namedObservation := (← peek).kind == .ident
+  let start ← peek
   let observation ← reduced
   if ← accept ["("] then return .fairness kind observation (← delimited [")"] expression)
   -- An unparenthesized reference consumes its argument list before we can
   -- tell whether it is the observation's argument list or the fairness action.
-  if namedObservation then
+  if start.kind == .ident then
     if let .ref head args selectors := observation then
-      match selectors.reverse with
-      | .named name [.expr action] :: rest =>
-        return .fairness kind (.ref head args ((.named name [] :: rest).reverse)) action
-      | [] =>
-        if let [.expr action] := args then return .fairness kind (.ref head [] []) action
+      let (actionArgs, stripped) : List OpArg × Expr := match selectors.reverse with
+        | .named name finalArgs :: rest => (finalArgs, .ref head args ((.named name [] :: rest).reverse))
+        | _ => (args, .ref head [] [])
+      match actionArgs with
+      | [.expr action] => return .fairness kind stripped action
+      | [.lambda ..] => failAt start "a fairness action cannot represent an operator lambda" .unsupported
       | _ => pure ()
   failHere "expected a single fairness action in parentheses"
 
@@ -668,8 +679,9 @@ private partial def substitution : ParseM Substitution := do
 
 end
 
-private def optionalName : ParseM (Option Ident) := do
-  if (← peek).kind == .ident && (← sees definitionMark 1) then
+private def optionalName (allowDefBreak : Bool := false) : ParseM (Option Ident) := do
+  let hasMarker ← if allowDefBreak then accept ["-|-"] else pure false
+  if hasMarker || ((← peek).kind == .ident && (← sees definitionMark 1)) then
     let name ← ident
     let _ ← expectOne definitionMark
     return some name
@@ -684,9 +696,9 @@ mutual
 
 private partial def statement (allowLabel : Bool := false) : ParseM Statement := do
   if allowLabel && (← peek).kind == .ident &&
-      (← sees ["::", "∷"] 1) && (← sees assumptionMark 2) then
+      (← sees labelMark 1) && (← sees assumptionMark 2) then
     let name ← ident
-    let _ ← expectOne ["::", "∷"]
+    let _ ← expectOne labelMark
     return .labeled name (← statement)
   if ← sees assumptionMark then
     let mode := assumeMode (← takeToken)
@@ -835,7 +847,7 @@ private partial def moduleBody : ParseM Module := do
     else if ← accept ["RECURSIVE"] then
       pure (.recursive (← commaList operatorDecl))
     else if ← accept ["ASSUME", "ASSUMPTION", "AXIOM"] then
-      pure (.assumption (← optionalName) (← expression))
+      pure (.assumption (← optionalName true) (← expression))
     else if ← accept ["THEOREM", "PROPOSITION", "LEMMA", "COROLLARY"] then
       pure (.theoremDecl ⟨← optionalName, ← statement, ← proof⟩)
     else if ← accept ["USE"] then

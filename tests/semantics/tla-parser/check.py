@@ -32,6 +32,16 @@ UPSTREAM = {
         "921892dda4b2f47020b5d15af2e5566853565c861268bf5ff6125832ddf9589f",
     "test/tla2sany/semantic/corpus/ProofsTest.tla":
         "a8a49cec3fc55e853a40bb6cfa7011bff50655aa645879522f7d33510a659630",
+    "src/tla2sany/StandardModules/TLC.tla":
+        "86382b81fdf63d2b7d3fdfd28002b46377c63c5673dba8f9500373ee989bdecf",
+    "test-model/examples/SpecifyingSystems/CachingMemory/WriteThroughCache.tla":
+        "d63221a21377ee59c707dcf1ec05dd73be7616674343052a2b0d794b0c0526a2",
+    "test-model/examples/SpecifyingSystems/TLC/ABCorrectness.tla":
+        "47d8c63e9306bda9634222fe146ebec9f8c2fe2803e91b7d222e2a4223b3c023",
+    "test/tla2sany/semantic/corpus/AssumeProveTest.tla":
+        "eba821065dd54df302a617489cda8319e1a031fa0093cd7c4c0da0bc13fb0624",
+    "test/tla2sany/semantic/corpus/StepExpressionsTest.tla":
+        "7e97a5070aa3822b05c8acbc2a940bd499d60972b4ce5770e75514e2da2cedd3",
 }
 IN_PLACE = {
     "BoundedCounter.tla": "24d769ab5e0785ff4a89c93712f38786d681bd761b93cd89d8adf2cc896b8c5b",
@@ -82,7 +92,7 @@ def main():
         work = Path(temporary)
         native = []
         sany = []
-        for name in ("BoundedQueue.tla", "ProofSteps.tla"):
+        for name in ("BoundedQueue.tla", "ProofSteps.tla", "Compatibility.tla"):
             native.extend([str(HERE / name), "accept"])
             sany.extend([str(HERE / name), "accept"])
         for case in json.loads((HERE / "cases.json").read_text(encoding="utf-8")):

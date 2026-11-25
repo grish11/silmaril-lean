@@ -32,15 +32,19 @@ overlapping intervals require parentheses unless they belong to the same
 left-associative operator, including synonyms. The tree preserves ordinary
 symbol spellings. Parentheses start a fresh precedence context and preserve
 grouping in nested Cartesian products. The lexer matches the longest token,
-including `..`, `...`, `:=`, `::=`, `[]ASSUME`, `]_` and `>>_`.
+including `..`, `...`, `@@`, `:=`, `::=`, `[]ASSUME`, `]_` and `>>_`.
 It recognizes reserved words after scanning identifiers and gives `WF_` and
-`SF_` their dedicated token boundary.
+`SF_` their dedicated token boundary. A single `@` keeps its old-value
+or structural-selector meaning. `@@` is an infix operator and can also
+appear as a symbolic operator argument or selector.
 
 Postfix operators, indexes and field selections extend an operand in source
 order. An index can follow a prime (`f'[i]`) or precede it (`f[i]'`).
 A pending operator still participates in the precedence check, so `[]x'`
 requires parentheses. `f[i,j]`, `f[<<i,j>>]` and `F(i,j)` produce different
-trees. Action and fairness subscripts use the `ReducedExpression` grammar.
+trees. For a label under a pending operator, the precedence check treats
+`L:: (b + c)` as a grouped body and `L:: (b) + c` as a body rooted at `+`.
+Action and fairness subscripts use the `ReducedExpression` grammar.
 For example, `[A]_f[i]` indexes the action expression. `[A]_(f[i])` places the
 index inside the subscript.
 
@@ -81,6 +85,8 @@ context. A theorem statement, a standalone `parseExpr` call and a theorem's
 top-level terminal proof have no such context. `<+>name` is header syntax.
 After an empty `BY`, `USE` or `HIDE`, a named undotted token can be consumed
 as the first citation. A dotted or nameless header avoids that ambiguity.
+A nested module header ends an empty citation list. The standalone
+`MODULE` keyword can still introduce a module citation.
 
 The parser checks levels and where child proofs may appear. Step name
 uniqueness, whether a reference denotes an available step or selector, what
@@ -93,23 +99,23 @@ an assertion whose expression begins with `CASE … -> …`.
 
 Statuses describe the named Surface path. **Landed** refers to the existing
 AST and codec. **Implemented** refers to this parser. **Unsupported** identifies
-boundary cases that require a representation or source contract decision.
+forms outside the Surface representation or the complete-input contract.
 
 | Status | Pinned SANY productions | Coverage |
 | --- | --- | --- |
 | Landed | Surface inventory and codec | Module, expression and proof trees from [#2513](https://github.com/hiloopai/silmaril-lean/pull/2513) and the full [version 1 S-expression schema](tla-surface-sexp.md) from [#2544](https://github.com/hiloopai/silmaril-lean/pull/2544). |
 | Implemented | `CompilationUnit`, `Module`, `BeginModule`, `EndModule`, `Extends`, `Body` | A complete header, optional EXTENDS, ordered units and nested modules, separators and a required terminator. |
-| Implemented | `Identifier`, `Number`, `String` and lexical states | ASCII identifier rules, number-set aliases, decimal and base-prefixed naturals, decimal fractions, string escapes, reserved words, longest operators, line comments and nested block comments. |
+| Implemented | `Identifier`, `Number`, `String` and lexical states | ASCII identifier rules, number-set aliases, decimal and base-prefixed naturals, decimal fractions, string escapes, reserved words, longest operators including `@@`, line comments and nested block comments. |
 | Implemented | `VariableDeclaration`, `ParamDeclaration`, `Recursive`, `IdentDecl`, `SomeFixDecl` | Variable and constant groups, named arities and symbolic declarations. |
 | Implemented | `OperatorOrFunctionDefinition`, `IdentLHS`, `PrefixLHS`, `InfixLHS`, `PostfixLHS`, `Instance`, `Instantiation`, `Substitution`, `LetIn`, `LetDefinitions` | Operator and bounded function definitions, LOCAL, named and anonymous instances, WITH substitutions, LET and RECURSIVE. |
 | Implemented | `Expression`, `ExtendableExpr`, `OpenExpression`, `ParenExpr`, operator token productions | Precedence ranges, canonical operator identity, mixfix minus, fixed-arity operators, Cartesian chains, grouping and ordinary identifier labels with optional identifier parameters. |
-| Implemented | `PrimitiveExp`, `OpArgs`, `OpSuite`, `OpOrExpr`, `Lambda`, `BangExt`, `StructOp` | Named and symbolic references, applications, qualified references and structural selectors, bare operator arguments and lambdas. |
+| Implemented | `PrimitiveExp`, `OpArgs`, `OpSuite`, `OpOrExpr`, `Lambda`, `BangExt`, `StructOp` | Named and symbolic references, applications, qualified references and structural selectors, bare operator arguments and lambdas. The bare operator-argument alternative accepts `×` and rejects `\X` and `\times`. |
 | Implemented | `SomeQuant`, `SomeTQuant`, `QuantBound`, `IdentifierTuple`, `UnboundOrBoundChoose`, `MaybeBound` | Rigid and temporal binders, tuple and shared-domain patterns, CHOOSE. |
 | Implemented | `BraceCases`, `SBracketCases`, `TupleOrAction`, `FieldVal`, `FieldSet`, `ExceptSpec`, `ExceptComponent` | Sets, bounded functions and function sets, records and record sets, tuples, indexing, selection and EXCEPT paths with old-value expressions. |
 | Implemented | `ReducedExpression`, `NoOpExtension`, `FairnessExpr` and action alternatives | Square and angle action brackets with one body, WF and SF. Restricted subscripts admit named reference chains and delimited expressions. |
 | Implemented | `IfThenElse`, `Case`, `CaseArm`, `OtherArm`, `Junctions`, `DisjList`, `ConjList`, `JuncItem` | IF, CASE including final OTHER, and aligned junction lists including Unicode markers. |
-| Implemented | `Assumption`, `Theorem`, `AssumeProve`, `NewSymb` | Named or unnamed assumptions and theorems, nested and labeled ASSUME/PROVE hypotheses, boxed modes and NEW hypotheses. |
-| Implemented | terminal `Proof`, `UseOrHideOrBy` | Omitted proof, OMITTED, OBVIOUS, BY with facts and DEF lists, and module-level USE/HIDE. Module-level USE ONLY is a SANY syntax rejection. |
+| Implemented | `Assumption`, `Theorem`, `AssumeProve`, `NewSymb` | Named or unnamed assumptions and theorems, the optional `-|-` marker before an assumption name, nested and labeled ASSUME/PROVE hypotheses, boxed modes and NEW hypotheses. |
+| Implemented | terminal `Proof`, `UseOrHideOrBy` | Omitted proof, OMITTED, OBVIOUS, BY with facts and DEF lists, and module-level USE/HIDE. A submodule header ends citation lookahead. Module-level USE ONLY is a SANY syntax rejection. |
 | Implemented | hierarchical `Proof`, `StepStartToken`, `Step`, `QEDStep` | Explicit and relative proof levels, optional names and punctuation, nested proofs and QED with its optional proof. |
 | Implemented | `DefStep`, `HaveStep`, `TakeStep`, `WitnessStep`, `PickStep`, `CaseStep`, `AssertStep` and step alternatives | DEFINE and unmarked definitions, HAVE, TAKE, WITNESS, PICK, CASE, assertions, SUFFICES, INSTANCE, USE and HIDE within step proofs. |
 | Implemented | proof-step alternatives of `PrimitiveExp` | Numbered and current-level step references in expressions, including citations and qualified heads. |
@@ -117,16 +123,23 @@ boundary cases that require a representation or source contract decision.
 | Unsupported | permissive label alternative of `ExtendableExpr` | Nonidentifier labels or arguments accepted by JavaCC lookahead. SANY accepts `<1>other :: TRUE` and `L(<1>other) :: TRUE` in a proof. Both receive `unsupported` diagnostics because `Surface.Label` stores identifier names and parameters. |
 | Unsupported | permissive `TupleOrAction` alternatives | Angle-action forms with zero or multiple apparent bodies. The Surface action stores one body. |
 | Unsupported | Bare index payload in `ParenthesesExpression` or `ReducedExpression` | SANY can recognize `[x]` as a function-application payload without a function. The Surface index requires a function expression. |
+| Unsupported | `FairnessExpr` via `OpOrExpr` | SANY accepts `WF_f(LAMBDA x: x)`. Surface represents lambdas as operator arguments and the fairness action field requires an expression. |
 | Unsupported | permissive `Number` alternative | A decimal with a base-prefixed whole or fractional token. The Surface decimal stores an exact base-ten fraction. |
 | Unsupported | outside the TLA+ module grammar | TLC configuration and PlusCal translation. A PlusCal algorithm inside a TLA+ block comment is consumed as comment text. |
 
-The next parser compatibility decision is whether to keep rejecting SANY's
-permissive forms that have no Surface representation, including the two
-step-reference label positions and the action, index and decimal cases in
-the table. Separately, decide whether module intake should accept SANY's
-prelude and unread trailing input. The syntax corpus can grow independently
-of those decisions. In downstream elaboration, resolve step names, current
-levels and selectors before assigning obligations to proof steps.
+### Remaining observed grammar differences
+
+| Pinned SANY behavior | Native behavior |
+| --- | --- |
+| `a * L:: b + c ^ d` passes the label check because SANY uses the last parsed operator `^`. | The check uses the root operator `+` and rejects the ungrouped body. |
+| `WF_[A]_f(B)` borrows `(B)` from the nested reduced subscript and uses `B` as the fairness action. | The parser consumes `f(B)` as a subscript reference and requires an explicit fairness action. |
+| In `INSTANCE M WITH F <- A!~` followed by `x == TRUE`, SANY inserts a definition boundary before `~` and rejects the selector. | The parser accepts the qualified prefix selector and the following definition. |
+| A numeric header level of `2147483648` overflows SANY's signed integer conversion. | Header levels use arbitrary-precision naturals. |
+
+The complete-input contract rejects arbitrary text before or after the
+compilation unit and rejects a second top-level module. The verdict fixtures
+exercise these cases, the pragma, and the first three grammar differences
+in the table.
 
 ## Validation and provenance
 
@@ -146,12 +159,14 @@ make check CHECK_TARGETS='+Silmaril.Logic.Temporal.TLA.Surface.Parser.Grammar +S
 ~~~
 
 The fixture check verifies downloaded bytes by SHA-256. It uses intact
-HourClock, LiveHourClock, DieHard, the TLAPS `VoteProof` specimen, and SANY's
-`ImplicitProofsTest` and `ProofsTest` from the pinned TLA+ tree. It reads
+HourClock, LiveHourClock, DieHard, TLC, WriteThroughCache, ABCorrectness,
+the TLAPS `VoteProof` specimen, and SANY's `AssumeProveTest`,
+`ImplicitProofsTest`, `ProofsTest` and `StepExpressionsTest` from the
+pinned TLA+ tree. It reads
 BoundedCounter and BitPair in place and checks their hashes against the
 original export tree at `6606bd00bde1c71430aa254ce78a716dd6d59267`. Native
-tests compare the full encoded trees of `BoundedQueue` and `ProofSteps`
-against handwritten Surface trees, and check diagnostic positions and
+tests compare the full encoded trees of `BoundedQueue`, `ProofSteps` and
+`Compatibility` against handwritten Surface trees, and check diagnostic positions and
 whole-source verdicts. `make check` runs the native regression whenever a
 scoped target is in the parser namespace.
 [Fixture driver and hashes](../../tests/semantics/tla-parser/check.py) ·
