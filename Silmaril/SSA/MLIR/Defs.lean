@@ -1,9 +1,11 @@
 module
 
 public import Silmaril.SSA.MLIR.Arith.LetIter.Defs
+public import Silmaril.SSA.MLIR.Module.Defs
 
-/-! # Typed scalar MLIR
+/-! # Typed MLIR
 
+Use `Silmaril.MLIR.FuncModule` for an ordered collection of typed functions.
 Use `Silmaril.MLIR.Arith.Block` for straight-line blocks and blocks with
 isolated regions. Both lowerings share the same typed inputs and arithmetic
 instructions. Import `Silmaril.SSA.MLIR.Thms` for correctness and observations.

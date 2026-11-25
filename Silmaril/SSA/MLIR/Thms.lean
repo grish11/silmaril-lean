@@ -2,10 +2,11 @@ module
 
 public import Silmaril.SSA.MLIR.Defs
 public import Silmaril.SSA.MLIR.Arith.LetIter.Thms
+public import Silmaril.SSA.MLIR.Module.Thms
 import Silmaril.Proofs.SSA.MLIR.Observations
 
-/-! The public entry point for a typed scalar block, its two lowerings, and
-their observations. -/
+/-! The public entry point for typed function modules, scalar blocks, and
+their checked lowerings and observations. -/
 
 public section
 

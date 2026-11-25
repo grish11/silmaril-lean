@@ -5,6 +5,10 @@ LambdaSSA and LetIter, and reason about both targets' results. The source
 constructors and lowering names live in `Silmaril.MLIR.Arith`.
 [`MLIR/Thms.lean`](../../Silmaril/SSA/MLIR/Thms.lean)
 
+The same import provides `MLIR.FuncOf` and `MLIR.FuncModule` for packaging
+these or other typed bodies as named functions.
+[Typed function modules](mlir-function-modules.md)
+
 `Block Γ w` takes an `Env Γ` and denotes a `BitVec w.val`. Contexts are
 newest first. Use `.letOp` and `.yield` for straight-line code. The
 `.letRegion arg body rest` form passes one explicit value to an isolated
