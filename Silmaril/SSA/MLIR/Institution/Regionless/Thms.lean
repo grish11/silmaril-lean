@@ -12,6 +12,10 @@ open CategoryTheory Silmaril.Logic.Institution
 
 variable {S : Signature false} {n : Nat} {Γ : Fin n → S.Ty} {s : S.Ty}
 
+theorem Term.withRegions_map {T : Signature false} (f : S ⟶ T) (t : Term S Γ s) :
+    (t.map f).withRegions = t.withRegions.map (Signature.withRegions.map f) :=
+  Proofs.MLIR.Institution.withRegions_map f t
+
 theorem Term.denote_withRegions (M : Model (Signature.withRegions.obj S)) (t : Term S Γ s)
     (env : Assignment M.carrier Γ) :
     t.withRegions.denote M env = t.denote M.restrictRegionless env :=

@@ -27,12 +27,21 @@ dialects start with the same sort type. The mediator can identify the images
 of two tagged sorts. `disjointSum.isColimit` checks both factorization laws
 and uniqueness in the signature category.
 
-These arrows are typed renamings. An operation-to-block interpretation can
-expand a symbol to several applications, and a model interprets symbols as
-functions. The institution below uses discrete categories of such models.
+`Signature.FixedSorts` gives the category over a specified common sort type.
+Its arrows fix each sort and act on symbols at each complete profile.
+`FixedSorts.sum` takes a disjoint sum of symbol families at each profile,
+leaving one copy of the common sorts. `FixedSorts.sum.isColimit` proves the
+universal property in that category. `FixedSorts.toSignature` reads these
+arrows as renamings with identity sort maps. Both categories provide Mathlib's
+`HasBinaryCoproducts` instance. [Fixed-sort API](../../Silmaril/SSA/MLIR/Signature/FixedSorts/Thms.lean)
+
+`Signature.Hom` renames symbols one at a time. An `Interpretation` can expand
+a regionless primitive to a target block and can forward an operation with
+regions at its mapped profile. [Typed interpretations](mlir-pure-interpretations.md)
 
 ```sh
 lake build --wfail +Silmaril.SSA.MLIR.Signature.Thms \
+  +Silmaril.SSA.MLIR.Signature.FixedSorts.Thms \
   +Silmaril.SSA.MLIR.Institution.Regionless.Thms
 ```
 
@@ -70,14 +79,9 @@ independent width-one value still in the ambient context.
 [Arithmetic theorems](../../Silmaril/SSA/MLIR/Institution/Arith/Thms.lean) ·
 [Examples](../../Silmaril/SSA/MLIR/Institution/Arith/Examples/Thms.lean)
 
-A signature map replaces each symbol with one symbol at its mapped profile.
-An operation-to-block lowering replaces an application with a typed program.
-For example, replacing doubling by addition with materializing two and
-multiplying uses a different block shape. `Arith.Examples.double_lowering_denote`
-transfers the scalar rewrite to institution denotations for every positive
-width. Lowerings specified by target blocks would require a translation on
-syntax respecting substitution and isolated binding, with an interpretation
-hypothesis for each replacement and a contextual preservation proof.
+`Arith.Examples.double_lowering_denote` transfers the scalar rewrite from
+addition-based doubling to multiplication by two to institution denotations
+for every positive width.
 
 ## Categorical scope
 
@@ -88,18 +92,15 @@ substitution. `Syntax.denote` interprets arrows as total functions in `Type`.
 `Syntax.map` acts on contexts and blocks and `Syntax.map_denote` proves the
 reindexing square. [Syntax category](../../Silmaril/SSA/MLIR/Institution/Syntax/Defs.lean)
 
-For a category modulo a chosen equational theory, define typed equivalence
-closed under simultaneous substitution and congruence in operands and region
-bodies, then prove composition and evaluation descend. Finite products need a
-terminal empty context and the universal property of context concatenation.
-A binder interpretation outside `Type` needs a specified representation of
-region functions, for example exponentials, and their coherence laws. A
-categorical comparison with [LambdaSSA or LetIter](ssa.md) also needs a target
-fragment with matching interfaces and observation equivalence, a map of
-contexts and typed arrows respecting composition and congruence, and an
-adequacy or inverse theorem at the intended quotient. The checked comparison
-here is per arithmetic block. The [existing Elgot/Freyd model interface](../../Silmaril/SSA/Thesis/Categorical/Thms.lean)
-would require its own coherence hypotheses for an extension with effects.
+The observational quotient identifies parallel arrows that agree in selected
+models. The empty context is terminal and concatenation gives binary products.
+The arithmetic comparison relates parallel single-result arrows to typed
+return observations in LambdaSSA and LetIter. [Observational quotient and comparison](mlir-pure-interpretations.md)
+
+A binder interpretation outside `Type` needs a representation of region
+functions and coherence laws. A categorical comparison with LambdaSSA or
+LetIter also needs a target observation category and a composition-preserving
+map of contexts and arrows. [SSA categorical results](ssa.md)
 
 This expression syntax treats SSA sharing as unobservable. Coverage is pure
 total operations with isolated region bodies. It excludes captures, multiblock

@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.SSA.MLIR.Signature.Defs
+public import Mathlib.CategoryTheory.Limits.Shapes.BinaryProducts.BinaryProducts
 import Silmaril.Proofs.SSA.MLIR.Signature.Laws
 
 public section
@@ -41,5 +42,11 @@ def isColimit (S T : Signature withRegions) : IsColimit (cofan S T) :=
   Proofs.MLIR.Signature.disjointSumIsColimit S T
 
 end disjointSum
+
+instance (S T : Signature withRegions) : HasBinaryCoproduct S T :=
+  ⟨⟨disjointSum.cofan S T, disjointSum.isColimit S T⟩⟩
+
+instance : HasBinaryCoproducts (Signature withRegions) :=
+  hasBinaryCoproducts_of_hasColimit_pair _
 
 end Silmaril.MLIR.Institution.Signature
