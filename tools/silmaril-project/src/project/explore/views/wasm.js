@@ -202,10 +202,18 @@ function reactorEvidence(e) {
   return `<p>Lean statement: <a href="https://github.com/hiloopai/silmaril-lean/blob/${e.revision}/${e.path}"><code>${esc(e.declaration)}</code></a></p>`;
 }
 
-function reactorFunctionFacts(f, source) {
+function reactorFunctionFacts(f, source, llvm) {
   let h = `<p>Wasm slot ${esc(f.idx)} · <code>${esc(source.sha256)}</code></p>`;
   if (f.cName) h += `<p>C symbol <code>${esc(f.cName.name)}</code> from the pinned build’s linker map. ` +
     `Framed Code body: byte ${esc(f.cName.codeOffset)}, ${esc(f.cName.codeBytes)} bytes.</p>`;
+  const symbol = llvm?.symbols?.[f.idx];
+  const receipt = repoFile("tools/sqlite-wasm/llvm-provenance/receipt.json");
+  if (receipt && !f.imported && llvm?.wasmSha256 === source.sha256 &&
+      typeof symbol === "string" && (symbol === f.export || symbol === f.cName?.name) &&
+      /^[0-9a-f]{64}$/.test(llvm.bitcodeSha256)) {
+    h += `<p><a href="${esc(receipt.blob)}">LLVM build provenance</a> · early bitcode symbol ` +
+      `<code>${esc(symbol)}</code> · SHA-256 <code>${esc(llvm.bitcodeSha256)}</code></p>`;
+  }
   return h + reactorEvidence(f.leanEvidence);
 }
 
@@ -339,7 +347,7 @@ async function wasmFuncPage(arg) {
   let body = (m.bodies || []).find((b) => b.idx === idx);
   if (m.coverage) {
     const h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> · ${wlink("module", s.slug, s.title)}</h2>` +
-      reactorFunctionFacts(f, s.source) + `<p>Signature <code>${esc(f.sig)}</code></p>`;
+      reactorFunctionFacts(f, s.source, m.llvmReceipt) + `<p>Signature <code>${esc(f.sig)}</code></p>`;
     if (!f.detail) return h +
       (f.imported ? "<p>Imported function. Its implementation is outside this module.</p>" :
         f.flow === "unsupported" ? "<p>The syntactic flow CFG contains an unsupported target.</p>" :
@@ -390,7 +398,7 @@ async function wasmFuncPage(arg) {
   const legacy = vname === "top" && cfg.model === "explicit-sink";
   let h = `<h2>${kindTag("function")} <code>${esc(fname(f))}</code> <span class="muted">(function ${idx} of ${wlink("module", s.slug, s.title)})</span></h2>`;
   h += crumbs(ix, s.source.parent);
-  if (m.coverage) h += reactorFunctionFacts(f, s.source);
+  if (m.coverage) h += reactorFunctionFacts(f, s.source, m.llvmReceipt);
   const effects = m.coverage ? [...new Set(top.blocks.flatMap((b) => b.effects))] : (f.effects || []);
   h += "<dl>" + [["symbol", f.display ? f.name + " (demangled above by wasm-tools demangle in Lean)" : null], ["signature", f.sig], ["export", f.export], ["locals", f.locals], ["instructions", f.instrs], ["basic blocks", f.blocks],
     ["effect marks", effects.join(", ") || "none"]].filter(([, v]) => v != null).map(([a, b]) => `<dt>${esc(a)}</dt><dd>${esc(b)}</dd>`).join("") + "</dl>";

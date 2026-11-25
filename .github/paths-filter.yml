@@ -3,6 +3,7 @@ lean:
   - 'Silmaril/**'
   - '*.lean'
   - 'tools/**'
+  - 'tests/languages/python/source-scope/check_intake.py'
   - 'scripts/**'
   - 'apps/**'
   - 'examples/**'

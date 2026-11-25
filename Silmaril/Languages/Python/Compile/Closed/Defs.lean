@@ -47,6 +47,18 @@ inductive Translation : Source.Module → Core.Body → Prop where
       (translated : ExprTranslation value target) :
       Translation ⟨[.functionDef name [] [.return_ (some value)] [] none]⟩ ⟨target⟩
 
+/-- The module's outer syntax, before checking the returned expression. -/
+def ModuleShape (source : Source.Module) : Prop :=
+  ∃ name value, source = ⟨[.functionDef name [] [.return_ (some value)] [] none]⟩
+
+/-- Independent conditions for the reported phase and cause of rejection. -/
+def Rejection (source : Source.Module) : Error → Prop
+  | .scope diagnostic => Source.analyze source = .error diagnostic
+  | .moduleShape => (∃ scope, Source.analyze source = .ok scope) ∧ ¬ ModuleShape source
+  | .expressionShape =>
+    (∃ scope, Source.analyze source = .ok scope) ∧ ModuleShape source ∧
+      ¬ ∃ target, Translation source target
+
 inductive Evaluates : Source.Expr → Int → Prop where
   | integer (value : Int) : Evaluates (.integer value) value
   | add {left right : Source.Expr} {lhs rhs : Int}

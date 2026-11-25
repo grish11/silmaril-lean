@@ -121,6 +121,14 @@ def Block.relabel (π : K → K') (b : Block V K F) : Block V K' F :=
 def _root_.Silmaril.SSA.LambdaRTL.CFG.relabel (π : K → K') (g : CFG V K F) : CFG V K' F :=
   ⟨g.entry.relabel π, g.blocks.map fun kb => (π kb.1, kb.2.relabel π)⟩
 
+/-- Check that relabelling preserves all target-to-block comparisons.
+Each comparison covers both hits and misses in every forward suffix.
+Distinct exit-only labels may receive the same name. -/
+def _root_.Silmaril.SSA.LambdaRTL.CFG.relabelLookupCheck [DecidableEq K] [DecidableEq K']
+    (graph : CFG V K F) (rename : K → K') : Bool :=
+  graph.labels.all fun target =>
+    graph.blocks.all fun block => decide (rename target = rename block.1 → target = block.1)
+
 /-- Renaming instruction symbols in a terminator. -/
 def Term.mapOp (h : F → F') : Term V K F → Term V K F'
   | .br k a => .br k a

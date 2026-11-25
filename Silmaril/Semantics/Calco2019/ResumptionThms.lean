@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Semantics.Calco2019.Resumption
+public import Silmaril.Semantics.Calco2019.KleisliTriple
 import Silmaril.Proofs.Semantics.Calco2019.Resumption
 
 /-! # The final-coalgebra construction of the resumption monad -/
@@ -82,41 +83,29 @@ theorem extend_comp {X Y Z : C} (f : X ⟶ R.obj Y) (g : Y ⟶ R.obj Z) :
     R.extend P f ≫ R.extend P g = R.extend P (f ≫ R.extend P g) :=
   Proofs.extend_comp R P f g
 
+/-- The Kleisli triple of the resumption monad. -/
+@[expose]
+def kleisliTriple : KleisliTriple C where
+  obj := R.obj
+  unit := R.unit
+  extend := R.extend P
+  unit_extend := R.unit_extend P
+  extend_unit := R.extend_unit P
+  extend_comp := R.extend_comp P
+
 /-- The endofunctor induced by the resumption Kleisli triple. -/
 @[expose]
-def functor : C ⥤ C where
-  obj := R.obj
-  map f := R.extend P (f ≫ R.unit _)
-  map_id _ := by simp
-  map_comp f g := by simp [extend_comp, Category.assoc]
+def functor : C ⥤ C :=
+  (R.kleisliTriple P).functor
 
 /-- The resumption monad of Proposition 23(3). -/
 @[expose]
-def monad : CategoryTheory.Monad C where
-  toFunctor := R.functor P
-  η :=
-    { app := R.unit
-      naturality := fun _ _ f => by simp [functor] }
-  μ :=
-    { app := fun X => R.extend P (𝟙 (R.obj X))
-      naturality := fun X Y f => by
-        change R.extend P (R.extend P (f ≫ R.unit Y) ≫ R.unit (R.obj Y)) ≫
-          R.extend P (𝟙 (R.obj Y)) =
-            R.extend P (𝟙 (R.obj X)) ≫ R.extend P (f ≫ R.unit Y)
-        simp [extend_comp, Category.assoc] }
-  assoc X := by
-    change R.extend P (R.extend P (𝟙 (R.obj X)) ≫ R.unit (R.obj X)) ≫
-      R.extend P (𝟙 (R.obj X)) = R.extend P (𝟙 (R.obj (R.obj X))) ≫ R.extend P (𝟙 (R.obj X))
-    simp [extend_comp, Category.assoc]
-  left_unit X := R.unit_extend P (𝟙 (R.obj X))
-  right_unit X := by
-    change R.extend P (R.unit X ≫ R.unit (R.obj X)) ≫ R.extend P (𝟙 (R.obj X)) = 𝟙 (R.obj X)
-    simp [extend_comp, Category.assoc]
+def monad : CategoryTheory.Monad C :=
+  (R.kleisliTriple P).monad
 
-/-- The Kleisli extension of the categorical monad is the one obtained by finality. -/
+/-- The categorical monad's Kleisli extension is the one obtained by finality. -/
 theorem monad_extend {X Y : C} (f : X ⟶ R.obj Y) :
-    (R.monad P).map f ≫ (R.monad P).μ.app Y = R.extend P f := by
-  change R.extend P (f ≫ R.unit (R.obj Y)) ≫ R.extend P (𝟙 (R.obj Y)) = _
-  simp [extend_comp, Category.assoc]
+    (R.monad P).map f ≫ (R.monad P).μ.app Y = R.extend P f :=
+  (R.kleisliTriple P).monad_extend f
 
 end Silmaril.Calco2019.FinalResumptions

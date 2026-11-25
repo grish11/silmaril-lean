@@ -3,6 +3,7 @@ module
 public import Silmaril.Languages.Starlark.Lists.Denotation.Defs
 public import Silmaril.Languages.Starlark.Lists.Freeze.Defs
 public import Silmaril.Languages.Starlark.Lists.Operational.Defs
+import Silmaril.Proofs.Languages.Starlark.Lists.Dictionary
 import Silmaril.Proofs.Languages.Starlark.Lists.Eval
 import Silmaril.Proofs.Languages.Starlark.Lists.Freeze
 
@@ -22,14 +23,23 @@ theorem freezes_iff_freeze (heap : Heap) (roots : List Address) (after : Heap) :
   ⟨Proofs.Languages.Starlark.Lists.eq_freeze_of_freezes,
     fun h => h ▸ Proofs.Languages.Starlark.Lists.freezes_freeze heap roots⟩
 
-/-- A frozen cell rejects validated edits. Validation itself may report an earlier error. -/
-theorem updateCell_frozen (state : State) (address : Address)
-    (edit : List Value → Except Error (List Value)) {cell : Cell}
+/-- An update preserves iteration order and an insertion adds its key at the end. -/
+theorem putEntry_keys (entry : Entry) (entries : List Entry) :
+    (putEntry entry entries).map Entry.key =
+      if (findEntry entry.keyCode entries).isSome then entries.map Entry.key
+      else entries.map Entry.key ++ [entry.key] :=
+  Proofs.Languages.Starlark.Lists.putEntry_keys entry entries
+
+/-- Freezing preserves key eligibility and the canonical encoding of every key. -/
+theorem keyOf_freeze (state : State) (roots : List Value) (value : Value) :
+    (state.freeze roots).keyOf value = state.keyOf value :=
+  Proofs.Languages.Starlark.Lists.keyOf_freeze state roots value
+
+/-- A frozen cell rejects an edit without inspecting the edit result. -/
+theorem editCell_frozen (state : State) (address : Address)
+    (edit : Contents → Except Error Contents) {cell : Cell}
     (found : state.heap[address]? = some cell) (frozen : cell.frozen = true) :
-    updateCell address edit state =
-      match edit cell.elements with
-      | .ok _ => .error (.frozen address) state
-      | .error error => .error error state :=
-  Proofs.Languages.Starlark.Lists.updateCell_frozen state address edit found frozen
+    editCell address edit state = .error (.frozen address) state :=
+  Proofs.Languages.Starlark.Lists.editCell_frozen state address edit found frozen
 
 end Silmaril.Languages.Starlark.Lists

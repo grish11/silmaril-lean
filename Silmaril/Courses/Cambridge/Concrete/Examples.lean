@@ -85,14 +85,69 @@ example : ¬ L1.Concrete.NamesOk (.deref "cell") := by
 
 #guard L2.Concrete.parse "fun if:int→skip".toUTF8 = none
 #guard L2.Concrete.parse "fun l0:int→skip".toUTF8 = none
-#guard L2.Concrete.parse "fun x:int→x + 1".toUTF8 = none
+#guard L2.Concrete.parse "fun x:int→x + 1".toUTF8 =
+    some (.lam "x" .int (.binary (.var "x") .add (.int 1)))
 #guard L2.Concrete.parse "let rec f:int→int=(fun x:bool→0) in (f 0)".toUTF8 =
     none
 #guard L2.Concrete.parse "let x:int=1 x".toUTF8 = none
-#guard L2.Concrete.parse "skip true false".toUTF8 = none
+#guard L2.Concrete.parse "skip true false".toUTF8 =
+    some (.app (.app .skip (.bool true)) (.bool false))
 #guard L2.Concrete.parse "#0".toUTF8 = none
 #guard L2.Concrete.parse "!x".toUTF8 = none
 #guard L2.Concrete.parse "1_000".toUTF8 = none
 #guard L2.Concrete.parse "λx:int→x".toUTF8 = none
+
+-- Sewell p. 13, the first L1 program, with the line breaks from the notes.
+#guard L1.Concrete.parse
+    "l2 := 0;
+while !l1 ≥ 1 do
+  l2 := !l2 + !l1;
+  l1 := !l1 + −1
+done".toUTF8 =
+  some (.seq (.assign "l2" (.int 0))
+    (.loop (.binary (.deref "l1") .ge (.int 1))
+      (.seq (.assign "l2" (.binary (.deref "l2") .add (.deref "l1")))
+        (.assign "l1" (.binary (.deref "l1") .add (.int (-1)))))))
+
+-- The p. 35 trees distinguish explicit left and right grouping.
+#guard L1.Concrete.parse "1 + 2 + 3".toUTF8 = none
+#guard L1.Concrete.parse "(1 + 2) + 3".toUTF8 =
+  some (.binary (.binary (.int 1) .add (.int 2)) .add (.int 3))
+#guard L1.Concrete.parse "1 + (2 + 3)".toUTF8 =
+  some (.binary (.int 1) .add (.binary (.int 2) .add (.int 3)))
+#guard L1.Concrete.parse "1 ≥ 2 ≥ 3".toUTF8 = none
+#guard L1.Concrete.parse "skip; skip; 1 + 2 ≥ 3".toUTF8 =
+  some (.seq .skip (.seq .skip (.binary (.binary (.int 1) .add (.int 2)) .ge (.int 3))))
+#guard L1.Concrete.parse "if true then if false then 1 else 2 else 3".toUTF8 =
+  some (.cond (.bool true) (.cond (.bool false) (.int 1) (.int 2)) (.int 3))
+#guard L1.Concrete.parse "if !l ≥ 0 then skip else (skip; l := 0)".toUTF8 =
+  some (.cond (.binary (.deref "l") .ge (.int 0)) .skip (.seq .skip (.assign "l" (.int 0))))
+#guard L1.Concrete.parse "(if true then skip else skip); skip".toUTF8 =
+  some (.seq (.cond (.bool true) .skip .skip) .skip)
+#guard L1.Concrete.parse "if true then skip else skip; skip".toUTF8 =
+  some (.cond (.bool true) .skip (.seq .skip .skip))
+#guard L1.Concrete.parse "fun x:int → x + 1".toUTF8 = none
+
+-- Sewell p. 49, the curried function, its type, and its full application.
+#guard L2.Concrete.parse "fun x:unit → fun y:int → x; y".toUTF8 =
+  some (.lam "x" .unit (.lam "y" .int (.seq (.var "x") (.var "y"))))
+#guard L2.Concrete.parseType "unit → int → int".toUTF8 = some (.arr .unit (.arr .int .int))
+#guard L2.Concrete.parse "(fun x:unit → fun y:int → x; y) skip 15".toUTF8 =
+  some (.app (.app (.lam "x" .unit (.lam "y" .int (.seq (.var "x") (.var "y")))) .skip) (.int 15))
+#guard L2.Concrete.parse "fun x:int → int → (fun y:int → x (x y))".toUTF8 =
+  some (.lam "x" (.arr .int .int) (.lam "y" .int (.app (.var "x") (.app (.var "x") (.var "y")))))
+
+-- Sewell pp. 60–62, shadowing and the recursive sum.
+#guard L2.Concrete.parseResolved "x + let x:int = x in (x + 2)".toUTF8 =
+  some (.binary (.fvar "x") .add (.letE .int (.fvar "x") (.binary (.bvar 0) .add (.int 2))))
+#guard L2.Concrete.parseResolved
+    "let rec x:int → int = (fun y:int → if y ≥ 1 then y + (x(y + −1)) else 0) in x 3".toUTF8 =
+  some (.letRecFun .int .int
+    (.cond (.binary (.bvar 0) .ge (.int 1))
+      (.binary (.bvar 0) .add (.app (.bvar 1) (.binary (.bvar 0) .add (.int (-1))))) (.int 0))
+    (.app (.bvar 0) (.int 3)))
+#guard L2.Concrete.parse "x := 3".toUTF8 = none
+#guard L2.Concrete.parse "fun x:intref → x".toUTF8 = none
+#guard L2.Concrete.parseType "int ∗ bool".toUTF8 = none
 
 end Silmaril.Courses.Cambridge.Concrete

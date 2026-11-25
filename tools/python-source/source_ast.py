@@ -138,6 +138,8 @@ def expression(node):
         case ast.Call(func=callee, args=args, keywords=keywords):
             rendered = [*map(call_argument, args), *map(call_keyword, keywords)]
             return constructor("callWith", expression(callee), lean_list(rendered))
+        case ast.Starred(value=value, ctx=ast.Load()):
+            return constructor("starred", expression(value))
         case ast.Attribute(value=value, attr=name):
             return constructor("attribute", expression(value), quote(name))
         case ast.Subscript():
@@ -175,7 +177,7 @@ def handler(node):
 
 
 def import_name(alias):
-    return f"{{ member := {quote(alias.name)}, alias := {option(alias.asname, quote)} }}"
+    return f"{{ member := {quote(alias.name)}, «alias» := {option(alias.asname, quote)} }}"
 
 
 def statement(node):

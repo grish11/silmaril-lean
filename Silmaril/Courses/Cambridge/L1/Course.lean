@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Courses.Cambridge.L1
+public import Silmaril.Courses.Cambridge.L1.Codec
 public import Silmaril.Courses.Cambridge.L1.Concrete
 public import Silmaril.Courses.Cambridge.L1.Examples
 public import Silmaril.Courses.Cambridge.L1.Exercises.OneToThree

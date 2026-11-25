@@ -1,5 +1,9 @@
 # Regionalized value state dependence graphs
 
+The [standalone θ extension](rvsdg-theta.md) covers the whole-region loop and its
+fresh-iteration firing semantics. The milestones below cover integrating θ as a
+vertex in general RVSDG regions.
+
 `Silmaril.SSA.RVSDG` formalizes the typed acyclic fragment with simple nodes
 and multi-way γ nodes from Reissmann, Meyer, Bahmann and Själander,
 *RVSDG: An Intermediate Representation for Optimizing Compilers* (2020).
@@ -32,9 +36,8 @@ a shared typed port vocabulary.
 `Term.toTerm_toGraph` and `Graph.toGraph_toTerm`. They are inverse translations
 at a fixed numbering in every region of the hierarchy. The output signatures,
 wire addresses, result order and branch order are preserved exactly. The vertex
-IDs already give a topological order. Equality modulo vertex renaming or
-permutation of independent vertices, and admission or scheduling of arbitrary
-labelled DAGs, are future work.
+IDs give a topological order. The isomorphism result below compares different
+valid numberings.
 
 `Term.run` interprets lets in lexical order. `Graph.run` reads the graph table
 directly and fires each vertex once per active region in node-number order.
@@ -55,7 +58,9 @@ lake build --wfail +Silmaril.SSA.RVSDG.Thms
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDG.lean
 lake build --wfail +Silmaril.SSA.RVSDG.Petri.Thms
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGPetri.lean
-make check CHECK_TARGETS=+Silmaril.SSA.RVSDG.Petri.Thms
+lake build --wfail +Silmaril.SSA.RVSDG.Isomorphism.Petri.Thms
+lake env lean -DautoImplicit=false -DwarningAsError=true tests/ssa/RVSDGIsomorphism.lean
+make check CHECK_TARGETS=+Silmaril.SSA.RVSDG.Isomorphism.Petri.Thms
 ```
 
 The [fixture](../../tests/ssa/RVSDG.lean) constructs a graph directly as tables.
@@ -107,13 +112,37 @@ that a pending unused vertex prevents completion and that the consumer's state
 input is absent before γ commits. The axiom audit uses `#print axioms` on
 `Petri.finishes_iff` and `Petri.step_unfinished`.
 
+## Invariance under graph isomorphism
+
+[Isomorphism.Defs](../../Silmaril/SSA/RVSDG/Isomorphism/Defs.lean) defines
+`Graph.Isomorphic` by a vertex bijection in every paired region. The witness
+fixes the ordered argument and result signatures and the port positions.
+It preserves each vertex's input and output signatures, node shape and opcode.
+It matches the source endpoint of every operand and region result after
+renaming vertex IDs. Each corresponding γ arm has a recursive isomorphism
+witness at the same arm position, with its own vertex bijection.
+
+`Graph.Isomorphic.run_eq` compares the actual evaluator traces. Each vertex
+reads already established colours along its incoming edges. Matched vertices
+agree by induction on the left graph's numbering and by recursive agreement
+of the selected arms. The right graph may use a different topological
+numbering. The proof compares the inputs and outputs of corresponding
+vertices, then reads the matched result wires. The [Petri bridge](../../Silmaril/SSA/RVSDG/Isomorphism/Petri/Thms.lean)
+gives the same set of completed-run observations.
+[Operational theorem](../../Silmaril/SSA/RVSDG/Isomorphism/Thms.lean)
+
+The [isomorphism fixture](../../tests/ssa/RVSDGIsomorphism.lean) swaps an
+independent value vertex and state vertex at the root and inside both γ
+arms, preserving consumer and boundary wiring. It also checks that
+redirecting a result to a different argument violates isomorphism.
+
 ## Next milestones
 
-- **Graph renumbering.** Admit a labelled hierarchical DAG with a
-  topological-order certificate per region. Define an isomorphism preserving
-  typed endpoints, port and arm positions, boundary mappings, and operation
-  labels. Transport markings and individual firings along the isomorphism,
-  then use `finishes_iff` to compare the results at different valid numberings.
+- **Labelled graph admission and firing transport.** Admit a labelled
+  hierarchical DAG with a topological-order certificate per region and
+  relate its checked presentations with `Graph.Isomorphic`. Transport
+  partial markings and individual firings across the witness. The current
+  Petri bridge compares only completed result reachability.
 - **θ.** Thread the carried tuple through fresh activations of a body whose
   first result is the continuation predicate. Require a completed body
   before re-entry or publication. Prove finite return correspondence against

@@ -9,7 +9,9 @@ import Silmaril.Proofs.SSA.LambdaRTL.CFG.Correctness
 * `run_flatten`: the flattening of a dominator-tree region runs exactly as the region under the
   λRTL store semantics, with free labels embedded as exits.
 * `run_eq_toRegion`: every forward CFG runs as its reading-back region `CFG.toRegion`.
-* `run_relabel`: running is invariant under block relabellings injective on the block labels.
+* `run_relabel`: running commutes with relabelling injective on all syntactic labels.
+* `run_relabel_of_check`: a checked relabelling preserves lookup in every forward suffix and
+  may identify distinct exit-only labels.
 * `run_of_validate`: **validator soundness** — if `validate exit r g = true` then `g` runs as
   `r` (exits renamed by `exit`) in every model and every lawful monad.
 
@@ -38,6 +40,13 @@ theorem run_relabel {K' : Type w} [DecidableEq K'] (m : Model F M α) (π : K �
     (g : CFG V K F) (hinj : ∀ a ∈ g.labels, ∀ b ∈ g.labels, π a = π b → a = b) (σ : V → α) :
     (g.relabel π).run m σ = (fun e => (π e.1, e.2)) <$> g.run m σ :=
   Silmaril.Proofs.SSA.LambdaRTL.CFG.run_relabel m π g hinj σ
+
+/-- Rename the exit while preserving the payload, entire final store and monadic outcome.
+The check preserves each equality test between any syntactic target and any block label. -/
+theorem run_relabel_of_check {K' : Type w} [DecidableEq K'] (m : Model F M α) (rename : K → K')
+    (graph : CFG V K F) (σ : V → α) (accepted : graph.relabelLookupCheck rename = true) :
+    (graph.relabel rename).run m σ = (fun out => (rename out.1, out.2)) <$> graph.run m σ :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.run_relabel_of_check m rename graph σ accepted
 
 theorem run_of_validate [DecidableEq F] [Inhabited K] (m : Model F M α) (exit : L → K)
     (r : Region V L F) (g : CFG V K F) (h : validate exit r g = true) (σ : V → α) :

@@ -10,9 +10,20 @@ namespace Silmaril.Languages.Starlark.Lists
 the first dynamic error. -/
 def denote {α : Type} : Code α → Meaning α
   | .scalar value => pure (.scalar value)
+  | .builtin id => pure (.builtin id)
+  | .string text => pure (.string text)
   | .read ref => fun state => state.read ref
   | .list elements => do
     allocate (← denote elements)
+  | .tuple elements => do
+    allocateTuple (← denote elements)
+  | .dict entries => do
+    allocateDict (← denote entries)
+  | .noEntries => pure []
+  | .entry earlier key value => do
+    let entries ← denote earlier
+    let k ← denote key
+    addDisplayEntry entries k (← denote value)
   | .empty => pure []
   | .cons head tail => do
     let value ← denote head
@@ -22,8 +33,8 @@ def denote {α : Type} : Code α → Meaning α
     readIndex value (← denote index)
   | .append receiver argument => do
     match ← denote receiver with
-    | .scalar _ => throw .appendTarget
     | .list address => appendAt address (← denote argument)
+    | _ => throw .appendTarget
   | .pass => pure ()
   | .eval expr => do
     let _ ← denote expr

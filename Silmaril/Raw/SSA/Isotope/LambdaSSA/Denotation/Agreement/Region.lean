@@ -16,6 +16,7 @@ set_option backward.dsimp.instances true
 namespace Silmaril.Isotope.LambdaSSA.Semantics
 
 open CategoryTheory CategoryTheory.Limits Silmaril.Elgot
+open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics
 open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical
   (typeJ bind_of pair_of caseWithContext_of comp_map_of contextualLoop_of)
@@ -30,7 +31,7 @@ variable {ε : Type r} [HasEff Φ ε] [Bot ε]
 variable {m : Type v → Type v} [Monad m] [LawfulMonad m]
 variable [Iterate m] [LawfulElgotMonad m] [InstructionModel Φ τ ε m]
 
-private def envFromCategorical : {Γ : VCtx τ} →
+def envFromCategorical : {Γ : VCtx τ} →
     Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ → Monadic.Env Γ
   | [], ρ => ρ
   | _ :: _, ρ => (envFromCategorical ρ.1, ρ.2)
@@ -48,16 +49,6 @@ private def envFromCategorical : {Γ : VCtx τ} →
   | nil => rfl
   | cons _ _ ih => simp [envFromCategorical, envToCategorical, ih]
 
-private theorem coprod_hom_agrees (A B : τ)
-    (e : TyDen (Silmaril.coprod A B)) :
-    (Types.binaryCoproductIso ((Categorical.ofMonadicTypeModel (τ := τ)).obj A) ((Categorical.ofMonadicTypeModel (τ := τ)).obj B)).hom
-      (((Categorical.ofMonadicTypeModel (τ := τ)).coprodIso A B).hom e) =
-        TypeModel.coprodEquiv A B e := by
-  change (Types.binaryCoproductIso _ _).hom
-    (((Equiv.toIso (TypeModel.coprodEquiv A B)).trans
-      (Types.binaryCoproductIso _ _).symm).hom e) = _
-  simp
-
 private theorem envPair_agrees {Γ : VCtx τ} {A B : τ} (ρ : Monadic.Env Γ)
     (ab : TyDen (Silmaril.product A B)) :
     (Categorical.ctxPairIso (Categorical.ofMonadicTypeModel (τ := τ)) Γ A B).hom
@@ -65,8 +56,22 @@ private theorem envPair_agrees {Γ : VCtx τ} {A B : τ} (ρ : Monadic.Env Γ)
     let p := TypeModel.productEquiv A B ab
     envToCategorical (Γ := B :: A :: Γ) ((ρ, p.1), p.2) := by rfl
 
+/-- Interpret a direct dispatcher on the corresponding categorical inputs and outputs. -/
+noncomputable def collectiveArrow {Γ : VCtx τ} {n : Nat} {R : Fin n → τ} {L : LCtx τ}
+    (collective : Monadic.Env Γ × Monadic.FiniteLabelDen R →
+      m (Monadic.LabelDen (List.ofFn R ++ L))) :
+    (typeJ (m := m)).obj
+      (Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ ×
+        Categorical.finiteLabelObj (Categorical.ofMonadicTypeModel (τ := τ)) R) ⟶
+    (typeJ (m := m)).obj
+      (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L)) :=
+  Kleisli.Hom.mk (TypeCat.ofHom fun p =>
+    (show m _ from collective (envFromCategorical p.1,
+      (Monadic.finiteCategoricalEquiv R).symm p.2) >>= fun x =>
+        pure (Monadic.LabelValue.categoricalEquiv (List.ofFn R ++ L) x)))
+
 omit [Iterate m] [LawfulElgotMonad m] in
-private theorem collective_toCategorical {Γ : VCtx τ} {n : Nat}
+theorem collective_toCategorical {Γ : VCtx τ} {n : Nat}
     {R : Fin n → τ} {L : LCtx τ}
     {fb : ∀ i, Monadic.Env (R i :: Γ) →
       m (Monadic.LabelDen (List.ofFn R ++ L))}
@@ -80,19 +85,13 @@ private theorem collective_toCategorical {Γ : VCtx τ} {n : Nat}
         (pure (Monadic.LabelValue.categoricalEquiv (List.ofFn R ++ L) x) :
           m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L))))) :
     Categorical.CollectiveDenotes (typeJ (m := m)) (Categorical.ofMonadicTypeModel (τ := τ)) Γ R L FB
-      (Kleisli.Hom.mk (TypeCat.ofHom (fun (p :
-          Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ ×
-            Categorical.finiteLabelObj (Categorical.ofMonadicTypeModel (τ := τ)) R) =>
-        (show m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L)) from
-        collective (envFromCategorical p.1,
-            (Monadic.finiteCategoricalEquiv R).symm p.2) >>= fun x =>
-          (pure (Monadic.LabelValue.categoricalEquiv (List.ofFn R ++ L) x) :
-            m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L))))))) := by
+      (collectiveArrow collective) := by
   constructor
   intro i
   apply Kleisli.hom_ext
   apply ConcreteCategory.hom_ext
   rintro ⟨ρ, a⟩
+  unfold collectiveArrow
   erw [Kleisli.Type.comp_of_eq_kleisliRight]
   simp [Bind.kleisliRight]
   have hfinite : (Monadic.finiteCategoricalEquiv R).symm
@@ -108,6 +107,123 @@ private theorem collective_toCategorical {Γ : VCtx τ} {n : Nat}
   rw [hfinite, dc.restrict]
   have agreed := (eFB i (envFromCategorical ρ, a)).symm
   simpa [envToCategorical, envTo_from] using agreed
+
+/-- Agreement for the program-independent CFG dispatcher. Both typing presentations
+supply their entry and block interpretations to this same Elgot calculation. -/
+theorem cfgDenotation_agrees {Γ : VCtx τ} {n : Nat} {R : Fin n → τ} {L : LCtx τ}
+    {fe : Monadic.Env Γ → m (Monadic.LabelDen (List.ofFn R ++ L))}
+    {FE : (typeJ (m := m)).obj (Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ) ⟶
+      (typeJ (m := m)).obj
+        (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L))}
+    (eFE : (fun ρ => FE.of (envToCategorical ρ)) =
+      (fun ρ => fe ρ >>= fun x => pure (Monadic.LabelValue.categoricalEquiv (List.ofFn R ++ L) x)))
+    (collective : Monadic.Env Γ × Monadic.FiniteLabelDen R →
+      m (Monadic.LabelDen (List.ofFn R ++ L))) :
+    let M := Categorical.ofMonadicTypeModel (τ := τ)
+    let J := typeJ (m := m)
+    let split := J.map (Categorical.labelAppendSplit M (List.ofFn R) L)
+    let body := J.map ((𝟙 (Categorical.ctxObj M Γ)) ⊗ₘ Categorical.labelObjToFinite M R) ≫
+      collectiveArrow collective ≫ split
+    (fun ρ => (Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.caseWithContext J
+      (FE ≫ split) (J.map (CartesianMonoidalCategory.snd _ _))
+      (Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical.contextualLoop J body)).of
+        (envToCategorical ρ)) =
+    (fun ρ => Monadic.cfgDenotation fe collective ρ >>= fun x =>
+      pure (Monadic.LabelValue.categoricalEquiv L x)) := by
+  unfold Monadic.cfgDenotation
+  dsimp only
+  funext ρ
+  erw [caseWithContext_of]
+  simp [Monadic.labelAppendSplit, Bind.kleisliRight, joinM, bind_map_left]
+  refine (congrArg (fun (x : m _) => x >>= _) (congrFun eFE ρ)).trans ?_
+  simp only [bind_assoc, pure_bind]
+  apply bind_congr (m := m)
+  intro target
+  rw [Monadic.LabelValue.categoricalEquiv_appendSplit]
+  generalize hsM : Monadic.LabelValue.appendSplit (List.ofFn R) L target = destination
+  cases destination with
+  | inl external =>
+      simp
+      rfl
+  | inr loopTarget =>
+      have hinr := congrArg (fun f => f (Monadic.LabelValue.categoricalEquiv (List.ofFn R) loopTarget))
+        (Types.binaryCoproductIso_inr_comp_hom
+        (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L)
+        (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R)))
+      change
+        (Types.binaryCoproductIso
+          (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L)
+          (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R))).hom
+            ((coprod.inr :
+                Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R) ⟶
+                  Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L ⨿
+                    Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R))
+              (Monadic.LabelValue.categoricalEquiv
+                (List.ofFn R) loopTarget)) =
+          Sum.inr (Monadic.LabelValue.categoricalEquiv
+            (List.ofFn R) loopTarget) at hinr
+      simp only
+      rw [hinr]
+      simp only
+      erw [contextualLoop_of]
+      let f := fun current =>
+        Monadic.LabelValue.appendSplit (List.ofFn R) L <$>
+          collective (ρ, Monadic.labelDenToFinite R current)
+      let g := fun current =>
+        Bind.kleisliRight (m := m)
+          ((typeJ (m := m)).map (MonoidalCategoryStruct.whiskerLeft
+                (Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ)
+                (Categorical.labelObjToFinite (Categorical.ofMonadicTypeModel (τ := τ)) R)) ≫ collectiveArrow collective ≫
+            (typeJ (m := m)).map (Categorical.labelAppendSplit
+              (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R) L)).of
+          (fun s => pure ((Types.binaryCoproductIso
+            (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L)
+            (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R))).hom s))
+          (envToCategorical ρ, current)
+      let k : Monadic.LabelValue L →
+          m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L) :=
+        fun x => pure (Monadic.LabelValue.categoricalEquiv L x)
+      change Silmaril.Elgot.iter (m := m) g
+          (Monadic.LabelValue.categoricalEquiv (List.ofFn R) loopTarget) =
+        (Monadic.LabelValue.categoricalEquiv L) <$>
+          Silmaril.Elgot.iter (m := m) f loopTarget
+      rw [show (Monadic.LabelValue.categoricalEquiv L) <$>
+            Silmaril.Elgot.iter (m := m) f loopTarget =
+          Bind.kleisliRight (Silmaril.Elgot.iter (m := m) f) k loopTarget by
+        simp [Bind.kleisliRight, k]]
+      rw [LawfulElgotMonad.naturality]
+      symm
+      have hcomm :
+          Bind.kleisliRight (Silmaril.Elgot.mapReturn f k)
+              (Silmaril.Elgot.liftPure (Sum.map id
+                (Monadic.LabelValue.categoricalEquiv (List.ofFn R)))) =
+            Bind.kleisliRight
+              (Silmaril.Elgot.liftPure
+                (Monadic.LabelValue.categoricalEquiv (List.ofFn R))) g := by
+        funext current
+        set_option maxRecDepth 4096 in
+          set_option maxHeartbeats 1000000 in
+            simp [f, g, k, Silmaril.Elgot.mapReturn, Bind.kleisliRight,
+            Silmaril.Elgot.liftPure, Monadic.labelDenToFinite, collectiveArrow,
+            joinM, bind_map_left, Function.comp_def,
+            Monadic.LabelValue.categoricalEquiv_appendSplit]
+        let input := (Monadic.finiteCategoricalEquiv R).symm
+          (Categorical.labelObjToFinite (Categorical.ofMonadicTypeModel (τ := τ)) R
+            (Monadic.LabelValue.categoricalEquiv (List.ofFn R) current))
+        have env_eq : envFromCategorical (envToCategorical ρ) = ρ := envFrom_to ρ
+        simp only [← bind_pure_comp]
+        change
+          (collective (ρ, input) >>= _) =
+          (collective (envFromCategorical (envToCategorical ρ), input) >>= _)
+        rw [env_eq]
+        apply bind_congr
+        intro a
+        cases Monadic.LabelValue.appendSplit (List.ofFn R) L a <;>
+          simp
+      have hu := congrFun (LawfulElgotMonad.uniformity
+        (Silmaril.Elgot.mapReturn f k) g
+        (Monadic.LabelValue.categoricalEquiv (List.ofFn R)) hcomm) loopTarget
+      simpa [Silmaril.Elgot.liftPure, Bind.kleisliRight] using hu
 
 /-- A direct monadic region witness induces a categorical witness in the
 Kleisli/Freyd model with the same result on corresponding environments. -/
@@ -191,111 +307,11 @@ theorem regionDenotes_toCategorical {Γ : VCtx τ} {region : Region Φ} {L : LCt
       rcases ihe with ⟨FE, dFE, eFE⟩
       choose FB dFB eFB using ihb
       rename_i n R Γ L entry blocks fe fb collective
-      let FC : (typeJ (m := m)).obj (Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ ×
-          Categorical.finiteLabelObj (Categorical.ofMonadicTypeModel (τ := τ)) R) ⟶
-          (typeJ (m := m)).obj (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ))
-            (List.ofFn R ++ L)) := Kleisli.Hom.mk (TypeCat.ofHom (fun
-        (p : Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ ×
-          Categorical.finiteLabelObj (Categorical.ofMonadicTypeModel (τ := τ)) R) =>
-        (show m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L)) from
-        collective (envFromCategorical p.1,
-            (Monadic.finiteCategoricalEquiv R).symm p.2) >>= fun x =>
-          (pure (Monadic.LabelValue.categoricalEquiv (List.ofFn R ++ L) x) :
-            m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R ++ L))))))
+      let FC := collectiveArrow collective
       have dFC : Categorical.CollectiveDenotes (typeJ (m := m)) (Categorical.ofMonadicTypeModel (τ := τ))
           Γ R L FB FC := collective_toCategorical dc (fun i ρ => congrFun (eFB i) ρ)
       refine ⟨_, .cfg he hb dFE dFB dFC, ?_⟩
-      funext ρ
-      erw [caseWithContext_of]
-      simp [Monadic.labelAppendSplit, Bind.kleisliRight, joinM,
-        bind_map_left, congrFun eFE ρ]
-      apply bind_congr (m := m)
-      intro target
-      rw [Monadic.LabelValue.categoricalEquiv_appendSplit]
-      generalize hsM : Monadic.LabelValue.appendSplit (List.ofFn R) L target = destination
-      cases destination with
-      | inl external =>
-          simp
-          rfl
-      | inr loopTarget =>
-          have hinr := congrArg (fun f => f (Monadic.LabelValue.categoricalEquiv (List.ofFn R) loopTarget))
-            (Types.binaryCoproductIso_inr_comp_hom
-            (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L)
-            (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R)))
-          change
-            (Types.binaryCoproductIso
-              (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L)
-              (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R))).hom
-                ((coprod.inr :
-                    Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R) ⟶
-                      Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L ⨿
-                        Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R))
-                  (Monadic.LabelValue.categoricalEquiv
-                    (List.ofFn R) loopTarget)) =
-              Sum.inr (Monadic.LabelValue.categoricalEquiv
-                (List.ofFn R) loopTarget) at hinr
-          simp only
-          rw [hinr]
-          simp only
-          erw [contextualLoop_of]
-          let f := fun current =>
-            Monadic.LabelValue.appendSplit (List.ofFn R) L <$>
-              collective (ρ, Monadic.labelDenToFinite R current)
-          let g := fun current =>
-            Bind.kleisliRight (m := m)
-              ((typeJ (m := m)).map (MonoidalCategoryStruct.whiskerLeft
-                    (Categorical.ctxObj (Categorical.ofMonadicTypeModel (τ := τ)) Γ)
-                    (Categorical.labelObjToFinite (Categorical.ofMonadicTypeModel (τ := τ)) R)) ≫ FC ≫
-                (typeJ (m := m)).map (Categorical.labelAppendSplit
-                  (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R) L)).of
-              (fun s => pure ((Types.binaryCoproductIso
-                (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L)
-                (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) (List.ofFn R))).hom s))
-              (envToCategorical ρ, current)
-          let k : Monadic.LabelValue L →
-              m (Categorical.labelObj (Categorical.ofMonadicTypeModel (τ := τ)) L) :=
-            fun x => pure (Monadic.LabelValue.categoricalEquiv L x)
-          change Silmaril.Elgot.iter (m := m) g
-              (Monadic.LabelValue.categoricalEquiv (List.ofFn R) loopTarget) =
-            (Monadic.LabelValue.categoricalEquiv L) <$>
-              Silmaril.Elgot.iter (m := m) f loopTarget
-          rw [show (Monadic.LabelValue.categoricalEquiv L) <$>
-                Silmaril.Elgot.iter (m := m) f loopTarget =
-              Bind.kleisliRight (Silmaril.Elgot.iter (m := m) f) k loopTarget by
-            simp [Bind.kleisliRight, k]]
-          rw [LawfulElgotMonad.naturality]
-          symm
-          have hcomm :
-              Bind.kleisliRight (Silmaril.Elgot.mapReturn f k)
-                  (Silmaril.Elgot.liftPure (Sum.map id
-                    (Monadic.LabelValue.categoricalEquiv (List.ofFn R)))) =
-                Bind.kleisliRight
-                  (Silmaril.Elgot.liftPure
-                    (Monadic.LabelValue.categoricalEquiv (List.ofFn R))) g := by
-            funext current
-            set_option maxRecDepth 4096 in
-              set_option maxHeartbeats 1000000 in
-                simp [f, g, k, Silmaril.Elgot.mapReturn, Bind.kleisliRight,
-                Silmaril.Elgot.liftPure, Monadic.labelDenToFinite, FC,
-                joinM, bind_map_left, Function.comp_def,
-                Monadic.LabelValue.categoricalEquiv_appendSplit]
-            let input := (Monadic.finiteCategoricalEquiv R).symm
-              (Categorical.labelObjToFinite (Categorical.ofMonadicTypeModel (τ := τ)) R
-                (Monadic.LabelValue.categoricalEquiv (List.ofFn R) current))
-            have env_eq : envFromCategorical (envToCategorical ρ) = ρ := envFrom_to ρ
-            simp only [← bind_pure_comp]
-            change
-              (collective (ρ, input) >>= _) =
-              (collective (envFromCategorical (envToCategorical ρ), input) >>= _)
-            rw [env_eq]
-            apply bind_congr
-            intro a
-            cases Monadic.LabelValue.appendSplit (List.ofFn R) L a <;>
-              simp
-          have hu := congrFun (LawfulElgotMonad.uniformity
-            (Silmaril.Elgot.mapReturn f k) g
-            (Monadic.LabelValue.categoricalEquiv (List.ofFn R)) hcomm) loopTarget
-          simpa [Silmaril.Elgot.liftPure, Bind.kleisliRight] using hu
+      exact cfgDenotation_agrees (Γ := Γ) (R := R) (L := L) (fe := fe) (FE := FE) eFE collective
 
 end Agreement
 end Silmaril.Isotope.LambdaSSA.Semantics

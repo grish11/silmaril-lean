@@ -107,14 +107,34 @@ theorem eq_freeze_of_freezes {heap after : Heap} {roots : List Address}
     have eq : expected = actual := Bool.eq_iff_iff.mpr (expectedIff.trans actualIff.symm)
     rw [heapHit, afterHit, eq]
 
-theorem updateCell_frozen (state : State) (address : Address)
-    (edit : List Value → Except Error (List Value)) {cell : Cell}
+theorem keyOf_freeze (state : State) (roots : List Value) (value : Value) :
+    (state.freeze roots).keyOf value = state.keyOf value := by
+  cases value with
+  | scalar | list | dict | function | builtin | string => rfl
+  | tuple address =>
+    let rootAddresses := roots.filterMap Value.address?
+    have h := freezes_freeze state.heap rootAddresses
+    cases found : state.heap[address]? with
+    | none =>
+      have stillAbsent : (state.heap.freeze rootAddresses)[address]? = none :=
+        Array.getElem?_eq_none_iff.mpr (h.size_eq ▸ Array.getElem?_eq_none_iff.mp found)
+      change State.keyOf { state with heap := state.heap.freeze rootAddresses } (.tuple address) = _
+      simp [State.keyOf, found, stillAbsent]
+    | some old =>
+      obtain ⟨flag, stillPresent, _⟩ := h.cell address old found
+      change State.keyOf { state with heap := state.heap.freeze rootAddresses } (.tuple address) = _
+      cases old with
+      | mk contents frozen =>
+        cases contents with
+        | list elements => simp [State.keyOf, found, stillPresent]
+        | tuple elements code => cases code <;> simp [State.keyOf, found, stillPresent]
+        | dict entries => simp [State.keyOf, found, stillPresent]
+        | binding | function => simp [State.keyOf, found, stillPresent]
+
+theorem editCell_frozen (state : State) (address : Address)
+    (edit : Contents → Except Error Contents) {cell : Cell}
     (found : state.heap[address]? = some cell) (frozen : cell.frozen = true) :
-    updateCell address edit state =
-      match edit cell.elements with
-      | .ok _ => .error (.frozen address) state
-      | .error error => .error error state := by
-  cases checked : edit cell.elements <;>
-    simp [updateCell, getCell, fromExcept, bind, EStateM.bind, found, checked, frozen] <;> rfl
+    editCell address edit state = .error (.frozen address) state := by
+  simp [editCell, getCell, bind, EStateM.bind, found, frozen]
 
 end Silmaril.Proofs.Languages.Starlark.Lists

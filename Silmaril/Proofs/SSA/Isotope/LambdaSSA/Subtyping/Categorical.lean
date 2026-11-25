@@ -17,7 +17,7 @@ open Silmaril.Isotope.LambdaSSA.Semantics.Categorical
   (ctxObj lookup ctxPairIso labelObj labelInject finiteLabelObj labelObjToFinite
     labelAppendSplit CollectiveDenotes)
 
-open Silmaril.Isotope.LambdaSSA.Semantics.Categorical (collectiveDenotes_exists_succ)
+open Silmaril.Isotope.LambdaSSA.Semantics.Categorical (collectiveDenotes_exists_succ collective_ext)
 
 section Term
 
@@ -92,6 +92,35 @@ theorem regionDenotes_exists_proof { Γ : VCtx τ} {r : LambdaSSA.Region Φ} {L 
           choose fb db using ihb
           rcases collectiveDenotes_exists_succ J (exactTypeModel M) n _ R _ fb with ⟨fc, dc⟩
           exact ⟨_, .cfg de db dc⟩
+
+theorem regionDenotes_unique_proof {Γ : VCtx τ} {r : LambdaSSA.Region Φ} {L : LCtx τ}
+    {h : Region.HasType Γ r L}
+    {f g : J.obj (ctxObj (exactTypeModel M) Γ) ⟶ J.obj (labelObj (exactTypeModel M) L)}
+    (d : RegionDenotes J M h f) (e : RegionDenotes J M h g) : f = g := by
+  induction d with
+  | br da =>
+      cases e with
+      | br ea => rw [denote_unique_proof J M da, denote_unique_proof J M ea]
+  | case de dl dr ihl ihr =>
+      cases e with
+      | case ee el er =>
+          rw [denote_unique_proof J M de, denote_unique_proof J M ee, ihl el, ihr er]
+  | let₁ da db ih =>
+      cases e with
+      | let₁ ea eb => rw [denote_unique_proof J M da, denote_unique_proof J M ea, ih eb]
+  | let₂ da db ih =>
+      cases e with
+      | let₂ ea eb => rw [denote_unique_proof J M da, denote_unique_proof J M ea, ih eb]
+  | cfgZero de ih =>
+      cases e with
+      | cfgZero ee => exact ih ee
+  | cfg de db dc ihe ihb =>
+      cases e with
+      | cfg ee eb ec =>
+          have entry_eq := ihe ee
+          have collective_eq := collective_ext J (exactTypeModel M) _ _ _ fun i =>
+            (dc.restrict i).trans ((ihb i (eb i)).trans (ec.restrict i).symm)
+          rw [entry_eq, collective_eq]
 
 end Region
 

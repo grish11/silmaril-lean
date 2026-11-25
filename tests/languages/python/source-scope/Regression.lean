@@ -119,6 +119,17 @@ private def classNonlocal : List Stmt :=
 #guard diagnose [.classDef "C" [] [.nonlocalDecl ["missing"]]] ==
   some ⟨[0], .unboundNonlocal "missing"⟩
 
+private def unresolvedClassNonlocal : List Stmt :=
+  [.classDef "Outer" [] [
+    .assign "member" (.integer 1),
+    .classDef "Inner" [] [.nonlocalDecl ["member"], .expression (.name "member")]]]
+
+#guard diagnose unresolvedClassNonlocal == some ⟨[0, 0], .unboundNonlocal "member"⟩
+#guard ((analyze ⟨unresolvedClassNonlocal⟩ .eager .globalFallback).toOption.bind (·.atPath [0, 0])).bind
+  (·.access "member") == some .implicitGlobal
+#guard ((analyze ⟨classNonlocal⟩ .eager .globalFallback).toOption.bind (·.atPath [0, 0])).bind
+  (·.access "x") == some (.classFree [0])
+
 private def lambdaScopes : List Stmt :=
   [.functionDef "outer" [{ name := "x" }, { name := "y" }] [
     .functionDef "f" [{ name := "p", defaultValue := some (.lambda [] (.name "x")) }] [

@@ -146,6 +146,12 @@ inductive AnnotationMode where
   | deferred
   deriving BEq, DecidableEq, Repr
 
+/-- The permissive mode treats an unresolved nonlocal as a global access. -/
+inductive NonlocalPolicy where
+  | reject
+  | globalFallback
+  deriving BEq, DecidableEq, Repr
+
 structure Diagnostic where
   path : BlockPath
   error : ScopeError
@@ -282,6 +288,7 @@ mutual
     | .comparison left rest => do collectComparands (← collectExpr block left) rest
     | .call callee arguments => do collectExprs (← collectExpr block callee) arguments
     | .callWith callee arguments => do collectArguments (← collectExpr block callee) arguments
+    | .starred value => collectExpr block value
     | .attribute receiver _ => collectExpr block receiver
     | .subscript receiver index => do collectExpr (← collectExpr block receiver) index
     | .slice receiver lower upper stride => do
@@ -365,7 +372,7 @@ private def BlockContext.mentionedNames (block : BlockContext) : List Name :=
   (block.parameters ++ block.assigned.reverse ++ block.read.reverse ++
     block.globals.reverse ++ block.nonlocals.reverse).eraseDups
 
-private def resolveName (block : BlockContext) (outer : List BlockContext)
+private def resolveName (nonlocalPolicy : NonlocalPolicy) (block : BlockContext) (outer : List BlockContext)
     (name : Name) : Except Diagnostic (Name × Access) :=
   if block.globals.contains name then .ok (name, .declaredGlobal)
   else if block.kind == .module_ then .ok (name, .moduleName)
@@ -376,7 +383,10 @@ private def resolveName (block : BlockContext) (outer : List BlockContext)
     | some path =>
       .ok (name, if block.kind == .class_ then .classFree path else .free path)
     | none =>
-      if block.nonlocals.contains name then .error ⟨block.path, .unboundNonlocal name⟩
+      if block.nonlocals.contains name then
+        match nonlocalPolicy with
+        | .reject => .error ⟨block.path, .unboundNonlocal name⟩
+        | .globalFallback => .ok (name, .implicitGlobal)
       else if block.kind == .class_ then .ok (name, .className)
       else .ok (name, .implicitGlobal)
 
@@ -392,26 +402,30 @@ private def resolveOccurrence (context : BlockContext) (accesses : List (Name ×
   | none => .error ⟨context.path, .missingOccurrenceBinding occurrence.name⟩
 
 mutual
-  private def resolve (outer : List BlockContext) : CollectedTree → Except Diagnostic ScopeTree
+  private def resolve (nonlocalPolicy : NonlocalPolicy) (outer : List BlockContext) :
+      CollectedTree → Except Diagnostic ScopeTree
     | .block context occurrences children => do
-      let accesses ← context.mentionedNames.mapM (resolveName context outer)
+      let accesses ← context.mentionedNames.mapM (resolveName nonlocalPolicy context outer)
       let occurrences ← occurrences.mapM (resolveOccurrence context accesses)
-      let children ← resolveChildren (context :: outer) children
+      let children ← resolveChildren nonlocalPolicy (context :: outer) children
       let fromChildren := children.flatMap (·.scope.captures)
       let (owned, forwarded) := fromChildren.partition (·.origin == context.path)
       let cells := (owned.map (·.name)).eraseDups
       let captures := (directCaptures accesses ++ forwarded).eraseDups
       return .block ⟨context, accesses, cells, captures, occurrences⟩ children
 
-  private def resolveChildren (outer : List BlockContext) : List CollectedTree → Except Diagnostic (List ScopeTree)
+  private def resolveChildren (nonlocalPolicy : NonlocalPolicy) (outer : List BlockContext) :
+      List CollectedTree → Except Diagnostic (List ScopeTree)
     | [] => .ok []
-    | child :: rest => do return (← resolve outer child) :: (← resolveChildren outer rest)
+    | child :: rest => do
+      return (← resolve nonlocalPolicy outer child) :: (← resolveChildren nonlocalPolicy outer rest)
 end
 
 /-- Analyze lexical bindings and closure origins for a constructor-level module. -/
-public def analyze (source : Module) (annotationMode : AnnotationMode := .eager) :
+public def analyze (source : Module) (annotationMode : AnnotationMode := .eager)
+    (nonlocalPolicy : NonlocalPolicy := .reject) :
     Except Diagnostic ScopeTree := do
   let moduleBlock ← collect { context := { path := [], kind := .module_ }, annotationMode } source.body
-  resolve [] moduleBlock.finish
+  resolve nonlocalPolicy [] moduleBlock.finish
 
 end Silmaril.Languages.Python.Source

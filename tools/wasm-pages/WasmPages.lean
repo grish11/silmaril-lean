@@ -3,6 +3,7 @@ import Silmaril.Wasm.Binary.Core.Decode
 import Silmaril.Wasm.Tools.Text.Defs
 import Silmaril.Wasm.Tools.Validate.Defs
 import Silmaril.Wasm.Tools.Features.Defs
+import Silmaril.Wasm.Tools.FastFrame.Defs
 import Silmaril.Wasm.Tools.Gen.Cmd.Print.Defs
 import Silmaril.Wasm.Component.Binary.Defs
 import Silmaril.Wasm.Component.Binary.Encode.Defs
@@ -775,7 +776,70 @@ def reactorSlotEvidence : List (Nat × Json) := [
 
 def reactorDetailSlots : List Nat := [25, 231, 289, 434, 530, 547]
 
-def writeReactor (path : String) (version hash : String) (bytes : ByteArray) (m : Module) : M Unit := do
+structure ReactorLlvmSymbol where
+  symbol : String
+  wasmSlot : Nat
+  codeOffset : Nat
+  codeBytes : Nat
+
+structure ReactorLlvmReceipt where
+  bitcodeSha256 : String
+  symbols : Array ReactorLlvmSymbol
+
+def readReactorLlvmReceipt (text wasmSha256 : String) : Except String ReactorLlvmReceipt := do
+  let receipt ← Json.parse text
+  unless (← receipt.getObjValAs? String "schema") == "silmaril.sqlite-wasi-llvm-provenance.v1" do
+    throw "unsupported SQLite LLVM receipt schema"
+  let stages ← receipt.getObjVal? "stages"
+  let wasm ← stages.getObjVal? "sqlite3.wasm"
+  unless (← wasm.getObjValAs? String "sha256") == wasmSha256 do
+    throw "SQLite LLVM receipt names a different reactor"
+  let bitcode ← stages.getObjVal? "sqlite3.bc"
+  let hash ← bitcode.getObjValAs? String "sha256"
+  unless hash.length == 64 && hash.toList.all (fun c => c.isDigit || ('a' ≤ c && c ≤ 'f')) do
+    throw "invalid SQLite LLVM bitcode digest"
+  let rows ← (← receipt.getObjVal? "symbols").getArr?
+  let symbols : Array ReactorLlvmSymbol ← rows.mapM fun row => do
+    let symbol ← row.getObjValAs? String "symbol"
+    let wasmSlot ← row.getObjValAs? Nat "wasmSlot"
+    let codeOffset ← row.getObjValAs? Nat "codeOffset"
+    let codeBytes ← row.getObjValAs? Nat "codeBytes"
+    return { symbol, wasmSlot, codeOffset, codeBytes }
+  return { bitcodeSha256 := hash, symbols }
+
+def loadReactorLlvmReceipt (root : System.FilePath) (hash : String) : IO (Option ReactorLlvmReceipt) := do
+  let file := root / "tools/sqlite-wasm/llvm-provenance/receipt.json"
+  try return (readReactorLlvmReceipt (← IO.FS.readFile file) hash).toOption
+  catch _ => return none
+
+/-- Absolute Code spans, including each original size prefix, in defined-function order. -/
+def reactorCodeSpans (bytes : ByteArray) (funcCount : Nat) : Option (Array (Nat × Nat)) := do
+  let sections ← Tools.FastFrame.splitAt bytes bytes.size bytes.size 8
+  let [code] := sections.filter (·.id == 10) | none
+  let (count, start) ← Tools.FastFrame.readUNAt bytes code.cend 32 code.cstart
+  unless count == funcCount do failure
+  let mut cursor := start
+  let mut spans := #[]
+  for _ in [:count] do
+    let (size, body) ← Tools.FastFrame.readUNAt bytes code.cend 32 cursor
+    let stop := body + size
+    unless stop ≤ code.cend do failure
+    spans := spans.push (cursor, stop - cursor)
+    cursor := stop
+  if cursor == code.cend then some spans else none
+
+def ReactorLlvmReceipt.symbol? (receipt : ReactorLlvmReceipt) (idx : Nat) (exportName : Option String)
+    (cName : Option (String × Nat × Nat)) (span : Nat × Nat) : Option String :=
+  match (receipt.symbols.filter (·.wasmSlot == idx)).toList with
+  | [row] =>
+    if span == (row.codeOffset, row.codeBytes) &&
+        (cName == some (row.symbol, row.codeOffset, row.codeBytes) || exportName == some row.symbol) then
+      some row.symbol
+    else none
+  | _ => none
+
+def writeReactor (path : String) (version hash : String) (bytes : ByteArray) (m : Module)
+    (llvm : Option ReactorLlvmReceipt) : M Unit := do
   let id := "sqlite.wasi.preview1.reactor"
   let sl := s!"{id}.{hash}"
   let annotated := hash == reactorAnnotationHash
@@ -788,8 +852,10 @@ def writeReactor (path : String) (version hash : String) (bytes : ByteArray) (m 
     | .func ty => some (imp, ty.value.val)
     | _ => none
   let exportName (idx : Nat) := (m.exports.find? fun e => exportKind e.index == ("func", idx)).map (·.name)
+  let codeSpans := llvm.bind fun _ => reactorCodeSpans bytes m.funcs.length
   let mut functions : Array Json := #[]
   let mut index : Array Json := #[]
+  let mut llvmSymbols : List (String × Json) := []
   let mut unsupported := 0
   let mut details := 0
   for ((imp, ty), idx) in imports.zipIdx do
@@ -801,6 +867,9 @@ def writeReactor (path : String) (version hash : String) (bytes : ByteArray) (m 
     let idx := imports.length + ordinal
     let name := exportName idx
     let cName := if annotated then reactorNames.lookup idx else none
+    if let some symbol := (codeSpans.bind (·[ordinal]?)).bind fun span =>
+        llvm.bind (·.symbol? idx name cName span) then
+      llvmSymbols := (toString idx, jstr symbol) :: llvmSymbols
     let flow := Cfg.blockCfg f.body
     let bad := flow.any fun (_, ts) => ts.contains .invalid
     let instructions := (allInstrs f.body).length
@@ -834,7 +903,10 @@ def writeReactor (path : String) (version hash : String) (bytes : ByteArray) (m 
     ("functions", Json.arr functions), ("exports", jarr (m.exports.map fun e =>
       let (kind, idx) := exportKind e.index
       jobj [("name", jstr e.name), ("kind", jstr kind), ("idx", jnat idx)]))] ++
-    if annotated then [("decodeEvidence", reactorEvidence "whole-module/WholeModule.lean" "SqliteWasm.originalDecode")] else [])
+    (if annotated then [("decodeEvidence", reactorEvidence "whole-module/WholeModule.lean" "SqliteWasm.originalDecode")] else []) ++
+    (if llvmSymbols.isEmpty then [] else llvm.toList.map fun receipt =>
+      ("llvmReceipt", jobj [("wasmSha256", jstr hash), ("bitcodeSha256", jstr receipt.bitcodeSha256),
+        ("symbols", jobj llvmSymbols)])))
   writeFile s!"wasm/blob/{sl}.wasm" bytes
   writeText s!"wasm/m/{sl}.json" full.compress
   modify fun o => { o with modules := o.modules.push summary, functions := o.functions ++ index }
@@ -903,7 +975,7 @@ def run (artifactsPath outDir : String) (reactorPath : Option String := none) : 
         | none => { kind := "lean", name := decl, sha256 := sha, doc := lean ++ "not registered in artifacts.toml" }
       doModule id title src m bytes
     if let some (version, hash, bytes, m) := reactor then
-      writeReactor (reactorPath.getD "") version hash bytes m
+      writeReactor (reactorPath.getD "") version hash bytes m (← loadReactorLlvmReceipt root hash)
   let ((), out) ← act.run {}
   let index := jobj [("components", jarr out.components.toList), ("modules", jarr out.modules.toList)]
   let files := out.files.push ("wasm/index.json", index.compress.toUTF8)

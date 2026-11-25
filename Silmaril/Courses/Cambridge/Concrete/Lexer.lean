@@ -3,7 +3,7 @@ module
 public import Init.Data.List.SplitOn.Lemmas
 public import Std.Data.String.ToNat
 
-/-! Shared lexer for the Cambridge L1/L2 concrete syntax. Input must be valid UTF-8.
+/-! Shared lexer for Cambridge concrete syntax. Input must be valid UTF-8.
 Words use ASCII characters and are read at maximal length. Keywords and locations
 are separate from variables. The lexer accepts ASCII aliases for the printed
 comparison, arrow and minus signs. -/
@@ -12,9 +12,23 @@ comparison, arrow and minus signs. -/
 
 namespace Silmaril.Courses.Cambridge.Concrete
 
+inductive DataKeyword where
+  | fst | snd | inl | inr | matchK | withK | ref
+  deriving DecidableEq, Repr
+
+def DataKeyword.text : DataKeyword → String
+  | .fst => "fst"
+  | .snd => "snd"
+  | .inl => "inl"
+  | .inr => "inr"
+  | .matchK => "match"
+  | .withK => "with"
+  | .ref => "ref"
+
 inductive Keyword where
   | trueK | falseK | skip | ifK | thenK | elseK | whileK | doK | doneK
   | funK | letK | recK | inK | int | bool | unit
+  | data (keyword : DataKeyword)
   deriving DecidableEq, Repr
 
 def Keyword.text : Keyword → String
@@ -34,9 +48,11 @@ def Keyword.text : Keyword → String
   | .int => "int"
   | .bool => "bool"
   | .unit => "unit"
+  | .data keyword => keyword.text
 
 inductive Punct where
   | openP | closeP | add | ge | minus | deref | assign | seq | colon | equals | arrow
+  | openBrace | closeBrace | comma | dot | bar | product
   deriving DecidableEq, Repr
 
 def Punct.chars : Punct → List Char
@@ -51,6 +67,12 @@ def Punct.chars : Punct → List Char
   | .colon => [':']
   | .equals => ['=']
   | .arrow => ['→']
+  | .openBrace => ['{']
+  | .closeBrace => ['}']
+  | .comma => [',']
+  | .dot => ['.']
+  | .bar => ['|']
+  | .product => ['∗']
 
 inductive Token where
   | keyword (k : Keyword)
@@ -76,6 +98,7 @@ def identifierWord : List Char → Bool
 def classifyWord (cs : List Char) : Option Token :=
   let text := String.ofList cs
   if cs.all Char.isDigit then text.toNat?.map .number
+  else if locationWord cs then some (.location text)
   else match text with
   | "true" => some (.keyword .trueK)
   | "false" => some (.keyword .falseK)
@@ -94,8 +117,7 @@ def classifyWord (cs : List Char) : Option Token :=
   | "bool" => some (.keyword .bool)
   | "unit" => some (.keyword .unit)
   | _ =>
-    if locationWord cs then some (.location text)
-    else if identifierWord cs then some (.variable text)
+    if identifierWord cs then some (.variable text)
     else none
 
 /-- A nonempty maximal word. -/
@@ -127,6 +149,12 @@ def readPunct : List Char → Option (Punct × List Char)
   | ':' :: rest => some (.colon, rest)
   | '=' :: rest => some (.equals, rest)
   | '→' :: rest => some (.arrow, rest)
+  | '{' :: rest => some (.openBrace, rest)
+  | '}' :: rest => some (.closeBrace, rest)
+  | ',' :: rest => some (.comma, rest)
+  | '.' :: rest => some (.dot, rest)
+  | '|' :: rest => some (.bar, rest)
+  | '*' :: rest | '∗' :: rest => some (.product, rest)
   | _ => none
 
 /-- Scan a whitespace-free chunk. Each recursive call consumes at least one
@@ -169,5 +197,17 @@ def renderChars : List Token → List Char
   | token :: next :: rest => token.chars ++ ' ' :: renderChars (next :: rest)
 
 def render (tokens : List Token) : ByteArray := (String.ofList (renderChars tokens)).toUTF8
+
+def expect (token : Token) : List Token → Option (List Token)
+  | head :: tail => if head = token then some tail else none
+  | [] => none
+
+/-- The virtual outer group lets the top-level expression omit parentheses.
+The token count plus the virtual delimiters bounds the production depth. -/
+def readWhole {α : Type} (reader : Nat → List Token → Option (α × List Token))
+    (tokens : List Token) : Option α := do
+  let (value, []) ← reader (tokens.length + 2)
+    (.punct .openP :: (tokens ++ [.punct .closeP])) | none
+  return value
 
 end Silmaril.Courses.Cambridge.Concrete

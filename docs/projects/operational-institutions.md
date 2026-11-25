@@ -100,12 +100,14 @@ properties, divergence, or typing. [L1 return correspondence](../../Silmaril/Cou
 [L2 return correspondence](../../Silmaril/Courses/Cambridge/L2/OperationalInstitution.lean)
 
 `ofLTS` packages a CSLib transition system, and `valueSemantics` accepts a
-course-specific value predicate for unit-labelled systems. A denotational
-comparison can use the exact finite-return theorem as its operational side.
-A specification-format adapter can target the same edge sentences once it
-defines how documents name configurations and establishes satisfaction for
-that translation. Those adapters and correspondence proofs are follow-up
-work. [Shared entry points](../../Silmaril/Courses/Cambridge/OperationalInstitution/Basic.lean)
+course-specific value predicate for unit-labelled systems. The L1 denotational
+adapters use this finite-return view to prove satisfaction of value-and-store
+atoms, with the read-only model as a reduct of the effectful model.
+The Cambridge step specification format names complete configurations by
+bounded catalogue slots and translates conjunctions of step claims into
+this institution with a checked satisfaction condition.
+[Step specification format](../courses/cambridge-step-specification.md) · [Shared entry points](../../Silmaril/Courses/Cambridge/OperationalInstitution/Basic.lean) ·
+[L1 denotations](../courses/cambridge-denotational.md#effectful-l1)
 
 ## Cambridge L3
 

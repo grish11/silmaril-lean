@@ -40,7 +40,12 @@ example : Returns sample 3 := .function "example" (.add (.integer 1) (.integer 2
   | .error .moduleShape => true
   | _ => false)
 
+example (scopeAccepted : ∃ scope, Source.analyze ⟨[]⟩ = .ok scope) :
+    compile ⟨[]⟩ = .error .moduleShape :=
+  (rejects_iff _ _).mpr ⟨scopeAccepted, by rintro ⟨_, _, shape⟩; cases shape⟩
+
 #print axioms compile_iff
+#print axioms rejects_iff
 #print axioms returns_exists
 #print axioms initial
 #print axioms observes_iff

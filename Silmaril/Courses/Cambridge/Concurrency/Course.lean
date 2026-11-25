@@ -2,9 +2,12 @@ module
 
 public import Silmaril.Courses.Cambridge.Concurrency
 public import Silmaril.Courses.Cambridge.Concurrency.Examples
+public import Silmaril.Courses.Cambridge.Concurrency.Mutex.Course
+public import Silmaril.Courses.Cambridge.Concurrency.UnixThreads.Course
 
 /-! # Cambridge shared-store concurrency
 
-The first part of chapter 7, through the read-modify-write race on p. 91.
-Import this module for the rules, metatheory, and checked interleavings.
+The chapter 7 developments include shared-store interleaving, the mutex
+extension, Theorem 27, ordered two-phase locking, and a Unix-style thread
+extension.
 -/

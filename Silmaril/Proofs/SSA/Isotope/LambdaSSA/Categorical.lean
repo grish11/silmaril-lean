@@ -193,6 +193,101 @@ theorem finiteCollective_exists_succ (n : Nat) (Γ : VCtx τ)
           map_inr_inv_coprodComparison_assoc, coprod.inr_desc]
         simpa [Rt] using dft.restrict j
 
+private noncomputable def finiteConsTailFrom (R : Fin (n + 1) → τ) :
+    finiteLabelObj M (fun i => R i.succ) ⟶ finiteLabelObj M R :=
+  Limits.Sigma.desc (fun i => finiteLabelInject M R i.succ)
+
+omit [SymmetricCategory V] [DistributiveTensor V] in
+private theorem finiteConsTailFrom_ι (R : Fin (n + 1) → τ) (i : Fin n) :
+    finiteLabelInject M (fun i => R i.succ) i ≫ finiteConsTailFrom M R =
+      finiteLabelInject M R i.succ :=
+  Limits.Sigma.ι_comp_desc _ _
+
+private noncomputable def finiteConsFrom (R : Fin (n + 1) → τ) :
+    M.obj (R 0) ⨿ finiteLabelObj M (fun i => R i.succ) ⟶ finiteLabelObj M R :=
+  coprod.desc (finiteLabelInject M R 0) (finiteConsTailFrom M R)
+
+omit [SymmetricCategory V] [DistributiveTensor V] in
+private theorem finiteConsTo_isIso (R : Fin (n + 1) → τ) :
+    IsIso (finiteConsTo M R) := by
+  refine ⟨⟨finiteConsFrom M R, ?_, ?_⟩⟩
+  · apply Limits.Sigma.hom_ext
+    intro i
+    change finiteLabelInject M R i ≫ _ = finiteLabelInject M R i ≫ _
+    refine Fin.cases ?_ (fun j => ?_) i
+    · rw [← Category.assoc, finiteConsTo_head, finiteConsFrom, coprod.inl_desc,
+        Category.comp_id]
+    · rw [← Category.assoc, finiteConsTo_tail, Category.assoc, finiteConsFrom,
+        coprod.inr_desc, finiteConsTailFrom_ι, Category.comp_id]
+  · apply coprod.hom_ext
+    · rw [← Category.assoc, finiteConsFrom, coprod.inl_desc, finiteConsTo_head,
+        Category.comp_id]
+    · rw [← Category.assoc, finiteConsFrom, coprod.inr_desc, Category.comp_id]
+      apply Limits.Sigma.hom_ext
+      intro i
+      change finiteLabelInject M (fun j => R j.succ) i ≫ _ =
+        finiteLabelInject M (fun j => R j.succ) i ≫ _
+      rw [← Category.assoc, finiteConsTailFrom_ι, finiteConsTo_tail]
+
+omit [SymmetricCategory V] [DistributiveTensor V] in
+private theorem finiteLabelInject_one_isIso (R : Fin 1 → τ) :
+    IsIso (finiteLabelInject M R 0) := by
+  refine ⟨⟨labelOneTo M R, labelOneTo_ι M R, ?_⟩⟩
+  apply Limits.Sigma.hom_ext
+  intro i
+  obtain rfl := Fin.eq_zero i
+  change finiteLabelInject M R 0 ≫ _ = finiteLabelInject M R 0 ≫ _
+  rw [← Category.assoc, labelOneTo_ι, Category.id_comp, Category.comp_id]
+
+/-- The contextual injections of a nonempty family jointly determine an arrow. -/
+theorem collective_ext_proof (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ)
+    {Y : C} {f g : J.obj (ctxObj M Γ ⊗ finiteLabelObj M R) ⟶ Y}
+    (h : ∀ i, J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i) ≫ f =
+      J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i) ≫ g) :
+    f = g := by
+  induction n with
+  | zero =>
+      let := finiteLabelInject_one_isIso M R
+      exact (cancel_epi _).mp (h 0)
+  | succ n ih =>
+      let Γobj := ctxObj M Γ
+      let Rt : Fin (n + 1) → τ := fun i => R i.succ
+      let transport : J.obj (Γobj ⊗ finiteLabelObj M R) ⟶
+          J.obj (Γobj ⊗ M.obj (R 0)) ⨿ J.obj (Γobj ⊗ finiteLabelObj M Rt) :=
+        J.map ((𝟙 Γobj) ⊗ₘ finiteConsTo M R) ≫
+          J.map (DistributiveTensor.leftIso Γobj (M.obj (R 0))
+            (finiteLabelObj M Rt)).inv ≫
+          splitMapCoprod J _ _
+      have : IsIso transport := by
+        let := finiteConsTo_isIso M R
+        dsimp only [transport, splitMapCoprod]
+        infer_instance
+      apply (cancel_epi (inv transport)).mp
+      apply coprod.hom_ext
+      · have head : J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R 0) ≫
+            transport = coprod.inl := by
+          simp only [transport, Γobj, Rt, map_finiteHead_distribute_assoc,
+            splitMapCoprod, map_inl_inv_coprodComparison]
+        have headInv : coprod.inl ≫ inv transport =
+            J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R 0) := by
+          rw [← head, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+        simp only [← Category.assoc, headInv]
+        exact h 0
+      · rw [← Category.assoc, ← Category.assoc]
+        apply ih Rt
+        intro i
+        have tail : J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i.succ) ≫
+            transport = J.map ((𝟙 Γobj) ⊗ₘ finiteLabelInject M Rt i) ≫ coprod.inr := by
+          simp only [transport, Γobj, Rt, map_finiteTail_distribute_assoc, splitMapCoprod,
+            Functor.map_comp, Category.assoc, map_inr_inv_coprodComparison]
+        have tailInv : (J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M Rt i) ≫
+            coprod.inr) ≫ inv transport =
+            J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i.succ) := by
+          rw [← tail, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+        simp only [← Category.assoc]
+        erw [tailInv]
+        exact h i.succ
+
 end FiniteCollective
 
 section Region

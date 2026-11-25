@@ -11,9 +11,26 @@ the state left by the preceding premise. A failed premise retains its state. -/
 inductive Eval : {α : Type} → State → Code α → Outcome α → Prop where
   | scalar {s : State} {value : Starlark.Value} :
       Eval s (.scalar value) (.ok (.scalar value) s)
+  | builtin {s : State} {id : Builtin} : Eval s (.builtin id) (.ok (.builtin id) s)
+  | string {s : State} {text : String} : Eval s (.string text) (.ok (.string text) s)
   | read {s : State} {ref : Ref} : Eval s (.read ref) (s.read ref)
   | list {s : State} {elements : Code (List Value)} {out : Outcome (List Value)} :
       Eval s elements out → Eval s (.list elements) (Outcome.resume out allocate)
+  | tuple {s : State} {elements : Code (List Value)} {out : Outcome (List Value)} :
+      Eval s elements out → Eval s (.tuple elements) (Outcome.resume out allocateTuple)
+  | dict {s : State} {entries : Code (List Entry)} {out : Outcome (List Entry)} :
+      Eval s entries out → Eval s (.dict entries) (Outcome.resume out allocateDict)
+  | noEntries {s : State} : Eval s .noEntries (.ok [] s)
+  | entry {s t u : State} {earlier : Code (List Entry)} {key value : Expr}
+      {entries : List Entry} {k : Value} {out : Outcome Value} :
+      Eval s earlier (.ok entries t) → Eval t key (.ok k u) → Eval u value out →
+      Eval s (.entry earlier key value) (Outcome.resume out (addDisplayEntry entries k))
+  | entryPrefixError {s t : State} {earlier : Code (List Entry)} {key value : Expr} {error : Error} :
+      Eval s earlier (.error error t) → Eval s (.entry earlier key value) (.error error t)
+  | entryKeyError {s t u : State} {earlier : Code (List Entry)} {key value : Expr}
+      {entries : List Entry} {error : Error} :
+      Eval s earlier (.ok entries t) → Eval t key (.error error u) →
+      Eval s (.entry earlier key value) (.error error u)
   | empty {s : State} : Eval s .empty (.ok [] s)
   | cons {s t : State} {head : Expr} {tail : Code (List Value)} {value : Value}
       {out : Outcome (List Value)} :
@@ -29,8 +46,8 @@ inductive Eval : {α : Type} → State → Code α → Outcome α → Prop where
   | append {s t : State} {receiver argument : Expr} {address : Address} {out : Outcome Value} :
       Eval s receiver (.ok (.list address) t) → Eval t argument out →
       Eval s (.append receiver argument) (Outcome.resume out (appendAt address))
-  | appendTargetError {s t : State} {receiver argument : Expr} {value : Starlark.Value} :
-      Eval s receiver (.ok (.scalar value) t) →
+  | appendTargetError {s t : State} {receiver argument : Expr} {value : Value} :
+      Eval s receiver (.ok value t) → (∀ address : Address, value ≠ .list address) →
       Eval s (.append receiver argument) (.error .appendTarget t)
   | appendReceiverError {s t : State} {receiver argument : Expr} {error : Error} :
       Eval s receiver (.error error t) → Eval s (.append receiver argument) (.error error t)

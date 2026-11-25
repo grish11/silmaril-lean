@@ -73,6 +73,15 @@ theorem map_desc {X Y V W Z : K} (f : X ⟶ V) (g : Y ⟶ W)
 def assoc {X Y Z : K} : P.sum (P.sum X Y) Z ⟶ P.sum X (P.sum Y Z) :=
   P.desc (P.desc P.inl (P.inl ≫ P.inr)) (P.inr ≫ P.inr)
 
+def assocInv {X Y Z : K} : P.sum X (P.sum Y Z) ⟶ P.sum (P.sum X Y) Z :=
+  P.desc (P.inl ≫ P.inl) (P.map P.inr (𝟙 Z))
+
+theorem assoc_assocInv (X Y Z : K) :
+    P.assoc (X := X) (Y := Y) (Z := Z) ≫ P.assocInv = 𝟙 _ := by
+  apply P.hom_ext
+  · apply P.hom_ext <;> simp [assoc, assocInv, map]
+  · simp [assoc, assocInv, map]
+
 def swap {X Y : K} : P.sum X Y ⟶ P.sum Y X :=
   P.desc P.inr P.inl
 

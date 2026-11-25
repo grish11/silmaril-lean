@@ -3,6 +3,7 @@ module
 public import Silmaril.Languages.Python.Compile.Closed.Defs
 public import Silmaril.Languages.Python.Core.Thms
 import Silmaril.Proofs.Languages.Python.Compile.Closed.Thms
+import Silmaril.Proofs.Languages.Python.Compile.Closed.Rejection
 
 public section
 namespace Silmaril.Languages.Python.Compile.Closed
@@ -11,6 +12,10 @@ theorem compile_iff (source : Source.Module) (target : Core.Body) :
     compile source = .ok target ↔
       (∃ scope, Source.analyze source = .ok scope) ∧ Translation source target :=
   Proofs.Languages.Python.Compile.Closed.compile_iff source target
+
+theorem rejects_iff (source : Source.Module) (error : Error) :
+    compile source = .error error ↔ Rejection source error :=
+  Proofs.Languages.Python.Compile.Closed.rejects_iff source error
 
 theorem returns_exists {source : Source.Module} {target : Core.Body}
     (accepted : compile source = .ok target) : ∃ result, Returns source result :=

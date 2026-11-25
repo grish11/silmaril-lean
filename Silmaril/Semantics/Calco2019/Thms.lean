@@ -119,4 +119,17 @@ theorem ofIterative_uniform (h : G.Iterative) {C : Type u'} [Category.{v'} C] (J
 
 end Fixpoints
 end Guardedness
+/-- Use the unique guarded solutions from Definition 19(1) to form a guarded Elgot monad. -/
+@[expose]
+noncomputable def GuardedElgotMonad.ofIterative {C : Type u} [Category.{v} C]
+    {P : Coproducts C} {T : CategoryTheory.Monad C} {G : MonadGuardedness P T}
+    (h : G.Iterative) : GuardedElgotMonad P where
+  monad := T
+  guard := G
+  iteration :=
+    { toFixpoints := Guardedness.Fixpoints.ofIterative h
+      naturalCodiagonal := Guardedness.Fixpoints.ofIterative_naturalCodiagonal h
+      dinaturality := Guardedness.Fixpoints.ofIterative_dinaturality h }
+  uniformity := Guardedness.Fixpoints.ofIterative_uniform h _
+
 end Silmaril.Calco2019

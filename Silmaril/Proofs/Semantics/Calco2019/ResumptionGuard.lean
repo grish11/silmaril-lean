@@ -13,19 +13,19 @@ open CategoryTheory
 variable {C : Type u} [Category.{v} C] {P : Coproducts C}
 
 @[reassoc]
-private theorem pure_comp_of (T : CategoryTheory.Monad C) {X Y Z : C} (f : X ⟶ Y)
+theorem pure_comp_of (T : CategoryTheory.Monad C) {X Y Z : C} (f : X ⟶ Y)
     (g : Kleisli.mk T Y ⟶ Kleisli.mk T Z) :
     (((Kleisli.Adjunction.toKleisli T).map f) ≫ g).of = f ≫ g.of := by
   change (f ≫ T.η.app Y) ≫ T.map g.of ≫ T.μ.app Z = f ≫ g.of
   simp [Category.assoc, ← T.η.naturality_assoc g.of]
 
-private theorem comp_pure_of (T : CategoryTheory.Monad C) {X Y Z : C}
+theorem comp_pure_of (T : CategoryTheory.Monad C) {X Y Z : C}
     (f : Kleisli.mk T X ⟶ Kleisli.mk T Y) (g : Y ⟶ Z) :
     (f ≫ ((Kleisli.Adjunction.toKleisli T).map g)).of = f.of ≫ T.map g := by
   change f.of ≫ T.map (g ≫ T.η.app Z) ≫ T.μ.app Z = f.of ≫ T.map g
   simp
 
-private theorem kleisli_desc_of (P : Coproducts C) (T : CategoryTheory.Monad C)
+theorem kleisli_desc_of (P : Coproducts C) (T : CategoryTheory.Monad C)
     {X Y Z : Kleisli T} (f : X ⟶ Z) (g : Y ⟶ Z) :
     ((P.kleisli T).desc f g).of = P.desc f.of g.of := by
   apply P.hom_ext
@@ -34,7 +34,7 @@ private theorem kleisli_desc_of (P : Coproducts C) (T : CategoryTheory.Monad C)
   · exact (pure_comp_of T P.inr ((P.kleisli T).desc f g)).symm.trans
       ((congrArg Kleisli.Hom.of ((P.kleisli T).inr_desc f g)).trans (P.inr_desc f.of g.of).symm)
 
-private theorem kleisli_map_pure (T : CategoryTheory.Monad C) {X Y V W : C}
+theorem kleisli_map_pure (T : CategoryTheory.Monad C) {X Y V W : C}
     (f : X ⟶ V) (g : Y ⟶ W) :
     (P.kleisli T).map ((Kleisli.Adjunction.toKleisli T).map f)
         ((Kleisli.Adjunction.toKleisli T).map g) =
@@ -54,43 +54,146 @@ private theorem kleisli_map_pure (T : CategoryTheory.Monad C) {X Y V W : C}
       _ = J.map (P.inr ≫ P.map f g) := congrArg J.map (P.inr_desc _ _).symm
       _ = _ := J.map_comp _ _
 
-variable (M : ParametrizedGuardedElgotMonad P)
+theorem map_extension {Q S : CategoryTheory.Monad C} (m : Q ⟶ S)
+    {X Y : C} (g : X ⟶ Q.obj Y) :
+    (Q.map g ≫ Q.μ.app Y) ≫ m.app Y =
+      m.app X ≫ S.map (g ≫ m.app Y) ≫ S.μ.app Y := by
+  rw [Category.assoc, m.app_μ]
+  calc
+    Q.map g ≫ (Q.map (m.app Y) ≫ m.app (S.obj Y)) ≫ S.μ.app Y =
+        Q.map (g ≫ m.app Y) ≫ m.app (S.obj Y) ≫ S.μ.app Y := by
+      simp only [Functor.map_comp, Category.assoc]
+    _ = _ := by
+      rw [m.toNatTrans.naturality_assoc]
 
-private theorem guardAt_trivial (W : C) {X Y Z : C} (f : X ⟶ (M.obj W).monad.obj Y) :
-    M.guardedAt W (Y := Y) (Z := Z) (f ≫ (M.obj W).monad.map P.inl) := by
-  have h := (M.obj W).guard.trivial (Z := Kleisli.mk (M.obj W).monad Z) (kleisliArrow f)
+/-- Mapping the result of a resumption maps the first observation and its continuations. -/
+@[reassoc]
+theorem map_outOf {M : ParametrizedMonad C}
+    (R : FinalResumptions M) (P : Coproducts C) {X Y : C} (g : X ⟶ Y) :
+    (R.monad P).map g ≫ R.out Y =
+      R.out X ≫ (M.parameter X).map ((R.monad P).map g) ≫ (M.obj (R.obj Y)).map g := by
+  change R.extend P (g ≫ R.unit Y) ≫ R.out Y = _
+  rw [R.extend_spec, Category.assoc, R.unit_out]
+  simp only [ParametrizedMonad.extend, Functor.map_comp, Category.assoc,
+    CategoryTheory.Monad.right_unit, Category.comp_id]
+  rfl
+
+section Guard
+
+variable {M : ParametrizedMonad C} (G : M.Guards P)
+
+private theorem guardAt_trivial (W : C) {X Y Z : C} (f : X ⟶ (M.obj W).obj Y) :
+    G.guardedAt W (Y := Y) (Z := Z) (f ≫ (M.obj W).map P.inl) := by
+  have h := (G.guard W).trivial (Z := Kleisli.mk (M.obj W) Z) (kleisliArrow f)
   have e := Kleisli.hom_ext (comp_pure_of _ (kleisliArrow f) (P.inl (Y := Z)))
-  exact Eq.mp (congrArg ((M.obj W).guard.guarded
-    (Y := Kleisli.mk (M.obj W).monad Y) (Z := Kleisli.mk (M.obj W).monad Z)) e) h
+  exact Eq.mp (congrArg ((G.guard W).guarded
+    (Y := Kleisli.mk (M.obj W) Y) (Z := Kleisli.mk (M.obj W) Z)) e) h
 
 private theorem guardAt_parallel (W : C) {X X' Y Z : C}
-    {f : X ⟶ (M.obj W).monad.obj (P.sum Y Z)} {g : X' ⟶ (M.obj W).monad.obj (P.sum Y Z)}
-    (hf : M.guardedAt W (Y := Y) (Z := Z) f) (hg : M.guardedAt W (Y := Y) (Z := Z) g) :
-    M.guardedAt W (Y := Y) (Z := Z) (P.desc f g) := by
-  have h := (M.obj W).guard.parallel hf hg
+    {f : X ⟶ (M.obj W).obj (P.sum Y Z)} {g : X' ⟶ (M.obj W).obj (P.sum Y Z)}
+    (hf : G.guardedAt W (Y := Y) (Z := Z) f) (hg : G.guardedAt W (Y := Y) (Z := Z) g) :
+    G.guardedAt W (Y := Y) (Z := Z) (P.desc f g) := by
+  have h := (G.guard W).parallel hf hg
   have e := Kleisli.hom_ext (kleisli_desc_of P _ (kleisliArrow f) (kleisliArrow g))
-  exact Eq.mp (congrArg ((M.obj W).guard.guarded
-    (Y := Kleisli.mk (M.obj W).monad Y) (Z := Kleisli.mk (M.obj W).monad Z)) e) h
+  exact Eq.mp (congrArg ((G.guard W).guarded
+    (Y := Kleisli.mk (M.obj W) Y) (Z := Kleisli.mk (M.obj W) Z)) e) h
 
 private theorem guardAt_compose (W : C) {X Y Z A B : C}
-    {f : X ⟶ (M.obj W).monad.obj (P.sum Y Z)} {g : Y ⟶ (M.obj W).monad.obj (P.sum A B)}
-    (h : Z ⟶ (M.obj W).monad.obj (P.sum A B))
-    (hf : M.guardedAt W (Y := Y) (Z := Z) f) (hg : M.guardedAt W (Y := A) (Z := B) g) :
-    M.guardedAt W (Y := A) (Z := B) (f ≫ M.toParametrizedMonad.extend (W := W) (P.desc g h)) := by
-  have h' := (M.obj W).guard.compose (kleisliArrow h) hf hg
-  have e : (kleisliArrow f ≫ (P.kleisli (M.obj W).monad).desc (kleisliArrow g) (kleisliArrow h)) =
-      kleisliArrow (f ≫ M.toParametrizedMonad.extend (W := W) (P.desc g h)) := by
+    {f : X ⟶ (M.obj W).obj (P.sum Y Z)} {g : Y ⟶ (M.obj W).obj (P.sum A B)}
+    (h : Z ⟶ (M.obj W).obj (P.sum A B))
+    (hf : G.guardedAt W (Y := Y) (Z := Z) f) (hg : G.guardedAt W (Y := A) (Z := B) g) :
+    G.guardedAt W (Y := A) (Z := B) (f ≫ M.extend (W := W) (P.desc g h)) := by
+  have h' := (G.guard W).compose (kleisliArrow h) hf hg
+  have e : (kleisliArrow f ≫ (P.kleisli (M.obj W)).desc (kleisliArrow g) (kleisliArrow h)) =
+      kleisliArrow (f ≫ M.extend (W := W) (P.desc g h)) := by
     apply Kleisli.hom_ext
-    change f ≫ M.toParametrizedMonad.extend (W := W) (((P.kleisli (M.obj W).monad).desc
+    change f ≫ M.extend (W := W) (((P.kleisli (M.obj W)).desc
       (kleisliArrow g) (kleisliArrow h)).of) = _
     rw [kleisli_desc_of]
-  exact Eq.mp (congrArg ((M.obj W).guard.guarded
-    (Y := Kleisli.mk (M.obj W).monad A) (Z := Kleisli.mk (M.obj W).monad B)) e) h'
+  exact Eq.mp (congrArg ((G.guard W).guarded
+    (Y := Kleisli.mk (M.obj W) A) (Z := Kleisli.mk (M.obj W) B)) e) h'
 
-private theorem guardAt_parameter {W V X Y Z : C} (k : W ⟶ V)
+private theorem guardAt_parameterOf {W V X Y Z : C} (k : W ⟶ V)
+    {f : X ⟶ (M.obj W).obj (P.sum Y Z)} (hf : G.guardedAt W (Y := Y) (Z := Z) f) :
+    G.guardedAt V (Y := Y) (Z := Z) (f ≫ (M.parameter (P.sum Y Z)).map k) :=
+  G.preserves k f hf
+
+variable (R : FinalResumptions M)
+
+theorem resumptionGuard_trivial {X Y Z : C} (f : X ⟶ R.obj Y) :
+    G.ResumptionGuard R (Y := Y) (Z := Z) (f ≫ (R.monad P).map P.inl) := by
+  let i : Y ⟶ P.sum Y Z := P.inl
+  let a := (f ≫ R.out Y) ≫ (M.parameter Y).map ((R.monad P).map i)
+  have e : (f ≫ (R.monad P).map i) ≫ R.out (P.sum Y Z) =
+      a ≫ (M.obj (R.obj (P.sum Y Z))).map i :=
+    (Category.assoc _ _ _).trans ((congrArg (fun j => f ≫ j) (map_outOf R P i)).trans
+      ((Category.assoc _ _ _).symm.trans (Category.assoc _ _ _).symm))
+  exact Eq.mpr (congrArg (G.guardedAt (R.obj (P.sum Y Z)) (Y := Y) (Z := Z)) e)
+    (guardAt_trivial G _ a)
+
+theorem resumptionGuard_parallel {X X' Y Z : C}
+    {f : X ⟶ R.obj (P.sum Y Z)} {g : X' ⟶ R.obj (P.sum Y Z)}
+    (hf : G.ResumptionGuard R (Y := Y) (Z := Z) f)
+    (hg : G.ResumptionGuard R (Y := Y) (Z := Z) g) :
+    G.ResumptionGuard R (Y := Y) (Z := Z) (P.desc f g) := by
+  exact Eq.mpr (congrArg (G.guardedAt (R.obj (P.sum Y Z)) (Y := Y) (Z := Z))
+    (P.desc_comp f g (R.out (P.sum Y Z)))) (guardAt_parallel G _ hf hg)
+
+theorem resumptionGuard_compose {X Y Z A B : C}
+    {f : X ⟶ R.obj (P.sum Y Z)} {g : Y ⟶ R.obj (P.sum A B)}
+    (h : Z ⟶ R.obj (P.sum A B))
+    (hf : G.ResumptionGuard R (Y := Y) (Z := Z) f)
+    (hg : G.ResumptionGuard R (Y := A) (Z := B) g) :
+    G.ResumptionGuard R (Y := A) (Z := B) (f ≫ R.extend P (P.desc g h)) := by
+  let k := R.extend P (P.desc g h)
+  have hf' := guardAt_parameterOf G k hf
+  have hg' : G.guardedAt (R.obj (P.sum A B)) (Y := A) (Z := B) (g ≫ R.out (P.sum A B)) := hg
+  have h' := guardAt_compose G (R.obj (P.sum A B)) (h ≫ R.out (P.sum A B)) hf' hg'
+  have e : (f ≫ k) ≫ R.out (P.sum A B) =
+      ((f ≫ R.out (P.sum Y Z)) ≫ (M.parameter (P.sum Y Z)).map k) ≫
+        M.extend (W := R.obj (P.sum A B))
+          (P.desc (g ≫ R.out (P.sum A B)) (h ≫ R.out (P.sum A B))) := by
+    rw [Category.assoc, show k ≫ R.out (P.sum A B) = _ from R.extend_spec P (P.desc g h),
+      P.desc_comp, Category.assoc, Category.assoc]
+  exact Eq.mpr (congrArg (G.guardedAt (R.obj (P.sum A B)) (Y := A) (Z := B)) e) h'
+
+theorem observedGuard_trivial {X Y Z : Kleisli (R.monad P)} (f : X ⟶ Y) :
+    G.observedGuard R (f ≫ (P.kleisli (R.monad P)).inl (Y := Z)) := by
+  have e := comp_pure_of (R.monad P) f (P.inl (Y := Z.of))
+  exact Eq.mpr (congrArg (G.ResumptionGuard R (Y := Y.of) (Z := Z.of)) e)
+    (resumptionGuard_trivial G R f.of)
+
+theorem observedGuard_parallel {X Y V W : Kleisli (R.monad P)}
+    {f : X ⟶ (P.kleisli (R.monad P)).sum V W} {g : Y ⟶ (P.kleisli (R.monad P)).sum V W}
+    (hf : G.observedGuard R (Y := V) (Z := W) f)
+    (hg : G.observedGuard R (Y := V) (Z := W) g) :
+    G.observedGuard R (Y := V) (Z := W) ((P.kleisli (R.monad P)).desc f g) := by
+  have e := kleisli_desc_of P (R.monad P) f g
+  exact Eq.mpr (congrArg (G.ResumptionGuard R (Y := V.of) (Z := W.of)) e)
+    (resumptionGuard_parallel G R hf hg)
+
+theorem observedGuard_compose {X Y Z V W : Kleisli (R.monad P)}
+    {f : X ⟶ (P.kleisli (R.monad P)).sum Y Z} {g : Y ⟶ (P.kleisli (R.monad P)).sum V W}
+    (h : Z ⟶ (P.kleisli (R.monad P)).sum V W)
+    (hf : G.observedGuard R (Y := Y) (Z := Z) f) (hg : G.observedGuard R (Y := V) (Z := W) g) :
+    G.observedGuard R (Y := V) (Z := W) (f ≫ (P.kleisli (R.monad P)).desc g h) := by
+  let k := (P.kleisli (R.monad P)).desc g h
+  have e₁ := R.monad_extend P (X := P.sum Y.of Z.of) (Y := P.sum V.of W.of) k.of
+  have e₂ := congrArg (R.extend P (X := P.sum Y.of Z.of) (Y := P.sum V.of W.of))
+    (kleisli_desc_of P (R.monad P) g h)
+  have e : (f ≫ k).of = f.of ≫ R.extend P (P.desc g.of h.of) :=
+    congrArg (fun j => f.of ≫ j) (e₁.trans e₂)
+  exact Eq.mpr (congrArg (G.ResumptionGuard R (Y := V.of) (Z := W.of)) e)
+    (resumptionGuard_compose G R h.of hf hg)
+
+end Guard
+
+variable (M : ParametrizedGuardedElgotMonad P)
+
+theorem guardAt_parameter {W V X Y Z : C} (k : W ⟶ V)
     {f : X ⟶ (M.obj W).monad.obj (P.sum Y Z)} (hf : M.guardedAt W (Y := Y) (Z := Z) f) :
     M.guardedAt V (Y := Y) (Z := Z) (f ≫ (M.toParametrizedMonad.parameter (P.sum Y Z)).map k) :=
-  (M.map k).guarded f hf
+  guardAt_parameterOf M.toGuards k hf
 
 private theorem guardAt_uniform (W : C) {X Y Z : C}
     (f : X ⟶ (M.obj W).monad.obj (P.sum Y X)) (g : Z ⟶ (M.obj W).monad.obj (P.sum Y Z))
@@ -114,51 +217,11 @@ private theorem guardAt_uniform (W : C) {X Y Z : C}
 variable (R : FinalResumptions M.toParametrizedMonad)
 
 @[reassoc]
-private theorem map_out {X Y : C} (g : X ⟶ Y) :
+theorem map_out {X Y : C} (g : X ⟶ Y) :
     (R.monad P).map g ≫ R.out Y =
-      R.out X ≫ (M.toParametrizedMonad.parameter X).map ((R.monad P).map g) ≫ (M.obj (R.obj Y)).monad.map g := by
-  change R.extend P (g ≫ R.unit Y) ≫ R.out Y = _
-  rw [R.extend_spec, Category.assoc, R.unit_out]
-  simp only [ParametrizedMonad.extend, Functor.map_comp, Category.assoc,
-    CategoryTheory.Monad.right_unit, Category.comp_id]
-  rfl
-
-theorem resumptionGuard_trivial {X Y Z : C} (f : X ⟶ R.obj Y) :
-    M.ResumptionGuard R (Y := Y) (Z := Z) (f ≫ (R.monad P).map P.inl) := by
-  let i : Y ⟶ P.sum Y Z := P.inl
-  let a := (f ≫ R.out Y) ≫ (M.toParametrizedMonad.parameter Y).map ((R.monad P).map i)
-  have e : (f ≫ (R.monad P).map i) ≫ R.out (P.sum Y Z) =
-      a ≫ (M.obj (R.obj (P.sum Y Z))).monad.map i :=
-    (Category.assoc _ _ _).trans ((congrArg (fun j => f ≫ j) (map_out M R i)).trans
-      ((Category.assoc _ _ _).symm.trans (Category.assoc _ _ _).symm))
-  exact Eq.mpr (congrArg (M.guardedAt (R.obj (P.sum Y Z)) (Y := Y) (Z := Z)) e)
-    (guardAt_trivial M _ a)
-
-theorem resumptionGuard_parallel {X X' Y Z : C}
-    {f : X ⟶ R.obj (P.sum Y Z)} {g : X' ⟶ R.obj (P.sum Y Z)}
-    (hf : M.ResumptionGuard R (Y := Y) (Z := Z) f)
-    (hg : M.ResumptionGuard R (Y := Y) (Z := Z) g) :
-    M.ResumptionGuard R (Y := Y) (Z := Z) (P.desc f g) := by
-  exact Eq.mpr (congrArg (M.guardedAt (R.obj (P.sum Y Z)) (Y := Y) (Z := Z))
-    (P.desc_comp f g (R.out (P.sum Y Z)))) (guardAt_parallel M _ hf hg)
-
-theorem resumptionGuard_compose {X Y Z A B : C}
-    {f : X ⟶ R.obj (P.sum Y Z)} {g : Y ⟶ R.obj (P.sum A B)}
-    (h : Z ⟶ R.obj (P.sum A B))
-    (hf : M.ResumptionGuard R (Y := Y) (Z := Z) f)
-    (hg : M.ResumptionGuard R (Y := A) (Z := B) g) :
-    M.ResumptionGuard R (Y := A) (Z := B) (f ≫ R.extend P (P.desc g h)) := by
-  let k := R.extend P (P.desc g h)
-  have hf' := guardAt_parameter M k hf
-  have hg' : M.guardedAt (R.obj (P.sum A B)) (Y := A) (Z := B) (g ≫ R.out (P.sum A B)) := hg
-  have h' := guardAt_compose M (R.obj (P.sum A B)) (h ≫ R.out (P.sum A B)) hf' hg'
-  have e : (f ≫ k) ≫ R.out (P.sum A B) =
-      ((f ≫ R.out (P.sum Y Z)) ≫ (M.toParametrizedMonad.parameter (P.sum Y Z)).map k) ≫
-        M.toParametrizedMonad.extend (W := R.obj (P.sum A B))
-          (P.desc (g ≫ R.out (P.sum A B)) (h ≫ R.out (P.sum A B))) := by
-    rw [Category.assoc, show k ≫ R.out (P.sum A B) = _ from R.extend_spec P (P.desc g h),
-      P.desc_comp, Category.assoc, Category.assoc]
-  exact Eq.mpr (congrArg (M.guardedAt (R.obj (P.sum A B)) (Y := A) (Z := B)) e) h'
+      R.out X ≫ (M.toParametrizedMonad.parameter X).map ((R.monad P).map g) ≫
+        (M.obj (R.obj Y)).monad.map g :=
+  map_outOf R P g
 
 private theorem diamond_fixpoint {X Y : C} (f : X ⟶ R.obj (P.sum Y X))
     (hf : M.ResumptionGuard R (Y := Y) (Z := X) f) :
@@ -210,35 +273,6 @@ theorem iterateResumption_fixpoint {X Y : C} (f : X ⟶ R.obj (P.sum Y X))
       _ = _ := by rw [fix, hg]
   simpa using congrArg (fun j => j ≫ R.roll Y) e
 
-theorem observedGuard_trivial {X Y Z : Kleisli (R.monad P)} (f : X ⟶ Y) :
-    M.observedGuard R (f ≫ (P.kleisli (R.monad P)).inl (Y := Z)) := by
-  have e := comp_pure_of (R.monad P) f (P.inl (Y := Z.of))
-  exact Eq.mpr (congrArg (M.ResumptionGuard R (Y := Y.of) (Z := Z.of)) e)
-    (resumptionGuard_trivial M R f.of)
-
-theorem observedGuard_parallel {X Y V W : Kleisli (R.monad P)}
-    {f : X ⟶ (P.kleisli (R.monad P)).sum V W} {g : Y ⟶ (P.kleisli (R.monad P)).sum V W}
-    (hf : M.observedGuard R (Y := V) (Z := W) f)
-    (hg : M.observedGuard R (Y := V) (Z := W) g) :
-    M.observedGuard R (Y := V) (Z := W) ((P.kleisli (R.monad P)).desc f g) := by
-  have e := kleisli_desc_of P (R.monad P) f g
-  exact Eq.mpr (congrArg (M.ResumptionGuard R (Y := V.of) (Z := W.of)) e)
-    (resumptionGuard_parallel M R hf hg)
-
-theorem observedGuard_compose {X Y Z V W : Kleisli (R.monad P)}
-    {f : X ⟶ (P.kleisli (R.monad P)).sum Y Z} {g : Y ⟶ (P.kleisli (R.monad P)).sum V W}
-    (h : Z ⟶ (P.kleisli (R.monad P)).sum V W)
-    (hf : M.observedGuard R (Y := Y) (Z := Z) f) (hg : M.observedGuard R (Y := V) (Z := W) g) :
-    M.observedGuard R (Y := V) (Z := W) (f ≫ (P.kleisli (R.monad P)).desc g h) := by
-  let k := (P.kleisli (R.monad P)).desc g h
-  have e₁ := R.monad_extend P (X := P.sum Y.of Z.of) (Y := P.sum V.of W.of) k.of
-  have e₂ := congrArg (R.extend P (X := P.sum Y.of Z.of) (Y := P.sum V.of W.of))
-    (kleisli_desc_of P (R.monad P) g h)
-  have e : (f ≫ k).of = f.of ≫ R.extend P (P.desc g.of h.of) :=
-    congrArg (fun j => f.of ≫ j) (e₁.trans e₂)
-  exact Eq.mpr (congrArg (M.ResumptionGuard R (Y := V.of) (Z := W.of)) e)
-    (resumptionGuard_compose M R h.of hf hg)
-
 theorem iterateResumption_uniform {X Y Z : C}
     (f : X ⟶ R.obj (P.sum Y X)) (g : Z ⟶ R.obj (P.sum Y Z)) (h : Z ⟶ X)
     (hf : M.ResumptionGuard R (Y := Y) (Z := X) f)
@@ -282,7 +316,7 @@ theorem iterateResumption_uniform {X Y Z : C}
         (((M.toParametrizedMonad.parameter Y).map_comp j k).symm.trans
           (congrArg (M.toParametrizedMonad.parameter Y).map jkl))
 
-private theorem iterate_congr {K : Type u} [Category.{v} K] {P' : Coproducts K}
+theorem iterate_congr {K : Type u} [Category.{v} K] {P' : Coproducts K}
     {G : Guardedness P'} (F : G.Fixpoints) {X Y : K}
     {f g : X ⟶ P'.sum Y X} (e : f = g) (hf : G.guarded f) (hg : G.guarded g) :
     F.iterate f hf = F.iterate g hg := by
@@ -322,7 +356,7 @@ private theorem guardAt_naturality (W : C) {X Y Z : C}
 theorem naturalityBody_guarded {X Y Z : C} (f : X ⟶ R.obj (P.sum Y X)) (g : Y ⟶ R.obj Z)
     (hf : M.ResumptionGuard R (Y := Y) (Z := X) f) :
     M.ResumptionGuard R (Y := Z) (Z := X) (M.naturalityBody R f g) :=
-  resumptionGuard_compose M R _ hf (resumptionGuard_trivial M R g)
+  resumptionGuard_compose M.toGuards R _ hf (resumptionGuard_trivial M.toGuards R g)
 
 theorem iterateResumption_naturality {X Y Z : C} (f : X ⟶ R.obj (P.sum Y X)) (g : Y ⟶ R.obj Z)
     (hf : M.ResumptionGuard R (Y := Y) (Z := X) f)
@@ -415,5 +449,21 @@ theorem iterateResumption_naturality {X Y Z : C} (f : X ⟶ R.obj (P.sum Y X)) (
       rw [kl, Functor.map_comp, ← bl]
       simp only [Category.assoc, pe]
     _ = _ := by rw [eSpec]
+
+theorem resumption_comp_of {X Y Z : Kleisli (R.monad P)} (f : X ⟶ Y) (g : Y ⟶ Z) :
+    (f ≫ g).of = f.of ≫ R.extend P g.of :=
+  congrArg (fun z => f.of ≫ z) (R.monad_extend P g.of)
+
+theorem observedFixpoint {X Y : Kleisli (R.monad P)}
+    (f : X ⟶ (P.kleisli (R.monad P)).sum Y X)
+    (hf : M.observedGuard R (Y := Y) (Z := X) f) :
+    Guardedness.IsFixpoint f
+      (kleisliArrow (M.iterateResumption R f.of hf)) := by
+  let q : X ⟶ Y := kleisliArrow (M.iterateResumption R f.of hf)
+  change f ≫ (P.kleisli (R.monad P)).desc (𝟙 Y) q = q
+  apply Kleisli.hom_ext
+  exact (resumption_comp_of M R f _).trans
+    ((congrArg (fun z => f.of ≫ R.extend P z) (kleisli_desc_of P (R.monad P) (𝟙 Y) q)).trans
+      (iterateResumption_fixpoint M R f.of hf))
 
 end Silmaril.Calco2019.Proofs

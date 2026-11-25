@@ -16,7 +16,7 @@ private theorem readType_tokens (type : Ty) (fuel : Nat) (suffix : List Token)
     simp only [typeTokens, List.length_cons, List.length_nil, List.length_append] at h
   all_goals try omega
   case arr.succ domain codomain ihDomain ihCodomain fuel =>
-    simp (discharger := omega) [typeTokens, List.append_assoc, readType, expect,
+    simp (discharger := omega) [typeTokens, List.append_assoc, readType, Cambridge.Concrete.expect,
       ihDomain fuel, ihCodomain fuel]
   all_goals rfl
 
@@ -80,39 +80,39 @@ private theorem readExpr_tokens (term : RawExpr) (fuel : Nat) (suffix : List Tok
   | assign name value ih =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
-    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, expect, ih]
+    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, Cambridge.Concrete.expect, ih]
   | binary left op right il ir =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
     · cases op <;> simp (discharger := omega) [termTokens, List.append_assoc, operator,
-        readGroup_tokens, finishGroup, expect, il, ir]
+        readGroup_tokens, finishGroup, Cambridge.Concrete.expect, il, ir]
   | cond test yes no it iy ino =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
-    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, expect, it, iy, ino]
+    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, Cambridge.Concrete.expect, it, iy, ino]
   | seq left right il ir =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
     · simp (discharger := omega) [termTokens, List.append_assoc, readGroup_tokens, finishGroup,
-        expect, il, ir]
+        Cambridge.Concrete.expect, il, ir]
   | loop test body it ib =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
-    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, expect, it, ib]
+    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, Cambridge.Concrete.expect, it, ib]
   | lam name domain body ib =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
-    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, expect,
+    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, Cambridge.Concrete.expect,
         readType_tokens, ib]
   | app fn arg ihFn ihArg =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
     · simp (discharger := omega) [termTokens, List.append_assoc, readGroup_tokens,
-        finishGroup_application, expect, ihFn, ihArg]
+        finishGroup_application, Cambridge.Concrete.expect, ihFn, ihArg]
   | letE name type value body iv ib =>
     cases fuel <;> simp only [termTokens, List.length_append, List.length_cons, List.length_nil] at h
     · omega
-    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, expect,
+    · simp (discharger := omega) [termTokens, List.append_assoc, readExpr, Cambridge.Concrete.expect,
         readType_tokens, iv, ib]
   | letRecFun fn param domain codomain value body iv ib =>
     cases fuel with
@@ -123,7 +123,7 @@ private theorem readExpr_tokens (term : RawExpr) (fuel : Nat) (suffix : List Tok
       have hc : (typeTokens codomain).length ≤ fuel := by omega
       have hv : (termTokens value).length ≤ fuel := by omega
       have hb : (termTokens body).length ≤ fuel := by omega
-      simp [termTokens, List.append_assoc, readExpr.eq_13, expect,
+      simp [termTokens, List.append_assoc, readExpr.eq_13, Cambridge.Concrete.expect,
         readType_tokens domain fuel _ hd, readType_tokens codomain fuel _ hc,
         iv fuel _ hv, ib fuel _ hb]
 
@@ -155,9 +155,11 @@ private theorem termTokens_spellable {term : RawExpr} (h : NamesOk term) :
 
 /-- The complete byte parser recovers every canonically printed source AST. -/
 theorem parse_print (term : SourceExpr) : parse (print term) = some term.val := by
-  unfold parse print readWhole
+  unfold parse print
   rw [tokenize_render _ (termTokens_spellable term.property)]
-  simp (discharger := omega) [readGroup_tokens, readExpr_tokens, finishGroup]
+  apply readWithPrecedence_of_grouped
+  simpa only [List.append_nil] using
+    readExpr_tokens term.val ((termTokens term.val).length + 1) [] (by omega)
 
 theorem parseResolved_print (term : SourceExpr) :
     parseResolved (print term) = some (term.val.resolve []) := by
@@ -171,9 +173,11 @@ theorem print_injective : Function.Injective print := by
 theorem parses_print (term : SourceExpr) : Parses (print term) term.val := parse_print term
 
 theorem parseType_printType (type : Ty) : parseType (printType type) = some type := by
-  unfold parseType printType readWhole
+  unfold parseType printType
   rw [tokenize_render _ (typeTokens_spellable type)]
-  simp (discharger := omega) [readType, readType_tokens]
+  apply readWithPrecedence_of_grouped
+  simpa only [List.append_nil] using
+    readType_tokens type ((typeTokens type).length + 1) [] (by omega)
 
 theorem printType_injective : Function.Injective printType := by
   intro left right h

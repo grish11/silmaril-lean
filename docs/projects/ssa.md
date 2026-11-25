@@ -146,6 +146,14 @@ categorical soundness there. It assumes matching type formers, instruction
 types and effects, and the thesis model laws and typing coherence. The existing
 algebraic completeness theorem ranges over operation algebras of the presentation.
 
+Exact categorical LetIter soundness has a model-interface obstruction.
+`Silmaril.SSA.Isotope.LetIter.Counterexample.Thms` exhibits a strong Elgot
+Freyd model admitted by the current interface in which closed let-η changes
+the denotation. The model uses a writer effect in the structural unit and
+tensor isomorphisms. The paper's Freyd interface instead takes the
+computation unit and tensor as Cartesian structure in the pure wide
+subcategory. [The Denotational Semantics of SSA, Definition 5.3](https://arxiv.org/abs/2411.09347)
+
 λSSA categorical semantics (`Silmaril.Isotope.LambdaSSA.Semantics.Categorical`).
 `denote_spec` and `denoteRegion_spec` witness the expression and region graphs
 at every exactly typed input. Expression models are distributive Freyd
@@ -155,8 +163,9 @@ with zero local labels denotes its entry. A nonempty CFG dispatches a finite
 family of possibly differently typed local labels, with outward jumps on the
 left and local iteration on the right. `Denotes.eq_denote` and
 `RegionDenotes.eq_denote` require separate typing coherence hypotheses.
-These results give structural denotations. Soundness for the λSSA rewrite
-theory and the syntactic initial model of that theory remain open here.
+`Silmaril.SSA.Isotope.LambdaSSA.Rewrite.Thms` proves categorical soundness
+for empty-CFG elimination and constructor-valued entry branches. Soundness
+for the full rewrite theory and its syntactic initial model remain open.
 [Ghalayini and Krishnaswami, *The Denotational Semantics of SSA*, §5](https://arxiv.org/abs/2411.09347)
 
 λSSA Kleisli agreement (`Silmaril.SSA.Isotope.LambdaSSA.Kleisli.Thms`).
@@ -172,10 +181,13 @@ Subtyped λSSA (`Silmaril.SSA.Isotope.LambdaSSA.Subtyping.Categorical.Thms`).
 `Subtyping.Exact.tm` and `Subtyping.Exact.region` embed exact typing into the
 derivation-valued typing system. A subtyping step in an expression composes
 with the value morphism of the supplied coercion. The structural graph gives
-a unique arrow for each expression derivation. Every region derivation has a
-structural arrow, with uniqueness under `RegionTypingCoherent`. The region
-semantics shares the exact dispatcher and retains coercions in the expressions
-of its entry and blocks.
+a unique arrow for each expression and region derivation. The nonempty
+dispatcher is determined by its restrictions to the typed blocks. The
+region semantics retains coercions in the entry and block expressions.
+`Subtyping.Kleisli.Thms` proves agreement with the direct monadic denotation
+for each fixed derivation. `LambdaSSA.Renaming.Thms` proves that monadic term
+and region denotations commute with typed variable renaming in both typing
+presentations.
 
 Thesis ports (`Silmaril.SSA.Thesis.Thms`, `.Categorical.Thms`), for a signature
 `S`: `Syn.isInitial : IsInitial (Syn S)` in `Alg S` and `Syn.denote_eq_iff_eqv`
@@ -193,13 +205,14 @@ into the Kleisli model, computing the denotation); `uniqueHomKleisliPart` at `Pa
 
 Thesis syntactic category (`Silmaril.SSA.Thesis.SyntacticCategory.Thms`).
 `Syn.SynCat S` has the signature's types as objects and one-variable
-terms modulo `Eqv` as arrows. It has binary coproducts and satisfies
-fixpoint, naturality and codiagonal for iteration, in both the syntax
-and Mathlib coproduct presentations. The syntactic pure-arrow predicate
-is existence of a pure representative, and `iterate_uniformity` holds
-along those arrows. `elgotCategory_of_hasFiniteCoproducts` assumes finite
-coproducts. The existence of an initial object, the Cartesian structure of
-the value category and iteration strength remain open.
+terms modulo `Eqv` as arrows. The empty type is initial and, with binary
+coproducts, gives finite coproducts. `elgotCategory` packages fixpoint,
+naturality and codiagonal for the syntactic iteration. `iterate_uniformity`
+holds along arrows with a syntactically pure representative.
+`Silmaril.SSA.Thesis.SyntacticCategory.Values.Thms` constructs the Cartesian
+value category on those arrows and proves that its inclusion into the
+computation category preserves finite coproducts. Premonoidal computation
+structure, Freyd strength, and categorical model initiality remain open.
 
 Quantitative refinement (`Silmaril.SSA.Isotope.Refinement.Thms`, namespace
 `Silmaril.Isotope.Refinement`): `Models.syntaxIsInitial`, `Models.fold_unique`,
@@ -250,10 +263,17 @@ requires uniformity against mapped value arrows and strength for the carried
 context. A guarded-only model would need proofs of guardedness for each
 lowered loop, including silent back edges. The paper's Corollary 26 provides
 guarded iteration on a coinductive resumption monad, and Theorem 28 gives its
-free-extension property under the stated existence assumption. The library's
-λSSA instruction-resumption machine records a control state and an instruction
-continuation, with finite-run adequacy. A connection to the paper's final
-coalgebra, guarded iteration and free-extension property remains open.
+free-extension property under the stated existence assumption.
+
+`Silmaril.SSA.Isotope.Calco2019.Resumption.Thms` connects the λSSA
+instruction-resumption machine to that guarded iteration. The next control
+and external state lie under a suspension after each successful instruction.
+The initial observation factors through the left coproduct injection, so the
+body is guarded even under the least guard on observations. For deterministic
+instruction models and a chosen final coalgebra with the stated suspension
+and head-reading operations, `Machine.room_return_iff` preserves and reflects
+the existing room's finite returns at every exit. Faults, divergence,
+scheduling, and the free-extension property are separate claims.
 [Levy and Goncharov, *Coinductive Resumption Monads: Guarded Iterative and Guarded Elgot*](https://doi.org/10.4230/LIPIcs.CALCO.2019.13)
 
 ## Status

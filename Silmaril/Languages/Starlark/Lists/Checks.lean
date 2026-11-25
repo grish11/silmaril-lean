@@ -97,7 +97,7 @@ example :
     let out := inState (assign "a" (listOf [])) <|
       denote (.setIndex (.index (read "a") (int 0)) (int 0) (.append (read "a") (int 9)))
     result out = .error .assignmentTarget ∧
-    (finalState out).heap = #[⟨[.scalar (.int 9)], false⟩] :=
+    (finalState out).heap = #[⟨.list [.scalar (.int 9)], false⟩] :=
   by decide +kernel
 
 -- Literal operands run left to right. Index failure retains the preceding
@@ -107,14 +107,14 @@ example :
       denote (listOf [.append (read "a") (int 4), .index (read "a") (int 4),
         .append (read "a") (int 5)])
     result out = .error (.indexRange 4 1) ∧
-    (finalState out).heap = #[⟨[.scalar (.int 4)], false⟩] :=
+    (finalState out).heap = #[⟨.list [.scalar (.int 4)], false⟩] :=
   by decide +kernel
 
 -- Method lookup on a scalar fails before the argument can have an effect.
 example :
     let out := inState (assign "a" (listOf [])) <|
       denote (.append (int 1) (.append (read "a") (int 9)))
-    result out = .error .appendTarget ∧ (finalState out).heap = #[⟨[], false⟩] :=
+    result out = .error .appendTarget ∧ (finalState out).heap = #[⟨.list [], false⟩] :=
   by decide +kernel
 
 end Silmaril.Languages.Starlark.Lists

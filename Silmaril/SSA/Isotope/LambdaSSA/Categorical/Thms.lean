@@ -12,6 +12,7 @@ universe v₁ v₂ u₁ u₂ u₃ u₄
 namespace Silmaril.Isotope.LambdaSSA.Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits
+open scoped MonoidalCategory
 open Silmaril.Isotope.LetIter.Semantics.Categorical (TypeModel InstructionModel)
 
 variable {V : Type u₁} {C : Type u₂}
@@ -20,6 +21,22 @@ variable {V : Type u₁} {C : Type u₂}
   [PremonoidalCategory C] [SymmetricPremonoidalCategory C]
   [HasFiniteCoproducts V] [HasFiniteCoproducts C]
   [DistributiveTensor V] [DistributivePremonoidalCategory C]
+
+section Collective
+
+variable (J : Functor V C) [DistributiveFreydCategory J]
+  {τ : Type u₃} [TypeFormers τ] (M : TypeModel τ V)
+
+/-- In a nonempty block family, an arrow out of the context and internal
+label coproduct is determined by its restriction to each block. -/
+theorem collective_ext (n : Nat) (Γ : VCtx τ) (R : Fin (n + 1) → τ)
+    {Y : C} {f g : J.obj (ctxObj M Γ ⊗ finiteLabelObj M R) ⟶ Y}
+    (h : ∀ i, J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i) ≫ f =
+      J.map ((𝟙 (ctxObj M Γ)) ⊗ₘ finiteLabelInject M R i) ≫ g) :
+    f = g :=
+  collective_ext_proof J M n Γ R h
+
+end Collective
 
 section Term
 

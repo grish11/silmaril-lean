@@ -8,10 +8,10 @@ namespace Silmaril.Languages.Starlark.Lists
 
 def Heap.children (heap : Heap) (address : Address) : List Address :=
   match heap[address]? with
-  | some cell => cell.elements.filterMap Value.address?
+  | some cell => cell.contents.children
   | none => []
 
-/-- Reachability among live list cells, including roots. -/
+/-- Reachability among live heap cells, including roots. -/
 inductive Reaches (heap : Heap) (roots : List Address) : Address → Prop where
   | root {a : Address} : a < heap.size → a ∈ roots → Reaches heap roots a
   | child {a b : Address} :

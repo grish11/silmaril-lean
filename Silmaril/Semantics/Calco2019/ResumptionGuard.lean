@@ -14,23 +14,55 @@ namespace Silmaril.Calco2019
 open CategoryTheory
 
 variable {C : Type u} [Category.{v} C] {P : Coproducts C}
-  (M : ParametrizedGuardedElgotMonad P) (R : FinalResumptions M.toParametrizedMonad)
+
+/-- Guards for the parameter monads and their preservation along parameter maps. -/
+structure ParametrizedMonad.Guards (M : ParametrizedMonad C) (P : Coproducts C) where
+  guard (W : C) : MonadGuardedness P (M.obj W)
+  preserves {W V : C} (k : W ⟶ V) : MonadGuardedness.Preserves P (guard W) (guard V) (M.map k)
+
+namespace ParametrizedMonad.Guards
+
+variable {M : ParametrizedMonad C} (G : M.Guards P) (R : FinalResumptions M)
+
+abbrev guardedAt (W : C) {X Y Z : C} (f : X ⟶ (M.obj W).obj (P.sum Y Z)) : Prop :=
+  (G.guard W).guarded
+    (Y := Kleisli.mk (M.obj W) Y) (Z := Kleisli.mk (M.obj W) Z) (kleisliArrow f)
+
+/-- Definition 24. Guardedness is checked at the first observation of a resumption. -/
+def ResumptionGuard {X Y Z : C} (f : X ⟶ R.obj (P.sum Y Z)) : Prop :=
+  G.guardedAt (R.obj (P.sum Y Z)) (Y := Y) (Z := Z) (f ≫ R.out (P.sum Y Z))
+
+abbrev observedGuard {X Y Z : Kleisli (R.monad P)}
+    (f : X ⟶ (P.kleisli (R.monad P)).sum Y Z) : Prop :=
+  G.ResumptionGuard R (Y := Y.of) (Z := Z.of) f.of
+
+end ParametrizedMonad.Guards
+
+variable (M : ParametrizedGuardedElgotMonad P) (R : FinalResumptions M.toParametrizedMonad)
 
 namespace ParametrizedGuardedElgotMonad
 
+/-- Forget the chosen iteration and retain the guards of the parameter monads. -/
+def toGuards : M.toParametrizedMonad.Guards P where
+  guard W := (M.obj W).guard
+  preserves k := (M.map k).guarded
+
 /-- Guardedness in the Kleisli category at a particular parameter. -/
 abbrev guardedAt (W : C) {X Y Z : C} (f : X ⟶ (M.obj W).monad.obj (P.sum Y Z)) : Prop :=
-  (M.obj W).guard.guarded
-    (Y := Kleisli.mk (M.obj W).monad Y) (Z := Kleisli.mk (M.obj W).monad Z) (kleisliArrow f)
+  M.toGuards.guardedAt W (Y := Y) (Z := Z) f
 
-/-- Definition 24. A resumption map is guarded when its first observation is guarded. -/
+/-- The inherited guard on resumptions over a guarded Elgot family. -/
 def ResumptionGuard {X Y Z : C} (f : X ⟶ R.obj (P.sum Y Z)) : Prop :=
-  M.guardedAt (R.obj (P.sum Y Z)) (Y := Y) (Z := Z) (f ≫ R.out (P.sum Y Z))
+  M.toGuards.ResumptionGuard R (Y := Y) (Z := Z) f
 
 /-- Definition 24 as a predicate on the resumption Kleisli category. -/
 abbrev observedGuard {X Y Z : Kleisli (R.monad P)}
     (f : X ⟶ (P.kleisli (R.monad P)).sum Y Z) : Prop :=
-  M.ResumptionGuard R (X := X.of) (Y := Y.of) (Z := Z.of) f.of
+  M.toGuards.observedGuard R f
+
+/-- Both nested recursive summands are guarded after pure reassociation. -/
+def ResumptionNested {S X Y Z : C} (f : S ⟶ R.obj (P.sum (P.sum X Y) Z)) : Prop :=
+  M.ResumptionGuard R (Y := X) (Z := P.sum Y Z) (f ≫ (R.monad P).map P.assoc)
 
 /-- The inner iteration `♦ f` of Theorem 25, in the monad at the fixed resumption parameter. -/
 def diamond {X Y : C} (f : X ⟶ R.obj (P.sum Y X)) (hf : M.ResumptionGuard R (Y := Y) (Z := X) f) :

@@ -108,16 +108,9 @@ structure.  A plain `def`, not an `instance`: see the module docstring. -/
     Iteration (SynCat S) where
   iterate := iterate'
 
-/-- **The syntactic category is an Elgot category as soon as it has an initial
-object.**  The hypothesis `HasFiniteCoproducts` adds exactly one thing to the
-binary coproducts already proved: an initial object.  So this theorem pins
-down the whole remaining gap between the syntactic category and
-`CategoryTheory.ElgotCategory` — the three equations are done, the initial
-object is not.
-
-The hypothesis is **not known to be satisfiable** for `SynCat S`; see the
-module docstring and `Models/SynCoproduct.lean`.  Nothing downstream may
-therefore describe the syntactic category as an Elgot category. -/
+/-- Package the iteration laws for a supplied finite-coproduct structure.
+The `SyntacticCategory.Thms` header constructs this structure from the empty
+type and binary coproducts. -/
 theorem elgotCategory_of_hasFiniteCoproducts (S : Sig.{u})
     [HasFiniteCoproducts (SynCat S)] :
     @ElgotCategory (SynCat S) _ _ (iterationStructure S) := by

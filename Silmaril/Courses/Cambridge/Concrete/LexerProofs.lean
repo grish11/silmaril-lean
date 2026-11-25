@@ -6,8 +6,9 @@ public import Silmaril.Courses.Cambridge.Concrete.Lexer
 
 namespace Silmaril.Courses.Cambridge.Concrete
 
-/-- A token that has a spelling in the source vocabulary. -/
+/-- A token that has a spelling in the base L1/L2 vocabulary. -/
 def Token.Spellable : Token → Prop
+  | .keyword (.data _) => False
   | .location s => IsLocation s
   | .variable s => IsVariable s
   | _ => True
@@ -49,10 +50,10 @@ private theorem spell_token {token : Token} (h : token.Spellable) :
   cases token with
   | keyword k =>
     refine ⟨fun c hc => ?_, ?_⟩
-    · have h := show (Token.keyword k).chars.all (fun c => !whitespace c) = true by
-        cases k <;> decide
-      simpa using List.all_eq_true.mp h c hc
-    · cases k <;> decide
+    · have hs := show (Token.keyword k).chars.all (fun c => !whitespace c) = true by
+        cases k <;> first | exact h.elim | decide
+      simpa using List.all_eq_true.mp hs c hc
+    · cases k <;> first | exact h.elim | decide
   | punct p =>
     refine ⟨fun c hc => ?_, ?_⟩
     · have h := show (Token.punct p).chars.all (fun c => !whitespace c) = true by

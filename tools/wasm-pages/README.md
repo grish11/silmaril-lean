@@ -80,3 +80,27 @@ same pinned build to compare all framed Code body sizes and offsets with the
 map before checking the four names. The Wasm import and export names come
 from the module decoder. Proof links identify specific existing Lean
 statements. A name match alone gives no source, IR, or semantic correspondence.
+
+The generator also reads the [LLVM build receipt](../sqlite-wasm/llvm-provenance/receipt.json)
+when the reactor is enabled. Each linked row must match the reactor digest,
+import-first slot, and original Code frame offset and length. The name must
+agree with the decoded export or the C annotation. The page's source
+metadata supplies the receipt's Git revision.
+The function page shows the early bitcode symbol and digest under
+“LLVM build provenance”. The receipt records build stages and symbol
+associations. The Lean links continue to identify their own statements.
+
+The following check generates a default site and opt-in receipt controls in
+a fresh directory. It changes the exported version getter's offset and
+length independently and together while preserving its name, digest and slot.
+
+```sh
+python3 -B tools/wasm-pages/check-sqlite-llvm-links.py \
+  .lake/build/bin/wasm-pages "$WORK/sqlite3.wasm" "$WORK/receipt-controls"
+```
+
+After adding the Explorer page and project database to a generated site, run
+`sqlite_reactor.mjs` against it. For a bad-export control, set
+`SQLITE_REACTOR_LLVM_289=absent` and `SQLITE_REACTOR_LLVM_530=present` to
+check that the version getter keeps its Lean link and lazy CFG, and that the
+writer still links to the receipt.

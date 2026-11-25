@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Raw.Semantics.Categories.Freyd.Basic
+public import Silmaril.Semantics.Categories.Freyd.CentralUnit.Thms
 public import Silmaril.Raw.Semantics.Categories.Freyd.Distributive
 public import Silmaril.Raw.Semantics.Categories.Freyd.Elgot
 public import Silmaril.Raw.Semantics.Categories.Monad.Elgot

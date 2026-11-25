@@ -149,6 +149,11 @@ apply only to the reviewed digest.
   The name comes from the linked amalgamation object in the pinned build map.
 - Optional `leanEvidence` on a function and `decodeEvidence` on the module
   have `revision`, `path`, and `declaration`. These are references to the
-  checked source declarations. A future IR association needs its own evidence
-  and a reference to the existing IR artifact or registry record ID at a pinned
-  revision. This pilot contains no such association.
+  checked source declarations.
+- Optional `llvmReceipt` on the module has `wasmSha256`, `bitcodeSha256`,
+  and `symbols`, an object keyed by decimal Wasm slot. It projects the
+  landed build receipt for matching reactor bytes and defined slots. Every
+  selected row must match the Code frame's absolute offset and length,
+  including the size prefix, and the decoded export or linker-map alias.
+  The renderer links to the receipt at the page's source
+  revision and shows its early bitcode symbol and digest as build provenance.

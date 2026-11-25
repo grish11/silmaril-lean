@@ -61,6 +61,7 @@ mutual
     | comparison (left : Expr) (rest : List (Comparison × Expr))
     | call (callee : Expr) (arguments : List Expr)
     | callWith (callee : Expr) (arguments : List (ArgumentKind × Expr))
+    | starred (value : Expr)
     | attribute (receiver : Expr) (field : Name)
     | subscript (receiver index : Expr)
     | slice (receiver : Expr) (lower upper stride : Option Expr)

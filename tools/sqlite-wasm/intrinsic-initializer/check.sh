@@ -15,7 +15,8 @@ if [[ $(basename "$src") != SqliteWasm || ! -f "$src/WholeModule.olean" ]]; then
   exit 2
 fi
 
-lake build --wfail +Silmaril.Wasm.Execution.Core.Intrinsic.Thms
+lake build --wfail +Silmaril.Wasm.Execution.Core.Intrinsic.Thms \
+  +Silmaril.Wasm.ModuleParts.Defs
 cp "$tool/IntrinsicInitializer.lean" "$src/"
 cp "$tool/ImportCheck.lean" "$src/IntrinsicInitializerImportCheck.lean"
 

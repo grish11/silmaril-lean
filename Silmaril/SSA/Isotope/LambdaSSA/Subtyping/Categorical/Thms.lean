@@ -65,6 +65,16 @@ theorem denoteRegion_spec (h : Region.HasType Γ r L) :
     RegionDenotes J M h (denoteRegion J M h) :=
   (regionDenotes_exists J M h).choose_spec
 
+/-- The structural equations determine an arrow for each fixed subtyped region derivation. -/
+theorem RegionDenotes.unique {h : Region.HasType Γ r L}
+    {f g : J.obj (ctxObj (exactTypeModel M) Γ) ⟶ J.obj (labelObj (exactTypeModel M) L)}
+    (d : RegionDenotes J M h f) (e : RegionDenotes J M h g) : f = g :=
+  regionDenotes_unique_proof J M d e
+
+/-- A subtyped derivation fixes all expression coercions and block types. -/
+theorem regionTypingCoherent : RegionTypingCoherent (Φ := Φ) J M :=
+  ⟨RegionDenotes.unique J M⟩
+
 /-- Under region coherence the structural denotation is the chosen arrow. -/
 theorem RegionDenotes.eq_denote [RegionTypingCoherent (Φ := Φ) J M]
     {h : Region.HasType Γ r L}

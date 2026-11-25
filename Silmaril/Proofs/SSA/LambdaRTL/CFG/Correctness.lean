@@ -167,34 +167,50 @@ theorem jump_append_of_ne (m : Model F M α) {k : K} :
 
 variable [LawfulMonad M]
 
+/-- Relabelling commutes with jump when target-to-block comparisons are preserved. -/
+private theorem jump_relabel_of_lookup [DecidableEq K']
+    (m : Model F M α) (rename : K → K') (labels : List K) :
+    ∀ (blocks : List (K × Block V K F)), (∀ k ∈ blockLabels blocks, k ∈ labels) →
+      (∀ target ∈ labels, ∀ block ∈ blocks, rename target = rename block.1 → target = block.1) →
+      ∀ (k : K) (a : α) (σ : V → α), k ∈ labels →
+        jump m (blocks.map fun block => (rename block.1, block.2.relabel rename)) (rename k) a σ =
+          (fun e => (rename e.1, e.2)) <$> jump m blocks k a σ
+  | [], _, _, k, a, σ, _ => by simp [jump]
+  | block :: tail, belongs, lookup, k, a, σ, hk => by
+      have tailBelongs : ∀ k ∈ blockLabels tail, k ∈ labels := fun k hk' => belongs k (by
+        simp only [blockLabels, List.flatMap_cons, List.mem_append] at hk' ⊢
+        exact Or.inr hk')
+      have tailLookup : ∀ t ∈ labels, ∀ b ∈ tail, rename t = rename b.1 → t = b.1 :=
+        fun t ht b hb => lookup t ht b (by simp [hb])
+      have targets : ∀ t ∈ block.2.body.targets, t ∈ labels := fun t ht => belongs t (by
+        simp only [blockLabels, List.flatMap_cons, List.mem_append, List.mem_cons]
+        exact Or.inl (Or.inr ht))
+      by_cases same : k = block.1
+      · subst k
+        rw [List.map_cons, ← Prod.mk.eta (p := block), jump_cons_self, jump_cons_self]
+        simp only [Block.relabel]
+        rw [Body.exec_relabel, ← Body.exec_map]
+        apply Body.exec_congr
+        intro t ht
+        funext input store
+        exact jump_relabel_of_lookup m rename labels tail tailBelongs tailLookup t input store (targets t ht)
+      · have different : rename k ≠ rename block.1 := fun equal => same (lookup k hk block (by simp) equal)
+        rw [List.map_cons, ← Prod.mk.eta (p := block), jump_cons_ne m same, jump_cons_ne m different]
+        exact jump_relabel_of_lookup m rename labels tail tailBelongs tailLookup k a σ hk
+
 /-- **Relabelling** commutes with `jump`, given injectivity on the labels in play. -/
 theorem jump_relabel (m : Model F M α) (π : K → K') [DecidableEq K'] (S : List K)
     (hinj : ∀ a ∈ S, ∀ b ∈ S, π a = π b → a = b) :
     ∀ (bs : List (K × Block V K F)), (∀ k ∈ blockLabels bs, k ∈ S) →
       ∀ (k : K) (a : α) (σ : V → α), k ∈ S →
         jump m (bs.map fun kb => (π kb.1, kb.2.relabel π)) (π k) a σ =
-          (fun e => (π e.1, e.2)) <$> jump m bs k a σ
-  | [], _, k, a, σ, _ => by simp [jump]
-  | kb :: bs, hS, k, a, σ, hk => by
-      have hS' : ∀ k ∈ blockLabels bs, k ∈ S := fun k hk' => hS k (by
-        simp only [blockLabels, List.flatMap_cons, List.mem_append] at hk' ⊢
-        exact Or.inr hk')
-      have hkb : kb.1 ∈ S := hS kb.1 (by simp [blockLabels])
-      have ht : ∀ t ∈ kb.2.body.targets, t ∈ S := fun t ht => hS t (by
-        simp only [blockLabels, List.flatMap_cons, List.mem_append, List.mem_cons]
-        exact Or.inl (Or.inr ht))
-      by_cases h : k = kb.1
-      · subst h
-        rw [List.map_cons, ← Prod.mk.eta (p := kb), jump_cons_self, jump_cons_self]
-        simp only [Block.relabel]
-        rw [Body.exec_relabel, ← Body.exec_map]
-        apply Body.exec_congr
-        intro t htt
-        funext a' σ'
-        exact jump_relabel m π S hinj bs hS' t a' σ' (ht t htt)
-      · rw [List.map_cons, ← Prod.mk.eta (p := kb), jump_cons_ne m h,
-          jump_cons_ne m (fun h' => h (hinj _ hk _ hkb h'))]
-        exact jump_relabel m π S hinj bs hS' k a σ hk
+          (fun e => (π e.1, e.2)) <$> jump m bs k a σ := by
+  intro blocks belongs k a σ hk
+  apply jump_relabel_of_lookup m π S blocks belongs _ k a σ hk
+  intro target ht block hb sameLabel
+  exact hinj target ht block.1 (belongs _ (by
+    simp only [blockLabels, List.mem_flatMap]
+    exact ⟨block, hb, by simp⟩)) sameLabel
 
 end Jump
 
@@ -225,17 +241,33 @@ theorem run_eq_toRegion (m : Model F M α) (g : CFG V K F) (σ : V → α) :
   simp only [CFG.run, CFG.toRegion]
   rw [joinAll_evalRTL, Body.exec_eq]
 
-theorem run_relabel {K' : Type w} [DecidableEq K'] (m : Model F M α) (π : K → K')
-    (g : CFG V K F) (hinj : ∀ a ∈ g.labels, ∀ b ∈ g.labels, π a = π b → a = b)
-    (σ : V → α) :
-    (g.relabel π).run m σ = (fun e => (π e.1, e.2)) <$> g.run m σ := by
+private theorem run_relabel_of_lookup {K' : Type w} [DecidableEq K']
+    (m : Model F M α) (rename : K → K') (graph : CFG V K F) (σ : V → α)
+    (lookup : ∀ target ∈ graph.labels, ∀ block ∈ graph.blocks,
+      rename target = rename block.1 → target = block.1) :
+    (graph.relabel rename).run m σ = (fun outcome => (rename outcome.1, outcome.2)) <$> graph.run m σ := by
   simp only [CFG.run, CFG.relabel]
   rw [Body.exec_relabel, ← Body.exec_map]
   apply Body.exec_congr
-  intro t ht
-  funext a σ'
-  exact jump_relabel m π g.labels hinj g.blocks
-    (fun k hk => by simp [CFG.labels, hk]) t a σ' (by simp [CFG.labels, ht])
+  intro target belongs
+  funext input store
+  exact jump_relabel_of_lookup m rename graph.labels graph.blocks
+    (fun k hk => by simp [CFG.labels, hk]) lookup target input store (by simp [CFG.labels, belongs])
+
+theorem run_relabel {K' : Type w} [DecidableEq K'] (m : Model F M α) (π : K → K')
+    (g : CFG V K F) (hinj : ∀ a ∈ g.labels, ∀ b ∈ g.labels, π a = π b → a = b)
+    (σ : V → α) :
+    (g.relabel π).run m σ = (fun e => (π e.1, e.2)) <$> g.run m σ :=
+  run_relabel_of_lookup m π g σ fun target ht block hb sameLabel =>
+    hinj target ht block.1 (by
+      simp only [CFG.labels, List.mem_append, blockLabels, List.mem_flatMap]
+      exact Or.inr ⟨block, hb, by simp⟩) sameLabel
+
+theorem run_relabel_of_check {K' : Type w} [DecidableEq K'] (m : Model F M α) (rename : K → K')
+    (graph : CFG V K F) (σ : V → α) (accepted : graph.relabelLookupCheck rename = true) :
+    (graph.relabel rename).run m σ = (fun out => (rename out.1, out.2)) <$> graph.run m σ := by
+  simp only [CFG.relabelLookupCheck, List.all_eq_true, decide_eq_true_eq] at accepted
+  exact run_relabel_of_lookup m rename graph σ accepted
 
 end ToRegion
 

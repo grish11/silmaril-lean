@@ -186,6 +186,21 @@ theorem collectiveDenotes_exists_succ (n : Nat) (Γ : VCtx τ)
   refine ⟨fun p => block p.2.1 (p.1, p.2.2), ⟨fun i ρ a => ?_⟩⟩
   rfl
 
+/-- Run the entry and follow internal destinations until the control flow exits. -/
+noncomputable def cfgDenotation {Γ : VCtx τ} {n : Nat} {R : Fin n → τ} {L : LCtx τ}
+    (fe : Env Γ → m (LabelDen (List.ofFn R ++ L)))
+    (collective : Env Γ × FiniteLabelDen R → m (LabelDen (List.ofFn R ++ L))) :
+    Env Γ → m (LabelDen L) :=
+  fun ρ => fe ρ >>= fun target =>
+    match (Types.binaryCoproductIso (LabelDen L)
+      (LabelDen (List.ofFn R))).hom (labelAppendSplit (List.ofFn R) L target) with
+    | .inl external => pure external
+    | .inr loopTarget => Silmaril.Elgot.iter (m := m) (fun current =>
+        collective (ρ, labelDenToFinite R current) >>= fun next =>
+          pure ((Types.binaryCoproductIso (LabelDen L)
+            (LabelDen (List.ofFn R))).hom
+              (labelAppendSplit (List.ofFn R) L next))) loopTarget
+
 /-- Relational graph of the direct monadic region semantics.  Recursive CFGs
 feed locally targeted branches back through `iter`; externally targeted
 branches are returned. -/
@@ -234,15 +249,7 @@ inductive RegionDenotes (ε : Type r) [HasEff Φ ε] [Bot ε]
       (de : RegionDenotes ε he fe)
       (db : ∀ i, RegionDenotes ε (hb i) (fb i))
       (dc : CollectiveDenotes Γ R L fb collective) :
-      RegionDenotes ε (.cfg R he hb) (fun ρ => fe ρ >>= fun target =>
-        match (Types.binaryCoproductIso (LabelDen L)
-          (LabelDen (List.ofFn R))).hom (labelAppendSplit (List.ofFn R) L target) with
-        | .inl external => pure external
-        | .inr loopTarget => Silmaril.Elgot.iter (m := m) (fun current =>
-            collective (ρ, labelDenToFinite R current) >>= fun next =>
-              pure ((Types.binaryCoproductIso (LabelDen L)
-                (LabelDen (List.ofFn R))).hom
-                  (labelAppendSplit (List.ofFn R) L next))) loopTarget)
+      RegionDenotes ε (.cfg R he hb) (cfgDenotation fe collective)
 
 omit [LawfulMonad m] [LawfulElgotMonad m] in
 theorem regionDenotes_exists {Γ : VCtx τ} {region : Region Φ}

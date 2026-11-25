@@ -1,13 +1,12 @@
 # Cambridge L1 and L2 concrete syntax
 
 `Silmaril.Courses.Cambridge.L1.Concrete` and
-`Silmaril.Courses.Cambridge.L2.Concrete` parse and print a grouped UTF-8 source
-profile of Peter Sewell’s 12 February 2026 Part IB notes. The term constructors
-and types come from the collected definitions in §§2.3 and 4.6. The notes use
-parentheses to disambiguate abstract syntax (§3.1). This profile requires
-grouping for nested compound terms and types, so an infix or application
-chain needs explicit grouping even where the notes give a precedence rule.
-[Lecture notes, pp. 29–30, 35–36, 49–50 and 65–67](https://www.cl.cam.ac.uk/teaching/2526/Semantics/notes.pdf)
+`Silmaril.Courses.Cambridge.L2.Concrete` parse UTF-8 source and print
+canonical grouped bytes for Peter Sewell’s 12 February 2026 Part IB notes. The terms and types come from the collected
+definitions in §§2.3 and 4.6. The concrete profiles also read ordinary
+ungrouped input, including the L1 program on p. 13 and the curried L2
+application on p. 49.
+[Lecture notes](https://www.cl.cam.ac.uk/teaching/2526/Semantics/notes.pdf)
 
 ## Lexical conventions
 
@@ -26,37 +25,47 @@ chain needs explicit grouping even where the notes give a precedence rule.
 
 ## Grammar and binding
 
-A whole input is one group body. Parentheses make a group body into an
-expression or type for use inside a larger production. Parenthesized atoms
-and redundant groups are allowed.
+The parser consumes one complete expression or type. Parentheses group a
+subexpression or a type without adding an AST node. Both languages use
+`int`, `bool` and `unit`. L2 adds arrows. The `intref` notation describes
+location typing judgments and has no expression type production.
 
-```text
-expr        ::= numeral | minus numeral | true | false | skip | ! location
-              | variable                                    (L2)
-              | ( group-body )
-group-body  ::= expr
-              | expr + expr | expr ≥ expr | expr ; expr
-              | if expr then expr else expr
-              | location := expr
-              | while expr do expr done
-              | expr expr                                   (L2)
-              | fun variable : type → expr                   (L2)
-              | let variable : type = expr in expr           (L2)
-              | let rec variable : type → type =
-                  ( fun variable : type → expr ) in expr    (L2)
-type        ::= int | bool | unit | ( type-body )
-type-body   ::= type | type → type                           (arrow in L2)
-```
+From tightest to loosest, the expression levels are:
 
-The repeated parameter annotation in `let rec` must agree with the domain
-annotation. Any other typing or store conditions are checked separately.
-`intref` is the notes’ location typing judgment vocabulary. Term type
-annotations use the expression type grammar above.
+| Level | Binding |
+| --- | --- |
+| Atoms and `!location` | Dereference requires a location. A bare location is inadmissible as an expression. |
+| Application (L2) | Left-associative juxtaposition. Group a compound keyword form such as a lambda when it follows a function as an argument. |
+| `+` | One ungrouped addition per level. |
+| `≥` | One ungrouped comparison per level. |
+| `location := expression` | The target is a location. Assignment binds tighter than sequence. Group nested assignments. |
+| `;` | Right-associative sequence. |
 
-For example, `while (!l0 ≥ 0) do (l0 := (!l0 + −1)) done` parses as L1.
-`fun x : int → (x + 1)` parses as L2. Write `((f x) y)` for nested
-application and `int → (bool → int)` for the corresponding arrow nesting
-in a standalone type.
+The notes state that application associates left, type arrows associate
+right, and a lambda body extends as far right as delimiters permit (p. 49).
+They mark `1 + 2 + 3` as ambiguous (p. 35). The remaining precedence table
+is a parser convention, including the grouping requirement for chained
+comparison, the relative binding of arithmetic and application, and the
+association of sequence. The order of assignment and sequence agrees with
+the opening L1 example (p. 13). The supplementary SML parser uses its
+own concrete dialect, including `fn` and `let val`.
+[Supplementary SML grammar](https://www.cl.cam.ac.uk/teaching/2526/Semantics/L2/Parser.grm)
+
+Keyword forms can begin an operand. The test and arms of an `if` stop at
+`then`, `else` and the enclosing delimiter. The nearest conditional consumes
+its own `else`. A loop uses `do` and `done` to delimit its operands. The
+value in a `let x : type = value in body` stops at `in`. The body extends to the
+enclosing delimiter. For example, `x + let x:int = x in (x + 2)`
+parses with the definition as the right operand (p. 60). In a lambda,
+`fun x:int → int → x` gives the binder an arrow type and uses the last
+arrow as the term delimiter. Parentheses can also mark the annotation
+explicitly.
+
+The course’s typed recursive form is
+`let rec f : domain → codomain = (fun x : domain → body) in result`.
+The repeated annotation must equal the parsed domain. The right-hand
+side must be a parenthesized lambda. Other typing and store conditions
+are checked separately.
 
 L1 `parse` returns `L1.Expr`. L2 `parse` returns `L2.RawExpr`, with
 binder spellings intact. L2 `parseResolved` applies the existing
@@ -77,9 +86,11 @@ and `printType_injective` give the corresponding contracts for expression
 types. L2 also proves `parseResolved_print`. Parsing discards whitespace and
 grouping choices.
 
-The shared tokenizer feeds an AST-directed parser with full-input checks.
-L1 recursively restricts the shared result to the imperative fragment. Using
-one production implementation keeps the shared L1/L2 syntax in sync.
+The public parser tries the explicitly grouped reader first and the
+precedence reader on a miss, both with a full-input check. The round-trip
+theorems establish compatibility for the complete canonical printer
+domain. L1 recursively restricts the shared L2 result to its imperative
+fragment.
 
 ```sh
 lake build --wfail +Silmaril.Courses.Cambridge.L1.Concrete \
@@ -89,5 +100,6 @@ lake build --wfail +Silmaril.Courses.Cambridge.L1.Concrete \
 
 [Byte regressions](../../Silmaril/Courses/Cambridge/Concrete/Examples.lean)
 exercise both entry points on actual UTF-8 and malformed byte arrays. They
-check grouping, token boundaries, binder resolution, recursive annotation
-agreement, canonically printed text and rejection of L2 forms by L1.
+check grouping, associativity, token and binder boundaries, recursive
+annotation agreement, canonically printed text and rejection of L2 forms
+by L1.

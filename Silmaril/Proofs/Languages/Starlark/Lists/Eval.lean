@@ -19,14 +19,35 @@ private theorem runMap {α β : Type} (f : α → β) (first : Meaning α) (stat
 
 theorem denote_eq_of_eval {α : Type} {s : State} {code : Code α} {out : Outcome α}
     (h : Eval s code out) : denote code s = out := by
-  induction h <;> simp_all [denote, runBind, runMap, Outcome.resume] <;> rfl
+  induction h <;> simp_all [denote, runBind, runMap, Outcome.resume]
+  case appendTargetError value _ _ _ =>
+    cases value <;> simp_all <;> rfl
+  all_goals rfl
 
 theorem eval_denote {α : Type} (code : Code α) (state : State) :
     Eval state code (denote code state) := by
   induction code generalizing state with
   | scalar => exact .scalar
+  | builtin => exact .builtin
+  | string => exact .string
   | read => exact .read
   | list elements ih => simpa [denote, runBind] using Eval.list (ih state)
+  | tuple elements ih => simpa [denote, runBind] using Eval.tuple (ih state)
+  | dict entries ih => simpa [denote, runBind] using Eval.dict (ih state)
+  | noEntries => exact .noEntries
+  | entry earlier key value ihPrefix ihKey ihValue =>
+    cases hp : denote earlier state with
+    | error error next =>
+      simpa [denote, runBind, Outcome.resume, hp] using
+        Eval.entryPrefixError (key := key) (value := value) (hp ▸ ihPrefix state)
+    | ok entries next =>
+      cases hk : denote key next with
+      | error error after =>
+        simpa [denote, runBind, Outcome.resume, hp, hk] using
+          Eval.entryKeyError (value := value) (hp ▸ ihPrefix state) (hk ▸ ihKey next)
+      | ok k after =>
+        simpa [denote, runBind, Outcome.resume, hp, hk] using
+          Eval.entry (hp ▸ ihPrefix state) (hk ▸ ihKey next) (ihValue after)
   | empty => exact .empty
   | cons head tail ihHead ihTail =>
     cases h : denote head state with
@@ -49,9 +70,9 @@ theorem eval_denote {α : Type} (code : Code α) (state : State) :
         Eval.appendReceiverError (argument := argument) (h ▸ ihReceiver state)
     | ok value next =>
       cases value with
-      | scalar value =>
+      | scalar | tuple | dict | function | builtin | string =>
         rw [denote, runBind, h]
-        exact Eval.appendTargetError (h ▸ ihReceiver state)
+        exact Eval.appendTargetError (h ▸ ihReceiver state) (by intro _ equality; cases equality)
       | list address =>
         simpa [denote, runBind, Outcome.resume, h] using
           Eval.append (h ▸ ihReceiver state) (ihArgument next)

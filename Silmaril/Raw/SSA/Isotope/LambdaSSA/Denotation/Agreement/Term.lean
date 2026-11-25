@@ -50,7 +50,7 @@ private theorem coprod_inv_inr_agrees (A B : τ) (b : TyDen B) :
       ((Types.binaryCoproductIso _ _).inv (.inr b))) = _
   simp
 
-private theorem coprod_hom_agrees (A B : τ) (e : TyDen (Silmaril.coprod A B)) :
+theorem coprod_hom_agrees (A B : τ) (e : TyDen (Silmaril.coprod A B)) :
     (Types.binaryCoproductIso ((Categorical.ofMonadicTypeModel (τ := τ)).obj A) ((Categorical.ofMonadicTypeModel (τ := τ)).obj B)).hom
       (((Categorical.ofMonadicTypeModel (τ := τ)).coprodIso A B).hom e) =
         TypeModel.coprodEquiv A B e := by
@@ -73,7 +73,7 @@ private theorem envPair_agrees {Γ : VCtx τ} {A B : τ} (ρ : Monadic.Env Γ)
     let p := TypeModel.productEquiv A B ab
     envToCategorical (Γ := B :: A :: Γ) ((ρ, p.1), p.2) := by rfl
 
-private theorem lookup_agrees {Γ : VCtx τ} {A : τ} (i : Nat) (h : At Γ i A)
+theorem lookup_agrees {Γ : VCtx τ} {A : τ} (i : Nat) (h : At Γ i A)
     (ρ : Monadic.Env Γ) :
     ((typeJ (m := m)).map (Categorical.lookup (Categorical.ofMonadicTypeModel (τ := τ)) i h)).of
         (envToCategorical ρ) = (pure (Monadic.Env.get ρ i h) : m _) := by

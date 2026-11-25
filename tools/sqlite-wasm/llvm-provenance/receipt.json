@@ -1,0 +1,80 @@
+{
+  "schema": "silmaril.sqlite-wasi-llvm-provenance.v1",
+  "source": {
+    "archive": {
+      "name": "sqlite-amalgamation-3540100.zip",
+      "bytes": 2990966,
+      "sha256": "0a9c8e34352dad46006aa82836d5383bff9dc6bc9ce5a60553c05aa30e6ad1f9"
+    },
+    "member": "sqlite-amalgamation-3540100/sqlite3.c",
+    "sourceSha256": "0c657666d819f261cc4007526ad57e1669de9949df7a8ea847aa284a2bf0ee52",
+    "sharedDefinition": {
+      "symbol": "sqlite3_libversion_number",
+      "offset": 6913879,
+      "bytes": 79,
+      "sha256": "7cc67a0904f3480b405d774ce92af482c7c4f5e8ff92f49e399190d1eb087181",
+      "nativeManifest": "corpus/sqlite/equivalence/native-compilers/manifest.json",
+      "nativeRecord": "silmaril.corpus.sqlite.native_compilers.libversion_number"
+    }
+  },
+  "sdk": {
+    "name": "wasi-sdk-30.0-x86_64-linux.tar.gz",
+    "bytes": 119449290,
+    "sha256": "0507679dff16814b74516cd969a9b16d2ced1347388024bc7966264648c78bfb"
+  },
+  "commands": {
+    "name": "clang-stages.txt",
+    "bytes": 4847,
+    "sha256": "f1d945d8ce48e6f0581825318f67464ea7c3fb915cfdfd0d01f40e97021673e1"
+  },
+  "stages": {
+    "sqlite3.bc": {
+      "bytes": 2767256,
+      "sha256": "de34383ef8411d874bbaa728636a3ec21c8d6274506944037938eae16d3e6575"
+    },
+    "sqlite3.o": {
+      "bytes": 958931,
+      "sha256": "3819b94ef951b6e9f198eb5fe6cd185986e69253b59a9fcabd7c09aea941fc8a"
+    },
+    "sqlite3.wasm": {
+      "bytes": 741717,
+      "sha256": "8932b867f5dbf0ad4e07f090cda52cf291829b3d51368cbd509b7c00be819c57"
+    }
+  },
+  "inventory": {
+    "functionImports": 23,
+    "linkedCodeFrames": 1533
+  },
+  "symbols": [
+    {
+      "symbol": "sqlite3GetVarint32",
+      "wasmSlot": 231,
+      "codeOffset": 107791,
+      "codeBytes": 180
+    },
+    {
+      "symbol": "sqlite3_libversion_number",
+      "wasmSlot": 289,
+      "codeOffset": 150488,
+      "codeBytes": 8
+    },
+    {
+      "symbol": "sqlite3GetVarint",
+      "wasmSlot": 434,
+      "codeOffset": 185629,
+      "codeBytes": 404
+    },
+    {
+      "symbol": "sqlite3PutVarint",
+      "wasmSlot": 530,
+      "codeOffset": 229748,
+      "codeBytes": 79
+    },
+    {
+      "symbol": "putVarint64",
+      "wasmSlot": 547,
+      "codeOffset": 233934,
+      "codeBytes": 218
+    }
+  ]
+}
