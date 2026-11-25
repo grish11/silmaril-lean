@@ -12,6 +12,7 @@ namespace Silmaril.Isotope.LetIter.Semantics.Categorical
 
 open CategoryTheory CategoryTheory.Limits
 open scoped MonoidalCategory
+open Silmaril.Isotope.LetIter.ProofRelevant.Semantics.Categorical (caseWithContext)
 open Silmaril.Isotope.LetIter.LocallyNameless (Derivation Tm)
 
 universe v₁ v₂ u₁ u₂ u₃ u₄ u₅
@@ -23,6 +24,14 @@ variable {V : Type u₁} {C : Type u₂}
   (J : V ⥤ C)
   [HasFiniteCoproducts V] [HasFiniteCoproducts C]
   [DistributiveTensor V] [DistributivePremonoidalCategory C]
+
+/-- A common continuation after a case can run inside either branch. -/
+theorem case_postcomp [DistributiveFreydCategory J] {R A B D E : V}
+    (e : J.obj R ⟶ J.obj (A ⨿ B))
+    (l : J.obj (R ⊗ A) ⟶ J.obj D) (r : J.obj (R ⊗ B) ⟶ J.obj D)
+    (k : J.obj D ⟶ J.obj E) :
+    caseWithContext J e l r ≫ k = caseWithContext J e (l ≫ k) (r ≫ k) :=
+  case_postcomp_proof J e l r k
 
 variable [Iteration C] [ElgotCategory C] [StrongElgotFreydCategory J]
   {τ : Type u₃} [TypeFormers τ] (M : TypeModel τ V)

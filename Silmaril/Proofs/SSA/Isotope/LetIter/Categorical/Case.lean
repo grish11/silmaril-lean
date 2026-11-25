@@ -64,7 +64,7 @@ private theorem case_inr_context {R A B D : V} (e : J.obj R ⟶ J.obj B)
     map_inr_inv_coprodComparison_assoc, coprod.inr_desc]
 
 
-private theorem case_postcomp {R A B D E : V} (e : J.obj R ⟶ J.obj (A ⨿ B))
+theorem case_postcomp_proof {R A B D E : V} (e : J.obj R ⟶ J.obj (A ⨿ B))
     (l : J.obj (R ⊗ A) ⟶ J.obj D) (r : J.obj (R ⊗ B) ⟶ J.obj D)
     (k : J.obj D ⟶ J.obj E) :
     caseWithContext J e l r ≫ k = caseWithContext J e (l ≫ k) (r ≫ k) := by
@@ -135,7 +135,7 @@ theorem denote_case_eta_proof [FreydCategory.CentralUnit J]
   change caseWithContext J (denote J M he ≫ J.map i.hom)
     (J.map (snd R (M.obj A)) ≫ J.map (coprod.inl ≫ i.inv))
     (J.map (snd R (M.obj B)) ≫ J.map (coprod.inr ≫ i.inv)) = _
-  rw [J.map_comp, J.map_comp, ← J.map_comp_assoc, ← J.map_comp_assoc, ← case_postcomp J]
+  rw [J.map_comp, J.map_comp, ← J.map_comp_assoc, ← J.map_comp_assoc, ← case_postcomp_proof J]
   rw [case_return_context J, Category.assoc, ← J.map_comp, i.hom_inv_id, J.map_id, Category.comp_id]
 
 end Silmaril.Isotope.LetIter.Semantics.Categorical
