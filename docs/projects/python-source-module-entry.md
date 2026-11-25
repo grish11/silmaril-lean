@@ -7,7 +7,8 @@ targets carry their name and exact access, including an explicit
 the runtime can give the defined lookup outcome.
 
 The plan contains single-name assignments and assertions in source order.
-Operands are integer literals and global reads. Bare `global` and `pass`
+Operands include signed integers, booleans, global reads, addition, floor
+division and a single equality comparison. Bare `global` and `pass`
 provide the corresponding scope and statement evidence. The plan supplies
 operations to the module runtime, which gives the initialized store and
 execution outcomes.
@@ -17,6 +18,14 @@ The regression emits Lean from Python source and verifies the global
 access witnesses, action order and the diagnostic for an assertion
 message.
 
+The source runner accepts an initial namespace and builds the Core module
+entry using the analyzed spelling of each name. Its correspondence law
+matches the exact completion, visible trace and residual namespace.
+The execution regression compares CPython and Lean on initialized reads,
+overwrites, assertion failure, an unbound read and arithmetic failure.
+[Runner contract](../../Silmaril/Languages/Python/Compile/ModuleEntry/Run/Thms.lean)
+
 ```sh
 make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Thms
+make check CHECK_TARGETS=+Silmaril.Languages.Python.Compile.ModuleEntry.Run.Thms
 ```
