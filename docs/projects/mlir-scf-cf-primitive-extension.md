@@ -32,11 +32,11 @@ require an account of their binders, terminators, successors, verifier constrain
 
 The matrix uses the operation inventory in the SCF and CF references and the corresponding
 TableGen definitions at LLVM revision `cc45e189bc99870d26d50c5e3a3d215068e74880`. The final
-column gives the boundary for a typed slice. [SCF reference](https://mlir.llvm.org/docs/Dialects/SCFDialect/) · [CF reference](https://mlir.llvm.org/docs/Dialects/ControlFlowDialect/) · [Pinned SCF definitions](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/SCF/IR/SCFOps.td) · [Pinned CF definitions](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/ControlFlow/IR/ControlFlowOps.td)
+column records the initial scalar coverage and the boundary for each typed slice. [SCF reference](https://mlir.llvm.org/docs/Dialects/SCFDialect/) · [CF reference](https://mlir.llvm.org/docs/Dialects/ControlFlowDialect/) · [Pinned SCF definitions](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/SCF/IR/SCFOps.td) · [Pinned CF definitions](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/include/mlir/Dialect/ControlFlow/IR/ControlFlowOps.td)
 
 | Operation | Upstream contract | Boundary for a typed slice |
 | --- | --- | --- |
-| `scf.condition` | The `while` before-region terminator tests an `i1` and forwards a tuple to the after-region or to the loop results. | Tie the tuple to the after-region arguments and loop results. |
+| `scf.condition` | The `while` before-region terminator tests an `i1` and forwards a tuple to the after-region or to the loop results. | The merged scalar slice types the tuple against the after-region arguments and loop results. [#3167][while-cf] |
 | `scf.execute_region` | Runs a region once, with no operands or entry arguments. It allows dominating captures and multiple blocks and exits. | Start with a single block and typed exit, then relate multiple blocks and captures to a typed CFG. |
 | `scf.for` | Counts over a half-open range with positive step and optional loop-carried arguments and results. | Specify bound arithmetic, overflow and the empty range. Tie the body's yielded values to the carried tuple. |
 | `scf.forall` | Invokes a multidimensional body across virtual threads with shared tensor outputs and implicit synchronization. | Start with a specified shared-output update and disjoint slices. Add effect order and target mapping separately. |
@@ -46,12 +46,12 @@ column gives the boundary for a typed slice. [SCF reference](https://mlir.llvm.o
 | `scf.parallel` | Iterates a multidimensional half-open index space in unspecified order and supports parallel execution. Its single body block ends in `scf.reduce`. Data races have undefined behavior. | Admit positive steps and the documented no-overflow condition. Separate independent pure contributions from shared effects. |
 | `scf.reduce` | Terminates the `parallel` body. Each operand and binary combiner region shares a type with the matching initial value and result. The order is unspecified. | Match each contribution, combiner and result slot. Model the allowed orders before proving order independence. |
 | `scf.reduce.return` | Exits a combiner region with one value of its reduction type. | Tie the returned type to the corresponding pair of combiner arguments. |
-| `scf.while` | Alternates two single-block regions. The initial operands go to the before-region, and the after-region sends the next inputs back. The before-region tuple and the loop results may have different types from the initial inputs. | Keep the before and after interfaces distinct. Account for looping and divergence. |
-| `scf.yield` | Returns a tuple at a structured region boundary. The parent decides the next destination, including the next iteration's before-region in `while`. | Type it against the parent-specific exit interface. |
-| `cf.assert` | Tests an `i1` with a message attribute. True continues and false aborts execution. | Use a sequenced effect and explicit abort observation. Decide whether the message is observed. |
-| `cf.br` | Transfers control and operands to one successor block. | Type the operand tuple against the successor's block arguments. |
-| `cf.cond_br` | Selects one of two successor edges using an `i1`. Each edge carries its own operands, and both may target the same block. | Type operand tuples per edge, including when the destinations coincide. |
-| `cf.switch` | Selects a successor by a signless integer selector and distinct case constants of the same type, with a mandatory default edge. | Check case uniqueness at the selector width and type every edge's operands against its destination. [Pinned CF verifier](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Dialect/ControlFlow/IR/ControlFlowOps.cpp#L713) |
+| `scf.while` | Alternates two single-block regions. The initial operands go to the before-region, and the after-region sends the next inputs back. The before-region tuple and the loop results may have different types from the initial inputs. | The merged scalar slice checks separate region interfaces and proves that CF lowering preserves and reflects finite returns and divergence. [#3167][while-cf] |
+| `scf.yield` | Returns a tuple at a structured region boundary. The parent decides the next destination, including the next iteration's before-region in `while`. | The merged scalar slice covers the after-region exit of `while`. Other parents need their own typed exit interfaces. [#3167][while-cf] |
+| `cf.assert` | Tests an `i1` with a message attribute. True continues and false aborts execution. | Reserved for the CF follow-on. Use a sequenced effect and explicit abort observation. Decide whether the message is observed. |
+| `cf.br` | Transfers control and operands to one successor block. | The merged scalar CFG types the operand tuple against the destination's block arguments. [#3167][while-cf] |
+| `cf.cond_br` | Selects one of two successor edges using an `i1`. Each edge carries its own operands. Both can target the same block, and neither can target the entry block. | The merged scalar CFG types operand tuples per edge and puts the entry outside the destination labels. [#3167][while-cf] |
+| `cf.switch` | Selects a successor by a signless integer selector and distinct case constants of the same type, with a mandatory default edge. | Reserved for the CF follow-on. Check case uniqueness at the selector width and type every edge's operands against its destination. [Pinned CF verifier](https://github.com/llvm/llvm-project/blob/cc45e189bc99870d26d50c5e3a3d215068e74880/mlir/lib/Dialect/ControlFlow/IR/ControlFlowOps.cpp#L713) |
 
 Natural subsets follow the interfaces in the matrix.
 
@@ -63,9 +63,10 @@ Natural subsets follow the interfaces in the matrix.
 - Parallel reduction uses `parallel`, `reduce` and `reduce.return`. `forall` and
   `forall.in_parallel` instead use a shared-output update interface and synchronization.
 
-The separate scalar while-to-CF slice checks finite return and divergence correspondence for
-`while`, its region terminators and the typed `br` and `cond_br` targets. It supplies an initial
-control-flow comparison for the matrix. [While-to-CF lowering](https://github.com/hiloopai/silmaril-lean/pull/3167)
+The scalar while-to-CF slice is on main at `8e0c832ace328d4c238f16fa84faa50c04f283d1`. Its
+observations are a result tuple or divergence on total deterministic scalar operations. [While-to-CF lowering][while-cf]
+
+[while-cf]: https://github.com/hiloopai/silmaril-lean/pull/3167
 
 ## Parallel and yield with LetIter
 
