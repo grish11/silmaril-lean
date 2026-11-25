@@ -53,9 +53,13 @@ theorem advance_view (state : Presentation slots) :
             rw [enter_view, Environment.Finite.view_insert]
             rfl
           exact congrArg (fun next => some (some (Event.write slot value), next)) projected
+        | branch yes no =>
+          exact congrArg (fun next => some (none, next))
+            (enter_view rows (if value = 0 then no else yes))
       | binary op left right => exact map_resume rows cont _
     | read slot => exact map_resume rows cont ((Rhs.read slot).reduce (Environment.Finite.view rows))
     | binary op left right => exact map_resume rows cont _
+    | logical op left right => exact map_resume rows cont _
   | raising rows error => rfl
   | finished rows result => rfl
 

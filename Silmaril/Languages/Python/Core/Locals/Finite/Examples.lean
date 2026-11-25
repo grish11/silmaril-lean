@@ -32,6 +32,22 @@ example : ∃ next, initial.advance = some (some (.write slot 17), next) ∧ nex
     key == slot && value == 17 && readKey == slot && rows.lookup slot == some 17 && rows.lookup 0 == none
   | _ => false
 
+private def choose (test : Rhs 2) : Presentation 2 :=
+  Presentation.enter (rowsOf written) (.branch test readCode (.ret (.arithmetic (.int 23))))
+
+#guard match (choose (.arithmetic (.int 0))).advance with
+  | some (none, .evaluating rows (.arithmetic (.int 23)) .ret) => rows.lookup slot == some 17
+  | _ => false
+
+-- A negative integer is true. The unbound right operand of 'or' stays unevaluated.
+#guard match (choose (.logical .or (.arithmetic (.int (-2))) (.read 0))).advance with
+  | some (none, next) =>
+    match next.advance with
+    | some (none, .evaluating rows (.read key) .ret) =>
+      key == slot && rows.lookup slot == some 17 && rows.lookup 0 == none
+    | _ => false
+  | _ => false
+
 private theorem runSome :
     (semantic 2).Execution initial.view [some (.write slot 17), none, some (.exit (.ok 17))]
       success [initial.view, afterWrite, afterRead, success] :=

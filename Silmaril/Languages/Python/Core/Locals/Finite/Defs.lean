@@ -44,6 +44,7 @@ def view : Presentation slots → State slots
 def enter (rows : Rows slots) : Code slots → Presentation slots
   | .ret rhs => .evaluating rows rhs .ret
   | .assign slot rhs rest => .evaluating rows rhs (.assign slot rest)
+  | .branch test yes no => .evaluating rows test (.branch yes no)
 
 def resume (rows : Rows slots) (cont : Continuation slots) :
     Except (Error slots) (Rhs slots) → Presentation slots
@@ -57,6 +58,7 @@ def advance : Presentation slots → Option (Option (Event slots) × Presentatio
     match cont with
     | .ret => some (some (.exit (.ok value)), .finished rows (.ok value))
     | .assign slot rest => some (some (.write slot value), enter (rows.insert slot value) rest)
+    | .branch yes no => some (none, enter rows (if value = 0 then no else yes))
   | .evaluating rows rhs cont =>
     (rhs.reduce (Environment.Finite.view rows)).map fun next => (none, resume rows cont next)
   | .raising rows error => some (some (.exit (.error error)), .finished rows (.error error))
