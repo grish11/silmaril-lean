@@ -2,7 +2,7 @@ module
 
 import Silmaril.SSA.MLIR.CF.SwitchAssert
 
-/-! Executable checks for typed switch edges and assertion outcomes. -/
+/-! Executable and static checks for CF edges and assertion outcomes. -/
 
 namespace Silmaril.MLIR.CF.SwitchAssert.Examples
 
@@ -17,6 +17,37 @@ private inductive Op : List Width → Width → Type where
 
 private def evalOp : Eval Op
   | _, _, .inc, .cons n .nil => n + 1
+
+private inductive JoinLabel : List Width → Type where
+  | join : JoinLabel [i8]
+
+/-- Both conditional edges target the join. Each passes a different input. -/
+private def sameTarget : CF.Cfg Op JoinLabel [i1, i8, i8] [i8] where
+  entry := .terminator (.condBr .here
+    ⟨.join, .cons (.there .here) .nil⟩
+    ⟨.join, .cons (.there (.there .here)) .nil⟩)
+  block | .join => .terminator (.ret (.cons .here .nil))
+
+private def joinInput (test : BitVec 1) : Env [i1, i8, i8] :=
+  .cons test (.cons 7 (.cons 19 .nil))
+
+example : sameTarget.run evalOp 2 (joinInput 1) = some (.cons 7 .nil) := rfl
+example : sameTarget.run evalOp 2 (joinInput 0) = some (.cons 19 .nil) := rfl
+example : (Cfg.embed sameTarget).run evalOp 2 (joinInput 1) =
+    some (.returned (.cons 7 .nil)) := rfl
+example : (Cfg.embed sameTarget).run evalOp 2 (joinInput 0) =
+    some (.returned (.cons 19 .nil)) := rfl
+
+example : True := by
+  fail_if_success have _wrongCount : Edge JoinLabel [i1, i8, i8] := ⟨.join, .nil⟩
+  fail_if_success
+    have _wrongWidth : Edge JoinLabel [i1, i8, i8] := ⟨.join, .cons .here .nil⟩
+  fail_if_success
+    have _entryTarget : Edge JoinLabel [i1, i8, i8] :=
+      { argsTy := [i1, i8, i8]
+        label := sameTarget.entry
+        args := .cons .here (.cons (.there .here) (.cons (.there (.there .here)) .nil)) }
+  trivial
 
 private inductive Label : List Width → Type where
   | matched : Label [i8]

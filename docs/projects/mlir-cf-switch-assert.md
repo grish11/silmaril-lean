@@ -47,13 +47,22 @@ Basic returns to `.returned`, and `Cfg.embed_diverges_iff` gives equivalence of
 divergence. This also applies to the Basic output of the checked
 [`scf.while` lowering](mlir-scf-while.md).
 
-`Silmaril.SSA.MLIR.CF.SwitchAssert.Examples` checks two `i65` matches that
-differ at bit 64, a default with a different argument profile, assertion
-success and failure, and divergence through a default-only `i1` switch. It
-also checks the width cap and bit-pattern duplication. Build the checks with
+`Silmaril.SSA.MLIR.CF.SwitchAssert.Examples` checks that `cf.cond_br` can pass
+different operand lists to the same successor, both in Basic and after
+embedding. The module also checks two `i65` matches that differ at bit 64, a
+default with a different argument profile, assertion success and failure,
+divergence through a default-only `i1` switch, the width cap, and duplicate
+bit patterns. Build the checks with
 `lake build --wfail +Silmaril.SSA.MLIR.CF.SwitchAssert.Examples`.
 
+The static checks reject a missing operand, an operand of the wrong width,
+and an attempt to target the entry. Each `CF.Edge` shares one type list
+between its label and its operands. Entry is a separate block field, while
+edges take values from the successor label family. The runner starts at
+`cfg.entry` and resolves each branch through `cfg.block label`.
+
 The model describes typed scalar CFG fragments with explicit argument passing
-and a separate entry. The return is a fragment boundary. Textual parsing,
-printing, full MLIR verification, general dominance, and runtime diagnostic
-behavior are outside the model.
+and a separate entry. The return is a fragment boundary. Flattening allocated
+nested CFGs is a separate stage. Textual parsing, printing, full MLIR
+verification, general dominance, and runtime diagnostic behavior are outside
+the model.
