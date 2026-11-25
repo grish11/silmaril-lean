@@ -286,7 +286,7 @@ theorem retainEnvironment_comp_proof {E X Y Z : V} (p : X ⟶ E)
     retainEnvironment J p (f ≫ g) = retainEnvironment J p f ≫ retainLeft J g := by
   simp only [retainEnvironment, retainLeft_comp, Category.assoc]
 
-theorem retainEnvironment_map {E X Y : V} (p : X ⟶ E) (f : X ⟶ Y) :
+theorem retainEnvironment_map_proof {E X Y : V} (p : X ⟶ E) (f : X ⟶ Y) :
     retainEnvironment J p (J.map f) = J.map (lift p f) := by
   rw [retainEnvironment, retainLeft_map, ← J.map_comp]
   congr 1
@@ -295,7 +295,7 @@ theorem retainEnvironment_map {E X Y : V} (p : X ⟶ E) (f : X ⟶ Y) :
 @[reassoc] theorem retainEnvironment_pre_proof {E X Y D : V} (q : D ⟶ X) (p : X ⟶ E)
     (f : J.obj X ⟶ J.obj Y) :
     J.map q ≫ retainEnvironment J p f = retainEnvironment J (q ≫ p) (J.map q ≫ f) := by
-  rw [retainEnvironment_comp_proof, retainEnvironment_map, retainEnvironment, ← J.map_comp_assoc]
+  rw [retainEnvironment_comp_proof, retainEnvironment_map_proof, retainEnvironment, ← J.map_comp_assoc]
   congr 2
   simp
 
@@ -352,7 +352,7 @@ private theorem capture_liftExit {E A B D : V}
     exact congrArg (retainEnvironment J (fst E A) k ≫ ·) (distributeMap_inl J E D B)
   · simp only [reassoc_of% hri]
     rw [retainEnvironment_pre_proof_assoc, CartesianMonoidalCategory.whiskerLeft_fst,
-      outR, retainEnvironment_map]
+      outR, retainEnvironment_map_proof]
     have prodMap :
         lift (fst E B) (snd E B ≫ (coprod.inr : B ⟶ D ⨿ B)) = E ◁ coprod.inr := by
       apply CartesianMonoidalCategory.hom_ext <;> simp
@@ -430,7 +430,7 @@ private theorem route_graph (E A B : V) :
   · have hinv : coprod.inl ≫ inv route = J.map (E ◁ (coprod.inl : A ⟶ A ⨿ B)) := by
       rw [← hl, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
     rw [← Category.assoc, hinv, retainEnvironment_pre_proof_assoc, CartesianMonoidalCategory.whiskerLeft_fst,
-      ← J.map_comp, δl, retainEnvironment_map]
+      ← J.map_comp, δl, retainEnvironment_map_proof]
     have graph : lift (fst E A) (coprod.inl : E ⊗ A ⟶ (E ⊗ A) ⨿ (E ⊗ B)) =
         lift (fst E A) (𝟙 _) ≫ (E ◁ coprod.inl) := by
       apply CartesianMonoidalCategory.hom_ext <;> simp
@@ -441,7 +441,7 @@ private theorem route_graph (E A B : V) :
   · have hinv : coprod.inr ≫ inv route = J.map (E ◁ (coprod.inr : B ⟶ A ⨿ B)) := by
       rw [← hr, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
     rw [← Category.assoc, hinv, retainEnvironment_pre_proof_assoc, CartesianMonoidalCategory.whiskerLeft_fst,
-      ← J.map_comp, δr, retainEnvironment_map]
+      ← J.map_comp, δr, retainEnvironment_map_proof]
     have graph : lift (fst E B) (coprod.inr : E ⊗ B ⟶ (E ⊗ A) ⨿ (E ⊗ B)) =
         lift (fst E B) (𝟙 _) ≫ (E ◁ coprod.inr) := by
       apply CartesianMonoidalCategory.hom_ext <;> simp
@@ -491,7 +491,7 @@ theorem bind_purePayload_proof {E B D : V} (k : J.obj (E ⊗ B) ⟶ J.obj D) :
     bindArrow J (J.map (snd E B)) (J.map (fst E B ▷ B) ≫ k) = k := by
   have h : lift (fst E B) (snd E B) = 𝟙 (E ⊗ B) := by
     apply CartesianMonoidalCategory.hom_ext <;> simp
-  rw [bind_retainEnvironment_proof, retainEnvironment_map, h, J.map_id, Category.id_comp]
+  rw [bind_retainEnvironment_proof, retainEnvironment_map_proof, h, J.map_id, Category.id_comp]
 
 private theorem case_exit_transform {R A B D : V}
     (f : J.obj (R ⊗ A) ⟶ J.obj (B ⨿ A)) (k : J.obj (R ⊗ B) ⟶ J.obj D) :
@@ -767,6 +767,77 @@ theorem contextualLoop_map_value_exit_proof {R A B S : V}
   rw [contextualLoop_eq_step, step, ← ElgotCategory.naturality, contextualLoop_eq_step,
     Category.assoc, Category.assoc, ← J.map_comp, ← J.map_comp,
     CartesianMonoidalCategory.whiskerLeft_snd]
+
+open CartesianMonoidalCategory in
+theorem contextualLoop_uniformity_of_diagonal_proof {R A X B : V}
+    (central : IsCentral (J.map (duplicate R) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) R R).inv))
+    (f : J.obj (R ⊗ A) ⟶ J.obj (B ⨿ A))
+    (g : J.obj (R ⊗ X) ⟶ J.obj (B ⨿ X)) (h : R ⊗ A ⟶ X)
+    (square :
+      caseWithContext J f
+        (J.map (snd (R ⊗ A) B ≫ (coprod.inl : B ⟶ B ⨿ X)))
+        (J.map ((fst R A ▷ A) ≫ h ≫ (coprod.inr : X ⟶ B ⨿ X))) =
+      J.map (lift (fst R A) h) ≫ g) :
+    contextualLoop J f = J.map (lift (fst R A) h) ≫ contextualLoop J g := by
+  let p := fst R A
+  let q := lift p h
+  let route := routeEnvironment J R B A
+  let l : R ⊗ B ⟶ B ⨿ X := snd R B ≫ coprod.inl
+  let r : R ⊗ A ⟶ B ⨿ X := h ≫ coprod.inr
+  let φ := route ≫ coprod.desc (J.map l) (J.map r)
+  have : IsIso route := by dsimp only [route, routeEnvironment, splitMapCoprod]; infer_instance
+  have hl : J.map (R ◁ (coprod.inl : B ⟶ B ⨿ A)) ≫ route = coprod.inl := distributeMap_inl J R B A
+  have hr : J.map (R ◁ (coprod.inr : A ⟶ B ⨿ A)) ≫ route = coprod.inr := distributeMap_inr J R B A
+  have hl' : coprod.inl ≫ inv route = J.map (R ◁ (coprod.inl : B ⟶ B ⨿ A)) := by
+    rw [← hl, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+  have hr' : coprod.inr ≫ inv route = J.map (R ◁ (coprod.inr : A ⟶ B ⨿ A)) := by
+    rw [← hr, Category.assoc, IsIso.hom_inv_id, Category.comp_id]
+  have φl : J.map (R ◁ (coprod.inl : B ⟶ B ⨿ A)) ≫ φ = J.map l := by
+    rw [show φ = route ≫ coprod.desc (J.map l) (J.map r) from rfl, reassoc_of% hl, coprod.inl_desc]
+  have φr : J.map (R ◁ (coprod.inr : A ⟶ B ⨿ A)) ≫ φ = J.map r := by
+    rw [show φ = route ≫ coprod.desc (J.map l) (J.map r) from rfl, reassoc_of% hr, coprod.inr_desc]
+  have liftComp {S T U : V} (a : S ⟶ R) (b : S ⟶ T) (c : T ⟶ U) :
+      lift a (b ≫ c) = lift a b ≫ (R ◁ c) := by
+    apply CartesianMonoidalCategory.hom_ext <;> simp
+  have leftRoute : J.map (R ◁ (coprod.inl : B ⟶ B ⨿ X)) ≫ routeEnvironment J R B X = coprod.inl :=
+    distributeMap_inl J R B X
+  have rightRoute : J.map (R ◁ (coprod.inr : X ⟶ B ⨿ X)) ≫ routeEnvironment J R B X = coprod.inr :=
+    distributeMap_inr J R B X
+  have liftLR : retainEnvironment J (fst R (B ⨿ A)) φ ≫ routeEnvironment J R B X =
+      route ≫ coprod.map (𝟙 (J.obj (R ⊗ B))) (J.map q) := by
+    apply (cancel_epi (inv route)).mp
+    rw [IsIso.inv_hom_id_assoc]
+    apply coprod.hom_ext
+    · have idPair : lift (fst R B) (snd R B) = 𝟙 (R ⊗ B) := by
+        apply CartesianMonoidalCategory.hom_ext <;> simp
+      rw [← Category.assoc, hl', retainEnvironment_pre_proof_assoc, CartesianMonoidalCategory.whiskerLeft_fst,
+        φl, retainEnvironment_map_proof, show l = snd R B ≫ coprod.inl from rfl, liftComp,
+        idPair, Category.id_comp, leftRoute, coprod.inl_map, Category.id_comp]
+    · rw [← Category.assoc, hr', retainEnvironment_pre_proof_assoc, CartesianMonoidalCategory.whiskerLeft_fst,
+        φr, retainEnvironment_map_proof, show r = h ≫ coprod.inr from rfl, liftComp, J.map_comp_assoc,
+        rightRoute, coprod.inr_map]
+  have left : J.map (snd (R ⊗ A) B ≫ (coprod.inl : B ⟶ B ⨿ X)) =
+      J.map (p ▷ B) ≫ J.map l := by
+    rw [← J.map_comp]
+    simp [p, l]
+  have factor : retainEnvironment J p f ≫ φ = J.map q ≫ g := by
+    have right : J.map ((fst R A ▷ A) ≫ h ≫ (coprod.inr : X ⟶ B ⨿ X)) =
+        J.map (p ▷ A) ≫ J.map r := by rw [← J.map_comp]
+    rw [← square, left, right, case_eq_distribute, ← coprod.map_desc,
+      distributeEnv_pre_assoc]
+    change _ = bindArrow J f (J.map (p ▷ (B ⨿ A)) ≫ φ)
+    rw [bind_retainEnvironment_proof]
+  have project : q ≫ fst R X = p := lift_fst _ _
+  have simulates : contextualStep J f ≫ coprod.map (𝟙 _) (J.map q) =
+      J.map q ≫ contextualStep J g := by
+    change (retainEnvironment J p f ≫ route) ≫ coprod.map (𝟙 _) (J.map q) =
+      J.map q ≫ retainEnvironment J (fst R X) g ≫ routeEnvironment J R B X
+    rw [← Category.assoc (J.map q), retainEnvironment_pre_proof, project, ← factor,
+      retainEnvironment_comp_proof, retainEnvironment_twice J central]
+    simpa only [retainEnvironment, Category.assoc] using
+      (congrArg (fun k => retainEnvironment J p f ≫ k) liftLR).symm
+  have loop := ElgotFreydCategory.uniformity (J := J) _ _ q simulates
+  rw [contextualLoop_eq_step, contextualLoop_eq_step, loop, Category.assoc]
 
 end Iteration
 

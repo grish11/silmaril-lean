@@ -21,6 +21,7 @@ local notation "bindArrow" => Silmaril.Isotope.LetIter.ProofRelevant.Semantics.C
 
 local notation "fst" => CartesianMonoidalCategory.fst
 local notation "snd" => CartesianMonoidalCategory.snd
+local notation "lift" => CartesianMonoidalCategory.lift
 
 variable {V : Type u₁} {C : Type u₂}
   [Category.{v₁} V] [Category.{v₂} C]
@@ -66,6 +67,11 @@ theorem caseWithContext_liftExit [FreydCategory.CentralUnit J] {E A B D Z : V}
 theorem bind_purePayload {E B D : V} (k : J.obj (E ⊗ B) ⟶ J.obj D) :
     bindArrow J (J.map (snd E B)) (J.map (fst E B ▷ B) ≫ k) = k :=
   bind_purePayload_proof J k
+
+/-- Retaining a pure context while applying a value map pairs the two value maps. -/
+theorem retainEnvironment_map {E X Y : V} (p : X ⟶ E) (f : X ⟶ Y) :
+    retainEnvironment J p (J.map f) = J.map (lift p f) :=
+  retainEnvironment_map_proof J p f
 
 end Distributive
 
@@ -121,6 +127,19 @@ theorem contextualLoop_codiagonal {R A B : V}
     contextualLoop J (contextualLoop J f) =
       contextualLoop J (f ≫ J.map (coprod.desc (𝟙 (B ⨿ A)) (coprod.inr : A ⟶ B ⨿ A))) :=
   contextualLoop_codiagonal_proof J central shared f
+
+/-- A pure state change satisfying the contextual simulation square preserves the loop. -/
+theorem contextualLoop_uniformity_of_diagonal {R A X B : V}
+    (central : IsCentral (J.map (duplicate R) ≫ (Functor.StrongPremonoidal.tensorIso (J := J) R R).inv))
+    (f : J.obj (R ⊗ A) ⟶ J.obj (B ⨿ A))
+    (g : J.obj (R ⊗ X) ⟶ J.obj (B ⨿ X)) (h : R ⊗ A ⟶ X)
+    (square :
+      caseWithContext J f
+        (J.map (snd (R ⊗ A) B ≫ (coprod.inl : B ⟶ B ⨿ X)))
+        (J.map ((fst R A ▷ A) ≫ h ≫ (coprod.inr : X ⟶ B ⨿ X))) =
+      J.map (lift (fst R A) h) ≫ g) :
+    contextualLoop J f = J.map (lift (fst R A) h) ≫ contextualLoop J g :=
+  contextualLoop_uniformity_of_diagonal_proof J central f g h square
 
 end Iteration
 
