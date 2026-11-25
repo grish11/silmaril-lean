@@ -51,7 +51,7 @@ def dispatch (table : CodeTable Body) (callee : Value) (arguments : List Value)
     (heap : Heap) (caller : Call.Saved Continuation) (stack : List (Call.Saved Continuation)) :
     Except Failure (Active Body Continuation) :=
   match callee with
-  | .int _ => .error (.call (.defined .notCallable))
+  | .int _ | .bool _ => .error (.call (.defined .notCallable))
   | .function fn =>
     match resolve table fn.code with
     | .error error => .error error

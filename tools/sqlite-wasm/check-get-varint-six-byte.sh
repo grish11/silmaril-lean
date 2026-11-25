@@ -10,11 +10,13 @@ bash "$tool/check-get-varint-five-byte.sh" "$@"
 
 root="$(realpath "$2")/lean"
 src="$root/SqliteWasm"
-cp "$tool"/{GetVarintSixByte,GetVarintSixByteImport}.lean "$src/"
+cp "$tool"/{GetVarintReaderSupport,GetVarintSixByte,GetVarintSixByteImport}.lean "$src/"
 cd "$tool/../.."
 export LEAN_PATH="$root${LEAN_PATH:+:$LEAN_PATH}"
 flags=(-j1 -s 131072 -DautoImplicit=false -E warning --root="$root")
-lake env /usr/bin/time -f 'GetVarintSixByte: %e s wall, %M KiB peak RSS' lean "${flags[@]}" \
-  -o "$src/GetVarintSixByte.olean" "$src/GetVarintSixByte.lean"
+for name in GetVarintReaderSupport GetVarintSixByte; do
+  lake env /usr/bin/time -f "$name: %e s wall, %M KiB peak RSS" lean "${flags[@]}" \
+    -o "$src/$name.olean" "$src/$name.lean"
+done
 lake env /usr/bin/time -f 'Ordinary import and replay: %e s wall, %M KiB peak RSS' lean "${flags[@]}" \
   "$src/GetVarintSixByteImport.lean"

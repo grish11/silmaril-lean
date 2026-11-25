@@ -19,9 +19,14 @@ theorem global_reference {scope : Source.Scope} {name : Source.Name}
 private theorem operand_complete {scope : Source.Scope} {source : Source.Expr} {operand : Operand scope}
     (translated : OperandTranslation scope source operand) :
     lowerOperand scope source = .ok ⟨operand, translated⟩ := by
-  cases translated with
-  | integer => rfl
+  induction translated with
+  | integer => simp [lowerOperand]
+  | boolean => simp [lowerOperand]
+  | negativeInteger => simp [lowerOperand]
   | read _ witness => simp [lowerOperand, global_reference witness] <;> rfl
+  | add _ _ left right => simp [lowerOperand, left, right] <;> rfl
+  | floorDiv _ _ left right => simp [lowerOperand, left, right] <;> rfl
+  | equal _ _ left right => simp [lowerOperand, left, right] <;> rfl
 
 theorem statements_complete {scope : Source.Scope} {source : List Source.Stmt} {actions : List (Action scope)}
     (translated : Translation scope source actions) : lowerStatements scope source = .ok ⟨actions, translated⟩ := by

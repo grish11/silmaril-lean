@@ -58,24 +58,9 @@ body relation is at the carried interface, with ambient wires captured
 by the surrounding binder. The primitive/γ denotation can retain its
 existing domain.
 
-For the next firing proof, define a nested `Step` with a waiting control
-cell carrying exactly the selected γ marking or the active θ body marking.
-A completed true θ body discards its cells and installs a fresh body
-marking from the updated tuple. Define `Finishes` by finite reachability
-and prove, for each well-typed numbered region and input/output tuple,
-
-```text
-NestedPetri.Finishes m g input output ↔ g.Returns m input output
-```
-
-For soundness, maintain completed vertex return derivations and, at each
-waiting θ, a finite prefix of continuing body derivations. Completing a
-child then either extends that prefix or gives a `Theta.Iterate` witness
-ending in a stop. For completeness, recurse on the finite term execution,
-lift selected child steps into the parent cell, and use the local numbering
-to construct a schedule ready at every required source. The target theorem
-quantifies over all finite completed schedules. Infinite firing behavior
-and progress of arbitrary partial markings require separate statements.
+The [nested firing semantics](rvsdg-nested-petri.md) proves the
+finite-completion equivalence against the unbounded term relation. It
+uses explicit child activations and fresh θ re-entry, including under γ.
 
 ## Reproduce
 

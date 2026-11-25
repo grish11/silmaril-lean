@@ -18,11 +18,11 @@ private instance : Countable WalkingPair :=
   ⟨⟨fun j => match j with | .left => 0 | .right => 1,
     by intro j k h; cases j <;> cases k <;> simp_all⟩⟩
 
-private theorem mono_left {A B X : C} {f : A ⟶ X} {g : B ⟶ X}
+theorem hyperextensive_mono_left {A B X : C} {f : A ⟶ X} {g : B ⟶ X}
     (hc : IsColimit (BinaryCofan.mk f g)) : Mono f :=
   Hyperextensive.mono (C := C) (I := WalkingPair) (BinaryCofan.mk f g) hc .left
 
-private theorem disjoint_binary {A B X : C} {f : A ⟶ X} {g : B ⟶ X}
+theorem hyperextensive_disjoint_binary {A B X : C} {f : A ⟶ X} {g : B ⟶ X}
     (hc : IsColimit (BinaryCofan.mk f g)) : Disjoint f g :=
   Hyperextensive.disjoint (C := C) (I := WalkingPair) (BinaryCofan.mk f g) hc
     (i := .left) (j := .right) (by decide)
@@ -32,7 +32,7 @@ private theorem disjoint_symm {A B X : C} {f : A ⟶ X} {g : B ⟶ X}
     (h : Disjoint f g) : Disjoint g f :=
   fun {_} p q pq => h q p pq.symm
 
-private theorem pullback_binary {A B Z X : C} {l : A ⟶ Z} {r : B ⟶ Z}
+theorem hyperextensive_pullback_binary {A B Z X : C} {l : A ⟶ Z} {r : B ⟶ Z}
     (hc : IsColimit (BinaryCofan.mk l r)) (f : X ⟶ Z) :
     Nonempty (PullbackCofan (I := WalkingPair) (BinaryCofan.mk l r) f) :=
   Hyperextensive.universal _ hc f
@@ -72,7 +72,7 @@ private theorem right_desc {A B X Y : C} {a : A ⟶ X} {b : B ⟶ X}
 private theorem factor_right {A B Z X : C} {l : A ⟶ Z} {r : B ⟶ Z}
     (hc : IsColimit (BinaryCofan.mk l r)) (f : X ⟶ Z) (hd : Disjoint f l) :
     ∃ g : X ⟶ B, g ≫ r = f := by
-  obtain ⟨s⟩ := pullback_binary hc f
+  obtain ⟨s⟩ := hyperextensive_pullback_binary hc f
   obtain ⟨empty⟩ := hd (s.incl .left) (s.map .left) (s.pullback .left).w
   let g := BinaryCofan.IsColimit.desc (binary_colimit s) (empty.to B) (s.map .right)
   refine ⟨g, ?_⟩
@@ -136,7 +136,7 @@ private def onRight : Complement (first.incl .right) :=
   ⟨first.obj .left, first.incl .left, BinaryCofan.isColimitFlip (binary_colimit first)⟩
 
 private noncomputable def preimage (d : Included X) :=
-  (pullback_binary d.complement.colimit (first.map .right)).some
+  (hyperextensive_pullback_binary d.complement.colimit (first.map .right)).some
 
 private noncomputable def previous (d : Included X) : Included X :=
   let s := preimage first d
@@ -171,7 +171,7 @@ private theorem finite_disjoint :
       intro D p q eq
       change p ≫ first.incl .left =
         q ≫ (preimage first (finite first m)).incl .left ≫ first.incl .right at eq
-      exact disjoint_binary (binary_colimit first) p (q ≫ (preimage first (finite first m)).incl .left)
+      exact hyperextensive_disjoint_binary (binary_colimit first) p (q ≫ (preimage first (finite first m)).incl .left)
         (eq.trans (Category.assoc _ _ _).symm)
   | succ n ih =>
     intro m ne
@@ -180,13 +180,13 @@ private theorem finite_disjoint :
       intro D p q eq
       change p ≫ (preimage first (finite first n)).incl .left ≫ first.incl .right =
         q ≫ first.incl .left at eq
-      exact disjoint_symm (disjoint_binary (binary_colimit first))
+      exact disjoint_symm (hyperextensive_disjoint_binary (binary_colimit first))
         (p ≫ (preimage first (finite first n)).incl .left) q ((Category.assoc _ _ _).trans eq)
     | succ m =>
       intro D p q eq
       let s := preimage first (finite first n)
       let t := preimage first (finite first m)
-      let _ : Mono (first.incl .right) := mono_left (onRight first).colimit
+      let _ : Mono (first.incl .right) := hyperextensive_mono_left (onRight first).colimit
       change p ≫ s.incl .left ≫ first.incl .right = q ≫ t.incl .left ≫ first.incl .right at eq
       have equal : p ≫ s.incl .left = q ≫ t.incl .left :=
         (cancel_mono (first.incl .right)).mp ((Category.assoc _ _ _).trans (eq.trans (Category.assoc _ _ _).symm))
@@ -236,7 +236,7 @@ private noncomputable def add_residual {F : ℕ → C} {X R : C} (f : ∀ n, F n
 set_option maxHeartbeats 450000 in
 theorem hyperextensive_decompose (P : Coproducts C) {X Y : C} (f : X ⟶ P.sum Y X) :
     Nonempty (LoopDecomposition f) := by
-  let first := (pullback_binary (P.isColimit Y X) f).some
+  let first := (hyperextensive_pullback_binary (P.isColimit Y X) f).some
   let layers (n : ℕ) := (finite first n).obj
   let j (n : ℕ) : layers n ⟶ X := (finite first n).incl
   let u : ∐ layers ⟶ X := Sigma.desc j
@@ -244,7 +244,7 @@ theorem hyperextensive_decompose (P : Coproducts C) {X Y : C} (f : X ⟶ P.sum Y
     Hyperextensive.union j (fun n => ⟨(finite first n).complement⟩) (finite_disjoint first)
   have residual_avoid (n : ℕ) : Disjoint residual.incl (j n) := by
     intro D p q eq
-    apply disjoint_symm (disjoint_binary residual.colimit) p (q ≫ Sigma.ι layers n)
+    apply disjoint_symm (hyperextensive_disjoint_binary residual.colimit) p (q ≫ Sigma.ι layers n)
     simpa only [Category.assoc, u, Sigma.ι_comp_desc] using eq
   have avoidFirst : Disjoint residual.incl (first.incl .left) := residual_avoid 0
   obtain ⟨r, hr⟩ := factor_right (binary_colimit first) residual.incl avoidFirst

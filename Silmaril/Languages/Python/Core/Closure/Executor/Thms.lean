@@ -7,18 +7,27 @@ public section
 
 namespace Silmaril.Languages.Python.Core.Closure.Executor
 
-theorem step_iff {table : CodeTable} {source target : State} {label : Option Event} :
-    Step table source label target ↔ advance table source = some (label, target) :=
+theorem stepIn_iff {table : CodeTable} {globals : GlobalLookup} {source target : State} {label : Option Event} :
+    StepIn table globals source label target ↔ advanceIn table globals source = some (label, target) :=
   ⟨Proofs.Languages.Python.Core.Closure.Executor.advance_of_step,
     Proofs.Languages.Python.Core.Closure.Executor.step_of_advance⟩
+
+theorem step_iff {table : CodeTable} {source target : State} {label : Option Event} :
+    Step table source label target ↔ advance table source = some (label, target) :=
+  stepIn_iff
 
 theorem step_deterministic {table : CodeTable} {source left right : State} {a b : Option Event}
     (first : Step table source a left) (second : Step table source b right) : (a, left) = (b, right) :=
   Option.some.inj ((step_iff.mp first).symm.trans (step_iff.mp second))
 
+theorem runIn_path (table : CodeTable) (globals : GlobalLookup) (fuel : Nat) (source : State) :
+    (labelledIn table globals).Path source
+      (runPrefixIn table globals fuel source).1 (runPrefixIn table globals fuel source).2 :=
+  Proofs.Languages.Python.Core.Closure.Executor.run_path table globals fuel source
+
 theorem run_path (table : CodeTable) (fuel : Nat) (source : State) :
     (labelled table).Path source (runPrefix table fuel source).1 (runPrefix table fuel source).2 :=
-  Proofs.Languages.Python.Core.Closure.Executor.run_path table fuel source
+  runIn_path table emptyGlobals fuel source
 
 /-- Return and defined-error delivery recover the exact suspended frame,
 continuation and older stack with the residual heap. -/

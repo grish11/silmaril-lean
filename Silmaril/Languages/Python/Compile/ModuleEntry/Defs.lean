@@ -26,14 +26,31 @@ def globalReference? (scope : Scope) (name : Name) : Option (GlobalReference sco
     some ⟨.declaredGlobal, declared, Or.inr rfl⟩
   else none
 
+inductive BinaryOp where
+  | add | floorDiv | equal
+
 inductive Operand (scope : Scope) where
   | integer (value : Int)
+  | boolean (value : Bool)
   | read (name : Name) (reference : GlobalReference scope name)
+  | binary (op : BinaryOp) (left right : Operand scope)
 
 inductive OperandTranslation (scope : Scope) : Expr → Operand scope → Prop where
   | integer (value : Int) : OperandTranslation scope (.integer value) (.integer value)
+  | boolean (value : Bool) : OperandTranslation scope (.boolean value) (.boolean value)
+  | negativeInteger (value : Int) :
+      OperandTranslation scope (.unary .negative (.integer value)) (.integer (-value))
   | read (name : Name) (reference : GlobalReference scope name) :
       OperandTranslation scope (.name name) (.read name reference)
+  | add {left right lhs rhs} (first : OperandTranslation scope left lhs)
+      (second : OperandTranslation scope right rhs) :
+      OperandTranslation scope (.binary .add left right) (.binary .add lhs rhs)
+  | floorDiv {left right lhs rhs} (first : OperandTranslation scope left lhs)
+      (second : OperandTranslation scope right rhs) :
+      OperandTranslation scope (.binary .floorDiv left right) (.binary .floorDiv lhs rhs)
+  | equal {left right lhs rhs} (first : OperandTranslation scope left lhs)
+      (second : OperandTranslation scope right rhs) :
+      OperandTranslation scope (.comparison left [(.eq, right)]) (.binary .equal lhs rhs)
 
 inductive Action (scope : Scope) where
   | assign (name : Name) (reference : GlobalReference scope name) (value : Operand scope)
@@ -50,10 +67,25 @@ inductive Error where
 
 def lowerOperand (scope : Scope) : (source : Expr) → Except Error {value // OperandTranslation scope source value}
   | .integer value => .ok ⟨.integer value, .integer value⟩
+  | .boolean value => .ok ⟨.boolean value, .boolean value⟩
+  | .unary .negative (.integer value) => .ok ⟨.integer (-value), .negativeInteger value⟩
   | .name name => do
     let some reference := globalReference? scope name | throw (.unresolvedGlobal name)
     return ⟨.read name reference, .read name reference⟩
+  | .binary .add left right => do
+    let lhs ← lowerOperand scope left
+    let rhs ← lowerOperand scope right
+    return ⟨.binary .add lhs.val rhs.val, .add lhs.property rhs.property⟩
+  | .binary .floorDiv left right => do
+    let lhs ← lowerOperand scope left
+    let rhs ← lowerOperand scope right
+    return ⟨.binary .floorDiv lhs.val rhs.val, .floorDiv lhs.property rhs.property⟩
+  | .comparison left [(.eq, right)] => do
+    let lhs ← lowerOperand scope left
+    let rhs ← lowerOperand scope right
+    return ⟨.binary .equal lhs.val rhs.val, .equal lhs.property rhs.property⟩
   | _ => .error .expressionProfile
+termination_by source => sizeOf source
 
 inductive Binding : Stmt → Name → Expr → Prop where
   | direct (name : Name) (value : Expr) : Binding (.assign name value) name value

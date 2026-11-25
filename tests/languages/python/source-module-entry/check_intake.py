@@ -11,11 +11,13 @@ open Silmaril.Languages.Python.Compile.ModuleEntry
 
 private def describe {scope : Scope} : Operand scope → String
   | .integer value => toString value
+  | .boolean value => toString value
   | .read name reference =>
     match reference.access with
     | .declaredGlobal => "declared read " ++ name
     | .moduleName => "module read " ++ name
     | _ => "wrong access"
+  | .binary .. => "binary operation"
 
 private def action {scope : Scope} : Action scope → String
   | .assign name reference value =>
