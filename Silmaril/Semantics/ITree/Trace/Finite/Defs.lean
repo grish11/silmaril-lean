@@ -3,8 +3,9 @@ module
 public import Silmaril.Semantics.ITree.Trace.Defs
 public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Finset.Prod
+public import Mathlib.Data.Fintype.Pi
 
-/-! Finite-state weak trace comparison with Boolean replies. -/
+/-! Finite-state weak trace comparison with a finite common reply type. -/
 
 @[expose] public section
 
@@ -12,33 +13,32 @@ namespace Silmaril.Elgot.ITree.Finite
 
 universe u
 
-/-- Requests share the same two-element reply type, and their keys can
-record both the opcode and a typed argument. -/
-inductive Event (Q : Type) : Type → Type where
-  | ask (key : Q) : Event Q Bool
+/-- Requests share a reply type. Keys can record both the opcode and its typed argument. -/
+inductive Event (Q : Type) (Reply : Type := Bool) : Type → Type where
+  | ask (key : Q) : Event Q Reply Reply
 
-inductive Head (Q : Type) (R S : Type u) where
+inductive Head (Q : Type) (R S : Type u) (Reply : Type := Bool) where
   | stop
   | result (value : R)
-  | request (key : Q) (next : Bool → S)
+  | request (key : Q) (next : Reply → S)
 
-abbrev Step (Q : Type) (R S : Type u) := Head Q R S ⊕ S
+abbrev Step (Q : Type) (R S : Type u) (Reply : Type := Bool) := Head Q R S Reply ⊕ S
 
-variable {Q : Type} {R S : Type u}
+variable {Q Reply : Type} {R S : Type u}
 
 /-- The finite tables implement each transition as a weak Elgot body. -/
-def transition (step : S → Step Q R S) (state : S) : Tree (Event Q) (R ⊕ S) :=
+def transition (step : S → Step Q R S Reply) (state : S) : Tree (Event Q Reply) (R ⊕ S) :=
   match step state with
   | .inr next => ret (.inr next)
   | .inl .stop => diverge
   | .inl (.result value) => ret (.inl value)
   | .inl (.request key next) => vis (.ask key) (fun reply => ret (.inr (next reply)))
 
-noncomputable def evaluate (step : S → Step Q R S) (state : S) : Tree (Event Q) R :=
+noncomputable def evaluate (step : S → Step Q R S Reply) (state : S) : Tree (Event Q Reply) R :=
   iter (transition step) state
 
-def Head.render (run : S → Tree (Event Q) R) :
-    Head Q R S → Part (Visible (Event Q) R (Tree (Event Q) R))
+def Head.render (run : S → Tree (Event Q Reply) R) :
+    Head Q R S Reply → Part (Visible (Event Q Reply) R (Tree (Event Q Reply) R))
   | .stop => Part.none
   | .result value => Part.some (.ret value)
   | .request key next => Part.some (.vis (.ask key) (run ∘ next))
@@ -46,7 +46,7 @@ def Head.render (run : S → Tree (Event Q) R) :
 variable {R S T : Type u} [DecidableEq S]
 
 /-- Follow silent successors until reaching a head or revisiting a state. -/
-def headFrom (step : S → Step Q R S) (remaining : Finset S) (state : S) : Head Q R S :=
+def headFrom (step : S → Step Q R S Reply) (remaining : Finset S) (state : S) : Head Q R S Reply :=
   if _fresh : state ∈ remaining then
     match step state with
     | .inl head => head
@@ -63,19 +63,18 @@ termination_by candidates.card
 decreasing_by
   exact Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨Finset.filter_subset _ _, _same⟩)
 
-variable [DecidableEq T] [DecidableEq Q] [DecidableEq R]
+variable [DecidableEq T] [DecidableEq Q] [DecidableEq R] [Fintype Reply]
 
-def compatible (pairs : Finset (S × T)) : Head Q R S → Head Q R T → Bool
+def compatible (pairs : Finset (S × T)) : Head Q R S Reply → Head Q R T Reply → Bool
   | .stop, _ => true
   | .result left, .result right => decide (left = right)
   | .request left nextL, .request right nextR =>
-    decide (left = right) && decide ((nextL false, nextR false) ∈ pairs) &&
-      decide ((nextL true, nextR true) ∈ pairs)
+    decide (left = right ∧ ∀ reply, (nextL reply, nextR reply) ∈ pairs)
   | _, _ => false
 
 /-- Compute the largest finite simulation of the normalized heads. -/
 def compare (statesL : Finset S) (statesR : Finset T)
-    (left : S → Step Q R S) (right : T → Step Q R T) (startL : S) (startR : T) : Bool :=
+    (left : S → Step Q R S Reply) (right : T → Step Q R T Reply) (startL : S) (startR : T) : Bool :=
   decide ((startL, startR) ∈ prune
     (fun pairs (l, r) => compatible pairs (headFrom left statesL l) (headFrom right statesR r))
     (statesL ×ˢ statesR))

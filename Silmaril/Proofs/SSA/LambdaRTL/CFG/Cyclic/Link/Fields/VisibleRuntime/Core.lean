@@ -1,14 +1,15 @@
 module
 
-public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Defs
+public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Defs
+public import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Defs
+public import Silmaril.Semantics.ITree.Trace.Finite.Defs
 import Silmaril.Semantics.ITree.Thms
 
 @[expose] public section
 
-namespace Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Runtime
+namespace Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime
 
 open Silmaril.Elgot Silmaril.Elgot.ITree
-open Silmaril.Elgot.ITree.Finite (Event)
 open Silmaril.Isotope.Bridge.NamedFlat (treeExitNumber)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link (Label)
 
@@ -55,7 +56,6 @@ theorem lookup_external {I : Type} {K D : Type 1} [DecidableEq K]
   obtain ⟨index, _, rfl⟩ := List.mem_map.mp member
   simpa using outside index
 
-theorem ret_eq_pure {Q : Type} {X : Type 1} (x : X) : (ret x : Tree (Event Q) X) = pure x := rfl
 
 universe u v
 
@@ -76,4 +76,4 @@ theorem iter_simulate {M : Type u → Type v} [Monad M] [LawfulMonad M] [Iterate
   have uniform := congrFun (LawfulElgotMonad.uniformity f' g state commutes) x
   exact (natural.trans uniform).trans (pure_bind _ _)
 
-end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Runtime
+end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime

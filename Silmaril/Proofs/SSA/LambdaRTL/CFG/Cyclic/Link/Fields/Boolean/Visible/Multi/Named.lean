@@ -2,7 +2,7 @@ module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Multi.Defs
 import Silmaril.Semantics.ITree.Trace.Finite.Thms
-import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Runtime
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime.Thms
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Multi.Block
 
 @[expose] public section
@@ -17,7 +17,7 @@ open Silmaril.SSA.LambdaRTL Silmaril.SSA.LambdaRTL.CFG
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link (Label)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean (Packet)
 open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Multi
-open Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Runtime
+open Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime
   (lookup_internal lookup_external ret_eq_pure iter_simulate)
 
 variable {F : Type} {a b n : Nat} (program : Program F a b n)
@@ -38,7 +38,7 @@ theorem render_injective : Function.Injective (Program.renderResult (b := b) (n 
 
 private theorem numbered (r : Program.Result b n) :
     treeExitNumber program.exits (encodeResult program r) = Program.renderResult r :=
-  Runtime.numbered r.down.1 (encode r.down.2)
+  Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.VisibleRuntime.numbered r.down.1 (encode r.down.2)
 
 private theorem step_square (input : Fin a) (packet : Packet n) (s : program.State) :
     (transition program.step s >>= fun outcome =>

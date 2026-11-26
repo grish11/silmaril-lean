@@ -12,28 +12,28 @@ namespace Silmaril.Proofs.Semantics.Elgot.ITree.Finite
 open Silmaril.Elgot.ITree Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q : Type} {R S T : Type u}
+variable {Q Reply : Type} {R S T : Type u}
 
-private theorem result_trace {tree : Tree (Event Q) R} {run : S → Tree (Event Q) R}
-    {head : Head Q R S} (observed : out tree = head.render run) (value : R) :
+private theorem result_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
+    {head : Head Q R S Reply} (observed : out tree = head.render run) (value : R) :
     HasTrace tree (.result value) ↔ head = .result value := by
   cases head <;> simp [HasTrace, observed, Head.render]
 
-private theorem request_trace {tree : Tree (Event Q) R} {run : S → Tree (Event Q) R}
-    {head : Head Q R S} (observed : out tree = head.render run) (key : Q) :
+private theorem request_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
+    {head : Head Q R S Reply} (observed : out tree = head.render run) (key : Q) :
     HasTrace tree (.request (.ask key)) ↔ ∃ next, head = .request key next := by
   cases head <;> simp [HasTrace, observed, Head.render, Visible.vis.injEq, Event.ask.injEq]
 
-private theorem exchange_trace {tree : Tree (Event Q) R} {run : S → Tree (Event Q) R}
-    {head : Head Q R S} (observed : out tree = head.render run)
-    (key : Q) (reply : Bool) (tail : Trace (Event Q) R) :
+private theorem exchange_trace {tree : Tree (Event Q Reply) R} {run : S → Tree (Event Q Reply) R}
+    {head : Head Q R S Reply} (observed : out tree = head.render run)
+    (key : Q) (reply : Reply) (tail : Trace (Event Q Reply) R) :
     HasTrace tree (.exchange (.ask key) reply tail) ↔
       ∃ next, head = .request key next ∧ HasTrace (run (next reply)) tail := by
   cases head <;> simp [HasTrace, observed, Head.render, Visible.vis.injEq, Event.ask.injEq, Function.comp_def]
 
-variable [DecidableEq S] [DecidableEq T] [DecidableEq Q] [DecidableEq R]
-  {runL : S → Tree (Event Q) R} {runR : T → Tree (Event Q) R}
-  {headL : S → Head Q R S} {headR : T → Head Q R T}
+variable [DecidableEq S] [DecidableEq T] [DecidableEq Q] [DecidableEq R] [Fintype Reply]
+  {runL : S → Tree (Event Q Reply) R} {runR : T → Tree (Event Q Reply) R}
+  {headL : S → Head Q R S Reply} {headR : T → Head Q R T Reply}
 
 private theorem refine_of_simulation (pairs : Finset (S × T))
     (observedL : ∀ s, out (runL s) = (headL s).render runL)
@@ -71,12 +71,9 @@ private theorem refine_of_simulation (pairs : Finset (S × T))
       cases hr : headR t with
       | stop | result _ => simp [compatible, hr] at allowed
       | request k nextR =>
-        have checks : (key = k ∧ (nextL false, nextR false) ∈ pairs) ∧ (nextL true, nextR true) ∈ pairs := by
+        have checks : key = k ∧ ∀ reply, (nextL reply, nextR reply) ∈ pairs := by
           simpa [compatible, hr] using allowed
-        refine ⟨nextR, checks.1.1 ▸ rfl, ih ?_ suffix⟩
-        cases reply
-        · exact checks.1.2
-        · exact checks.2
+        exact ⟨nextR, checks.1 ▸ rfl, ih (checks.2 reply) suffix⟩
 
 private theorem simulation_of_refine (pairs : Finset (S × T))
     (observedL : ∀ s, out (runL s) = (headL s).render runL)
@@ -93,7 +90,7 @@ private theorem simulation_of_refine (pairs : Finset (S × T))
   | request key nextL =>
     have seen := related _ ((request_trace (observedL s) key).mpr ⟨nextL, hl⟩)
     obtain ⟨nextR, hr⟩ := (request_trace (observedR t) key).mp seen
-    have replies (reply : Bool) : (nextL reply, nextR reply) ∈ pairs := by
+    have replies (reply : Reply) : (nextL reply, nextR reply) ∈ pairs := by
       apply included
       intro tail present
       have seen := related _ ((exchange_trace (observedL s) key reply tail).mpr ⟨nextL, hl, present⟩)
@@ -104,7 +101,7 @@ private theorem simulation_of_refine (pairs : Finset (S × T))
 
 theorem compare_exact (statesL : Finset S) (statesR : Finset T)
     (completeL : ∀ s, s ∈ statesL) (completeR : ∀ t, t ∈ statesR)
-    (left : S → Step Q R S) (right : T → Step Q R T) (s : S) (t : T) :
+    (left : S → Step Q R S Reply) (right : T → Step Q R T Reply) (s : S) (t : T) :
     compare statesL statesR left right s t = true ↔ TraceLE (evaluate left s) (evaluate right t) := by
   let keep (pairs : Finset (S × T)) (p : S × T) :=
     compatible pairs (headFrom left statesL p.1) (headFrom right statesR p.2)

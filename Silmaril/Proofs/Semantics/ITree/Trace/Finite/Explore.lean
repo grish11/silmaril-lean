@@ -9,7 +9,7 @@ namespace Silmaril.Proofs.Semantics.Elgot.ITree.Finite
 open Silmaril.Elgot.ITree.Finite
 
 universe u
-variable {Q : Type} {R S : Type u} [DecidableEq S]
+variable {Q Reply : Type} {R S : Type u} [DecidableEq S]
 
 theorem prune_spec (keep : Finset S → S → Bool)
     (candidates : Finset S) :
@@ -38,14 +38,14 @@ theorem prune_spec (keep : Finset S → S → Bool)
       exact Finset.mem_filter.mpr ⟨inside s hs, preserved candidates inside s hs⟩
 
 /-- A finite silent walk to a root with an observation. -/
-inductive Reaches (step : S → Step Q R S) : S → Head Q R S → Prop where
+inductive Reaches (step : S → Step Q R S Reply) : S → Head Q R S Reply → Prop where
   | head {state head} : step state = .inl head → head ≠ .stop → Reaches step state head
   | silent {state next head} : step state = .inr next → Reaches step next head → Reaches step state head
 
-private def LinksBack (step : S → Step Q R S) (remaining : Finset S) (start : S) : Prop :=
+private def LinksBack (step : S → Step Q R S Reply) (remaining : Finset S) (start : S) : Prop :=
   ∀ old, old ∉ remaining → ∃ next, step old = .inr next ∧ (next = start ∨ next ∉ remaining)
 
-private theorem visit {step : S → Step Q R S} {remaining : Finset S} {start next : S}
+private theorem visit {step : S → Step Q R S Reply} {remaining : Finset S} {start next : S}
     (links : LinksBack step remaining start) (edge : step start = .inr next) :
     LinksBack step (remaining.erase start) next := by
   intro old absent
@@ -57,9 +57,9 @@ private theorem visit {step : S → Step Q R S} {remaining : Finset S} {start ne
     · exact ⟨target, found, Or.inr (fun h => known (Finset.mem_erase.mp h).2)⟩
 
 omit [DecidableEq S] in
-private theorem no_head {step : S → Step Q R S} {remaining : Finset S}
+private theorem no_head {step : S → Step Q R S Reply} {remaining : Finset S}
     (closed : ∀ old ∉ remaining, ∃ next ∉ remaining, step old = .inr next)
-    {start : S} {head : Head Q R S} (run : Reaches step start head) (absent : start ∉ remaining) : False := by
+    {start : S} {head : Head Q R S Reply} (run : Reaches step start head) (absent : start ∉ remaining) : False := by
   induction run with
   | head edge _ =>
     obtain ⟨_, _, jump⟩ := closed _ absent
@@ -70,8 +70,8 @@ private theorem no_head {step : S → Step Q R S} {remaining : Finset S}
     rw [edge, Sum.inr.injEq] at jump
     exact ih (jump ▸ outside)
 
-private theorem scan_spec (step : S → Step Q R S) (remaining : Finset S) (start : S)
-    (links : LinksBack step remaining start) (head : Head Q R S) :
+private theorem scan_spec (step : S → Step Q R S Reply) (remaining : Finset S) (start : S)
+    (links : LinksBack step remaining start) (head : Head Q R S Reply) :
     Reaches step start head ↔ headFrom step remaining start = head ∧ head ≠ .stop := by
   induction remaining using Finset.strongInductionOn generalizing start with
   | _ remaining ih =>
@@ -105,8 +105,8 @@ private theorem scan_spec (step : S → Step Q R S) (remaining : Finset S) (star
         · exact ⟨next, absent, edge⟩
       exact ⟨fun run => (no_head closed run fresh).elim, fun ⟨equal, seen⟩ => (seen equal.symm).elim⟩
 
-theorem headFrom_spec (step : S → Step Q R S) (states : Finset S)
-    (complete : ∀ s, s ∈ states) (s : S) (head : Head Q R S) :
+theorem headFrom_spec (step : S → Step Q R S Reply) (states : Finset S)
+    (complete : ∀ s, s ∈ states) (s : S) (head : Head Q R S Reply) :
     Reaches step s head ↔ headFrom step states s = head ∧ head ≠ .stop :=
   scan_spec step states s (fun old absent => (absent (complete old)).elim) head
 
