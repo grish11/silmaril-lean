@@ -831,6 +831,15 @@ square applies to the original named RTL sentences, including ordered
 exits and selected live-outs.
 [Opcode mapping and handler reduct](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/InstructionMap/Thms.lean)
 
+A type-preserving opcode map can construct the renamed structural entries
+directly. The typed dispatcher keeps its argument and reply slots, the
+named elaborator maps the positional code, and the same typed seed supplies
+the occurrence store. An independent successful recheck yields that same
+mapped code after erasing scope indices. The reduct square for this
+construction takes the primitive interpretation law for the supplied
+trace arrow as its remaining semantic premise.
+[Checked opcode compilation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/InstructionMap/Compilation/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
