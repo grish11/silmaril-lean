@@ -45,11 +45,31 @@ def DateUnit.normalize (encoded : Option Nat) : Except Error DateUnit :=
   | 1 => .ok .millisecond
   | _ => .error (.malformed .flatbuffer)
 
+inductive TimestampUnit where
+  | second | millisecond | microsecond | nanosecond
+  deriving DecidableEq, Repr
+
+def TimestampUnit.code : TimestampUnit → Nat
+  | .second => 0
+  | .millisecond => 1
+  | .microsecond => 2
+  | .nanosecond => 3
+
+/-- An omitted Timestamp unit has the IDL default SECOND. -/
+def TimestampUnit.normalize (encoded : Option Nat) : Except Error TimestampUnit :=
+  match encoded.getD 0 with
+  | 0 => .ok .second
+  | 1 => .ok .millisecond
+  | 2 => .ok .microsecond
+  | 3 => .ok .nanosecond
+  | _ => .error (.malformed .flatbuffer)
+
 /-- Reader-only type payloads. The existing writer and stream AST use
 `Arrow.FieldType` independently. -/
 inductive FieldType where
   | primitive (type : Arrow.FieldType)
   | date (unit : DateUnit)
+  | timestamp (unit : TimestampUnit) (timezone : Option String)
   deriving DecidableEq, Repr
 
 structure Field where
@@ -181,8 +201,7 @@ private def noTable (bytes : KBytes) (value : Table) (index : Nat)
     let _ ← table bytes pos
     throw (.unsupported reason)
 
-private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error String := do
-  let some pos ← reference bytes value index | return ""
+private def stringAt (bytes : KBytes) (pos : Nat) : Except Error String := do
   let count ← uint bytes pos 4
   let first := pos + 4
   check (pos % 4 == 0 && first + count < bytes.len)
@@ -190,6 +209,13 @@ private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error
   let some name := String.fromUTF8? (bytes.slice first count).toByteArray
     | throw (.malformed .invalidUtf8)
   return name
+
+private def optionalString (bytes : KBytes) (value : Table) (index : Nat) :
+    Except Error (Option String) := do
+  (← reference bytes value index).mapM (stringAt bytes)
+
+private def string (bytes : KBytes) (value : Table) (index : Nat) : Except Error String := do
+  return (← optionalString bytes value index).getD ""
 
 private def primitiveFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
     Except Error FieldType := do
@@ -255,6 +281,10 @@ private def readSchemaFieldType (bytes : KBytes) (tag : Nat) (payload : Table) :
     tableShape payload 1
     let unit ← (← slot bytes payload 0 2).mapM (fun pos => uint bytes pos 2)
     return .date (← SchemaReader.DateUnit.normalize unit)
+  else if tag = 10 then
+    tableShape payload 2
+    let unit ← (← slot bytes payload 0 2).mapM (fun pos => uint bytes pos 2)
+    return .timestamp (← SchemaReader.TimestampUnit.normalize unit) (← optionalString bytes payload 1)
   else
     return .primitive (← primitiveFieldType bytes tag payload)
 
