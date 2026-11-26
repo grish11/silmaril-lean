@@ -791,10 +791,21 @@ agrees with both the original mutable graph and its existing lexical SSA
 translation, with the same ordered exit, payload and selected live-outs.
 [Occurrence adapter and runner equations](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Thms.lean)
 
+The existing directed verdict decides the handled-trace sentence on the
+two admitted occurrence-entry runners. Each side supplies its exact named
+admission, and each comparison uses both independently typed packets
+decoded from the same store. A failed decode yields no pointwise verdict.
+The aggregate quantifies over the jointly decoded domain and retains
+its separate empty-domain flag. The extracted representative and trace
+supply a counterexample in the all-replies model.
+[Occurrence-entry satisfaction and witness](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Refinement/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
-types and initializes both from the same value. An injection accepted
-only by the wider type still fails shared-store decoding. The fixture
-checks exact admission and runner correspondence for both public starts.
+types and initializes both from the same value. The first compatible
+capture assignment gives equal weak trees. The later compatible assignment
+changes the right live-out at the same ordered exit, and the extracted
+trace refutes the admitted comparison after a completed request. An
+injection accepted only by the wider type fails shared-store decoding.
 [Checked fixture](../../Silmaril/Proofs/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/StructuralRegression.lean)
 
 ### Reverse lowering of open flat SSA to mutable RTL

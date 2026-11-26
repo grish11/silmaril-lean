@@ -1,7 +1,7 @@
 module
 
 import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Thms
-import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Thms
+import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Occurrences.Refinement.Thms
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.RegisterRename.Defs
 meta import Silmaril.SSA.Isotope.Bridge.NamedFlat.ITree.Entry.Public.Structural.Refinement.Witness.Thms
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
@@ -304,6 +304,62 @@ example : LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph
       fun out => pure (LambdaSSA.FiniteCFG.packedTreeOutput out)) :=
   (effectRight.observeRaw_eq_occurrences mismatchingStore mismatchingPacket (by decide)).trans
     (rightOccurrences.observe_eq_elaborated effectRight mismatchingPacket)
+
+-- The first compatible capture assignment agrees. Only the second
+-- assignment changes the right live-out at the same ordered exit.
+example : (effectLeft.jointStores effectRight).map (fun initial => initial rightRead) =
+    [.inl .unit, .inr .unit] := by decide
+
+private theorem effectLeftSeed : effectLeft.seed? original = some overlapPacket := by decide
+private theorem effectRightSeed : effectRight.seed? original = some rightPacket := by decide
+
+private theorem effectOccurrenceEq :
+    effectLeft.observeOccurrences overlapPacket = effectRight.observeOccurrences rightPacket :=
+  (effectLeft.observeRaw_eq_occurrences original overlapPacket effectLeftSeed).symm.trans
+    ((show LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph shared shared) original =
+        LiveOut.observeRaw effectSignature.primitive exits fields (effectGraph shared rightRead) original from rfl).trans
+      (effectRight.observeRaw_eq_occurrences original rightPacket effectRightSeed))
+
+example : effectLeft.refinementFromStore? effectRight original = some true := by
+  apply (leftOccurrences.refinementFromStore?_eq_some_iff rightOccurrences original true).mpr
+  refine ⟨overlapPacket, rightPacket, effectLeftSeed, effectRightSeed, ?_⟩
+  refine ⟨fun _ policy x hx trace seen => ?_, fun _ => rfl⟩
+  change HasTrace (effectRight.observeOccurrences rightPacket) trace
+  exact effectOccurrenceEq ▸ seen.1
+
+#guard (effectLeft.jointStores effectRight).map (effectLeft.refinementFromStore? effectRight) ==
+  [some true, some false]
+
+-- Reuse a nonempty successful aggregate with the same two occurrence types.
+private def overlappingOccurrences := overlapping.admitOccurrences.get (by decide)
+private def matchingOccurrences := matching.admitOccurrences.get (by decide)
+
+example (policy : Model.{0, 0} signature.traceSignature.toSignature) :
+    TraceInstitution.Sat policy (overlappingOccurrences.refinementSentence matchingOccurrences overlapPacket rightPacket) :=
+  (overlappingOccurrences.refinementOverCaptures_iff_valid matchingOccurrences).mp
+    matchingVerdict matchingStore overlapPacket rightPacket (by decide) (by decide) policy
+
+-- The original extracted trace still distinguishes the two admitted
+-- occurrences at the representative actually returned by the checker.
+example :
+    ∃ (a : Denote (.product narrowBit bit)) (b : Denote (.product bit bit)),
+      effectLeft.seed? effectWitness.val.initial = some a ∧
+      effectRight.seed? effectWitness.val.initial = some b ∧
+      Silmaril.Elgot.ITree.HandledTrace effectSignature.traceModel.step ()
+        (effectLeft.observeOccurrences a) effectWitness.val.trace ∧
+      ¬ TraceInstitution.Sat effectSignature.traceModel (leftOccurrences.refinementSentence rightOccurrences a b) := by
+  obtain ⟨a, b, ha, hb, seen, _, rejected⟩ :=
+    effectWitness.val.refutes_occurrences leftOccurrences rightOccurrences effectWitness.property
+  exact ⟨a, b, ha, hb, seen, rejected⟩
+
+example : (effectLeft.refinementOverCaptures effectRight).verdict ≠ some true := by
+  intro passed
+  obtain ⟨a, b, ha, hb, _, _, rejected⟩ :=
+    effectWitness.val.refutes_occurrences leftOccurrences rightOccurrences effectWitness.property
+  exact rejected ((leftOccurrences.refinementOverCaptures_iff_valid rightOccurrences).mp passed
+    effectWitness.val.initial a b ha hb effectSignature.traceModel)
+
+example : effectLeft.refinementFromStore? effectRight (upd mismatchingStore shared (.inr .unit)) = none := by decide
 
 -- Change both the repeated source capture and the selected final register.
 private def registerNames : Name ≃ Name :=
