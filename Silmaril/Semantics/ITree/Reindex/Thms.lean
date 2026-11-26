@@ -82,6 +82,13 @@ theorem SignatureEquiv.handledTrace_iff (e : SignatureEquiv E F) (a : A ≃ B) (
     HandledTrace step' (s x) (e.tree a t) (e.trace a p) ↔ HandledTrace step x t p :=
   and_congr (e.hasTrace_iff a t p) (e.replay_iff a s hstep x p)
 
+/-- At the same initial state and under the same handler, the target can
+reuse the source replay of the exact trace. -/
+theorem TraceLE.handledTrace {source target : Tree E A} (included : TraceLE source target)
+    {x : S} {p : Trace E A} (seen : HandledTrace step x source p) :
+    HandledTrace step x target p :=
+  ⟨included p seen.1, seen.2⟩
+
 /-- The target language is the image under trace renaming. -/
 theorem SignatureEquiv.handledTrace_image (e : SignatureEquiv E F) (a : A ≃ B) (s : S ≃ T)
     (hstep : ∀ q x r y, step' (e.request q) (s x) (e.reply q r) (s y) ↔ step q x r y)

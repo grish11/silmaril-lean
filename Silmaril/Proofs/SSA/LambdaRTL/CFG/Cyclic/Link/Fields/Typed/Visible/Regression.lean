@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Conservativity.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Defs
@@ -295,6 +295,15 @@ example : Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat sig.tr
     ⟨sig.traceModelUnder admitCommon⟩ sentence :=
   (Program.refinementAtUnder?_iff_traceSat admitCommon packet packedLeft packedRight
     ambient ambient env env (fun _ => rfl) (fun _ => rfl)).mp (by cbv)
+
+-- The restrictive handler satisfies this particular sentence, but the
+-- unrestricted policy still witnesses failure of shared-handler validity.
+example : ¬ (∀ policy : Silmaril.Logic.ITree.Model.{0, 0} sig.traceSignature.toSignature,
+    Silmaril.Logic.ITree.TraceInstitution.Sat policy sentence) := by
+  intro valid
+  have accepted := (Program.refinementAt?_iff_valid_traceSat packet packedLeft packedRight
+    ambient ambient env env (fun _ => rfl) (fun _ => rfl)).mpr valid
+  simp [rejected] at accepted
 
 -- A smaller checked dispatcher exercises the state update and the
 -- ordered-exit distinction with a kernel-reducible product.

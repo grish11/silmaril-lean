@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Conservativity.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 
@@ -103,6 +103,12 @@ example (trace : Program.ObservationTrace signature) :
 example : satisfies ((packed none 0).refinementSentence (packed (some 0) 0) .leftToRight env env env env) :=
   (Program.refinement?_iff_traceSat (packed none) (packed (some 0)) env env
     (fun _ _ => env) (fun _ _ => env) (agrees none) (agrees (some 0))).mp (by cbv) 0 packet
+
+example (policy : Silmaril.Logic.ITree.Model.{0, 0} signature.traceSignature.toSignature) :
+    Silmaril.Logic.ITree.TraceInstitution.Sat policy
+      ((packed none 0).refinementSentence (packed (some 0) 0) .leftToRight env env env env) :=
+  (Program.refinementAt?_iff_valid_traceSat packet (packed none 0) (packed (some 0) 0) env env env env
+    (agrees none 0 packet) (agrees (some 0) 0 packet)).mp (by cbv) policy
 
 example : ¬ satisfies ((packed none 0).refinementSentence (packed (some 0) 0) .rightToLeft env env env env) := by
   intro sat
