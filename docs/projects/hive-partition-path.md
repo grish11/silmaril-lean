@@ -6,7 +6,8 @@ for the executable API. It consumes a relative directory string and returns an
 ordered list of decoded keys with text or null values. Pass the directory
 relative to the dataset root before calling the parser. The caller handles
 discovery, filenames, filesystem semantics and typed partition schemas.
-Table materialization and partition pruning are future integrations.
+The [typed partition layer](hive-typed-partitions.md) adds virtual columns to
+supplied rows. File-backed materialization and pruning are future integrations.
 [Coverage matrix](arrow-parquet-coverage.md)
 
 ## Directory profile
