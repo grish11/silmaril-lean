@@ -9,6 +9,22 @@ public section
 
 namespace Silmaril.Formats.Compression.Zstd.CompressedBlock
 
+namespace Internal
+
+theorem checkExtent_iff {limits : Limits} {declaredSize : Nat} {body : List UInt8} :
+    checkExtent limits declaredSize body = .ok () ↔
+      body.length = declaredSize ∧ declaredSize ≤ limits.inputCapacity :=
+  Proofs.Formats.Compression.Zstd.CompressedBlock.Internal.checkExtent_iff
+
+theorem execute_sound {limits : Limits} {prior : State} {literals : LiteralBlock.Literals}
+    {sequenceBytes : List UInt8} {result : Result} (accepted : prior.tables.Valid)
+    (success : execute limits prior literals sequenceBytes = .ok result) :
+    result.bytes.length ≤ limits.execution.capacity ∧ result.next.Valid limits.window ∧
+      SequenceWire limits prior literals sequenceBytes result :=
+  Proofs.Formats.Compression.Zstd.CompressedBlock.Internal.execute_sound accepted success
+
+end Internal
+
 theorem initial_valid (window : Nat) : State.initial.Valid window :=
   ⟨SequenceTables.Repeat.empty_valid, Nat.zero_le _, by decide⟩
 

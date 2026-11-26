@@ -60,6 +60,40 @@ inductive Error where
   | execution (reason : Sequence.Error)
   deriving DecidableEq, Repr
 
+namespace Internal
+
+/-- Check the exact compressed body extent before either literal reader runs. -/
+def checkExtent (limits : Limits) (declaredSize : Nat) (body : List UInt8) : Except Error Unit :=
+  if limits.inputCapacity < declaredSize then .error .inputLimit
+  else if body.drop declaredSize ≠ [] then .error .sizeMismatch
+  else if body.length ≠ declaredSize then .error .sizeMismatch
+  else .ok ()
+
+/-- The sequence wire, bounded execution and successor shared by both literal profiles. -/
+def SequenceWire (limits : Limits) (prior : State) (literals : LiteralBlock.Literals)
+    (sequenceBytes : List UInt8) (result : Result) : Prop :=
+  ∃ resolvedSection commands emitted suffix offsets,
+    SequenceTables.Repeat.SectionWire prior.tables sequenceBytes resolvedSection ∧
+    SequenceTables.Repeat.StateUpdate prior.tables resolvedSection result.next.tables ∧
+    SequenceDecode.PayloadWire resolvedSection commands ∧
+    commands.length = resolvedSection.count ∧ commands.length ≤ limits.sequences.sequences ∧
+    Sequence.Runs limits.window commands prior.history.recent.toList literals.expand
+      prior.history.offsets emitted suffix offsets ∧
+    result.bytes = emitted ++ suffix ∧
+    result.next.history = prior.history.advance limits.window result.bytes offsets
+
+/-- Resolve and execute the complete sequence suffix before returning state. -/
+def execute (limits : Limits) (prior : State) (literals : LiteralBlock.Literals)
+    (sequenceBytes : List UInt8) : Except Error Result := do
+  let (resolvedSection, tables) ←
+    (SequenceTables.Repeat.resolve limits.sequences prior.tables sequenceBytes).mapError Error.tables
+  let commands ← (SequenceDecode.readResolved resolvedSection).mapError Error.sequences
+  let executed ← (Sequence.execute limits.execution prior.history.recent literals.expand
+    prior.history.offsets commands).mapError Error.execution
+  return ⟨executed.bytes, ⟨tables, prior.history.advance limits.window executed.bytes executed.offsets⟩⟩
+
+end Internal
+
 /-- The exact literal and sequence sections, their bounded execution, and
     the state produced from the executed output and selected tables. -/
 def BlockWire (limits : Limits) (prior : State) (body : List UInt8) (result : Result) : Prop :=
@@ -79,18 +113,10 @@ def BlockWire (limits : Limits) (prior : State) (body : List UInt8) (result : Re
     literal size before expansion. A successor is returned only after both
     the reverse stream and the bounded execution succeed. -/
 def decode (limits : Limits) (prior : State) (declaredSize : Nat) (body : List UInt8) :
-    Except Error Result :=
-  if limits.inputCapacity < declaredSize then .error .inputLimit
-  else if body.drop declaredSize ≠ [] then .error .sizeMismatch
-  else if body.length ≠ declaredSize then .error .sizeMismatch
-  else do
-    let (literals, sequenceBytes) ← (LiteralBlock.parseLiterals limits.execution.capacity body).mapError
-      Error.literals
-    let (resolvedSection, tables) ←
-      (SequenceTables.Repeat.resolve limits.sequences prior.tables sequenceBytes).mapError Error.tables
-    let commands ← (SequenceDecode.readResolved resolvedSection).mapError Error.sequences
-    let executed ← (Sequence.execute limits.execution prior.history.recent literals.expand
-      prior.history.offsets commands).mapError Error.execution
-    return ⟨executed.bytes, ⟨tables, prior.history.advance limits.window executed.bytes executed.offsets⟩⟩
+    Except Error Result := do
+  Internal.checkExtent limits declaredSize body
+  let (literals, sequenceBytes) ← (LiteralBlock.parseLiterals limits.execution.capacity body).mapError
+    Error.literals
+  Internal.execute limits prior literals sequenceBytes
 
 end Silmaril.Formats.Compression.Zstd.CompressedBlock
