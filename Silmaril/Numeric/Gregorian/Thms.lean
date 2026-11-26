@@ -48,6 +48,11 @@ theorem toEpochDay?_eq_none_iff (date : CivilDate) : date.toEpochDay? = none ↔
 theorem epoch_toEpochDay? : (⟨1970, 1, 1⟩ : CivilDate).toEpochDay? = some 0 :=
   Proofs.Numeric.Gregorian.epoch_toEpochDay?
 
+/-- The decoded year is the unique year whose January starts bracket the day. -/
+theorem ofEpochDay_year_eq_iff {day year : Int} :
+    (ofEpochDay day).year = year ↔ yearStart year ≤ day ∧ day < yearStart (year + 1) :=
+  Proofs.Numeric.Gregorian.ofEpochDay_year_eq_iff
+
 /-- Every signed day decodes to a valid civil date. -/
 theorem ofEpochDay_valid (day : Int) : (ofEpochDay day).Valid :=
   Proofs.Numeric.Gregorian.ofEpochDay_valid day

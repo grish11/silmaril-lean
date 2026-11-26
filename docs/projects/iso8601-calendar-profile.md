@@ -31,13 +31,15 @@ offset   = "Z" | ("+" | "-") pair ":" pair
   `c / 10^k` seconds and becomes `c * 10^(9 - k)` nanoseconds. A tenth
   digit is rejected even if the excess digits are all zero.
 
-The profile excludes basic, ordinal and week dates, expanded years,
-date-only and time-only text, reduced precision, local-only strings,
+The datetime profile excludes basic forms, ordinal or week-date components,
+expanded years, date-only and time-only text, reduced precision, local-only strings,
 lowercase or space separators, decimal commas, 24:00, leap seconds,
 offset seconds, durations, intervals and repeating forms. Fixed offsets use
 only the supplied number. Named zones, historical zone rules, gaps, folds
 and annotations are outside the profile. The matrix pins [RFC 9557][rfc9557]
 and [tzdb 2025b][tzdb] for that work. The API exposes parsing and tick conversion.
+The [ordinal and week-date profile](iso8601-ordinal-week-date.md) covers
+their complete extended date-only forms.
 
 ## Interpretation and checks
 

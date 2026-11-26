@@ -147,6 +147,20 @@ private theorem year_bracket (day : Int) :
   rw [Int.natCast_add_one, ← Int.add_assoc] at hi
   exact hi
 
+theorem ofEpochDay_year_eq_iff {day year : Int} :
+    (CivilDate.ofEpochDay day).year = year ↔ yearStart year ≤ day ∧ day < yearStart (year + 1) := by
+  constructor
+  · rintro rfl
+    exact year_bracket day
+  · intro ⟨lo, hi⟩
+    obtain ⟨decodedLo, decodedHi⟩ := year_bracket day
+    rcases lt_trichotomy (CivilDate.ofEpochDay day).year year with before | same | after
+    · have := yearStart_strictMono.monotone (show (CivilDate.ofEpochDay day).year + 1 ≤ year by omega)
+      omega
+    · exact same
+    · have := yearStart_strictMono.monotone (show year + 1 ≤ (CivilDate.ofEpochDay day).year by omega)
+      omega
+
 private theorem decode_spec (day : Int) :
     let date := CivilDate.ofEpochDay day
     date.Valid ∧
@@ -222,17 +236,9 @@ private theorem encode_brackets {date : CivilDate} {day : Int} (h : date.toEpoch
 theorem ofEpochDay_toEpochDay? {date : CivilDate} {day : Int} (h : date.toEpochDay? = some day) :
     CivilDate.ofEpochDay day = date := by
   let decoded := CivilDate.ofEpochDay day
-  obtain ⟨⟨lo₁, hi₁⟩, ⟨ml₁, mh₁⟩, offset₁⟩ := encode_brackets (toEpochDay?_ofEpochDay day)
-  obtain ⟨⟨lo₂, hi₂⟩, ⟨ml₂, mh₂⟩, offset₂⟩ := encode_brackets h
-  have sameYear : decoded.year = date.year := by
-    change yearStart decoded.year ≤ day at lo₁
-    change day < yearStart (decoded.year + 1) at hi₁
-    rcases lt_trichotomy decoded.year date.year with before | same | after
-    · have := yearStart_strictMono.monotone (show decoded.year + 1 ≤ date.year by omega)
-      omega
-    · exact same
-    · have := yearStart_strictMono.monotone (show date.year + 1 ≤ decoded.year by omega)
-      omega
+  obtain ⟨_, ⟨ml₁, mh₁⟩, offset₁⟩ := encode_brackets (toEpochDay?_ofEpochDay day)
+  obtain ⟨yearBounds, ⟨ml₂, mh₂⟩, offset₂⟩ := encode_brackets h
+  have sameYear : decoded.year = date.year := ofEpochDay_year_eq_iff.mpr yearBounds
   change monthStart (isLeapYear decoded.year) (decoded.month - 1) ≤ day - yearStart decoded.year at ml₁
   change day - yearStart decoded.year < monthStart (isLeapYear decoded.year) decoded.month at mh₁
   change day = yearStart decoded.year + monthStart (isLeapYear decoded.year) (decoded.month - 1) +
