@@ -205,16 +205,19 @@ theorem entry_cycle (model : Model F Part α) (input : Fin a × α) (i : Fin gra
   intro result member
   exact no_closed_run model closed ((Silmaril.Elgot.Part.mem_iter_iff _ _ result).mp member) visited
 
-private theorem all_supported (wire : Fin a → Fin b) :
-    EntryTyped graph ↔ ∀ input, ((entryOutcome graph input).agrees? (wire input)).isSome := by
+private def Supported {n : Nat} : Outcome n b → Prop
+  | .unsupported _ => False
+  | _ => True
+
+private theorem all_supported : EntryTyped graph ↔ ∀ input, Supported (entryOutcome graph input) := by
   constructor
   · intro typed input
     cases found : entryOutcome graph input with
-    | returns port => rfl
-    | cycle i => rfl
+    | returns port => trivial
+    | cycle i => trivial
     | unsupported i =>
       have failure := entry_unsupported input i found
-      exact (failure.2 (typed input i failure.1)).elim
+      exact failure.2 (typed input i failure.1)
   · intro supported input
     have spec := entry_spec (graph := graph) input
     cases found : entryOutcome graph input with
@@ -229,67 +232,117 @@ private theorem all_supported (wire : Fin a → Fin b) :
     | unsupported i =>
       have supportedInput := supported input
       rw [found] at supportedInput
-      contradiction
+      exact supportedInput.elim
 
-private theorem all_agree (model : PairModel F Part α) (wire : Fin a → Fin b)
-    (typed : EntryTyped graph) :
-    (∀ input, (entryOutcome graph input).agrees? (wire input) = some true) ↔
-      Refines (Quotient.mk _ graph : Arrow V F α a b) (Quotient.mk _ (Graph.wiring wire)) := by
-  constructor
-  · intro agrees m input
-    change graph.denote m.val input ≤ (Graph.wiring (V := V) (F := F) wire).denote m.val input
-    rw [Simulation.denote_wiring]
-    cases found : entryOutcome graph input.1 with
-    | returns port =>
-      have equal : port = wire input.1 := by simpa [found, Outcome.agrees?] using agrees input.1
-      rw [entry_returns m.val input port found, equal]
-    | cycle i =>
-      rw [(entry_cycle m.val input i found).2]
+private theorem compare_supported {n m : Nat} (left : Outcome n b) (right : Outcome m b) :
+    (left.refines? right).isSome ↔ Supported left ∧ Supported right := by
+  cases left <;> cases right <;> simp [Outcome.refines?, Outcome.agrees?, Supported]
+
+private theorem entry_agrees (model : PairModel F Part α) (left right : Graph V F a b) (input : Fin a)
+    (leftOK : Supported (entryOutcome left input)) (rightOK : Supported (entryOutcome right input)) :
+    (entryOutcome left input).refines? (entryOutcome right input) = some true ↔
+      ∀ (m : PairModel F Part α) (packet : α), left.denote m.val (input, packet) ≤ right.denote m.val (input, packet) := by
+  cases source : entryOutcome left input with
+  | unsupported i =>
+    rw [source] at leftOK
+    exact leftOK.elim
+  | cycle i =>
+    have included (m : PairModel F Part α) (packet : α) :
+        left.denote m.val (input, packet) ≤ right.denote m.val (input, packet) := by
+      rw [(entry_cycle m.val (input, packet) i source).2]
       exact fun result member => (Part.notMem_none result member).elim
-    | unsupported i =>
-      have failure := entry_unsupported input.1 i found
-      exact (failure.2 (typed input.1 i failure.1)).elim
-  · intro included input
-    cases found : entryOutcome graph input with
-    | returns port =>
-      have atInput := included model (input, model.val.unit)
-      change graph.denote model.val (input, model.val.unit) ≤
-        (Graph.wiring (V := V) (F := F) wire).denote model.val (input, model.val.unit) at atInput
-      rw [entry_returns model.val (input, model.val.unit) port found, Simulation.denote_wiring] at atInput
-      have same := Part.mem_some_iff.mp (atInput _ (Part.mem_some _))
-      simpa only [Outcome.agrees?, Option.some.injEq, decide_eq_true_eq] using congrArg Prod.fst same
-    | cycle i => rfl
-    | unsupported i =>
-      have failure := entry_unsupported input i found
-      exact (failure.2 (typed input i failure.1)).elim
+    cases target : entryOutcome right input with
+    | unsupported j =>
+      rw [target] at rightOK
+      exact rightOK.elim
+    | returns port => exact ⟨fun _ => included, fun _ => rfl⟩
+    | cycle j => exact ⟨fun _ => included, fun _ => rfl⟩
+  | returns sourcePort =>
+    cases target : entryOutcome right input with
+    | unsupported j =>
+      rw [target] at rightOK
+      exact rightOK.elim
+    | cycle j =>
+      simp only [Outcome.refines?, Option.some.injEq, Bool.false_eq_true, false_iff]
+      intro included
+      have atUnit := included model model.val.unit
+      rw [entry_returns model.val (input, model.val.unit) sourcePort source,
+        (entry_cycle model.val (input, model.val.unit) j target).2] at atUnit
+      exact Part.notMem_none _ (atUnit _ (Part.mem_some _))
+    | returns targetPort =>
+      simp only [Outcome.refines?, Outcome.agrees?, Option.some.injEq, decide_eq_true_eq]
+      constructor
+      · intro same m packet
+        rw [entry_returns m.val (input, packet) sourcePort source,
+          entry_returns m.val (input, packet) targetPort target, same]
+      · intro included
+        have atUnit := included model model.val.unit
+        rw [entry_returns model.val (input, model.val.unit) sourcePort source,
+          entry_returns model.val (input, model.val.unit) targetPort target] at atUnit
+        have same := Part.mem_some_iff.mp (atUnit _ (Part.mem_some _))
+        exact congrArg Prod.fst same
 
-private theorem supported_eq (wire : Fin a → Fin b) :
-    ((List.finRange a).map (fun input => (entryOutcome graph input).agrees? (wire input))).all
-      Option.isSome = true ↔ EntryTyped graph := by
-  simp [List.all_eq_true, all_supported (graph := graph) wire]
+private theorem all_agree (model : PairModel F Part α) (left right : Graph V F a b)
+    (leftTyped : EntryTyped left) (rightTyped : EntryTyped right) :
+    (∀ input, (entryOutcome left input).refines? (entryOutcome right input) = some true) ↔
+      Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right) := by
+  have each := fun input =>
+    entry_agrees model left right input (all_supported.mp leftTyped input) (all_supported.mp rightTyped input)
+  exact ⟨fun agrees m input => (each input.1).mp (agrees input.1) m input.2,
+    fun included input => (each input).mpr (fun m packet => included m (input, packet))⟩
+
+private theorem supported_eq (left right : Graph V F a b) :
+    ((List.finRange a).map (fun input => (entryOutcome left input).refines? (entryOutcome right input))).all
+      Option.isSome = true ↔ EntryTyped left ∧ EntryTyped right := by
+  simp only [List.all_eq_true, List.mem_map, List.mem_finRange, true_and, forall_exists_index,
+    forall_apply_eq_imp_iff, compare_supported, all_supported, forall_and]
+
+theorem refinement_between_none (left right : Graph V F a b) :
+    refinementBetween? left right = none ↔ ¬ (EntryTyped left ∧ EntryTyped right) := by
+  dsimp only [refinementBetween?]
+  split
+  · rename_i supported
+    simp [(supported_eq left right).mp supported]
+  · rename_i unsupported
+    simp [mt (supported_eq left right).mpr unsupported]
+
+theorem refinement_between_some (model : PairModel F Part α) (left right : Graph V F a b)
+    (verdict : Bool) :
+    refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
+      (verdict = true ↔ Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right)) := by
+  dsimp only [refinementBetween?]
+  split
+  · rename_i supported
+    have typed := (supported_eq left right).mp supported
+    simp only [Option.some.injEq, typed, true_and]
+    rw [← all_agree model left right typed.1 typed.2]
+    cases verdict <;> simp [List.all_eq_true]
+  · rename_i unsupported
+    simp [mt (supported_eq left right).mpr unsupported]
+
+private theorem entry_wiring (wire : Fin a → Fin b) (input : Fin a) :
+    entryOutcome (Graph.wiring (V := V) (F := F) wire) input = .returns (wire input) := by
+  unfold entryOutcome
+  rw [inspect.eq_def]
+  rfl
+
+theorem refinement_between_wiring (graph : Graph V F a b) (wire : Fin a → Fin b) :
+    refinementBetween? graph (Graph.wiring wire) = refinement? graph wire := by
+  simp only [refinementBetween?, refinement?, entry_wiring, Outcome.refines?]
+
+private theorem typed_wiring (wire : Fin a → Fin b) : EntryTyped (Graph.wiring (V := V) (F := F) wire) :=
+  fun _ index _ => Fin.elim0 index
 
 theorem refinement_none (graph : Graph V F a b) (wire : Fin a → Fin b) :
     refinement? graph wire = none ↔ ¬ EntryTyped graph := by
-  dsimp only [refinement?]
-  split
-  · rename_i supported
-    simp [(supported_eq wire).mp supported]
-  · rename_i unsupported
-    simp [mt (supported_eq wire).mpr unsupported]
+  rw [← refinement_between_wiring, refinement_between_none]
+  simp [typed_wiring]
 
 theorem refinement_some (model : PairModel F Part α) (graph : Graph V F a b)
     (wire : Fin a → Fin b) (verdict : Bool) :
     refinement? graph wire = some verdict ↔ EntryTyped graph ∧
       (verdict = true ↔ Refines (Quotient.mk _ graph : Arrow V F α a b) (Quotient.mk _ (Graph.wiring wire))) := by
-  dsimp only [refinement?]
-  split
-  · rename_i supported
-    have typed := (supported_eq wire).mp supported
-    simp only [Option.some.injEq, typed, true_and]
-    have checked := all_agree model wire typed
-    rw [← checked]
-    cases verdict <;> simp [List.all_eq_true]
-  · rename_i unsupported
-    simp [mt (supported_eq wire).mpr unsupported]
+  rw [← refinement_between_wiring, refinement_between_some model]
+  simp only [typed_wiring, and_true]
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain

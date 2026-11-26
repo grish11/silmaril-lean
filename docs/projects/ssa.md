@@ -222,6 +222,13 @@ contain cycles or unsupported bodies. The decision gives a proved semantic
 verdict. `CopyChain.certificate` is the separate total-table API for obtaining a
 label map usable with the linker.
 
+`CopyChain.refinementBetween?` compares two entry-typed graphs with the same
+external ports. A source cycle contributes no result and refines either
+supported target outcome. A source return requires a target return at the same
+port. Unsupported syntax reached on either side gives `none`. With a common
+pair-lawful `Part` model, the verdict decides refinement for these graphs.
+Using a wiring graph as the target gives the same verdict as `refinement?`.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

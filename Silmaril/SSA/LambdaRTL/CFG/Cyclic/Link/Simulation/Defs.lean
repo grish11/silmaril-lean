@@ -141,6 +141,20 @@ def refinement? (wire : Fin a → Fin b) : Option Bool :=
   let results := (List.finRange a).map fun input => (entryOutcome graph input).agrees? (wire input)
   if results.all Option.isSome then some (results.all (· == some true)) else none
 
+/-- Compare entry outcomes without identifying the private addresses of the
+two graphs. An unsupported outcome on either side gives no verdict. -/
+def Outcome.refines? {m : Nat} : Outcome n b → Outcome m b → Option Bool
+  | source, .returns port => source.agrees? port
+  | .returns _, .cycle _ => some false
+  | .cycle _, .cycle _ => some true
+  | .unsupported _, .cycle _ | _, .unsupported _ => none
+
+/-- Decide inclusion between two graphs on the entry-typed fragment. -/
+def refinementBetween? (target : Graph V F a b) : Option Bool :=
+  let results := (List.finRange a).map fun input =>
+    (entryOutcome graph input).refines? (entryOutcome target input)
+  if results.all Option.isSome then some (results.all (· == some true)) else none
+
 end CopyChain
 
 /-- The local syntactic simulation rules. -/

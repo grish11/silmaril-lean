@@ -180,6 +180,23 @@ theorem entryOutcome_unsupported {graph : Graph V F a b} (input : Fin a) (index 
       ¬ ∃ next, PacketCopy.Forwards {(graph.block index).param} (graph.block index).body next :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.entry_unsupported input index found
 
+theorem refinementBetween?_eq_none_iff (left right : Graph V F a b) :
+    refinementBetween? left right = none ↔ ¬ (EntryTyped left ∧ EntryTyped right) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_none left right
+
+/-- The entry-only verdict decides terminating-result inclusion between
+graphs with typed reachable blocks. One common model detects a source
+return that the target cannot match. -/
+theorem refinementBetween?_eq_some_iff (model : PairModel F Part α) (left right : Graph V F a b)
+    (verdict : Bool) :
+    refinementBetween? left right = some verdict ↔ (EntryTyped left ∧ EntryTyped right) ∧
+      (verdict = true ↔ Refines (Quotient.mk _ left : Arrow V F α a b) (Quotient.mk _ right)) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_some model left right verdict
+
+theorem refinementBetween?_wiring (graph : Graph V F a b) (wire : Fin a → Fin b) :
+    refinementBetween? graph (Graph.wiring wire) = refinement? graph wire :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_between_wiring graph wire
+
 theorem refinement?_eq_none_iff (graph : Graph V F a b) (wire : Fin a → Fin b) :
     refinement? graph wire = none ↔ ¬ EntryTyped graph :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.CopyChain.refinement_none graph wire

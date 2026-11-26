@@ -218,4 +218,29 @@ private def unusedAltered : Graph Bool Empty 1 1 := { altered with entry := fun 
 
 example : CopyChain.refinement? unusedAltered id = some true := by cbv
 
+-- The cycle labels are local to their graphs, which have different sizes.
+example : CopyChain.refinementBetween? spin (ring (.inl 0)) = some true := by cbv
+example : CopyChain.refinementBetween? (ring (.inl 0)) spin = some true := by cbv
+
+private def shortChain (port : Fin 2) : Graph Bool Empty 1 2 :=
+  copyTable (n := 1) (.inl 0) fun _ => .inr port
+
+example : CopyChain.refinementBetween? (shortChain 0) chain = some true := by cbv
+example : CopyChain.refinementBetween? chain (shortChain 0) = some true := by cbv
+example : CopyChain.refinementBetween? chain (shortChain 1) = some false := by cbv
+
+example : CopyChain.refinementBetween? (ring (.inl 0)) move = some true := by cbv
+
+private theorem return_to_cycle_verdict :
+    CopyChain.refinementBetween? move (ring (.inl 0)) = some false := by cbv
+
+example : ¬ Refines moveClass (Quotient.mk _ (ring (.inl 0))) := by
+  have failed := ((CopyChain.refinementBetween?_eq_some_iff model move (ring (.inl 0)) false).mp
+    return_to_cycle_verdict).2
+  exact fun included => Bool.noConfusion (failed.mpr included)
+
+example : CopyChain.refinementBetween? (ring (.inl 0)) altered = none := by cbv
+example : CopyChain.refinementBetween? altered (ring (.inl 0)) = none := by cbv
+example : CopyChain.refinementBetween? move unusedAltered = some true := by cbv
+
 end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link
