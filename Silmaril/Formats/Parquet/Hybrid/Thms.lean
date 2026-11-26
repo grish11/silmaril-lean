@@ -11,6 +11,17 @@ public section
 
 namespace Silmaril.Formats.Parquet.Hybrid
 
+/-- The bounded reader consumes exactly the canonical ULEB prefix. -/
+theorem readULEB_sound {fuel value : Nat} {input rest : List UInt8}
+    (h : readULEB fuel input = .ok (value, rest)) : input = uleb value ++ rest :=
+  Proofs.Formats.Parquet.Hybrid.readULEB_sound h
+
+/-- A successful split retains both the exact prefix and the remaining bytes. -/
+theorem takeExact_ok_iff {size : Nat} {input payload rest : List UInt8} :
+    takeExact size input = .ok (payload, rest) ↔
+      payload.length = size ∧ input = payload ++ rest :=
+  Proofs.Formats.Parquet.Hybrid.takeExact_ok_iff
+
 /-- A valid header consumes exactly its minimal ULEB encoding. -/
 theorem readHeader_ok_iff {input rest : List UInt8} {code : Nat} :
     readHeader input = .ok (code, rest) ↔ code < 2 * runLimit ∧ input = uleb code ++ rest :=
