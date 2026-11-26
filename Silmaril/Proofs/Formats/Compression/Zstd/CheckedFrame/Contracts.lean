@@ -11,7 +11,7 @@ open Silmaril.Formats.Compression.Zstd (Header blockMaximum parseHeader magic co
 open Silmaril.Formats.Compression.Zstd.CheckedFrame
 open Silmaril.Formats.Compression.Zstd.CheckedFrame.Internal
 
-private theorem takeExact_sound {size : Nat} {input body rest : List UInt8}
+theorem takeExact_sound {size : Nat} {input body rest : List UInt8}
     (success : takeExact size input = .ok (body, rest)) :
     input = body ++ rest ∧ body.length = size := by
   simp only [takeExact, List.splitAt_eq] at success
@@ -109,7 +109,7 @@ theorem readBlocks_sound {header : Header} {fuel remaining : Nat} {input rest : 
           omega
         · simpa [List.reverse_cons, List.append_assoc] using shape
 
-private theorem finish_sound {header : Header} {out trailer result : List UInt8}
+theorem finish_sound {header : Header} {out trailer result : List UInt8}
     (success : finish header out trailer = .ok result) :
     result = out ∧ (∀ n, header.contentSize = some n → out.length = n) ∧
       trailer = (if header.checksum then contentChecksum out else []) := by
@@ -143,11 +143,12 @@ private theorem finish_sound {header : Header} {out trailer result : List UInt8}
         cases success
         exact ⟨rfl, size, by simp [noChecksum]⟩
 
-theorem decode_sound {limits : Limits} {input out : List UInt8}
-    (success : decode limits input = .ok out) :
-    ∃ header, FrameWire input out header ∧ input.length ≤ limits.input ∧
-      out.length ≤ limits.output ∧ header.windowSize ≤ limits.window := by
-  simp only [decode] at success
+theorem openFrame_sound {limits : Limits} {input blocks : List UInt8} {size : Nat} {header : Header}
+    (success : openFrame limits input = .ok (size, header, blocks)) :
+    ∃ frameData, input = magic ++ frameData ∧ parseHeader frameData = some (header, blocks) ∧
+      size = input.length ∧ input.length ≤ limits.input ∧
+      header.dictionaryId = 0 ∧ header.windowSize ≤ limits.window := by
+  simp only [openFrame] at success
   split at success
   · simp [throw, bind, Except.bind] at success
   · rename_i inputFits
@@ -172,18 +173,30 @@ theorem decode_sound {limits : Limits} {input out : List UInt8}
             split at success
             · simp [throw] at success
             · rename_i windowFits
-              cases read : readBlocks header (input.length / 3) limits.output blocks [] with
-              | error err => simp [read] at success
-              | ok pair =>
-                obtain ⟨decoded, trailer⟩ := pair
-                simp only [read] at success
-                obtain ⟨chunks, wire, budget, shape⟩ := readBlocks_sound read
-                have decodedEq : decoded = chunks := by simpa using shape
-                subst decoded
-                obtain ⟨rfl, size, trailerWire⟩ := finish_sound success
-                exact ⟨header, ⟨frameData, blocks, trailer, chunks,
-                  signatureEq ▸ inputShape, parsed, by simpa using dictionary,
-                  wire, rfl, size, trailerWire⟩,
-                  Nat.le_of_not_gt inputFits, budget, Nat.le_of_not_gt windowFits⟩
+              cases success
+              exact ⟨frameData, signatureEq ▸ inputShape, parsed, rfl, Nat.le_of_not_gt inputFits,
+                by simpa using dictionary, Nat.le_of_not_gt windowFits⟩
+
+theorem decode_sound {limits : Limits} {input out : List UInt8}
+    (success : decode limits input = .ok out) :
+    ∃ header, FrameWire input out header ∧ input.length ≤ limits.input ∧
+      out.length ≤ limits.output ∧ header.windowSize ≤ limits.window := by
+  cases opened : openFrame limits input with
+  | error err => simp [decode, opened, bind, Except.bind] at success
+  | ok fields =>
+    obtain ⟨size, header, blocks⟩ := fields
+    obtain ⟨frameData, shape, parsed, _, inputFits, dictionary, windowFits⟩ := openFrame_sound opened
+    cases read : readBlocks header (size / 3) limits.output blocks [] with
+    | error err => simp [decode, opened, read, bind, Except.bind] at success
+    | ok pair =>
+      obtain ⟨decoded, trailer⟩ := pair
+      simp only [decode, opened, read, bind, Except.bind] at success
+      obtain ⟨chunks, wire, budget, decodedShape⟩ := readBlocks_sound read
+      have decodedEq : decoded = chunks := by simpa using decodedShape
+      subst decoded
+      obtain ⟨rfl, size, trailerWire⟩ := finish_sound success
+      exact ⟨header, ⟨frameData, blocks, trailer, chunks,
+        shape, parsed, dictionary, wire, rfl, size, trailerWire⟩,
+        inputFits, budget, windowFits⟩
 
 end Silmaril.Proofs.Formats.Compression.Zstd.CheckedFrame
