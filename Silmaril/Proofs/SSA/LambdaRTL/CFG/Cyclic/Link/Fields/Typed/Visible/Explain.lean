@@ -24,7 +24,8 @@ theorem explain_refinement (input : Fin a) (packet : Denote (inputs input)) :
     (fun (key : signature.Request) => (signature.reply key.1).enumerate) (fun key => mem_enumerate (signature.reply key.1))
     left.states right.states left.mem_states right.mem_states left.step right.step
     (left.start input packet) (right.start input packet)
-  refine ⟨by simpa only [Program.explainRefinementAt?, Option.map_eq_none_iff, Program.refinementAt?] using
+  refine ⟨by simpa only [Program.explainRefinementAt?, Option.map_eq_none_iff,
+    Program.refinementAt?, Program.refinementBetween?] using
     checked.1, ?_⟩
   intro trace found
   obtain ⟨pre, stored, rfl⟩ := Option.map_eq_some_iff.mp found

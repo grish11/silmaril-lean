@@ -102,11 +102,13 @@ theorem observe_eq (input : Fin a) (packet : Denote (inputs input)) :
   simp only [pure_bind, numbered]
   rfl
 
-theorem compare_at [DecidableEq F] (right : Program signature inputs outputs) (input : Fin a)
-    (packet : Denote (inputs input)) :
-    program.refinementAt? right input packet = true ↔
-      TraceLE (program.observe input packet) (right.observe input packet) := by
-  rw [Program.refinementAt?, Silmaril.Elgot.ITree.Finite.compare_iff _ _ program.mem_states right.mem_states,
+theorem compare_between [DecidableEq F] {c : Nat} {rightInputs : Fin c → PacketType}
+    (right : Program signature rightInputs outputs)
+    (leftInput : Fin a) (leftPacket : Denote (inputs leftInput))
+    (rightInput : Fin c) (rightPacket : Denote (rightInputs rightInput)) :
+    program.refinementBetween? right leftInput leftPacket rightInput rightPacket = true ↔
+      TraceLE (program.observe leftInput leftPacket) (right.observe rightInput rightPacket) := by
+  rw [Program.refinementBetween?, Silmaril.Elgot.ITree.Finite.compare_iff _ _ program.mem_states right.mem_states,
     observe_eq, observe_eq, TraceLE.bind_pure_iff render_injective]
 
 end Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible
