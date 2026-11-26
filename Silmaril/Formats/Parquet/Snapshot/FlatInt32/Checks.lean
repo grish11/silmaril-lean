@@ -35,17 +35,29 @@ private def physicalRows (n : Nat) : List (List (Option Int32)) :=
 private def lateReason {ε : Type} : Snapshot.Error (Error ε) :=
   .decode 1 (.profile (.page (.header (.missingField 1))))
 
-private def arrow (schema : Scan.Schema String Unit) (bytes : Bytes) :
+private def observeBatches (stream : Events.EventStream String Cell (Snapshot.Error (Error Unit))) :
     Except (Snapshot.Error (Error Unit))
       (List Nat × List (List (Option Int32)) × Events.Termination (Snapshot.Error (Error Unit))) :=
-  (readAll {} schema bytes).map fun ⟨_, trace⟩ =>
+  stream.map fun ⟨_, trace⟩ =>
     (trace.batches.map (·.rowCount), trace.rows.map List.ofFn, trace.termination)
+
+private def arrow (schema : Scan.Schema String Unit) (bytes : Bytes) :=
+  observeBatches (readAll {} schema bytes)
+
+private def bounded (fuel : Nat) (bytes : Bytes) :=
+  observeBatches ((Snapshot.batchReader {} (bind {} physical)).read fuel bytes)
 
 #guard arrow physical v1 = .ok ([12, 12], physicalRows 24, .eos)
 #guard arrow physical v2 = .ok ([12, 12], physicalRows 24, .eos)
 #guard arrow physical late = .ok ([12], physicalRows 12, .readError lateReason)
 #guard arrow reversed v1 = .error (.schema (.schemaNames ["optional_i32", "required_i32"]
   ["required_i32", "optional_i32"]))
+
+#guard bounded 0 v2 = .ok ([], [], .closed)
+#guard bounded 2 v2 = .ok ([12, 12], physicalRows 24, .closed)
+#guard bounded 3 v2 = .ok ([12, 12], physicalRows 24, .eos)
+#guard bounded 1 late = .ok ([12], physicalRows 12, .closed)
+#guard bounded 2 late = .ok ([12], physicalRows 12, .readError lateReason)
 
 private def repeatReordered (schema : Scan.Schema String Unit) : Scan.Projection schema :=
   if bound : 1 < schema.width then
