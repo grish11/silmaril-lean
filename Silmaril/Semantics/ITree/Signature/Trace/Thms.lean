@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Semantics.ITree.Signature.Trace.Defs
 import Silmaril.Proofs.Semantics.ITree.Signature.Trace.Transport
+import Silmaril.Proofs.Semantics.ITree.Signature.Trace.Order
 
 public section
 
@@ -48,6 +49,29 @@ theorem Hom.hasTrace_image (f : S ⟶ T) (t : Tree S.toSignature.Event A) (p : T
 
 theorem Hom.traceLE_iff (f : S ⟶ T) {l r : Tree S.toSignature.Event A} :
     TraceLE (f.hom.tree id l) (f.hom.tree id r) ↔ TraceLE l r :=
-  Proofs.traceLE_iff f
+  ⟨Signature.Proofs.traceLE_reflect f.hom f.request_injective (fun q => (f.reply_bijective q).2),
+    Signature.Proofs.traceLE_map f.hom⟩
 
 end Silmaril.Elgot.ITree.TraceSignature
+
+namespace Silmaril.Elgot.ITree.Signature
+
+open CategoryTheory
+
+universe u v
+
+variable {S T : Signature.{u}} {A : Type v}
+
+/-- Reindexing preserves directed trace inclusion for any signature morphism. -/
+theorem Hom.traceLE_map (f : S ⟶ T) {l r : Tree S.Event A} (included : TraceLE l r) :
+    TraceLE (f.tree id l) (f.tree id r) :=
+  Proofs.traceLE_map f included
+
+/-- Reflection needs every source reply to have a target representative.
+Several target replies may represent the same source reply. -/
+theorem Hom.traceLE_iff_of_surjective (f : S ⟶ T) (keys : Function.Injective f.request)
+    (replies : ∀ q, Function.Surjective (f.reply q)) {l r : Tree S.Event A} :
+    TraceLE (f.tree id l) (f.tree id r) ↔ TraceLE l r :=
+  ⟨Proofs.traceLE_reflect f keys replies, f.traceLE_map⟩
+
+end Silmaril.Elgot.ITree.Signature

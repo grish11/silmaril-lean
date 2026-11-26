@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Semantics.ITree.Signature.Trace.Defs
+import Silmaril.Proofs.Semantics.ITree.Signature.Trace.Order
 
 public section
 
@@ -92,14 +93,6 @@ private theorem out_translate (f : S ⟶ T) (t : Tree S.toSignature.Event A)
     out (f.hom.tree id t) = Part.some (f.hom.visible id (f.hom.tree id) node) := by
   rw [f.hom.out_tree, h, Part.map_some]
 
-private theorem out_reflect (f : S ⟶ T) (t : Tree S.toSignature.Event A)
-    (node : Visible T.toSignature.Event A (Tree T.toSignature.Event A))
-    (h : out (f.hom.tree id t) = Part.some node) :
-    ∃ source, out t = Part.some source ∧ f.hom.visible id (f.hom.tree id) source = node := by
-  rw [f.hom.out_tree, Part.eq_some_iff, Part.mem_map_iff] at h
-  obtain ⟨source, hs, eq⟩ := h
-  exact ⟨source, Part.eq_some_iff.mpr hs, eq⟩
-
 private theorem handled_forward (f : S ⟶ T) (step : Handler X T.toSignature.Event)
     (x : X) (t : Tree S.toSignature.Event A) (p : Trace S.toSignature.Event A) :
     HandledTrace (f.hom.restrict step) x t p → HandledTrace step x (f.hom.tree id t) (f.trace p) := by
@@ -131,12 +124,12 @@ private theorem handled_reflect (f : S ⟶ T) (step : Handler X T.toSignature.Ev
   | «prefix» => exact fun _ => ⟨.prefix, ⟨trivial, trivial⟩, rfl⟩
   | result a =>
     intro h
-    obtain ⟨node, hn, eq⟩ := out_reflect f t (.ret a) h.1
+    obtain ⟨node, hn, eq⟩ := Signature.Proofs.out_source f.hom t (.ret a) h.1
     cases node <;> cases eq
     exact ⟨.result _, ⟨hn, trivial⟩, rfl⟩
   | @request R ev =>
     rintro ⟨⟨k, hk⟩, _⟩
-    obtain ⟨node, hn, eq⟩ := out_reflect f t (.vis ev k) hk
+    obtain ⟨node, hn, eq⟩ := Signature.Proofs.out_source f.hom t (.vis ev k) hk
     cases node with
     | ret => cases eq
     | vis ev' k' =>
@@ -144,7 +137,7 @@ private theorem handled_reflect (f : S ⟶ T) (step : Handler X T.toSignature.Ev
       exact ⟨.request ev', ⟨⟨k', hn⟩, trivial⟩, rfl⟩
   | @exchange R ev r p ih =>
     rintro ⟨⟨k, hk, ht⟩, y, hy, hp⟩
-    obtain ⟨node, hn, eq⟩ := out_reflect f t (.vis ev k) hk
+    obtain ⟨node, hn, eq⟩ := Signature.Proofs.out_source f.hom t (.vis ev k) hk
     cases node with
     | ret => cases eq
     | @vis R' ev' k' =>
@@ -181,16 +174,5 @@ theorem hasTrace_image (f : S ⟶ T) (t : Tree S.toSignature.Event A) (p : Trace
   exact ⟨fun seen => let ⟨pre, original, same⟩ := image.mp ⟨seen, replay_all p⟩
       ⟨pre, original.1, same⟩,
     fun ⟨pre, seen, same⟩ => (image.mpr ⟨pre, ⟨seen, replay_reduct_all f pre⟩, same⟩).1⟩
-
-theorem traceLE_iff (f : S ⟶ T) {l r : Tree S.toSignature.Event A} :
-    TraceLE (f.hom.tree id l) (f.hom.tree id r) ↔ TraceLE l r := by
-  constructor
-  · intro included p seen
-    obtain ⟨pre, found, same⟩ := (hasTrace_image f r (f.trace p)).mp
-      (included _ ((hasTrace_image f l _).mpr ⟨p, seen, rfl⟩))
-    exact trace_injective f same ▸ found
-  · intro included p seen
-    obtain ⟨pre, found, same⟩ := (hasTrace_image f l p).mp seen
-    exact (hasTrace_image f r p).mpr ⟨pre, included pre found, same⟩
 
 end Silmaril.Elgot.ITree.TraceSignature.Proofs

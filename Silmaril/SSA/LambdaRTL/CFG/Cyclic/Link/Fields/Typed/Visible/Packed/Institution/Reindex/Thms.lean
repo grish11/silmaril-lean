@@ -18,6 +18,12 @@ variable {F : Type} {signature : PrimitiveSignature F} {a b : Nat}
   {left right : Program signature inputs outputs} {input : Fin a} {Target : TraceSignature.{0}}
 
 /-- Reindexing commutes with execution of the actual packed region. -/
+theorem PackedEntry.observe_mapped {target : Silmaril.Elgot.ITree.Signature.{0}} (entry : PackedEntry left input)
+    (f : signature.traceSignature.toSignature ⟶ target) (ambient record : Semantics.Env Atom) :
+    entry.observeMapped f ambient record = f.tree id (entry.observe ambient record) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.observe_mapped
+    entry f ambient record
+
 theorem PackedEntry.observe_reindexed (entry : PackedEntry left input) (f : signature.traceSignature ⟶ Target)
     (ambient record : Semantics.Env Atom) :
     entry.observeReindexed f ambient record = f.hom.tree id (entry.observe ambient record) :=

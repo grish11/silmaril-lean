@@ -19,10 +19,16 @@ variable {F : Type} {signature : PrimitiveSignature F} {a b : Nat}
   {inputs : Fin a → PacketType} {outputs : Fin b → PacketType}
   {left right : Program signature inputs outputs} {input : Fin a} {Target : TraceSignature.{0}}
 
+theorem observe_mapped {target : Silmaril.Elgot.ITree.Signature.{0}} (entry : PackedEntry left input)
+    (f : signature.traceSignature.toSignature ⟶ target)
+    (ambient record : Semantics.Env Atom) :
+    entry.observeMapped f ambient record = f.tree id (entry.observe ambient record) :=
+  (Semantics.Interaction.region_reindex f signature.primitive _ _).symm
+
 theorem observe_reindexed (entry : PackedEntry left input) (f : signature.traceSignature ⟶ Target)
     (ambient record : Semantics.Env Atom) :
     entry.observeReindexed f ambient record = f.hom.tree id (entry.observe ambient record) :=
-  (Semantics.Interaction.region_reindex f.hom signature.primitive _ _).symm
+  observe_mapped entry f.hom ambient record
 
 theorem refinementSentence_reindexed
     (leftEntry : PackedEntry left input) (rightEntry : PackedEntry right input)

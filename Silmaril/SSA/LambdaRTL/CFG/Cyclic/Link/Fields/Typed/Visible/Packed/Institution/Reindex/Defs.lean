@@ -19,13 +19,19 @@ variable {F : Type} {signature : PrimitiveSignature F} {a b : Nat}
 
 /-- Run the checked packed dispatcher with primitives translated to the
 target event signature. Inputs, compiled code, and ordered exits are shared. -/
+noncomputable def PackedEntry.observeMapped {target : Silmaril.Elgot.ITree.Signature.{0}} (entry : PackedEntry left input)
+    (f : signature.traceSignature.toSignature ⟶ target) (ambient record : Semantics.Env Atom) :
+    Tree target.Event (Nat × Silmaril.Isotope.Value Atom) :=
+  letI := signature.typing
+  region (fun op value => f.tree id (signature.primitive op value))
+    (Semantics.extend ambient (packEnv entry.count record))
+    ((FiniteCFG.packedExecutionRegion entry.typed).packInputsDestructure entry.context.toList)
+
+/-- Run the same dispatcher along an arrow of the trace institution. -/
 noncomputable def PackedEntry.observeReindexed (entry : PackedEntry left input)
     (f : signature.traceSignature ⟶ Target) (ambient record : Semantics.Env Atom) :
     Tree Target.toSignature.Event (Nat × Silmaril.Isotope.Value Atom) :=
-  letI := signature.typing
-  region (fun op value => f.hom.tree id (signature.primitive op value))
-    (Semantics.extend ambient (packEnv entry.count record))
-    ((FiniteCFG.packedExecutionRegion entry.typed).packInputsDestructure entry.context.toList)
+  entry.observeMapped f.hom ambient record
 
 /-- The existing trace sentence comparing two reindexed packed executions. -/
 noncomputable def PackedEntry.refinementSentenceReindexed
