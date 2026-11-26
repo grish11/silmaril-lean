@@ -37,40 +37,44 @@ def lean(work, steps):
     return decoded
 
 
+def fixture(native):
+    # The first five sections use the pinned Repeat-table oracle's encodings.
+    # The last two use a zero-literal Offset_Value 2, selecting the third
+    # repeat distance and rotating it to the front (with cross-block copies).
+    cases = (
+        ("raw literals, fresh tables", "raw", b"abcd", "011802103f0322", b"abcdabc"),
+        ("unsequenced RLE literals", "rle", b"!!!", "00", b"!!!"),
+        ("RLE literals, all tables repeated", "rle", b"wwww", "01fc0322", b"wwwwwww"),
+        ("replace two tables", "raw", b"ABCDE", "016c05108a1f0023", b"ABCDEABC"),
+        ("use replacements", "raw", b"vwxyz", "01fc1823", b"vwxyzvwxy"),
+        ("physical raw block", "plain", b"ABCD", "", b"ABCD"),
+        ("physical RLE block", "plain-rle", b"XX", "", b"XX"),
+        ("zero-literal repeat offset", "raw", b"", "015400010302", b"CDXXCD"),
+        ("repeat tables and offset again", "raw", b"", "01fc02", b"DXXCDD"),
+    )
+    for name, kind, literals, sequence_hex, out in cases:
+        if kind == "plain":
+            block, step = (0, len(literals), literals), ("plain", literals)
+        elif kind == "plain-rle":
+            block, step = (1, len(literals), literals[:1]), ("plain", literals)
+        else:
+            body = run(native, kind, data=literals) + bytes.fromhex(sequence_hex)
+            block, step = (2, len(body), body), ("decode", body)
+        yield name, block, step, out
+
+
 def main():
     with TemporaryDirectory(prefix="silmaril-zstd-compressed-block-") as directory:
         work = Path(directory)
         native = oracle["build_reference"](work)
         print(f'libzstd v1.5.7 {oracle["PIN"]}')
 
-        # The first five sections use the pinned Repeat-table oracle's encodings.
-        # The last two use a zero-literal Offset_Value 2, selecting the third
-        # repeat distance and rotating it to the front (with cross-block copies).
-        cases = (
-            ("raw literals, fresh tables", "raw", b"abcd", "011802103f0322", b"abcdabc"),
-            ("unsequenced RLE literals", "rle", b"!!!", "00", b"!!!"),
-            ("RLE literals, all tables repeated", "rle", b"wwww", "01fc0322", b"wwwwwww"),
-            ("replace two tables", "raw", b"ABCDE", "016c05108a1f0023", b"ABCDEABC"),
-            ("use replacements", "raw", b"vwxyz", "01fc1823", b"vwxyzvwxy"),
-            ("physical raw block", "plain", b"ABCD", "", b"ABCD"),
-            ("physical RLE block", "plain-rle", b"XX", "", b"XX"),
-            ("zero-literal repeat offset", "raw", b"", "015400010302", b"CDXXCD"),
-            ("repeat tables and offset again", "raw", b"", "01fc02", b"DXXCDD"),
-        )
         native_blocks, steps, expected = [], [], []
-        for name, kind, literals, sequence_hex, out in cases:
-            if kind == "plain":
-                native_blocks.append((0, len(literals), literals))
-                steps.append(("plain", literals))
-            elif kind == "plain-rle":
-                native_blocks.append((1, len(literals), literals[:1]))
-                steps.append(("plain", literals))
-            else:
-                body = run(native, kind, data=literals) + bytes.fromhex(sequence_hex)
-                native_blocks.append((2, len(body), body))
-                steps.append(("decode", body))
+        for name, block, step, out in fixture(native):
+            native_blocks.append(block)
+            steps.append(step)
             expected.append(out)
-            print(f"{name}: body={native_blocks[-1][2].hex()} bytes={out.hex()}")
+            print(f"{name}: body={block[2].hex()} bytes={out.hex()}")
         full = frame(native_blocks)
         require(lean(work, steps) == expected, "Lean per-block output or state handoff differs")
         require(run(native, "decode", data=full) == b"".join(expected), "native complete frame differs")
