@@ -45,10 +45,16 @@ theorem resolveTable_sound {alphabet : FseTable.Alphabet} {mode : Nat}
       exact ⟨used, partition, .transmitted rfl size.symm (partition ▸ valid) wire good⟩
   · cases success
 
-theorem resolve_sound {limits : Limits} {input : List UInt8} {result : Section}
-    (success : resolve limits input = .ok result) :
-    input.length ≤ limits.inputBytes ∧ result.count ≤ limits.sequences ∧ SectionWire input result := by
-  unfold resolve at success
+theorem resolveUsing_sound {ε : Type} {translate : Error → ε}
+    {readTable : FseTable.Alphabet → Nat → List UInt8 → Except ε (Table × List UInt8)}
+    {relation : TableRelation} {limits : Limits} {input : List UInt8} {result : Section}
+    (table_sound : ∀ {alphabet mode input rest table},
+      readTable alphabet mode input = .ok (table, rest) →
+        ∃ used, input = used ++ rest ∧ relation alphabet mode used rest table)
+    (success : resolveUsing translate readTable limits input = .ok result) :
+    input.length ≤ limits.inputBytes ∧ result.count ≤ limits.sequences ∧
+      SectionLayout relation input result := by
+  unfold resolveUsing at success
   split at success
   · cases success
   rename_i inputFits
@@ -69,7 +75,7 @@ theorem resolve_sound {limits : Limits} {input : List UInt8} {result : Section}
       cases rest with
       | nil =>
         cases success
-        exact ⟨within, Nat.zero_le _, by simpa [partition] using SectionWire.empty countWire⟩
+        exact ⟨within, Nat.zero_le _, by simpa [partition] using SectionLayout.empty (relation := relation) countWire⟩
       | cons byte tail => cases success
     · rename_i nonzero
       cases rest with
@@ -79,15 +85,15 @@ theorem resolve_sound {limits : Limits} {input : List UInt8} {result : Section}
         split at success
         · cases success
         rename_i reserved
-        cases hll : resolveTable .literalLength (literalMode byte) descriptions with
+        cases hll : readTable .literalLength (literalMode byte) descriptions with
         | error reason => simp [hll] at success
         | ok ll =>
           obtain ⟨literalLength, afterLiteral⟩ := ll
-          cases hof : resolveTable .offset (offsetMode byte) afterLiteral with
+          cases hof : readTable .offset (offsetMode byte) afterLiteral with
           | error reason => simp [hll, hof] at success
           | ok ofc =>
             obtain ⟨offset, afterOffset⟩ := ofc
-            cases hml : resolveTable .matchLength (matchMode byte) afterOffset with
+            cases hml : readTable .matchLength (matchMode byte) afterOffset with
             | error reason => simp [hll, hof, hml] at success
             | ok ml =>
               obtain ⟨matchLength, stream⟩ := ml
@@ -96,18 +102,28 @@ theorem resolve_sound {limits : Limits} {input : List UInt8} {result : Section}
               · cases success
               · rename_i hasStream
                 cases success
-                obtain ⟨llBytes, llPartition, llWire⟩ := resolveTable_sound hll
-                obtain ⟨ofBytes, ofPartition, ofWire⟩ := resolveTable_sound hof
-                obtain ⟨mlBytes, mlPartition, mlWire⟩ := resolveTable_sound hml
+                obtain ⟨llBytes, llPartition, llWire⟩ := table_sound hll
+                obtain ⟨ofBytes, ofPartition, ofWire⟩ := table_sound hof
+                obtain ⟨mlBytes, mlPartition, mlWire⟩ := table_sound hml
                 rw [mlPartition] at ofWire ofPartition
                 rw [ofPartition] at llWire llPartition
                 rw [partition, llPartition]
                 refine ⟨?_, Nat.le_of_not_gt countFits, ?_⟩
                 · simpa [partition, llPartition] using within
                 · simpa only [List.append_assoc, List.singleton_append, List.cons_append, List.nil_append] using
-                    (SectionWire.coded (tables := ⟨literalLength, offset, matchLength⟩)
+                    (SectionLayout.coded (relation := relation) (tables := ⟨literalLength, offset, matchLength⟩)
                       countWire (Nat.pos_of_ne_zero nonzero) (Classical.not_not.mp reserved)
                       (by simpa only [List.append_assoc] using llWire) ofWire mlWire (by simpa using hasStream))
+
+theorem resolve_sound {limits : Limits} {input : List UInt8} {result : Section}
+    (success : resolve limits input = .ok result) :
+    input.length ≤ limits.inputBytes ∧ result.count ≤ limits.sequences ∧ SectionWire input result := by
+  obtain ⟨inputFits, countFits, layout⟩ := resolveUsing_sound (translate := id) (readTable := resolveTable)
+    (relation := TableWire) (fun h => resolveTable_sound h) success
+  refine ⟨inputFits, countFits, ?_⟩
+  cases layout with
+  | empty count => exact .empty count
+  | coded count positive reserved ll ofc ml stream => exact .coded count positive reserved ll ofc ml stream
 
 private theorem boundedRow {limits : FseTable.Limits} {dist : FseTable.Distribution}
     {table : FseTable.Table} {state extra : Nat} {row : FseTable.Row}

@@ -14,6 +14,19 @@ theorem resolveTable_sound {alphabet : FseTable.Alphabet} {mode : Nat}
     ∃ used, input = used ++ rest ∧ TableWire alphabet mode used rest table :=
   Proofs.Formats.Compression.Zstd.SequenceTables.resolveTable_sound success
 
+/-- A table reader with exact prefix contracts gives the same section bounds
+    and byte partition for its admissible table modes. -/
+theorem resolveUsing_sound {ε : Type} {translate : Error → ε}
+    {readTable : FseTable.Alphabet → Nat → List UInt8 → Except ε (Table × List UInt8)}
+    {relation : TableRelation} {limits : Limits} {input : List UInt8} {result : Section}
+    (table_sound : ∀ {alphabet mode input rest table},
+      readTable alphabet mode input = .ok (table, rest) →
+        ∃ used, input = used ++ rest ∧ relation alphabet mode used rest table)
+    (success : resolveUsing translate readTable limits input = .ok result) :
+    input.length ≤ limits.inputBytes ∧ result.count ≤ limits.sequences ∧
+      SectionLayout relation input result :=
+  Proofs.Formats.Compression.Zstd.SequenceTables.resolveUsing_sound table_sound success
+
 /-- The caller's caps hold and each table description occupies its exact
     slice in the input. The suffix is the entire remaining bitstream. -/
 theorem resolve_sound {limits : Limits} {input : List UInt8} {result : Section}

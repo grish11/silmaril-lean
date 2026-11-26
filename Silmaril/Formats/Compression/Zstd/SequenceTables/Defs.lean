@@ -101,6 +101,21 @@ inductive SectionWire : List UInt8 → Section → Prop where
       stream ≠ [] →
       SectionWire (encoded ++ [mode] ++ ll ++ ofc ++ ml ++ stream) (.coded count tables stream)
 
+abbrev TableRelation := Alphabet → Nat → List UInt8 → List UInt8 → Table → Prop
+
+/-- The count, mode byte, three descriptions and reverse-stream boundary,
+    parameterized by admissible table descriptions. -/
+inductive SectionLayout (relation : TableRelation) : List UInt8 → Section → Prop where
+  | empty {encoded : List UInt8} :
+      LiteralBlock.SequenceCountWire encoded 0 → SectionLayout relation encoded .empty
+  | coded {encoded ll ofc ml stream : List UInt8} {mode : UInt8} {count : Nat} {tables : Tables} :
+      LiteralBlock.SequenceCountWire encoded count → 0 < count → mode.toNat % 4 = 0 →
+      relation .literalLength (literalMode mode) ll (ofc ++ ml ++ stream) tables.literalLength →
+      relation .offset (offsetMode mode) ofc (ml ++ stream) tables.offset →
+      relation .matchLength (matchMode mode) ml stream tables.matchLength →
+      stream ≠ [] →
+      SectionLayout relation (encoded ++ [mode] ++ ll ++ ofc ++ ml ++ stream) (.coded count tables stream)
+
 def resolveTable (alphabet : Alphabet) (mode : Nat) (input : List UInt8) :
     Except Error (Table × List UInt8) :=
   match mode with
@@ -122,22 +137,28 @@ def resolveTable (alphabet : Alphabet) (mode : Nat) (input : List UInt8) :
 
 /-- Check the bytes and count caps before table construction. For a positive
     count, the remaining bytes are reserved for reverse bitstream decoding. -/
-def resolve (limits : Limits) (input : List UInt8) : Except Error Section := do
-  if input.drop limits.inputBytes ≠ [] then throw .inputLimit
-  let (count, rest) ← (LiteralBlock.readSequenceCount input).mapError Error.count
-  if limits.sequences < count then throw .sequenceLimit
+def resolveUsing {ε : Type} (translate : Error → ε)
+    (readTable : Alphabet → Nat → List UInt8 → Except ε (Table × List UInt8))
+    (limits : Limits) (input : List UInt8) : Except ε Section := do
+  if input.drop limits.inputBytes ≠ [] then throw (translate .inputLimit)
+  let (count, rest) ← (LiteralBlock.readSequenceCount input).mapError (fun reason => translate (.count reason))
+  if limits.sequences < count then throw (translate .sequenceLimit)
   if count = 0 then
     if rest.isEmpty then return .empty
-    else throw .trailingEmptySection
+    else throw (translate .trailingEmptySection)
   else
     match rest with
-    | [] => throw .missingModes
+    | [] => throw (translate .missingModes)
     | mode :: descriptions => do
-      if mode.toNat % 4 ≠ 0 then throw .reservedBits
-      let (literalLength, afterLiteral) ← resolveTable .literalLength (literalMode mode) descriptions
-      let (offset, afterOffset) ← resolveTable .offset (offsetMode mode) afterLiteral
-      let (matchLength, stream) ← resolveTable .matchLength (matchMode mode) afterOffset
-      if stream.isEmpty then throw .missingBitstream
+      if mode.toNat % 4 ≠ 0 then throw (translate .reservedBits)
+      let (literalLength, afterLiteral) ← readTable .literalLength (literalMode mode) descriptions
+      let (offset, afterOffset) ← readTable .offset (offsetMode mode) afterLiteral
+      let (matchLength, stream) ← readTable .matchLength (matchMode mode) afterOffset
+      if stream.isEmpty then throw (translate .missingBitstream)
       return .coded count ⟨literalLength, offset, matchLength⟩ stream
+
+/-- Resolve a standalone prefix. Repeat mode requires the stateful resolver. -/
+def resolve (limits : Limits) (input : List UInt8) : Except Error Section :=
+  resolveUsing id resolveTable limits input
 
 end Silmaril.Formats.Compression.Zstd.SequenceTables
