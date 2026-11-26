@@ -155,6 +155,16 @@ deversioning give an order isomorphism on the observational classes and a
 natural isomorphism of the two refinement institutions. The comparison
 transports semantic refinement between the named interfaces.
 
+[Plugging exit continuations](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/Institution/Refinement/Plugging/Thms.lean)
+is monotone in both the program and a pointwise ordered continuation on the
+exit label and packet. A continuation can use a common external store. For a
+raw handler called with the producer's final store, independence from that
+store is equivalent to factoring through the observed label and packet.
+A packet-closed continuation table has this property: each labelled body
+reads its free inputs from the incoming packet, even across back edges.
+With a store-reading continuation, a single discarded assignment suffices
+to [distinguish equal classes](../../Silmaril/Proofs/SSA/LambdaRTL/CFG/Cyclic/Institution/Refinement/Plugging/Regression.lean).
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

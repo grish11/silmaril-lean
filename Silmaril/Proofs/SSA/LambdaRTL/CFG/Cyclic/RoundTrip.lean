@@ -63,14 +63,13 @@ private theorem hit (model : Model F M α) {rename : V → W} {regs : Finset V}
   rw [body_rename model injective _ covered]
   exact block_input model block closed (by simp [upd])
 
-private theorem step_rename_table (model : Model F M α) {rename : V → W} {regs : Finset V}
-    (injective : Set.InjOn rename regs) (table : List (K × Block V K F))
-    (covered : ∀ item ∈ table, item.2.body.toRegion.vars ⊆ regs)
-    (closed : ∀ item ∈ table, item.2.body.toRegion.fv ⊆ {item.2.param})
-    (input : V → α) (label : K) (payload : α) (store : W → α) :
+private theorem step_map (model : Model F M α) (mapBlock : Block V K F → Block W K F)
+    (table : List (K × Block V K F)) (input : V → α) (label : K) (payload : α) (store : W → α)
+    (agrees : ∀ item ∈ table,
+      (mapBlock item.2).body.evalJump model (upd store (mapBlock item.2).param payload) =
+        item.2.body.evalJump model (upd input item.2.param payload)) :
     Sum.map obs obs <$> Cyclic.step model
-      (table.map fun (key, block) => (key, ⟨rename block.param, renameBody rename block.body⟩))
-      (label, payload, store) =
+      (table.map fun (key, block) => (key, mapBlock block)) (label, payload, store) =
       Cyclic.stepSSA model table input (label, payload) := by
   induction table with
   | nil => simp [Cyclic.step, Cyclic.stepSSA, obs]
@@ -79,12 +78,21 @@ private theorem step_rename_table (model : Model F M α) {rename : V → W} {reg
     by_cases matchKey : label = key
     · subst key
       simp only [List.map_cons, Cyclic.step, Cyclic.stepSSA, List.lookup_cons, beq_self_eq_true]
-      rw [← hit model injective block (covered _ List.mem_cons_self) (closed _ List.mem_cons_self)
-        payload store input, Body.evalJump]
+      rw [← agrees (label, block) List.mem_cons_self, Body.evalJump]
       simp only [Body.exec_eq_evalRTL, map_bind, map_pure, Sum.map_inr, obs]
     · simpa [Cyclic.step, Cyclic.stepSSA, List.lookup_cons, beq_false_of_ne matchKey] using
-        ih (fun item member => covered item (List.mem_cons_of_mem _ member))
-          (fun item member => closed item (List.mem_cons_of_mem _ member))
+        ih (fun item member => agrees item (List.mem_cons_of_mem _ member))
+
+omit [DecidableEq W] in
+theorem step_packetClosed (model : Model F M α) (table : List (K × Block V K F))
+    (closed : PacketClosedTable table) (input : V → α) (transfer : Transfer V K α) :
+    Sum.map obs obs <$> Cyclic.step model table transfer =
+      Cyclic.stepSSA model table input (obs transfer) := by
+  rcases transfer with ⟨label, payload, store⟩
+  have square := step_map model id table input label payload store
+    (fun item member => block_input model item.2 (closed item member) (by simp [upd]))
+  change Sum.map obs obs <$> Cyclic.step model (table.map id) (label, payload, store) = _ at square
+  simpa only [List.map_id, obs] using square
 
 theorem step_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W}
     (injective : Set.InjOn rename (support graph))
@@ -96,7 +104,9 @@ theorem step_rename (model : Model F M α) (graph : CFG V K F) {rename : V → W
     exact Finset.mem_union_right _ (List.mem_toFinset.mpr (List.mem_flatMap.mpr
       ⟨item, member, List.mem_cons_of_mem _ (Finset.mem_toList.mpr used)⟩))
   rcases transfer with ⟨label, payload, store⟩
-  exact step_rename_table model injective graph.blocks covered closed input label payload store
+  exact step_map model (fun block => ⟨rename block.param, renameBody rename block.body⟩)
+    graph.blocks input label payload store
+    (fun item member => hit model injective item.2 (covered item member) (closed item member) payload store input)
 
 variable [Iterate M] [LawfulElgotMonad M]
 

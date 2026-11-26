@@ -15,6 +15,14 @@ universe v w
 variable {V W K : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
   [DecidableEq V] [DecidableEq W] [DecidableEq K] [Monad M] [LawfulMonad M]
 
+/-- A hit in a packet-closed table observes only the incoming packet. A miss
+returns the original label and payload. -/
+theorem step_packetClosed_obs (model : Model F M α) (table : List (K × Block V K F))
+    (closed : PacketClosedTable table) (input : V → α) (transfer : Transfer V K α) :
+    Sum.map obs obs <$> Cyclic.step model table transfer =
+      Cyclic.stepSSA model table input (obs transfer) :=
+  Proofs.SSA.LambdaRTL.CFG.CyclicRoundTrip.step_packetClosed model table closed input transfer
+
 /-- After a table lookup, the lexical block and its mutable renaming agree on
 the next label and payload from any carried store. The packet supplies every
 free register of a hit, so the lexical base environment is arbitrary. -/

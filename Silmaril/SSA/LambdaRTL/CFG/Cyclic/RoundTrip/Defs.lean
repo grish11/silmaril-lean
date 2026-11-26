@@ -17,10 +17,14 @@ variable {V W K : Type w} {F : Type v}
 
 namespace RoundTrip
 
-/-- Each labelled body receives all its free inputs in its incoming packet.
-The entry may read directly from its own initial environment. -/
+/-- Each labelled body receives all its free inputs in its incoming packet. -/
+def PacketClosedTable [DecidableEq V] (table : List (K × Block V K F)) : Prop :=
+  ∀ item ∈ table, item.2.body.toRegion.fv ⊆ {item.2.param}
+
+/-- Packet closure applies to the labelled bodies. The entry can read from
+its initial environment. -/
 def PacketClosed [DecidableEq V] (graph : CFG V K F) : Prop :=
-  ∀ item ∈ graph.blocks, item.2.body.toRegion.fv ⊆ {item.2.param}
+  PacketClosedTable graph.blocks
 
 /-- Rename register uses and case binders in a terminator. -/
 def renameTerm (rename : V → W) : Term V K F → Term W K F
