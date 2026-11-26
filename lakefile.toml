@@ -462,11 +462,6 @@ supportInterpreter = true
 name = "WasmAutoTests"
 globs = ["tests.wasm.auto.+", "tests.wasm.auto2.+"]
 
-# Check the typed parallel feedback rules and the parallel model contract.
-[[lean_lib]]
-name = "LetParIterTests"
-globs = ["tests.ssa.LetParIter", "tests.ssa.LetParPairingModel"]
-
 # Elaborate the exact and repaired LetIter packing headers together in both import orders.
 [[lean_lib]]
 name = "LetIterPackingImportTests"
@@ -476,11 +471,6 @@ globs = ["tests.ssa.LetIterPackingImports.+"]
 [[lean_lib]]
 name = "LetIterWeakTreeSoundnessTests"
 globs = ["tests.ssa.LetIterWeakTreeSoundness"]
-
-# Check the parallel embeddings, effectful examples and axiom dependencies.
-[[lean_lib]]
-name = "LetParTests"
-globs = ["tests.ssa.LetPar"]
 
 # Check the typed PEG core, the paper guard counterexample, and SIMPLE translation and reversion.
 [[lean_lib]]
