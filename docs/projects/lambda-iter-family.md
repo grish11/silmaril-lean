@@ -840,6 +840,17 @@ construction takes the primitive interpretation law for the supplied
 trace arrow as its remaining semantic premise.
 [Checked opcode compilation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/InstructionMap/Compilation/Thms.lean)
 
+The checked fragment forms an institution of original RTL pairs at a common
+store, with fixed register names, ordered exits and selected live-outs.
+Each sentence has a successful public admission and two independent typed
+decodes. An arrow preserves the opcode types and supplies an existing
+reply-preserving trace arrow with the raw primitive agreement law.
+Identity and composition act on the original graphs and store. Admission
+transports along each arrow, and the translated occurrence sentence is
+independent of the admission certificate. The comorphism into the existing
+handled-trace institution uses its discrete policy models and their reduct.
+[Checked occurrence institution](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Public/Structural/Occurrences/Comparison/Institution/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
