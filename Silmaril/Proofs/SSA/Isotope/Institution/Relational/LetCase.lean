@@ -51,6 +51,41 @@ private abbrev foldSyntax (g : P ⟶ Q) {n : Nat} {β : BoundCtx τ n}
   Models.denote (Algebra.reductObj (Silmaril.Isotope.Institution.LetCase.sigHom Γ g)
     (Models.syntaxAlgebra Q.Instr Γ)) d
 
+private theorem foldSyntax_op (g : P ⟶ Q) {n : Nat} {β : BoundCtx τ n}
+    (op : P.Instr) {t : Tm ν P.Instr n} (d : Derivation P.Instr Γ β t (instrSrc op)) :
+    foldSyntax g (.op (f := op) d) =
+      ⟨.op (g.instr op) (foldSyntax g d).1,
+        g.target op ▸ .op ((g.source op).symm ▸ (foldSyntax g d).2)⟩ := by
+  let o := Models.Operation.op (Γ := Γ) (β := β) op
+  change Models.syntaxOp (Silmaril.Isotope.Institution.LetCase.opMap Γ g o)
+    (fun j => Eq.rec (motive := fun i _ => Program Q Γ i) (foldSyntax g d)
+      (Silmaril.Isotope.Institution.LetCase.argSortMap Γ g o j)) = _
+  exact syntaxOp_cast_op (g.instr op) (g.source op) (g.target op) _ _
+    (fun _ => eqRec_heq _ _)
+
+theorem translate_eq_fold_proof (g : P ⟶ Q) {i : TypingIndex τ}
+    (p : Program P Γ i) :
+    Program.translate g p =
+      Models.denote (Algebra.reductObj (Silmaril.Isotope.Institution.LetCase.sigHom Γ g)
+        (Models.syntaxAlgebra Q.Instr Γ)) p.2 := by
+  let X := Algebra.reductObj (Silmaril.Isotope.Institution.LetCase.sigHom Γ g)
+    (Models.syntaxAlgebra Q.Instr Γ)
+  change ((Models.syntaxIsInitial P.Instr Γ).to X).map p = Models.denote X p.2
+  rw [Models.syntaxIsInitial_to]
+  rfl
+
+theorem translate_op_proof (g : P ⟶ Q) {n : Nat} {β : BoundCtx τ n}
+    (op : P.Instr) (p : Program P Γ ⟨n, β, instrSrc op⟩) :
+    Program.translate g (⟨.op op p.1, .op p.2⟩ : Program P Γ ⟨n, β, instrTrg op⟩) =
+      ⟨.op (g.instr op) (Program.translate g p).1,
+        g.target op ▸ .op ((g.source op).symm ▸ (Program.translate g p).2)⟩ := by
+  let source : Program P Γ ⟨n, β, instrTrg op⟩ := ⟨.op op p.1, .op p.2⟩
+  let target (a : Program Q Γ ⟨n, β, instrSrc op⟩) :
+      Program Q Γ ⟨n, β, instrTrg op⟩ :=
+    ⟨.op (g.instr op) a.1, g.target op ▸ .op ((g.source op).symm ▸ a.2)⟩
+  exact (translate_eq_fold_proof g source).trans
+    ((foldSyntax_op g op p.2).trans (congrArg target (translate_eq_fold_proof g p).symm))
+
 private theorem denoteRelation_fold (g : P ⟶ Q) (M : Model D Q)
     {n : Nat} {β : BoundCtx τ n} {t : Tm ν P.Instr n} {A : τ}
     (d : Derivation P.Instr Γ β t A) :
@@ -61,17 +96,7 @@ private theorem denoteRelation_fold (g : P ⟶ Q) (M : Model D Q)
   | fv | bv | unit => intros; rfl
   | @op n β op _ ha ih =>
       intro γ ρ b
-      have h :
-          foldSyntax g (.op (f := op) ha) =
-            ⟨.op (g.instr op) (foldSyntax g ha).1,
-              g.target op ▸ .op ((g.source op).symm ▸ (foldSyntax g ha).2)⟩ := by
-        let o := Models.Operation.op (Γ := Γ) (β := β) op
-        change Models.syntaxOp (Silmaril.Isotope.Institution.LetCase.opMap Γ g o)
-          (fun j => Eq.rec (motive := fun i _ => Program Q Γ i) (foldSyntax g ha)
-            (Silmaril.Isotope.Institution.LetCase.argSortMap Γ g o j)) = _
-        exact syntaxOp_cast_op (g.instr op) (g.source op) (g.target op) _ _
-          (fun _ => eqRec_heq _ _)
-      rw [h]
+      rw [foldSyntax_op g op ha]
       exact (denoteRelation_cast_op M (g.instr op) (g.source op) (g.target op)
         (foldSyntax g ha).2 γ ρ b).trans (exists_congr fun a => and_congr (ih γ ρ a) Iff.rfl)
   | let₁ _ _ iha ihb =>
@@ -104,11 +129,7 @@ theorem denoteRelation_translate_proof (g : P ⟶ Q) (M : Model D Q)
     (Program.translate g p).2.denoteRelation D M γ ρ b ↔
       p.2.denoteRelation D (M.reduct g) γ ρ b := by
   obtain ⟨n, β, A⟩ := i
-  obtain ⟨t, d⟩ := p
-  let X := Algebra.reductObj (Silmaril.Isotope.Institution.LetCase.sigHom Γ g)
-    (Models.syntaxAlgebra Q.Instr Γ)
-  change (((Models.syntaxIsInitial P.Instr Γ).to X).map ⟨t, d⟩).2.denoteRelation D M γ ρ b ↔ _
-  rw [Models.syntaxIsInitial_to]
-  exact denoteRelation_fold g M d γ ρ b
+  rw [translate_eq_fold_proof]
+  exact denoteRelation_fold g M p.2 γ ρ b
 
 end Silmaril.Isotope.Institution.Relational.LetCase

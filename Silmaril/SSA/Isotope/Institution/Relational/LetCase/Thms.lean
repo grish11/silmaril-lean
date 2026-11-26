@@ -9,6 +9,7 @@ public section
 namespace Silmaril.Isotope.Institution.Relational.LetCase
 
 open CategoryTheory Semantics Theory Silmaril.Logic.Institution
+open Silmaril.Logic.Metatheory.TheoryModel (Algebra)
 open Silmaril.Isotope.LetCase.LocallyNameless
 
 universe u v
@@ -16,6 +17,28 @@ universe u v
 variable {τ ε ν : Type u} [DecidableEq ν] [TypeFormers τ]
 variable {Γ : Ctx ν τ} {P Q : InstrSig τ ε}
 variable {D : τ → Type v} [ProductModel D] [UnitModel D] [CoproductModel D]
+
+/-- The inherited translation is the exact syntax fold, including its derivation. -/
+theorem Program.translate_eq_fold (g : P ⟶ Q) {i : TypingIndex τ}
+    (p : Program P Γ i) :
+    Program.translate g p =
+      Models.denote (Algebra.reductObj (Silmaril.Isotope.Institution.LetCase.sigHom Γ g)
+        (Models.syntaxAlgebra Q.Instr Γ)) p.2 :=
+  translate_eq_fold_proof g p
+
+/-- The primitive clause casts the translated argument to the target opcode's input type
+and casts the resulting derivation back to the original result type. -/
+theorem Program.translate_op (g : P ⟶ Q) {n : Nat} {β : BoundCtx τ n}
+    (op : P.Instr) (p : Program P Γ ⟨n, β, instrSrc op⟩) :
+    Program.translate g (⟨.op op p.1, .op p.2⟩ : Program P Γ ⟨n, β, instrTrg op⟩) =
+      ⟨.op (g.instr op) (Program.translate g p).1,
+        g.target op ▸ .op ((g.source op).symm ▸ (Program.translate g p).2)⟩ :=
+  translate_op_proof g op p
+
+/-- Sentence translation keeps the judgment and folds each selected endpoint. -/
+theorem Sentence.translate_endpoints (g : P ⟶ Q) (e : Sentence P Γ) :
+    Sentence.translate g e = ⟨e.1, Program.translate g e.2.1, Program.translate g e.2.2⟩ :=
+  rfl
 
 /-- The existing sentence translation commutes with native relational evaluation. -/
 theorem denoteRelation_translate (g : P ⟶ Q) (M : Model D Q)

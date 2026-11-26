@@ -58,6 +58,16 @@ at a common `TypingIndex τ`. The proof of evaluation under reduct computes the
 existing fold on those derivations. The primitive clause transports its source
 and result along the equalities of the signature map.
 
+The public `Sentence.translate_endpoints` law keeps the judgment index and
+computes each endpoint with `Program.translate`. In each tier,
+`Program.translate_eq_fold` computes the whole dependent program pair as the
+existing syntax fold into the reduct of target syntax. Its primitive
+`Program.translate_op` law gives the opcode `g.instr op` and the exact
+derivation formed by casting the translated argument along
+`(g.source op).symm` and the result along `g.target op`. These are equalities
+of typed program pairs, so an adapter can use them to prove relabelling
+naturality at the supplied witnesses.
+
 A model is a native `Semantics.RelationModel` on `D`. A model arrow `M ⟶ N`
 includes each relation of `M` in the corresponding relation of `N`. Identity is
 reflexivity and composition is transitivity. Model arrows are proof-irrelevant.
