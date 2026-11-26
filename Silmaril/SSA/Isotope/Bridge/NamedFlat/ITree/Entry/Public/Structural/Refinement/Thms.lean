@@ -50,6 +50,12 @@ theorem StructuralEntry.refinementOverCaptures_hasVerdict :
     (left.refinementOverCaptures right).verdict.isSome = true :=
   Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Refinement.domain_has_verdict left right
 
+/-- Every negative verdict comes from a failure at an actual representative. -/
+theorem StructuralEntry.refinementOverCaptures_eq_false_iff :
+    (left.refinementOverCaptures right).verdict = some false ↔
+      ∃ initial ∈ left.jointStores right, left.refinementFromStore? right initial = some false :=
+  Proofs.SSA.Isotope.Bridge.NamedFlat.Entry.Public.Structural.Refinement.domain_eq_false left right
+
 theorem StructuralEntry.refinementOverCaptures_emptyDomain_iff :
     (left.refinementOverCaptures right).emptyDomain = true ↔ ¬ ∃ initial,
       (∃ a, left.evalSeed initial = PacketType.encode inputType a) ∧

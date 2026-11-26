@@ -23,7 +23,7 @@ universe u v
 
 variable {τ : Type u} [TypeFormers τ] {Φ : Type v} [HasTy Φ τ]
 
-private theorem applyPacked_eqv {Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
+theorem applyPacked_eqv {Seed : VCtx τ → Region Φ → Region Φ → LCtx τ → Prop}
     {X A : τ} {L : LCtx τ} {r s : Region Φ}
     (h : Paper.Extension.Eqv Seed [product X A] r s L) :
     Paper.Extension.Eqv Seed [A, X] (Paper.PackedBody.applyPacked r) (Paper.PackedBody.applyPacked s) L :=

@@ -49,12 +49,13 @@ private theorem request_typed {L : List (Ty Empty)} {X : Ty Empty}
   .case a.elaborate.property (applyPacked_typed_exits hl) (applyPacked_typed_exits hr)
 
 set_option backward.isDefEq.respectTransparency false in
-theorem pruned_typed {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
+theorem render_typed {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
     {slots : Fin n → Term signature.Instr X Bit} {known : Term signature.Instr X Bit} {p : ReadTree L n}
-    (c : KnownGuardTraversal L tag slots known p) (payload : Term signature.Instr X unit) :
-    ValueBranches [X] (c.pruned payload) L := by
+    (c : KnownGuardTraversal L tag slots known p) (rewriteKept : ∀ {n}, ReadTree L n → ReadTree L n)
+    (payload : Term signature.Instr X unit) :
+    ValueBranches [X] (c.renderWith rewriteKept payload) L := by
   induction c with
-  | @keep _ _ slots _ p => exact (p.selectedWith slots).elaborate.property
+  | @keep _ _ slots _ p => exact ((rewriteKept p).selectedWith slots).elaborate.property
   | request emits label _ _ _ ihl ihr =>
     exact request_typed (requestTerm emits label) (ihl (retainPayload payload)) (ihr (retainPayload payload))
   | @guard Y _ slots _ _ _ _ _ emits test low _ _ _ _ _ _ ifl ifr itl itr =>
@@ -66,6 +67,12 @@ theorem pruned_typed {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
     let carried := retainPayload (A := Bit) (retainPayload (A := unit) payload)
     exact prependEmits_typed emits (.let₁ payload.elaborate.property
       (applyPacked_typed_exits (request_typed (requestTerm [] (if tag then !low else low)) (ihl carried) (ihr carried))))
+
+theorem pruned_typed {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
+    {slots : Fin n → Term signature.Instr X Bit} {known : Term signature.Instr X Bit} {p : ReadTree L n}
+    (c : KnownGuardTraversal L tag slots known p) (payload : Term signature.Instr X unit) :
+    ValueBranches [X] (c.pruned payload) L :=
+  render_typed c (fun p => p) payload
 
 private structure KnownAt (Γ : List (Ty Empty)) {X : Ty Empty}
     (known : Term signature.Instr X Bit) (payload : Term signature.Instr X unit)

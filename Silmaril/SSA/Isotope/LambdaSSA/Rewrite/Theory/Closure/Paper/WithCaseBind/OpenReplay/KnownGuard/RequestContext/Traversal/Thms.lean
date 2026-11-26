@@ -35,6 +35,13 @@ theorem KnownGuardTraversal.guardSurvives_eq_false_iff {X : Ty Empty} {frame : R
   rw [← Bool.not_eq_true, KnownGuardTraversal.guardSurvives_iff]
   exact not_exists
 
+/-- Recompiling the kept subtrees preserves the original outward scope. -/
+theorem KnownGuardTraversal.render_typed {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
+    {slots : Fin n → Term signature.Instr X Bit} {known : Term signature.Instr X Bit} {p : ReadTree L n}
+    (c : KnownGuardTraversal L tag slots known p) (rewriteKept : ∀ {n}, ReadTree L n → ReadTree L n)
+    (payload : Term signature.Instr X unit) : ValueBranches [X] (c.renderWith rewriteKept payload) L :=
+  GuardTraversal.render_typed c rewriteKept payload
+
 /-- The target keeps the original typed exit interface. -/
 theorem KnownGuardTraversal.pruned_typed {L : List (Ty Empty)} {tag : Bool} {X : Ty Empty} {n : Nat}
     {slots : Fin n → Term signature.Instr X Bit} {known : Term signature.Instr X Bit} {p : ReadTree L n}
