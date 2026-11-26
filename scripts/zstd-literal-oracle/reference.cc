@@ -14,7 +14,8 @@ int main(int argc, char** argv) {
   const std::string input((std::istreambuf_iterator<char>(std::cin)),
                           std::istreambuf_iterator<char>());
   const size_t capacity = argc == 3 ? std::stoul(argv[2]) : 131072;
-  const size_t storage = mode == "compress" ? ZSTD_compressBound(input.size()) : capacity;
+  const bool compress = mode == "compress" || mode == "compress-checksum";
+  const size_t storage = compress ? ZSTD_compressBound(input.size()) : capacity;
   std::string output(storage == 0 ? 1 : storage, '\0');
   size_t size;
   if (mode == "raw") {
@@ -26,6 +27,14 @@ int main(int argc, char** argv) {
     size = ZSTD_decompress(&output[0], capacity, input.data(), input.size());
   } else if (mode == "compress") {
     size = ZSTD_compress(&output[0], output.size(), input.data(), input.size(), 3);
+  } else if (mode == "compress-checksum") {
+    ZSTD_CCtx* context = ZSTD_createCCtx();
+    if (context == nullptr) return 2;
+    size = ZSTD_CCtx_setParameter(context, ZSTD_c_checksumFlag, 1);
+    if (!ZSTD_isError(size)) {
+      size = ZSTD_compress2(context, &output[0], output.size(), input.data(), input.size());
+    }
+    ZSTD_freeCCtx(context);
   } else if (mode == "first-block") {
     const size_t at = ZSTD_frameHeaderSize(input.data(), input.size());
     if (ZSTD_isError(at) || at + 3 > input.size()) return 2;
