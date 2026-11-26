@@ -13,7 +13,7 @@ stream extent. The end marker and regenerated symbol count are checked.
 
 namespace Silmaril.Formats.Compression.Zstd.Huffman.SingleStream
 
-open DirectWeights (Tree mass slots)
+open Weights (Tree mass slots)
 open ReverseBits (Cursor)
 
 structure Entry where
@@ -79,7 +79,7 @@ inductive StreamWire (entries : List Entry) : List Bit → List UInt8 → Prop w
 namespace Internal
 
 /-- The list and exponents are bounded before summing tree slots. -/
-def validate (limits : DirectWeights.Limits) (tree : Tree) : Except Error Unit :=
+def validate (limits : Weights.Limits) (tree : Tree) : Except Error Unit :=
   if tree.depth = 0 ∨ limits.depthCap < tree.depth then .error .invalidTree
   else if tree.weights.drop limits.symbolCap ≠ [] then .error .invalidTree
   else if tree.weights.length < 2 then .error .invalidTree
@@ -125,12 +125,15 @@ def readStream (table : Table) (expected : Nat) (input : List UInt8) :
 
 end Internal
 
-/-- Construct a canonical table from weights satisfying the direct tree
-    contract, with a checked, full interval placement. -/
-def build (limits : DirectWeights.Limits) (tree : Tree) : Except Error Table := do
+/-- Construct a canonical table for a checked tree of up to 256 symbols. -/
+def buildGeneral (limits : Weights.Limits) (tree : Tree) : Except Error Table := do
   Internal.validate limits tree
   let (entries, finish) ← Internal.place tree.depth 0 (ranked tree)
   if finish ≠ 2 ^ tree.depth then .error .invalidLayout else .ok ⟨tree.depth, entries⟩
+
+/-- Construct a canonical table under the direct-header profile's caps. -/
+def build (limits : DirectWeights.Limits) (tree : Tree) : Except Error Table :=
+  buildGeneral limits.weightLimits tree
 
 /-- Decode exactly the declared number of symbols and require exhaustion. -/
 def decode (limits : Limits) (tree : Tree) (expected : Nat) (input : List UInt8) :

@@ -11,11 +11,11 @@ open Silmaril.Formats.Compression (Bit)
 open Silmaril.Formats.Compression.Zstd
 open Silmaril.Formats.Compression.Zstd.Huffman.SingleStream
 open Silmaril.Formats.Compression.Zstd.Huffman.SingleStream.Internal
-open Huffman.DirectWeights (Tree mass slots)
+open Huffman.Weights (Tree mass slots)
 open ReverseBits (Cursor)
 
-private theorem validate_sound {limits : Huffman.DirectWeights.Limits} {tree : Tree}
-    (success : validate limits tree = .ok ()) : tree.Valid limits := by
+private theorem validate_sound {limits : Huffman.Weights.Limits} {tree : Tree}
+    (success : validate limits tree = .ok ()) : Huffman.Weights.Valid limits tree := by
   unfold validate at success
   split at success
   · cases success
@@ -69,22 +69,27 @@ private theorem place_sound {depth start finish : Nat} {ranks : List (Nat × Nat
       exact .code (Nat.pos_of_ne_zero positive) (Nat.le_of_not_gt bound)
         (Nat.lt_of_not_ge symbolFits) (Classical.not_not.mp aligned) (Nat.le_of_not_gt available) (ih placed)
 
-theorem build_sound {limits : Huffman.DirectWeights.Limits} {tree : Tree} {table : Table}
-    (success : build limits tree = .ok table) : tree.Valid limits ∧ TableWire tree table := by
+theorem buildGeneral_sound {limits : Huffman.Weights.Limits} {tree : Tree} {table : Table}
+    (success : buildGeneral limits tree = .ok table) : Huffman.Weights.Valid limits tree ∧ TableWire tree table := by
   cases valid : validate limits tree with
-  | error reason => simp [build, valid, bind, Except.bind] at success
+  | error reason => simp [buildGeneral, valid, bind, Except.bind] at success
   | ok validated =>
     cases placed : place tree.depth 0 (ranked tree) with
-    | error reason => simp [build, valid, placed, bind, Except.bind] at success
+    | error reason => simp [buildGeneral, valid, placed, bind, Except.bind] at success
     | ok pair =>
       obtain ⟨entries, finish⟩ := pair
-      simp only [build, valid, placed, bind, Except.bind] at success
+      simp only [buildGeneral, valid, placed, bind, Except.bind] at success
       split at success
       · cases success
       · rename_i exactEnd
         cases success
         exact ⟨validate_sound (by cases validated; exact valid), rfl,
           Classical.not_not.mp exactEnd ▸ place_sound placed⟩
+
+theorem build_sound {limits : Huffman.DirectWeights.Limits} {tree : Huffman.DirectWeights.Tree}
+    {table : Table} (success : build limits tree = .ok table) :
+    tree.Valid limits ∧ TableWire tree table :=
+  buildGeneral_sound success
 
 private theorem layout_intervals {depth start finish : Nat} {ranks : List (Nat × Nat)}
     {entries : List Entry} (wire : LayoutWire depth start ranks entries finish) :
@@ -192,7 +197,7 @@ theorem readStream_sound {table : Table} {expected : Nat} {input out : List UInt
 theorem decode_sound {limits : Limits} {tree : Tree} {expected : Nat} {input out : List UInt8}
     (success : decode limits tree expected input = .ok out) :
     input.length ≤ limits.inputBytes ∧ out.length = expected ∧ expected ≤ limits.outputSymbols ∧
-    tree.Valid limits.tree ∧
+    Huffman.DirectWeights.Tree.Valid limits.tree tree ∧
     ∃ table cursor, TableWire tree table ∧ ReverseBits.StartWire input cursor ∧
       StreamWire table.entries cursor.bits out := by
   unfold decode at success

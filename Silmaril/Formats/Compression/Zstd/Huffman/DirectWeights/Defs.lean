@@ -1,5 +1,7 @@
 module
 
+public import Silmaril.Formats.Compression.Zstd.Huffman.Weights.Defs
+
 /-! # Direct Zstandard Huffman weight descriptions
 
 RFC 8878 §§4.2.1–4.2.1.1. Read the byte-aligned description and infer the
@@ -18,15 +20,14 @@ structure Limits where
 
 def Limits.byteCap (limits : Limits) : Nat := min limits.bytes 65
 
+def Limits.weightLimits (limits : Limits) : Weights.Limits := ⟨min limits.symbols 129, limits.depth⟩
+
 /-- Includes the symbol whose weight is inferred. -/
-def Limits.symbolCap (limits : Limits) : Nat := min limits.symbols 129
+def Limits.symbolCap (limits : Limits) : Nat := limits.weightLimits.symbolCap
 
-def Limits.depthCap (limits : Limits) : Nat := min limits.depth 11
+def Limits.depthCap (limits : Limits) : Nat := limits.weightLimits.depthCap
 
-structure Tree where
-  depth : Nat
-  weights : List Nat
-  deriving DecidableEq, Repr
+abbrev Tree := Weights.Tree
 
 structure Prefix where
   tree : Tree
@@ -45,9 +46,9 @@ inductive Error where
   | invalidDeepestRank
   deriving DecidableEq, Repr
 
-def slots (weight : Nat) : Nat := if weight = 0 then 0 else 2 ^ (weight - 1)
+abbrev slots := Weights.slots
 
-def mass (weights : List Nat) : Nat := (weights.map slots).sum
+abbrev mass := Weights.mass
 
 def transmittedCount (header : UInt8) : Nat := header.toNat - 127
 
@@ -58,19 +59,9 @@ def packedSize (count : Nat) : Nat := (count + 1) / 2
 def unpack (bytes : List UInt8) : List Nat :=
   bytes.flatMap (fun byte => [byte.toNat / 16, byte.toNat % 16])
 
-/-- Positive weights occupy a full tree's slots. Weight 1 is the deepest
-    rank, which has at least two entries and an even population. -/
-def Tree.Valid (limits : Limits) (tree : Tree) : Prop :=
-  0 < tree.depth ∧ tree.depth ≤ limits.depthCap ∧
-    2 ≤ tree.weights.length ∧ tree.weights.length ≤ limits.symbolCap ∧
-    (∀ weight ∈ tree.weights, weight ≤ tree.depth) ∧
-    mass tree.weights = 2 ^ tree.depth ∧
-    2 ≤ tree.weights.count 1 ∧ tree.weights.count 1 % 2 = 0
+def Tree.Valid (limits : Limits) (tree : Tree) : Prop := Weights.Valid limits.weightLimits tree
 
-def CompletionWire (transmitted : List Nat) (tree : Tree) : Prop :=
-  ∃ last, tree.weights = transmitted ++ [last] ∧ 0 < last ∧
-    2 ^ (tree.depth - 1) ≤ mass transmitted ∧ mass transmitted < 2 ^ tree.depth ∧
-    mass transmitted + slots last = 2 ^ tree.depth
+abbrev CompletionWire := Weights.CompletionWire
 
 def PrefixWire (input : List UInt8) (result : Prefix) : Prop :=
   ∃ header packed,
@@ -80,21 +71,15 @@ def PrefixWire (input : List UInt8) (result : Prefix) : Prop :=
 
 namespace Internal
 
+def completionError : Weights.Error → Error
+  | .symbolLimit => .symbolLimit
+  | .depthLimit => .depthLimit
+  | .zeroMass => .zeroMass
+  | .nonPowerRemainder => .nonPowerRemainder
+  | .invalidDeepestRank => .invalidDeepestRank
+
 def complete (limits : Limits) (transmitted : List Nat) : Except Error Tree :=
-  let total := mass transmitted
-  if total = 0 then .error .zeroMass
-  else
-    let depth := total.log2 + 1
-    if limits.depthCap < depth then .error .depthLimit
-    else
-      let remaining := 2 ^ depth - total
-      let last := remaining.log2 + 1
-      if slots last ≠ remaining then .error .nonPowerRemainder
-      else
-        let weights := transmitted ++ [last]
-        let deepest := weights.count 1
-        if deepest < 2 ∨ deepest % 2 ≠ 0 then .error .invalidDeepestRank
-        else .ok ⟨depth, weights⟩
+  (Weights.complete limits.weightLimits transmitted).mapError completionError
 
 end Internal
 

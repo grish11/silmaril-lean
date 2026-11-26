@@ -7,6 +7,11 @@ public section
 
 namespace Silmaril.Formats.Compression.Zstd.Huffman.SingleStream
 
+/-- General trees use the same canonical interval placement as direct trees. -/
+theorem buildGeneral_sound {limits : Weights.Limits} {tree : Weights.Tree} {table : Table}
+    (success : buildGeneral limits tree = .ok table) : Weights.Valid limits tree ∧ TableWire tree table :=
+  Proofs.Formats.Compression.Zstd.Huffman.SingleStream.buildGeneral_sound success
+
 /-- Success validates the input weights and assigns exact canonical codes
     in RFC rank order across the complete slot interval. -/
 theorem build_sound {limits : DirectWeights.Limits} {tree : DirectWeights.Tree} {table : Table}
