@@ -46,4 +46,15 @@ def RejectedFilesReachEOF (opener : Opener Group physical Value Error)
   ∀ file ∈ files, (predicate file.cells).getD false = false →
     (scanFile opener projection predicate file).termination = .eos
 
+/-- A declaration is reached when the strict scan of its preceding
+occurrences reaches EOF. Require rejected files to reach EOF only at these
+positions, using the reference opener's actual pull budget. -/
+def ReachedRejectedFilesReachEOF (opener : Opener Group physical Value Error)
+    (projection : Scan.Projection (schema.extend physical))
+    (predicate : Scan.Predicate schema.toScan Value) (files : List (File schema Value)) : Prop :=
+  ∀ before file after, files = before ++ file :: after →
+    (scan opener projection predicate before).termination = .eos →
+    (predicate file.cells).getD false = false →
+    (scanFile opener projection predicate file).termination = .eos
+
 end Silmaril.Formats.Hive.Manifest

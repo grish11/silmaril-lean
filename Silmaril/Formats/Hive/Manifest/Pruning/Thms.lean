@@ -16,12 +16,27 @@ variable (opener : Opener Group physical Value Error)
 variable (projection : Scan.Projection (schema.extend physical))
 variable (predicate : Scan.Predicate schema.toScan Value)
 
+theorem RejectedFilesReachEOF.reached {files : List (File schema Value)}
+    (safe : RejectedFilesReachEOF opener projection predicate files) :
+    ReachedRejectedFilesReachEOF opener projection predicate files := by
+  intro before file after split _ reject
+  exact safe file (by simp [split]) reject
+
+/-- Rejected declarations in the strict scan's reached prefix must reach EOF.
+Both policies then yield the same batches and exact terminal outcome. -/
+theorem scanSkippingRejected_eq_scan_of_reached_eof (files : List (File schema Value))
+    (safe : ReachedRejectedFilesReachEOF opener projection predicate files) :
+    scanSkippingRejected opener projection predicate files = scan opener projection predicate files :=
+  Proofs.Formats.Hive.Manifest.Pruning.scanSkippingRejected_eq_scan_of_reached_eof opener projection
+    predicate files safe
+
 /-- If every rejected occurrence would reach EOF, skipping it leaves the
 reference trace unchanged, including batches and terminal outcome. -/
 theorem scanSkippingRejected_eq_scan (files : List (File schema Value))
     (safe : RejectedFilesReachEOF opener projection predicate files) :
     scanSkippingRejected opener projection predicate files = scan opener projection predicate files :=
-  Proofs.Formats.Hive.Manifest.Pruning.scanSkippingRejected_eq_scan opener projection predicate files safe
+  scanSkippingRejected_eq_scan_of_reached_eof opener projection predicate files
+    (RejectedFilesReachEOF.reached opener projection predicate safe)
 
 /-- In particular, the two policies have the same ordered typed rows and
 terminal outcome under the rejected-file EOF hypothesis. -/

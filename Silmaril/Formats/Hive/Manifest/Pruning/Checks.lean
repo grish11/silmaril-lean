@@ -33,8 +33,8 @@ private def openFile : Opener Nat physical Value String
   | "year=8/false.parquet" => .ok ⟨source [30], 2⟩
   | "year=__HIVE_DEFAULT_PARTITION__/unknown.parquet" => .ok ⟨source [], 1⟩
   | "year=7/bad.parquet" | "year=8/bad.parquet" => .ok ⟨source [30, 99], 3⟩
-  | "year=8/closed.parquet" => .ok ⟨source [30], 1⟩
-  | "year=8/close-error.parquet" => .ok ⟨source [30] (.error "cleanup"), 1⟩
+  | "year=7/closed.parquet" | "year=8/closed.parquet" => .ok ⟨source [30], 1⟩
+  | "year=7/close-error.parquet" | "year=8/close-error.parquet" => .ok ⟨source [30] (.error "cleanup"), 1⟩
   | _ => .error "missing source"
 
 private def projection : Scan.Projection (virtual.extend physical) :=
@@ -86,6 +86,30 @@ private def retainedFailure := ["year=8/false.parquet", "year=7/bad.parquet", "y
 #guard skipping retainedFailure ==
   some ([[some 7, some 30]], .readError (.source "year=7/bad.parquet" "bad group"))
 
+private def failureBeforeRejected :=
+  ["year=7/first.parquet", "year=7/bad.parquet", "year=8/bad.parquet"]
+
+#guard strict failureBeforeRejected ==
+  some ([[some 7, some 10], [some 7, some 30]], .readError (.source "year=7/bad.parquet" "bad group"))
+#guard skipping failureBeforeRejected == strict failureBeforeRejected
+
+private def closeBeforeRejected :=
+  ["year=7/first.parquet", "year=7/closed.parquet", "year=8/bad.parquet"]
+
+#guard strict closeBeforeRejected == some ([[some 7, some 10], [some 7, some 30]], .closed)
+#guard skipping closeBeforeRejected == strict closeBeforeRejected
+
+private def closeErrorBeforeRejected :=
+  ["year=7/first.parquet", "year=7/close-error.parquet", "year=8/bad.parquet"]
+
+#guard strict closeErrorBeforeRejected ==
+  some ([[some 7, some 10], [some 7, some 30]], .closeError (.source "year=7/close-error.parquet" "cleanup"))
+#guard skipping closeErrorBeforeRejected == strict closeErrorBeforeRejected
+
+#guard strict rejectedFailure != skipping rejectedFailure
+
+#print axioms scanSkippingRejected_eq_scan_of_reached_eof
+#print axioms RejectedFilesReachEOF.reached
 #print axioms scanSkippingRejected_eq_scan
 #print axioms scanSkippingRejected_equivalent
 #print axioms scanSkippingRejected_not_equivalent_singleton

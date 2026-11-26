@@ -1,6 +1,7 @@
 module
 
 public import Silmaril.Formats.Hive.Manifest.Pruning.Defs
+import Silmaril.Formats.Hive.ParquetScan.Thms
 
 public section
 
@@ -35,17 +36,26 @@ private theorem scanFileSkippingRejected_eq_scanFile (file : File schema Value)
   · cases opened : opener file.path.declared <;>
       simp [scanFileSkippingRejected, keep, scanFile, opened, ParquetScan.scanPartition]
 
-theorem scanSkippingRejected_eq_scan (files : List (File schema Value))
-    (safe : RejectedFilesReachEOF opener projection predicate files) :
+theorem scanSkippingRejected_eq_scan_of_reached_eof (files : List (File schema Value))
+    (safe : ReachedRejectedFilesReachEOF opener projection predicate files) :
     scanSkippingRejected opener projection predicate files = scan opener projection predicate files := by
   induction files with
   | nil => rfl
   | cons file rest ih =>
     have current := scanFileSkippingRejected_eq_scanFile opener projection predicate file
-      (safe file (by simp))
-    have tail := ih (fun entry member => safe entry (by simp [member]))
-    simp only [scan, scanSkippingRejected] at tail
-    simp only [scan, scanSkippingRejected, ParquetScan.assemble, current, tail]
+      (safe [] file rest rfl rfl)
+    by_cases eof : (scanFile opener projection predicate file).termination = .eos
+    · have tailSafe : ReachedRejectedFilesReachEOF opener projection predicate rest := by
+        intro before next after split reached reject
+        refine safe (file :: before) next after (congrArg (file :: ·) split) ?_ reject
+        simpa only [scan, ParquetScan.assemble, eof] using reached
+      have tail := ih tailSafe
+      simp only [scan, scanSkippingRejected] at tail
+      simp only [scan, scanSkippingRejected, ParquetScan.assemble, current, eof, tail]
+    · have skippedStop : (scanFileSkippingRejected opener projection predicate file).termination ≠ .eos := by
+        rwa [current]
+      rw [scanSkippingRejected, scan, ParquetScan.assemble_stops _ _ _ skippedStop,
+        ParquetScan.assemble_stops _ _ _ eof, current]
 
 theorem scanSkippingRejected_not_equivalent_singleton (file : File schema Value)
     (reject : (predicate file.cells).getD false = false)
