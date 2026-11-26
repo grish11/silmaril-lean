@@ -170,3 +170,50 @@ The library API emits the metadata and body of a single RecordBatch.
 make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.Writer.Examples +Silmaril.Formats.Arrow.MixedFlat.Writer.Axioms'
 python3 -I scripts/arrow-mixed-flat/writer_fixtures.py --out /tmp/arrow-mixed-flat-record-writer
 ```
+
+## Checked Int32 and BinaryView stream writer
+
+`MixedFlat.StreamWriter.emit` takes one `Schema` and a list of
+`BatchInput` values. The schema declares the Int32 and BinaryView names,
+nullability, and field order. Each batch supplies its explicit row count,
+ordered nullable Int32 slots and ordered nullable `KBytes` slots. A
+schema-only stream retains both declarations. A zero-row batch still emits
+one RecordBatch and consumes one unit of the batch-count limit.
+
+The writer emits one little-endian V5 Schema, then reuses the standalone
+writer for every RecordBatch. It uses modern continuation framing and
+terminates with explicit EOS. Running row and cell budgets are checked
+before record encoding. Their failure names the zero-based batch index.
+Standalone writer failures keep both the batch index and any field
+index. IPC body and metadata byte caps bound individual frames, while the
+column byte caps apply in each batch. The whole stream has a batch-count
+cap and cumulative row and cell caps.
+
+Successful emission reads back the complete stream with
+`MixedFlat.Stream.read` and compares the exact field declarations and
+ordered values. This adds a stream decoding and comparison pass to the
+standalone writer's per-batch checks.
+[Definitions](../../Silmaril/Formats/Arrow/MixedFlat/StreamWriter/Defs.lean)
+
+`Wire.schema_extent` gives the precise Schema metadata extent.
+`emit_readback` proves exact schema ordering and equality of nullable
+observations, with BinaryView cells observed by their octets.
+`emit_batch_rows` preserves the outer batch count and every row count.
+`emit_wire` ties those observations to the checked source ranges and EOS
+at the end of the carrier.
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/StreamWriter/Thms.lean)
+
+Pinned PyArrow 26.0.1 reads five Lean-written streams. The cases include
+both orders with row counts `[4, 0, 2]`, required fields, a schema-only
+stream and the same schema with one empty batch. The oracle checks both
+names and nullability, every value, every modern prefix and aligned body
+extent, and final EOS. Lean guards exercise indexed record and budget
+errors, and the existing PyArrow-generated mixed stream still serves as
+an independent inbound control.
+[PyArrow oracle](../../scripts/arrow-mixed-flat/stream_writer_fixtures.py) ·
+[Lean examples](../../Silmaril/Formats/Arrow/MixedFlat/StreamWriter/Examples.lean)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.MixedFlat.StreamWriter.Examples +Silmaril.Formats.Arrow.MixedFlat.StreamWriter.Axioms'
+python3 -I scripts/arrow-mixed-flat/stream_writer_fixtures.py --out /tmp/arrow-mixed-flat-stream-writer
+```
