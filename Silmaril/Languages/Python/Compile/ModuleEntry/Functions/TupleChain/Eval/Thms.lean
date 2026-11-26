@@ -9,7 +9,7 @@ namespace Silmaril.Languages.Python.Compile.ModuleEntry.Functions.TupleChain
 
 open Core.Module.TupleDispatch (Failure Heap)
 
-theorem equal_contents (left right : List Core.Module.Value) :
+theorem equal_contents (left right : List Core.Module.TupleDispatch.Element) :
     equal (.contents left) (.contents right) = .ok (Core.Module.TupleDispatch.equalContents left right) := rfl
 
 theorem constructFromName_missing {lookup : Lookup} (heap : Heap) (name : String)
@@ -24,7 +24,7 @@ theorem constructFromName_read_failure {lookup : Lookup} (heap : Heap) (name : S
   simp [constructFromName, Core.Module.TupleDispatch.constructWith, Lookup.read, found, missing, Except.bind]
 
 theorem constructFromName_stock {lookup : Lookup} (heap : Heap) (name : String)
-    (items : List Core.Module.Value) (stock : lookup.tuple () = some .stockTuple)
+    (items : List Core.Module.TupleDispatch.Element) (stock : lookup.tuple () = some .stockTuple)
     (read : lookup.global name = some (.contents items)) :
     constructFromName lookup heap name = (.ok (.contents items), heap) := by
   simp [constructFromName, Core.Module.TupleDispatch.constructWith, Lookup.read, stock, read, Except.bind]

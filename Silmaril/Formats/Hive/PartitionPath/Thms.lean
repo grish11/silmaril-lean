@@ -1,0 +1,39 @@
+module
+
+public import Silmaril.Formats.Hive.PartitionPath.Defs
+import Silmaril.Proofs.Formats.Hive.PartitionPath.Correctness
+
+public section
+
+namespace Silmaril.Formats.Hive.PartitionPath
+
+namespace Percent
+
+/-- Percent escaping and unescaping preserve all octets. -/
+theorem unescape_escape (bytes : List UInt8) : unescape (escape bytes) = .ok bytes :=
+  Proofs.Formats.Hive.PartitionPath.Percent.unescape_escape bytes
+
+/-- Escaped components contain only ASCII and no literal directory or key separators. -/
+theorem escape_safe {bytes : List UInt8} {c : UInt8} (h : c ∈ escape bytes) :
+    c.toNat < 128 ∧ c ≠ 47 ∧ c ≠ 61 :=
+  Proofs.Formats.Hive.PartitionPath.Percent.escape_safe h
+
+theorem decode_encode (value : String) : decode (encode value) = .ok value :=
+  Proofs.Formats.Hive.PartitionPath.Percent.decode_encode value
+
+end Percent
+
+/-- Lookup exactly represents membership when decoded keys are unique. -/
+theorem lookup_eq_some_iff {entries : Partition} {key : String} {value : Option String}
+    (h : (entries.map Prod.fst).Nodup) : lookup key entries = some value ↔ (key, value) ∈ entries :=
+  Proofs.Formats.Hive.PartitionPath.lookup_eq_some_iff h
+
+/-- A successful parse has unique keys and a lookup result for every required key.
+A required key may be present with a null value. -/
+theorem parse_lookup {options : Options} {path : String} {entries : Partition}
+    (h : parse options path = .ok entries) :
+    (entries.map Prod.fst).Nodup ∧
+      ∀ key ∈ options.requiredKeys, ∃ value, lookup key entries = some value :=
+  Proofs.Formats.Hive.PartitionPath.parse_lookup h
+
+end Silmaril.Formats.Hive.PartitionPath

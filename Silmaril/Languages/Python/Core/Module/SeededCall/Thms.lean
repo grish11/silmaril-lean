@@ -44,7 +44,7 @@ theorem invoke_tuple_empty :
     invoke (.builtin .tuple) [] = .ok (.returnedTuple []) :=
   invoke_iff.mpr .emptyTuple
 
-theorem invoke_tuple_exact (items : List Core.Module.Value) :
+theorem invoke_tuple_exact (items : List Core.Module.TupleDispatch.Element) :
     invoke (.builtin .tuple) [.returnedTuple items] = .ok (.returnedTuple items) :=
   invoke_iff.mpr (.copyTuple items)
 
@@ -85,7 +85,7 @@ theorem invoke_assertEqual_text (left right : Core.Text) :
   · exact invoke_iff.mpr (.equalText left right ‹_›)
   · exact invoke_iff.mpr (.unequalText left right ‹_›)
 
-theorem invoke_assertEqual_tuple (left right : List Core.Module.Value) :
+theorem invoke_assertEqual_tuple (left right : List Core.Module.TupleDispatch.Element) :
     invoke (.helper .assertEqual) [.returnedTuple left, .returnedTuple right] =
       if Core.Module.TupleDispatch.equalContents left right then .ok .none
       else .error (.raised (.assertionError (.tuplePair left right))) := by

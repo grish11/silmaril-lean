@@ -143,10 +143,11 @@ private def freshListTupleEvidence (placement : SeedPlacement) : Bool := Id.run 
   let .ok compiled := Run.compile source | return false
   let observed := run (legacyTupleIdentitySeed placement) compiled
   let contents : List Core.Module.Value := [.bool false, .none, .int 7]
-  let first : Core.Module.SeededCall.Value := .tupleObject ⟨some 0, contents⟩
-  let second : Core.Module.SeededCall.Value := .tupleObject ⟨some 1, contents⟩
+  let items : List Core.Module.TupleDispatch.Element := contents.map .scalar
+  let first : Core.Module.SeededCall.Value := .tupleObject ⟨some 0, items⟩
+  let second : Core.Module.SeededCall.Value := .tupleObject ⟨some 1, items⟩
   return observed.completion == .ok () && observed.lists.objects == #[contents, contents] &&
-    observed.heap.next == 2 && (observed.heap.contents 1).map seededValue == some (.returnedTuple contents) &&
+    observed.heap.next == 2 && (observed.heap.contents 1).map seededValue == some (.returnedTuple items) &&
     observed.residual.lookupGlobal "first" == some first &&
     observed.residual.lookupGlobal "second" == some second &&
     observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
@@ -154,5 +155,29 @@ private def freshListTupleEvidence (placement : SeedPlacement) : Bool := Id.run 
 
 #guard freshListTupleEvidence .builtin
 #guard freshListTupleEvidence .preamble
+
+private def textTupleEvidence (placement : SeedPlacement) : Bool := Id.run do
+  let tupleCall points := Source.Expr.call (.name "tuple") [.text points]
+  let equalCall left right := Source.Stmt.expression (.call (.name "___assertEqual") [left, right])
+  let source : Source.Module := ⟨[
+    equalCall (tupleCall []) (.tuple []),
+    equalCall (tupleCall [233, 128512, 769, 55296])
+      (.tuple [.text [233], .text [128512], .text [769], .text [55296]])]⟩
+  let .ok compiled := Run.compile source | return false
+  let stock := legacyTupleIdentitySeed placement
+  let observed := run stock compiled
+  let items : List Core.Module.TupleDispatch.Element :=
+    [.text ⟨[233], by decide⟩, .text ⟨[128512], by decide⟩,
+      .text ⟨[769], by decide⟩, .text ⟨[55296], by decide⟩]
+  return observed.completion == .ok () &&
+    observed.residual.moduleGlobals == stock.moduleGlobals && observed.residual.builtins == stock.builtins &&
+    observed.lists.objects.isEmpty && observed.heap.next == 1 &&
+    (observed.heap.contents 0).map seededValue == some (.returnedTuple items) &&
+    observed.calls.map (fun event => (event.callee, event.observation.result, event.observation.caught)) ==
+      [("tuple", .ok (.returnedTuple []), none), ("___assertEqual", .ok .none, none),
+        ("tuple", .ok (.tupleObject ⟨some 0, items⟩), none), ("___assertEqual", .ok .none, none)]
+
+#guard textTupleEvidence .builtin
+#guard textTupleEvidence .preamble
 
 end Silmaril.Languages.Python.Compile.ModuleEntry.Functions.Run.Seeded

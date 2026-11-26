@@ -16,7 +16,7 @@ variable {arity : Nat}
 
 private theorem argument_reindex (perm : InputPermutation arity) (i : Fin arity) :
     perm.port (argumentPort arity i) = argumentPort arity (perm i) := by
-  simp only [InputPermutation.port, InputPermutation.slot_argumentPort]
+  simp only [InputPermutation.port, InputMap.port, InputPermutation.slot_argumentPort]
 
 private theorem checkColumn_reindex (perm : InputPermutation arity) (width : Nat) (indices : List Nat) :
     checkColumn arity width (indices.map perm.index) = (checkColumn arity width indices).map perm.column := by
@@ -31,7 +31,7 @@ private theorem checkColumn_reindex (perm : InputPermutation arity) (width : Nat
         simp only [List.map_cons, InputPermutation.index, renameVertex, dite_eq_left h,
           checkColumn, dite_eq_left valid, ih]
         cases checkColumn arity width rest <;>
-          simp [InputPermutation.column, Tuple.map, argument_reindex, Option.map]
+          simp [InputPermutation.column, InputMap.column, Tuple.map, argument_reindex, Option.map]
       · simp [InputPermutation.index, renameVertex, h, checkColumn]
 
 theorem checkPlan_reindex (perm : InputPermutation arity) (spec : Spec) :

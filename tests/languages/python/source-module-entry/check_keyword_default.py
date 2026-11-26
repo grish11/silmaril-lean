@@ -55,7 +55,7 @@ private def checks (source : Source.Module) (defaults : List Int) (entries : Lis
     (completion : Completion) (after : Option Int)
     (seededCompletion : Except Seeded.ModuleFailure Unit) (receipts : List (String × Result)) : Bool := Id.run do
   let .ok compiled := compile source | return false
-  let initial : Core.Module.Functions.Session := ⟨fun _ => none, initialHeap⟩
+  let initial := Core.Module.Functions.Session.mk (fun _ => none) initialHeap
   let (events, .finished result status) := runPrefix compiled.table 128 (.ready initial compiled.instructions)
     | return false
   let entered := events.filterMap fun

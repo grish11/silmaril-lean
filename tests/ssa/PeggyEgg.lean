@@ -1294,6 +1294,7 @@ private inductive Op : List (Ty Unit) → Ty Unit → Type where
   | five : Op [] .count
   | succ : Op [.count] .count
   | exit : Op [.count] .bool
+  | atLeast : Op [.count, .count] .bool
   | negate : Op [.bool] .bool
   | mul : Op [.count, .count] .count
   | add : Op [.count, .count] .count
@@ -1364,6 +1365,7 @@ private def model (failsAtZero : Bool) : Interpretation.{0,0,0} Op where
     | .five, .nil => some ⟨5⟩
     | .succ, .cons a .nil => some ⟨a.down + 1⟩
     | .exit, .cons a .nil => some ⟨decide (3 ≤ a.down)⟩
+    | .atLeast, .cons a (.cons b .nil) => some ⟨decide (b.down ≤ a.down)⟩
     | .negate, .cons b .nil => some ⟨!b.down⟩
     | .mul, .cons a (.cons b .nil) =>
       if failsAtZero && b.down == 0 then none else some ⟨a.down * b.down⟩
@@ -1583,10 +1585,11 @@ private def asList : {ts : List (Ty Unit)} → Tuple (model false).Value ts → 
 private def runFigure6 {g : Graph Op [] result 11 1}
     (recovered : Option (Closed.Automatic.Recovered g roles)) (fuel : Nat) : Option (List Nat) := do
   let cert ← recovered
-  (cert.certificate.runFuel (model false) fuel).map asList
+  (cert.certificate.runFuel (model false) fuel .nil).map asList
 
 private def opcode {is : List (Ty Unit)} {t : Ty Unit} : Op is t → String
   | .zero => "zero" | .five => "five" | .succ => "succ" | .exit => "exit"
+  | .atLeast => "atLeast"
   | .mul => "mul" | .add => "add" | .negate => "negate"
 
 mutual
@@ -1611,8 +1614,8 @@ private def opcodes {loops : Bool} {vars outs : List (Ty Unit)} : Stmt Op loops 
   some ["zero", "exit", "negate", "succ", "five", "add", "exit"]
 #guard (checkedRegion.bind fun recovered => do
   let cert := recovered.certificate
-  let initial ← cert.start.lower.runLoopFree (model false) .nil
-  (cert.step.lower.runLoopFree (model false) initial).map asList) == some [1, 5]
+  let initial ← cert.startCode.runLoopFree (model false) .nil
+  (cert.body.runLoopFree (model false) initial).map asList) == some [1, 5]
 
 #guard runFigure6 checkedRelocated 3 == some [15, 3, 3, 15]
 #guard (runFigure6 checkedRelocated 2).isNone
@@ -1634,7 +1637,82 @@ example (recovered : Closed.Automatic.Recovered reduced.candidate roles)
     (idx : Index 1) (out : Tuple (model false).Value result)
     (ran : Exec (model false) recovered.certificate.revert .nil (some out)) :
     source.graph.observe (model false) (values false) idx = out.map (fun _ => some) :=
-  (figure6_rewrites idx).trans (recovered.observe_of_exec figure6Laws idx ran)
+  (figure6_rewrites idx).trans (recovered.observe_of_exec figure6Laws .nil idx ran)
+
+private abbrev external : List (Ty Unit) := [.count, .bool, .count, .count]
+private abbrev parameterResults : List (Ty Unit) := .bool :: result
+
+private def parameterSort (i : Fin 16) : Ty Unit :=
+  if i = 3 ∨ i = 14 then .bool else .count
+
+private def c (i : Fin 16) (typed : parameterSort i = .count) : Ref parameterSort .count :=
+  ⟨i, typed⟩
+
+private def two (x y : Ref parameterSort .count) : Tuple (Ref parameterSort) [.count, .count] :=
+  .cons x (.cons y .nil)
+
+-- Clock starts at zero. The accumulator starts at base + delta and
+-- advances by delta plus the old clock. Parameter rows 8 and 15 alias
+-- the same input, with one read inside the loop and one in the readout.
+private def parameterLoop : Graph Op external parameterResults 16 1 where
+  forest := ⟨fun _ => none⟩
+  sort := parameterSort
+  node i := match i with
+    | 0 => .ofLabel (.theta 0) (two (c 1 rfl) (c 2 rfl))
+    | 1 => .ofLabel (.op .zero) .nil
+    | 2 => .ofLabel (.op .succ) (.cons (c 0 rfl) .nil)
+    | 3 => .ofLabel (.op .atLeast) (two (c 0 rfl) (c 6 rfl))
+    | 4 => .ofLabel (.pass 0) (.cons ⟨3, rfl⟩ .nil)
+    | 5 => .ofLabel (.theta 0) (two (c 9 rfl) (c 11 rfl))
+    | 6 => .ofLabel (.param .head) .nil
+    | 7 => .ofLabel (.param (.tail (.tail .head))) .nil
+    | 8 => .ofLabel (.param (.tail (.tail (.tail .head)))) .nil
+    | 9 => .ofLabel (.op .add) (two (c 7 rfl) (c 8 rfl))
+    | 10 => .ofLabel (.op .add) (two (c 5 rfl) (c 8 rfl))
+    | 11 => .ofLabel (.op .add) (two (c 10 rfl) (c 0 rfl))
+    | 12 => .ofLabel (.eval 0) (two (c 5 rfl) (c 4 rfl))
+    | 13 => .ofLabel (.op .add) (two (c 12 rfl) (c 15 rfl))
+    | 14 => .ofLabel (.param (.tail .head)) .nil
+    | 15 => .ofLabel (.param (.tail (.tail (.tail .head)))) .nil
+    | ⟨k + 16, bounded⟩ => False.elim (by omega)
+  roots := .cons ⟨14, rfl⟩ (.cons (c 13 rfl) (.cons (c 4 rfl) (two (c 12 rfl) (c 13 rfl))))
+
+private def parameterInput (limit base delta : Nat) (echo : Bool) :
+    Tuple (model false).Value external :=
+  .cons ⟨limit⟩ (.cons ⟨echo⟩ (.cons ⟨base⟩ (.cons ⟨delta⟩ .nil)))
+
+private def inferredParameters := Closed.Automatic.extract parameterLoop roles
+
+private def runParameters (fuel limit delta : Nat) (echo : Bool) : Option (Bool × List Nat) := do
+  let recovered ← inferredParameters
+  let .cons flag counts ←
+    recovered.certificate.runFuel (model false) fuel (parameterInput limit 2 delta echo)
+  return (flag.down, asList counts)
+
+#guard runParameters 0 0 4 false == some (false, [10, 0, 6, 10])
+#guard runParameters 3 3 4 true == some (true, [25, 3, 21, 25])
+#guard runParameters 3 3 1 true == some (true, [10, 3, 9, 10])
+#guard (runParameters 2 3 4 true).isNone
+#guard (inferredParameters.map fun recovered => opcodes recovered.certificate.finish.lower) ==
+  some ["add"]
+
+-- The pass is well-ranked but is outside initializer scope.
+private def earlyPass : Graph Op external parameterResults 16 1 :=
+  { parameterLoop with node := fun i =>
+    if h : i = 5 then h.symm ▸ Node.ofLabel (.theta 0) (two (c 4 rfl) (c 11 rfl))
+    else parameterLoop.node i }
+
+#guard (Closed.Automatic.inferRank earlyPass).check earlyPass
+#guard (Closed.Automatic.extract earlyPass roles).isNone
+
+example (recovered : Closed.Automatic.Recovered parameterLoop roles) (idx : Index 1)
+    (input : Tuple (model false).Value external) (fuel : Nat)
+    (output : Tuple (model false).Value parameterResults)
+    (ran : recovered.certificate.runFuel (model false) fuel input = some output) :
+    parameterLoop.observe (model false)
+      (parameterLoop.denote (model false) input recovered.certificate.demandWellFounded) idx =
+      output.map (fun _ => some) :=
+  recovered.observe_of_exec figure6Laws input idx (recovered.certificate.exec_of_runFuel fuel input ran)
 
 private def wrongAdd : Interpretation.{0,0,0} Op where
   carrier := (model false).carrier

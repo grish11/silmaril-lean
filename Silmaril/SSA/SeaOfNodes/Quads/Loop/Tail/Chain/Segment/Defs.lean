@@ -37,6 +37,17 @@ def Segment.quads : {site : Fin size} → Segment src target site → Block Op r
   | _, .empty => []
   | _, .jump site _ rest => (src site).body ++ rest.quads
 
+/-- Cut before a named block. The returned prefix omits the block and the
+suffix starts there. Both segments keep their original checked jump edges. -/
+def Segment.cutAt : {site : Fin size} → Segment src target site → (meet : Fin size) →
+      Option (Segment src meet site × Segment src target meet)
+  | site, segment, meet =>
+    if same : site = meet then some ⟨same.symm ▸ .empty, same ▸ segment⟩
+    else match segment with
+    | .empty => none
+    | .jump site edge rest => (rest.cutAt meet).map fun (before, after) =>
+        (.jump site edge before, after)
+
 /-- Cut a checked jump chain before the destination, including a chain already there. -/
 def Path.segmentTo (target : Fin size) :
     {site : Fin size} → Path src header site → Option (Segment src target site)

@@ -38,14 +38,19 @@ def forwards (p : Program inputs sigs [word]) (rhs : SharedWord inputs sigs) (sl
   let arm := p.diamond.arms slot
   decide ((arm.outputs.get .head).address = (keepOrigin arm.dataflow rhs).address)
 
+/-- Match an ordered add against the capture and one actual Phi use. -/
+def matchesAt (p : Program inputs sigs [word]) (lhs rhs : SharedWord inputs sigs)
+    (slot : Slot) : Bool :=
+  decide (lhs.address = (Origin.arg p.residual : SharedWord inputs sigs).address) &&
+    forwards p rhs slot
+
 /-- The existing typed producer key must name the capture first and the
 same exact shared word that both original Phi occurrences forward second. -/
 def check (p : Program inputs sigs [word]) (rep : EntryAdd p) : Bool :=
   match addOperands? rep.key with
   | none => false
   | some ⟨(lhs, rhs), _⟩ =>
-    decide (lhs.address = (Origin.arg p.residual : SharedWord inputs sigs).address) &&
-      forwards p rhs .first && forwards p rhs .second
+    matchesAt p lhs rhs .first && forwards p rhs .second
 
 /-- Numbered nominations resolve only inside the common entry table. -/
 def findEntry? (p : Program inputs sigs [word]) (address : Address) : Option (EntryAdd p) :=
@@ -106,6 +111,14 @@ def slotArgs {joined : List (ValueSort Unit)} (p : Program inputs sigs joined)
     Tuple (Val model.value) (dataPorts (word :: joined)) :=
   .cons (entry.get p.residual)
     ((p.diamond.arms slot).eval model entry (p.diamond.shared.eval model entry PUnit.unit))
+
+/-- A representative has the old inner sum's value at each occurrence,
+for every typed entry. This is the semantic premise used by the shared emitter. -/
+def RepresentativeAgrees (p : Program inputs sigs [word]) (rep : EntryAdd p) : Prop :=
+  ∀ (entry : Tuple (Val model.value) (dataPorts inputs)) (slot : Slot),
+    let shared := p.diamond.shared.eval model entry PUnit.unit
+    read model rep.origin entry shared =
+      BitVec.add (entry.get p.residual) (((p.diamond.arms slot).eval model entry shared).get .head)
 
 def rewrite? (p : Program inputs sigs [word]) (rep : EntryAdd p) : Option (Program inputs sigs [word, word]) := do
   let value ← rightValue? p.suffix

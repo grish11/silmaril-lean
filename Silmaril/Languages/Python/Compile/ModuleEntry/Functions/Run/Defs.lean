@@ -60,6 +60,7 @@ def callOperand? {scope : Scope} : Operand scope → Option Core.Module.Function
 def callValue? {scope : Scope} : CallValue scope → Option Core.Module.Functions.Operand
   | .scalar operand => callOperand? operand
   | .intTrueDiv numerator divisor => some (.intTrueDiv numerator divisor)
+  | .mixedAdd integer floating => some (.mixedAdd integer floating)
   | .float64 value => some (.literal (.float64 value))
   | .tuple items => some (.tuple items)
   | .text value => some (.literal (.text value))
@@ -310,7 +311,7 @@ def boolIdentityCompletion {scope : Scope} (session : Session) (test : BoolIdent
       | _ => .raised .notCallable
 
 def evaluateTuple (session : Session) (items : List Core.Closure.GlobalTupleItem) :
-    Except Core.Closure.Failure (List Core.Module.Value) :=
+    Except Core.Closure.Failure (List Core.Module.TupleDispatch.Element) :=
   let frame : Frame ⟨0, 0, 0⟩ := ⟨Fin.elim0, Fin.elim0, Fin.elim0⟩
   Core.Closure.Executor.evalTupleContentsIn session.globals session.heap frame items
 

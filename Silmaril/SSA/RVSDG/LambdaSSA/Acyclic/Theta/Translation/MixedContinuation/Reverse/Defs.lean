@@ -2,6 +2,7 @@ module
 
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Defs
 public import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Flat.Defs
+public import Silmaril.SSA.RVSDG.NestedTheta.ExplicitRuntime.PurePrefix.Splice.Reverse.Defs
 
 /-! # Recover a mixed γ followed by an ordered θ
 
@@ -90,28 +91,18 @@ def Shape.headChecked (s : Shape Φ ε A M E D) :
 def Shape.emit (s : Shape Φ ε A M E D) : Graph Φ ε A M E D :=
   linkRecovered s.headChecked s.suffix
 
--- Recheck the ordered dialect in place. The whole-graph certificate later
--- verifies the rebase at the cut independently of this structural read.
-def collectFin : {n : Nat} → {T : Fin n → Type u} →
-    ((i : Fin n) → Option (T i)) → Option ((i : Fin n) → T i)
-  | 0, _, _ => some (fun i => i.elim0)
-  | _ + 1, _, f => do
-    return Fin.cases (← f 0) (← collectFin fun i => f i.succ)
+abbrev collectFin : {n : Nat} → {T : Fin n → Type u} →
+    ((i : Fin n) → Option (T i)) → Option ((i : Fin n) → T i) :=
+  NestedTheta.ExplicitRuntime.PurePrefix.Splice.Reverse.collectChildren
 
-def orderedView : {args outs : Ports (OrderedRuntime.Structured.Ty τ)} →
-    {past rows : List (Ports (OrderedRuntime.Structured.Ty τ))} →
-    NestedTheta.Term (PureGamma.Op (τ := τ) Φ ε) args past rows outs →
-    Option (NestedTheta.Term (Wires.Op Φ) args past rows outs)
-  | _, _, _, _, .ret wires => some (.ret wires)
-  | _, _, _, _, .bind ⟨ins, .base (.simple (.ordered op)), wires, sigs⟩ _ rest => do
-    return .bind ⟨ins, .base (.simple op), wires, sigs⟩ (fun i => i.elim0) (← orderedView rest)
-  | _, _, _, _, .bind ⟨_, .base (.gamma n), wires, sigs⟩ children rest => do
-    return .bind ⟨_, .base (.gamma n), wires, sigs⟩
-      (← collectFin fun i => orderedView (children i)) (← orderedView rest)
-  | _, _, _, _, .bind ⟨_, .theta ports, wires, sigs⟩ children rest => do
-    return .bind ⟨_, .theta ports, wires, sigs⟩
-      (← collectFin fun i => orderedView (children i)) (← orderedView rest)
-  | _, _, _, _, .bind ⟨_, .base (.simple (.pure ..)), _, _⟩ _ _ => none
+/-- Recheck the dialect in place. Whole-graph certification checks the actual
+cut and its origins separately. -/
+def orderedView {args outs : Ports (OrderedRuntime.Structured.Ty τ)}
+    {past rows : List (Ports (OrderedRuntime.Structured.Ty τ))}
+    (term : NestedTheta.Term (PureGamma.Op (τ := τ) Φ ε) args past rows outs) :
+    Option (NestedTheta.Term (Wires.Op Φ) args past rows outs) :=
+  NestedTheta.ExplicitRuntime.PurePrefix.Splice.Reverse.orderedSuffix
+    NestedTheta.ExplicitRuntime.PurePrefix.Splice.Reverse.Routing.identity term
 
 variable [DecidableEq τ]
 

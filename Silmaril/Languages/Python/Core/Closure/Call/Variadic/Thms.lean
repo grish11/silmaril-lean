@@ -36,7 +36,7 @@ theorem complete_iff :
       parameters.fixed.slots.length ≤ supplied.length ∧
       ∃ items : List Core.Module.Value,
         (supplied.drop parameters.fixed.slots.length).mapM Value.scalar? = some items ∧
-        completed = supplied.take parameters.fixed.slots.length ++ [.tuple items] :=
+        completed = supplied.take parameters.fixed.slots.length ++ [.tuple (items.map .scalar)] :=
   Proofs.Languages.Python.Core.Closure.Call.Variadic.complete_iff
 
 theorem complete_length (done : parameters.complete supplied = .ok completed) :
@@ -69,7 +69,7 @@ theorem bind_rest {items : List Core.Module.Value}
     (bound : parameters.bind supplied before = .ok after)
     (packed : (supplied.drop parameters.fixed.slots.length).mapM Value.scalar? = some items)
     (unique : Function.Injective before.2.owned) :
-    after.2.read after.1 parameters.rest.slot = .ok (.tuple items) :=
+    after.2.read after.1 parameters.rest.slot = .ok (.tuple (items.map .scalar)) :=
   Proofs.Languages.Python.Core.Closure.Call.Variadic.bind_rest bound packed unique
 
 variable {Continuation : Layout → Type} {fn : Function}

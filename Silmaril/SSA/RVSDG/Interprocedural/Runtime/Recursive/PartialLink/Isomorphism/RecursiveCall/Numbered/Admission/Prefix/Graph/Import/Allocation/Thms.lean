@@ -502,4 +502,16 @@ allocation identities of any units outside this pair. -/
     ⟨by simpa only [CheckedProvider.allocationChain] using next.checked.admitted, fun equal => next.fresh.1 (equal.symm ▸ List.mem_cons_self),
       fun equal => next.fresh.2 (equal.symm ▸ List.mem_cons_self)⟩
 
+/-- Read the successful export through the actual initialized row, in
+either of the two allocating layouts. -/
+theorem AllocatingClient.link_body {imports : Ports (Ty V S)} {shifted : Bool}
+    (client : AllocatingClient Op imports clientFn value shifted)
+    (actions : Actions m σ) (unit : Nat) (inputs : Tuple m.Val imports) (store : σ) :
+    let locals := AllocatingClient.initialLocals m shifted
+    Executable.link actions unit client.toGraph inputs store =
+      match Executable.linkVertex actions unit inputs locals (.delta client.initializer) store with
+      | .undefined failure => .undefined failure
+      | .linked values middle => .linked (.cons (linkedLambda client.body inputs (locals.snoc values)) .nil) middle :=
+  AllocationProofs.link_body client actions unit inputs store
+
 end Silmaril.SSA.RVSDG.Interprocedural.Runtime.Recursive.PartialLink.Isomorphism.RecursiveCall.Numbered.Prefix

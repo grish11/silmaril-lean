@@ -1,7 +1,11 @@
 module
 
+import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Structured.Thms
+meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Structured.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Reverse.Thms
 meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Reverse.Defs
+import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Thms
+meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.PureTheta.Prefix.Defs
 import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Thms
 import Silmaril.SSA.RVSDG.NestedTheta.ExplicitRuntime.PurePrefix.Thms
 meta import Silmaril.SSA.RVSDG.LambdaSSA.Acyclic.Theta.Translation.MixedContinuation.Defs
@@ -1894,14 +1898,28 @@ private def threadedValue : MixedThetaTerm :=
   unless (recover threadedValue.toGraph).isNone do
     throw (IO.userError "mixed theta accepted a value row with runtime ports")
 
-private def orderedTail := Translation.Source.mixed (WithNestedFeedback.Syntax.link
-  (.structured tailNormal.toSyntax) (.structured tailNormal.toSyntax))
+private def orderedTailSyntax := WithNestedFeedback.Syntax.link
+  (.structured tailNormal.toSyntax) (.structured tailNormal.toSyntax)
+
+private def orderedTail := Translation.Source.mixed orderedTailSyntax
 private def orderedTailGraph := Translation.compile orderedTail
 
 private def recoveredLink (order : Bool) :
     Translation.PureTheta.Link (mixedLoop.compile order) .mixed orderedTailGraph :=
   (Translation.PureTheta.recoverLink (mixedLoop.compile order) .mixed orderedTailGraph).get
     (Translation.PureTheta.recoverLink_compiled mixedLoop order orderedTail)
+
+private theorem orderedTail_observe (coherent : Coherent) : Flat.Serial.observe (ε := Bool) orderedTailGraph (3 : Nat) 2777 =
+    Part.some (ExplicitRuntime.exitTuple (A := number)
+      ((.inl (30554 : Nat) : LabelDen [number,number]), 277744)) := by
+  rw [show orderedTailGraph = Translation.compile orderedTail from rfl,
+    orderedTail.compile_observe coherent (PUnit.unit, (3 : Nat)) 2777]
+  let loop := Flat.Fragment.loop tailLoop
+  change Part.map _ ((Region.denote (ε := Bool) (m := Runtime) (Flat.link loop loop).typing
+    (PUnit.unit, (3 : Nat))).run 2777) = _
+  rw [Flat.denote_link _ _ coherent]
+  simp only [loop, Flat.Fragment.loop_denote, ExplicitRuntime.denote_rounds _ coherent,
+    StateT.run_bind, tailReturns, Part.bind_eq_bind, Part.bind_some, merge, Part.map_some]
 
 example (coherent : Coherent) (order : Bool) :
     (Region.denote (ε := Bool) (m := Runtime) (recoveredLink order).fragment.typing
@@ -1910,19 +1928,8 @@ example (coherent : Coherent) (order : Bool) :
   have observed := (recoveredLink order).region_observe coherent (PUnit.unit, (0 : Nat)) 2
   rw [mixedLoop.region_observe order coherent, flat_theta_return coherent, Part.map_some,
     Part.bind_some] at observed
-  have tail : Flat.Serial.observe (ε := Bool) orderedTailGraph (3 : Nat) 2777 =
-      Part.some (ExplicitRuntime.exitTuple (A := number)
-        ((.inl (30554 : Nat) : LabelDen [number,number]), 277744)) := by
-    rw [show orderedTailGraph = Translation.compile orderedTail from rfl,
-      orderedTail.compile_observe coherent (PUnit.unit, (3 : Nat)) 2777]
-    let loop := Flat.Fragment.loop tailLoop
-    change Part.map _ ((Region.denote (ε := Bool) (m := Runtime) (Flat.link loop loop).typing
-      (PUnit.unit, (3 : Nat))).run 2777) = _
-    rw [Flat.denote_link _ _ coherent]
-    simp only [loop, Flat.Fragment.loop_denote, ExplicitRuntime.denote_rounds _ coherent,
-      StateT.run_bind, tailReturns, Part.bind_eq_bind, Part.bind_some, merge, Part.map_some]
   change Flat.Serial.observe (ε := Bool) orderedTailGraph (3 : Nat) 2777 = _ at observed
-  rw [tail] at observed
+  rw [orderedTail_observe coherent] at observed
   exact (Translation.mapped_exit_iff _ _ _).mp observed.symm
 
 example (coherent : Coherent) (order : Bool) :
@@ -1946,6 +1953,139 @@ example (coherent : Coherent) (order : Bool) :
     | _ => throw (IO.userError "the numbered suffix lost the mixed theta result or token")
   unless (Translation.PureTheta.recoverLink staleFeedback.toGraph .mixed orderedTailGraph).isNone do
     throw (IO.userError "flat linking accepted a stale theta feedback token")
+
+namespace CombinedPrefix
+
+open Translation.PureTheta.Prefix (compile Fibre candidate recover)
+
+private def numbered (order : Bool) := compile mixedLoop order orderedTailSyntax
+
+example (coherent : Coherent) (order : Bool) (f : Fibre (numbered order)) :
+    (Region.denote (ε := Bool) (m := Runtime) f.fragment.typing (PUnit.unit, (0 : Nat))).run 2 =
+      Part.some ((.inl (30554 : Nat) : LabelDen [number,number]), 277744) := by
+  have returned : NestedTheta.Partial.observe Translation.PureGamma.model (numbered order) (point (0 : Nat) 2) =
+      Part.some (ExplicitRuntime.exitTuple (A := number)
+        ((.inl (30554 : Nat) : LabelDen [number,number]), 277744)) := by
+    have first := mixedLoop.region_observe order coherent (PUnit.unit, (0 : Nat)) 2
+    rw [flat_theta_return coherent, Part.map_some] at first
+    rw [numbered, Translation.PureTheta.Prefix.compile_observe, first, Part.bind_some]
+    exact orderedTail_observe coherent
+  have observed := f.region_observe coherent (PUnit.unit, (0 : Nat)) 2
+  rw [returned] at observed
+  exact (Translation.mapped_exit_iff _ _ _).mp observed.symm
+
+example (coherent : Coherent) (order : Bool) (f : Fibre (numbered order)) :
+    (Region.denote (ε := Bool) (m := Runtime) f.fragment.typing (PUnit.unit, (98 : Nat))).run 2 = Part.none := by
+  apply (f.no_return_iff coherent (PUnit.unit, (98 : Nat)) 2).mp
+  rw [numbered, Translation.PureTheta.Prefix.compile_observe, mixedLoop.region_observe order coherent,
+    flat_theta_no_return coherent, Part.map_none, Part.bind_none]
+
+-- Keep the producer's result payload, but feed the adapter the original
+-- input token instead of the token returned by θ.
+private abbrev TailRows := Flat.Serial.Joined number number number
+  [Flat.Serial.WirePorts number number number] [Flat.Serial.WirePorts number number number]
+
+private def staleSeam (order : Bool) :
+    Translation.PureTheta.Prefix.Graph Op Bool number number number number number number TailRows :=
+  match (numbered order).toTerm with
+  | .bind producer body (.bind adapter scopes rest) =>
+    let inputs := adapter.inputs.map fun port origin =>
+      if h : runtime = port then h ▸ .arg (runtimePort (carried number)) else origin
+    (NestedTheta.Term.bind producer body (.bind {adapter with inputs} scopes rest)).toGraph
+
+#eval show IO Unit from do
+  for order in [false, true] do
+    let graph := numbered order
+    unless (recover graph).isSome do
+      throw (IO.userError "the joined mixed prefix did not recover from its numbered table")
+    let result := (NestedTheta.Partial.Executable.run gammaActions graph 3
+      (point (0 : Nat) 2)).map fun output =>
+        (show (Nat ⊕ Nat) ⊕ Nat from output.get .head, show Nat from output.get (.tail .head))
+    match result with
+    | some (.inl (.inl 30554), 277744) => pure ()
+    | _ => throw (IO.userError "the recursive tail did not receive the mixed theta's exact result tuple")
+    unless (candidate (staleSeam order)).isSome && (recover (staleSeam order)).isNone do
+      throw (IO.userError "recovery accepted a stale token at the mixed prefix seam")
+
+end CombinedPrefix
+
+namespace StructuredPrefix
+
+open Translation.PureTheta.Prefix.Structured (Tree ChoiceRows Fibre compile candidate recover)
+open Flat.Serial (WirePorts)
+
+private def tree (order : Bool) : Tree Op Bool number (ChoiceRows number) :=
+  .choice (op .loopDecision) (.theta mixedLoop order)
+    (.choice (op .loopDecision) (.theta mixedLoop (!order)) (.theta mixedLoop order))
+
+private abbrev TailRows := Flat.Serial.Joined number number number
+  [WirePorts number number number] [WirePorts number number number]
+
+private abbrev PipelineGraph := Translation.PureTheta.Prefix.Structured.Graph Op Bool number number number number
+  ((ChoiceRows number ++ [WirePorts number number number]) ++ TailRows)
+
+private def numbered (order : Bool) : PipelineGraph := compile (tree order) orderedTailSyntax
+
+private theorem choiceAction (n : Nat) :
+    callCase (ε := Bool) (m := Runtime) (op .loopDecision) n = instruction .loopDecision n := by
+  unfold callCase
+  rw [call_eq]
+  exact bind_pure _
+
+-- The right arm selects its own right θ. Both classifiers run before the leaf.
+example (coherent : Coherent) (order : Bool) (f : Fibre (numbered order)) :
+    (Region.denote (ε := Bool) (m := Runtime) f.fragment.typing (PUnit.unit, (0 : Nat))).run 2 =
+      Part.some ((.inl (30552 : Nat) : LabelDen [number,number]), 277744) := by
+  have leaf : (iter (mixedLoop.step (σ := Nat)) (0 : Nat)).run 277 = Part.some ((1 : Nat), 2777) := by
+    rw [Elgot.StateT.run_iter, Part.eq_some_iff, Elgot.Part.mem_iter_iff]
+    apply Elgot.Part.Runs.done
+    rw [thetaStep_run]
+    exact Part.mem_some _
+  rw [f.compiled_denote (tree order) orderedTailSyntax coherent, Flat.denote_link _ _ coherent]
+  simp only [tree, Tree.fragment, Flat.denote_forkCase _ _ _ coherent, choiceAction,
+    StateT.run_bind, Part.bind_eq_bind]
+  have outer : (instruction .loopDecision (0 : Nat)).run 2 =
+      Part.some ((.inr (0 : Nat) : Nat ⊕ Nat), 27) := rfl
+  have inner : (instruction .loopDecision (0 : Nat)).run 27 =
+      Part.some ((.inr (0 : Nat) : Nat ⊕ Nat), 277) := rfl
+  simp only [outer, inner, StateT.run_bind, Part.bind_eq_bind, Part.bind_some]
+  change (((Region.denote (ε := Bool) (m := Runtime) mixedLoop.fragment.typing
+    (PUnit.unit, (0 : Nat))).run 277).bind _) = _
+  rw [mixedLoop.fragment_denote coherent, StateT.run_bind, leaf]
+  simp only [Part.bind_eq_bind, Part.bind_some, StateT.run_pure, Part.pure_eq_some, merge]
+  change (Region.denote (ε := Bool) (m := Runtime)
+    (Flat.link (.loop tailLoop) (.loop tailLoop)).typing (PUnit.unit, (1 : Nat))).run 2777 = _
+  rw [Flat.denote_link _ _ coherent]
+  simp only [Flat.Fragment.loop_denote, ExplicitRuntime.denote_rounds _ coherent,
+    StateT.run_bind, tailReturns, Part.bind_eq_bind, Part.bind_some, merge]
+
+private def staleSeam (g : PipelineGraph) : PipelineGraph :=
+  match g.toTerm with
+  | .bind classifier classifierChildren (.bind select arms (.bind convert conversionChildren rest)) =>
+    let inputs := convert.inputs.map fun sort origin =>
+      if h : runtime = sort then h ▸ .arg (runtimePort (carried number)) else origin
+    (NestedTheta.Term.bind classifier classifierChildren
+      (.bind select arms (.bind {convert with inputs} conversionChildren rest))).toGraph
+
+#eval show IO Unit from do
+  for order in [false,true] do
+    let graph := numbered order
+    unless (Translation.PureTheta.Prefix.Structured.recover graph).isSome do
+      throw (IO.userError "could not recover the recursive mixed prefix")
+    let stale := staleSeam graph
+    unless (Translation.PureTheta.Prefix.Structured.candidate stale).isSome &&
+        (Translation.PureTheta.Prefix.Structured.recover stale).isNone do
+      throw (IO.userError "the recursive prefix accepted a stale continuation token")
+    let run := fun (input initial : Nat) =>
+      (NestedTheta.Partial.Executable.run gammaActions graph 3 (point input initial)).map fun output =>
+        (show (Nat ⊕ Nat) ⊕ Nat from output.get .head, show Nat from output.get (.tail .head))
+    match run 0 2, run 0 200 with
+    | some (.inl (.inl 30552), 277744), some (.inl (.inl 220852), 2007744) => pure ()
+    | _, _ => throw (IO.userError "the selected branch lost its payload or live token at the serial suffix")
+    unless (run 98 0).isNone do
+      throw (IO.userError "the late undefined action in the selected mixed leaf returned")
+
+end StructuredPrefix
 
 end MixedThetaReverse
 

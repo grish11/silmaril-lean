@@ -15,7 +15,7 @@ namespace Silmaril.Machine.SeaOfNodes.Loop.RTL.Routing.Guarded.Rows
 open CategoryTheory
 open Silmaril.Machine.Lir (Memory Word)
 open Silmaril.Machine.SeaOfNodes.Diamond.RTL (PortTy WordOp model word)
-open Silmaril.SSA.RVSDG (Locals Tuple Wires)
+open Silmaril.SSA.RVSDG (Locals Port Tuple Wires)
 open Silmaril.SSA.SeaOfNodes.Diamond (Model Val)
 open Silmaril.SSA.SeaOfNodes.Diamond.Institution (reduct)
 open Silmaril.SSA.SeaOfNodes.Diamond.LambdaSSA (Atom inputEnv instruction)
@@ -42,19 +42,32 @@ theorem lowerChecked_reindex {spec : Spec} {targets : Checked.Phi.Targets}
         some (lowerBank (p.reindexInputs perm).graph, Generic.lower (p.reindexInputs perm).graph) :=
   Proofs.Reindex.lowerChecked_reindex perm accepted
 
-/-- In any producer prefix, renamed capture wires read the pulled valuation;
-earlier producer values come from the same locals. -/
+/-- In any producer prefix, mapped capture wires read the pulled valuation.
+Earlier producer values come from the same locals. -/
+theorem InputMap.read_column (mapping : InputMap arity) {F : PortTy → Type w}
+    {past : List (List PortTy)} {outputs : List PortTy} (input : Tuple F (wordPorts arity))
+    (wires : Wires (wordPorts arity) past outputs) (locals : Locals F past) :
+    (mapping.column wires).read input locals =
+      wires.read (InputPermutation.pullTuple (fun p => mapping.port p) input) locals :=
+  Proofs.Reindex.read_column mapping input wires locals
+
 theorem InputPermutation.read_column (perm : InputPermutation arity) {F : PortTy → Type w}
     {past : List (List PortTy)} {outputs : List PortTy} (input : Tuple F (wordPorts arity))
     (wires : Wires (wordPorts arity) past outputs) (locals : Locals F past) :
     (perm.column wires).read input locals =
       wires.read (pullTuple (fun p => perm.port p) input) locals :=
-  Proofs.Reindex.read_column perm input wires locals
+  InputMap.read_column (fun i => perm i) input wires locals
 
 theorem initial_reindex (p : Plan arity) (perm : InputPermutation arity)
     (m : Model.{0, 0, w} WordOp) (input : Tuple (Val m.value) (wordPorts arity)) :
     (p.reindexInputs perm).graph.initial m input = p.graph.initial m (perm.pull input) :=
   Proofs.Reindex.initial_reindex p perm m input
+
+/-- The checked header reads the carried bank and its local producers. -/
+theorem step_capture_congr (p : Plan arity) (m : Model.{0, 0, w} WordOp)
+    (left right old : Tuple (Val m.value) (wordPorts arity)) :
+    p.graph.step m left old = p.graph.step m right old :=
+  Proofs.Reindex.step_capture_congr m left right old p
 
 theorem step_reindex (p : Plan arity) (perm : InputPermutation arity)
     (m : Model.{0, 0, w} WordOp) (input old : Tuple (Val m.value) (wordPorts arity)) :
@@ -78,6 +91,11 @@ theorem denote_mapGraph_reindex {Q : Silmaril.SSA.SeaOfNodes.Diamond.Institution
     (mapGraph h (p.reindexInputs perm).program.graph).denote m input =
       p.program.graph.denote (reduct h m) (perm.pull input) :=
   (denote_mapGraph h m _ input).trans (denote_reindex p perm (reduct h m) input)
+
+/-- Applying the inverse permutation restores the identical typed capture port. -/
+theorem InputPermutation.port_symm (perm : InputPermutation arity) {t : PortTy}
+    (p : Port (wordPorts arity) t) : InputPermutation.port perm.symm (perm.port p) = p :=
+  Proofs.Reindex.port_symm perm p
 
 /-- Every old valuation is the pullback of its inverse-permuted valuation. -/
 theorem InputPermutation.pull_symm {value : Unit → Type w} (perm : InputPermutation arity)

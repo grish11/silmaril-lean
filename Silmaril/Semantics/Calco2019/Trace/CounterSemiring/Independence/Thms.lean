@@ -45,6 +45,13 @@ theorem oneBody_fails_binaryCycle :
       coproducts.desc (𝟙 one) (𝟙 one) ≫ conway.iterate oneBody True.intro :=
   Proofs.CounterSemiringIndependence.fails_oneBody_cycle
 
+/-- Running the one-state body twice before taking feedback changes the
+iteration in this Conway model. -/
+theorem oneBody_fails_doubling :
+    conway.iterate (oneBody ≫ coproducts.desc coproducts.inl oneBody) True.intro ≠
+      conway.iterate oneBody True.intro :=
+  Proofs.CounterSemiringIndependence.fails_oneBody_doubling
+
 /-- The full Conway equations do not entail the commutative identity of the binary cycle. -/
 theorem conway_fails_binaryCycle : ¬ conway.{0}.toFixpoints.BinaryCycleIdentity :=
   Proofs.CounterSemiringIndependence.fails_cycle

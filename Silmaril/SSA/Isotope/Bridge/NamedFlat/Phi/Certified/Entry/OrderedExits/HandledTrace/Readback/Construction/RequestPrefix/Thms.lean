@@ -98,9 +98,9 @@ theorem Emitted.unchanged_typed_step {E : Type w → Type w} (emitted : Emitted 
   rw [encoded (s.old_packet i).symm packet, emitted.unchanged_step instr env i other]
 
 /-- Local simulation on old labels and the selected prefix invariant
-preserve the actual complete weak run. No reachability or termination
-premise is required for unchanged rows. The selected prefix still has an
-external exit tail. -/
+preserve the actual complete weak run. Only transfers to fresh continuation
+labels stay in the inner iterator. A selected-row tail to any old block,
+including to itself, returns control to the outer iterator. -/
 theorem Emitted.preserves_run {E : Type w → Type w} {α : Type u} (emitted : Emitted s)
     (instr : Primitive E F α) (env : Env α) :
     region instr env source.erase = region instr env emitted.code.erase :=

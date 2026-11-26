@@ -80,20 +80,21 @@ abbrev PackRule (Bound : Type) := State → Bound → List (Binding × Value) �
 abbrev Unpacked : PackRule (List (Binding × Value)) :=
   fun caller bound assigned packed => assigned = bound ∧ packed = caller
 
-/-- Successful ordinary operands reach expansion; an operand error skips it. -/
-inductive ReachesActual (operands : State → Outcome (List Value) → Prop)
-    (expand : State → List Value → Outcome Actual → Prop) : State → Outcome Actual → Prop where
+/-- All operands must succeed before expansion. An operand error skips expansion. -/
+inductive ReachesActual {Operands : Type} (operands : State → Outcome Operands → Prop)
+    (expand : State → Operands → Outcome Actual → Prop) : State → Outcome Actual → Prop where
   | operandError {state final : State} {error : Lists.Error} :
       operands state (.error error final) → ReachesActual operands expand state (.error error final)
-  | expanded {state reached : State} {values : List Value} {out : Outcome Actual} :
+  | expanded {state reached : State} {values : Operands} {out : Outcome Actual} :
       operands state (.ok values reached) → expand reached values out → ReachesActual operands expand state out
 
 abbrev NativeActuals (program : Program) (available : List DeclarationId) (positional : List Lowering.Expr)
-    (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr) :=
+    (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr) :=
   ReachesActual
     (fun state => Lowering.EvaluatesManyWith program available (Lowering.coreClosureRuns program available)
-      (fun _ => True) state (Lowering.argumentExprs positional keywords star none))
-    (fun reached values => Lowering.Expands ((Lowering.argumentShape positional keywords star none).collect values) reached)
+      (fun _ => True) state (Lowering.argumentExprs positional keywords star starStar))
+    (fun reached values =>
+      Lowering.Expands ((Lowering.argumentShape positional keywords star starStar).collect values) reached)
 
 /-- A call reads the callee before the argument phase. Only a successful
 argument phase can reach binding, packing and activation. -/

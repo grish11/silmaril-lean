@@ -19,12 +19,12 @@ def tupleResult : Result → Except Failure Object
 contents for equality and never synthesize an address. -/
 inductive Compared where
   | object (value : Object)
-  | contents (value : List Core.Module.Value)
+  | contents (value : List Core.Module.TupleDispatch.Element)
   | scalar (value : Core.Module.Value)
   | outsideProfile
   deriving DecidableEq, Repr
 
-def Compared.tupleContents? : Compared → Option (List Core.Module.Value)
+def Compared.tupleContents? : Compared → Option (List Core.Module.TupleDispatch.Element)
   | .object value => some value.contents
   | .contents value => some value
   | .scalar _ | .outsideProfile => none

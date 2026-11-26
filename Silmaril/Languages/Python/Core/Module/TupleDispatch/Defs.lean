@@ -1,27 +1,43 @@
 module
 
 public import Silmaril.Languages.Python.Core.Module.ListObject.Defs
+public import Silmaril.Languages.Python.Core.Text.Defs
 
-/-! # Exact tuple methods on flat scalar contents -/
+/-! # Exact tuple methods on flat contents -/
 
 @[expose] public section
 
 namespace Silmaril.Languages.Python.Core.Module.TupleDispatch
 
+/-- Flat tuple payloads retain scalar tags and exact text contents. -/
+inductive Element where
+  | scalar (value : Core.Module.Value)
+  | text (value : Core.Text)
+  deriving DecidableEq, Repr
+
+@[match_pattern] def Element.int (value : Int) : Element := .scalar (.int value)
+@[match_pattern] def Element.bool (value : Bool) : Element := .scalar (.bool value)
+@[match_pattern] def Element.none : Element := .scalar .none
+
+def Element.equal : Element → Element → Bool
+  | .scalar left, .scalar right => left.equal right
+  | .text left, .text right => decide (left.points = right.points)
+  | _, _ => false
+
 /-- An absent address represents the canonical empty tuple. Other addresses
 belong to the allocator that prepared the object. -/
 structure Object where
   address : Option Nat
-  contents : List Core.Module.Value
+  contents : List Element
   deriving DecidableEq, Repr
 
 structure Heap where
-  objects : Array (List Core.Module.Value)
+  objects : Array (List Element)
   deriving DecidableEq, Repr
 
 def Heap.empty : Heap := ⟨#[]⟩
 
-def Heap.materialize (heap : Heap) (contents : List Core.Module.Value) : Object × Heap :=
+def Heap.materialize (heap : Heap) (contents : List Element) : Object × Heap :=
   match contents with
   | [] => (⟨none, []⟩, heap)
   | _ :: _ => (⟨some heap.objects.size, contents⟩, ⟨heap.objects.push contents⟩)
@@ -31,11 +47,11 @@ def concat (heap : Heap) (left right : Object) : Object × Heap :=
   else if right.contents.isEmpty then (left, heap)
   else heap.materialize (left.contents ++ right.contents)
 
-def equalContents (left right : List Core.Module.Value) : Bool :=
-  left.isEqv right Core.Module.Value.equal
+def equalContents (left right : List Element) : Bool :=
+  left.isEqv right Element.equal
 
 inductive Literal where
-  | tuple (contents : List Core.Module.Value)
+  | tuple (contents : List Element)
   | list (contents : List Core.Module.Value)
   deriving DecidableEq, Repr
 
@@ -148,7 +164,7 @@ def UnboundMethod.invoke (unbound : UnboundMethod) (heap : Heap) (receiver argum
   | .list _ => (.error (.wrongReceiver unbound.method), heap)
 
 /-- The exact literal receiver is evaluated and bound before the argument. -/
-def callBound (heap : Heap) (method : Method) (receiver : List Core.Module.Value)
+def callBound (heap : Heap) (method : Method) (receiver : List Element)
     (argument : Literal) : Except Failure Result × Heap :=
   let (object, boundHeap) := heap.materialize receiver
   let bound : BoundMethod := ⟨method, object⟩

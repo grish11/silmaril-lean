@@ -18,6 +18,31 @@ open Silmaril.Proofs.SSA.Isotope.LambdaSSA.Rewrite.Paper
 
 local instance packetCasesHasTy : HasTy signature.Instr (Ty Empty) := signature.hasTy
 
+/-- Contextual product expansion preserves equality at the focused variable. -/
+theorem product_case_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i : Nat}
+    {A B : Ty Empty} (hi : At Γ i (product A B)) (hp : HasType Γ p L) (hq : HasType Γ q L)
+    (pair : Paper.Extension.Eqv Seed (B :: A :: Γ)
+      (p.substVars (Paper.splitProduct i)) (q.substVars (Paper.splitProduct i)) L) :
+    Paper.Extension.Eqv Seed Γ p q L :=
+  PacketCases.product_case_ext hi hp hq pair
+
+/-- Contextual case expansion preserves equality across both tags of a focused bit. -/
+theorem bit_case_ext {Γ L : List (Ty Empty)} {p q : Region signature.Instr} {i : Nat}
+    (hi : At Γ i Bit) (hp : HasType Γ p L) (hq : HasType Γ q L)
+    (arms : ∀ b, Paper.Extension.Eqv Seed (unit :: Γ)
+      (p.substVars (bitBranch i b)) (q.substVars (bitBranch i b)) L) :
+    Paper.Extension.Eqv Seed Γ p q L :=
+  PacketCases.bit_case_ext hi hp hq arms
+
+theorem splitProduct_values {Γ : List (Ty Empty)} {i : Nat} {A B : Ty Empty}
+    (hi : At Γ i (product A B)) :
+    ∀ ⦃j D⦄, At Γ j D → Tm.BranchValue (Φ := signature.Instr) (B :: A :: Γ) (Paper.splitProduct i j) D :=
+  PacketCases.splitProduct_values hi
+
+theorem bitBranch_values {Γ : List (Ty Empty)} {i : Nat} (hi : At Γ i Bit) (b : Bool) :
+    ∀ ⦃j D⦄, At Γ j D → Tm.BranchValue (unit :: Γ) (bitBranch i b j) D :=
+  PacketCases.bitBranch_values hi b
+
 /-- Each extracted payload is a constructor-valued unit at the case context. -/
 theorem packetPayload_typed {Γ : List (Ty Empty)} (n : Nat) (j : Fin n) :
     Tm.BranchValue (packetCaseCtx n Γ) (packetPayload n j) unit :=

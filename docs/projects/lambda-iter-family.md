@@ -1104,7 +1104,7 @@ exercises the inferred layout through actual admission.
 let prefix where the named body can bind a register. The RHS runs once
 in the original order. Inside a named case arm, the corresponding rule
 only contracts a variable alias by scoped renaming. A computed arm
-operand would need an arm-local body or another block. The transform
+operand needs a separate block under the current named grammar. The transform
 preserves exact typing, weak ITree execution, and any existing
 packet-only scope.
 
@@ -1118,6 +1118,26 @@ payload components and the live-out after either reply. The fresh
 register comes from the supplied plan. A plan that overwrites a used
 caller input is rejected by exact readback. The flat and witnessed
 routes use the same inferred capture, readback, versioning and rank gates.
+
+`Materialize.Outline.read` recognizes a nominated flat block beginning
+with a case whose left arm jumps with a leading operand let. The active
+arm sends its payload and the original block packet to one appended
+row. That row decodes both fields and the ordinary materializer puts
+the computation in its let prefix. The right arm keeps its original
+code with relocated labels. Old block indices and packet types, the
+typed caller record, and the ordered exit types are preserved. Only
+absolute outward indices shift by one. Remaining caller reads use the
+same inferred capture list mechanism as ordinary materialization.
+
+`Outline.graph_tree` groups only transfers to the fresh destination
+into the inner weak iterator. Both arms may still target original
+internal rows. Uniformity and codiagonal prove equality of the
+whole weak tree, with no termination premise. The scoped reverse
+admission still checks the supplied names, register plan, live-out
+reattachment, typing, and reachable rank. The regression admits the
+outlined table, observes a request and its reply at the first ordered
+exit, and observes a pure return at the second. Both outcomes include
+the original packet as a selected live-out.
 
 On success, the original written LetCase tree agrees at every caller
 record with the actual named run and its packed LambdaSSA reversion.
@@ -1138,6 +1158,7 @@ register plan fails admission.
 
 [Captured table adapter](../../Silmaril/SSA/Isotope/Bridge/Acyclic/Positional/Capture/Reverse/Flat/Tree/Thms.lean)
 · [Named and institutional round trip](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Profile/PacketLocal/LetCase/Witnessed/Thms.lean)
+· [Computed arm outlining and reverse admission](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Materialize/Outline/Admission/Thms.lean)
 · [Jump-operand materialization and admitted execution](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/ITree/Entry/Reverse/Materialize/Admission/Thms.lean)
 · [Exact capture inference and packet-only scope](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Capture/Carry/Infer/Thms.lean)
 · [Internal packet typing and weak-tree preservation](../../Silmaril/SSA/Isotope/Bridge/NamedFlat/Capture/Carry/Thms.lean)

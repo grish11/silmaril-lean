@@ -84,10 +84,10 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
     (callee : Body.Evaluates block state (.scalar (.read name)) (Leaf.readOperand (fileSlot name))
       (.ok (.function address) state))
     (record : ClosureAt site id defining state address)
-    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star : Option Lowering.Expr)
+    (positional : List Lowering.Expr) (keywords : List (String × Lowering.Expr)) (star starStar : Option Lowering.Expr)
     (actuals : State → Outcome Actual → Prop)
     (reaches : ∀ state, ∃ out, actuals state out ∧
-      NativeActuals program available positional keywords star state out ∧
+      NativeActuals program available positional keywords star starStar state out ∧
       Body.Keeps state.heap.size state (finishState out))
     {Bound : Type} (binds : BindingRule Bound) (packs : PackRule Bound)
     (total : ∀ defaults actual, ∃ result, binds defaults actual result)
@@ -101,11 +101,11 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
           prepareExpanded program available actual (.function address) reached =
             .ok (.closure ⟨id, permitted, site.declaration.body⟩)
               (activate packed site.declaration closure.captures assigned)) :
-    let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star none
+    let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star starStar
     ∃ out, RunsActual site bodyRuns block id name actuals binds packs state out ∧
       ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
       Body.Keeps state.heap.size state (finishState out) := by
-  let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star none
+  let code := Lowering.Expr.call (Leaf.readOperand (fileSlot name)) positional keywords star starStar
   change ∃ out, RunsActual site bodyRuns block id name actuals binds packs state out ∧
     ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
     Body.Keeps state.heap.size state (finishState out)
@@ -114,8 +114,8 @@ theorem runs_actual {parent block : LexicalBlock} {formals : List PlainKeywordPa
   obtain ⟨args, source, evaluated, kept⟩ := reaches state
   have applyCall {reached : State} {values : List Value} {out : Outcome Value}
       (operands : Lowering.EvaluatesManyWith program available calls (fun _ => True) state
-        (Lowering.argumentExprs positional keywords star none) (.ok values reached))
-      (dispatch : Lowering.AppliesWith program available calls (Lowering.argumentShape positional keywords star none)
+        (Lowering.argumentExprs positional keywords star starStar) (.ok values reached))
+      (dispatch : Lowering.AppliesWith program available calls (Lowering.argumentShape positional keywords star starStar)
         reached (.function address :: values) out) :
       Operational program available state code out := by
     dsimp [code]
@@ -196,7 +196,7 @@ theorem runs_packed {parent block : LexicalBlock} {formals : List PlainKeywordPa
     ∃ out, RunsPacked site bodyRuns block id name arguments codes collect binds packs state out ∧
       ExecExpr program available state code out ∧ Lowering.denoteExpr program available code state = out ∧
       Body.Keeps state.heap.size state (finishState out) := by
-  refine runs_actual site bodyRuns program id available permitted enterBody callee record positional keywords none _
+  refine runs_actual site bodyRuns program id available permitted enterBody callee record positional keywords none none _
     (fun reached => ?_) binds packs total ?_
   · obtain ⟨out, ran, kept, length⟩ := arguments_total related reached
     have native := evaluates_many program available (Lowering.coreClosureRuns program available) ran

@@ -2,11 +2,20 @@ module
 
 public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 public import Silmaril.Semantics.ITree.Trace.Finite.Thms
+import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Block
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Named
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Interface
 import Silmaril.Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Explain
 
 @[expose] public section
+
+namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.PacketType
+
+theorem decode_encode (ty : PacketType) (value : Denote ty) :
+    decode ty (encode ty value) = some value :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.decode_encode ty value
+
+end Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.PacketType
 
 namespace Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Program
 
@@ -24,11 +33,21 @@ theorem observe_eq (input : Fin a) (packet : Denote (inputs input)) :
       (evaluate program.step (program.start input packet) >>= fun r => pure (renderResult r)) :=
   Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.observe_eq program input packet
 
+/-- The product checker starts each runner at its own entry and packet. -/
+theorem refinementBetween?_iff [DecidableEq F] {c : Nat} {rightInputs : Fin c → PacketType}
+    (right : Program signature rightInputs outputs)
+    (leftInput : Fin a) (leftPacket : Denote (inputs leftInput))
+    (rightInput : Fin c) (rightPacket : Denote (rightInputs rightInput)) :
+    program.refinementBetween? right leftInput leftPacket rightInput rightPacket = true ↔
+      TraceLE (program.observe leftInput leftPacket) (right.observe rightInput rightPacket) :=
+  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.compare_between program right
+    leftInput leftPacket rightInput rightPacket
+
 theorem refinementAt?_iff [DecidableEq F] (right : Program signature inputs outputs)
     (input : Fin a) (packet : Denote (inputs input)) :
     program.refinementAt? right input packet = true ↔
       TraceLE (program.observe input packet) (right.observe input packet) :=
-  Proofs.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.compare_at program right input packet
+  program.refinementBetween?_iff right input packet input packet
 
 /-- Mutual finite weak trace inclusion decides equality in the deterministic
 weak tree model of the named runner. Pending requests remain observable

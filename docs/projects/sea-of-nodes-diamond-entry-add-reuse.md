@@ -44,12 +44,16 @@ module
 
 import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Thms
 import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Discovery.Thms
+import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Commutative.Thms
+import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.ValueNumbers.Thms
 meta import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Defs
 meta import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Discovery.Defs
+meta import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Commutative.Defs
+meta import Silmaril.SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.ValueNumbers.Defs
 
 open Silmaril.SSA.SeaOfNodes.Diamond
-open AddPhi.Rotate.Pair.Dispatch (Refusal)
-open AddPhi.Rotate.Pair.Dispatch.Materialize (rewrite)
+open AddPhi.Rotate.Pair.Dispatch (Column Refusal)
+open AddPhi.Rotate.Pair.Dispatch.Materialize
 open AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse (rewriteAt?)
 open AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse.Discovery (discoverAndRewrite?)
 open Silmaril.SSA.SeaOfNodes.Pure.SubZero (model word wordPort)
@@ -85,6 +89,30 @@ def discover : Except Refusal (Option (List Silmaril.SSA.RVSDG.Address × Nat)) 
 #eval discover
 
 example : discover = .ok (some ([.output 1 0, .arg 1], 2)) := rfl
+
+def reversed : AddPhi.Pair.Source [.predicate, word, word] [[wordPort], [wordPort]] :=
+  { sample with
+    shared := .cons (.literal 7) .nil
+      (.cons .add (.cons (.arg (.tail .head)) (.cons (.arg (.tail (.tail .head))) .nil)) .nil) }
+
+def compareModes : Except Refusal (Option (Bool × Bool)) :=
+  (rewrite reversed (.tail (.tail .head)) .left).map fun result => do
+    let .materialized .right _ emitted := result | none
+    pure ((discoverAndRewrite? emitted).isSome,
+      (EntryReuse.Commutative.discoverAndRewrite? emitted).isSome)
+
+#eval compareModes
+
+example : compareModes = .ok (some (false, true)) := rfl
+
+def discoverByValue {inputs : List (ValueSort Unit)} {sigs : List (List (Ty Unit))}
+    (g : AddPhi.Pair.Source inputs sigs) (capture : AddPhi.Rotate.InputWord inputs)
+    (first : Column) : Except Refusal (Option (AddPhi.Rotate.Program inputs sigs [word, word])) :=
+  (rewrite g capture first).map fun result => do
+    let .materialized .right _ emitted := result | none
+    EntryReuse.ValueNumbers.discoverAndRewrite? emitted
+
+example : (discoverByValue sample (.tail (.tail .head)) .left).map (·.isSome) = .ok true := rfl
 ```
 
 The regression additionally uses unequal arm scopes and checks a
@@ -117,7 +145,63 @@ right-materialized join suffix and its shared entry table.
 [Discovery theorems](../../Silmaril/SSA/SeaOfNodes/Diamond/AddPhi/Rotate/Pair/Dispatch/Materialize/EntryReuse/Discovery/Thms.lean) ·
 [Discovery regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Diamond/AddPhi/Rotate/Pair/Dispatch/Materialize/EntryReuse/Discovery/Regression.lean)
 
+## Opt in to commutative add matching
+
+Click’s PLDI ’95 §3.1 step 3 specifies hashing and comparing commutative
+instructions independently of operand order.
+`EntryReuse.Commutative.discoverAndRewrite?` implements the comparison
+for wrapping i64 addition in this right-materialized profile. It chooses
+the first shared entry add in definition order whose operands match in
+either orientation **at each actual incoming occurrence**. Each test
+compares the capture and the actual Φ operand by exact typed source
+identity. `GVN.Key.matches` and the ordered discovery API retain their
+ordered comparison. [PLDI ’95 paper pin](sea-of-nodes/optimization/sea-of-nodes-gvn-pass.md)
+
+`check_provenance` gives the exact typed pairing per occurrence.
+`check_agrees` proves that the representative reads the same wrapping sum
+using the existing typed producer evaluation law and `BitVec.add_comm`.
+Both modes use the same emitter and route. The commutative theorems
+preserve complete packets on each occurrence and finite returns from
+the original diamond for every typed input. The regression accepts a
+reversed shared add in commutative mode and rejects a source mismatch
+on the second occurrence even when both inputs happen to read the same
+value. The extension covers word addition and the existing right-materialized
+suffix and has no dependency on a general key normalization or hash table.
+[Commutative theorems](../../Silmaril/SSA/SeaOfNodes/Diamond/AddPhi/Rotate/Pair/Dispatch/Materialize/EntryReuse/Commutative/Thms.lean) ·
+[Commutative regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Diamond/AddPhi/Rotate/Pair/Dispatch/Materialize/EntryReuse/Commutative/Regression.lean)
+
+## Compare producer value numbers
+
+Click's PLDI ’95 §3.1 step 3 compares operations using their already
+numbered inputs. `EntryReuse.ValueNumbers.discoverAndRewrite?` checks
+an ordered entry add by comparing structural value numbers in the
+right-materialized diamond. The numbers are uninterned trees containing
+typed argument positions, exact word literals, and binary opcodes with
+ordered child numbers. The native evaluator builds them in producer
+order using the wrapping i64 literal, add, subtract and multiply
+signature. [PLDI ’95 paper pin](sea-of-nodes/optimization/sea-of-nodes-gvn-pass.md) ·
+[Word number evaluator and read law](../../Silmaril/SSA/SeaOfNodes/GVN/WordNumber/Thms.lean)
+
+The representative's operands come from its existing typed GVN key and
+are numbered in the dominating shared table. Each actual Φ input is
+numbered in its own arm, seeded with that shared store. The first
+accepted shared add in definition order supplies the forwarded result.
+`check_pairing` proves structural equality at each occurrence,
+`phiKey_eval` links its number to the selected Phi value, and
+`check_agrees` gives equality of the inner sum for all typed inputs.
+Both complete packet and finite-return theorems use the existing
+emitter. The supported profile is finite, acyclic, and uses one
+right-materialized suffix.
+[Value-number reuse theorems](../../Silmaril/SSA/SeaOfNodes/Diamond/AddPhi/Rotate/Pair/Dispatch/Materialize/EntryReuse/ValueNumbers/Thms.lean)
+
+The regression reuses a shared add when two separate arm chains each
+compute `(y + z) * y` on a reversed Region, and verifies the forwarded
+addresses and wrapping results. Changing one nested input on the second
+occurrence blocks reuse, even when one input valuation makes the
+distinct expressions agree.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Diamond/AddPhi/Rotate/Pair/Dispatch/Materialize/EntryReuse/ValueNumbers/Regression.lean)
+
 ```sh
 topic=SSA.SeaOfNodes.Diamond.AddPhi.Rotate.Pair.Dispatch.Materialize.EntryReuse
-make check CHECK_TARGETS="+Silmaril.$topic.Discovery.Thms +Silmaril.Proofs.$topic.Discovery.Regression +Silmaril.Proofs.$topic.Regression"
+make check CHECK_TARGETS="+Silmaril.$topic.ValueNumbers.Thms +Silmaril.Proofs.$topic.ValueNumbers.Regression +Silmaril.Proofs.$topic.Commutative.Regression +Silmaril.Proofs.$topic.Discovery.Regression +Silmaril.Proofs.$topic.Regression"
 ```

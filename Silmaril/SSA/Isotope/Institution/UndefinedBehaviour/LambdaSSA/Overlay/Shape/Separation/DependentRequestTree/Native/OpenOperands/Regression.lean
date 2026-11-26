@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Refinement.Thms
+import Silmaril.SSA.Isotope.Institution.UndefinedBehaviour.LambdaSSA.Overlay.Shape.Separation.DependentRequestTree.Native.OpenOperands.Refinement.Checker.Interface.Thms
 
 namespace Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands
 
@@ -26,17 +26,16 @@ private instance : HasTy Op Syntax.Ty := ⟨fun _ => Bit, fun f => packedExitTyp
 private abbrev sig : RequestSignature Op := ⟨replies, fun _ => rfl⟩
 private abbrev Packets : List Syntax.Ty := [Bit, Bit, .unit]
 
-/-- The same reply position always goes to block one. The operand there
-can read either the new reply or the original caller packet. -/
-private def table (caller : Bool) (exit : Tag) : Table sig Packets where
+/-- The same reply position always goes to block one. Its operand can use
+either the incoming reply or the original caller packet. -/
+private def table (arg : Syntax.Expr [Bit, Bit] Bit) (exit : Tag) : Table sig Packets where
   entry := (0 : Fin 3)
   row := Fin.cases (motive := fun i : Fin 3 => Row sig Packets [Packets.get i, Bit])
     (.request .flip (Syntax.Expr.var (Γ := [Bit, Bit]) (0 : Fin 2)) (fun _ => (1 : Fin 3)) (fun (j : Fin 1) => by
       obtain rfl := Fin.eq_zero j
       rfl))
     (Fin.cases (motive := fun i : Fin 2 => Row sig Packets [Packets.get i.succ, Bit])
-      (.request .test (if caller then Syntax.Expr.var (Γ := [Bit, Bit]) (1 : Fin 2) else Syntax.Expr.var (Γ := [Bit, Bit]) (0 : Fin 2))
-        (fun _ => (2 : Fin 3)) (fun (j : Fin 1) => by
+      (.request .test arg (fun _ => (2 : Fin 3)) (fun (j : Fin 1) => by
           obtain rfl := Fin.eq_zero j
           rfl))
       (fun _ => .exit exit))
@@ -62,9 +61,9 @@ private def primitives : Syntax.Primitives Op 3 := fun f a s =>
       | _ => .fault 2
     else .diverge
 
-private abbrev source := table false 0
-private abbrev marked := table false 1
-private abbrev readsCaller := table true 0
+private abbrev source := table (.var 0) 0
+private abbrev marked := table (.var 0) 1
+private abbrev readsCaller := table (.var 1) 0
 
 example : source.extract? readsCaller.native left = none := rfl
 
@@ -172,6 +171,140 @@ example : ¬ sourceTree.Refines (otherExit.extract rfl left) := by
 
 example : sourceTree.Refines (.stop .ub) := trivial
 example : ¬ (Tree.stop .ub).Refines markedTree := not_false
+
+private def packets : (f : Op) → List (CFG.Dependent.Packet (sig.replies f))
+  | .flip => [⟨0, left⟩, ⟨0, right⟩]
+  | .test => [⟨0, unitPayload⟩]
+
+private def enumeration : ReplyEnumeration sig where
+  packets := packets
+  complete f packet := by
+    cases f
+    · obtain ⟨i, value, typed⟩ := packet
+      obtain rfl := Fin.eq_zero i
+      cases typed with
+      | inl typed =>
+        cases typed
+        exact List.Mem.head _
+      | inr typed =>
+        cases typed
+        exact List.Mem.tail _ (List.Mem.head _)
+    · obtain ⟨i, value, typed⟩ := packet
+      obtain rfl := Fin.eq_zero i
+      cases typed
+      exact List.Mem.head _
+
+private def checkFlipReply (p q : Tree sig) (a : Syntax.Payload Bit) : Bool :=
+  match p, q with
+  | .ask .flip _ arms, .ask .flip _ next => ((arms 0 a).compare enumeration (next 0 a)).accepted
+  | _, _ => false
+
+-- Both payloads occur at tag zero in this order. Only the later one fails.
+example : checkFlipReply sourceTree callerTree left = true := rfl
+example : checkFlipReply sourceTree callerTree right = false := rfl
+
+example : source.compare? readsCaller enumeration source.native readsCaller.native rfl left =
+    some (.counterexample 1 probe) := rfl
+
+example : source.checkRefinement? readsCaller enumeration source.native readsCaller.native rfl left =
+    some false := rfl
+
+example : source.checkRefinement? marked enumeration source.native marked.native rfl left = some true := rfl
+
+example : marked.checkRefinement? source enumeration marked.native source.native rfl left = some false := rfl
+
+example : source.checkRefinement? readsCaller enumeration readsCaller.native readsCaller.native rfl left =
+    none := rfl
+
+example : 1 ≤ 3 ∧ sourceTree.Follows probe ∧ callerTree.Follows probe ∧
+    ¬ Shape.denote (withExitUB source.native source.selected)
+        (Syntax.model (sig.primitives probe.handler) (source.bindings left)) 0 ≤
+      Shape.denote (withExitUB readsCaller.native readsCaller.selected)
+        (Syntax.model (sig.primitives probe.handler) (readsCaller.bindings left)) 0 :=
+  Table.compare_counterexample (g₀ := source) (g₁ := readsCaller) (replies := enumeration)
+    (raw₀ := source.native) (raw₁ := readsCaller.native) rfl rfl rfl rfl
+
+private def callers : CallerEnumeration Bit where
+  packets := [left, right]
+  complete input := by
+    obtain ⟨value, typed⟩ := input
+    cases typed with
+    | inl typed =>
+      cases typed
+      exact List.Mem.head _
+    | inr typed =>
+      cases typed
+      exact List.Mem.tail _ (List.Mem.head _)
+
+private abbrev readsLiteral := table (.inl .unit) 0
+
+-- The first caller packet agrees across every reply. The second changes the
+-- query after a shared reply, so the returned prefix has one successful step.
+example : readsCaller.checkRefinement? readsLiteral enumeration readsCaller.native readsLiteral.native
+    rfl left = some true := rfl
+
+example : readsCaller.checkRefinement? readsLiteral enumeration readsCaller.native readsLiteral.native
+    rfl right = some false := rfl
+
+private def laterCaller : InterfaceCounterexample sig Bit :=
+  ⟨right, 1, .step .flip right.val 0 left (.stop (some (.test, right.val)))⟩
+
+example : readsCaller.compareInterface? readsLiteral enumeration readsCaller.native readsLiteral.native
+    rfl callers = some (.counterexample laterCaller) := rfl
+
+example : ¬ Shape.denote (withExitUB readsCaller.native readsCaller.selected)
+        (Syntax.model (sig.primitives laterCaller.probe.handler) (readsCaller.bindings right)) 0 ≤
+      Shape.denote (withExitUB readsLiteral.native readsLiteral.selected)
+        (Syntax.model (sig.primitives laterCaller.probe.handler) (readsLiteral.bindings right)) 0 := by
+  obtain ⟨_, _, _, _, _, _, _, _, failure⟩ :=
+    Table.compareInterface_counterexample (g₀ := readsCaller) (g₁ := readsLiteral)
+      (raw₀ := readsCaller.native) (raw₁ := readsLiteral.native)
+      (replies := enumeration) (callers := callers) (w := laterCaller) rfl rfl
+  exact failure
+
+example : source.compareInterface? marked enumeration source.native marked.native rfl callers =
+    some .refines := rfl
+
+private def emptyTable (exit : Tag) : Table sig [.empty] where
+  entry := 0
+  row _ := .exit exit
+  selected _ := false
+
+private def emptyCallers : CallerEnumeration (.empty : Syntax.Ty) :=
+  ⟨[], fun input => (Category.noEmptyPayload input).elim⟩
+
+example : (emptyTable 0).compareInterface? (emptyTable 0) enumeration (emptyTable 0).native
+    (emptyTable 0).native rfl emptyCallers = some .refines := rfl
+
+example : (emptyTable 0).compareInterface? (emptyTable 0) enumeration (emptyTable 0).native
+    (emptyTable 1).native rfl emptyCallers = none := rfl
+
+private def backedge : Table sig Packets where
+  entry := 0
+  row := Fin.cases (motive := fun i : Fin 3 => Row sig Packets [Packets.get i, Bit])
+    (.request .flip (Syntax.Expr.var (Γ := [Bit, Bit]) (0 : Fin 2)) (fun _ => (0 : Fin 3))
+      (fun j => by
+        obtain rfl := Fin.eq_zero j
+        rfl))
+    (fun i => source.row i.succ)
+  selected := source.selected
+
+example : backedge.entryCheck = false := rfl
+
+example : backedge.compareInterface? source enumeration backedge.native source.native rfl callers =
+    none := rfl
+
+/-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.compareInterface_accepts_iff' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms Table.compareInterface_accepts_iff
+
+/-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.checkRefinement_iff' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms Table.checkRefinement_iff
 
 /-- info: 'Silmaril.Isotope.LambdaSSA.UB.Overlay.Shape.DependentRequestTree.NativeExtraction.OpenOperands.Table.refines_iff' depends on axioms: [propext,
  Classical.choice,

@@ -768,3 +768,44 @@ first optimized artifact.
 ```sh
 lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Regression.lean
 ```
+
+## Preserve one certified Store and its trailing Loads
+
+`Entry.Composition.Static.StoreTail.lower graph entry version input facts`
+runs equality-only entry discovery and takes a one-based nomination on
+the actual residual table. The nominated Store uses original address and
+word arguments and is followed by one argument-addressed Store, an
+optional chain of argument-addressed Loads, and Return. The prefix may
+contain Loads. A retained Store can therefore use the word of a preceding
+Load through its original typed scalar wire. The concrete mixed-suffix
+checker above requires an argument-Store prefix.
+[Definitions](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Entry/Composition/Static/StoreTail/Defs.lean)
+
+The certificate names the nominated cell and covers the retained Store
+and every trailing reader. Its concrete validation supplies separation.
+The existing suffix replay commutes the nominated write with the
+retained Store and preserves the Load bindings. The typed cut keeps
+all other operations and their operands in order. The static
+two-occurrence checker still requires same-port overwrites and empty
+reader obligations. The actual MemRef CFGs agree on the successor packet,
+return and full final buffer for either predicate and every initial
+buffer and CF budget at a supported invocation. The emitted entry preserves
+its scalar result and sends the retained buffer to the selected arm.
+Reapplying the deleted write to that buffer recovers the original entry
+buffer. Refusal preserves the exact entry-only artifact.
+[Theorems](../../Silmaril/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Entry/Composition/Static/StoreTail/Thms.lean)
+
+Simple chapter 10 folds consecutive same-pointer Stores when the earlier
+one has no other user. This fragment relates that memory-chain obligation
+to a certified commute across an independent retained Store before a
+two-route overwrite. The fixture retains the Store's Load-produced
+operand and observes its value through both emitted routes. Missing
+coverage, equal runtime cells and a branch that reads before its
+overwrite all preserve the first optimized artifact.
+[Pinned Simple Store rule](https://github.com/SeaOfNodes/Simple/blob/f0a6c6757a795b8e186de0076836a87acef59fa7/chapter10/src/main/java/com/seaofnodes/simple/node/StoreNode.java#L39-L65) ·
+[Memory coverage ledger](sea-of-nodes/coverage.md) ·
+[Runnable regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Regression.lean)
+
+```sh
+lake env lean -DautoImplicit=false -DwarningAsError=true Silmaril/Proofs/SSA/SeaOfNodes/Memory/Diamond/DeadStore/Regression.lean
+```

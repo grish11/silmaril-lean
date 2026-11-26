@@ -38,6 +38,7 @@ inductive Operand (layout : Layout) where
   | read (slot : Slot layout)
   | readGlobal (name : String)
   | intTrueDiv (numerator divisor : Int)
+  | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite)
   | eqInt (left : NameRead layout) (right : Int)
   | binaryInt (op : IntegerOp) (left right : Operand layout)
   | tuple (items : List (TupleItem layout))
@@ -207,15 +208,15 @@ def CodeNamesTest.evalIn (test : CodeNamesTest layout) (table : CodeTable) (glob
 
 def TupleItem.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout) :
     TupleItem layout → Except Failure Value
-  | .literal value => .ok (Value.ofScalar value)
+  | .literal value => .ok (Value.ofTupleElement value)
   | .read slot => frame.read heap slot
   | .global name => (NameRead.global name).evalIn globals heap frame
 
 /-- Resolve every reached item in order. The scalar profile check follows
 successful reads, so an earlier non-scalar value does not mask a later read error. -/
 def evalTupleContentsIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
-    (items : List (TupleItem layout)) : Except Failure (List Core.Module.Value) :=
-  assembleFlatTuple (TupleItem.evalIn globals heap frame) Value.scalar? .unsupportedTupleElement items
+    (items : List (TupleItem layout)) : Except Failure (List Core.Module.TupleDispatch.Element) :=
+  assembleFlatTuple (TupleItem.evalIn globals heap frame) Value.tupleElement? .unsupportedTupleElement items
 
 def evalTupleIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
     (items : List (TupleItem layout)) : Except Failure Value :=
@@ -226,6 +227,7 @@ def Operand.evalIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layout)
   | .read slot => frame.read heap slot
   | .readGlobal name => (NameRead.global name).evalIn globals heap frame
   | .intTrueDiv numerator divisor => (trueDivideInt numerator divisor).map Value.float64 |>.mapError .defined
+  | .mixedAdd integer floating => Closure.mixedAdd integer floating
   | .eqInt left right => (left.evalIn globals heap frame).bind (·.equalInt right)
   | .tuple items => evalTupleIn globals heap frame items
   | .binaryInt op left right =>
@@ -350,6 +352,8 @@ inductive EvaluatesIn (globals : GlobalLookup) (heap : Heap) (frame : Frame layo
       EvaluatesIn globals heap frame (.readGlobal name) (.error (.defined (.nameError name)))
   | intTrueDiv (numerator divisor : Int) : EvaluatesIn globals heap frame (.intTrueDiv numerator divisor)
       ((trueDivideInt numerator divisor).map Value.float64 |>.mapError .defined)
+  | mixedAdd (integer : Int) (floating : Silmaril.Numeric.Ieee754.F64.Finite) :
+      EvaluatesIn globals heap frame (.mixedAdd integer floating) (Closure.mixedAdd integer floating)
   | eqInt {left : NameRead layout} {right result} :
       EvaluatesIn globals heap frame left.operand result →
       EvaluatesIn globals heap frame (.eqInt left right) (result.bind (·.equalInt right))
@@ -398,7 +402,7 @@ inductive Rejects (table : CodeTable) (arguments : List Value) (heap : Heap) :
       Rejects table arguments heap (.float64 value) (.call (.defined .notCallable))
   | nonCallableText (value : Core.Text) :
       Rejects table arguments heap (.text value) (.call (.defined .notCallable))
-  | nonCallableTuple (items : List Core.Module.Value) :
+  | nonCallableTuple (items : List Core.Module.TupleDispatch.Element) :
       Rejects table arguments heap (.tuple items) (.call (.defined .notCallable))
   | nonCallableTupleObject (object : Core.Module.TupleDispatch.Object) :
       Rejects table arguments heap (.tupleObject object) (.call (.defined .notCallable))

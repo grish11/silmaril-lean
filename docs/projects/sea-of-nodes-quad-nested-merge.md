@@ -535,9 +535,65 @@ CF and numbered θ return `14` at budgets `13/14/3` and exhaust one unit
 below. The existing completion theorem gives a finite coloured completion
 for the same numbered graph. The shared nonempty arm is refused as
 `.shape`. The extension covers parallel edges that go directly into the
-existing common merge. Reconvergence through a shared jump segment
-before that merge remains open.
+existing common merge. A separate check below admits an inner-only
+shared segment before the merge.
 [Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/MergePrune/Latch/DeadProducer/Iteration/Backends/Regression.lean)
+
+### Shared inner jump suffix
+
+Section 3.1 inspects the latest definitions on each incoming path at a
+nested merge. `Nested.Shared.check` finds the first common inner block
+before the original merge. It keeps the two checked prefixes, one
+nonempty shared jump segment, and the outer false route. The block order
+accounts for every original ID exactly once. Overlap with the outer
+route fails the check.
+[Checker](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Defs.lean)
+
+`Program.innerEdgeOccurrence` records the predecessor and outgoing slot
+for each of the two inner inputs. `run_prefix` reads the selected
+prefix's full reaching bank. `run_suffix` executes the shared blocks once
+on that bank, ending at the original merge. `run_to_merge` gives the
+composed packet and exact visit count, including the outer false route
+which enters the original merge directly from its own segment.
+[Source laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/Thms.lean)
+
+`Shared.MLIR.CF.lower` reuses the full-bank typed CF emitter, with each
+shared block at its original label. `from_header_eq_prefix` and
+`from_header_eq_merge` give the exact compiled banks at both
+boundaries. `lower_run` compares the source at budget `n` with CF at
+`n + 1`. `returns_iff` and `noFiniteReturn_iff` compare finite returns
+and absence of any finite return. The numbered θ emitter still needs
+to place the shared transfer after the inner γ selection and before the
+outer γ joins the result with the outer false bank.
+[CF laws](../../Silmaril/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/MLIR/CF/Thms.lean)
+
+Build with
+`lake build --wfail +Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.Example.Defs`.
+Paste into `QuadNestedShared.lean` and run
+`lake env lean -DautoImplicit=false -DwarningAsError=true QuadNestedShared.lean`.
+
+```lean
+module
+
+meta import Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.Example.Defs
+
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared
+open Silmaril.SSA.SeaOfNodes.Quads.Loop.Tail.Nested.Shared.MLIR.CF.Example
+
+#eval plan.suffix.blocks.map Fin.val
+#eval columns
+#eval trace
+#eval (runSource 19, runCF 20, runSource 18, runCF 19)
+#eval (check outerOverlap 0).isNone
+```
+
+Both inner inputs reach blocks `[5, 6]`, which double the result and add
+one. With the same starting bank, the two columns give `[(7, 15), (12, 25)]`
+before and after the suffix. The actual loop takes inner true, inner
+false and outer false, with merge values `15, 65, 130` and two feedback
+edges. Source and CF return `130` at `19/20` and exhaust at `18/19`.
+The near miss sends the outer route into block 6 and is refused.
+[Regression](../../Silmaril/Proofs/SSA/SeaOfNodes/Quads/Loop/Tail/Nested/Shared/MLIR/CF/Regression.lean)
 
 ## Complete the emitted loop by coloured firing
 
