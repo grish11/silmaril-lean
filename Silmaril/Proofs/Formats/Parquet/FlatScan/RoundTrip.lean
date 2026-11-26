@@ -27,16 +27,16 @@ theorem scanColumn_singleV1 {ε : Type} {limits : Limits} {decoder : DecodePage 
     (length : slots.length = rows) (nonNull : field.layout = .required → slots.any Option.isNone = false) :
     ∃ result, scanColumn limits decoder source footerStart field rows column = .ok result ∧
       result.cells.toList = slots := by
-  have page : checkPage (ε := ε) limits field frame.value = .ok (rows, none) := by
-    simp [header, checkPage, Nat.not_lt.mpr pageBound, Pure.pure, Except.pure]
+  have page : checkPage (ε := ε) limits field frame.value true false [0, 3] = .ok (rows, none) := by
+    simp [header, checkPage, admitsValueEncoding, Nat.not_lt.mpr pageBound, Pure.pure, Except.pure]
   have noNull : ¬ (field.layout = .required ∧ none ∈ slots) := by
     rintro ⟨required, present⟩
     have absent := List.any_eq_false.mp (nonNull required) none present
     exact absent rfl
   refine ⟨⟨slots.toArray, by simpa using length⟩, ?_, by simp⟩
-  simp [scanColumn, scanColumnCore, Nat.not_lt.mpr rowBound, path, kind, count, codec, encodings, dictionary, index,
-    located, framed, page, decoded, length, noNull, Except.mapError, Bind.bind, Except.bind,
-    Pure.pure, Except.pure, List.forIn_cons, List.forIn_nil]
+  simp [scanColumn, scanColumnCore, frameColumn, admitsValueEncoding, readFrame, Nat.not_lt.mpr rowBound,
+    path, kind, count, codec, encodings, dictionary, index, located, framed, page, decoded, length,
+    noNull, Except.mapError, Bind.bind, Except.bind, Pure.pure, Except.pure, List.forIn_cons, List.forIn_nil]
 
 private theorem scanColumns_from_values {ε : Type} {limits : Limits} {decoder : DecodePage ε}
     {source : Bytes} {footerStart rows : Nat} {pairs : List (Field × Footer.ColumnChunk)}
