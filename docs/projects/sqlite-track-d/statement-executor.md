@@ -103,3 +103,31 @@ resolver and backend contracts and establish no native SQLite equivalence.
 lake build --wfail +Silmaril.Semantics.SQLite.Relational.Executor.Checks
 CHECK_TARGETS="$(make -s scope BASE=origin/main)" make check
 ```
+
+## Catalog snapshot executor
+
+`Silmaril.Semantics.SQLite.Relational.Executor.Catalog.Thms` instantiates the
+executor with D1's `SqlValue` and D2's `Snapshot ValueModel.sqlValue sem`.
+This development uses D1 at `e153b6ff27d768b392ab3529743e93e74e8a5046`
+and D2 at `5dd76d0c384c4d621fa0c63f3de3a0392bd3286d`.
+[Value model](../sqlite-relational-d1.md) · [Catalog model](../sqlite-relational-d2.md)
+
+`CatalogExecutor.execute` takes already normalized names. In the ordinary
+rowid-table profile a missing table or column reaches the preparation error
+channel. A view, a schema where the predicate's `rowid` spelling fails D2's
+`resolvesRowId` check, or a generated projection returns a scope rejection.
+Once admitted, the executor resolves a checked table and column ordinal,
+finds the matching signed rowid, and returns its cell. D2's checked table
+invariant rules out a second hit. `CatalogExecutor.Target.lookup_iff` expresses
+the lookup using row membership and absence, and `CatalogExecutor.execute_eq`
+covers the whole checked entry point and its final connection.
+
+This executor uses an in-memory snapshot. Its backing and cache observations
+are units and its exchange list is empty. The catalog and session fields
+are carried by the same D3 connection type. The proposed session and VFS
+adapter uses D3's generic executor with different backing, cache and exchange
+types. [Snapshot executor](../../../Silmaril/Semantics/SQLite/Relational/Executor/Catalog/Thms.lean)
+
+```sh
+lake build --wfail +Silmaril.Semantics.SQLite.Relational.Executor.Catalog.Checks
+```
