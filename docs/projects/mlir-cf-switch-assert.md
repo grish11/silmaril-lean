@@ -40,6 +40,33 @@ a failed assertion, and `none` if fuel is exhausted first. `Cfg.Diverges` means
 that every finite budget yields `none`. `Cfg.run_add_of_some` proves that a
 return or abort at a finite budget persists at every larger budget.
 
+## Partial denotation
+
+Import `Silmaril.SSA.MLIR.CF.SwitchAssert.Denotation.Thms` for
+`Cfg.denotePart`, the `Part (Outcome Result)` interpretation, and its
+correspondence with the fuel evaluator. The Elgot iteration starts at the
+entry with the input environment. Each step uses the existing scalar and
+assertion semantics to evaluate a block. A taken edge supplies its evaluated
+operands followed by the original input. A return or failed assertion ends
+the iteration.
+
+`Cfg.runFor_eq_ofOption_run` equates the Elgot approximation at every budget
+with `Part.ofOption` of the fuel evaluator. Zero fuel executes no blocks.
+Each visited block costs one unit, including the entry and the terminal block.
+The scalar operations, assertions and terminator within a block are covered by
+that unit. After `k` taken edges, a return or abort in the next block needs
+`k + 1` units. The existing `Cfg.run_add_of_some` keeps the outcome at larger
+budgets.
+
+`Cfg.mem_denotePart_iff` characterizes membership by a finite budget witnessing
+the same outcome. By `Cfg.denotePart_eq_some_iff`, a finite return denotes
+`Part.some (.returned values)` with the exact tuple and a failed assertion
+denotes `Part.some .aborted`. `Cfg.denotePart_eq_none_iff` identifies `Part.none`
+with `Cfg.Diverges`. At an individual budget, exhaustion yields `Part.none`
+in that approximation and a larger budget can still reveal an outcome.
+
+## Basic embedding and examples
+
 `Cfg.embed` inserts a Basic graph with the same labels, block parameters,
 primitive operations and terminators. Basic terminators use their existing
 interpreter. `Cfg.embed_run` proves equality at every fuel budget after mapping
@@ -52,7 +79,10 @@ different operand lists to the same successor, both in Basic and after
 embedding. The module also checks two `i65` matches that differ at bit 64, a
 default with a different argument profile, assertion success and failure,
 divergence through a default-only `i1` switch, the width cap, and duplicate
-bit patterns. Build the checks with
+bit patterns. The denotation checks cover both wide matches, the default
+return, a defined abort and an undefined cycle. The default path exhausts a
+one-block budget and returns at two, and a false assertion aborts at one fuel
+after exhausting zero fuel. Build the checks with
 `lake build --wfail +Silmaril.SSA.MLIR.CF.SwitchAssert.Examples`.
 
 The static checks reject a missing operand, an operand of the wrong width,

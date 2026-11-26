@@ -1,6 +1,7 @@
 module
 
 import Silmaril.SSA.MLIR.CF.SwitchAssert
+import Silmaril.SSA.MLIR.CF.SwitchAssert.Denotation.Thms
 
 /-! Executable and static checks for CF edges and assertion outcomes. -/
 
@@ -77,7 +78,26 @@ example : dispatch.run evalOp 2 (input 1 18446744073709551617) =
     some (.returned (.cons 20 .nil)) := rfl
 example : dispatch.run evalOp 2 (input 1 9) = some (.returned (.cons 19 .nil)) := rfl
 example : dispatch.run evalOp 1 (input 1 9) = none := rfl
+example : dispatch.run evalOp 0 (input 0 9) = none := rfl
 example : dispatch.run evalOp 1 (input 0 9) = some .aborted := rfl
+
+example : dispatch.denotePart evalOp (input 1 1) = Part.some (.returned (.cons 8 .nil)) :=
+  (dispatch.denotePart_eq_some_iff evalOp (input 1 1) _).mpr ⟨2, rfl⟩
+
+example : dispatch.denotePart evalOp (input 1 18446744073709551617) =
+    Part.some (.returned (.cons 20 .nil)) :=
+  (dispatch.denotePart_eq_some_iff evalOp (input 1 18446744073709551617) _).mpr ⟨2, rfl⟩
+
+example : dispatch.denotePart evalOp (input 1 9) = Part.some (.returned (.cons 19 .nil)) :=
+  (dispatch.denotePart_eq_some_iff evalOp (input 1 9) _).mpr ⟨2, rfl⟩
+
+-- The default edge uses the first block's fuel and needs another block to return.
+example : Elgot.Part.runFor (fun state => Part.some (dispatch.step evalOp (input 1 9) state)) 1
+    ⟨_, dispatch.entry, input 1 9⟩ = Part.none :=
+  dispatch.runFor_eq_ofOption_run evalOp 1 (input 1 9)
+
+example : dispatch.denotePart evalOp (input 0 9) = Part.some .aborted :=
+  (dispatch.denotePart_eq_some_iff evalOp (input 0 9) _).mpr ⟨1, rfl⟩
 
 private inductive LoopLabel : List Width → Type where
   | again : LoopLabel []
@@ -98,11 +118,14 @@ private def loop : Cfg Op LoopLabel [i1] [] where
 
 example : loop.run evalOp 1 (.cons 0 .nil) = some .aborted := rfl
 
-example : loop.Diverges evalOp (.cons 1 .nil) := by
+private theorem loop_diverges : loop.Diverges evalOp (.cons 1 .nil) := by
   intro fuel
   induction fuel with
   | zero => rfl
   | succ _ ih => exact ih
+
+example : loop.denotePart evalOp (.cons 1 .nil) = Part.none :=
+  (loop.denotePart_eq_none_iff evalOp (.cons 1 .nil)).mpr loop_diverges
 
 example : (16777215 : Nat) ≤ maxSwitchWidth := by decide
 example : ¬ (16777216 : Nat) ≤ maxSwitchWidth := by decide
