@@ -97,8 +97,16 @@ nor a bracketing adjacent pair. -/
 theorem interpolateGrid?_eq_none_iff (times : Fin n → ℝ) (x : Fin n → A) (t : ℝ) :
     interpolateGrid? times x t = none ↔
       (∀ j, times j ≠ t) ∧
-      ∀ i, ¬ (times (segmentLeft i) ≤ t ∧ t ≤ times (segmentRight i)) :=
+      ∀ i, ¬ (min (times (segmentLeft i)) (times (segmentRight i)) ≤ t ∧
+        t ≤ max (times (segmentLeft i)) (times (segmentRight i))) :=
   Proofs.Data.TimeSeries.Operations.interpolateGrid?_eq_none_iff times x t
+
+/-- With the grid held fixed, additive sample noise follows the same lookup as the signal.
+All lookups return `none` if the query has neither an exact match nor a bracketing pair. -/
+theorem interpolateGrid?_add (times : Fin n → ℝ) (x e : Fin n → A) (t : ℝ) :
+    interpolateGrid? times (x + e) t =
+      Option.map₂ (· + ·) (interpolateGrid? times x t) (interpolateGrid? times e t) :=
+  Proofs.Data.TimeSeries.Operations.interpolateGrid?_add times x e t
 
 /-- A perturbed weighted mean is the sum of the weighted signal and perturbation means. -/
 theorem weightedMean_add (w : Fin n → ℝ) (x e : Fin n → A) :

@@ -65,22 +65,22 @@ noncomputable def linearInterpolate (t₀ t₁ : ℝ) (x₀ x₁ : A) (t : ℝ) 
   let u := (t - t₀) / (t₁ - t₀)
   (1 - u) • x₀ + u • x₁
 
-/-- Interpolate on an adjacent pair if the query lies in its closed time interval in index
-order. A descending pair is rejected. An equal-time pair accepts only its common time and
-returns the left sample. -/
+/-- Interpolate on an adjacent pair when the query lies between its timestamps, including both
+endpoints. The interpolation uses the signed time step in index order. An equal-time pair
+accepts only its common time and returns the left sample. -/
 noncomputable def interpolateSegment? (times : Fin n → ℝ) (x : Fin n → A)
     (i : Fin (n - 1)) (t : ℝ) : Option A :=
   let l := segmentLeft i
   let r := segmentRight i
-  if times l ≤ t ∧ t ≤ times r then
+  if min (times l) (times r) ≤ t ∧ t ≤ max (times l) (times r) then
     some (linearInterpolate (times l) (times r) (x l) (x r) t)
   else none
 
-/-- Query a finite grid by time. An exact match returns the first sample at that time.
-Otherwise, use the first adjacent pair whose interval contains the query.
-On a strictly increasing grid this is piecewise linear interpolation with no extrapolation.
-An empty grid always gives `none`. A singleton gives `some` only at its timestamp.
-The search uses index order, so repeated or unsorted timestamps have deterministic behavior. -/
+/-- Query a finite grid by time. An exact match takes priority over interpolation, and repeated
+timestamps select the sample with the least index. Otherwise, use the bracketing adjacent pair
+with the least left index, whether the pair's timestamps rise or fall. Return `none` if neither
+search succeeds. On a strictly monotone grid this is piecewise linear interpolation with no
+extrapolation. An empty grid always gives `none`. A singleton matches only at its timestamp. -/
 noncomputable def interpolateGrid? (times : Fin n → ℝ) (x : Fin n → A) (t : ℝ) :
     Option A :=
   match (List.finRange n).find? (fun i => decide (times i = t)) with

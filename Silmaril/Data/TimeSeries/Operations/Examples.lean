@@ -27,6 +27,20 @@ example : interpolateGrid? ![(0 : ℝ), 2] ![(1 : ℝ), 7] 1 = some 4 := by
   norm_num [interpolateGrid?, List.finRange_succ, interpolateSegment?, linearInterpolate,
     segmentLeft, segmentRight, smul_eq_mul]
 
+/-- A uniform grid with negative step interpolates using the original sample order. -/
+example : interpolateGrid? (uniformTimes 2 (-2) 2) ![(7 : ℝ), 1] 1 = some 4 := by
+  norm_num [interpolateGrid?, uniformTimes, List.finRange_succ, interpolateSegment?,
+    linearInterpolate, segmentLeft, segmentRight, smul_eq_mul]
+
+/-- The first bracket wins when a descending and an ascending pair overlap. -/
+example : interpolateGrid? ![(4 : ℝ), 0, 3] ![(8 : ℝ), 0, 90] 1 = some 2 := by
+  norm_num [interpolateGrid?, List.finRange_succ, interpolateSegment?, linearInterpolate,
+    segmentLeft, segmentRight, smul_eq_mul]
+
+/-- An exact match takes priority over an earlier bracketing pair. -/
+example : interpolateGrid? ![(4 : ℝ), 0, 3] ![(8 : ℝ), 0, 90] 3 = some 90 := by
+  norm_num [interpolateGrid?, List.finRange_succ]
+
 /-- A duplicated timestamp returns the first matching sample. -/
 example : interpolateGrid? ![(2 : ℝ), 2] ![(1 : ℝ), 7] 2 = some 1 := by
   simp [interpolateGrid?, List.finRange_succ]

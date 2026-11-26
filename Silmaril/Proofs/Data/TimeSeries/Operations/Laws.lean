@@ -58,7 +58,8 @@ theorem interpolateGrid?_sample (times : Fin n → ℝ) (x : Fin n → A)
 theorem interpolateGrid?_eq_none_iff (times : Fin n → ℝ) (x : Fin n → A) (t : ℝ) :
     interpolateGrid? times x t = none ↔
       (∀ j, times j ≠ t) ∧
-      ∀ i, ¬ (times (segmentLeft i) ≤ t ∧ t ≤ times (segmentRight i)) := by
+      ∀ i, ¬ (min (times (segmentLeft i)) (times (segmentRight i)) ≤ t ∧
+        t ≤ max (times (segmentLeft i)) (times (segmentRight i))) := by
   unfold interpolateGrid?
   split
   · rename_i j hj
@@ -68,6 +69,22 @@ theorem interpolateGrid?_eq_none_iff (times : Fin n → ℝ) (x : Fin n → A) (
     have hmiss : ∀ j, times j ≠ t := by
       simpa [List.find?_eq_none, List.mem_finRange] using hnone
     simp [hmiss, List.findSome?_eq_none_iff, List.mem_finRange, interpolateSegment?]
+
+theorem interpolateGrid?_add (times : Fin n → ℝ) (x e : Fin n → A) (t : ℝ) :
+    interpolateGrid? times (x + e) t =
+      Option.map₂ (· + ·) (interpolateGrid? times x t) (interpolateGrid? times e t) := by
+  unfold interpolateGrid?
+  split
+  · rfl
+  · generalize List.finRange (n - 1) = indices
+    induction indices with
+    | nil => rfl
+    | cons i rest ih =>
+      by_cases h : min (times (segmentLeft i)) (times (segmentRight i)) ≤ t ∧
+          t ≤ max (times (segmentLeft i)) (times (segmentRight i))
+      · simp only [List.findSome?_cons, interpolateSegment?, ite_eq_left h,
+          Option.map₂_some_some, Pi.add_apply, linearInterpolate_add]
+      · simpa only [List.findSome?_cons, interpolateSegment?, ite_eq_right h] using ih
 
 theorem weightedMean_add (w : Fin n → ℝ) (x e : Fin n → A) :
     weightedMean w (x + e) = weightedMean w x + weightedMean w e := by
