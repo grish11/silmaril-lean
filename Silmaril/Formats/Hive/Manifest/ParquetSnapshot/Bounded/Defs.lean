@@ -70,4 +70,28 @@ def scanSnapshotsBoundedReference (limits : Snapshot.Limits) (lookup : String �
         | .readError reason => ⟨batches, .readError (.source path reason)⟩
         | .closeError reason => ⟨batches, .closeError (.source path reason)⟩
 
+/-- Logical actions taken by a strict scan through manifest EOS or the first
+failed action. Each literal occurrence is charged independently of filtering.
+Completing a file costs its checked open, all group pulls, and a separate EOS
+pull. A failed open or read ends the witness at that action. -/
+inductive SnapshotScanCost (limits : Snapshot.Limits) (lookup : String → Except Failure Bytes)
+    (bind : Snapshot.Bind physical Value Failure) : List (File schema Value) → Nat → Prop where
+  | nil : SnapshotScanCost limits lookup bind [] 0
+  | openError {file rest reason}
+      (failed : snapshotOpener limits lookup bind file.path.declared = .error reason) :
+      SnapshotScanCost limits lookup bind (file :: rest) 1
+  | complete {file rest bytes source rows actions}
+      (found : lookup file.path.declared = .ok bytes)
+      (opened : Snapshot.openSource limits bind bytes = .ok source)
+      (decoded : source.groups.mapM source.readGroup = .ok rows)
+      (tail : SnapshotScanCost limits lookup bind rest actions) :
+      SnapshotScanCost limits lookup bind (file :: rest) (source.groups.length + 2 + actions)
+  | readError {file rest bytes source before group after rows reason}
+      (found : lookup file.path.declared = .ok bytes)
+      (opened : Snapshot.openSource limits bind bytes = .ok source)
+      (split : source.groups = before ++ group :: after)
+      (decoded : before.mapM source.readGroup = .ok rows)
+      (failed : source.readGroup group = .error reason) :
+      SnapshotScanCost limits lookup bind (file :: rest) (before.length + 2)
+
 end Silmaril.Formats.Hive.Manifest

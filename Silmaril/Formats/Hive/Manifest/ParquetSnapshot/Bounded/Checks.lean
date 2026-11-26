@@ -33,12 +33,14 @@ private def pathB := "year=9/v2.parquet"
 private def emptyPath := "year=7/empty.parquet"
 private def latePath := "year=%38/late.parquet"
 private def missing := "year=7/not-present.parquet"
+private def shortPath := "year=%38/short.parquet"
 
 private def lookup : String → Except (Error String) Bytes
   | "year=%37/v1.parquet" => .ok v1
   | "year=9/v2.parquet" => .ok v2
   | "year=7/empty.parquet" => .ok emptyFile
   | "year=%38/late.parquet" => .ok late
+  | "year=%38/short.parquet" => .ok (Bytes.ofList [])
   | _ => .error (.lookup "snapshot missing")
 
 private abbrev Failure := FileError (Snapshot.Error (Error String))
@@ -112,7 +114,41 @@ private def reordered : Scan.Projection (partitions.extend physical) :=
 #guard observesProjection reordered keepAll 2 [pathA]
   ((rows 12 7).map fun row => [some (7 : Int32), row[1]!, some 7]) .closed
 
+private def sameCompletedTrace (keep : Scan.Predicate partitions.toScan Cell)
+    (budget : Nat) (paths : List String) (expected : Events.Termination Failure) : Bool :=
+  let projection := Scan.Projection.id (partitions.extend physical)
+  match prepare physical partitions {} convert paths with
+  | .error _ => false
+  | .ok files =>
+    let binder := Snapshot.FlatInt32.bind {} physical
+    let bounded := scanSnapshotsBounded {} lookup binder projection keep budget files
+    let strict := scan (snapshotOpener {} lookup binder) projection keep files
+    let batchRows (batch : Events.Batch projection.schema Cell) : Nat × List (List (Option Int32)) :=
+      (batch.rowCount, batch.toRows.map fun row => List.ofFn fun i => row i)
+    bounded.batches.map batchRows == strict.batches.map batchRows &&
+      decide (bounded.termination = expected ∧ strict.termination = expected)
+
+#guard sameCompletedTrace keepAll 0 [] .eos
+#guard sameCompletedTrace keepAll 2 [emptyPath] .eos
+#guard !sameCompletedTrace keepAll 1 [emptyPath] .eos
+#guard sameCompletedTrace keepAll 12 [pathA, pathB, pathA] .eos
+#guard sameCompletedTrace keepAll 20 [pathA, pathB, pathA] .eos
+#guard observes keepAll 11 [pathA, pathB, pathA] (rows 24 7 ++ rows 24 9 ++ rows 24 7) .closed
+#guard sameCompletedTrace keepAll 5 [pathA, missing, pathB] missingError
+#guard observes keepAll 4 [pathA, missing, pathB] (rows 24 7) .closed
+#guard sameCompletedTrace keepAll 7 [pathA, latePath, missing] lateError
+#guard sameCompletedTrace keepOutsideEight 7 [pathA, latePath, missing] lateError
+#guard observes keepOutsideEight 6 [pathA, latePath, missing] (rows 24 7) .closed
+
+private def shortFileError : Events.Termination Failure :=
+  .readError (.open shortPath (.footer (.framing .shortFile)))
+
+#guard observes keepOutsideEight 4 [pathA, shortPath, missing] (rows 24 7) .closed
+#guard sameCompletedTrace keepOutsideEight 5 [pathA, shortPath, missing] shortFileError
+
 #print axioms scanSnapshotsBounded_eq_reference
 #print axioms Snapshot.openSource_close
+#print axioms scanSnapshotsBounded_eq_scan_of_cost
+#print axioms snapshotScanCost_exists
 
 end Silmaril.Formats.Hive.Manifest

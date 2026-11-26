@@ -129,6 +129,36 @@ assert actual.schema_arrow.equals(schema)
 assert actual.read().equals(schema.empty_table())
 ```
 
+### Agreement with the strict full scan
+
+[`SnapshotScanCost`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Bounded/Defs.lean)
+witnesses a logical action count directly from the literal occurrence list
+and checked sources. A successful occurrence supplies evidence that all
+its groups decode in order. It costs the group count plus two, for checked
+open and EOS, before charging the rest of the manifest. A failed open
+costs one action, including when lookup fails. An opened file that fails
+after `k` successful groups costs `k + 2`, for open, those group pulls,
+and the failed pull. Both failure cases stop at the first failed action
+and require no evidence about any later file. The read failure also
+requires no evidence about later groups. No remaining occurrences cost
+zero actions.
+
+[`snapshotScanCost_exists`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Bounded/Thms.lean#L42)
+constructs a witness for every finite supplied manifest and checked opener
+input, including failed opens and partial reads.
+[`scanSnapshotsBounded_eq_scan_of_cost`](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Bounded/Thms.lean#L30)
+shows that any budget at least the witnessed cost returns exactly the
+unbounded strict snapshot trace, including projected batch boundaries,
+ordered nullable cells, and the terminal outcome. The witness uses group
+reads independently of projection and partition selection. Filtered
+occurrences still spend actions and preserve every reached failure.
+
+The [cost regressions](../../Silmaril/Formats/Hive/Manifest/ParquetSnapshot/Bounded/Checks.lean)
+compare both APIs on the same pinned fixtures with explicit budgets and
+include a checked footer rejection after a successful occurrence. One
+action below the successful boundary can emit all rows and still return
+`.closed`. The law is a proof about pure snapshots and logical actions.
+
 ## Checks
 
 ```sh

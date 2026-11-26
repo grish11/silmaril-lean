@@ -83,4 +83,125 @@ theorem scanSnapshotsBounded_eq_reference (limits : Snapshot.Limits) (lookup : S
           | closed | readError _ | closeError _ =>
             cases (keep file.cells).getD false <;> rfl
 
+private theorem denoteGroups_append_of_decoded
+    (read : Nat → Except (Snapshot.Error Failure) (Reader.RowGroup physical Value))
+    (before after : List Nat) {rows : List (Reader.RowGroup physical Value)}
+    (decoded : before.mapM read = .ok rows) :
+    Reader.denoteGroups read (before ++ after) =
+      (rows ++ (Reader.denoteGroups read after).1, (Reader.denoteGroups read after).2) := by
+  induction before generalizing rows with
+  | nil =>
+    have equal : [] = rows := Except.ok.inj decoded
+    subst rows
+    simp
+  | cons group rest ih =>
+    cases head : read group with
+    | error reason =>
+      simp [List.mapM_cons, head, bind, Except.bind] at decoded
+    | ok groupRows =>
+      cases tail : rest.mapM read with
+      | error reason =>
+        simp [List.mapM_cons, head, tail, bind, Except.bind] at decoded
+      | ok remaining =>
+        have equal : groupRows :: remaining = rows := by
+          simpa [List.mapM_cons, head, tail, bind, Except.bind, pure, Except.pure] using decoded
+        subst rows
+        simp [Reader.denoteGroups, head, ih tail]
+
+private theorem readFile_of_decoded (source : Reader.Source Nat physical Value (Snapshot.Error Failure))
+    (close : ∀ rest, source.close rest = .ok ()) {pulls : Nat}
+    (enough : source.groups.length < pulls) {rows : List (Reader.RowGroup physical Value)}
+    (decoded : source.groups.mapM source.readGroup = .ok rows) :
+    ParquetScan.readFile source pulls = ⟨rows.map AlignedColumns.ofRows, .eos⟩ := by
+  have observed := denoteGroups_append_of_decoded source.readGroup source.groups [] decoded
+  rw [List.append_nil] at observed
+  simp [readFile_prefix source pulls close, List.take_of_length_le (Nat.le_of_lt enough), observed,
+    Reader.denoteGroups, Nat.not_le_of_gt enough]
+
+private theorem readFile_through_failure (source : Reader.Source Nat physical Value (Snapshot.Error Failure))
+    (close : ∀ rest, source.close rest = .ok ()) {pulls group : Nat} {before after : List Nat}
+    {rows : List (Reader.RowGroup physical Value)} {reason : Snapshot.Error Failure}
+    (split : source.groups = before ++ group :: after) (enough : before.length < pulls)
+    (decoded : before.mapM source.readGroup = .ok rows) (failed : source.readGroup group = .error reason) :
+    ParquetScan.readFile source pulls = ⟨rows.map AlignedColumns.ofRows, .readError reason⟩ := by
+  have pullsLeft : pulls - before.length = (pulls - before.length - 1) + 1 := by omega
+  rw [readFile_prefix source pulls close, split, List.take_append,
+    List.take_of_length_le (Nat.le_of_lt enough), pullsLeft, List.take_succ_cons,
+    denoteGroups_append_of_decoded source.readGroup before _ decoded]
+  simp [Reader.denoteGroups, failed]
+
+theorem scanSnapshotsBounded_eq_scan_of_cost (limits : Snapshot.Limits) (lookup : String → Except Failure Bytes)
+    (bind : Snapshot.Bind physical Value Failure)
+    (projection : Scan.Projection (schema.extend physical)) (keep : Scan.Predicate schema.toScan Value)
+    {budget actions : Nat} {files : List (File schema Value)}
+    (cost : SnapshotScanCost limits lookup bind files actions) (enough : actions ≤ budget) :
+    scanSnapshotsBounded limits lookup bind projection keep budget files =
+      scan (snapshotOpener limits lookup bind) projection keep files := by
+  induction cost generalizing budget with
+  | nil => cases budget <;> rfl
+  | openError failed =>
+    cases budget with
+    | zero => omega
+    | succ pulls =>
+      simp [scanSnapshotsBounded, scan, ParquetScan.assemble, scanFile, failed]
+  | @complete file rest bytes source rows actions found opened decoded tail ih =>
+    cases budget with
+    | zero => omega
+    | succ pulls =>
+      have close := Snapshot.openSource_close limits bind bytes opened
+      have current := readFile_of_decoded source close (pulls := pulls) (by omega) decoded
+      have full := readFile_of_decoded source close (pulls := source.groups.length + 1) (by omega) decoded
+      have later := ih (budget := pulls - (source.groups.length + 1)) (by omega)
+      simp [scanSnapshotsBounded, scan, ParquetScan.assemble, scanFile, snapshotOpener, found,
+        opened, Except.map, current, full, ParquetScan.scanPartition, later]
+      cases (keep file.cells).getD false <;> rfl
+  | @readError file rest bytes source before group after rows reason found opened split decoded failed =>
+    cases budget with
+    | zero => omega
+    | succ pulls =>
+      have close := Snapshot.openSource_close limits bind bytes opened
+      have less : before.length < source.groups.length + 1 := by simp [split]; omega
+      have current := readFile_through_failure source close split (pulls := pulls) (by omega) decoded failed
+      have full := readFile_through_failure source close split less decoded failed
+      simp [scanSnapshotsBounded, scan, ParquetScan.assemble, scanFile, snapshotOpener, found,
+        opened, Except.map, current, full, ParquetScan.scanPartition]
+      cases (keep file.cells).getD false <;> rfl
+
+private theorem group_read_outcome
+    (read : Nat → Except (Snapshot.Error Failure) (Reader.RowGroup physical Value)) (groups : List Nat) :
+    (∃ rows, groups.mapM read = .ok rows) ∨
+      ∃ before group after rows reason, groups = before ++ group :: after ∧
+        before.mapM read = .ok rows ∧ read group = .error reason := by
+  induction groups with
+  | nil => exact .inl ⟨[], rfl⟩
+  | cons group rest ih =>
+    cases head : read group with
+    | error reason => exact .inr ⟨[], group, rest, [], reason, rfl, rfl, head⟩
+    | ok rows =>
+      rcases ih with ⟨later, decoded⟩ | ⟨before, failedGroup, after, earlier, reason, split, decoded, failed⟩
+      · exact .inl ⟨rows :: later, by simp [List.mapM_cons, head, decoded, bind, Except.bind, pure, Except.pure]⟩
+      · exact .inr ⟨group :: before, failedGroup, after, rows :: earlier, reason,
+          congrArg (group :: ·) split,
+          by simp [List.mapM_cons, head, decoded, bind, Except.bind, pure, Except.pure], failed⟩
+
+theorem snapshotScanCost_exists (limits : Snapshot.Limits) (lookup : String → Except Failure Bytes)
+    (bind : Snapshot.Bind physical Value Failure) (files : List (File schema Value)) :
+    ∃ actions, SnapshotScanCost limits lookup bind files actions := by
+  induction files with
+  | nil => exact ⟨0, .nil⟩
+  | cons file rest ih =>
+    cases found : lookup file.path.declared with
+    | error reason =>
+      exact ⟨1, .openError (reason := .input reason) (by simp [snapshotOpener, found])⟩
+    | ok bytes =>
+      cases opened : Snapshot.openSource limits bind bytes with
+      | error reason =>
+        exact ⟨1, .openError (reason := reason) (by simp [snapshotOpener, found, opened, Except.map])⟩
+      | ok source =>
+        rcases group_read_outcome source.readGroup source.groups with
+          ⟨rows, decoded⟩ | ⟨before, group, after, rows, reason, split, decoded, failed⟩
+        · obtain ⟨actions, tail⟩ := ih
+          exact ⟨_, .complete found opened decoded tail⟩
+        · exact ⟨_, .readError found opened split decoded failed⟩
+
 end Silmaril.Proofs.Formats.Hive.Manifest.ParquetSnapshot
