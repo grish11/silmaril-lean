@@ -73,14 +73,14 @@ theorem readBatch_shape {limits : MixedFlat.Limits} {schema bytes body : KBytes}
     | error => simp [readBatch, schemaRead, metadataRead, bind, Except.bind, Except.mapError] at read
     | ok metadata =>
       cases bound : bindBatch limits fields metadata body with
-      | error => simp [readBatch, schemaRead, metadataRead, bound, bind, Except.bind, Except.mapError] at read
+      | error => simp [readBatch, schemaRead, metadataRead, readParsed, bound, bind, Except.bind, Except.mapError] at read
       | ok plan =>
         cases columns : readGroups limits.view body 0 plan.assignment.groups with
         | error =>
-          simp [readBatch, schemaRead, metadataRead, bound, columns, bind, Except.bind, Except.mapError] at read
+          simp [readBatch, schemaRead, metadataRead, readParsed, bound, columns, bind, Except.bind, Except.mapError] at read
         | ok values =>
           have same : Observed.mk metadata.batch.rowCount values = result := by
-            simpa [readBatch, schemaRead, metadataRead, bound, columns, bind, Except.bind,
+            simpa [readBatch, schemaRead, metadataRead, readParsed, bound, columns, bind, Except.bind,
               Except.mapError, pure, Except.pure] using read
           subst result
           exact ⟨fields, metadata, rfl, metadataRead, rfl,

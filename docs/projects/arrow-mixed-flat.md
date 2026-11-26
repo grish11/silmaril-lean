@@ -4,8 +4,8 @@
 bodyless little-endian Schema, RecordBatch metadata, and body. It admits
 nullable or required Int32, Utf8, BinaryView and Utf8View fields and
 returns the explicit batch row count and ordered field/column
-observations. Framing, stream and file integration, compression,
-dictionaries, nested fields and temporal types are outside this profile.
+observations. File IPC, compression, dictionaries, nested fields and
+temporal types are outside this profile.
 [Pinned Arrow 26.0.1 Schema IDL](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Schema.fbs) ·
 [RecordBatch IDL](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/format/Message.fbs)
 
@@ -48,8 +48,40 @@ same-total count swap that deprives one field of a referenced buffer.
 [Generator](../../scripts/arrow-mixed-flat/fixtures.py) ·
 [Lean fixture checks](../../Silmaril/Formats/Arrow/MixedFlat/Examples.lean)
 
+## Modern V5 streams
+
+`Arrow.MixedFlat.Stream.read` admits the first Schema once and checks each
+RecordBatch with the shared continuation-envelope and body readers. Each
+batch observation retains its envelope offset, padded metadata size, and
+declared body length. These determine the metadata and body slices on
+the original carrier and the next envelope offset. The reader keeps each
+zero-row batch and requires explicit EOS at the carrier end.
+
+After the Schema, typed errors carry the zero-based batch index. The
+stream checks its running row and cell budgets before decoding each new
+batch. Column failures retain their field index within that batch.
+[Reader](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Defs.lean)
+
+`Stream.read_iff` characterizes the ordered frames through exact EOS.
+`Stream.RecordWire.ranges` gives the exact body and metadata windows
+for admitted envelopes, and `Stream.read_batch_results` proves that
+standalone batch decoding over those ranges recovers the ordered stream
+observations.
+[Laws](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Thms.lean)
+
+The same pinned PyArrow wheel emits a stream with batch sizes
+`[4, 0, 2]` and a schema-only stream. It reads the first two batches of a
+derived fixture and rejects the truncation in the third body. Lean
+checks the exact ranges and nullable values and distinguishes late body
+truncation, envelope truncation, a corrupt view slot, budget exhaustion,
+missing EOS and trailing bytes.
+[Stream fixture generator](../../scripts/arrow-mixed-flat/stream_fixtures.py) ·
+[Lean stream guards](../../Silmaril/Formats/Arrow/MixedFlat/Stream/Examples.lean)
+
 ```sh
-lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.Thms +Silmaril.Formats.Arrow.MixedFlat.Examples
+lake build --wfail +Silmaril.Formats.Arrow.MixedFlat.Thms +Silmaril.Formats.Arrow.MixedFlat.Examples \
+  +Silmaril.Formats.Arrow.MixedFlat.Stream.Thms +Silmaril.Formats.Arrow.MixedFlat.Stream.Examples
 lake env lean -DautoImplicit=false -DwarningAsError=true scripts/arrow-mixed-flat/Axioms.lean
 python3 -I scripts/arrow-mixed-flat/fixtures.py
+python3 -I scripts/arrow-mixed-flat/stream_fixtures.py
 ```

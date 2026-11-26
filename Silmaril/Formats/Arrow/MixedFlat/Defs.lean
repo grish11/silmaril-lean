@@ -166,6 +166,14 @@ def readGroups (limits : BinaryView.Column.Limits) (body : KBytes) {rows : Nat} 
     let rest ← readGroups limits body (index + 1) groups
     return (group.field, column) :: rest
 
+/-- Decode a RecordBatch after its metadata has been admitted for these
+fields. A framed reader can obtain the body length from the same parse. -/
+def readParsed (limits : Limits) (fields : List Field) (metadata : Metadata) (body : KBytes) :
+    Except Error Observed := do
+  let plan ← bindBatch limits fields metadata body
+  let columns ← readGroups limits.view body 0 plan.assignment.groups
+  return ⟨metadata.batch.rowCount, columns⟩
+
 /-- Decode a standalone mixed-flat RecordBatch. The caller supplies the
 Schema, RecordBatch metadata, and immutable body as one pairing. -/
 def readBatch (limits : Limits) (schemaMetadata recordMetadata body : KBytes) : Except Error Observed := do
@@ -173,9 +181,7 @@ def readBatch (limits : Limits) (schemaMetadata recordMetadata body : KBytes) : 
   let fields ← (readSchema ipc schemaMetadata).mapError .schema
   let metadata ←
     (readMetadata ipc limits.view.dataBuffers limits.totalDataBuffers fields recordMetadata).mapError .metadata
-  let plan ← bindBatch limits fields metadata body
-  let columns ← readGroups limits.view body 0 plan.assignment.groups
-  return ⟨metadata.batch.rowCount, columns⟩
+  readParsed limits fields metadata body
 
 end
 
