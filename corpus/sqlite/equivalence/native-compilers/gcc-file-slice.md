@@ -46,8 +46,11 @@ The supplied `RoLoaded` image, caller state and data memory are assumptions.
 The guarded read uses the modeled effective address. C object lifetime,
 source-to-machine refinement and live loader adequacy are separate obligations.
 The pinned ELF's `.rela.dyn` has 290 `R_X86_64_64` entries, including one
-at target `0x10e520`. The current loader rejects type 1, so its eager image
-relation cannot supply the image premise for this file at the head of scope.
+at target `0x10e520`. The modeled evaluator computes the type-1 value for
+supported references. `no_eager_image_without_dependencies` rules out an
+eager image in the SQLite-only scope `[F]`, where the strong reference to
+`close@GLIBC_2.2.5` cannot resolve. A concrete dependency scope, successful
+resolution of every slot, and a memory satisfying `ImageOk` are still needed.
 [Relocation coverage](gcc-relocation-coverage.md)
 [#2176](https://github.com/hiloopai/silmaril-lean/pull/2176)
 
