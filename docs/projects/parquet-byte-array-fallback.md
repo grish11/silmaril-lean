@@ -90,3 +90,48 @@ tag is changed to 3.
 lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.File.Tests
 lake env lean -DautoImplicit=false -DwarningAsError=true tests/formats/parquet-byte-array-fallback-file/Axioms.lean
 ```
+
+## Opt-in parquet-java V1 fallback
+
+`ByteArrayFallback.readLegacyGroup` uses the checked optional BYTE_ARRAY
+binding and the existing bounded chunk walk for codec 0. It admits the
+parquet-java V1 combination of a leading tag-2 dictionary and data tags
+2 and 0. The dictionary body contains PLAIN length-prefixed entries.
+Data pages use V1 definition tag 3 and repetition tag 4. The matched
+flat leaf has maximum repetition level zero, so the existing scalar
+adapter receives tag 3 for that absent repetition section.
+`legacy_parameters_wire` relates this adapter parameter to the original
+header and preserves the value tag, sizes and count. `readLegacyGroup_wire`
+retains the original selected snapshot, ordered frames, chunk-local
+dictionary lookups and PLAIN suffixes.
+
+The producer is parquet-java 1.16.0, commit
+`402c3810c372d29603e181771acebfecc71bef61`. The Thrift 0.25.0 oracle
+sorts the footer encoding lists because parquet-java serializes them
+in JVM-dependent order. All original page bytes and offsets are
+preserved. The selected chunk's dictionary header is at byte 1900.
+Its data section begins at 1937 and has ten tag-2 pages followed by
+nine tag-0 pages. PyArrow 26.0.1 reads all 384 original slots and
+rejects the damaged final PLAIN length. Lean reports the damage at
+group 0, column 1, frame 19, header byte 10089.
+
+| File | SHA-256 |
+| --- | --- |
+| parquet-java-v1-legacy-fallback.parquet | `63231c6286d24acc8ff3fcbf72b0641fb861dd7a78eec9908899cc9b14c07135` |
+| parquet-java-v1-legacy-fallback-bad-length.parquet | `ba08f3886655f91c488e2b8e93b9bccca4ef87eb5ec4d1dbb0126cbd78dde9a1` |
+
+Run from the repository root with JDK 21, Maven, PyArrow 26.0.1 and
+Thrift 0.25.0.
+
+```sh
+fixture_tmp=$(mktemp -d)
+mvn -B -q -f scripts/parquet-dictionary-chunk/pom.xml \
+  org.apache.maven.plugins:maven-dependency-plugin:3.8.1:build-classpath \
+  -Dmdep.outputFile="$fixture_tmp/classpath"
+java -cp "$(cat "$fixture_tmp/classpath")" scripts/parquet-byte-array-legacy-fallback/WriteFallback.java "$fixture_tmp"
+python3 scripts/parquet-byte-array-legacy-fallback/Oracle.py "$fixture_tmp"
+for fixture in data/parquet-byte-array-legacy-fallback/*.parquet; do
+  cmp "$fixture" "$fixture_tmp/$(basename "$fixture")"
+done
+lake build --wfail +Silmaril.Formats.Parquet.ByteArrayFallback.LegacyTests
+```

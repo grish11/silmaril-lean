@@ -10,6 +10,36 @@ dictionary and explicit RLE_DICTIONARY or PLAIN data-page dispatch. -/
 
 namespace Silmaril.Formats.Parquet.ByteArrayFallback
 
+/-- Select the observed dictionary and data header contract for a chunk. -/
+inductive Profile where
+  | rleDictionary
+  | plainDictionaryV1
+  deriving DecidableEq, Repr
+
+def Profile.dictionaryTag : Profile → Int
+  | .rleDictionary => 0
+  | .plainDictionaryV1 => 2
+
+def Profile.dataTag : Profile → Int
+  | .rleDictionary => 8
+  | .plainDictionaryV1 => 2
+
+def Profile.advertised : Profile → Int → Bool
+  | .rleDictionary, tag => tag == 0 || tag == 3 || tag == 8
+  | .plainDictionaryV1, tag => tag == 0 || tag == 2 || tag == 3 || tag == 4
+
+/-- The legacy writer labels the absent repetition section BIT_PACKED.
+The checked flat leaf has maximum repetition level zero. Only that
+absent section's tag is normalized for the existing RLE scalar adapter. -/
+def Profile.parameters (profile : Profile) (header : Page.Header) : Option ScalarPage.Parameters :=
+  match profile with
+  | .rleDictionary => FlatColumn.pageParameters .optional 0 header
+  | .plainDictionaryV1 => do
+    let params ← FlatColumn.pageParameters .optional 0 header
+    let .v1 definitions repetitions := params.version | none
+    if definitions = 3 ∧ repetitions = 4 then some { params with version := .v1 3 3 }
+    else none
+
 structure Limits where
   file : Plain.ByteArray.File.Limits := {}
   maxDictionaryEntries : Nat := 1024 * 1024
@@ -40,12 +70,12 @@ def openFile (limits : Limits) (input : Bytes) (name : String) :
     Except Plain.ByteArray.File.Error (Checked name) :=
   Plain.ByteArray.File.openFile limits.file input name .optional
 
-def locate (limits : Limits) (leaf : Footer.SchemaElement) (group : Footer.RowGroup)
+def locateFor (profile : Profile) (limits : Limits) (leaf : Footer.SchemaElement) (group : Footer.RowGroup)
     (metadata : Footer.ColumnMetadata) (footerStart : Nat) : Except FlatColumn.ColumnError Footer.Span :=
   if ¬ (metadata.pathInSchema = [leaf.name] ∧ metadata.physicalType = .byteArray ∧
       metadata.numValues = group.numRows) then .error .association
   else if metadata.codec ≠ 0 then .error (.codec metadata.codec)
-  else if !metadata.encodings.all (fun tag => tag == 0 || tag == 3 || tag == 8) then .error .encodings
+  else if !metadata.encodings.all profile.advertised then .error .encodings
   else if metadata.indexPageOffset.isSome then .error .unsupportedOffsets
   else if metadata.totalCompressedSize > (limits.file.column.maxChunkBytes : Int) ||
       metadata.totalUncompressedSize > (limits.file.column.maxChunkBytes : Int) then .error .chunkLimit
@@ -69,12 +99,13 @@ def bodyLimits (maxBytes : Nat) (header : Page.Header) : Except (FlatColumn.Page
 
 /-- Decode exact PLAIN length-prefixed entries in original dictionary order.
 Both entry count and byte caps apply before the slice is copied. -/
-def readDictionary (limits : Limits) (metadata : Footer.ColumnMetadata) (source : Bytes) (frame : Page.Frame) :
+def readDictionaryFor (profile : Profile) (limits : Limits) (metadata : Footer.ColumnMetadata)
+    (source : Bytes) (frame : Page.Frame) :
     Except (FlatColumn.PageError DecodeError) (Array Bytes) := do
   let .dictionary header := frame.value.kind | throw .unsupportedKind
   bodyLimits limits.dictionary.totalBytes frame.value
-  if header.encoding ≠ 0 then .error (.decode (.dictionaryEncoding header.encoding))
-  else if !metadata.encodings.contains 0 then .error (.decode (.unadvertisedEncoding 0))
+  if header.encoding ≠ profile.dictionaryTag then .error (.decode (.dictionaryEncoding header.encoding))
+  else if !metadata.encodings.contains profile.dictionaryTag then .error (.decode (.unadvertisedEncoding profile.dictionaryTag))
   else if limits.maxDictionaryEntries < header.numValues then
     .error (.decode (.dictionaryEntryLimit limits.maxDictionaryEntries header.numValues))
   else do
@@ -82,13 +113,15 @@ def readDictionary (limits : Limits) (metadata : Footer.ColumnMetadata) (source 
     let entries ← (Plain.ByteArray.decode limits.dictionary header.numValues body).mapError (.decode ∘ .dictionaryBody)
     return entries.toArray
 
-def decodeData (limits : Limits) (metadata : Footer.ColumnMetadata) (source : Bytes)
+def decodeDataFor (profile : Profile) (limits : Limits) (metadata : Footer.ColumnMetadata) (source : Bytes)
     (dictionary : Option (Array Bytes)) (frame : Page.Frame) :
     Except (FlatColumn.PageError DecodeError) (List (Option Bytes)) := do
   bodyLimits limits.file.column.maxPageBytes frame.value
-  let some params := FlatColumn.pageParameters .optional 0 frame.value | throw .unsupportedKind
+  let some params := profile.parameters frame.value |
+    if (FlatColumn.pageParameters .optional 0 frame.value).isSome then throw .levels
+    else throw .unsupportedKind
   let cap := min limits.file.column.maxRows (Hybrid.runLimit - 1)
-  if params.encoding ≠ 0 ∧ params.encoding ≠ 8 then .error (.encoding params.encoding)
+  if params.encoding ≠ 0 ∧ params.encoding ≠ profile.dataTag then .error (.encoding params.encoding)
   else if !metadata.encodings.contains params.encoding then .error (.decode (.unadvertisedEncoding params.encoding))
   else if cap < params.numValues then .error (.slotLimit cap params.numValues)
   else if params.encoding = 0 then
@@ -102,7 +135,7 @@ def decodeData (limits : Limits) (metadata : Footer.ColumnMetadata) (source : By
 def declaredSlots (frame : Page.Frame) : Nat :=
   ((FlatColumn.pageParameters .optional 0 frame.value).map (·.numValues)).getD 0
 
-def readFrames (limits : Limits) (metadata : Footer.ColumnMetadata) (source : Bytes)
+def readFramesFor (profile : Profile) (limits : Limits) (metadata : Footer.ColumnMetadata) (source : Bytes)
     (group column : Nat) (name : String) (rows : Nat) (frames : List Page.Frame) :
     Except Error (List (Option Bytes)) := do
   let failColumn := FlatColumn.Error.column group column name
@@ -115,14 +148,14 @@ def readFrames (limits : Limits) (metadata : Footer.ColumnMetadata) (source : By
     .error (failColumn .unsupportedOffsets)
   else if declared ≠ rows then .error (failColumn (.declaredCount rows declared))
   else do
-    let entries ← dictionary.mapM fun frame => (readDictionary limits metadata source frame).mapError (failPage 0 frame)
+    let entries ← dictionary.mapM fun frame => (readDictionaryFor profile limits metadata source frame).mapError (failPage 0 frame)
     let pages ← (data.zipIdx (if dictionary.isSome then 1 else 0)).mapM fun (frame, ordinal) =>
-      (decodeData limits metadata source entries frame).mapError (failPage ordinal frame)
+      (decodeDataFor profile limits metadata source entries frame).mapError (failPage ordinal frame)
     return pages.flatten
 
 /-- Read the selected group from the same snapshot as its binding. Dictionary
 state is local to this chunk and publication waits for all frames to succeed. -/
-def readGroup {name : String} (checked : Checked name) (limits : Limits) (index : Nat) :
+def readGroupFor (profile : Profile) {name : String} (checked : Checked name) (limits : Limits) (index : Nat) :
     Except Error (List (Option Bytes)) := do
   let ordinal := checked.binding.columnOrdinal
   let failColumn := FlatColumn.Error.column index ordinal name
@@ -132,15 +165,16 @@ def readGroup {name : String} (checked : Checked name) (limits : Limits) (index 
   else do
     let some column := group.columns[ordinal]? | throw (failColumn .missing)
     let metadata := column.metadata
-    let span ← (locate limits checked.binding.leaf group metadata checked.snapshot.footer.start).mapError failColumn
+    let span ← (locateFor profile limits checked.binding.leaf group metadata checked.snapshot.footer.start).mapError failColumn
     let frames ← (Page.readChunk limits.file.column.framing checked.snapshot.bytes span).mapError (failColumn ∘ .framing)
-    readFrames limits metadata checked.snapshot.bytes index ordinal name rows frames
+    readFramesFor profile limits metadata checked.snapshot.bytes index ordinal name rows frames
 
 /-- Every present dictionary entry is the result of an exact bounded PLAIN
 stream from the original leading frame. -/
-def DictionaryWire (limits : Limits) (source : Bytes) (frame : Page.Frame) (entries : Array Bytes) : Prop :=
+def DictionaryWireFor (profile : Profile) (limits : Limits) (source : Bytes)
+    (frame : Page.Frame) (entries : Array Bytes) : Prop :=
   ∃ header values,
-    frame.value.kind = .dictionary header ∧ header.encoding = 0 ∧
+    frame.value.kind = .dictionary header ∧ header.encoding = profile.dictionaryTag ∧
     frame.value.crc = none ∧ frame.value.compressedSize = frame.value.uncompressedSize ∧
     header.numValues ≤ limits.maxDictionaryEntries ∧ frame.value.compressedSize ≤ limits.dictionary.totalBytes ∧
     Plain.ByteArray.decode limits.dictionary header.numValues (FlatColumn.frameBody source frame) = .ok values ∧
@@ -149,35 +183,35 @@ def DictionaryWire (limits : Limits) (source : Bytes) (frame : Page.Frame) (entr
 
 /-- A frame's own typed header selects its checked body interpretation. The
 dictionary branch uses only entries from this chunk's leading frame. -/
-def PageWire (limits : Limits) (source : Bytes) (dictionary : Option (Array Bytes))
+def PageWireFor (profile : Profile) (limits : Limits) (source : Bytes) (dictionary : Option (Array Bytes))
     (frame : Page.Frame) (slots : List (Option Bytes)) : Prop :=
   let body := FlatColumn.frameBody source frame
   ∃ params : ScalarPage.Parameters, ∃ layout : FlatPage.Layout, ∃ page : ScalarPage.Prepared,
-    FlatColumn.pageParameters .optional 0 frame.value = some params ∧
+    profile.parameters frame.value = some params ∧
     ScalarPage.validateFor params.encoding params limits.file.scalar body = .ok layout ∧
     ScalarPage.PreparedWire params limits.file.scalar layout body page ∧
     slots.map Option.isSome = page.mask ∧ slots.length = declaredSlots frame ∧
     ((params.encoding = 0 ∧ page.scalars.toList = Plain.ByteArray.wire (slots.filterMap id)) ∨
-      (params.encoding = 8 ∧ ∃ entries indices, dictionary = some entries ∧
+      (params.encoding = profile.dataTag ∧ ∃ entries indices, dictionary = some entries ∧
         DictionaryIndex.readIndices limits.indices (page.mask.count true) page.scalars = .ok indices ∧
         indices.map (fun index => entries[index]?) = (slots.filterMap id).map some))
 
-def LeadingWire (limits : Limits) (source : Bytes) :
+def LeadingWireFor (profile : Profile) (limits : Limits) (source : Bytes) :
     Option Page.Frame → Option (Array Bytes) → Prop
   | none, none => True
-  | some frame, some entries => DictionaryWire limits source frame entries
+  | some frame, some entries => DictionaryWireFor profile limits source frame entries
   | _, _ => False
 
-def FramesWire (limits : Limits) (source : Bytes) (metadata : Footer.ColumnMetadata)
+def FramesWireFor (profile : Profile) (limits : Limits) (source : Bytes) (metadata : Footer.ColumnMetadata)
     (rows : Nat) (frames : List Page.Frame) (slots : List (Option Bytes)) : Prop :=
   ∃ dictionary data entries pages,
     frames = dictionary.toList ++ data ∧
     dictionary.map (fun frame : Page.Frame => (frame.header.start : Int)) = metadata.dictionaryPageOffset ∧
     data.head?.map (fun frame : Page.Frame => (frame.header.start : Int)) = some metadata.dataPageOffset ∧
-    LeadingWire limits source dictionary entries ∧
-    List.Forall₂ (PageWire limits source entries) data pages ∧ slots = pages.flatten ∧ slots.length = rows
+    LeadingWireFor profile limits source dictionary entries ∧
+    List.Forall₂ (PageWireFor profile limits source entries) data pages ∧ slots = pages.flatten ∧ slots.length = rows
 
-def GroupWire {name : String} (checked : Checked name) (limits : Limits)
+def GroupWireFor (profile : Profile) {name : String} (checked : Checked name) (limits : Limits)
     (index : Nat) (slots : List (Option Bytes)) : Prop :=
   ∃ group column span frames,
     checked.snapshot.metadata.schema[checked.binding.leafOrdinal]? = some checked.binding.leaf ∧
@@ -187,6 +221,22 @@ def GroupWire {name : String} (checked : Checked name) (limits : Limits)
     column.metadata.numValues = group.numRows ∧ column.metadata.codec = 0 ∧
     Page.columnSpan checked.snapshot.footer.start column.metadata = some span ∧
     Page.readChunk limits.file.column.framing checked.snapshot.bytes span = .ok frames ∧
-    FramesWire limits checked.snapshot.bytes column.metadata group.numRows.toNat frames slots
+    FramesWireFor profile limits checked.snapshot.bytes column.metadata group.numRows.toNat frames slots
+
+/-- The existing tag-8/PLAIN profile keeps its public entry points. -/
+def locate := locateFor .rleDictionary
+def readDictionary := readDictionaryFor .rleDictionary
+def decodeData := decodeDataFor .rleDictionary
+def readFrames := readFramesFor .rleDictionary
+def readGroup {name : String} := readGroupFor .rleDictionary (name := name)
+
+def DictionaryWire := DictionaryWireFor .rleDictionary
+def PageWire := PageWireFor .rleDictionary
+def LeadingWire := LeadingWireFor .rleDictionary
+def FramesWire := FramesWireFor .rleDictionary
+def GroupWire {name : String} := GroupWireFor .rleDictionary (name := name)
+
+/-- Opt in to the parquet-java V1 tag-2 dictionary and tag-2/PLAIN pages. -/
+def readLegacyGroup {name : String} := readGroupFor .plainDictionaryV1 (name := name)
 
 end Silmaril.Formats.Parquet.ByteArrayFallback
