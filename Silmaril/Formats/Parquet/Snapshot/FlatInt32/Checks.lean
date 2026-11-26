@@ -3,10 +3,12 @@ module
 import Silmaril.Data.IncludeBytes
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.FlatInt32.Defs
 import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Scan.Thms
+import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Rows.Thms
 import Silmaril.Formats.Hive.ParquetScan.Thms
 meta import Silmaril.Data.IncludeBytes
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.FlatInt32.Defs
 meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Scan.Defs
+meta import Silmaril.Formats.Hive.Manifest.ParquetSnapshot.Rows.Defs
 
 namespace Silmaril.Formats.Parquet.Snapshot.FlatInt32
 
@@ -100,7 +102,7 @@ private def lookup : String → Except String Bytes
   | "year=%37/v1.parquet" => .ok v1
   | "year=9/v2.parquet" | "year=8/rejected.parquet" |
     "year=__HIVE_DEFAULT_PARTITION__/unknown.parquet" => .ok v2
-  | "year=8/late.parquet" | "year=9/late.parquet" => .ok late
+  | "year=8/late.parquet" | "year=9/late.parquet" | "year=%39/late.parquet" => .ok late
   | _ => .error "snapshot missing"
 
 private def profileLookup (path : String) : Except (Error String) Bytes := (lookup path).mapError .lookup
@@ -113,10 +115,12 @@ private def projection : Scan.Projection (partitions.extend physical) :=
 private def keep : Scan.Predicate partitions.toScan Cell := fun row =>
   (row (0 : Fin 1)).map (fun (year : Int32) => year != 8)
 
-private abbrev Trace := Events.Trace projection.schema Cell (Manifest.FileError (Snapshot.Error (Error String)))
+private abbrev RowsAndOutcome :=
+  List (List (Option Int32)) × Events.Termination (Manifest.FileError (Snapshot.Error (Error String)))
 
-private def dataset (run : List (Manifest.File partitions Cell) → Trace) (paths : List String) :
-    Option (List (List (Option Int32)) × Events.Termination (Manifest.FileError (Snapshot.Error (Error String)))) :=
+private def dataset {output : Scan.Schema String Unit}
+    (run : List (Manifest.File partitions Cell) → Events.Trace output Cell (Manifest.FileError (Snapshot.Error (Error String))))
+    (paths : List String) : Option RowsAndOutcome :=
   (Manifest.prepare physical partitions {} convert paths).toOption.map fun files =>
     let trace := run files
     (trace.rows.map List.ofFn, trace.termination)
@@ -125,8 +129,11 @@ private def strict := dataset (Manifest.scan opener projection keep)
 private def pruned := dataset (Manifest.scanSkippingRejected opener projection keep)
 private def reference := dataset (Manifest.scanSnapshotsThenFilter {} profileLookup binding projection keep)
 
+private def projectedCells (year : Option Int32) (n : Nat) : List (List (Option Int32)) :=
+  (List.range n).map fun i => [year, optional i, required i, optional i]
+
 private def projected (year : Int32) (n : Nat) : List (List (Option Int32)) :=
-  (List.range n).map fun i => [some year, optional i, required i, optional i]
+  projectedCells (some year) n
 
 private def cleanPaths := ["year=%37/v1.parquet", "year=8/rejected.parquet",
   "year=__HIVE_DEFAULT_PARTITION__/unknown.parquet", "year=9/v2.parquet", "year=%37/v1.parquet"]
@@ -149,6 +156,41 @@ private def rejectedLate := ["year=%37/v1.parquet", "year=8/late.parquet", "year
 #guard reference rejectedLate = some (projected 7 24, .readError (.source "year=8/late.parquet" lateReason))
 #guard pruned rejectedLate = some (projected 7 24 ++ projected 9 24, .eos)
 
+private def keepNullPartition (cells : Scan.Row partitions.toScan Cell) : Option Bool :=
+  some (((cells (0 : Fin 1)).map (fun (year : Int32) => year != 8)).getD true)
+
+private def rowReference (columns : Scan.Projection (partitions.extend physical)) (paths : List String) :
+    Option RowsAndOutcome :=
+  (Manifest.prepare physical partitions {} convert paths).toOption.map fun files =>
+    let (rows, termination) := Manifest.denoteSnapshotRows {} profileLookup binding files
+    ((columns.scan (fun row => keepNullPartition (TypedPartitions.partitionCells row)) rows).map List.ofFn,
+      termination)
+
+private def bridgePrefix :=
+  ["year=%37/v1.parquet", "year=__HIVE_DEFAULT_PARTITION__/unknown.parquet",
+    "year=%37/v1.parquet", "year=8/rejected.parquet", "year=%39/late.parquet"]
+
+private def bridgePaths := bridgePrefix ++ ["year=9/v2.parquet", "year=%39/missing.parquet"]
+private def bridgeStrict := dataset (Manifest.scan opener projection keepNullPartition)
+private def emptyProjection : Scan.Projection (partitions.extend physical) := Scan.Projection.ofArray #[]
+
+#guard rowReference projection bridgePaths = some
+  (projected 7 24 ++ projectedCells none 24 ++ projected 7 24 ++ projected 9 12,
+    .readError (.source "year=%39/late.parquet" lateReason))
+#guard bridgeStrict bridgePaths = rowReference projection bridgePaths
+#guard rowReference projection bridgePaths = rowReference projection bridgePrefix
+#guard rowReference emptyProjection bridgePaths =
+  some (List.replicate 84 [], .readError (.source "year=%39/late.parquet" lateReason))
+#guard dataset (Manifest.scan opener emptyProjection keepNullPartition) bridgePaths =
+  rowReference emptyProjection bridgePaths
+
+private def missingMiddle := ["year=%37/v1.parquet", "year=%39/missing.parquet", "year=9/v2.parquet"]
+
+#guard rowReference projection missingMiddle =
+  some (projected 7 24, .readError (.open "year=%39/missing.parquet" (.input (.lookup "snapshot missing"))))
+#guard bridgeStrict missingMiddle = rowReference projection missingMiddle
+
+#print axioms Manifest.scanSnapshots_collect_eq_rows
 #print axioms Manifest.scanSnapshots_equivalent_thenFilter
 #print axioms Manifest.scanFile_eof_of_snapshot
 #print axioms Manifest.scanSnapshotsSkippingRejected_equivalent_thenFilter
