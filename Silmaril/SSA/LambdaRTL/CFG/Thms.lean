@@ -28,6 +28,13 @@ universe v w
 variable {V L K : Type w} {F : Type v} {M : Type w → Type w} {α : Type w} [Monad M]
   [LawfulMonad M] [DecidableEq V] [DecidableEq L] [DecidableEq K]
 
+/-- A body executes as its region, followed by a continuation on the exit. -/
+theorem Body.exec_eq_evalRTL {R : Type w} (model : Model F M α) (next : K → α → (V → α) → M R)
+    (body : Body V K F) (store : V → α) :
+    body.exec model next store =
+      body.toRegion.evalRTL model store >>= fun out => next out.1 out.2.1 out.2.2 :=
+  Silmaril.Proofs.SSA.LambdaRTL.CFG.Body.exec_eq model next body store
+
 theorem run_flatten (m : Model F M α) (r : Region V L F) (σ : V → α) :
     (flatten r).run m σ = (fun e => (Sum.inl e.1, e.2)) <$> r.evalRTL m σ :=
   Silmaril.Proofs.SSA.LambdaRTL.CFG.run_flatten m r σ

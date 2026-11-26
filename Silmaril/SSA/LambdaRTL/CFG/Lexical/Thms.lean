@@ -13,6 +13,12 @@ universe v w
 variable {V K : Type w} {F : Type v} {M : Type w → Type w} {α : Type w}
   [Monad M] [LawfulMonad M] [DecidableEq V] [DecidableEq K]
 
+omit [LawfulMonad M] in
+/-- The transfer from one body agrees with its lexical region reading. -/
+theorem Body.evalJump_eq_evalSSA (model : Model F M α) (body : Body V K F) (input : V → α) :
+    body.evalJump model input = body.toRegion.evalSSA model input :=
+  Proofs.SSA.LambdaRTL.CFG.body_evalJump model body input
+
 /-- Reading a forward graph back into lexical regions commutes with direct
 execution on the flat block list. -/
 theorem runSSA_eq_evalSSA (graph : CFG V K F) (model : Model F M α) (input : V → α) :

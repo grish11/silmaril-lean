@@ -113,6 +113,13 @@ register and label equality, and infinitely many register names. Deversioning
 fixes version-zero registers and injectively assigns the remaining versions
 used by the region to fresh names.
 
+For cyclic named CFGs, [`Cyclic.Versioning.roundTrip_run_obs`](../../Silmaril/SSA/LambdaRTL/CFG/Cyclic/RoundTrip/Thms.lean)
+gives the same-store equality of the whole Elgot computation of the exit
+label and payload. The mutable readback keeps each incoming packet and its
+decoder. A block receives its live-ins in that packet, so decoding never
+depends on stale register values. The result adds lawful Elgot iteration to
+the acyclic assumptions and projects away the final store.
+
 Names (`Nameless.Thms`, `LocallyNameless.Thms`, `Nameless.Institution.Thms`):
 `Region.eval_toDB` (adequacy), `DB.Region.toDB_ofDB` (round trip),
 `Region.alphaEq_ofDB_toDB`, `Region.evalSSA_eq_of_alphaEq`, `Region.close_toLN`

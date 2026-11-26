@@ -65,6 +65,7 @@ public import Silmaril.Machine.LambdaRTLLir.Thms
 public import Silmaril.Machine.OfLambdaSSA.Thms
 public import Silmaril.Machine.RTL.Thms
 public import Silmaril.SSA.Isotope.Thms
+public import Silmaril.SSA.LambdaRTL.CFG.Cyclic.RoundTrip.Thms
 public import Silmaril.SSA.LambdaRTL.CFG.Thms
 public import Silmaril.SSA.LambdaRTL.Institution.Defs
 public import Silmaril.SSA.LambdaRTL.LocallyNameless.Thms
