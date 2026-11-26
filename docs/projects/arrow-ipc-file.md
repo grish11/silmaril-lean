@@ -54,9 +54,9 @@ The pinned PyArrow 26.0.1 producer uses `pa.ipc.new_file`. Its independent
 `pa.ipc.open_file` readback checks schema, batch lengths and ordered rows.
 The fixtures include mixed nulls and multiple batches, an empty batch,
 a schema-only file, and positive-row zero-column data. Dictionary and Int64
-files are pinned rejection cases. The native Lean target runs the pinned SHA-256 checker against the tracked fixture inputs. It tests indexing and
-materialization and mutates footer lengths, offsets, schemas and block
-extents.
+files are pinned rejection cases. The native Lean target runs the SHA-256
+checker against the tracked fixture inputs. It tests indexing and materialization
+and mutates footer lengths, offsets, schemas and block extents.
 [Fixture hashes](../../tests/formats/arrow-ipc/file-fixtures.json) ·
 [Producer and wheel hash](../../tests/formats/arrow-ipc/fixture.json) ·
 [Hash-pinned requirements](../../tests/formats/arrow-ipc/requirements.txt)

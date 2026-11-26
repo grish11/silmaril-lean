@@ -239,6 +239,8 @@ private def fileFixture (name : String) : IO ByteArray :=
 
 private def checkFileHashes : IO Unit := do
   let directory := System.FilePath.mk "tests/formats/arrow-ipc"
+  let producer ← IO.FS.readFile (directory / "fixture.json")
+  check "producer manifest agrees with the embedded test input" (producer == include_str "fixture.json")
   let manifest ← IO.FS.readFile (directory / "file-fixtures.json")
   check "file manifest agrees with the embedded test input" (manifest == include_str "file-fixtures.json")
   for (name, bytes) in fileFixtures do
