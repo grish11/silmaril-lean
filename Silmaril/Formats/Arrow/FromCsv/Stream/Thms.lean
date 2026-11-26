@@ -53,4 +53,15 @@ theorem emitNamed_preserves {Name : Type} {limits : ObservationLimits} {db : Pac
       StreamWriter.emit limits fields [input] = .ok ipc :=
   Proofs.Formats.Arrow.FromCsv.Stream.emitNamed_preserves written
 
+/-- Complete IPC readback recovers the declared fields, ordered nullable rows,
+and the explicit record-batch count of rows, including at width zero. -/
+theorem emitCsvUtf8_readback {limits : ObservationLimits} {fields : List Field} {wire : Csv.Bytes}
+    {ipc : KBytes} (written : emitCsvUtf8 limits fields wire = .ok ipc) :
+    ∃ rows : Scan.Table (schemaOf fields) Cell,
+      Csv.Typed.Utf8.decode (schemaOf fields) utf8Codecs wire = .ok rows ∧
+      readRows limits ipc = .ok ⟨fields, [rows.map (eraseRow fields)]⟩ ∧
+      ∃ stream : Arrow.Stream, readStream limits.ipc ipc = .ok stream ∧
+        stream.fields = fields ∧ stream.batches.map (·.metadata.rowCount) = [rows.length] :=
+  Proofs.Formats.Arrow.FromCsv.Stream.emitCsvUtf8_readback written
+
 end Silmaril.Formats.Arrow.FromCsv.Stream

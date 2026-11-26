@@ -2,6 +2,7 @@ module
 
 public import Silmaril.Formats.Arrow.FromCsv.Stream.Defs
 import Silmaril.Formats.Arrow.FromCsv.Thms
+import Silmaril.Formats.Arrow.StreamWriter.Thms
 
 public section
 
@@ -56,5 +57,19 @@ theorem emitNamed_preserves {Name : Type} {limits : ObservationLimits} {db : Pac
   obtain ⟨input, adapted, emitted⟩ := emitAdapted_ok_iff.mp written
   obtain ⟨rows, found, schema, count, observe⟩ := ofNamed_preserves adapted
   exact ⟨rows, input, found, schema, count, observe, emitted⟩
+
+/-- Complete IPC readback recovers the declared fields, ordered nullable rows,
+and the explicit record-batch count of rows, including at width zero. -/
+theorem emitCsvUtf8_readback {limits : ObservationLimits} {fields : List Field} {wire : Csv.Bytes}
+    {ipc : KBytes} (written : emitCsvUtf8 limits fields wire = .ok ipc) :
+    ∃ rows : Scan.Table (schemaOf fields) Cell,
+      Csv.Typed.Utf8.decode (schemaOf fields) utf8Codecs wire = .ok rows ∧
+      readRows limits ipc = .ok ⟨fields, [rows.map (eraseRow fields)]⟩ ∧
+      ∃ stream : Arrow.Stream, readStream limits.ipc ipc = .ok stream ∧
+        stream.fields = fields ∧ stream.batches.map (·.metadata.rowCount) = [rows.length] := by
+  obtain ⟨rows, input, decoded, _, count, observe, emitted⟩ := emitCsvUtf8_preserves written
+  obtain ⟨stream, parsed, schema, frameCounts, read, _⟩ := StreamWriter.emit_roundtrip emitted
+  exact ⟨rows, decoded, by simpa [observe] using read, stream, parsed, schema,
+    by simpa [count] using frameCounts⟩
 
 end Silmaril.Proofs.Formats.Arrow.FromCsv.Stream
