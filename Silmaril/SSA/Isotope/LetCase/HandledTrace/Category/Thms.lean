@@ -40,6 +40,11 @@ theorem seq_mono {p p' : Program Φ A B} {q q' : Program Φ B C}
     Refines M policy (p.seq q) (p'.seq q') :=
   Proofs.seq_mono hp hq
 
+/-- Equal typed runs give the same class under every fixed reply policy. -/
+theorem equiv_of_run_eq {p q : Program Φ A B} (eq : ∀ a, p.run M a = q.run M a) :
+    (setoid M policy A B).r p q :=
+  ⟨fun a _ => eq a ▸ .refl _, fun a _ => (eq a).symm ▸ .refl _⟩
+
 end Program
 
 namespace Arrow

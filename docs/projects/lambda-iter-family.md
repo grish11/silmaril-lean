@@ -900,6 +900,18 @@ copairing as its inverse. The native empty type is initial, with the
 written abort on its input slot as the chosen arrow.
 [Ordered native coproducts](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Coproduct/Thms.lean)
 
+Fixing either product component gives a native functor with monotone hom
+maps. Written projections and pairing preserve the fixed input value.
+Only the active program contributes exchanges, which replay from the
+original handler state. On a return, the trace records the active
+result paired with the retained value.
+[Fixed tensor functors](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Tensor/Thms.lean)
+
+The pure associator is natural separately in each of its three
+arguments, and the two pure unitors give natural isomorphisms. These
+laws concern the individual actions and their pure structural maps.
+[Associator and unit naturality](../../Silmaril/SSA/Isotope/LetCase/HandledTrace/Category/Tensor/Coherence/Thms.lean)
+
 The repeated-capture fixture admits two distinct slots at different sum
 types and initializes both from the same value. The first compatible
 capture assignment gives equal weak trees. The later compatible assignment
