@@ -16,6 +16,12 @@ theorem parseLiterals_sound {limit : Nat} {input rest : List UInt8} {literals : 
     LiteralsWire input literals rest ∧ literals.size ≤ limit :=
   Proofs.Formats.Compression.Zstd.LiteralBlock.parseLiterals_sound h
 
+/-- The bounded plain reader witnesses the exact encoded prefix and both limits. -/
+theorem parseLiteralsBounded_sound {inputLimit outputLimit : Nat} {input : List UInt8} {result : Prefix}
+    (h : parseLiteralsBounded inputLimit outputLimit input = .ok result) :
+    result.Wire input ∧ result.consumed ≤ inputLimit ∧ result.literals.size ≤ outputLimit :=
+  Proofs.Formats.Compression.Zstd.LiteralBlock.parseLiteralsBounded_sound h
+
 /-- The count parser consumes only the count field, in one of its three forms. -/
 theorem readSequenceCount_sound {input rest : List UInt8} {count : Nat}
     (h : readSequenceCount input = .ok (count, rest)) :

@@ -40,6 +40,17 @@ def Literals.expand : Literals → List UInt8
   | .raw bytes => bytes
   | .rle n byte => List.replicate n byte
 
+structure Prefix where
+  literals : Literals
+  consumed : Nat
+  rest : List UInt8
+  deriving DecidableEq, Repr
+
+inductive BoundedError where
+  | inputLimit
+  | literals (reason : Error)
+  deriving DecidableEq, Repr
+
 /-- The three raw/RLE regenerated-size encodings. The short format covers
     both size-format values 00 and 10, whose high bit belongs to the size. -/
 inductive SizeWire : List UInt8 → Nat → Prop where
@@ -60,6 +71,10 @@ inductive LiteralsWire : List UInt8 → Literals → List UInt8 → Prop where
   | rle {first byte : UInt8} {headerTail rest : List UInt8} {count : Nat} :
       first.toNat % 4 = 1 → SizeWire (first :: headerTail) count →
       LiteralsWire (first :: (headerTail ++ byte :: rest)) (.rle count byte) rest
+
+def Prefix.Wire (result : Prefix) (input : List UInt8) : Prop :=
+  LiteralsWire input result.literals result.rest ∧
+    ∃ bytes, input = bytes ++ result.rest ∧ bytes.length = result.consumed
 
 /-- The sequence count's one-, two- and three-byte wire forms. -/
 inductive SequenceCountWire : List UInt8 → Nat → Prop where
@@ -90,6 +105,29 @@ def readSize (first : UInt8) (rest : List UInt8) : Except Error (Nat × List UIn
     | _ => .error .truncated
   else .ok (first.toNat / 8, rest)
 
+def sizeBytes (first : UInt8) : Nat :=
+  let format := first.toNat / 4 % 4
+  if format = 1 then 2 else if format = 3 then 3 else 1
+
+def readPlain (inputLimit : Option Nat) (outputLimit : Nat) :
+    List UInt8 → Except BoundedError Prefix
+  | [] => .error (.literals .truncated)
+  | first :: tail => do
+    let kind := first.toNat % 4
+    if kind = 2 then throw (.literals (.unsupported .huffmanLiterals))
+    if kind = 3 then throw (.literals (.unsupported .treelessLiterals))
+    let (size, body) ← (readSize first tail).mapError .literals
+    if outputLimit < size then throw (.literals .outputLimit)
+    let consumed := sizeBytes first + if kind = 0 then size else 1
+    if inputLimit.any (· < consumed) then throw .inputLimit
+    if kind = 0 then
+      let (bytes, rest) := body.splitAt size
+      if bytes.length = size then .ok ⟨.raw bytes, consumed, rest⟩ else .error (.literals .truncated)
+    else
+      match body with
+      | byte :: rest => .ok ⟨.rle size byte, consumed, rest⟩
+      | [] => .error (.literals .truncated)
+
 /-- Check at most the supplied number of bytes and the following constructor. -/
 def fitsInput : Nat → List UInt8 → Bool
   | _, [] => true
@@ -100,21 +138,13 @@ end Internal
 
 /-- Read raw or RLE literals without expanding a run. Check the regenerated
     size before splitting a raw body. -/
-def parseLiterals (outputLimit : Nat) : List UInt8 → Except Error (Literals × List UInt8)
-  | [] => .error .truncated
-  | first :: tail => do
-    let kind := first.toNat % 4
-    if kind = 2 then throw (.unsupported .huffmanLiterals)
-    if kind = 3 then throw (.unsupported .treelessLiterals)
-    let (size, body) ← Internal.readSize first tail
-    if outputLimit < size then throw .outputLimit
-    if kind = 0 then
-      let (bytes, rest) := body.splitAt size
-      if bytes.length = size then .ok (.raw bytes, rest) else .error .truncated
-    else
-      match body with
-      | byte :: rest => .ok (.rle size byte, rest)
-      | [] => .error .truncated
+def parseLiterals (outputLimit : Nat) (input : List UInt8) : Except Error (Literals × List UInt8) :=
+  ((Internal.readPlain none outputLimit input).map fun result => (result.literals, result.rest)).mapError
+    (fun | .literals reason => reason | .inputLimit => .truncated)
+
+/-- Check the entire raw or RLE section extent before copying its payload. -/
+def parseLiteralsBounded (inputLimit outputLimit : Nat) (input : List UInt8) : Except BoundedError Prefix :=
+  Internal.readPlain (some inputLimit) outputLimit input
 
 /-- Read the sequence count, leaving any modes, tables or bitstream untouched. -/
 def readSequenceCount : List UInt8 → Except Error (Nat × List UInt8)

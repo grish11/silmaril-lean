@@ -14,6 +14,28 @@ theorem readHeader_sound {input body : List UInt8} {header : Header}
     ∃ bytes, input = bytes ++ body ∧ header.Wire bytes :=
   Proofs.Formats.Compression.Zstd.Huffman.LiteralSection.readHeader_sound success
 
+namespace Internal
+
+theorem readFields_sound {first : UInt8} {rest body : List UInt8} {header : Header}
+    (success : readFields first rest = .ok (header, body)) :
+    ∃ bytes, first :: rest = bytes ++ body ∧ header.WireFor (first.toNat % 4) bytes :=
+  Proofs.Formats.Compression.Zstd.Huffman.LiteralSection.readFields_sound success
+
+theorem cutEnvelope_sound {limits : Limits} {header : Header} {body : List UInt8} {envelope : Envelope}
+    (success : cutEnvelope limits header body = .ok envelope) :
+    envelope.header = header ∧ body = envelope.body ++ envelope.rest ∧
+      envelope.body.length = header.compressed ∧ header.extent ≤ limits.inputCap ∧
+      header.regenerated ≤ limits.outputCap :=
+  Proofs.Formats.Compression.Zstd.Huffman.LiteralSection.cutEnvelope_sound success
+
+theorem readStreams_sound {limits : Limits} {header : Header} {declared : Nat} {input : List UInt8}
+    {table : SingleStream.Table} {literals : List UInt8}
+    (success : readStreams limits header declared input table = .ok literals) :
+    StreamsWire header table declared input literals ∧ literals.length = header.regenerated :=
+  Proofs.Formats.Compression.Zstd.Huffman.LiteralSection.readStreams_sound success
+
+end Internal
+
 /-- Success witnesses the exact header, tree and stream partition. The
     regenerated size is exact and both caller caps hold. -/
 theorem read_sound {limits : Limits} {input : List UInt8} {result : Prefix}

@@ -12,14 +12,15 @@ open Silmaril.Formats.Compression.Zstd.LiteralBlock.Internal
 
 private theorem readSize_sound {first : UInt8} {input rest : List UInt8} {size : Nat}
     (h : readSize first input = .ok (size, rest)) :
-    ∃ tail, SizeWire (first :: tail) size ∧ input = tail ++ rest := by
+    ∃ tail, SizeWire (first :: tail) size ∧ input = tail ++ rest ∧
+      tail.length + 1 = sizeBytes first := by
   by_cases medium : first.toNat / 4 % 4 = 1
   · cases input with
     | nil => simp [readSize, medium] at h
     | cons byte rest =>
       simp [readSize, medium] at h
       obtain ⟨rfl, rfl⟩ := h
-      exact ⟨[byte], .medium first byte medium, rfl⟩
+      exact ⟨[byte], .medium first byte medium, rfl, by simp [sizeBytes, medium]⟩
   · by_cases long : first.toNat / 4 % 4 = 3
     · cases input with
       | nil => simp [readSize, long] at h
@@ -29,52 +30,90 @@ private theorem readSize_sound {first : UInt8} {input rest : List UInt8} {size :
         | cons hi rest =>
           simp [readSize, long] at h
           obtain ⟨rfl, rfl⟩ := h
-          exact ⟨[lo, hi], .long first lo hi long, rfl⟩
+          exact ⟨[lo, hi], .long first lo hi long, rfl, by simp [sizeBytes, long]⟩
     · simp [readSize, medium, long] at h
       obtain ⟨rfl, rfl⟩ := h
-      exact ⟨[], .short first (by omega), rfl⟩
+      exact ⟨[], .short first (by omega), rfl, by simp [sizeBytes, medium, long]⟩
+
+private theorem readPlain_sound {inputLimit : Option Nat} {outputLimit : Nat}
+    {input : List UInt8} {result : Prefix}
+    (h : readPlain inputLimit outputLimit input = .ok result) :
+    result.Wire input ∧ result.literals.size ≤ outputLimit ∧
+      ∀ cap, inputLimit = some cap → result.consumed ≤ cap := by
+  cases input with
+  | nil => cases h
+  | cons first tail =>
+    simp only [readPlain] at h
+    split at h
+    · simp [throw, bind, Except.bind] at h
+    rename_i notHuffman
+    split at h
+    · simp [throw, bind, Except.bind] at h
+    rename_i notTreeless
+    cases reading : readSize first tail with
+    | error reason => simp [reading, Except.mapError, bind, Except.bind] at h
+    | ok pair =>
+      obtain ⟨size, body⟩ := pair
+      obtain ⟨sizeTail, wire, shape, headerLen⟩ := readSize_sound reading
+      simp only [reading, Except.mapError, bind, Except.bind] at h
+      split at h
+      · simp [throw] at h
+      rename_i fits
+      by_cases raw : first.toNat % 4 = 0
+      · simp only [raw, ite_true, List.splitAt_eq] at h
+        split at h
+        · simp [throw] at h
+        rename_i inputFits
+        split at h
+        · rename_i taken
+          cases h
+          have bytes : tail = sizeTail ++ body.take size ++ body.drop size := by
+            rw [shape, List.append_assoc, List.take_append_drop]
+          refine ⟨⟨?_, (first :: (sizeTail ++ body.take size)), ?_, ?_⟩,
+            by simpa [Literals.size, taken] using Nat.le_of_not_gt fits, ?_⟩
+          · rw [bytes]
+            exact .raw raw (by rwa [taken])
+          · exact congrArg (first :: ·) bytes
+          · simp only [List.length_cons, List.length_append, taken]
+            change sizeTail.length + size + 1 = sizeBytes first + size
+            omega
+          · intro cap capped
+            simpa [capped] using inputFits
+        · cases h
+      · simp only [raw, ite_false] at h
+        split at h
+        · simp [throw] at h
+        rename_i inputFits
+        cases body with
+        | nil => cases h
+        | cons byte rest =>
+          cases h
+          refine ⟨⟨?_, (first :: (sizeTail ++ [byte])), ?_, ?_⟩, Nat.le_of_not_gt fits, ?_⟩
+          · rw [shape]
+            exact .rle (by omega) wire
+          · change first :: tail = (first :: (sizeTail ++ [byte])) ++ rest
+            rw [shape, List.cons_append, List.append_assoc]
+            rfl
+          · simp [← headerLen]
+          · intro cap capped
+            simpa [capped] using inputFits
 
 theorem parseLiterals_sound {limit : Nat} {input rest : List UInt8} {literals : Literals}
     (h : parseLiterals limit input = .ok (literals, rest)) :
     LiteralsWire input literals rest ∧ literals.size ≤ limit := by
-  cases input with
-  | nil => cases h
-  | cons first tail =>
-    simp only [parseLiterals] at h
-    split at h
-    · simp [throw, bind, Except.bind] at h
-    · rename_i notHuffman
-      split at h
-      · simp [throw, bind, Except.bind] at h
-      · rename_i notTreeless
-        cases length : readSize first tail with
-        | error error => simp [length, bind, Except.bind] at h
-        | ok pair =>
-          obtain ⟨size, body⟩ := pair
-          obtain ⟨sizeTail, wire, shape⟩ := readSize_sound length
-          simp only [length, bind, Except.bind] at h
-          split at h
-          · simp [throw] at h
-          · rename_i fits
-            split at h
-            · rename_i raw
-              simp only [List.splitAt_eq] at h
-              split at h
-              · rename_i taken
-                cases h
-                refine ⟨?_, by simpa [Literals.size, taken] using Nat.le_of_not_gt fits⟩
-                have bytes : tail = sizeTail ++ body.take size ++ body.drop size := by
-                  rw [shape, List.append_assoc, List.take_append_drop]
-                rw [bytes]
-                exact .raw raw (by rwa [taken])
-              · cases h
-            · rename_i rle
-              cases body with
-              | nil => cases h
-              | cons byte rest =>
-                cases h
-                rw [shape]
-                exact ⟨.rle (by omega) wire, Nat.le_of_not_gt fits⟩
+  cases parsed : readPlain none limit input with
+  | error reason => cases reason <;> simp [parseLiterals, parsed, Except.map, Except.mapError] at h
+  | ok result =>
+    simp only [parseLiterals, parsed, Except.map, Except.mapError] at h
+    cases h
+    obtain ⟨wire, bound, _⟩ := readPlain_sound parsed
+    exact ⟨wire.1, bound⟩
+
+theorem parseLiteralsBounded_sound {inputLimit outputLimit : Nat} {input : List UInt8} {result : Prefix}
+    (h : parseLiteralsBounded inputLimit outputLimit input = .ok result) :
+    result.Wire input ∧ result.consumed ≤ inputLimit ∧ result.literals.size ≤ outputLimit := by
+  obtain ⟨wire, output, inputFits⟩ := readPlain_sound h
+  exact ⟨wire, inputFits _ rfl, output⟩
 
 theorem readSequenceCount_sound {input rest : List UInt8} {count : Nat}
     (h : readSequenceCount input = .ok (count, rest)) :
