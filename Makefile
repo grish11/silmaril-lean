@@ -103,10 +103,8 @@ check:
 # build/bin for release-check; .lake/compiler-explorer). `check-prebuild` has already built
 # every target their `lake build` lines name, so the overlapping groups only read the build.
 # logic-graph-check edits a records file and rebuilds its loader, so it runs alone after them.
-# The default, 2, is the overlap `make check` had before: fork runners have four cores and the
-# prove workers admit sessions by measured memory. The slots take CHECK_GROUPS in order, so it
-# lists the groups by their measured duration, longest first.
-CHECK_JOBS ?= 2
+# This hosted diagnostic uses three slots. The order starts the longest groups first.
+CHECK_JOBS ?= 3
 CHECK_INTEGRATION_GROUPS := check-integrations-ssa check-integrations-operational \
 	check-integrations-python check-integrations-python-functions check-integrations-tools
 CHECK_GROUPS := check-runtime check-integrations-python check-integrations-python-functions \
