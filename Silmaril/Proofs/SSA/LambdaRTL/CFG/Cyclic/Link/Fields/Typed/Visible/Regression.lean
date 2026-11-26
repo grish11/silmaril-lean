@@ -1,6 +1,6 @@
 module
 
-import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Conservativity.Thms
+import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Reindex.Thms
 import Mathlib.Tactic.FinCases
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Defs
 meta import Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Typed.Visible.Packed.Institution.Defs
@@ -364,6 +364,77 @@ example : ¬ Silmaril.Logic.ITree.TraceInstitution.institution.{0, 1, 0}.Sat uni
     (packedGated 0) (packedGated 1) ambient ambient ambient ambient (fun _ => rfl) (fun _ => rfl)).mpr sat
   have rejected : (gatedExit 0).refinementWithHandler? (fun h _ _ => some h) startOpen (gatedExit 1) 0 unitPacket = false := by cbv
   simp [rejected] at accepted
+
+section EventRename
+
+open CategoryTheory
+open Silmaril.Elgot.ITree (Request TraceSignature hasTrace_bind_pure_map_iff)
+open Silmaril.Logic.ITree
+
+-- The target has a fresh request and wraps each original typed reply.
+private inductive Imported : Type → Type
+  | wrapped (key : sig.Request) : Imported (ULift.{0} (sig.Reply key))
+  | extra : Imported PUnit
+
+private def imported : TraceSignature := ⟨⟨Imported⟩⟩
+
+private def requestMap : Request sig.traceSignature.toSignature.Event → Request imported.toSignature.Event
+  | ⟨_, .ask key⟩ => ⟨_, Imported.wrapped key⟩
+
+private def recoverKey : Request imported.toSignature.Event → Option sig.Request
+  | ⟨_, .wrapped key⟩ => some key
+  | ⟨_, .extra⟩ => none
+
+private def renameEvents : sig.traceSignature ⟶ imported where
+  hom :=
+    { request := requestMap
+      reply := fun
+        | ⟨_, .ask _⟩, reply => reply.down }
+  request_injective := by
+    rintro ⟨_, left⟩ ⟨_, right⟩ equal
+    cases left
+    cases right
+    have keys := Option.some.inj (congrArg recoverKey equal)
+    cases keys
+    rfl
+  reply_bijective := by
+    rintro ⟨_, event⟩
+    cases event
+    exact Equiv.ulift.bijective
+
+example (policy : Silmaril.Logic.ITree.Model.{0, 0} imported.toSignature) :
+    TraceInstitution.Sat policy
+      (packedLeft.refinementSentenceReindexed packedRight renameEvents .leftToRight ambient ambient env env) ↔
+    TraceInstitution.Sat (policy.reduct renameEvents.hom)
+      (packedLeft.refinementSentence packedRight .leftToRight ambient ambient env env) :=
+  packedLeft.sat_reindexed_iff packedRight renameEvents policy .leftToRight ambient ambient env env
+
+private def taggedTrace := trace.map FiniteCFG.packedTreeOutput
+private noncomputable def importedTrace := renameEvents.trace taggedTrace
+
+example :
+    HasTrace (packedLeft.observeReindexed renameEvents ambient env) importedTrace ∧
+      ¬ HasTrace (packedRight.observeReindexed renameEvents ambient env) importedTrace := by
+  have namedL := packedLeft.observe_eq packet ambient env (fun _ => rfl)
+  have namedR := packedRight.observe_eq packet ambient env (fun _ => rfl)
+  have reflectTag := hasTrace_bind_pure_map_iff (f := FiniteCFG.packedTreeOutput)
+    Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Program.packedTreeOutput_injective
+    (left.observe 0 packet) trace
+  rw [packedLeft.observe_reindexed, packedRight.observe_reindexed]
+  constructor
+  · exact (renameEvents.hasTrace_image _ _).mpr
+      ⟨taggedTrace, namedL.symm ▸ reflectTag.mpr leftTrace, rfl⟩
+  · intro seen
+    obtain ⟨pre, witnessed, same⟩ := (renameEvents.hasTrace_image _ _).mp seen
+    have tag := renameEvents.trace_injective same
+    subst pre
+    rw [namedR] at witnessed
+    apply missingRightTrace
+    exact (hasTrace_bind_pure_map_iff
+      Silmaril.SSA.LambdaRTL.CFG.Cyclic.Link.Fields.Boolean.Visible.Program.packedTreeOutput_injective
+      (right.observe 0 packet) trace).mp witnessed
+
+end EventRename
 
 end Packed
 

@@ -70,4 +70,14 @@ theorem sat_renameState (M : Model.{u,w} S.toSignature) {Y : Type w} (e : M.Stat
       (h (e x) (by simpa only [Model.renameState, Equiv.symm_apply_apply] using hx))
   · exact fun h x hx => (transfer x).mpr (h (e.symm x) hx)
 
+theorem valid_hasTrace_iff {A : Type v} (source target : Tree S.toSignature.Event A) :
+    (∀ M : Model.{u, 0} S.toSignature, Sat M ⟨A, source, HasTrace target⟩) ↔ TraceLE source target := by
+  let all : Model.{u, 0} S.toSignature := ⟨Unit, fun _ => True, fun _ _ _ _ => True⟩
+  have replay (trace : Trace S.toSignature.Event A) : Replay all.step () trace := by
+    induction trace with
+    | «prefix» | request | result => trivial
+    | exchange _ _ _ ih => exact ⟨(), trivial, ih⟩
+  exact ⟨fun valid trace seen => valid all () trivial trace ⟨seen, replay trace⟩,
+    fun included _ _ _ trace seen => included trace seen.1⟩
+
 end Silmaril.Logic.ITree.TraceInstitution.Proofs

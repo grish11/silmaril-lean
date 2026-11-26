@@ -162,4 +162,35 @@ theorem handledTrace_image (f : S ⟶ T) (step : Handler X T.toSignature.Event)
       ∃ source, HandledTrace (f.hom.restrict step) x t source ∧ f.trace source = p :=
   ⟨handled_reflect f step x t p, fun ⟨source, hs, h⟩ => h ▸ handled_forward f step x t source hs⟩
 
+private theorem replay_all (p : Trace T.toSignature.Event A) :
+    Replay (fun _ (_ : Unit) _ (_ : Unit) => True) () p := by
+  induction p with
+  | «prefix» | request | result => trivial
+  | exchange _ _ _ ih => exact ⟨(), trivial, ih⟩
+
+private theorem replay_reduct_all (f : S ⟶ T) (p : Trace S.toSignature.Event A) :
+    Replay (f.hom.restrict (fun _ (_ : Unit) _ (_ : Unit) => True)) () p := by
+  induction p with
+  | «prefix» | request | result => trivial
+  | exchange event reply _ ih =>
+    exact ⟨(), ⟨(f.replyEquiv ⟨_, event⟩).symm reply, reply_forward_backward f _ _, trivial⟩, ih⟩
+
+theorem hasTrace_image (f : S ⟶ T) (t : Tree S.toSignature.Event A) (p : Trace T.toSignature.Event A) :
+    HasTrace (f.hom.tree id t) p ↔ ∃ pre, HasTrace t pre ∧ f.trace pre = p := by
+  have image := handledTrace_image f (fun _ (_ : Unit) _ (_ : Unit) => True) () t p
+  exact ⟨fun seen => let ⟨pre, original, same⟩ := image.mp ⟨seen, replay_all p⟩
+      ⟨pre, original.1, same⟩,
+    fun ⟨pre, seen, same⟩ => (image.mpr ⟨pre, ⟨seen, replay_reduct_all f pre⟩, same⟩).1⟩
+
+theorem traceLE_iff (f : S ⟶ T) {l r : Tree S.toSignature.Event A} :
+    TraceLE (f.hom.tree id l) (f.hom.tree id r) ↔ TraceLE l r := by
+  constructor
+  · intro included p seen
+    obtain ⟨pre, found, same⟩ := (hasTrace_image f r (f.trace p)).mp
+      (included _ ((hasTrace_image f l _).mpr ⟨p, seen, rfl⟩))
+    exact trace_injective f same ▸ found
+  · intro included p seen
+    obtain ⟨pre, found, same⟩ := (hasTrace_image f l p).mp seen
+    exact (hasTrace_image f r p).mpr ⟨pre, included pre found, same⟩
+
 end Silmaril.Elgot.ITree.TraceSignature.Proofs

@@ -38,6 +38,19 @@ theorem sat_renameState (M : Model.{u,w} S.toSignature) {Y : Type w} (e : M.Stat
     (φ : Sentence.{u,v} S) : Sat (M.renameState e) φ ↔ Sat M φ :=
   Proofs.sat_renameState M e φ
 
+/-- A refinement sentence is valid under every shared handler precisely
+when the unrestricted trace inclusion holds. -/
+theorem valid_hasTrace_iff {A : Type v} (source target : Tree S.toSignature.Event A) :
+    (∀ M : Model.{u, 0} S.toSignature, Sat M ⟨A, source, HasTrace target⟩) ↔ TraceLE source target :=
+  Proofs.valid_hasTrace_iff source target
+
+/-- Translating a trace-refinement sentence is the sentence comparing the
+two translated trees, with their original ordered results. -/
+theorem translate_hasTrace (f : S ⟶ T) {A : Type v} (l r : Tree S.toSignature.Event A) :
+    (⟨A, l, HasTrace r⟩ : Sentence S).translate f =
+      ⟨A, f.hom.tree id l, HasTrace (f.hom.tree id r)⟩ :=
+  congrArg (Sentence.mk A (f.hom.tree id l)) (funext fun p => propext (f.hasTrace_image r p).symm)
+
 /-- Trace sentences translate covariantly. -/
 noncomputable def sentences : TraceSignature.{u} ⥤ Type (max (u + 1) (v + 1)) where
   obj := Sentence.{u,v}

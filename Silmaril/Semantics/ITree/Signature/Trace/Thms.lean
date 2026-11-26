@@ -40,4 +40,14 @@ theorem Hom.handledTrace_image (f : S ⟶ T) (step : Handler X T.toSignature.Eve
       ∃ source, HandledTrace (f.hom.restrict step) x t source ∧ f.trace source = p :=
   Proofs.handledTrace_image f step x t p
 
+/-- Even when the target has additional keys, its observations of the
+translated tree are exactly the image of the original observations. -/
+theorem Hom.hasTrace_image (f : S ⟶ T) (t : Tree S.toSignature.Event A) (p : Trace T.toSignature.Event A) :
+    HasTrace (f.hom.tree id t) p ↔ ∃ pre, HasTrace t pre ∧ f.trace pre = p :=
+  Proofs.hasTrace_image f t p
+
+theorem Hom.traceLE_iff (f : S ⟶ T) {l r : Tree S.toSignature.Event A} :
+    TraceLE (f.hom.tree id l) (f.hom.tree id r) ↔ TraceLE l r :=
+  Proofs.traceLE_iff f
+
 end Silmaril.Elgot.ITree.TraceSignature
