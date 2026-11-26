@@ -109,3 +109,57 @@ The pinned PyArrow reader opens the complete Lean-written files and checks
 schema, nullable cells and batch counts. It exercises mixed and empty
 batches, a schema-only file, and a positive-row zero-column batch.
 [Independent reader](../../tests/formats/arrow-ipc/read_writer_fixtures.py)
+
+## Opt-in files with a footer-only Schema
+
+`FileReader.FooterOnly.readIndex` provides an explicit compatibility
+entry point for little-endian V5 Int32/UTF-8 files emitted without the
+embedded Schema Message. It takes field declarations exclusively from
+the checked footer. The pinned file specification calls for an embedded
+Schema identical to the footer's copy. The strict entry point
+`FileReader.readIndex` enforces that contract. Callers select the
+footer-only entry point explicitly.
+[File specification](https://github.com/apache/arrow/blob/9e5d6978e9acf372cc989aaaf94e863fe8582c90/docs/source/format/Columnar.rst#ipc-file-format) ·
+[Definitions](../../Silmaril/Formats/Arrow/FileReader/FooterOnly/Defs.lean)
+
+The six magic bytes and two zero padding bytes end at byte 8. All blocks
+are aligned and contiguous in footer order from byte 8. The eight-byte
+modern EOS starts at the end of the last block and ends at the start of
+the footer. The layout admits zero inter-frame gap bytes. Schema-only
+files have EOS at byte 8 and the footer at byte 16. For a nonempty index,
+admission checks that the leading Message is a RecordBatch with the
+indexed metadata and body extents. Selected reads check each requested
+block against its original Message before taking its body, and apply
+the existing row and cell budgets. An absent index returns `.ok none`.
+A malformed later block can fail on selection while its neighbors remain
+readable.
+
+`readIndex_exact` relates the retained declarations and ordered blocks
+to the exact bounded footer. `readIndex_firstRecord` and
+`readIndex_schema_only` characterize the two admitted file starts.
+`Index.block_order` proves physical order and non-overlap.
+`Index.readBatchAt_exact` identifies the selected original metadata and
+body byte ranges. `Index.readRowsAt_exact` connects the selected batch
+to its checked row observation.
+[Laws](../../Silmaril/Formats/Arrow/FileReader/FooterOnly/Thms.lean)
+
+The locked Apache Arrow JS `21.2.0` package produces a two-batch file and
+a schema-only file. The public npm archive SHA-256 is
+`dd63a3a4c380eddeb00c718740414ff33c4ded015c8720798afdfcc61b5dac41`.
+The producer ran with Node `26.13.1` and npm `11.20.0`.
+Pinned PyArrow 26.0.1 reads the batches by index and compares the exact
+ordered rows, field names and nullability. The Lean fixture module
+contains the original bytes. Lean guards cover both files, independent
+selected order, out-of-range indices, proper-prefix truncation, gaps,
+malformed footer entries, incorrect EOS, and valid or malformed leading
+Schema Messages.
+[Producer and locked dependencies](../../scripts/arrow-footer-only-file) ·
+[SHA-256 and independent oracle](../../scripts/arrow-footer-only-file/check.py) ·
+[Lean fixture guards](../../Silmaril/Formats/Arrow/FileReader/FooterOnly/Examples.lean) ·
+[PyArrow wheel pin](../../tests/formats/arrow-ipc/requirements.txt)
+
+```sh
+make check CHECK_TARGETS='+Silmaril.Formats.Arrow.FileReader.FooterOnly.Examples +Silmaril.Formats.Arrow.FileReader.FooterOnly.Axioms arrow_ipc_metadata_tests'
+(cd scripts/arrow-footer-only-file && npm ci --ignore-scripts --no-audit --no-fund && node generate.cjs /tmp/arrow-footer-only-files)
+python3 -I scripts/arrow-footer-only-file/check.py /tmp/arrow-footer-only-files
+```
